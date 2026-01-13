@@ -47,6 +47,7 @@ import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.storage.ObjectMetadataStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -106,7 +107,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           IllegalArgumentException("Missing required header: $DATA_WATHCER_PATH_HEADER")
         }
 
-      val storageClient: StorageClient = createStorageClient(dataAvailabilitySyncConfig)
+      val storageClient: ObjectMetadataStorageClient =
+        createStorageClient(dataAvailabilitySyncConfig)
 
       val grpcChannels = getOrCreateSharedChannels(dataAvailabilitySyncConfig)
 
@@ -151,32 +153,33 @@ class DataAvailabilitySyncFunction() : HttpFunction {
   }
 
   /**
-   * Creates a [StorageClient] based on the current environment and the provided data provider
-   * configuration.
+   * Creates an [ObjectMetadataStorageClient] based on the current environment and the provided data
+   * provider configuration.
    *
    * @param dataProviderConfig The configuration object for a `DataProvider`.
-   * @return A [StorageClient] instance, either for local file system access or GCS access.
+   * @return An [ObjectMetadataStorageClient] instance for GCS access.
+   * @throws IllegalStateException if [DATA_AVAILABILITY_FILE_SYSTEM_PATH] is set, as
+   *   [FileSystemStorageClient] does not support [ObjectMetadataStorageClient].
    */
   // @TODO(@marcopremier): This function should be reused across Cloud Functions.
   private fun createStorageClient(
     dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
-  ): StorageClient {
-    return if (!fileSystemPath.isNullOrEmpty()) {
-      FileSystemStorageClient(File(EnvVars.checkIsPath("DATA_AVAILABILITY_FILE_SYSTEM_PATH")))
-    } else {
-      val gcsConfig = dataAvailabilitySyncConfig.dataAvailabilityStorage.gcs
-      GcsStorageClient(
-        StorageOptions.newBuilder()
-          .also {
-            if (gcsConfig.projectId.isNotEmpty()) {
-              it.setProjectId(gcsConfig.projectId)
-            }
-          }
-          .build()
-          .service,
-        gcsConfig.bucketName,
-      )
+  ): ObjectMetadataStorageClient {
+    check(fileSystemPath.isNullOrEmpty()) {
+      "FileSystemStorageClient does not support ObjectMetadataStorageClient"
     }
+    val gcsConfig = dataAvailabilitySyncConfig.dataAvailabilityStorage.gcs
+    return GcsStorageClient(
+      StorageOptions.newBuilder()
+        .also {
+          if (gcsConfig.projectId.isNotEmpty()) {
+            it.setProjectId(gcsConfig.projectId)
+          }
+        }
+        .build()
+        .service,
+      gcsConfig.bucketName,
+    )
   }
 
   companion object {

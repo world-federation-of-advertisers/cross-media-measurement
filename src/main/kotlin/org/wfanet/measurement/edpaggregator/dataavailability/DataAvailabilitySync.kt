@@ -44,7 +44,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadat
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
+import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataResponse
 import org.wfanet.measurement.storage.BlobUri
+import org.wfanet.measurement.storage.ObjectMetadataStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
@@ -84,7 +87,7 @@ import org.wfanet.measurement.storage.StorageClient
  */
 class DataAvailabilitySync(
   private val edpImpressionPath: String,
-  private val storageClient: StorageClient,
+  private val storageClient: ObjectMetadataStorageClient,
   private val dataProvidersStub: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   private val impressionMetadataServiceStub:
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub,
@@ -246,8 +249,31 @@ class DataAvailabilitySync(
               }
             }
           }
-        throttler.onReady {
-          impressionMetadataServiceStub.batchCreateImpressionMetadata(batchRequest)
+        val response: BatchCreateImpressionMetadataResponse =
+          throttler.onReady {
+            impressionMetadataServiceStub.batchCreateImpressionMetadata(batchRequest)
+          }
+
+        // Set GCS object metadata for lifecycle management and cleanup
+        for (createdMetadata in response.impressionMetadataList) {
+          val metadataBlobUri = SelectedStorageClient.parseBlobUri(createdMetadata.blobUri)
+          val customTime = createdMetadata.interval.startTime.toInstant()
+
+          // Update metadata blob with Custom-Time and resource ID
+          storageClient.updateObjectMetadata(
+            blobKey = metadataBlobUri.key,
+            customTime = customTime,
+            metadata = mapOf(IMPRESSION_METADATA_RESOURCE_ID_KEY to createdMetadata.name),
+          )
+
+          // Also update the impressions blob with Custom-Time (no resource ID needed)
+          val impressionsBlobKey = metadataBlobUri.key.replace("metadata.binpb", "impressions")
+          if (impressionsBlobKey != metadataBlobUri.key) {
+            storageClient.updateObjectMetadata(
+              blobKey = impressionsBlobKey,
+              customTime = customTime,
+            )
+          }
         }
       }
     } catch (e: StatusException) {
@@ -389,5 +415,11 @@ class DataAvailabilitySync(
     private const val JSON_FILE_SUFFIX = ".json"
     private const val BLOB_TYPE_URL =
       "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
+
+    /**
+     * GCS custom metadata key for storing ImpressionMetadata resource name. Will appear as
+     * x-goog-meta-impression-metadata-resource-id in GCS.
+     */
+    const val IMPRESSION_METADATA_RESOURCE_ID_KEY = "impression-metadata-resource-id"
   }
 }

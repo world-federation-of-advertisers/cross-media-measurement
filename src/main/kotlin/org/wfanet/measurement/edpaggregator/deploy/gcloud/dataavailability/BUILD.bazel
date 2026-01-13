@@ -36,3 +36,28 @@ java_binary(
     main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncFunction",
     runtime_deps = [":data_availability_sync_function"],
 )
+
+kt_jvm_library(
+    name = "data_availability_cleanup_function",
+    srcs = ["DataAvailabilityCleanupFunction.kt"],
+    deps = [
+        ":data_availability_sync_function",
+        "//imports/java/io/opentelemetry/api:context",
+        "//imports/java/io/opentelemetry/extension:kotlin",
+        "//imports/java/io/opentelemetry/instrumentation/grpc",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:data_availability_sync_configs_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+java_binary(
+    name = "DataAvailabilityCleanupFunction",
+    main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilityCleanupFunction",
+    runtime_deps = [":data_availability_cleanup_function"],
+)
