@@ -130,10 +130,6 @@ class ImpressionQualificationFilterMapping(
     impressionQualificationFilterSpec:
       ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec
   ): Boolean {
-    if (impressionQualificationFilterSpec.filtersList.isEmpty()) {
-      return false
-    }
-
     if (
       impressionQualificationFilterSpec.mediaType ==
         ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
