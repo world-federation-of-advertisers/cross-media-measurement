@@ -14,7 +14,8 @@
 
 package org.wfanet.measurement.eventdataprovider.eventfiltration.validation
 
-class EventFilterValidationException(val code: Code, message: String) : Exception(message) {
+class EventFilterValidationException(val code: Code, message: String, cause: Throwable? = null) :
+  Exception(message, cause) {
 
   enum class Code(val description: String) {
     INVALID_CEL_EXPRESSION(
