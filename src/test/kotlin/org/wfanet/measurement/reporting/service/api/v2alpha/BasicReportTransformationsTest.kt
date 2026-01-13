@@ -2856,11 +2856,7 @@ class BasicReportTransformationsTest {
 
     val impressionQualificationFilterSpecList: List<List<ImpressionQualificationFilterSpec>> =
       buildList {
-        add(
-          listOf(
-            impressionQualificationFilterSpec { mediaType = MediaType.OTHER },
-          )
-        )
+        add(listOf(impressionQualificationFilterSpec { mediaType = MediaType.OTHER }))
       }
 
     val reportingSetMetricCalculationSpecDetailsMap =
@@ -2880,7 +2876,7 @@ class BasicReportTransformationsTest {
           filter = "person.age_group == 1 && person.gender == 1"
           metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
           metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
-        },
+        }
       )
   }
 
@@ -2945,8 +2941,7 @@ class BasicReportTransformationsTest {
           metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
         },
         MetricCalculationSpecKt.details {
-          filter =
-            "(video_ad != null) && (person.age_group == 1 && person.gender == 1)"
+          filter = "(video_ad != null) && (person.age_group == 1 && person.gender == 1)"
           metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
         },
       )
