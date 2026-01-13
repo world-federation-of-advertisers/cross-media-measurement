@@ -8,6 +8,12 @@ impression_qualification_filters {
   filter_specs {
     media_type: DISPLAY
   }
+  filter_specs {
+    media_type: VIDEO
+  }
+  filter_specs {
+    media_type: OTHER
+  }
 }
 
 # MRC

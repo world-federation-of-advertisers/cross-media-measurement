@@ -391,6 +391,8 @@ class ImpressionQualificationFiltersServiceTest {
       name = "impressionQualificationFilters/ami"
       displayName = "ami"
       filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
+      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.VIDEO }
+      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.OTHER }
     }
 
     private val PUBLIC_MRC_IQF = impressionQualificationFilter {

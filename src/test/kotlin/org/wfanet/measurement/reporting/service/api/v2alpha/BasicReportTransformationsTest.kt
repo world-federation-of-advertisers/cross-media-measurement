@@ -2860,7 +2860,8 @@ class BasicReportTransformationsTest {
           listOf(
             impressionQualificationFilterSpec { mediaType = MediaType.VIDEO },
             impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY },
-          )
+            impressionQualificationFilterSpec { mediaType = MediaType.OTHER },
+            )
         )
       }
 
