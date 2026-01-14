@@ -90,6 +90,7 @@ message EventGroup {
   repeated MediaType media_types = 5 [(google.api.field_behavior) = REQUIRED];
 
   // Reference ID for the client account in the DataProvider's ecosystem.
+  // Must not exceed 36 characters.
   //
   // Required if `measurement_consumer` is not specified.
   string client_account_reference_id = 6;

@@ -16,7 +16,9 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import com.google.cloud.spanner.TimestampBound
 import io.grpc.Status
+import java.time.DateTimeException
 import java.time.Duration
+import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -242,7 +244,7 @@ class SpannerEventGroupsService(
   override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup {
     grpcRequire(request.externalEventGroupId != 0L) { "external_event_group_id not specified" }
     val externalEventGroupId = ExternalId(request.externalEventGroupId)
-    val reader = EventGroupReader()
+    val reader = EventGroupReader(request.view)
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
     return when (request.externalParentIdCase) {
@@ -304,7 +306,52 @@ class SpannerEventGroupsService(
       } else {
         TimestampBound.strong()
       }
-    return StreamEventGroups(request.filter, request.orderBy, request.limit)
+
+    if (request.filter.hasActivityContains()) {
+      val interval = request.filter.activityContains
+      if (!interval.hasStartDate()) {
+        throw RequiredFieldNotSetException("filter.activity_contains.start_date")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
+      if (!interval.hasEndDate()) {
+        throw RequiredFieldNotSetException("filter.activity_contains.end_date")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
+      val startDate: LocalDate =
+        try {
+          val date = interval.startDate
+          if (date.year <= 0) {
+            throw DateTimeException("Year must be positive")
+          }
+          LocalDate.of(date.year, date.month, date.day)
+        } catch (_: DateTimeException) {
+          throw InvalidFieldValueException("filter.activity_contains.start_date")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
+      val endDate: LocalDate =
+        try {
+          val date = interval.endDate
+          if (date.year <= 0) {
+            throw DateTimeException("Year must be positive")
+          }
+          LocalDate.of(date.year, date.month, date.day)
+        } catch (_: DateTimeException) {
+          throw InvalidFieldValueException("filter.activity_contains.end_date")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
+      if (startDate > endDate) {
+        throw InvalidFieldValueException("filter.activity_contains") {
+            "start_date must be before or equal to end_date"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+
+    return StreamEventGroups(request.filter, request.orderBy, request.limit, request.view)
       .execute(client.singleUse(timestampBound))
       .map { it.eventGroup }
   }
