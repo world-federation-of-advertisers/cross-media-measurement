@@ -38,6 +38,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.NoiseParams.NoiseType
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusteeFulfillRequisitionRequestBuilder
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
@@ -184,6 +185,14 @@ class ResultsFulfillerApp(
       "impressionMaxFrequencyPerUser must be between -1 and ${Byte.MAX_VALUE}, got ${fulfillerParams.impressionMaxFrequencyPerUser}"
     }
 
+    val trusTeeEncryptionParams =
+      TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+        kmsClient = kmsClient,
+        kmsKekUri = fulfillerParams.trusteeParams.kmsKekUri,
+        workloadIdentityProvider = fulfillerParams.trusteeParams.workloadIdentityProvider,
+        impersonatedServiceAccount = fulfillerParams.trusteeParams.impersonatedServiceAccount,
+      )
+
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
@@ -199,6 +208,7 @@ class ResultsFulfillerApp(
           } else {
             fulfillerParams.impressionMaxFrequencyPerUser.takeIf { it > 0 }
           },
+        trusTeeEncryptionParams = trusTeeEncryptionParams,
       )
 
     ResultsFulfiller(
