@@ -237,6 +237,35 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       )
     }
 
+  @Test
+  fun `create a TrusTee reach-only measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Use frontend simulator to create a TrusTee reach measurement and verify its result.
+      // Note: Kingdom will select HMSS protocol since both HMSS and TrusTee are enabled
+      mcSimulator.testReachOnly(
+        "1234",
+        DataProviderKt.capabilities {
+          honestMajorityShareShuffleSupported = true
+          trusTeeSupported = true
+        },
+      )
+    }
+
+  @Test
+  fun `create a TrusTee RF measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Use frontend simulator to create a TrusTee reach and frequency measurement and verify its
+      // result.
+      // Note: Kingdom will select HMSS protocol since both HMSS and TrusTee are enabled
+      mcSimulator.testReachAndFrequency(
+        "1234",
+        DataProviderKt.capabilities {
+          honestMajorityShareShuffleSupported = true
+          trusTeeSupported = true
+        },
+      )
+    }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val modelLineName =

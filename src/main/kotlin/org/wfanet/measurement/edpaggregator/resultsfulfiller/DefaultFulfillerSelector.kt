@@ -31,19 +31,22 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.d
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffleMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.MeasurementFulfiller
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.TrusTeeMeasurementFulfiller
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusteeFulfillRequisitionRequestBuilder
 
 /**
  * Default implementation that routes requisitions to protocol-specific fulfillers.
  *
  * @param requisitionsStub gRPC stub for Direct protocol requisitions
- * @param requisitionFulfillmentStubMap duchy name → gRPC stub mapping for HM Shuffle
+ * @param requisitionFulfillmentStubMap duchy name → gRPC stub mapping for HM Shuffle and TrusTee
  * @param dataProviderCertificateKey EDP certificate identifier for result signing
  * @param dataProviderSigningKeyHandle cryptographic key for result authentication
  * @param noiserSelector strategy for selecting differential privacy mechanisms
  * @param kAnonymityParams optional k-anonymity thresholds; null disables k-anonymity
  * @param overrideImpressionMaxFrequencyPerUser optional frequency cap override; null or -1 means no
  *   capping and uses totalUncappedImpressions instead
+ * @param trusTeeEncryptionParams encryption parameters for TrusTee protocol envelope encryption
  */
 class DefaultFulfillerSelector(
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
@@ -54,6 +57,7 @@ class DefaultFulfillerSelector(
   private val noiserSelector: NoiserSelector,
   private val kAnonymityParams: KAnonymityParams?,
   private val overrideImpressionMaxFrequencyPerUser: Int?,
+  private val trusTeeEncryptionParams: TrusteeFulfillRequisitionRequestBuilder.EncryptionParams,
 ) : FulfillerSelector {
 
   /**
@@ -124,6 +128,30 @@ class DefaultFulfillerSelector(
           requisitionsStub,
           kAnonymityParams,
           maxPopulation = null,
+        )
+      }
+    } else if (requisition.protocolConfig.protocolsList.any { it.hasTrusTee() }) {
+      if (kAnonymityParams == null) {
+        TrusTeeMeasurementFulfiller(
+          requisition,
+          requisitionSpec.nonce,
+          vec.build(),
+          requisitionFulfillmentStubMap,
+          requisitionsStub,
+          trusTeeEncryptionParams,
+        )
+      } else {
+        TrusTeeMeasurementFulfiller.buildKAnonymized(
+          requisition,
+          requisitionSpec.nonce,
+          measurementSpec,
+          populationSpec,
+          vec,
+          requisitionFulfillmentStubMap,
+          requisitionsStub,
+          kAnonymityParams,
+          maxPopulation = null,
+          trusTeeEncryptionParams,
         )
       }
     } else {

@@ -168,6 +168,7 @@ class InProcessKingdom(
               MEASUREMENT_NOISE_MECHANISMS,
               reachOnlyLlV2Enabled = true,
               hmssEnabled = true,
+              trusTeeEnabled = false,
             )
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),

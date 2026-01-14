@@ -50,6 +50,7 @@ import kotlinx.coroutines.withContext
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -251,7 +252,11 @@ class InProcessEdpAggregatorComponents(
       dataProvidersStub.replaceDataProviderCapabilities(
         replaceDataProviderCapabilitiesRequest {
           name = edpResourceName
-          capabilities = DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true }
+          capabilities =
+            DataProviderKt.capabilities {
+              honestMajorityShareShuffleSupported = true
+              trusTeeSupported = true
+            }
         }
       )
     }
@@ -519,6 +524,24 @@ class InProcessEdpAggregatorComponents(
           "file:///",
         )
       impressionWriter.writeLabeledImpressionData(events, "some-model-line", null)
+    }
+  }
+
+  /**
+   * Updates all EDP capabilities.
+   *
+   * Call this before running tests that require specific protocol capabilities.
+   */
+  suspend fun updateEdpCapabilities(capabilities: DataProvider.Capabilities) {
+    edpResourceNameMap.forEach { (_, edpResourceName) ->
+      val dataProvidersStub: DataProvidersCoroutineStub =
+        DataProvidersCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
+      dataProvidersStub.replaceDataProviderCapabilities(
+        replaceDataProviderCapabilitiesRequest {
+          name = edpResourceName
+          this.capabilities = capabilities
+        }
+      )
     }
   }
 
