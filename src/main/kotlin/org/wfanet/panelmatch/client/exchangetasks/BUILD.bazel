@@ -13,6 +13,7 @@ kt_jvm_library(
     name = "exchangetasks",
     srcs = glob(["*.kt"]),
     deps = [
+        "//imports/java/com/google/cloud/bigquery",
         "//src/main/kotlin/org/wfanet/panelmatch/client/authorizedview",
         "//src/main/kotlin/org/wfanet/panelmatch/client/common",
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
