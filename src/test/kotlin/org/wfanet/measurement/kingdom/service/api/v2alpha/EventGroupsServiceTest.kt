@@ -1477,6 +1477,60 @@ class EventGroupsServiceTest {
   }
 
   @Test
+  fun `listEventGroups requests EventGroups by MeasurementConsumer with dataAvailabilityIntersects filter`() {
+    val searchInterval = interval {
+      startTime =
+        LocalDate.of(2024, 6, 1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+      endTime = LocalDate.of(2024, 7, 1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+    }
+
+    val request = listEventGroupsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      pageSize = 100
+      filter = filter { dataAvailabilityIntersects = searchInterval }
+      orderBy =
+        ListEventGroupsRequestKt.orderBy {
+          field = ListEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME
+          descending = true
+        }
+    }
+
+    val response: ListEventGroupsResponse =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listEventGroups(request) }
+      }
+
+    assertThat(response)
+      .isEqualTo(
+        listEventGroupsResponse {
+          eventGroups += EVENT_GROUP
+          eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_2 }
+          eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_3 }
+        }
+      )
+    val internalRequest: StreamEventGroupsRequest = captureFirst {
+      verify(internalEventGroupsMock).streamEventGroups(capture())
+    }
+    assertThat(internalRequest)
+      .isEqualTo(
+        streamEventGroupsRequest {
+          filter =
+            StreamEventGroupsRequestKt.filter {
+              externalMeasurementConsumerId = MEASUREMENT_CONSUMER_EXTERNAL_ID
+              dataAvailabilityIntersects = searchInterval
+            }
+          orderBy =
+            StreamEventGroupsRequestKt.orderBy {
+              field = StreamEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME
+              descending = true
+            }
+          limit = request.pageSize + 1
+          allowStaleReads = true
+        }
+      )
+  }
+
+  @Test
   fun `listEventGroups throws UNAUTHENTICATED when no principal is found`() {
     val request = listEventGroupsRequest {
       parent = DATA_PROVIDER_NAME

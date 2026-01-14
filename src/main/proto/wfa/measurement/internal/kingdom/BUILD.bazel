@@ -358,6 +358,7 @@ proto_library(
         ":event_group_proto",
         ":media_type_proto",
         "@com_google_protobuf//:timestamp_proto",
+        "@com_google_googleapis//google/type:interval_proto",
     ],
 )
 
