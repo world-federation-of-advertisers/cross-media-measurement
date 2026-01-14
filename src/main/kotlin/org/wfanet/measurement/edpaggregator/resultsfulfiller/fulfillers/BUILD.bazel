@@ -56,3 +56,20 @@ kt_jvm_library(
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
     ],
 )
+
+kt_jvm_library(
+    name = "trustee_measurement_fulfiller",
+    srcs = ["TrusTeeMeasurementFulfiller.kt"],
+    deps = [
+        ":measurement_fulfiller",
+        "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",
+        "//src/main/kotlin/org/wfanet/measurement/computation:reach_and_frequency_computations",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:requisition",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/trustee",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
