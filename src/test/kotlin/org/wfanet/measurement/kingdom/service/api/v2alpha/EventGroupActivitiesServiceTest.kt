@@ -18,6 +18,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Empty
 import com.google.type.Date
 import com.google.type.date
 import io.grpc.Status
@@ -33,8 +34,10 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupActivityRequest
+import org.wfanet.measurement.api.v2alpha.batchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupActivitiesResponse
+import org.wfanet.measurement.api.v2alpha.deleteEventGroupActivityRequest
 import org.wfanet.measurement.api.v2alpha.eventGroupActivity
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.api.v2alpha.updateEventGroupActivityRequest
@@ -47,8 +50,10 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupActivitiesResponse as InternalBatchUpdateEventGroupActivitiesResponse
 import org.wfanet.measurement.internal.kingdom.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.batchDeleteEventGroupActivitiesRequest as internalBatchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupActivitiesRequest as internalBatchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupActivitiesResponse as internalBatchUpdateEventGroupActivitiesResponse
+import org.wfanet.measurement.internal.kingdom.deleteEventGroupActivityRequest as internalDeleteEventGroupActivityRequest
 import org.wfanet.measurement.internal.kingdom.eventGroupActivity as internalEventGroupActivity
 import org.wfanet.measurement.internal.kingdom.updateEventGroupActivityRequest as internalUpdateEventGroupActivityRequest
 
@@ -65,6 +70,8 @@ class EventGroupActivitiesServiceTest {
   private val internalServiceMock: EventGroupActivitiesCoroutineImplBase = mockService {
     onBlocking { batchUpdateEventGroupActivities(any()) }
       .thenReturn(InternalBatchUpdateEventGroupActivitiesResponse.getDefaultInstance())
+    onBlocking { deleteEventGroupActivity(any()) }.thenReturn(Empty.getDefaultInstance())
+    onBlocking { batchDeleteEventGroupActivities(any()) }.thenReturn(Empty.getDefaultInstance())
   }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalServiceMock) }
@@ -322,6 +329,320 @@ class EventGroupActivitiesServiceTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `deleteEventGroupActivity returns Empty`() {
+    val activityDate = date {
+      year = 2023
+      month = 10
+      day = 10
+    }
+    val request = deleteEventGroupActivityRequest {
+      name = "$EVENT_GROUP_NAME/eventGroupActivities/2023-10-10"
+    }
+
+    val response =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.deleteEventGroupActivity(request) }
+      }
+
+    verifyProtoArgument(
+        internalServiceMock,
+        EventGroupActivitiesCoroutineImplBase::deleteEventGroupActivity,
+      )
+      .isEqualTo(
+        internalDeleteEventGroupActivityRequest {
+          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+          externalEventGroupActivityId = activityDate
+        }
+      )
+
+    assertThat(response).isEqualTo(Empty.getDefaultInstance())
+  }
+
+  @Test
+  fun `deleteEventGroupActivity throws INVALID_ARGUMENT when name is empty`() {
+    val request = deleteEventGroupActivityRequest { name = "" }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.deleteEventGroupActivity(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `deleteEventGroupActivity throws INVALID_ARGUMENT when name is invalid`() {
+    val request = deleteEventGroupActivityRequest { name = "invalid" }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.deleteEventGroupActivity(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `deleteEventGroupActivity throws INVALID_ARGUMENT when date in name is invalid`() {
+    val request = deleteEventGroupActivityRequest {
+      name = "$EVENT_GROUP_NAME/eventGroupActivities/2013-1-2"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.deleteEventGroupActivity(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `deleteEventGroupActivity throws UNAUTHENTICATED when no principal is found`() {
+    val request = deleteEventGroupActivityRequest {
+      name = "$EVENT_GROUP_NAME/eventGroupActivities/2023-10-10"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.deleteEventGroupActivity(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `deleteEventGroupActivity throws PERMISSION_DENIED when principal without authorization is found`() {
+    val request = deleteEventGroupActivityRequest {
+      name = "$EVENT_GROUP_NAME/eventGroupActivities/2023-10-10"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking { service.deleteEventGroupActivity(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `deleteEventGroupActivity throws PERMISSION_DENIED when principal is wrong`() {
+    val request = deleteEventGroupActivityRequest {
+      name = "$EVENT_GROUP_NAME/eventGroupActivities/2023-10-10"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(makeDataProvider(DATA_PROVIDER_EXTERNAL_ID + 1)) {
+          runBlocking { service.deleteEventGroupActivity(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `batchDeleteEventGroupActivities returns Empty`() {
+    val activityDate1 = date {
+      year = 2023
+      month = 10
+      day = 10
+    }
+    val activityDate2 = date {
+      year = 2023
+      month = 10
+      day = 11
+    }
+    val request = batchDeleteEventGroupActivitiesRequest {
+      parent = EVENT_GROUP_NAME
+      names += "$EVENT_GROUP_NAME/eventGroupActivities/2023-10-10"
+      names += "$EVENT_GROUP_NAME/eventGroupActivities/2023-10-11"
+    }
+
+    val response =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.batchDeleteEventGroupActivities(request) }
+      }
+
+    verifyProtoArgument(
+        internalServiceMock,
+        EventGroupActivitiesCoroutineImplBase::batchDeleteEventGroupActivities,
+      )
+      .isEqualTo(
+        internalBatchDeleteEventGroupActivitiesRequest {
+          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+          externalEventGroupActivityIds += activityDate1
+          externalEventGroupActivityIds += activityDate2
+        }
+      )
+
+    assertThat(response).isEqualTo(Empty.getDefaultInstance())
+  }
+
+  @Test
+  fun `batchDeleteEventGroupActivities throws INVALID_ARGUMENT when parent is missing`() {
+    val request = batchDeleteEventGroupActivitiesRequest {
+      names += "$EVENT_GROUP_NAME/eventGroupActivities/2023-10-10"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.batchDeleteEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `batchDeleteEventGroupActivities throws INVALID_ARGUMENT when parent is invalid`() {
+    val request = batchDeleteEventGroupActivitiesRequest {
+      parent = "invalid"
+      names += "$EVENT_GROUP_NAME/eventGroupActivities/2023-10-10"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.batchDeleteEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `batchDeleteEventGroupActivities throws INVALID_ARGUMENT when the EventGroup component of child parent mismatch`() {
+    val otherEventGroupName = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAJs"
+    val request = batchDeleteEventGroupActivitiesRequest {
+      parent = EVENT_GROUP_NAME
+      names += "$otherEventGroupName/eventGroupActivities/2023-10-10"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.batchDeleteEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `batchDeleteEventGroupActivities throws INVALID_ARGUMENT when a child name is empty`() {
+    val request = batchDeleteEventGroupActivitiesRequest {
+      parent = EVENT_GROUP_NAME
+      names += "$EVENT_GROUP_NAME/eventGroupActivities/2023-10-10"
+      names += ""
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.batchDeleteEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `batchDeleteEventGroupActivities throws INVALID_ARGUMENT when a child name is invalid`() {
+    val request = batchDeleteEventGroupActivitiesRequest {
+      parent = EVENT_GROUP_NAME
+      names += "$EVENT_GROUP_NAME/eventGroupActivities/2023-10-10"
+      names += "invalid"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.batchDeleteEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `batchDeleteEventGroupActivities throws INVALID_ARGUMENT when date in name is invalid`() {
+    val request = batchDeleteEventGroupActivitiesRequest {
+      parent = EVENT_GROUP_NAME
+      names += "$EVENT_GROUP_NAME/eventGroupActivities/2023-10-10"
+      names += "$EVENT_GROUP_NAME/eventGroupActivities/not-a-date"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.batchDeleteEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `batchDeleteEventGroupActivities throws UNAUTHENTICATED when no principal is found`() {
+    val request = batchDeleteEventGroupActivitiesRequest {
+      parent = EVENT_GROUP_NAME
+      names += "$EVENT_GROUP_NAME/eventGroupActivities/2023-10-10"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.batchDeleteEventGroupActivities(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `batchDeleteEventGroupActivities throws PERMISSION_DENIED when principal without authorization is found`() {
+    val request = batchDeleteEventGroupActivitiesRequest {
+      parent = EVENT_GROUP_NAME
+      names += "$EVENT_GROUP_NAME/eventGroupActivities/2023-10-10"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking { service.batchDeleteEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `batchDeleteEventGroupActivities throws PERMISSION_DENIED when principal is wrong`() {
+    val request = batchDeleteEventGroupActivitiesRequest {
+      parent = EVENT_GROUP_NAME
+      names += "$EVENT_GROUP_NAME/eventGroupActivities/2023-10-10"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(makeDataProvider(DATA_PROVIDER_EXTERNAL_ID + 1)) {
+          runBlocking { service.batchDeleteEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   private fun createInternalEventGroupActivity(activityDate: Date) = internalEventGroupActivity {
