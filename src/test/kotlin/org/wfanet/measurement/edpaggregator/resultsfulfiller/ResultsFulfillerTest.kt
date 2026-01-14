@@ -87,6 +87,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.Requisition.DuchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.honestMajorityShareShuffle
@@ -158,6 +159,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRespon
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusteeFulfillRequisitionRequestBuilder
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.loadtest.config.VidSampling
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
@@ -377,6 +379,13 @@ class ResultsFulfillerTest {
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
         overrideImpressionMaxFrequencyPerUser = null,
+        trusTeeEncryptionParams =
+          TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+            kmsClient,
+            kekUri,
+            "test-wip",
+            "test-sa@example.com",
+          ),
       )
 
     // Load grouped requisitions from storage
@@ -518,6 +527,13 @@ class ResultsFulfillerTest {
         noiserSelector = NoNoiserSelector(),
         kAnonymityParams = null,
         overrideImpressionMaxFrequencyPerUser = null,
+        trusTeeEncryptionParams =
+          TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+            kmsClient,
+            kekUri,
+            "test-wip",
+            "test-sa@example.com",
+          ),
       )
 
     // Load grouped requisitions from storage
@@ -641,6 +657,13 @@ class ResultsFulfillerTest {
           noiserSelector = NoNoiserSelector(),
           kAnonymityParams = null,
           overrideImpressionMaxFrequencyPerUser = 2,
+          trusTeeEncryptionParams =
+            TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+              kmsClient,
+              kekUri,
+              "test-wip",
+              "test-sa@example.com",
+            ),
         )
 
       // Load grouped requisitions from storage
@@ -775,6 +798,13 @@ class ResultsFulfillerTest {
           noiserSelector = NoNoiserSelector(),
           kAnonymityParams = null,
           overrideImpressionMaxFrequencyPerUser = 3,
+          trusTeeEncryptionParams =
+            TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+              kmsClient,
+              kekUri,
+              "test-wip",
+              "test-sa@example.com",
+            ),
         )
 
       // Load grouped requisitions from storage
@@ -897,6 +927,13 @@ class ResultsFulfillerTest {
           noiserSelector = NoNoiserSelector(),
           kAnonymityParams = null,
           overrideImpressionMaxFrequencyPerUser = -1, // Uncapped
+          trusTeeEncryptionParams =
+            TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+              kmsClient,
+              kekUri,
+              "test-wip",
+              "test-sa@example.com",
+            ),
         )
 
       // Load grouped requisitions from storage
@@ -1016,6 +1053,13 @@ class ResultsFulfillerTest {
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
         overrideImpressionMaxFrequencyPerUser = null,
+        trusTeeEncryptionParams =
+          TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+            kmsClient,
+            kekUri,
+            "test-wip",
+            "test-sa@example.com",
+          ),
       )
 
     // Load grouped requisitions from storage
@@ -1114,6 +1158,13 @@ class ResultsFulfillerTest {
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
         overrideImpressionMaxFrequencyPerUser = null,
+        trusTeeEncryptionParams =
+          TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+            kmsClient,
+            kekUri,
+            "test-wip",
+            "test-sa@example.com",
+          ),
       )
 
     // Load grouped requisitions from storage
@@ -1214,6 +1265,13 @@ class ResultsFulfillerTest {
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
         overrideImpressionMaxFrequencyPerUser = null,
+        trusTeeEncryptionParams =
+          TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+            kmsClient,
+            kekUri,
+            "test-wip",
+            "test-sa@example.com",
+          ),
       )
 
     // Load grouped requisitions from storage
@@ -1312,6 +1370,13 @@ class ResultsFulfillerTest {
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
         overrideImpressionMaxFrequencyPerUser = null,
+        trusTeeEncryptionParams =
+          TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+            kmsClient,
+            kekUri,
+            "test-wip",
+            "test-sa@example.com",
+          ),
       )
 
     // Load grouped requisitions from storage
@@ -1407,6 +1472,13 @@ class ResultsFulfillerTest {
           noiserSelector = NoNoiserSelector(),
           kAnonymityParams = KAnonymityParams(100, 100),
           overrideImpressionMaxFrequencyPerUser = null,
+          trusTeeEncryptionParams =
+            TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+              kmsClient,
+              kekUri,
+              "test-wip",
+              "test-sa@example.com",
+            ),
         )
 
       // Load grouped requisitions from storage
@@ -1523,6 +1595,13 @@ class ResultsFulfillerTest {
           noiserSelector = NoNoiserSelector(),
           kAnonymityParams = KAnonymityParams(100, 1000),
           overrideImpressionMaxFrequencyPerUser = null,
+          trusTeeEncryptionParams =
+            TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+              kmsClient,
+              kekUri,
+              "test-wip",
+              "test-sa@example.com",
+            ),
         )
 
       // Load grouped requisitions from storage
@@ -1638,6 +1717,13 @@ class ResultsFulfillerTest {
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
         overrideImpressionMaxFrequencyPerUser = null,
+        trusTeeEncryptionParams =
+          TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+            kmsClient,
+            kekUri,
+            "test-wip",
+            "test-sa@example.com",
+          ),
       )
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -1801,6 +1887,13 @@ class ResultsFulfillerTest {
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
         overrideImpressionMaxFrequencyPerUser = null,
+        trusTeeEncryptionParams =
+          TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+            kmsClient,
+            kekUri,
+            "test-wip",
+            "test-sa@example.com",
+          ),
       )
 
     // Load grouped requisitions from storage
@@ -1839,6 +1932,118 @@ class ResultsFulfillerTest {
       )
     assertThat(fulfilledRequisitions[0].header.honestMajorityShareShuffle.dataProviderCertificate)
       .isEqualTo(DATA_PROVIDER_CERTIFICATE_NAME)
+    assertThat(fulfilledRequisitions[1].bodyChunk.data).isNotEmpty()
+    verifyBlocking(requisitionMetadataServiceMock, times(1)) {
+      startProcessingRequisitionMetadata(any())
+    }
+    verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
+  }
+
+  @Test
+  fun `runWork processes TrusTee requisitions successfully`() = runBlocking {
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+    val impressions =
+      List(130) {
+        LABELED_IMPRESSION.copy {
+          vid = it.toLong() + 1
+          eventTime = TIME_RANGE.start.toProtoTime()
+        }
+      }
+
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some-prefix"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
+        }
+      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+
+    // Set up KMS
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    createData(
+      kmsClient,
+      kekUri,
+      impressionsTmpPath,
+      metadataTmpPath,
+      requisitionsTmpPath,
+      impressions,
+      listOf(TRUSTEE_REQUISITION),
+    )
+
+    val impressionsMetadataService =
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = "dataProviders/123",
+        impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+      )
+
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        kAnonymityParams = null,
+        overrideImpressionMaxFrequencyPerUser = null,
+        trusTeeEncryptionParams =
+          TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+            kmsClient,
+            kekUri,
+            "test-wip",
+            "test-sa@example.com",
+          ),
+      )
+
+    // Load grouped requisitions from storage
+    val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+    val resultsFulfiller =
+      ResultsFulfiller(
+        dataProvider = EDP_NAME,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionMetadataStub = requisitionMetadataStub,
+        requisitionsStub = requisitionsStub,
+        groupedRequisitions = groupedRequisitions,
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+        impressionDataSourceProvider = impressionsMetadataService,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
+      )
+
+    resultsFulfiller.fulfillRequisitions()
+
+    val fulfilledRequisitions =
+      requisitionFulfillmentMock.fullfillRequisitionInvocations.single().requests
+    assertThat(fulfilledRequisitions).hasSize(2)
+    ProtoTruth.assertThat(fulfilledRequisitions[0])
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        fulfillRequisitionRequest {
+          header =
+            FulfillRequisitionRequestKt.header {
+              name = TRUSTEE_REQUISITION.name
+              nonce = REQUISITION_SPEC.nonce
+            }
+        }
+      )
+    assertThat(fulfilledRequisitions[0].header.hasTrusTee()).isTrue()
     assertThat(fulfilledRequisitions[1].bodyChunk.data).isNotEmpty()
     verifyBlocking(requisitionMetadataServiceMock, times(1)) {
       startProcessingRequisitionMetadata(any())
@@ -2301,6 +2506,14 @@ class ResultsFulfillerTest {
       value = value { duchyCertificate = DUCHY_TWO_CERTIFICATE.name }
     }
 
+    val TRUSTEE_DUCHY_ENTRY = duchyEntry {
+      key = DUCHY_ONE_NAME
+      value = value {
+        duchyCertificate = DUCHY_ONE_CERTIFICATE.name
+        trusTee = DuchyEntry.TrusTee.getDefaultInstance()
+      }
+    }
+
     private val MULTI_PARTY_REQUISITION: Requisition = requisition {
       name = REQUISITION_NAME
       measurement = "$MEASUREMENT_CONSUMER_NAME/measurements/BBBBBBBBBHs"
@@ -2322,6 +2535,27 @@ class ResultsFulfillerTest {
       dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
       duchies += DUCHY_ENTRY_ONE
       duchies += DUCHY_ENTRY_TWO
+    }
+
+    private val TRUSTEE_REQUISITION: Requisition = requisition {
+      name = REQUISITION_NAME
+      measurement = "$MEASUREMENT_CONSUMER_NAME/measurements/BBBBBBBBBHs"
+      state = Requisition.State.UNFULFILLED
+      measurementConsumerCertificate = "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
+      measurementSpec = signMeasurementSpec(RNF_MEASUREMENT_SPEC, MC_SIGNING_KEY)
+      encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
+      protocolConfig = protocolConfig {
+        protocols +=
+          ProtocolConfigKt.protocol {
+            trusTee =
+              ProtocolConfigKt.trusTee {
+                noiseMechanism = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+              }
+          }
+      }
+      dataProviderCertificate = DATA_PROVIDER_CERTIFICATE_NAME
+      dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
+      duchies += TRUSTEE_DUCHY_ENTRY
     }
 
     private val EDP_RESULT_SIGNING_KEY =

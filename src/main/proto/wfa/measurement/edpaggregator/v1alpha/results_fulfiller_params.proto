@@ -128,4 +128,26 @@ message ResultsFulfillerParams {
   // The maximum frequency used for impression count in impression measurements.
   // Only apply for direct measurements.
   int32 impression_max_frequency_per_user = 7;
+
+  // Parameters for TrusTee protocol envelope encryption.
+  message TrusTeeParams {
+    // The key encryption key (KEK) URI for envelope encryption.
+    // Example:
+    // "gcp-kms://projects/my-project/locations/global/keyRings/my-ring/cryptoKeys/my-key"
+    string kms_kek_uri = 1 [(google.api.field_behavior) = REQUIRED];
+
+    // The resource name of the workload identity provider.
+    // Example:
+    // "//iam.googleapis.com/projects/<project-id>/locations/global/workloadIdentityPools/wip/providers/provider-1"
+    string workload_identity_provider = 2
+        [(google.api.field_behavior) = REQUIRED];
+
+    // The name of the service account to impersonate.
+    // Example: "tee-workload@project.iam.gserviceaccount.com"
+    string impersonated_service_account = 3
+        [(google.api.field_behavior) = REQUIRED];
+  }
+
+  // TrusTee encryption parameters. Required for TrusTee protocol support.
+  TrusTeeParams trustee_params = 8;
 }
