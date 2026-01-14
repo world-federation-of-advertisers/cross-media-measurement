@@ -15,6 +15,7 @@
 package org.wfanet.measurement.loadtest.measurementconsumer
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.TruthJUnit.assume
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
@@ -248,7 +249,9 @@ abstract class MeasurementConsumerSimulator(
       throw IllegalStateException("Expected result cannot be less than tolerance")
     }
 
-    if (requiredCapabilities.honestMajorityShareShuffleSupported) {
+    if (requiredCapabilities.trusTeeSupported) {
+      assertThat(protocol.protocolCase).isEqualTo(ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE)
+    } else if (requiredCapabilities.honestMajorityShareShuffleSupported) {
       assertThat(protocol.protocolCase)
         .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
     } else {
@@ -907,11 +910,9 @@ abstract class MeasurementConsumerSimulator(
         .entries
         .filter {
           val dataProvider = keyToDataProviderMap.getValue(it.key)
-          if (requiredCapabilities.honestMajorityShareShuffleSupported) {
-            dataProvider.capabilities.honestMajorityShareShuffleSupported
-          } else {
-            true
-          }
+          (!requiredCapabilities.honestMajorityShareShuffleSupported ||
+            dataProvider.capabilities.honestMajorityShareShuffleSupported) &&
+            (!requiredCapabilities.trusTeeSupported || dataProvider.capabilities.trusTeeSupported)
         }
         .take(maxDataProviders)
         .map { (dataProviderKey, eventGroups) ->
@@ -926,6 +927,7 @@ abstract class MeasurementConsumerSimulator(
             timePercentage,
           )
         }
+    assume().withMessage("requisitions can be created").that(requisitions).isNotEmpty()
     val measurementSpec =
       newMeasurementSpec(measurementConsumer.publicKey.message, nonceHashes, vidSamplingInterval)
     return createMeasurementInfo(measurementConsumer, measurementSpec, requisitions, runId)
