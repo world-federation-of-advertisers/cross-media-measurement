@@ -175,6 +175,9 @@ message ListImpressionMetadataRequest {
     // overlap with this interval.
     google.type.Interval interval_overlaps = 3
         [(google.api.field_behavior) = OPTIONAL];
+
+    // The blob URI to filter by.
+    string blob_uri = 4 [(google.api.field_behavior) = OPTIONAL];
   }
 
   // A flag indicating whether to include soft DELETED entries.
