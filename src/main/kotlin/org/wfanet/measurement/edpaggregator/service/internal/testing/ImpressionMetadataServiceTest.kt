@@ -1344,6 +1344,39 @@ abstract class ImpressionMetadataServiceTest {
   }
 
   @Test
+  fun `listImpressionMetadata filters by blobUri`(): Unit = runBlocking {
+    val created =
+      service
+        .batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            requests += createImpressionMetadataRequest {
+              impressionMetadata = IMPRESSION_METADATA_2
+            }
+            requests += createImpressionMetadataRequest {
+              impressionMetadata = IMPRESSION_METADATA_3
+            }
+            requests += createImpressionMetadataRequest {
+              impressionMetadata = IMPRESSION_METADATA_4
+            }
+          }
+        )
+        .impressionMetadataList
+
+    val expected = created.filter { it.blobUri == "uri-2" }
+
+    val response =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          filter = ListImpressionMetadataRequestKt.filter { blobUri = "uri-2" }
+        }
+      )
+
+    assertThat(response)
+      .isEqualTo(listImpressionMetadataResponse { impressionMetadata += expected })
+  }
+
+  @Test
   fun `listImpressionMetadata without state filter returns both active and deleted ImpressionMetadata`() =
     runBlocking {
       val (created1, created2) =

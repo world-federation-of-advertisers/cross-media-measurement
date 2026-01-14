@@ -1170,6 +1170,22 @@ class ImpressionMetadataServiceTest {
     }
 
   @Test
+  fun `listImpressionMetadata with blob_uri filter returns ImpressionMetadata`() = runBlocking {
+    val created = createImpressionMetadata(IMPRESSION_METADATA, IMPRESSION_METADATA_2)
+
+    val response =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          filter = ListImpressionMetadataRequestKt.filter { blobUri = created[0].blobUri }
+        }
+      )
+
+    assertThat(response)
+      .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created[0] })
+  }
+
+  @Test
   fun `listImpressionMetadata returns deleted ImpressionMetadata when show deleted is set to true`() =
     runBlocking {
       val created = createImpressionMetadata(IMPRESSION_METADATA)

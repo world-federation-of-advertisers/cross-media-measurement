@@ -92,6 +92,7 @@ message ListImpressionMetadataRequest {
     string event_group_reference_id = 2;
     google.type.Interval interval_overlaps = 3;
     ImpressionMetadataState state = 4;
+    string blob_uri = 5;
   }
   Filter filter = 4;
 }

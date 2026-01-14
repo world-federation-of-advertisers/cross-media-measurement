@@ -349,6 +349,10 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
       )
     }
 
+    if (filter.blobUri.isNotEmpty()) {
+      conjuncts.add("BlobUri = @blobUri")
+    }
+
     if (after != null) {
       conjuncts.add("ImpressionMetadataResourceId > @afterImpressionMetadataResourceId")
     }
@@ -378,6 +382,10 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
       if (filter.hasIntervalOverlaps()) {
         bind("intervalOverlapsStartTime").to(filter.intervalOverlaps.startTime.toGcloudTimestamp())
         bind("intervalOverlapsEndTime").to(filter.intervalOverlaps.endTime.toGcloudTimestamp())
+      }
+
+      if (filter.blobUri.isNotEmpty()) {
+        bind("blobUri").to(filter.blobUri)
       }
 
       if (after != null) {
