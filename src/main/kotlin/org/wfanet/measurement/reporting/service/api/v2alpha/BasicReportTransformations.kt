@@ -168,35 +168,37 @@ fun buildCelExpression(
   eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
 ): String {
   val disjuncts =
-    impressionQualificationFilterSpecs.map { impressionQualificationFilterSpec ->
-      // Names of event templates that match the media type.
-      val templateNames: Set<String> = buildSet {
-        for ((path, fieldInfo) in eventTemplateFieldsByPath) {
-          require(impressionQualificationFilterSpec.mediaType != MediaType.MEDIA_TYPE_UNSPECIFIED)
-          if (
-            fieldInfo.mediaType == impressionQualificationFilterSpec.mediaType.toCmmsMediaType()
-          ) {
-            add(path.split('.').first())
+    impressionQualificationFilterSpecs
+      .map { impressionQualificationFilterSpec ->
+        // Names of event templates that match the media type.
+        val templateNames: Set<String> = buildSet {
+          for ((path, fieldInfo) in eventTemplateFieldsByPath) {
+            require(impressionQualificationFilterSpec.mediaType != MediaType.MEDIA_TYPE_UNSPECIFIED)
+            if (
+              fieldInfo.mediaType == impressionQualificationFilterSpec.mediaType.toCmmsMediaType()
+            ) {
+              add(path.split('.').first())
+            }
           }
         }
+
+        buildList {
+            for (templateName in templateNames.sorted()) {
+              add("$templateName != null")
+            }
+
+            for (eventFilter in
+              Normalization.normalizeEventFilters(
+                impressionQualificationFilterSpec.filtersList.map { it.toInternal() }
+              )) {
+              val term: InternalEventTemplateField = eventFilter.termsList.single()
+              val termValue = term.value.toCelValue(eventTemplateFieldsByPath.getValue(term.path))
+              add("${term.path} == $termValue")
+            }
+          }
+          .joinToString(" && ")
       }
-
-      buildList {
-          for (templateName in templateNames.sorted()) {
-            add("$templateName != null")
-          }
-
-          for (eventFilter in
-            Normalization.normalizeEventFilters(
-              impressionQualificationFilterSpec.filtersList.map { it.toInternal() }
-            )) {
-            val term: InternalEventTemplateField = eventFilter.termsList.single()
-            val termValue = term.value.toCelValue(eventTemplateFieldsByPath.getValue(term.path))
-            add("${term.path} == $termValue")
-          }
-        }
-        .joinToString(" && ")
-    }
+      .filter { it.isNotEmpty() }
 
   return if (disjuncts.isEmpty()) {
     ""
