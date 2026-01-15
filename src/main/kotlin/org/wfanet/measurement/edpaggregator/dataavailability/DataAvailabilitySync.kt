@@ -98,6 +98,12 @@ class DataAvailabilitySync(
 ) {
   private val validImpressionPathRegex: Regex = Regex("^$edpImpressionPath/[^/]+(/.*)?$")
 
+  /** Holds an [ImpressionMetadata] along with its associated impressions blob key. */
+  private data class ImpressionMetadataWithBlobKey(
+    val impressionMetadata: ImpressionMetadata,
+    val impressionsBlobKey: String,
+  )
+
   init {
     require(!edpImpressionPath.startsWith("/")) { "edpImpressionPath cannot start with a slash" }
     require(!edpImpressionPath.endsWith("/")) { "edpImpressionPath cannot end with a slash" }
@@ -136,7 +142,7 @@ class DataAvailabilitySync(
         storageClient.listBlobs(doneBlobFolderPath)
 
       // 1. Retrieve blob details from storage and build a map and validate them
-      val impressionMetadataMap: Map<String, List<ImpressionMetadata>> =
+      val impressionMetadataMap: Map<String, List<ImpressionMetadataWithBlobKey>> =
         createModelLineToImpressionMetadataMap(impressionMetadataBlobs, doneBlobUri)
 
       if (impressionMetadataMap.isEmpty()) {
@@ -150,7 +156,9 @@ class DataAvailabilitySync(
       val totalRecords = impressionMetadataMap.values.sumOf { it.size }
 
       // 2. Save ImpressionMetadata using ImpressionMetadataStorage
-      impressionMetadataMap.values.forEach { saveImpressionMetadata(it) }
+      impressionMetadataMap.values.forEach { metadataWithBlobKeys ->
+        saveImpressionMetadata(metadataWithBlobKeys)
+      }
 
       // 3. Retrieve model line bound from ImpressionMetadataStorage for all model line
       // found in the storage folder and update kingdom availability
@@ -235,17 +243,23 @@ class DataAvailabilitySync(
     )
   }
 
-  private suspend fun saveImpressionMetadata(impressionMetadataList: List<ImpressionMetadata>) {
+  private suspend fun saveImpressionMetadata(
+    impressionMetadataList: List<ImpressionMetadataWithBlobKey>
+  ) {
     try {
       impressionMetadataList.chunked(impressionMetadataBatchSize).forEach { chunk ->
+        // Build a map from metadata blob URI to impressions blob key for later lookup
+        val impressionsBlobKeyByMetadataUri =
+          chunk.associate { it.impressionMetadata.blobUri to it.impressionsBlobKey }
+
         val batchRequest: BatchCreateImpressionMetadataRequest =
           batchCreateImpressionMetadataRequest {
             parent = dataProviderName
-            chunk.forEach { metadata ->
+            chunk.forEach { metadataWithBlobKey ->
               requests += createImpressionMetadataRequest {
                 parent = dataProviderName
-                impressionMetadata = metadata
-                requestId = uuidV4FromPath(metadata.blobUri)
+                impressionMetadata = metadataWithBlobKey.impressionMetadata
+                requestId = uuidV4FromPath(metadataWithBlobKey.impressionMetadata.blobUri)
               }
             }
           }
@@ -267,8 +281,8 @@ class DataAvailabilitySync(
           )
 
           // Also update the impressions blob with Custom-Time (no resource ID needed)
-          val impressionsBlobKey = metadataBlobUri.key.replace("metadata.binpb", "impressions")
-          if (impressionsBlobKey != metadataBlobUri.key) {
+          val impressionsBlobKey = impressionsBlobKeyByMetadataUri[createdMetadata.blobUri]
+          if (impressionsBlobKey != null) {
             storageClient.updateObjectMetadata(
               blobKey = impressionsBlobKey,
               customTime = customTime,
@@ -302,20 +316,20 @@ class DataAvailabilitySync(
    * - Constructs an [ImpressionMetadata] object using:
    *     - `blobUri` set to the URI built from [bucket] and the blob's key
    *     - `eventGroupReferenceId`, `modelLine`, and `interval` from the parsed `BlobDetails`
-   * - Adds the [ImpressionMetadata] to a list in a map keyed by `modelLine`.
+   * - Adds the [ImpressionMetadataWithBlobKey] to a list in a map keyed by `modelLine`.
    *
    * @param impressionMetadataBlobs the flow of [StorageClient.Blob] objects to read and parse.
    * @param doneBlobUri the blob uri.
    * @return a map where each key is a `modelLine` string and each value is the list of
-   *   [ImpressionMetadata] objects associated with that model line.
+   *   [ImpressionMetadataWithBlobKey] objects associated with that model line.
    * @throws InvalidProtocolBufferException if a blob cannot be parsed as either binary or JSON
    *   `BlobDetails`.
    */
   private suspend fun createModelLineToImpressionMetadataMap(
     impressionMetadataBlobs: Flow<StorageClient.Blob>,
     doneBlobUri: BlobUri,
-  ): Map<String, List<ImpressionMetadata>> {
-    val impressionMetadataMap = mutableMapOf<String, MutableList<ImpressionMetadata>>()
+  ): Map<String, List<ImpressionMetadataWithBlobKey>> {
+    val impressionMetadataMap = mutableMapOf<String, MutableList<ImpressionMetadataWithBlobKey>>()
     impressionMetadataBlobs
       .filter { impressionMetadataBlob ->
         val fileName = impressionMetadataBlob.blobKey.substringAfterLast("/").lowercase()
@@ -367,7 +381,12 @@ class DataAvailabilitySync(
           }
           impressionMetadataMap
             .getOrPut(blobDetails.modelLine) { mutableListOf() }
-            .add(impressionMetadata)
+            .add(
+              ImpressionMetadataWithBlobKey(
+                impressionMetadata = impressionMetadata,
+                impressionsBlobKey = impressionBlobUri.key,
+              )
+            )
         }
       }
     return impressionMetadataMap
