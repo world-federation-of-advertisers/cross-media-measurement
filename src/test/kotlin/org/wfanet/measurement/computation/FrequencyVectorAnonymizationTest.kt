@@ -16,9 +16,8 @@ package org.wfanet.measurement.computation
 
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.Test
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
-import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
@@ -30,7 +29,11 @@ class FrequencyVectorAnonymizationTest {
       vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 1.0f }
       reach = MeasurementSpecKt.reach {}
     }
-    val populationSpec = populationSpec { vidRanges += populationSpec.vidRanges }
+    val populationSpec = populationSpec { 
+      subpopulations += populationSpec { 
+        vidRanges += vidRange { start = 0; endExclusive = 1000 }
+      }.subpopulations
+    }
     val kAnonymityParams = KAnonymityParams(minUsers = 2, minImpressions = 10, reachMaxFrequencyPerUser = 10)
 
     // Create a frequency vector with sufficient reach
@@ -63,7 +66,11 @@ class FrequencyVectorAnonymizationTest {
       vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 1.0f }
       reach = MeasurementSpecKt.reach {}
     }
-    val populationSpec = populationSpec { vidRanges += populationSpec.vidRanges }
+    val populationSpec = populationSpec { 
+      subpopulations += populationSpec { 
+        vidRanges += vidRange { start = 0; endExclusive = 1000 }
+      }.subpopulations
+    }
     // High threshold that won't be met
     val kAnonymityParams = KAnonymityParams(minUsers = 1000, minImpressions = 10000, reachMaxFrequencyPerUser = 10)
 

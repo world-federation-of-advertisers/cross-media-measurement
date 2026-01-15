@@ -54,6 +54,8 @@ fun kAnonymizeFrequencyVector(
       kAnonymityParams = kAnonymityParams,
     )
   return if (reachValue == 0L) {
+    // Return an empty frequency vector when k-anonymity threshold is not met.
+    // Using strict=false to allow empty vector creation without validation errors.
     FrequencyVectorBuilder(
         measurementSpec = measurementSpec,
         populationSpec = populationSpec,
