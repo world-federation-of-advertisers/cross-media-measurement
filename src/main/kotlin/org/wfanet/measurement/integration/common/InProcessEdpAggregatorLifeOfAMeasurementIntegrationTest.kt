@@ -245,7 +245,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       mcSimulator.testReachOnly(
         "1234",
         DataProviderKt.capabilities {
-          honestMajorityShareShuffleSupported = true
+          honestMajorityShareShuffleSupported = false
           trusTeeSupported = true
         },
       )
@@ -260,7 +260,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       mcSimulator.testReachAndFrequency(
         "1234",
         DataProviderKt.capabilities {
-          honestMajorityShareShuffleSupported = true
+          honestMajorityShareShuffleSupported = false
           trusTeeSupported = true
         },
       )

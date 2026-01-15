@@ -53,3 +53,17 @@ kt_jvm_library(
         "//imports/java/com/google/privacy:differential_privacy",
     ],
 )
+
+kt_jvm_library(
+    name = "frequency_vector_anonymization",
+    srcs = ["FrequencyVectorAnonymization.kt"],
+    deps = [
+        ":histogram_computations",
+        ":k_anonymity_params",
+        ":reach_and_frequency_computations",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common:frequency_vector_builder",
+        "//src/main/proto/wfa/frequency_count:frequency_count_kt_jvm_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+    ],
+)
