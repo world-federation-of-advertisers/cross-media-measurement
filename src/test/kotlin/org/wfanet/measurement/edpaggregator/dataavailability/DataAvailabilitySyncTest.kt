@@ -66,6 +66,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.storage.ObjectMetadataStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -199,7 +200,8 @@ class DataAvailabilitySyncTest {
 
   @Test
   fun `register single contiguous day for existing model line using proto message`() = runBlocking {
-    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
@@ -226,7 +228,8 @@ class DataAvailabilitySyncTest {
 
   @Test
   fun `register single contiguous day for existing model line using json message`() = runBlocking {
-    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L), BlobEncoding.JSON)
 
@@ -253,7 +256,8 @@ class DataAvailabilitySyncTest {
 
   @Test
   fun `register single overlapping day for existing model line`() = runBlocking {
-    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(storageClient, folderPrefix, listOf(250L to 400L), BlobEncoding.JSON)
 
@@ -281,7 +285,8 @@ class DataAvailabilitySyncTest {
   @Test
   fun `registers a single contiguous day preceding an existing interval for an existing model line`() =
     runBlocking {
-      val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
 
       seedBlobDetails(storageClient, folderPrefix, listOf(50L to 100L), BlobEncoding.JSON)
 
@@ -306,7 +311,8 @@ class DataAvailabilitySyncTest {
 
   @Test
   fun `register multiple contiguous day for existing model line`() = runBlocking {
-    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(
       storageClient,
@@ -334,7 +340,8 @@ class DataAvailabilitySyncTest {
 
   @Test
   fun `blob details with missing interval throws IllegalArgumentException`() = runBlocking {
-    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(
       storageClient,
@@ -364,7 +371,8 @@ class DataAvailabilitySyncTest {
 
   @Test
   fun `blob details with wrong file extension throws IllegalArgumentException`() = runBlocking {
-    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L), BlobEncoding.EMPTY)
 
@@ -389,7 +397,8 @@ class DataAvailabilitySyncTest {
 
   @Test
   fun `sync throw if file prefix doesn't follow expected path`() = runBlocking {
-    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
@@ -414,7 +423,8 @@ class DataAvailabilitySyncTest {
 
   @Test
   fun `metadata file is ignored if no associated impression file is found`() = runBlocking {
-    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L), createImpressionFile = false)
 
@@ -437,7 +447,8 @@ class DataAvailabilitySyncTest {
 
   @Test
   fun `sync emits success metrics`() = runBlocking {
-    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
@@ -478,7 +489,8 @@ class DataAvailabilitySyncTest {
 
   @Test
   fun `sync emits failure metrics when replaceDataAvailabilityIntervals fails`() = runBlocking {
-    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
@@ -535,7 +547,8 @@ class DataAvailabilitySyncTest {
 
   @Test
   fun `saveImpressionMetadata generates deterministic UUIDs`() = runBlocking {
-    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
@@ -567,7 +580,8 @@ class DataAvailabilitySyncTest {
   @Test
   fun `saveImpressionMetadata batches according to batch size and throttles each batch`() =
     runBlocking {
-      val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
 
       seedBlobDetails(
         storageClient,
@@ -601,7 +615,8 @@ class DataAvailabilitySyncTest {
 
   @Test
   fun `invalid path throws exception`() {
-    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
     runBlocking {
       seedBlobDetails(
         storageClient,
@@ -630,7 +645,8 @@ class DataAvailabilitySyncTest {
 
   @Test
   fun `supports different subfolders`() = runBlocking {
-    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(
       storageClient,
@@ -672,13 +688,59 @@ class DataAvailabilitySyncTest {
       batchCreateImpressionMetadata(batchCaptor.capture())
     }
     val createdItems = batchCaptor.firstValue.requestsList.map { it.impressionMetadata }
-    assertThat(createdItems).isEqualTo(impressionMetadataRequests)
+    // File system traversal order is non-deterministic, so use unordered comparison
+    assertThat(createdItems).containsExactlyElementsIn(impressionMetadataRequests)
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
 
   @Test
+  fun `updateObjectMetadata uses impressions blob key from BlobDetails not inferred from metadata URI`() =
+    runBlocking {
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
+
+      // Create a BlobDetails where blob_uri points to a path that is NOT derived from the metadata
+      // file name. The old implementation would have tried to infer the impressions blob key by
+      // string replacement on the metadata URI.
+      val customImpressionsPath = "custom/path/to/impressions_data"
+      seedBlobDetailsWithCustomImpressionsPath(
+        storageClient = storageClient,
+        prefix = folderPrefix,
+        intervals = listOf(300L to 400L),
+        impressionsBlobKey = customImpressionsPath,
+      )
+
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        )
+
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+      // Verify that updateObjectMetadata was called with the correct impressions blob key
+      // from BlobDetails, not inferred from the metadata URI
+      val impressionsUpdateCalls =
+        storageClient.updateObjectMetadataCalls.filter { it.blobKey == customImpressionsPath }
+      assertThat(impressionsUpdateCalls).hasSize(1)
+
+      // Also verify the metadata blob update was called
+      val metadataUpdateCalls =
+        storageClient.updateObjectMetadataCalls.filter {
+          it.blobKey.contains("metadata") && it.metadata.isNotEmpty()
+        }
+      assertThat(metadataUpdateCalls).hasSize(1)
+    }
+
+  @Test
   fun `works with blank edp impression path`() = runBlocking {
-    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(
       storageClient,
@@ -720,7 +782,8 @@ class DataAvailabilitySyncTest {
       batchCreateImpressionMetadata(batchCaptor.capture())
     }
     val createdItems = batchCaptor.firstValue.requestsList.map { it.impressionMetadata }
-    assertThat(createdItems).isEqualTo(impressionMetadataRequests)
+    // File system traversal order is non-deterministic, so use unordered comparison
+    assertThat(createdItems).containsExactlyElementsIn(impressionMetadataRequests)
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
 
@@ -789,12 +852,88 @@ class DataAvailabilitySyncTest {
       BlobEncoding.EMPTY -> ByteString.copyFrom(this.toByteArray())
     }
 
+  /**
+   * Seeds a directory with BlobDetails files where the blob_uri points to a custom path.
+   *
+   * This is useful for testing that the impressions blob key is taken from BlobDetails.blob_uri
+   * rather than being inferred from the metadata file path.
+   */
+  private suspend fun seedBlobDetailsWithCustomImpressionsPath(
+    storageClient: StorageClient,
+    prefix: String,
+    intervals: List<Pair<Long, Long>>,
+    impressionsBlobKey: String,
+    encoding: BlobEncoding = BlobEncoding.PROTO,
+  ) {
+    require(prefix.isEmpty() || prefix.endsWith("/")) { "prefix should end with '/'" }
+
+    intervals.forEachIndexed { index, (startSeconds, endSeconds) ->
+      // The blob_uri in BlobDetails points to the custom impressions path
+      val blobUri = "$bucket/$impressionsBlobKey"
+      val details = blobDetails {
+        this.blobUri = blobUri
+        eventGroupReferenceId = "event${index + 1}"
+        modelLine = "modelLine1"
+        interval = interval {
+          startTime = timestamp {
+            seconds = startSeconds
+            nanos = 0
+          }
+          endTime = timestamp {
+            seconds = endSeconds
+            nanos = 0
+          }
+        }
+      }
+
+      val filename =
+        when (encoding) {
+          BlobEncoding.PROTO -> "metadata-$index.binpb"
+          BlobEncoding.JSON -> "metadata-$index.json"
+          BlobEncoding.EMPTY -> "metadata-$index"
+        }
+      val metadataKey = "$prefix$filename"
+
+      val bytes = details.serialize(encoding)
+      storageClient.writeBlob(metadataKey, bytes)
+      // Create the impressions file at the custom path
+      storageClient.writeBlob(impressionsBlobKey, emptyFlow())
+    }
+  }
+
   private class RecordingThrottler : Throttler {
     var onReadyCalls: Int = 0
 
     override suspend fun <T> onReady(block: suspend () -> T): T {
       onReadyCalls++
       return block()
+    }
+  }
+
+  /**
+   * Fake implementation of [ObjectMetadataStorageClient] for testing.
+   *
+   * Wraps a [FileSystemStorageClient] and records all [updateObjectMetadata] calls for
+   * verification.
+   */
+  private class FakeObjectMetadataStorageClient(
+    private val delegate: FileSystemStorageClient
+  ) : ObjectMetadataStorageClient, StorageClient by delegate {
+
+    data class UpdateObjectMetadataCall(
+      val blobKey: String,
+      val customTime: java.time.Instant?,
+      val metadata: Map<String, String>,
+    )
+
+    val updateObjectMetadataCalls = mutableListOf<UpdateObjectMetadataCall>()
+
+    override suspend fun updateObjectMetadata(
+      blobKey: String,
+      customTime: java.time.Instant?,
+      metadata: Map<String, String>,
+    ) {
+      updateObjectMetadataCalls.add(UpdateObjectMetadataCall(blobKey, customTime, metadata))
     }
   }
 }
