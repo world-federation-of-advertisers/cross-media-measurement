@@ -55,8 +55,8 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "frequency_vector_anonymization",
-    srcs = ["FrequencyVectorAnonymization.kt"],
+    name = "k_anonymizer",
+    srcs = ["KAnonymizer.kt"],
     deps = [
         ":histogram_computations",
         ":k_anonymity_params",
