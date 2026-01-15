@@ -19,51 +19,55 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 
-/**
- * Applies k-anonymity to a frequency vector.
- *
- * Returns an empty FrequencyVector if k-anonymity threshold is not met for reach. It does not
- * k-anonymize individual frequencies that do not meet a threshold.
- *
- * @param measurementSpec The measurement specification
- * @param populationSpec The population specification
- * @param frequencyVectorBuilder The frequency vector builder containing the data
- * @param kAnonymityParams The k-anonymity parameters
- * @param maxPopulation Optional maximum population size
- * @return Either the original frequency vector if k-anonymity is met, or an empty frequency vector
- */
-fun kAnonymizeFrequencyVector(
-  measurementSpec: MeasurementSpec,
-  populationSpec: PopulationSpec,
-  frequencyVectorBuilder: FrequencyVectorBuilder,
-  kAnonymityParams: KAnonymityParams,
-  maxPopulation: Int?,
-): FrequencyVector {
-  val frequencyData = frequencyVectorBuilder.frequencyDataArray
-  val histogram: LongArray =
-    HistogramComputations.buildHistogram(
-      frequencyVector = frequencyData,
-      maxFrequency = kAnonymityParams.reachMaxFrequencyPerUser,
-    )
-  val reachValue =
-    ReachAndFrequencyComputations.computeReach(
-      rawHistogram = histogram,
-      vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width,
-      vectorSize = maxPopulation,
-      dpParams = null,
-      kAnonymityParams = kAnonymityParams,
-    )
-  return if (reachValue == 0L) {
-    // Return an empty frequency vector when k-anonymity threshold is not met.
-    // Using strict=false to allow empty vector creation without validation errors.
-    FrequencyVectorBuilder(
-        measurementSpec = measurementSpec,
-        populationSpec = populationSpec,
-        strict = false,
-        overrideImpressionMaxFrequencyPerUser = null,
+/** Utility object for k-anonymity operations on frequency vectors. */
+object KAnonymizer {
+  /**
+   * Applies k-anonymity to a frequency vector.
+   *
+   * Returns an empty FrequencyVector if k-anonymity threshold is not met for reach. It does not
+   * k-anonymize individual frequencies that do not meet a threshold.
+   *
+   * @param measurementSpec The measurement specification
+   * @param populationSpec The population specification
+   * @param frequencyVectorBuilder The frequency vector builder containing the data
+   * @param kAnonymityParams The k-anonymity parameters
+   * @param maxPopulation Optional maximum population size
+   * @return Either the original frequency vector if k-anonymity is met, or an empty frequency
+   *   vector
+   */
+  fun kAnonymizeFrequencyVector(
+    measurementSpec: MeasurementSpec,
+    populationSpec: PopulationSpec,
+    frequencyVectorBuilder: FrequencyVectorBuilder,
+    kAnonymityParams: KAnonymityParams,
+    maxPopulation: Int?,
+  ): FrequencyVector {
+    val frequencyData = frequencyVectorBuilder.frequencyDataArray
+    val histogram: LongArray =
+      HistogramComputations.buildHistogram(
+        frequencyVector = frequencyData,
+        maxFrequency = kAnonymityParams.reachMaxFrequencyPerUser,
       )
-      .build()
-  } else {
-    frequencyVectorBuilder.build()
+    val reachValue =
+      ReachAndFrequencyComputations.computeReach(
+        rawHistogram = histogram,
+        vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width,
+        vectorSize = maxPopulation,
+        dpParams = null,
+        kAnonymityParams = kAnonymityParams,
+      )
+    return if (reachValue == 0L) {
+      // Return an empty frequency vector when k-anonymity threshold is not met.
+      // Using strict=false to allow empty vector creation without validation errors.
+      FrequencyVectorBuilder(
+          measurementSpec = measurementSpec,
+          populationSpec = populationSpec,
+          strict = false,
+          overrideImpressionMaxFrequencyPerUser = null,
+        )
+        .build()
+    } else {
+      frequencyVectorBuilder.build()
+    }
   }
 }

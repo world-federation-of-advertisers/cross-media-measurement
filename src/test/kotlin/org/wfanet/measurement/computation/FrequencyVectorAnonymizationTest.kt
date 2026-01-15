@@ -15,45 +15,58 @@
 package org.wfanet.measurement.computation
 
 import com.google.common.truth.Truth.assertThat
-import kotlin.test.Test
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
-import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 
+@RunWith(JUnit4::class)
 class FrequencyVectorAnonymizationTest {
+  private val measurementSpec = measurementSpec {
+    vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 1.0f }
+    reach = MeasurementSpecKt.reach {}
+  }
+
+  private val populationSpec = populationSpec {
+    subpopulations +=
+      PopulationSpecKt.subPopulation {
+        vidRanges +=
+          PopulationSpecKt.vidRange {
+            startVid = 1
+            endVidInclusive = 100
+          }
+      }
+  }
+
   @Test
-  fun `kAnonymizeFrequencyVector returns original vector when reach meets threshold`() {
-    val measurementSpec = measurementSpec {
-      vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 1.0f }
-      reach = MeasurementSpecKt.reach {}
-    }
-    val populationSpec = populationSpec { 
-      subpopulations += populationSpec { 
-        vidRanges += vidRange { start = 0; endExclusive = 1000 }
-      }.subpopulations
-    }
-    val kAnonymityParams = KAnonymityParams(minUsers = 2, minImpressions = 10, reachMaxFrequencyPerUser = 10)
+  fun kAnonymizeFrequencyVector_returnsOriginalVector_whenReachMeetsThreshold() {
+    val kAnonymityParams =
+      KAnonymityParams(minUsers = 2, minImpressions = 10, reachMaxFrequencyPerUser = 10)
 
-    // Create a frequency vector with sufficient reach
+    // Create a frequency vector with sufficient reach (many non-zero entries)
     val frequencyData = ByteArray(100) { if (it < 50) 1.toByte() else 0.toByte() }
-    val builder = FrequencyVectorBuilder(
-      measurementSpec = measurementSpec,
-      populationSpec = populationSpec,
-      frequencyDataBytes = frequencyData,
-      strict = false,
-      kAnonymityParams = kAnonymityParams,
-      overrideImpressionMaxFrequencyPerUser = null,
-    )
+    val builder =
+      FrequencyVectorBuilder(
+        measurementSpec = measurementSpec,
+        populationSpec = populationSpec,
+        frequencyDataBytes = frequencyData,
+        strict = false,
+        kAnonymityParams = kAnonymityParams,
+        overrideImpressionMaxFrequencyPerUser = null,
+      )
 
-    val result = kAnonymizeFrequencyVector(
-      measurementSpec,
-      populationSpec,
-      builder,
-      kAnonymityParams,
-      maxPopulation = null,
-    )
+    val result =
+      KAnonymizer.kAnonymizeFrequencyVector(
+        measurementSpec,
+        populationSpec,
+        builder,
+        kAnonymityParams,
+        maxPopulation = null,
+      )
 
     // Should return the original vector since reach is sufficient
     assertThat(result.dataCount).isEqualTo(100)
@@ -61,39 +74,43 @@ class FrequencyVectorAnonymizationTest {
   }
 
   @Test
-  fun `kAnonymizeFrequencyVector returns empty vector when reach below threshold`() {
-    val measurementSpec = measurementSpec {
-      vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 1.0f }
-      reach = MeasurementSpecKt.reach {}
-    }
-    val populationSpec = populationSpec { 
-      subpopulations += populationSpec { 
-        vidRanges += vidRange { start = 0; endExclusive = 1000 }
-      }.subpopulations
-    }
-    // High threshold that won't be met
-    val kAnonymityParams = KAnonymityParams(minUsers = 1000, minImpressions = 10000, reachMaxFrequencyPerUser = 10)
+  fun kAnonymizeFrequencyVector_returnsEmptyVector_whenReachBelowThreshold() {
+    // Very high threshold that wont be met with only 3 users
+    val kAnonymityParams =
+      KAnonymityParams(minUsers = 1000, minImpressions = 1000, reachMaxFrequencyPerUser = 10)
 
-    // Create a frequency vector with insufficient reach
-    val frequencyData = ByteArray(100) { if (it < 5) 1.toByte() else 0.toByte() }
-    val builder = FrequencyVectorBuilder(
-      measurementSpec = measurementSpec,
-      populationSpec = populationSpec,
-      frequencyDataBytes = frequencyData,
-      strict = false,
-      kAnonymityParams = kAnonymityParams,
-      overrideImpressionMaxFrequencyPerUser = null,
-    )
+    // Create a frequency vector builder and add only 3 increments (below threshold)
+    val builder =
+      FrequencyVectorBuilder(
+        measurementSpec = measurementSpec,
+        populationSpec = populationSpec,
+        strict = false,
+        kAnonymityParams = kAnonymityParams,
+        overrideImpressionMaxFrequencyPerUser = null,
+      )
+    // Add only 3 users - below the minUsers threshold of 1000
+    listOf(4, 5, 6).forEach { builder.increment(it) }
 
-    val result = kAnonymizeFrequencyVector(
-      measurementSpec,
-      populationSpec,
-      builder,
-      kAnonymityParams,
-      maxPopulation = null,
-    )
+    val result =
+      KAnonymizer.kAnonymizeFrequencyVector(
+        measurementSpec,
+        populationSpec,
+        builder,
+        kAnonymityParams,
+        maxPopulation = null,
+      )
 
-    // Should return an empty vector since reach is below threshold
-    assertThat(result.dataCount).isEqualTo(0)
+    // Build an expected empty vector (all zeros) for comparison
+    val expectedEmptyVector =
+      FrequencyVectorBuilder(
+          measurementSpec = measurementSpec,
+          populationSpec = populationSpec,
+          strict = false,
+          overrideImpressionMaxFrequencyPerUser = null,
+        )
+        .build()
+
+    // Should return an empty (all-zero) vector since reach (3) is below threshold (1000)
+    assertThat(result).isEqualTo(expectedEmptyVector)
   }
 }
