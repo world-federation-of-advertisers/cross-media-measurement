@@ -27,7 +27,6 @@ import com.google.type.date
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import java.lang.IllegalArgumentException
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -450,7 +449,7 @@ class EventGroupsServiceTest {
 
     assertThat(result).isEqualTo(EVENT_GROUP_WITH_ACTIVITIES)
   }
-  
+
   @Test
   fun `getEventGroup throws PERMISSION_DENIED when edp caller doesn't match`() {
     val request = getEventGroupRequest { name = EVENT_GROUP_NAME }
