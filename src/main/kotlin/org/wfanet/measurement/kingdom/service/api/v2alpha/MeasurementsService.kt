@@ -500,6 +500,14 @@ class MeasurementsService(
           }
         } else {
           if (
+            (measurementConsumerName in trusTeeEnabledMeasurementConsumers || trusTeeEnabled) &&
+              dataProviderCapabilities.all { it.trusTeeSupported }
+          ) {
+            protocolConfig {
+              externalProtocolConfigId = TrusTeeProtocolConfig.NAME
+              trusTee = TrusTeeProtocolConfig.protocolConfig
+            }
+          } else if (
             (measurementConsumerName in hmssEnabledMeasurementConsumers || hmssEnabled) &&
               dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
           ) {
@@ -511,14 +519,6 @@ class MeasurementsService(
             protocolConfig {
               externalProtocolConfigId = RoLlv2ProtocolConfig.NAME
               reachOnlyLiquidLegionsV2 = RoLlv2ProtocolConfig.protocolConfig
-            }
-          } else if (
-            (measurementConsumerName in trusTeeEnabledMeasurementConsumers || trusTeeEnabled) &&
-              dataProviderCapabilities.all { it.trusTeeSupported }
-          ) {
-            protocolConfig {
-              externalProtocolConfigId = TrusTeeProtocolConfig.NAME
-              trusTee = TrusTeeProtocolConfig.protocolConfig
             }
           } else {
             protocolConfig {
@@ -548,20 +548,20 @@ class MeasurementsService(
           }
         } else {
           if (
-            (measurementConsumerName in hmssEnabledMeasurementConsumers || hmssEnabled) &&
-              dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
-          ) {
-            protocolConfig {
-              externalProtocolConfigId = HmssProtocolConfig.NAME
-              honestMajorityShareShuffle = HmssProtocolConfig.protocolConfig
-            }
-          } else if (
             (measurementConsumerName in trusTeeEnabledMeasurementConsumers || trusTeeEnabled) &&
               dataProviderCapabilities.all { it.trusTeeSupported }
           ) {
             protocolConfig {
               externalProtocolConfigId = TrusTeeProtocolConfig.NAME
               trusTee = TrusTeeProtocolConfig.protocolConfig
+            }
+          } else if (
+            (measurementConsumerName in hmssEnabledMeasurementConsumers || hmssEnabled) &&
+              dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
+          ) {
+            protocolConfig {
+              externalProtocolConfigId = HmssProtocolConfig.NAME
+              honestMajorityShareShuffle = HmssProtocolConfig.protocolConfig
             }
           } else {
             protocolConfig {
