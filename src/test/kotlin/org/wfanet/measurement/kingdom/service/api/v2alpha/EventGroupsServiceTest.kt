@@ -23,9 +23,11 @@ import com.google.protobuf.Timestamp
 import com.google.protobuf.timestamp
 import com.google.rpc.errorInfo
 import com.google.type.Interval
+import com.google.type.date
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.lang.IllegalArgumentException
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -64,6 +66,7 @@ import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.dateInterval
 import org.wfanet.measurement.api.v2alpha.deleteEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.encryptedMessage
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
@@ -93,6 +96,7 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt
+import org.wfanet.measurement.internal.kingdom.EventGroupKt as InternalEventGroupKt
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.MediaType as InternalMediaType
@@ -104,6 +108,7 @@ import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupsRequest as 
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupsResponse as internalBatchUpdateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest as internalCreateEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.dateInterval as internalDateInterval
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest as internalDeleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
 import org.wfanet.measurement.internal.kingdom.eventGroupDetails
@@ -246,6 +251,38 @@ private val INTERNAL_DELETED_EVENT_GROUP: InternalEventGroup = internalEventGrou
   state = InternalEventGroup.State.DELETED
 }
 
+private val DATE_1 = date {
+  year = 2023
+  month = 1
+  day = 1
+}
+private val DATE_2 = date {
+  year = 2023
+  month = 1
+  day = 2
+}
+
+private val INTERNAL_AGGREGATED_ACTIVITY =
+  InternalEventGroupKt.aggregatedActivity {
+    interval = internalDateInterval {
+      startDate = DATE_1
+      endDate = DATE_2
+    }
+  }
+private val AGGREGATED_ACTIVITY =
+  EventGroupKt.aggregatedActivity {
+    interval = dateInterval {
+      startDate = DATE_1
+      endDate = DATE_2
+    }
+  }
+
+private val INTERNAL_EVENT_GROUP_WITH_ACTIVITIES =
+  INTERNAL_EVENT_GROUP.copy { aggregatedActivities += INTERNAL_AGGREGATED_ACTIVITY }
+
+private val EVENT_GROUP_WITH_ACTIVITIES =
+  EVENT_GROUP.copy { aggregatedActivities += AGGREGATED_ACTIVITY }
+
 @RunWith(JUnit4::class)
 class EventGroupsServiceTest {
 
@@ -336,6 +373,84 @@ class EventGroupsServiceTest {
     assertThat(result).isEqualTo(expected)
   }
 
+  @Test
+  fun `getEventGroup with view UNSPECIFIED returns event group`() {
+    val request = getEventGroupRequest {
+      name = EVENT_GROUP_NAME
+      view = EventGroup.View.VIEW_UNSPECIFIED
+    }
+
+    val result =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.getEventGroup(request) }
+      }
+
+    verifyProtoArgument(internalEventGroupsMock, EventGroupsCoroutineImplBase::getEventGroup)
+      .isEqualTo(
+        internalGetEventGroupRequest {
+          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+          view = InternalEventGroup.View.VIEW_UNSPECIFIED
+        }
+      )
+
+    assertThat(result).isEqualTo(EVENT_GROUP)
+    assertThat(result.aggregatedActivitiesList).isEmpty()
+  }
+
+  @Test
+  fun `getEventGroup with view BASIC returns event group`() {
+    val request = getEventGroupRequest {
+      name = EVENT_GROUP_NAME
+      view = EventGroup.View.BASIC
+    }
+
+    val result =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.getEventGroup(request) }
+      }
+
+    verifyProtoArgument(internalEventGroupsMock, EventGroupsCoroutineImplBase::getEventGroup)
+      .isEqualTo(
+        internalGetEventGroupRequest {
+          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+          view = InternalEventGroup.View.BASIC
+        }
+      )
+
+    assertThat(result).isEqualTo(EVENT_GROUP)
+    assertThat(result.aggregatedActivitiesList).isEmpty()
+  }
+
+  @Test
+  fun `getEventGroup with view WITH_ACTIVITY_SUMMARY returns event group with activities`() {
+    val request = getEventGroupRequest {
+      name = EVENT_GROUP_NAME
+      view = EventGroup.View.WITH_ACTIVITY_SUMMARY
+    }
+
+    internalEventGroupsMock.stub {
+      onBlocking { getEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP_WITH_ACTIVITIES)
+    }
+
+    val result =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.getEventGroup(request) }
+      }
+
+    verifyProtoArgument(internalEventGroupsMock, EventGroupsCoroutineImplBase::getEventGroup)
+      .isEqualTo(
+        internalGetEventGroupRequest {
+          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+          view = InternalEventGroup.View.WITH_ACTIVITY_SUMMARY
+        }
+      )
+
+    assertThat(result).isEqualTo(EVENT_GROUP_WITH_ACTIVITIES)
+  }
+  
   @Test
   fun `getEventGroup throws PERMISSION_DENIED when edp caller doesn't match`() {
     val request = getEventGroupRequest { name = EVENT_GROUP_NAME }
@@ -1289,6 +1404,146 @@ class EventGroupsServiceTest {
           allowStaleReads = true
         }
       )
+  }
+
+  @Test
+  fun `listEventGroups with view BASIC requests internal BASIC view`() {
+    val request = listEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      view = EventGroup.View.BASIC
+    }
+
+    val response =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.listEventGroups(request) }
+      }
+
+    assertThat(response.eventGroupsList).contains(EVENT_GROUP)
+    assertThat(response.eventGroupsList[0].aggregatedActivitiesList).isEmpty()
+
+    val internalRequest: StreamEventGroupsRequest = captureFirst {
+      verify(internalEventGroupsMock).streamEventGroups(capture())
+    }
+    assertThat(internalRequest.view).isEqualTo(InternalEventGroup.View.BASIC)
+  }
+
+  @Test
+  fun `listEventGroups with view UNSPECIFIED requests internal UNSPECIFIED view`() {
+    val request = listEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      view = EventGroup.View.VIEW_UNSPECIFIED
+    }
+
+    val response =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.listEventGroups(request) }
+      }
+
+    assertThat(response.eventGroupsList).contains(EVENT_GROUP)
+    assertThat(response.eventGroupsList[0].aggregatedActivitiesList).isEmpty()
+
+    val internalRequest: StreamEventGroupsRequest = captureFirst {
+      verify(internalEventGroupsMock).streamEventGroups(capture())
+    }
+    assertThat(internalRequest.view).isEqualTo(InternalEventGroup.View.VIEW_UNSPECIFIED)
+  }
+
+  @Test
+  fun `listEventGroups with view WITH_ACTIVITY_SUMMARY requests internal WITH_ACTIVITY_SUMMARY view`() {
+    val request = listEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      view = EventGroup.View.WITH_ACTIVITY_SUMMARY
+    }
+
+    internalEventGroupsMock.stub {
+      onBlocking { streamEventGroups(any()) }
+        .thenReturn(flowOf(INTERNAL_EVENT_GROUP_WITH_ACTIVITIES))
+    }
+
+    val response =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.listEventGroups(request) }
+      }
+
+    assertThat(response.eventGroupsList).containsExactly(EVENT_GROUP_WITH_ACTIVITIES)
+
+    val internalRequest: StreamEventGroupsRequest = captureFirst {
+      verify(internalEventGroupsMock).streamEventGroups(capture())
+    }
+    assertThat(internalRequest.view).isEqualTo(InternalEventGroup.View.WITH_ACTIVITY_SUMMARY)
+  }
+
+  @Test
+  fun `listEventGroups with activity_contains filter returns EventGroups filtered by activity interval`() {
+    val activityInterval = dateInterval {
+      startDate = DATE_1
+      endDate = DATE_2
+    }
+    val request = listEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      filter = filter { activityContains = activityInterval }
+    }
+
+    withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+      runBlocking { service.listEventGroups(request) }
+    }
+
+    val internalRequest: StreamEventGroupsRequest = captureFirst {
+      verify(internalEventGroupsMock).streamEventGroups(capture())
+    }
+    assertThat(internalRequest.filter.activityContains)
+      .isEqualTo(
+        internalDateInterval {
+          startDate = DATE_1
+          endDate = DATE_2
+        }
+      )
+  }
+
+  @Test
+  fun `listEventGroups throws INVALID_ARGUMENT when activity_contains start date is after end date`() {
+    val activityInterval = dateInterval {
+      startDate = DATE_2
+      endDate = DATE_1
+    }
+    val request = listEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      filter = filter { activityContains = activityInterval }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.listEventGroups(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("start_date must be before or equal to")
+  }
+
+  @Test
+  fun `listEventGroups throws INVALID_ARGUMENT when activity_contains date is invalid`() {
+    val activityInterval = dateInterval {
+      startDate = date {
+        year = 2023
+        month = 13
+        day = 1
+      }
+      endDate = DATE_2
+    }
+    val request = listEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      filter = filter { activityContains = activityInterval }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.listEventGroups(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("dates are invalid")
   }
 
   @Test
