@@ -53,9 +53,7 @@ locals {
     docker_image                       = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill:${var.image_tag}"
     signed_image_repo                  = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill"
     mig_distribution_policy_zones      = ["us-central1-a"]
-    # TODO(world-federation-of-advertisers/cross-media-measurement#3370): Use "confidential-space" to turn off debug
-    # mode when log is visible on Cloud.
-    disk_image_family                  = "confidential-space-debug"
+    disk_image_family                  = "confidential-space"
 
     aggregator_tls_cert                = local.aggregator_tls_cert
     aggregator_tls_key                 = local.aggregator_tls_key
