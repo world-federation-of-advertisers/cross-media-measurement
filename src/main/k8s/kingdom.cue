@@ -19,6 +19,7 @@ import ("strings")
 #Kingdom: {
 	_verboseGrpcServerLogging: bool | *false
 	_verboseGrpcClientLogging: bool | *false
+	_trusTeeEnabled:           bool | *false
 
 	_spannerConfig: #SpannerConfig
 
@@ -186,6 +187,9 @@ import ("strings")
 					_akid_to_principal_map_file_flag,
 					_open_id_redirect_uri_flag,
 					_duchy_info_config_flag,
+					if _trusTeeEnabled {
+						_trusteeEnableFlag
+					},
 				] + _directNoiseMechanismFlags + Container._commonServerFlags
 			}
 			spec: template: spec: {

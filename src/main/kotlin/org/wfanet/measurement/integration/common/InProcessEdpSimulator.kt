@@ -68,7 +68,6 @@ class InProcessEdpSimulator(
   eventGroupOptions: EventGroupOptions,
   eventQuery: SyntheticGeneratorEventQuery,
   coroutineContext: CoroutineContext = Dispatchers.Default,
-  honestMajorityShareShuffleSupported: Boolean = true,
 ) : Health {
   data class EventGroupOptions(
     override val referenceIdSuffix: String,
@@ -92,12 +91,7 @@ class InProcessEdpSimulator(
   init {
     val populationSpec: PopulationSpec =
       eventQuery.populationSpec.toPopulationSpecWithoutAttributes()
-    val vidIndexMap =
-      if (honestMajorityShareShuffleSupported) {
-        InMemoryVidIndexMap.build(populationSpec)
-      } else {
-        null
-      }
+    val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
 
     delegate =
       EdpSimulator(
@@ -132,6 +126,7 @@ class InProcessEdpSimulator(
         trustedCertificates = trustedCertificates,
         vidIndexMap = vidIndexMap,
         random = random,
+        trusTeeSupported = false,
       )
   }
 

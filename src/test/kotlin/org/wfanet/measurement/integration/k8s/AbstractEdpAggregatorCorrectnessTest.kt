@@ -20,8 +20,8 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
-import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -47,7 +47,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
       mcSimulator.testReachOnly(
         "1231",
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+        ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
         eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_HMSS,
       )
     }
@@ -58,7 +58,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
       mcSimulator.testReachAndFrequency(
         "1232",
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+        ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
         eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_HMSS,
       )
     }
