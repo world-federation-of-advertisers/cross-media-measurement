@@ -527,24 +527,6 @@ class InProcessEdpAggregatorComponents(
     }
   }
 
-  /**
-   * Updates all EDP capabilities.
-   *
-   * Call this before running tests that require specific protocol capabilities.
-   */
-  suspend fun updateEdpCapabilities(capabilities: DataProvider.Capabilities) {
-    edpResourceNameMap.forEach { (_, edpResourceName) ->
-      val dataProvidersStub: DataProvidersCoroutineStub =
-        DataProvidersCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
-      dataProvidersStub.replaceDataProviderCapabilities(
-        replaceDataProviderCapabilitiesRequest {
-          name = edpResourceName
-          this.capabilities = capabilities
-        }
-      )
-    }
-  }
-
   fun stopDaemons() {
     backgroundJob.cancel()
   }

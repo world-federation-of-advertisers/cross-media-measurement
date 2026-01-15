@@ -907,10 +907,11 @@ abstract class MeasurementConsumerSimulator(
         .entries
         .filter {
           val dataProvider = keyToDataProviderMap.getValue(it.key)
-          if (requiredCapabilities.honestMajorityShareShuffleSupported) {
-            dataProvider.capabilities.honestMajorityShareShuffleSupported
-          } else {
-            true
+          when {
+            requiredCapabilities.honestMajorityShareShuffleSupported ->
+              dataProvider.capabilities.honestMajorityShareShuffleSupported
+            requiredCapabilities.trusTeeSupported -> dataProvider.capabilities.trusTeeSupported
+            else -> true
           }
         }
         .take(maxDataProviders)

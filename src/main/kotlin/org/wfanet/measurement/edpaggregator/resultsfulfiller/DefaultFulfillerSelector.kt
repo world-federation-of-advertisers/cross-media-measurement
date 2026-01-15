@@ -102,6 +102,30 @@ class DefaultFulfillerSelector(
         kAnonymityParams = kAnonymityParams,
         totalUncappedImpressions = totalUncappedImpressions,
       )
+    } else if (requisition.protocolConfig.protocolsList.any { it.hasTrusTee() }) {
+      if (kAnonymityParams == null) {
+        TrusTeeMeasurementFulfiller(
+          requisition,
+          requisitionSpec.nonce,
+          vec.build(),
+          requisitionFulfillmentStubMap,
+          requisitionsStub,
+          trusTeeEncryptionParams,
+        )
+      } else {
+        TrusTeeMeasurementFulfiller.buildKAnonymized(
+          requisition,
+          requisitionSpec.nonce,
+          measurementSpec,
+          populationSpec,
+          vec,
+          requisitionFulfillmentStubMap,
+          requisitionsStub,
+          kAnonymityParams,
+          maxPopulation = null,
+          trusTeeEncryptionParams,
+        )
+      }
     } else if (
       requisition.protocolConfig.protocolsList.any { it.hasHonestMajorityShareShuffle() }
     ) {
@@ -128,30 +152,6 @@ class DefaultFulfillerSelector(
           requisitionsStub,
           kAnonymityParams,
           maxPopulation = null,
-        )
-      }
-    } else if (requisition.protocolConfig.protocolsList.any { it.hasTrusTee() }) {
-      if (kAnonymityParams == null) {
-        TrusTeeMeasurementFulfiller(
-          requisition,
-          requisitionSpec.nonce,
-          vec.build(),
-          requisitionFulfillmentStubMap,
-          requisitionsStub,
-          trusTeeEncryptionParams,
-        )
-      } else {
-        TrusTeeMeasurementFulfiller.buildKAnonymized(
-          requisition,
-          requisitionSpec.nonce,
-          measurementSpec,
-          populationSpec,
-          vec,
-          requisitionFulfillmentStubMap,
-          requisitionsStub,
-          kAnonymityParams,
-          maxPopulation = null,
-          trusTeeEncryptionParams,
         )
       }
     } else {

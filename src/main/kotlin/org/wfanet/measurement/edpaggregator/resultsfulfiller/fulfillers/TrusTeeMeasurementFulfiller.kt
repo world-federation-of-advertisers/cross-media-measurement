@@ -31,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.computation.ReachAndFrequencyComputations
+import org.wfanet.measurement.computation.kAnonymizeFrequencyVector
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder
 
@@ -132,31 +133,13 @@ class TrusTeeMeasurementFulfiller(
       kAnonymityParams: KAnonymityParams,
       maxPopulation: Int?,
     ): FrequencyVector {
-      val frequencyData = frequencyVectorBuilder.frequencyDataArray
-      val histogram: LongArray =
-        HistogramComputations.buildHistogram(
-          frequencyVector = frequencyData,
-          maxFrequency = kAnonymityParams.reachMaxFrequencyPerUser,
-        )
-      val reachValue =
-        ReachAndFrequencyComputations.computeReach(
-          rawHistogram = histogram,
-          vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width,
-          vectorSize = maxPopulation,
-          dpParams = null,
-          kAnonymityParams = kAnonymityParams,
-        )
-      return if (reachValue == 0L) {
-        FrequencyVectorBuilder(
-            measurementSpec = measurementSpec,
-            populationSpec = populationSpec,
-            strict = false,
-            overrideImpressionMaxFrequencyPerUser = null,
-          )
-          .build()
-      } else {
-        frequencyVectorBuilder.build()
-      }
+      return kAnonymizeFrequencyVector(
+        measurementSpec,
+        populationSpec,
+        frequencyVectorBuilder,
+        kAnonymityParams,
+        maxPopulation,
+      )
     }
   }
 }
