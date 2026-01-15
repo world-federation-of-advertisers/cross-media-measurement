@@ -25,7 +25,7 @@ import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 
 @RunWith(JUnit4::class)
-class FrequencyVectorAnonymizationTest {
+class KAnonymizerTest {
   private val measurementSpec = measurementSpec {
     vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 1.0f }
     reach = MeasurementSpecKt.reach {}
