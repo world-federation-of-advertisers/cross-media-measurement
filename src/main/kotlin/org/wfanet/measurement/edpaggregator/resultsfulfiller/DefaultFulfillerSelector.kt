@@ -33,7 +33,6 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffl
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.MeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.TrusTeeMeasurementFulfiller
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusteeFulfillRequisitionRequestBuilder
 
 /**
  * Default implementation that routes requisitions to protocol-specific fulfillers.
@@ -46,7 +45,7 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.Fulf
  * @param kAnonymityParams optional k-anonymity thresholds; null disables k-anonymity
  * @param overrideImpressionMaxFrequencyPerUser optional frequency cap override; null or -1 means no
  *   capping and uses totalUncappedImpressions instead
- * @param trusTeeEncryptionParams encryption parameters for TrusTee protocol envelope encryption
+ * @param trusTeeConfig configuration for TrusTee protocol envelope encryption; null disables TrusTee
  */
 class DefaultFulfillerSelector(
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
@@ -57,7 +56,7 @@ class DefaultFulfillerSelector(
   private val noiserSelector: NoiserSelector,
   private val kAnonymityParams: KAnonymityParams?,
   private val overrideImpressionMaxFrequencyPerUser: Int?,
-  private val trusTeeEncryptionParams: TrusteeFulfillRequisitionRequestBuilder.EncryptionParams,
+  private val trusTeeConfig: TrusTeeConfig?,
 ) : FulfillerSelector {
 
   /**
@@ -110,7 +109,7 @@ class DefaultFulfillerSelector(
           vec.build(),
           requisitionFulfillmentStubMap,
           requisitionsStub,
-          trusTeeEncryptionParams,
+          trusTeeConfig?.buildEncryptionParams(),
         )
       } else {
         TrusTeeMeasurementFulfiller.buildKAnonymized(
@@ -123,7 +122,7 @@ class DefaultFulfillerSelector(
           requisitionsStub,
           kAnonymityParams,
           maxPopulation = null,
-          trusTeeEncryptionParams,
+          trusTeeConfig?.buildEncryptionParams(),
         )
       }
     } else if (
