@@ -734,13 +734,12 @@ object CreateBasicReportRequestValidation {
     fieldPath: String,
     eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
   ) {
-    if (customImpressionQualificationFilterSpec.filterSpecList.isEmpty()) {
-      throw RequiredFieldNotSetException("$fieldPath.filter_spec")
-    }
-
     // No more than 1 filter_spec per MediaType
     buildSet<MediaType> {
       customImpressionQualificationFilterSpec.filterSpecList.forEachIndexed { index, filterSpec ->
+        if (filterSpec.mediaType == MediaType.MEDIA_TYPE_UNSPECIFIED) {
+          throw RequiredFieldNotSetException("$fieldPath.filter_specs[$index].media_type")
+        }
         if (this.contains(filterSpec.mediaType)) {
           throw InvalidFieldValueException("$fieldPath.filter_specs") { fieldName ->
             "$fieldName cannot have more than 1 filter_spec for MediaType ${filterSpec.mediaType}. Only 1 filter_spec per MediaType allowed"
@@ -749,9 +748,6 @@ object CreateBasicReportRequestValidation {
         add(filterSpec.mediaType)
 
         val filterSpecFieldPath = "$fieldPath.filter_specs[$index]"
-        if (filterSpec.filtersList.isEmpty()) {
-          throw RequiredFieldNotSetException("$filterSpecFieldPath.filters")
-        }
 
         filterSpec.filtersList.forEachIndexed { filterIndex, filter ->
           val filterFieldPath = "$filterSpecFieldPath.filters[$filterIndex]"

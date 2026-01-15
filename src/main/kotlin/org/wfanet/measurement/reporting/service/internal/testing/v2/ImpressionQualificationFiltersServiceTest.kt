@@ -199,15 +199,9 @@ abstract class ImpressionQualificationFiltersServiceTest<
   companion object {
     private val AMI_IQF = impressionQualificationFilter {
       externalImpressionQualificationFilterId = "ami"
-      filterSpecs += impressionQualificationFilterSpec {
-        mediaType = MediaType.DISPLAY
-        filters += eventFilter {
-          terms += eventTemplateField {
-            path = "banner_ad.viewable"
-            value = EventTemplateFieldKt.fieldValue { boolValue = false }
-          }
-        }
-      }
+      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
+      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.VIDEO }
+      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.OTHER }
     }
 
     private val MRC_IQF = impressionQualificationFilter {

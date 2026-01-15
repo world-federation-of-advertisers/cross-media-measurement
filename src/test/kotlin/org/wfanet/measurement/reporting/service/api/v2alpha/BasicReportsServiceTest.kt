@@ -151,6 +151,7 @@ import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
+import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilterKt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
@@ -946,6 +947,163 @@ class BasicReportsServiceTest {
             utcOffset = duration { seconds = 14400 }
           }
         )
+    }
+
+  @Test
+  fun `createBasicReport returns basic report when custom IQF has no spec`(): Unit = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    val campaignGroup =
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet = internalReportingSet {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+            displayName = "displayName"
+            primitive =
+              ReportingSetKt.primitive {
+                eventGroupKeys +=
+                  ReportingSetKt.PrimitiveKt.eventGroupKey {
+                    cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                    cmmsEventGroupId = "1235"
+                  }
+              }
+          }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+    val basicReport = basicReport {
+      title = "title"
+      this.campaignGroup = campaignGroupKey.toName()
+      reportingInterval = reportingInterval {
+        reportStart = dateTime {
+          year = 2025
+          month = 7
+          day = 3
+          timeZone = timeZone { id = "America/Los_Angeles" }
+        }
+        reportEnd = date {
+          year = 2026
+          month = 1
+          day = 5
+        }
+      }
+      impressionQualificationFilters += reportingImpressionQualificationFilter {
+        custom =
+          ReportingImpressionQualificationFilter.CustomImpressionQualificationFilterSpec
+            .getDefaultInstance()
+      }
+      resultGroupSpecs += resultGroupSpec {
+        title = "title"
+        reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
+        metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+        dimensionSpec = DimensionSpec.getDefaultInstance()
+        resultGroupMetricSpec = resultGroupMetricSpec {
+          populationSize = true
+          component =
+            ResultGroupMetricSpecKt.componentMetricSetSpec {
+              nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+            }
+        }
+      }
+    }
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      this.basicReport = basicReport
+      basicReportId = "a1234"
+    }
+
+    val response = withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+    assertThat(response.createTime.seconds).isAtLeast(1)
+  }
+
+  @Test
+  fun `createBasicReport returns basic report when custom IQF spec has no filter`(): Unit =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      val campaignGroup =
+        internalReportingSetsService.createReportingSet(
+          createReportingSetRequest {
+            reportingSet = internalReportingSet {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+              displayName = "displayName"
+              primitive =
+                ReportingSetKt.primitive {
+                  eventGroupKeys +=
+                    ReportingSetKt.PrimitiveKt.eventGroupKey {
+                      cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                      cmmsEventGroupId = "1235"
+                    }
+                }
+            }
+            externalReportingSetId = campaignGroupKey.reportingSetId
+          }
+        )
+
+      val basicReport = basicReport {
+        title = "title"
+        this.campaignGroup = campaignGroupKey.toName()
+        reportingInterval = reportingInterval {
+          reportStart = dateTime {
+            year = 2025
+            month = 7
+            day = 3
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2026
+            month = 1
+            day = 5
+          }
+        }
+        impressionQualificationFilters += reportingImpressionQualificationFilter {
+          custom =
+            ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+              filterSpec += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
+            }
+        }
+        resultGroupSpecs += resultGroupSpec {
+          title = "title"
+          reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+          dimensionSpec = DimensionSpec.getDefaultInstance()
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              }
+          }
+        }
+      }
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        this.basicReport = basicReport
+        basicReportId = "a1234"
+      }
+
+      val response =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      assertThat(response.createTime.seconds).isAtLeast(1)
     }
 
   @Test
@@ -5245,7 +5403,7 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when IQFs have custom missing filter specs`() =
+  fun `createBasicReport throws INVALID_ARGUMENT when custom has spec with no media type`() =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
@@ -5275,7 +5433,9 @@ class BasicReportsServiceTest {
             impressionQualificationFilters.clear()
             impressionQualificationFilters += reportingImpressionQualificationFilter {
               custom =
-                ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {}
+                ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+                  filterSpec += impressionQualificationFilterSpec {}
+                }
             }
           }
         basicReportId = "a1234"
@@ -5293,7 +5453,7 @@ class BasicReportsServiceTest {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.impression_qualification_filters[0].custom.filter_spec"
+              "basic_report.impression_qualification_filters[0].custom.filter_specs[0].media_type"
           }
         )
     }
@@ -5367,62 +5527,6 @@ class BasicReportsServiceTest {
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
               "basic_report.impression_qualification_filters[0].custom.filter_specs"
-          }
-        )
-    }
-
-  @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when custom filter spec missing filters`() =
-    runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
-      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
-
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        }
-      )
-
-      internalReportingSetsService.createReportingSet(
-        createReportingSetRequest {
-          reportingSet =
-            INTERNAL_CAMPAIGN_GROUP.copy {
-              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-              externalCampaignGroupId = campaignGroupKey.reportingSetId
-            }
-          externalReportingSetId = campaignGroupKey.reportingSetId
-        }
-      )
-
-      val request = createBasicReportRequest {
-        parent = measurementConsumerKey.toName()
-        basicReport =
-          BASIC_REPORT.copy {
-            campaignGroup = campaignGroupKey.toName()
-            impressionQualificationFilters.clear()
-            impressionQualificationFilters += reportingImpressionQualificationFilter {
-              custom =
-                ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-                  filterSpec += impressionQualificationFilterSpec { mediaType = MediaType.VIDEO }
-                }
-            }
-          }
-        basicReportId = "a1234"
-      }
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-        }
-
-      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception)
-        .errorInfo()
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.impression_qualification_filters[0].custom.filter_specs[0].filters"
           }
         )
     }
