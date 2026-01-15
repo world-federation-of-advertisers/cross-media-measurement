@@ -78,11 +78,11 @@ _edpConfigs: [
 		certResourceName: _edpCertResourceNames[i]
 		displayName:      "edp\(Number)"
 
-		// Support HMSS on the first half of the EDPs so that we have one EDP with each event source supporting the protocol.
+		// Support TrusTEE on the first half of the EDPs so that we have one EDP with each event source supporting the protocol.
 		if (name == _edp1_name || name == _edp2_name || name == _edp3_name) {
-			supportHmss: true
+			supportTrusTee: true
+			encryptTrusTee: true
 		}
-		supportEncryptedTrustee: true
 
 		eventGroupConfigs: [{
 			referenceIdSuffix:     ""

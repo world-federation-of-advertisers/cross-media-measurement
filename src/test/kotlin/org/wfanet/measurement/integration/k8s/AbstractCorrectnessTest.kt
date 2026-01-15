@@ -106,10 +106,10 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
   }
 
   @Test
-  fun `LLv2 reach and frequency measurement completes with expected result`() = runBlocking {
+  fun `TrusTEE reach and frequency measurement completes with expected result`() = runBlocking {
     testHarness.testReachAndFrequency(
-      "$runId-llv2-reach-and-freq",
-      DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+      "$runId-trus-tee-reach-and-freq",
+      DataProviderKt.capabilities { trusTeeSupported = true },
     )
   }
 

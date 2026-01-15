@@ -154,16 +154,6 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
   }
 
   @Test
-  fun `create a Llv2 RF measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a reach and frequency measurement and verify its result.
-      mcSimulator.testReachAndFrequency(
-        "1234",
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
-      )
-    }
-
-  @Test
   fun `create a Hmss RF measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
@@ -189,16 +179,6 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
     }
 
   @Test
-  fun `create a Llv2 reach-only measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a reach and frequency measurement and verify its result.
-      mcSimulator.testReachOnly(
-        "1234",
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
-      )
-    }
-
-  @Test
   fun `create a Hmss reach-only measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
@@ -220,17 +200,6 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
     runBlocking {
       // Use frontend simulator to create a duration measurement and verify its result.
       mcSimulator.testDuration("1234")
-    }
-
-  @Test
-  fun `create a Llv2 RF measurement of invalid params and check the result contains error info`() =
-    runBlocking {
-      // Use frontend simulator to create an invalid reach and frequency measurement and verify
-      // its error info.
-      mcSimulator.testInvalidReachAndFrequency(
-        "1234",
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
-      )
     }
 
   @Test

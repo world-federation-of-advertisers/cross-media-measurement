@@ -141,9 +141,10 @@ class LegacyMetadataEdpSimulatorRunner : AbstractEdpSimulatorRunner() {
     kingdomPublicApiChannel: ManagedChannel,
     requisitionFulfillmentStubsByDuchyId:
       Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
+    trusTeeSupported: Boolean,
     trustedCertificates: Map<ByteString, X509Certificate>,
     eventQuery: SyntheticGeneratorEventQuery,
-    vidIndexMap: InMemoryVidIndexMap?,
+    vidIndexMap: InMemoryVidIndexMap,
     logSketchDetails: Boolean,
     throttler: MinimumIntervalThrottler,
     health: SettableHealth,
@@ -173,6 +174,7 @@ class LegacyMetadataEdpSimulatorRunner : AbstractEdpSimulatorRunner() {
       logSketchDetails = logSketchDetails,
       health = health,
       random = random,
+      trusTeeSupported = trusTeeSupported,
     )
   }
 
