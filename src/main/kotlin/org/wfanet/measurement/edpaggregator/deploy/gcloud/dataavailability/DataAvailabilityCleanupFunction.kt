@@ -46,7 +46,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.deleteImpressionMetadataRequ
  *
  * ## Headers
  * - `X-DataWatcher-Path`: Required. The GCS object path that was deleted.
- * - `X-Impression-Metadata-Resource-Id`: Required. The ImpressionMetadata resource name to delete.
+ * - `X-Impression-Metadata-Resource-Id`: Optional. The ImpressionMetadata resource name to delete.
+ *   If not provided, cleanup is skipped (returns 200 OK).
  *
  * ## Environment Variables
  * - `IMPRESSION_METADATA_TARGET`: Required. Target endpoint for the Impression Metadata service.
