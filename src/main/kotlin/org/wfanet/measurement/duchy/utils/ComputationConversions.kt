@@ -21,17 +21,18 @@ import java.lang.IllegalArgumentException
 import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
 import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
+import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams as V2AlphaDifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey as V2AlphaEncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
-import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.frequency
-import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.elGamalPublicKey as v2AlphaElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey as v2alphaEncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.honestMajorityShareShuffleMethodology
+import org.wfanet.measurement.api.v2alpha.liquidLegionsCountDistinct
 import org.wfanet.measurement.consent.client.duchy.computeRequisitionFingerprint
 import org.wfanet.measurement.internal.duchy.ComputationDetails.KingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationDetailsKt.kingdomComputationDetails
@@ -49,11 +50,11 @@ import org.wfanet.measurement.internal.duchy.requisitionEntry
 import org.wfanet.measurement.measurementconsumer.stats.CustomDirectFrequencyMethodology
 import org.wfanet.measurement.measurementconsumer.stats.CustomDirectScalarMethodology
 import org.wfanet.measurement.measurementconsumer.stats.DeterministicMethodology
+import org.wfanet.measurement.measurementconsumer.stats.FrequencyMethodology
 import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMethodology
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
-import org.wfanet.measurement.measurementconsumer.stats.Methodology
-import org.wfanet.measurement.measurementconsumer.stats.TrusTeeMethodology
+import org.wfanet.measurement.measurementconsumer.stats.ReachMethodology
 import org.wfanet.measurement.system.v1alpha.Computation as SystemComputation
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
@@ -251,67 +252,79 @@ interface ComputationResult {
 data class ReachAndFrequencyResult(
   val reach: Long,
   val frequency: Map<Long, Double>,
-  val methodology: Methodology,
+  val methodology: FrequencyMethodology,
 ) : ComputationResult {
   /** Converts a ReachAndFrequencyResult object to the v2Alpha measurement result. */
   override fun toV2AlphaMeasurementResult(): Measurement.Result {
     val source = this
     return MeasurementKt.result {
-      reach = reach {
-        value = source.reach
-        when (methodology) {
-          is HonestMajorityShareShuffleMethodology -> {
-            honestMajorityShareShuffle = honestMajorityShareShuffleMethodology {
-              frequencyVectorSize = methodology.frequencyVectorSize
+      reach =
+        MeasurementKt.ResultKt.reach {
+          value = source.reach
+          when (source.methodology) {
+            is CustomDirectFrequencyMethodology -> error("Unsupported methodology for Duchy")
+            is DeterministicMethodology -> {
+              deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+            }
+            is LiquidLegionsSketchMethodology -> {
+              liquidLegionsCountDistinct = liquidLegionsCountDistinct {
+                decayRate = source.methodology.decayRate
+                maxSize = source.methodology.sketchSize
+              }
+            }
+            is LiquidLegionsV2Methodology -> {
+              liquidLegionsV2 =
+                org.wfanet.measurement.api.v2alpha.LiquidLegionsV2Methodology.getDefaultInstance()
+            }
+            is HonestMajorityShareShuffleMethodology -> {
+              honestMajorityShareShuffle = source.methodology.toV2Alpha()
             }
           }
-          is CustomDirectScalarMethodology,
-          is CustomDirectFrequencyMethodology,
-          is DeterministicMethodology,
-          is LiquidLegionsSketchMethodology,
-          is LiquidLegionsV2Methodology,
-          is TrusTeeMethodology -> {}
         }
-      }
-      frequency = frequency {
-        relativeFrequencyDistribution.putAll(source.frequency)
-        when (methodology) {
-          is HonestMajorityShareShuffleMethodology -> {
-            honestMajorityShareShuffle = honestMajorityShareShuffleMethodology {
-              frequencyVectorSize = methodology.frequencyVectorSize
+      frequency =
+        MeasurementKt.ResultKt.frequency {
+          relativeFrequencyDistribution.putAll(source.frequency)
+          when (source.methodology) {
+            is DeterministicMethodology -> {
+              deterministicDistribution = DeterministicDistribution.getDefaultInstance()
             }
+            is LiquidLegionsV2Methodology -> {
+              liquidLegionsV2 =
+                org.wfanet.measurement.api.v2alpha.LiquidLegionsV2Methodology.getDefaultInstance()
+            }
+            is HonestMajorityShareShuffleMethodology -> {
+              honestMajorityShareShuffle = source.methodology.toV2Alpha()
+            }
+            is LiquidLegionsSketchMethodology,
+            is CustomDirectFrequencyMethodology -> error("Unsupported methodology for Duchy")
           }
-          is CustomDirectScalarMethodology,
-          is CustomDirectFrequencyMethodology,
-          is DeterministicMethodology,
-          is LiquidLegionsSketchMethodology,
-          is LiquidLegionsV2Methodology,
-          is TrusTeeMethodology -> {}
         }
-      }
     }
   }
 }
 
-data class ReachResult(val reach: Long, val methodology: Methodology) : ComputationResult {
+data class ReachResult(val reach: Long, val methodology: ReachMethodology) : ComputationResult {
   /** Converts a ReachResult object to the v2Alpha measurement result. */
   override fun toV2AlphaMeasurementResult(): Measurement.Result {
-    val source = this
     return MeasurementKt.result {
-      reach = reach {
-        value = source.reach
-        when (methodology) {
-          is HonestMajorityShareShuffleMethodology -> {
-            honestMajorityShareShuffle = honestMajorityShareShuffleMethodology {
-              frequencyVectorSize = methodology.frequencyVectorSize
+      reach = run {
+        val source = this@ReachResult
+        MeasurementKt.ResultKt.reach {
+          value = source.reach
+          when (methodology) {
+            is HonestMajorityShareShuffleMethodology -> {
+              honestMajorityShareShuffle = methodology.toV2Alpha()
             }
+            is DeterministicMethodology -> {
+              deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+            }
+            is LiquidLegionsV2Methodology -> {
+              liquidLegionsV2 =
+                org.wfanet.measurement.api.v2alpha.LiquidLegionsV2Methodology.getDefaultInstance()
+            }
+            is LiquidLegionsSketchMethodology,
+            is CustomDirectScalarMethodology -> error("Unsupported methodology for Duchy")
           }
-          is CustomDirectScalarMethodology,
-          is CustomDirectFrequencyMethodology,
-          is DeterministicMethodology,
-          is LiquidLegionsSketchMethodology,
-          is LiquidLegionsV2Methodology,
-          is TrusTeeMethodology -> {}
         }
       }
     }
@@ -332,4 +345,10 @@ fun ElGamalPublicKey.toAnySketchElGamalPublicKey(): AnySketchElGamalPublicKey {
     generator = source.generator
     element = source.element
   }
+}
+
+private fun HonestMajorityShareShuffleMethodology.toV2Alpha():
+  org.wfanet.measurement.api.v2alpha.HonestMajorityShareShuffleMethodology {
+  val source = this
+  return honestMajorityShareShuffleMethodology { frequencyVectorSize = source.frequencyVectorSize }
 }
