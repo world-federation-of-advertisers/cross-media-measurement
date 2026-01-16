@@ -700,6 +700,48 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
+  fun `updateBlobMetadata is called for both metadata and impressions files`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+      )
+
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    // Should have exactly 2 calls: one for metadata file, one for impressions file
+    assertThat(storageClient.updateBlobMetadataCalls).hasSize(2)
+
+    // Verify metadata file update (has resource ID in metadata)
+    val metadataFileUpdate =
+      storageClient.updateBlobMetadataCalls.single { it.metadata.isNotEmpty() }
+    assertThat(metadataFileUpdate.blobKey).contains("metadata")
+    assertThat(metadataFileUpdate.customCreateTime).isNotNull()
+    assertThat(metadataFileUpdate.metadata)
+      .containsKey(DataAvailabilitySync.IMPRESSION_METADATA_RESOURCE_ID_KEY)
+
+    // Verify impressions file update (no metadata, just customCreateTime)
+    val impressionsFileUpdate =
+      storageClient.updateBlobMetadataCalls.single { it.metadata.isEmpty() }
+    assertThat(impressionsFileUpdate.blobKey).contains("some_blob_uri")
+    assertThat(impressionsFileUpdate.customCreateTime).isNotNull()
+
+    // Both files should have the same customCreateTime (derived from interval start time)
+    assertThat(metadataFileUpdate.customCreateTime)
+      .isEqualTo(impressionsFileUpdate.customCreateTime)
+  }
+
+  @Test
   fun `updateBlobMetadata uses impressions blob key from BlobDetails not inferred from metadata URI`() =
     runBlocking {
       val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
