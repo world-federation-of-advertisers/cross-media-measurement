@@ -1,0 +1,37 @@
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+
+package(default_visibility = ["//visibility:public"])
+
+pkg_files(
+    name = "gcloud_logging_java_config_files",
+    srcs = ["gcloud_logging.properties"],
+    prefix = "usr/lib/jvm/default-java/conf",
+    renames = {
+        "gcloud_logging.properties": "logging.properties",
+    },
+    visibility = ["//visibility:private"],
+)
+
+pkg_tar(
+    name = "gcloud_logging_java_config_layer",
+    srcs = [":gcloud_logging_java_config_files"],
+    extension = "tar.gz",
+    visibility = ["//visibility:private"],
+)
+
+# Java base image with root user and a logging.properties file for Google Cloud
+# Logging included at /usr/lib/jvm/default-java/conf/
+oci_image(
+    name = "gcloud_logging_java_root_base_image",
+    base = "@java_image_base_root",
+    tars = [":gcloud_logging_java_config_layer"],
+)
+
+oci_load(
+    name = "load_gcloud_logging_java_root_base_image",
+    image = ":gcloud_logging_java_root_base_image",
+    repo_tags = ["gcloud-logging-java-root-base-image:latest"],
+    visibility = ["//visibility:private"],
+)
