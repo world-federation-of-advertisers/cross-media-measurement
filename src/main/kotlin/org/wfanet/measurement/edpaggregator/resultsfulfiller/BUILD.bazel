@@ -17,7 +17,6 @@ kt_jvm_library(
         "FulfillerSelector.kt",
         "ResultsFulfiller.kt",
         "ResultsFulfillerMetrics.kt",
-        "TrusTeeConfig.kt",
     ],
     deps = [
         ":continuous_gaussian_noiser_selector",
