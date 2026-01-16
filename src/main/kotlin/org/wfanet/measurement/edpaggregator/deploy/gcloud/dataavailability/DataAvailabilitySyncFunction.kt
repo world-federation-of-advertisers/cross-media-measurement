@@ -153,20 +153,21 @@ class DataAvailabilitySyncFunction() : HttpFunction {
   }
 
   /**
-   * Creates an [ObjectMetadataStorageClient] based on the current environment and the provided data
-   * provider configuration.
+   * Creates a [StorageClient] based on the current environment and the provided data provider
+   * configuration.
    *
    * @param dataProviderConfig The configuration object for a `DataProvider`.
-   * @return An [ObjectMetadataStorageClient] instance for GCS access.
-   * @throws IllegalStateException if [DATA_AVAILABILITY_FILE_SYSTEM_PATH] is set, as
-   *   [FileSystemStorageClient] does not support [ObjectMetadataStorageClient].
+   * @return A [StorageClient] instance, either for local file system access or GCS access.
    */
   // @TODO(@marcopremier): This function should be reused across Cloud Functions.
   private fun createStorageClient(
     dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
   ): ObjectMetadataStorageClient {
-    check(fileSystemPath.isNullOrEmpty()) {
-      "FileSystemStorageClient does not support ObjectMetadataStorageClient"
+    if (!fileSystemPath.isNullOrEmpty()) {
+      throw UnsupportedOperationException(
+        "FileSystemStorageClient does not support ObjectMetadataStorageClient. " +
+          "Unset DATA_AVAILABILITY_FILE_SYSTEM_PATH to use GCS."
+      )
     }
     val gcsConfig = dataAvailabilitySyncConfig.dataAvailabilityStorage.gcs
     return GcsStorageClient(

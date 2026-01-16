@@ -273,7 +273,7 @@ class DataAvailabilitySync(
           val metadataBlobUri = SelectedStorageClient.parseBlobUri(createdMetadata.blobUri)
           val customTime = createdMetadata.interval.startTime.toInstant()
 
-          // Update metadata blob with Custom-Time and resource ID
+          // Update blob details with Custom-Time and resource ID
           storageClient.updateObjectMetadata(
             blobKey = metadataBlobUri.key,
             customTime = customTime,
@@ -281,13 +281,11 @@ class DataAvailabilitySync(
           )
 
           // Also update the impressions blob with Custom-Time (no resource ID needed)
-          val impressionsBlobKey = impressionsBlobKeyByMetadataUri[createdMetadata.blobUri]
-          if (impressionsBlobKey != null) {
-            storageClient.updateObjectMetadata(
-              blobKey = impressionsBlobKey,
-              customTime = customTime,
-            )
-          }
+          val impressionsBlobKey = impressionsBlobKeyByMetadataUri.getValue(createdMetadata.blobUri)
+          storageClient.updateObjectMetadata(
+            blobKey = impressionsBlobKey,
+            customTime = customTime,
+          )
         }
       }
     } catch (e: StatusException) {
