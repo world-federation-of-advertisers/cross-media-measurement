@@ -44,10 +44,10 @@ import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerDa
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator.MeasurementInfo
 import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
-import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.ReachMethodology
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl.computeMeasurementVariance
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
@@ -140,7 +140,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
   }
 
   private fun getReachVariance(
-    methodology: Methodology,
+    methodology: ReachMethodology,
     measurementInfo: MeasurementInfo,
     reach: Long,
   ): Double {
