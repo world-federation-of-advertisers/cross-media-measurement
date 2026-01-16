@@ -35,7 +35,9 @@ import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.deleteImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 
 /**
  * Cloud Function that handles cleanup of ImpressionMetadata records when GCS objects are deleted.
@@ -45,9 +47,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.deleteImpressionMetadataRequ
  * to soft-delete the corresponding Spanner record.
  *
  * ## Headers
- * - `X-DataWatcher-Path`: Required. The GCS object path that was deleted.
+ * - `X-DataWatcher-Path`: Required. The GCS object path that was deleted (used as blob URI).
  * - `X-Impression-Metadata-Resource-Id`: Optional. The ImpressionMetadata resource name to delete.
- *   If not provided, cleanup is skipped (returns 200 OK).
+ *   If not provided, the function will look up the record by blob URI.
  *
  * ## Environment Variables
  * - `IMPRESSION_METADATA_TARGET`: Required. Target endpoint for the Impression Metadata service.
@@ -68,9 +70,9 @@ class DataAvailabilityCleanupFunction : HttpFunction {
 
       val requestBody: BufferedReader = request.reader
       val dataAvailabilitySyncConfig =
-        DataAvailabilitySyncConfig.newBuilder().also {
-          JsonFormat.parser().merge(requestBody, it)
-        }.build()
+        DataAvailabilitySyncConfig.newBuilder()
+          .apply { JsonFormat.parser().merge(requestBody, this) }
+          .build()
 
       // Read the path as request header
       val deletedBlobPath =
@@ -78,21 +80,9 @@ class DataAvailabilityCleanupFunction : HttpFunction {
           IllegalArgumentException("Missing required header: $DATA_WATCHER_PATH_HEADER")
         }
 
-      // Read the ImpressionMetadata resource ID from header
+      // Read the ImpressionMetadata resource ID from header (optional)
       val impressionMetadataResourceId =
         request.getFirstHeader(IMPRESSION_METADATA_RESOURCE_ID_HEADER).orElse(null)
-
-      if (impressionMetadataResourceId.isNullOrEmpty()) {
-        logger.info(
-          "No ImpressionMetadata resource ID found for deleted blob: $deletedBlobPath. Skipping cleanup."
-        )
-        response.setStatusCode(200)
-        return
-      }
-
-      logger.info(
-        "Processing cleanup for deleted blob: $deletedBlobPath, resourceId: $impressionMetadataResourceId"
-      )
 
       val grpcChannels =
         DataAvailabilitySyncFunction.getOrCreateSharedChannels(dataAvailabilitySyncConfig)
@@ -106,21 +96,50 @@ class DataAvailabilityCleanupFunction : HttpFunction {
 
       Tracing.withW3CTraceContext(request) {
         runBlocking(Context.current().asContextElement()) {
-          try {
-            impressionMetadataServiceStub.deleteImpressionMetadata(
-              deleteImpressionMetadataRequest { name = impressionMetadataResourceId }
-            )
-            logger.info(
-              "Successfully soft-deleted ImpressionMetadata: $impressionMetadataResourceId"
-            )
-          } catch (e: StatusException) {
-            if (e.status.code == Status.Code.NOT_FOUND) {
-              // Idempotent - the record may have already been deleted
+          val resourceIdToDelete: String? =
+            if (!impressionMetadataResourceId.isNullOrEmpty()) {
               logger.info(
-                "ImpressionMetadata not found (already deleted): $impressionMetadataResourceId"
+                "Using resource ID from header for deleted blob: $deletedBlobPath, " +
+                  "resourceId: $impressionMetadataResourceId"
               )
+              impressionMetadataResourceId
             } else {
-              throw e
+              // Look up the ImpressionMetadata by blob URI
+              logger.info(
+                "No resource ID header found. Looking up ImpressionMetadata by blob URI: $deletedBlobPath"
+              )
+              val listResponse =
+                impressionMetadataServiceStub.listImpressionMetadata(
+                  listImpressionMetadataRequest {
+                    parent = dataAvailabilitySyncConfig.dataProvider
+                    filter = ListImpressionMetadataRequestKt.filter { blobUri = deletedBlobPath }
+                  }
+                )
+              if (listResponse.impressionMetadataList.isEmpty()) {
+                logger.info(
+                  "No ImpressionMetadata found for blob URI: $deletedBlobPath. Skipping cleanup."
+                )
+                null
+              } else {
+                listResponse.impressionMetadataList.first().name
+              }
+            }
+
+          if (resourceIdToDelete != null) {
+            try {
+              impressionMetadataServiceStub.deleteImpressionMetadata(
+                deleteImpressionMetadataRequest { name = resourceIdToDelete }
+              )
+              logger.info("Successfully soft-deleted ImpressionMetadata: $resourceIdToDelete")
+            } catch (e: StatusException) {
+              if (e.status.code == Status.Code.NOT_FOUND) {
+                // Idempotent - the record may have already been deleted
+                logger.info(
+                  "ImpressionMetadata not found (already deleted): $resourceIdToDelete"
+                )
+              } else {
+                throw e
+              }
             }
           }
         }

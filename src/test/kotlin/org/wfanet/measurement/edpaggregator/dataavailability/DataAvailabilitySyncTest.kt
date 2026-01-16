@@ -139,7 +139,13 @@ class DataAvailabilitySyncTest {
         .thenAnswer { invocation ->
           val request = invocation.getArgument<BatchCreateImpressionMetadataRequest>(0)
           batchCreateImpressionMetadataResponse {
-            impressionMetadata += request.requestsList.map { it.impressionMetadata }
+            impressionMetadata +=
+              request.requestsList.mapIndexed { index, createRequest ->
+                // Return the input metadata with a name set (simulating server response)
+                createRequest.impressionMetadata.toBuilder()
+                  .setName("${request.parent}/impressionMetadata/im-$index")
+                  .build()
+              }
           }
         }
       onBlocking { computeModelLineBounds(any<ComputeModelLineBoundsRequest>()) }
@@ -728,13 +734,27 @@ class DataAvailabilitySyncTest {
       val impressionsUpdateCalls =
         storageClient.updateObjectMetadataCalls.filter { it.blobKey == customImpressionsPath }
       assertThat(impressionsUpdateCalls).hasSize(1)
+      // Impressions blob should have customTime set but no metadata (resource ID)
+      assertThat(impressionsUpdateCalls.first().customTime).isNotNull()
+      assertThat(impressionsUpdateCalls.first().metadata).isEmpty()
 
-      // Also verify the metadata blob update was called
+      // Verify the blob details (metadata) file update was called with resource ID
       val metadataUpdateCalls =
         storageClient.updateObjectMetadataCalls.filter {
           it.blobKey.contains("metadata") && it.metadata.isNotEmpty()
         }
       assertThat(metadataUpdateCalls).hasSize(1)
+      // Blob details should have customTime set and contain the resource ID
+      val metadataUpdate = metadataUpdateCalls.first()
+      assertThat(metadataUpdate.customTime).isNotNull()
+      assertThat(metadataUpdate.metadata)
+        .containsKey(DataAvailabilitySync.IMPRESSION_METADATA_RESOURCE_ID_KEY)
+      assertThat(metadataUpdate.metadata[DataAvailabilitySync.IMPRESSION_METADATA_RESOURCE_ID_KEY])
+        .contains("impressionMetadata/im-")
+
+      // Verify both files have the same customTime (derived from the interval start time)
+      assertThat(impressionsUpdateCalls.first().customTime)
+        .isEqualTo(metadataUpdateCalls.first().customTime)
     }
 
   @Test
