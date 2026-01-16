@@ -43,7 +43,7 @@ import org.wfanet.measurement.loadtest.config.PrivacyBudgets
 import picocli.CommandLine
 
 class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
-  private class TrusTeeParams {
+  private class TrusTeeEncryptionOptions {
     @CommandLine.Option(
       names = ["--trustee-kms-kek-uri"],
       description = ["The KMS key-encryption-key URI"],
@@ -69,7 +69,8 @@ class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
       private set
   }
 
-  @CommandLine.ArgGroup(exclusive = false) private var trusTeeParams: TrusTeeParams? = null
+  @CommandLine.ArgGroup(exclusive = false)
+  private var trusTeeEncryptionOptions: TrusTeeEncryptionOptions? = null
 
   private class EventGroupOptions : EdpSimulator.EventGroupOptions {
     @CommandLine.Option(
@@ -148,26 +149,30 @@ class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
     kingdomPublicApiChannel: ManagedChannel,
     requisitionFulfillmentStubsByDuchyId:
       Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
+    trusTeeSupported: Boolean,
     trustedCertificates: Map<ByteString, X509Certificate>,
     eventQuery: SyntheticGeneratorEventQuery,
-    vidIndexMap: InMemoryVidIndexMap?,
+    vidIndexMap: InMemoryVidIndexMap,
     logSketchDetails: Boolean,
     throttler: MinimumIntervalThrottler,
     health: SettableHealth,
     random: Random,
   ): AbstractEdpSimulator {
+    val trusTeeEncryptionOptions: TrusTeeEncryptionOptions? = this.trusTeeEncryptionOptions
     val trusTeeEncryptionParams =
-      trusTeeParams?.let {
+      if (trusTeeSupported && trusTeeEncryptionOptions != null) {
         val kmsClient =
           requireNotNull(GcpKmsClient().withDefaultCredentials()) {
             "Failed to initialize KMS client."
           }
         TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams(
           kmsClient,
-          it.kmsKekUri,
-          it.workloadIdentityProvider,
-          it.impersonatedServiceAccount,
+          trusTeeEncryptionOptions.kmsKekUri,
+          trusTeeEncryptionOptions.workloadIdentityProvider,
+          trusTeeEncryptionOptions.impersonatedServiceAccount,
         )
+      } else {
+        null
       }
 
     return EdpSimulator(
@@ -191,6 +196,7 @@ class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
       logSketchDetails = logSketchDetails,
       health = health,
       trusTeeEncryptionParams = trusTeeEncryptionParams,
+      trusTeeSupported = trusTeeSupported,
     )
   }
 
