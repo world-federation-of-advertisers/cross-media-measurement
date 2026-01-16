@@ -66,7 +66,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
-import org.wfanet.measurement.storage.ObjectMetadataStorageClient
+import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -207,7 +207,7 @@ class DataAvailabilitySyncTest {
   @Test
   fun `register single contiguous day for existing model line using proto message`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
@@ -235,7 +235,7 @@ class DataAvailabilitySyncTest {
   @Test
   fun `register single contiguous day for existing model line using json message`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L), BlobEncoding.JSON)
 
@@ -263,7 +263,7 @@ class DataAvailabilitySyncTest {
   @Test
   fun `register single overlapping day for existing model line`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(storageClient, folderPrefix, listOf(250L to 400L), BlobEncoding.JSON)
 
@@ -292,7 +292,7 @@ class DataAvailabilitySyncTest {
   fun `registers a single contiguous day preceding an existing interval for an existing model line`() =
     runBlocking {
       val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-      val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
       seedBlobDetails(storageClient, folderPrefix, listOf(50L to 100L), BlobEncoding.JSON)
 
@@ -318,7 +318,7 @@ class DataAvailabilitySyncTest {
   @Test
   fun `register multiple contiguous day for existing model line`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(
       storageClient,
@@ -347,7 +347,7 @@ class DataAvailabilitySyncTest {
   @Test
   fun `blob details with missing interval throws IllegalArgumentException`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(
       storageClient,
@@ -378,7 +378,7 @@ class DataAvailabilitySyncTest {
   @Test
   fun `blob details with wrong file extension throws IllegalArgumentException`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L), BlobEncoding.EMPTY)
 
@@ -404,7 +404,7 @@ class DataAvailabilitySyncTest {
   @Test
   fun `sync throw if file prefix doesn't follow expected path`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
@@ -430,7 +430,7 @@ class DataAvailabilitySyncTest {
   @Test
   fun `metadata file is ignored if no associated impression file is found`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L), createImpressionFile = false)
 
@@ -454,7 +454,7 @@ class DataAvailabilitySyncTest {
   @Test
   fun `sync emits success metrics`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
@@ -496,7 +496,7 @@ class DataAvailabilitySyncTest {
   @Test
   fun `sync emits failure metrics when replaceDataAvailabilityIntervals fails`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
@@ -554,7 +554,7 @@ class DataAvailabilitySyncTest {
   @Test
   fun `saveImpressionMetadata generates deterministic UUIDs`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
@@ -587,7 +587,7 @@ class DataAvailabilitySyncTest {
   fun `saveImpressionMetadata batches according to batch size and throttles each batch`() =
     runBlocking {
       val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-      val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
       seedBlobDetails(
         storageClient,
@@ -622,7 +622,7 @@ class DataAvailabilitySyncTest {
   @Test
   fun `invalid path throws exception`() {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
     runBlocking {
       seedBlobDetails(
         storageClient,
@@ -652,7 +652,7 @@ class DataAvailabilitySyncTest {
   @Test
   fun `supports different subfolders`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(
       storageClient,
@@ -700,10 +700,10 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
-  fun `updateObjectMetadata uses impressions blob key from BlobDetails not inferred from metadata URI`() =
+  fun `updateBlobMetadata uses impressions blob key from BlobDetails not inferred from metadata URI`() =
     runBlocking {
       val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-      val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
       // Create a BlobDetails where blob_uri points to a path that is NOT derived from the metadata
       // file name. The old implementation would have tried to infer the impressions blob key by
@@ -729,38 +729,38 @@ class DataAvailabilitySyncTest {
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
 
-      // Verify that updateObjectMetadata was called with the correct impressions blob key
+      // Verify that updateBlobMetadata was called with the correct impressions blob key
       // from BlobDetails, not inferred from the metadata URI
       val impressionsUpdateCalls =
-        storageClient.updateObjectMetadataCalls.filter { it.blobKey == customImpressionsPath }
+        storageClient.updateBlobMetadataCalls.filter { it.blobKey == customImpressionsPath }
       assertThat(impressionsUpdateCalls).hasSize(1)
-      // Impressions blob should have customTime set but no metadata (resource ID)
-      assertThat(impressionsUpdateCalls.first().customTime).isNotNull()
+      // Impressions blob should have customCreateTime set but no metadata (resource ID)
+      assertThat(impressionsUpdateCalls.first().customCreateTime).isNotNull()
       assertThat(impressionsUpdateCalls.first().metadata).isEmpty()
 
       // Verify the blob details (metadata) file update was called with resource ID
       val metadataUpdateCalls =
-        storageClient.updateObjectMetadataCalls.filter {
+        storageClient.updateBlobMetadataCalls.filter {
           it.blobKey.contains("metadata") && it.metadata.isNotEmpty()
         }
       assertThat(metadataUpdateCalls).hasSize(1)
-      // Blob details should have customTime set and contain the resource ID
+      // Blob details should have customCreateTime set and contain the resource ID
       val metadataUpdate = metadataUpdateCalls.first()
-      assertThat(metadataUpdate.customTime).isNotNull()
+      assertThat(metadataUpdate.customCreateTime).isNotNull()
       assertThat(metadataUpdate.metadata)
         .containsKey(DataAvailabilitySync.IMPRESSION_METADATA_RESOURCE_ID_KEY)
       assertThat(metadataUpdate.metadata[DataAvailabilitySync.IMPRESSION_METADATA_RESOURCE_ID_KEY])
         .contains("impressionMetadata/im-")
 
-      // Verify both files have the same customTime (derived from the interval start time)
-      assertThat(impressionsUpdateCalls.first().customTime)
-        .isEqualTo(metadataUpdateCalls.first().customTime)
+      // Verify both files have the same customCreateTime (derived from the interval start time)
+      assertThat(impressionsUpdateCalls.first().customCreateTime)
+        .isEqualTo(metadataUpdateCalls.first().customCreateTime)
     }
 
   @Test
   fun `works with blank edp impression path`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-    val storageClient = FakeObjectMetadataStorageClient(fileSystemClient)
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
     seedBlobDetails(
       storageClient,
@@ -931,29 +931,29 @@ class DataAvailabilitySyncTest {
   }
 
   /**
-   * Fake implementation of [ObjectMetadataStorageClient] for testing.
+   * Fake implementation of [BlobMetadataStorageClient] for testing.
    *
-   * Wraps a [FileSystemStorageClient] and records all [updateObjectMetadata] calls for
+   * Wraps a [FileSystemStorageClient] and records all [updateBlobMetadata] calls for
    * verification.
    */
-  private class FakeObjectMetadataStorageClient(
+  private class FakeBlobMetadataStorageClient(
     private val delegate: FileSystemStorageClient
-  ) : ObjectMetadataStorageClient, StorageClient by delegate {
+  ) : BlobMetadataStorageClient, StorageClient by delegate {
 
-    data class UpdateObjectMetadataCall(
+    data class UpdateBlobMetadataCall(
       val blobKey: String,
-      val customTime: java.time.Instant?,
+      val customCreateTime: java.time.Instant?,
       val metadata: Map<String, String>,
     )
 
-    val updateObjectMetadataCalls = mutableListOf<UpdateObjectMetadataCall>()
+    val updateBlobMetadataCalls = mutableListOf<UpdateBlobMetadataCall>()
 
-    override suspend fun updateObjectMetadata(
+    override suspend fun updateBlobMetadata(
       blobKey: String,
-      customTime: java.time.Instant?,
+      customCreateTime: java.time.Instant?,
       metadata: Map<String, String>,
     ) {
-      updateObjectMetadataCalls.add(UpdateObjectMetadataCall(blobKey, customTime, metadata))
+      updateBlobMetadataCalls.add(UpdateBlobMetadataCall(blobKey, customCreateTime, metadata))
     }
   }
 }

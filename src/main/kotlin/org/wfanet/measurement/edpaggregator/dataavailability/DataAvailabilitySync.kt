@@ -47,7 +47,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataResponse
 import org.wfanet.measurement.storage.BlobUri
-import org.wfanet.measurement.storage.ObjectMetadataStorageClient
+import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
@@ -87,7 +87,7 @@ import org.wfanet.measurement.storage.StorageClient
  */
 class DataAvailabilitySync(
   private val edpImpressionPath: String,
-  private val storageClient: ObjectMetadataStorageClient,
+  private val storageClient: BlobMetadataStorageClient,
   private val dataProvidersStub: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   private val impressionMetadataServiceStub:
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub,
@@ -271,20 +271,20 @@ class DataAvailabilitySync(
         // Set GCS object metadata for lifecycle management and cleanup
         for (createdMetadata in response.impressionMetadataList) {
           val metadataBlobUri = SelectedStorageClient.parseBlobUri(createdMetadata.blobUri)
-          val customTime = createdMetadata.interval.startTime.toInstant()
+          val customCreateTime = createdMetadata.interval.startTime.toInstant()
 
           // Update blob details with Custom-Time and resource ID
-          storageClient.updateObjectMetadata(
+          storageClient.updateBlobMetadata(
             blobKey = metadataBlobUri.key,
-            customTime = customTime,
+            customCreateTime = customCreateTime,
             metadata = mapOf(IMPRESSION_METADATA_RESOURCE_ID_KEY to createdMetadata.name),
           )
 
           // Also update the impressions blob with Custom-Time (no resource ID needed)
           val impressionsBlobKey = impressionsBlobKeyByMetadataUri.getValue(createdMetadata.blobUri)
-          storageClient.updateObjectMetadata(
+          storageClient.updateBlobMetadata(
             blobKey = impressionsBlobKey,
-            customTime = customTime,
+            customCreateTime = customCreateTime,
           )
         }
       }
