@@ -47,7 +47,6 @@ import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.measurement.storage.ObjectMetadataStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -107,8 +106,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           IllegalArgumentException("Missing required header: $DATA_WATHCER_PATH_HEADER")
         }
 
-      val storageClient: ObjectMetadataStorageClient =
-        createStorageClient(dataAvailabilitySyncConfig)
+      val storageClient: StorageClient = createStorageClient(dataAvailabilitySyncConfig)
 
       val grpcChannels = getOrCreateSharedChannels(dataAvailabilitySyncConfig)
 
@@ -162,25 +160,23 @@ class DataAvailabilitySyncFunction() : HttpFunction {
   // @TODO(@marcopremier): This function should be reused across Cloud Functions.
   private fun createStorageClient(
     dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
-  ): ObjectMetadataStorageClient {
-    if (!fileSystemPath.isNullOrEmpty()) {
-      throw UnsupportedOperationException(
-        "FileSystemStorageClient does not support ObjectMetadataStorageClient. " +
-          "Unset DATA_AVAILABILITY_FILE_SYSTEM_PATH to use GCS."
+  ): StorageClient {
+    return if (!fileSystemPath.isNullOrEmpty()) {
+      FileSystemStorageClient(File(EnvVars.checkIsPath("DATA_AVAILABILITY_FILE_SYSTEM_PATH")))
+    } else {
+      val gcsConfig = dataAvailabilitySyncConfig.dataAvailabilityStorage.gcs
+      GcsStorageClient(
+        StorageOptions.newBuilder()
+          .also {
+            if (gcsConfig.projectId.isNotEmpty()) {
+              it.setProjectId(gcsConfig.projectId)
+            }
+          }
+          .build()
+          .service,
+        gcsConfig.bucketName,
       )
     }
-    val gcsConfig = dataAvailabilitySyncConfig.dataAvailabilityStorage.gcs
-    return GcsStorageClient(
-      StorageOptions.newBuilder()
-        .also {
-          if (gcsConfig.projectId.isNotEmpty()) {
-            it.setProjectId(gcsConfig.projectId)
-          }
-        }
-        .build()
-        .service,
-      gcsConfig.bucketName,
-    )
   }
 
   companion object {
