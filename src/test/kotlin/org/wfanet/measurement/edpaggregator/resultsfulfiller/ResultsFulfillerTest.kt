@@ -159,6 +159,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRespon
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusteeFulfillRequisitionRequestBuilder
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.loadtest.config.VidSampling
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
@@ -378,12 +379,12 @@ class ResultsFulfillerTest {
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
         overrideImpressionMaxFrequencyPerUser = null,
-        trusTeeConfig =
-          TrusTeeConfig(
-            kmsClient = kmsClient,
-            kekUriToKeyNameMap = mapOf(kekUri to "kek"),
-            workloadIdentityProvider = "test-wip",
-            impersonatedServiceAccount = "test-sa@example.com",
+        trusTeeEncryptionParams =
+          TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+            kmsClient,
+            kekUri,
+            "test-wip",
+            "test-sa@example.com",
           ),
       )
 
@@ -526,12 +527,12 @@ class ResultsFulfillerTest {
         noiserSelector = NoNoiserSelector(),
         kAnonymityParams = null,
         overrideImpressionMaxFrequencyPerUser = null,
-        trusTeeConfig =
-          TrusTeeConfig(
-            kmsClient = kmsClient,
-            kekUriToKeyNameMap = mapOf(kekUri to "kek"),
-            workloadIdentityProvider = "test-wip",
-            impersonatedServiceAccount = "test-sa@example.com",
+        trusTeeEncryptionParams =
+          TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+            kmsClient,
+            kekUri,
+            "test-wip",
+            "test-sa@example.com",
           ),
       )
 
@@ -656,12 +657,12 @@ class ResultsFulfillerTest {
           noiserSelector = NoNoiserSelector(),
           kAnonymityParams = null,
           overrideImpressionMaxFrequencyPerUser = 2,
-          trusTeeConfig =
-            TrusTeeConfig(
-              kmsClient = kmsClient,
-              kekUriToKeyNameMap = mapOf(kekUri to "kek"),
-              workloadIdentityProvider = "test-wip",
-              impersonatedServiceAccount = "test-sa@example.com",
+          trusTeeEncryptionParams =
+            TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+              kmsClient,
+              kekUri,
+              "test-wip",
+              "test-sa@example.com",
             ),
         )
 
@@ -797,12 +798,12 @@ class ResultsFulfillerTest {
           noiserSelector = NoNoiserSelector(),
           kAnonymityParams = null,
           overrideImpressionMaxFrequencyPerUser = 3,
-          trusTeeConfig =
-            TrusTeeConfig(
-              kmsClient = kmsClient,
-              kekUriToKeyNameMap = mapOf(kekUri to "kek"),
-              workloadIdentityProvider = "test-wip",
-              impersonatedServiceAccount = "test-sa@example.com",
+          trusTeeEncryptionParams =
+            TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+              kmsClient,
+              kekUri,
+              "test-wip",
+              "test-sa@example.com",
             ),
         )
 
@@ -926,12 +927,12 @@ class ResultsFulfillerTest {
           noiserSelector = NoNoiserSelector(),
           kAnonymityParams = null,
           overrideImpressionMaxFrequencyPerUser = -1, // Uncapped
-          trusTeeConfig =
-            TrusTeeConfig(
-              kmsClient = kmsClient,
-              kekUriToKeyNameMap = mapOf(kekUri to "kek"),
-              workloadIdentityProvider = "test-wip",
-              impersonatedServiceAccount = "test-sa@example.com",
+          trusTeeEncryptionParams =
+            TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+              kmsClient,
+              kekUri,
+              "test-wip",
+              "test-sa@example.com",
             ),
         )
 
@@ -1052,12 +1053,12 @@ class ResultsFulfillerTest {
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
         overrideImpressionMaxFrequencyPerUser = null,
-        trusTeeConfig =
-          TrusTeeConfig(
-            kmsClient = kmsClient,
-            kekUriToKeyNameMap = mapOf(kekUri to "kek"),
-            workloadIdentityProvider = "test-wip",
-            impersonatedServiceAccount = "test-sa@example.com",
+        trusTeeEncryptionParams =
+          TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+            kmsClient,
+            kekUri,
+            "test-wip",
+            "test-sa@example.com",
           ),
       )
 
@@ -1157,12 +1158,12 @@ class ResultsFulfillerTest {
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
         overrideImpressionMaxFrequencyPerUser = null,
-        trusTeeConfig =
-          TrusTeeConfig(
-            kmsClient = kmsClient,
-            kekUriToKeyNameMap = mapOf(kekUri to "kek"),
-            workloadIdentityProvider = "test-wip",
-            impersonatedServiceAccount = "test-sa@example.com",
+        trusTeeEncryptionParams =
+          TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+            kmsClient,
+            kekUri,
+            "test-wip",
+            "test-sa@example.com",
           ),
       )
 
@@ -1264,12 +1265,12 @@ class ResultsFulfillerTest {
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
         overrideImpressionMaxFrequencyPerUser = null,
-        trusTeeConfig =
-          TrusTeeConfig(
-            kmsClient = kmsClient,
-            kekUriToKeyNameMap = mapOf(kekUri to "kek"),
-            workloadIdentityProvider = "test-wip",
-            impersonatedServiceAccount = "test-sa@example.com",
+        trusTeeEncryptionParams =
+          TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+            kmsClient,
+            kekUri,
+            "test-wip",
+            "test-sa@example.com",
           ),
       )
 
@@ -1369,12 +1370,12 @@ class ResultsFulfillerTest {
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
         overrideImpressionMaxFrequencyPerUser = null,
-        trusTeeConfig =
-          TrusTeeConfig(
-            kmsClient = kmsClient,
-            kekUriToKeyNameMap = mapOf(kekUri to "kek"),
-            workloadIdentityProvider = "test-wip",
-            impersonatedServiceAccount = "test-sa@example.com",
+        trusTeeEncryptionParams =
+          TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+            kmsClient,
+            kekUri,
+            "test-wip",
+            "test-sa@example.com",
           ),
       )
 
@@ -1471,12 +1472,12 @@ class ResultsFulfillerTest {
           noiserSelector = NoNoiserSelector(),
           kAnonymityParams = KAnonymityParams(100, 100),
           overrideImpressionMaxFrequencyPerUser = null,
-          trusTeeConfig =
-            TrusTeeConfig(
-              kmsClient = kmsClient,
-              kekUriToKeyNameMap = mapOf(kekUri to "kek"),
-              workloadIdentityProvider = "test-wip",
-              impersonatedServiceAccount = "test-sa@example.com",
+          trusTeeEncryptionParams =
+            TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+              kmsClient,
+              kekUri,
+              "test-wip",
+              "test-sa@example.com",
             ),
         )
 
@@ -1594,12 +1595,12 @@ class ResultsFulfillerTest {
           noiserSelector = NoNoiserSelector(),
           kAnonymityParams = KAnonymityParams(100, 1000),
           overrideImpressionMaxFrequencyPerUser = null,
-          trusTeeConfig =
-            TrusTeeConfig(
-              kmsClient = kmsClient,
-              kekUriToKeyNameMap = mapOf(kekUri to "kek"),
-              workloadIdentityProvider = "test-wip",
-              impersonatedServiceAccount = "test-sa@example.com",
+          trusTeeEncryptionParams =
+            TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+              kmsClient,
+              kekUri,
+              "test-wip",
+              "test-sa@example.com",
             ),
         )
 
@@ -1716,12 +1717,12 @@ class ResultsFulfillerTest {
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
         overrideImpressionMaxFrequencyPerUser = null,
-        trusTeeConfig =
-          TrusTeeConfig(
-            kmsClient = kmsClient,
-            kekUriToKeyNameMap = mapOf(kekUri to "kek"),
-            workloadIdentityProvider = "test-wip",
-            impersonatedServiceAccount = "test-sa@example.com",
+        trusTeeEncryptionParams =
+          TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+            kmsClient,
+            kekUri,
+            "test-wip",
+            "test-sa@example.com",
           ),
       )
 
@@ -1886,12 +1887,12 @@ class ResultsFulfillerTest {
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
         overrideImpressionMaxFrequencyPerUser = null,
-        trusTeeConfig =
-          TrusTeeConfig(
-            kmsClient = kmsClient,
-            kekUriToKeyNameMap = mapOf(kekUri to "kek"),
-            workloadIdentityProvider = "test-wip",
-            impersonatedServiceAccount = "test-sa@example.com",
+        trusTeeEncryptionParams =
+          TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+            kmsClient,
+            kekUri,
+            "test-wip",
+            "test-sa@example.com",
           ),
       )
 
@@ -1999,12 +2000,12 @@ class ResultsFulfillerTest {
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
         overrideImpressionMaxFrequencyPerUser = null,
-        trusTeeConfig =
-          TrusTeeConfig(
-            kmsClient = kmsClient,
-            kekUriToKeyNameMap = mapOf(kekUri to "kek"),
-            workloadIdentityProvider = "test-wip",
-            impersonatedServiceAccount = "test-sa@example.com",
+        trusTeeEncryptionParams =
+          TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+            kmsClient,
+            kekUri,
+            "test-wip",
+            "test-sa@example.com",
           ),
       )
 

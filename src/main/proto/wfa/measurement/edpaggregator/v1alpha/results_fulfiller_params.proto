@@ -141,15 +141,6 @@ message ResultsFulfillerParams {
     // Example key: "gcp-kms://projects/my-project/locations/global/keyRings/my-ring/cryptoKeys/input-key"
     // Example value: "trustee-key"
     map<string, string> kek_uri_to_key_name = 1;
-
-    // The workload identity provider URL for GCP workload identity federation.
-    // This is used for authenticating to GCP KMS from the TEE workload.
-    // Example: "//iam.googleapis.com/projects/123456789/locations/global/workloadIdentityPools/my-pool/providers/my-provider"
-    string workload_identity_provider = 2;
-
-    // The service account email to impersonate for GCP KMS operations.
-    // Example: "tee-workload@my-project.iam.gserviceaccount.com"
-    string impersonated_service_account = 3;
   }
 
   // TrusTee encryption parameters. Required for TrusTee protocol support.
