@@ -96,11 +96,6 @@ graph TB
     TrusteeMill -->|Record Metrics| StatsAPI
     StatsAPI -->|Store Metrics| Database
 
-    style Duchy Subsystem fill:#e1f5ff
-    style "Control Plane" fill:#fff4e1
-    style "Data Plane - Mill Workers" fill:#e8f5e9
-    style "Storage Layer" fill:#f3e5f5
-    style "Service Layer" fill:#fce4ec
 ```
 
 ## 3. Key Components
