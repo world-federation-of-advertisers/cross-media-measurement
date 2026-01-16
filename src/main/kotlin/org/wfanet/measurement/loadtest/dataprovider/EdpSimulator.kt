@@ -57,13 +57,14 @@ class EdpSimulator(
   throttler: Throttler,
   privacyBudgetManager: PrivacyBudgetManager,
   trustedCertificates: Map<ByteString, X509Certificate>,
-  vidIndexMap: VidIndexMap? = null,
+  vidIndexMap: VidIndexMap,
   sketchEncrypter: SketchEncrypter = SketchEncrypter.Default,
   random: Random = Random,
   logSketchDetails: Boolean = false,
   health: SettableHealth = SettableHealth(),
   blockingCoroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
   trusTeeEncryptionParams: TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams? = null,
+  trusTeeSupported: Boolean = false,
 ) :
   AbstractEdpSimulator(
     edpData,
@@ -88,6 +89,7 @@ class EdpSimulator(
     health,
     blockingCoroutineContext,
     trusTeeEncryptionParams,
+    trusTeeSupported,
   ) {
 
   interface EventGroupOptions : AbstractEdpSimulator.EventGroupOptions {
