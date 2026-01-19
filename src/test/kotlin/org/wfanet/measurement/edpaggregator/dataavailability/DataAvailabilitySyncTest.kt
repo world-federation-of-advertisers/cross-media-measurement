@@ -792,7 +792,7 @@ class DataAvailabilitySyncTest {
       assertThat(metadataUpdate.metadata)
         .containsKey(DataAvailabilitySync.IMPRESSION_METADATA_RESOURCE_ID_KEY)
       assertThat(metadataUpdate.metadata[DataAvailabilitySync.IMPRESSION_METADATA_RESOURCE_ID_KEY])
-        .contains("impressionMetadata/im-")
+        .isEqualTo("edp/edpa_edp/impressionMetadata/im-0")
 
       // Verify both files have the same customCreateTime (derived from the interval start time)
       assertThat(impressionsUpdateCalls.first().customCreateTime)
