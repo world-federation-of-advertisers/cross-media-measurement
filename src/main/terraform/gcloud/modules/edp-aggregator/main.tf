@@ -140,18 +140,14 @@ locals {
   # Secrets access for data_availability_cleanup (same as data_availability_sync)
   data_availability_cleanup_secrets_access = local.data_availability_sync_secrets_access
 
-  cloud_function_secret_pairs = merge(
-    {
-      data_watcher            = local.data_watcher_secrets_access,
-      requisition_fetcher     = local.requisition_fetcher_secrets_access,
-      event_group_sync        = local.event_group_sync_secrets_access,
-      data_availability_sync  = local.data_availability_sync_secrets_access,
-    },
-    var.enable_data_watcher_delete ? {
-      data_watcher_delete         = local.data_watcher_delete_secrets_access,
-      data_availability_cleanup   = local.data_availability_cleanup_secrets_access,
-    } : {}
-  )
+  cloud_function_secret_pairs = {
+    data_watcher              = local.data_watcher_secrets_access,
+    requisition_fetcher       = local.requisition_fetcher_secrets_access,
+    event_group_sync          = local.event_group_sync_secrets_access,
+    data_availability_sync    = local.data_availability_sync_secrets_access,
+    data_watcher_delete       = local.data_watcher_delete_secrets_access,
+    data_availability_cleanup = local.data_availability_cleanup_secrets_access,
+  }
 
   secret_access_map = merge([
     for fn, key_list in local.cloud_function_secret_pairs : {
@@ -163,18 +159,14 @@ locals {
     }
   ]...)
 
-  service_accounts = merge(
-    {
-      "data_watcher"              = module.data_watcher_cloud_function.cloud_function_service_account.email
-      "requisition_fetcher"       = module.requisition_fetcher_cloud_function.cloud_function_service_account.email
-      "event_group_sync"          = module.event_group_sync_cloud_function.cloud_function_service_account.email
-      "data_availability_sync"    = module.data_availability_sync_cloud_function.cloud_function_service_account.email
-    },
-    var.enable_data_watcher_delete ? {
-      "data_watcher_delete"         = module.data_watcher_delete_cloud_function[0].cloud_function_service_account.email
-      "data_availability_cleanup"   = module.data_availability_cleanup_cloud_function[0].cloud_function_service_account.email
-    } : {}
-  )
+  service_accounts = {
+    "data_watcher"              = module.data_watcher_cloud_function.cloud_function_service_account.email
+    "requisition_fetcher"       = module.requisition_fetcher_cloud_function.cloud_function_service_account.email
+    "event_group_sync"          = module.event_group_sync_cloud_function.cloud_function_service_account.email
+    "data_availability_sync"    = module.data_availability_sync_cloud_function.cloud_function_service_account.email
+    "data_watcher_delete"       = module.data_watcher_delete_cloud_function.cloud_function_service_account.email
+    "data_availability_cleanup" = module.data_availability_cleanup_cloud_function.cloud_function_service_account.email
+  }
 
   otel_metadata = {
     "tee-env-OTEL_SERVICE_NAME"                     = "edpa.results_fulfiller",
@@ -208,7 +200,6 @@ resource "google_storage_bucket_object" "upload_data_watcher_config" {
 }
 
 resource "google_storage_bucket_object" "upload_data_watcher_delete_config" {
-  count  = var.data_watcher_delete_config != null ? 1 : 0
   name   = var.data_watcher_delete_config.destination
   bucket = module.config_files_bucket.storage_bucket.name
   source = var.data_watcher_delete_config.local_path
@@ -275,11 +266,10 @@ module "data_watcher_cloud_function" {
 
 # DataWatcher for OBJECT_DELETE events (triggers cleanup when objects are deleted by lifecycle)
 module "data_watcher_delete_cloud_function" {
-  count  = var.enable_data_watcher_delete ? 1 : 0
   source = "../gcs-bucket-cloud-function"
 
-  cloud_function_service_account_name           = var.data_watcher_delete_service_account_name
-  cloud_function_trigger_service_account_name   = var.data_watcher_delete_trigger_service_account_name
+  cloud_function_service_account_name           = var.data_watcher_service_account_name
+  cloud_function_trigger_service_account_name   = var.data_watcher_trigger_service_account_name
   trigger_bucket_name                           = module.edp_aggregator_bucket.storage_bucket.name
   terraform_service_account                     = var.terraform_service_account
   function_name                                 = var.cloud_function_configs.data_watcher_delete.function_name
@@ -335,7 +325,6 @@ module "data_availability_sync_cloud_function" {
 
 # DataAvailabilityCleanup function for soft-deleting ImpressionMetadata when objects are deleted
 module "data_availability_cleanup_cloud_function" {
-  count  = var.enable_data_watcher_delete ? 1 : 0
   source = "../http-cloud-function"
 
   http_cloud_function_service_account_name  = var.data_availability_cleanup_service_account_name
@@ -438,10 +427,9 @@ resource "google_storage_bucket_iam_member" "data_watcher_config_storage_viewer"
 }
 
 resource "google_storage_bucket_iam_member" "data_watcher_delete_config_storage_viewer" {
-  count  = var.enable_data_watcher_delete ? 1 : 0
   bucket = module.config_files_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${module.data_watcher_delete_cloud_function[0].cloud_function_service_account.email}"
+  member = "serviceAccount:${module.data_watcher_delete_cloud_function.cloud_function_service_account.email}"
 }
 
 resource "google_storage_bucket_iam_member" "results_fulfiller_config_storage_viewer" {
@@ -466,11 +454,10 @@ resource "google_cloud_run_service_iam_member" "data_availability_sync_invoker" 
 
 # Allow data_watcher_delete to invoke the data_availability_cleanup function
 resource "google_cloud_run_service_iam_member" "data_availability_cleanup_invoker" {
-  count      = var.enable_data_watcher_delete ? 1 : 0
   depends_on = [module.data_availability_cleanup_cloud_function]
   service    = var.data_availability_cleanup_function_name
   role       = "roles/run.invoker"
-  member     = "serviceAccount:${module.data_watcher_delete_cloud_function[0].cloud_function_service_account.email}"
+  member     = "serviceAccount:${module.data_watcher_delete_cloud_function.cloud_function_service_account.email}"
 }
 
 resource "google_compute_subnetwork" "private_subnetwork" {
