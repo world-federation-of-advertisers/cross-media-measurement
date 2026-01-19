@@ -23,15 +23,25 @@ import com.google.protobuf.util.JsonFormat
 import io.grpc.ClientInterceptors
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.BufferedReader
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.time.TimeSource
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityCleanupMetrics
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityCleanupMetrics.Companion.CLEANUP_STATUS_ATTR
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityCleanupMetrics.Companion.CLEANUP_STATUS_FAILED
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityCleanupMetrics.Companion.CLEANUP_STATUS_SKIPPED
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityCleanupMetrics.Companion.CLEANUP_STATUS_SUCCESS
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityCleanupMetrics.Companion.DATA_PROVIDER_KEY_ATTR
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityCleanupMetrics.Companion.ERROR_TYPE_ATTR
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityCleanupMetrics.Companion.ERROR_TYPE_NOT_FOUND
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
@@ -60,11 +70,17 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataReques
  *   Function. This is used to configure the gRPC channel.
  */
 class DataAvailabilityCleanupFunction : HttpFunction {
+  private val metrics = DataAvailabilityCleanupMetrics()
+
   init {
     EdpaTelemetry.ensureInitialized()
   }
 
   override fun service(request: HttpRequest, response: HttpResponse) {
+    val startTime = TimeSource.Monotonic.markNow()
+    var dataProviderName: String? = null
+    var cleanupStatus = CLEANUP_STATUS_SUCCESS
+
     try {
       logger.fine("Starting DataAvailabilityCleanupFunction")
 
@@ -73,6 +89,8 @@ class DataAvailabilityCleanupFunction : HttpFunction {
         DataAvailabilitySyncConfig.newBuilder()
           .apply { JsonFormat.parser().merge(requestBody, this) }
           .build()
+
+      dataProviderName = dataAvailabilitySyncConfig.dataProvider
 
       // Read the path as request header
       val deletedBlobPath =
@@ -90,9 +108,13 @@ class DataAvailabilityCleanupFunction : HttpFunction {
 
       val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
       val instrumentedChannel =
-        ClientInterceptors.intercept(impressionMetadataChannel, grpcTelemetry.newClientInterceptor())
+        ClientInterceptors.intercept(
+          impressionMetadataChannel,
+          grpcTelemetry.newClientInterceptor(),
+        )
 
-      val impressionMetadataServiceStub = ImpressionMetadataServiceCoroutineStub(instrumentedChannel)
+      val impressionMetadataServiceStub =
+        ImpressionMetadataServiceCoroutineStub(instrumentedChannel)
 
       Tracing.withW3CTraceContext(request) {
         runBlocking(Context.current().asContextElement()) {
@@ -119,6 +141,17 @@ class DataAvailabilityCleanupFunction : HttpFunction {
                 logger.warning(
                   "No ImpressionMetadata found for blob URI: $deletedBlobPath. Skipping cleanup."
                 )
+                // Record error metric for not found case
+                metrics.cleanupErrorsCounter.add(
+                  1,
+                  Attributes.of(
+                    DATA_PROVIDER_KEY_ATTR,
+                    dataProviderName,
+                    ERROR_TYPE_ATTR,
+                    ERROR_TYPE_NOT_FOUND,
+                  ),
+                )
+                cleanupStatus = CLEANUP_STATUS_SKIPPED
                 null
               } else {
                 listResponse.impressionMetadataList.first().name
@@ -131,12 +164,21 @@ class DataAvailabilityCleanupFunction : HttpFunction {
                 deleteImpressionMetadataRequest { name = resourceIdToDelete }
               )
               logger.info("Successfully soft-deleted ImpressionMetadata: $resourceIdToDelete")
+              // Record successful deletion
+              metrics.recordsDeletedCounter.add(
+                1,
+                Attributes.of(
+                  DATA_PROVIDER_KEY_ATTR,
+                  dataProviderName,
+                  CLEANUP_STATUS_ATTR,
+                  CLEANUP_STATUS_SUCCESS,
+                ),
+              )
             } catch (e: StatusException) {
               if (e.status.code == Status.Code.NOT_FOUND) {
                 // Idempotent - the record may have already been deleted
-                logger.info(
-                  "ImpressionMetadata not found (already deleted): $resourceIdToDelete"
-                )
+                logger.info("ImpressionMetadata not found (already deleted): $resourceIdToDelete")
+                cleanupStatus = CLEANUP_STATUS_SKIPPED
               } else {
                 throw e
               }
@@ -148,9 +190,22 @@ class DataAvailabilityCleanupFunction : HttpFunction {
       response.setStatusCode(200)
     } catch (e: Exception) {
       logger.log(Level.SEVERE, "Error in DataAvailabilityCleanupFunction", e)
+      cleanupStatus = CLEANUP_STATUS_FAILED
       response.setStatusCode(500)
       response.writer.write("Internal error: ${e.message}")
     } finally {
+      // Record cleanup duration
+      val durationSeconds = startTime.elapsedNow().inWholeMilliseconds / 1000.0
+      metrics.cleanupDurationHistogram.record(
+        durationSeconds,
+        Attributes.of(
+          DATA_PROVIDER_KEY_ATTR,
+          dataProviderName ?: "unknown",
+          CLEANUP_STATUS_ATTR,
+          cleanupStatus,
+        ),
+      )
+
       // Critical for Cloud Functions: flush metrics before function freezes
       EdpaTelemetry.flush()
     }
@@ -163,4 +218,3 @@ class DataAvailabilityCleanupFunction : HttpFunction {
       "X-Impression-Metadata-Resource-Id"
   }
 }
-

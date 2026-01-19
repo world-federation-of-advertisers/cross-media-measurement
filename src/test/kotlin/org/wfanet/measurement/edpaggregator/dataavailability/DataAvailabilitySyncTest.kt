@@ -142,7 +142,8 @@ class DataAvailabilitySyncTest {
             impressionMetadata +=
               request.requestsList.mapIndexed { index, createRequest ->
                 // Return the input metadata with a name set (simulating server response)
-                createRequest.impressionMetadata.toBuilder()
+                createRequest.impressionMetadata
+                  .toBuilder()
                   .setName("${request.parent}/impressionMetadata/im-$index")
                   .build()
               }
@@ -975,12 +976,10 @@ class DataAvailabilitySyncTest {
   /**
    * Fake implementation of [BlobMetadataStorageClient] for testing.
    *
-   * Wraps a [FileSystemStorageClient] and records all [updateBlobMetadata] calls for
-   * verification.
+   * Wraps a [FileSystemStorageClient] and records all [updateBlobMetadata] calls for verification.
    */
-  private class FakeBlobMetadataStorageClient(
-    private val delegate: FileSystemStorageClient
-  ) : BlobMetadataStorageClient, StorageClient by delegate {
+  private class FakeBlobMetadataStorageClient(private val delegate: FileSystemStorageClient) :
+    BlobMetadataStorageClient, StorageClient by delegate {
 
     data class UpdateBlobMetadataCall(
       val blobKey: String,
