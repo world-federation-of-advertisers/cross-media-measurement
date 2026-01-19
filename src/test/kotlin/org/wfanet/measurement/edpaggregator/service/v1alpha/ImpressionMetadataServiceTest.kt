@@ -1170,20 +1170,22 @@ class ImpressionMetadataServiceTest {
     }
 
   @Test
-  fun `listImpressionMetadata with blob_uri filter returns ImpressionMetadata`() = runBlocking {
-    val created = createImpressionMetadata(IMPRESSION_METADATA, IMPRESSION_METADATA_2)
+  fun `listImpressionMetadata with blob_uri_prefix filter returns ImpressionMetadata`() =
+    runBlocking {
+      val created = createImpressionMetadata(IMPRESSION_METADATA, IMPRESSION_METADATA_2)
 
-    val response =
-      service.listImpressionMetadata(
-        listImpressionMetadataRequest {
-          parent = DATA_PROVIDER_KEY.toName()
-          filter = ListImpressionMetadataRequestKt.filter { blobUri = created[0].blobUri }
-        }
-      )
+      // "path/" prefix should match "path/to/blob" but not "uri-2"
+      val response =
+        service.listImpressionMetadata(
+          listImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            filter = ListImpressionMetadataRequestKt.filter { blobUriPrefix = "path/" }
+          }
+        )
 
-    assertThat(response)
-      .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created[0] })
-  }
+      assertThat(response)
+        .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created[0] })
+    }
 
   @Test
   fun `listImpressionMetadata returns deleted ImpressionMetadata when show deleted is set to true`() =

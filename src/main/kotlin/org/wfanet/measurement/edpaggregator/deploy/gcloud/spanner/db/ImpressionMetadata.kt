@@ -349,8 +349,8 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
       )
     }
 
-    if (filter.blobUri.isNotEmpty()) {
-      conjuncts.add("BlobUri = @blobUri")
+    if (filter.blobUriPrefix.isNotEmpty()) {
+      conjuncts.add("STARTS_WITH(BlobUri, @blobUriPrefix)")
     }
 
     if (after != null) {
@@ -384,8 +384,8 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
         bind("intervalOverlapsEndTime").to(filter.intervalOverlaps.endTime.toGcloudTimestamp())
       }
 
-      if (filter.blobUri.isNotEmpty()) {
-        bind("blobUri").to(filter.blobUri)
+      if (filter.blobUriPrefix.isNotEmpty()) {
+        bind("blobUriPrefix").to(filter.blobUriPrefix)
       }
 
       if (after != null) {

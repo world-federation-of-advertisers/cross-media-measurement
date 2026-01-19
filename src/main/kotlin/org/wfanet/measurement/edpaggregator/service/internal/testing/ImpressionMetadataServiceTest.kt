@@ -1344,7 +1344,10 @@ abstract class ImpressionMetadataServiceTest {
   }
 
   @Test
-  fun `listImpressionMetadata filters by blobUri`(): Unit = runBlocking {
+  fun `listImpressionMetadata filters by blobUriPrefix`(): Unit = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+    )
     val created =
       service
         .batchCreateImpressionMetadata(
@@ -1362,13 +1365,14 @@ abstract class ImpressionMetadataServiceTest {
         )
         .impressionMetadataList
 
-    val expected = created.filter { it.blobUri == "uri-2" }
+    // "uri-" prefix should match uri-1, uri-2, uri-3 but not "path/to/blob"
+    val expected = created.filter { it.blobUri.startsWith("uri-") }
 
     val response =
       service.listImpressionMetadata(
         listImpressionMetadataRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          filter = ListImpressionMetadataRequestKt.filter { blobUri = "uri-2" }
+          filter = ListImpressionMetadataRequestKt.filter { blobUriPrefix = "uri-" }
         }
       )
 
