@@ -116,7 +116,7 @@ class DataAvailabilityCleanupFunction : HttpFunction {
                   }
                 )
               if (listResponse.impressionMetadataList.isEmpty()) {
-                logger.info(
+                logger.warning(
                   "No ImpressionMetadata found for blob URI: $deletedBlobPath. Skipping cleanup."
                 )
                 null
