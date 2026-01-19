@@ -266,6 +266,7 @@ class MeasurementsServiceTest {
         MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
         DataProvidersGrpcKt.DataProvidersCoroutineStub(grpcTestServerRule.channel),
         NOISE_MECHANISMS,
+        hmssEnabled = true,
         trusTeeEnabled = true,
       )
   }

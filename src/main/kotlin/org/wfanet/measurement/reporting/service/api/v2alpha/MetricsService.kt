@@ -162,11 +162,13 @@ import org.wfanet.measurement.measurementconsumer.stats.CustomDirectScalarMethod
 import org.wfanet.measurement.measurementconsumer.stats.DeterministicMethodology
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.FrequencyMethodology
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMetricVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyVariances
 import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
 import org.wfanet.measurement.measurementconsumer.stats.ImpressionMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ImpressionMeasurementVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.ImpressionMethodology
 import org.wfanet.measurement.measurementconsumer.stats.ImpressionMetricVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsSketchMethodology
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
@@ -174,11 +176,12 @@ import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.ReachMethodology
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
-import org.wfanet.measurement.measurementconsumer.stats.TrusTeeMethodology
 import org.wfanet.measurement.measurementconsumer.stats.Variances
 import org.wfanet.measurement.measurementconsumer.stats.WatchDurationMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.WatchDurationMeasurementVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.WatchDurationMethodology
 import org.wfanet.measurement.measurementconsumer.stats.WatchDurationMetricVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.WeightedFrequencyMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.WeightedImpressionMeasurementVarianceParams
@@ -2375,7 +2378,8 @@ fun buildWeightedWatchDurationMeasurementVarianceParamsPerResult(
         return@map null
       }
 
-    val methodology: Methodology = buildStatsMethodology(watchDurationResult) ?: return@map null
+    val methodology: WatchDurationMethodology =
+      buildStatsMethodology(watchDurationResult) ?: return@map null
 
     WeightedWatchDurationMeasurementVarianceParams(
       binaryRepresentation = weightedMeasurement.binaryRepresentation,
@@ -2406,7 +2410,7 @@ fun buildWeightedWatchDurationMeasurementVarianceParamsPerResult(
  */
 fun buildStatsMethodology(
   watchDurationResult: InternalMeasurement.Result.WatchDuration
-): Methodology? {
+): WatchDurationMethodology? {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (watchDurationResult.methodologyCase) {
     InternalMeasurement.Result.WatchDuration.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY -> {
@@ -2529,7 +2533,8 @@ fun buildWeightedImpressionMeasurementVarianceParamsPerResult(
         return@map null
       }
 
-    val methodology: Methodology = buildStatsMethodology(impressionResult) ?: return@map null
+    val methodology: ImpressionMethodology =
+      buildStatsMethodology(impressionResult) ?: return@map null
 
     val maxFrequencyPerUser =
       if (impressionResult.deterministicCount.customMaximumFrequencyPerUser != 0) {
@@ -2564,7 +2569,9 @@ fun buildWeightedImpressionMeasurementVarianceParamsPerResult(
  * @throws MeasurementVarianceNotComputableException when methodology is not supported for
  *   impression or methodology missing variance information.
  */
-fun buildStatsMethodology(impressionResult: InternalMeasurement.Result.Impression): Methodology? {
+fun buildStatsMethodology(
+  impressionResult: InternalMeasurement.Result.Impression
+): ImpressionMethodology? {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (impressionResult.methodologyCase) {
     InternalMeasurement.Result.Impression.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY -> {
@@ -2787,7 +2794,8 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
       return null
     }
 
-  val frequencyMethodology: Methodology = buildStatsMethodology(frequencyResult) ?: return null
+  val frequencyMethodology: FrequencyMethodology =
+    buildStatsMethodology(frequencyResult) ?: return null
 
   return WeightedFrequencyMeasurementVarianceParams(
     binaryRepresentation = weightedMeasurement.binaryRepresentation,
@@ -2816,7 +2824,9 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
  * @throws MeasurementVarianceNotComputableException when methodology not supported for frequency or
  *   methodology missing variance information.
  */
-fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency): Methodology? {
+fun buildStatsMethodology(
+  frequencyResult: InternalMeasurement.Result.Frequency
+): FrequencyMethodology? {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (frequencyResult.methodologyCase) {
     InternalMeasurement.Result.Frequency.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY -> {
@@ -2870,7 +2880,7 @@ fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency)
       )
     }
     InternalMeasurement.Result.Frequency.MethodologyCase.TRUS_TEE -> {
-      TrusTeeMethodology(frequencyVectorSize = frequencyResult.trusTee.frequencyVectorSize)
+      DeterministicMethodology
     }
     InternalMeasurement.Result.Frequency.MethodologyCase.METHODOLOGY_NOT_SET -> {
       throw MeasurementVarianceNotComputableException("Methodology not set.")
@@ -3047,7 +3057,7 @@ private fun buildWeightedReachMeasurementVarianceParams(
       return null
     }
 
-  val methodology: Methodology = buildStatsMethodology(reachResult) ?: return null
+  val methodology: ReachMethodology = buildStatsMethodology(reachResult) ?: return null
 
   return WeightedReachMeasurementVarianceParams(
     binaryRepresentation = weightedMeasurement.binaryRepresentation,
@@ -3072,7 +3082,7 @@ private fun buildWeightedReachMeasurementVarianceParams(
  * @throws MeasurementVarianceNotComputableException when methodology not supported for reach or
  *   methodology missing variance information
  */
-fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Methodology? {
+fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): ReachMethodology? {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (reachResult.methodologyCase) {
     InternalMeasurement.Result.Reach.MethodologyCase.CUSTOM_DIRECT_METHODOLOGY -> {
@@ -3097,9 +3107,8 @@ fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Method
         }
       }
     }
-    InternalMeasurement.Result.Reach.MethodologyCase.DETERMINISTIC_COUNT_DISTINCT -> {
-      DeterministicMethodology
-    }
+    InternalMeasurement.Result.Reach.MethodologyCase.DETERMINISTIC_COUNT_DISTINCT,
+    InternalMeasurement.Result.Reach.MethodologyCase.TRUS_TEE -> DeterministicMethodology
     InternalMeasurement.Result.Reach.MethodologyCase.LIQUID_LEGIONS_COUNT_DISTINCT -> {
       LiquidLegionsSketchMethodology(
         decayRate = reachResult.liquidLegionsCountDistinct.decayRate,
@@ -3124,9 +3133,6 @@ fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Method
       HonestMajorityShareShuffleMethodology(
         frequencyVectorSize = reachResult.honestMajorityShareShuffle.frequencyVectorSize
       )
-    }
-    InternalMeasurement.Result.Reach.MethodologyCase.TRUS_TEE -> {
-      TrusTeeMethodology(frequencyVectorSize = reachResult.trusTee.frequencyVectorSize)
     }
     InternalMeasurement.Result.Reach.MethodologyCase.METHODOLOGY_NOT_SET -> {
       throw MeasurementVarianceNotComputableException("Methodology not set.")
