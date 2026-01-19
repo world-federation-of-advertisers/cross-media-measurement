@@ -177,12 +177,11 @@ variable "data_watcher_config" {
 }
 
 variable "data_watcher_delete_config" {
-  description = "An object containing the local path of the data watcher delete config file and its destination path in Cloud Storage. Required if enable_data_watcher_delete is true."
+  description = "An object containing the local path of the data watcher delete config file and its destination path in Cloud Storage."
   type = object({
     local_path  = string
     destination = string
   })
-  default = null
 }
 
 variable "requisition_fetcher_config" {
@@ -235,28 +234,10 @@ variable "data_watcher_trigger_service_account_name" {
   nullable    = false
 }
 
-variable "enable_data_watcher_delete" {
-  description = "Enable the DataWatcher delete function and DataAvailabilityCleanup function for object lifecycle cleanup."
-  type        = bool
-  default     = false
-}
-
-variable "data_watcher_delete_service_account_name" {
-  description = "Name of the DataWatcher delete service account."
-  type        = string
-  default     = "data-watcher-delete-sa"
-}
-
-variable "data_watcher_delete_trigger_service_account_name" {
-  description = "The name of the service account used to trigger the DataWatcher delete Cloud Function."
-  type        = string
-  default     = "data-watcher-delete-trigger"
-}
-
 variable "data_availability_cleanup_service_account_name" {
   description = "Name of the DataAvailabilityCleanup service account."
   type        = string
-  default     = "data-avail-cleanup-sa"
+  nullable    = false
 }
 
 variable "terraform_service_account" {
@@ -296,9 +277,9 @@ variable "data_availability_sync_function_name" {
 }
 
 variable "data_availability_cleanup_function_name" {
-  description = "Name of the DataAvailabilityCleanup cloud function. Required if enable_data_watcher_delete is true."
+  description = "Name of the DataAvailabilityCleanup cloud function."
   type        = string
-  default     = "data-availability-cleanup"
+  nullable    = false
 }
 
 variable "cloud_function_configs" {
