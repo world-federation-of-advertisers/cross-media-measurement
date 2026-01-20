@@ -33,4 +33,3 @@ message ClientAccount {
   // Reference ID provided by the client to identify this account.
   string client_account_reference_id = 4;
 }
-
