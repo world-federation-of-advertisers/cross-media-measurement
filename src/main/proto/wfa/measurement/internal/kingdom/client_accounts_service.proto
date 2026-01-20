@@ -29,7 +29,8 @@ service ClientAccounts {
 
   rpc DeleteClientAccount(DeleteClientAccountRequest) returns (ClientAccount);
 
-  rpc StreamClientAccounts(StreamClientAccountsRequest) returns (stream ClientAccount);
+  rpc StreamClientAccounts(StreamClientAccountsRequest)
+      returns (stream ClientAccount);
 }
 
 message CreateClientAccountRequest {
