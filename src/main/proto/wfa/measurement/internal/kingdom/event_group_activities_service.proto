@@ -1,0 +1,76 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+import "wfa/measurement/internal/kingdom/event_group_activity.proto";
+import "google/protobuf/empty.proto";
+import "google/type/date.proto";
+
+option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+// Internal service for persistence of EventGroupActivity entities.
+service EventGroupActivities {
+  rpc BatchUpdateEventGroupActivities(BatchUpdateEventGroupActivitiesRequest)
+      returns (BatchUpdateEventGroupActivitiesResponse);
+
+  rpc DeleteEventGroupActivity(DeleteEventGroupActivityRequest)
+      returns (google.protobuf.Empty);
+
+  rpc BatchDeleteEventGroupActivities(BatchDeleteEventGroupActivitiesRequest)
+      returns (google.protobuf.Empty);
+}
+
+message UpdateEventGroupActivityRequest {
+  EventGroupActivity event_group_activity = 1;
+  bool allow_missing = 2;
+}
+
+message BatchUpdateEventGroupActivitiesRequest {
+  // External ID of the parent. Required.
+  fixed64 external_data_provider_id = 1;
+  // External ID of the parent. Required.
+  fixed64 external_event_group_id = 2;
+
+  // The requests for updating EventGroupActivities.
+  // A maximum of 1000 EventGroupActivities can be updated in a batch.
+  repeated UpdateEventGroupActivityRequest requests = 3;
+}
+
+message BatchUpdateEventGroupActivitiesResponse {
+  repeated EventGroupActivity event_group_activities = 1;
+}
+
+message DeleteEventGroupActivityRequest {
+  // External ID of the parent. Required.
+  fixed64 external_data_provider_id = 1;
+  // External ID of the parent. Required.
+  fixed64 external_event_group_id = 2;
+  // External ID of the EventGroupActivity. Required.
+  google.type.Date external_event_group_activity_id = 3;
+}
+
+message BatchDeleteEventGroupActivitiesRequest {
+  // External ID of the parent. Required.
+  fixed64 external_data_provider_id = 1;
+  // External ID of the parent. Required.
+  fixed64 external_event_group_id = 2;
+
+  // The external ids specifying the EventGroupActivity to permanently
+  // delete. A maximum of 1000 EventGroupActivity can be deleted in a batch.
+  repeated google.type.Date external_event_group_activity_ids = 3;
+}

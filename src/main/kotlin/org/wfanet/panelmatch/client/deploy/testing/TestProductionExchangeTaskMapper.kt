@@ -18,6 +18,7 @@ import java.time.Clock
 import java.time.Duration
 import org.apache.beam.sdk.options.PipelineOptionsFactory
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.panelmatch.client.authorizedview.BigQueryServiceFactory
 import org.wfanet.panelmatch.client.common.TaskParameters
 import org.wfanet.panelmatch.client.deploy.ProductionExchangeTaskMapper
 import org.wfanet.panelmatch.client.eventpreprocessing.PreprocessingParameters
@@ -42,4 +43,5 @@ class TestProductionExchangeTaskMapper(
     inputTaskThrottler = MinimumIntervalThrottler(clock, Duration.ofMillis(250)),
     makePipelineOptions = PipelineOptionsFactory::create,
     taskContext = taskContext,
+    bigQueryServiceFactory = BigQueryServiceFactory(),
   )

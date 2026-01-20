@@ -29,6 +29,7 @@ import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.panelmatch.client.authorizedview.BigQueryServiceFactory
 import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.common.TaskParameters
 import org.wfanet.panelmatch.client.eventpreprocessing.PreprocessingParameters
@@ -122,6 +123,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
       certificateManager = certificateManager,
       makePipelineOptions = ::makePipelineOptions,
       taskContext = taskContext,
+      bigQueryServiceFactory = BigQueryServiceFactory(),
     )
   }
 

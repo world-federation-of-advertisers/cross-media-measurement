@@ -2962,15 +2962,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         impressionQualificationFilter {
           name = "impressionQualificationFilters/ami"
           displayName = "ami"
-          filterSpecs += impressionQualificationFilterSpec {
-            mediaType = MediaType.DISPLAY
-            filters += eventFilter {
-              terms += eventTemplateField {
-                path = "banner_ad.viewable"
-                value = EventTemplateFieldKt.fieldValue { boolValue = false }
-              }
-            }
-          }
+          filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
+          filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.VIDEO }
+          filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.OTHER }
         }
       )
   }

@@ -589,7 +589,8 @@ class ReportProcessorTest {
         if (
           !fuzzyEqual(
             cumulativeMeasurements[edpCombination]!![
-                cumulativeMeasurements[edpCombination]!!.size - 1]
+                cumulativeMeasurements[edpCombination]!!.size - 1,
+              ]
               .toDouble(),
             totalMeasurements[edpCombination]!!.toDouble(),
             TOLERANCE,

@@ -223,7 +223,6 @@ import org.wfanet.measurement.measurementconsumer.stats.FrequencyMetricVarianceP
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyVariances
 import org.wfanet.measurement.measurementconsumer.stats.ImpressionMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ImpressionMetricVarianceParams
-import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.Variances
@@ -2533,23 +2532,14 @@ class MetricsServiceTest {
       onBlocking { computeMetricVariance(any<WatchDurationMetricVarianceParams>()) }
         .thenReturn(VARIANCE_VALUE)
 
-      onBlocking {
-          computeMeasurementVariance(any<Methodology>(), any<ReachMeasurementVarianceParams>())
-        }
+      onBlocking { computeMeasurementVariance(any(), any<ReachMeasurementVarianceParams>()) }
         .thenReturn(VARIANCE_VALUE)
-      onBlocking {
-          computeMeasurementVariance(any<Methodology>(), any<FrequencyMeasurementVarianceParams>())
-        }
+      onBlocking { computeMeasurementVariance(any(), any<FrequencyMeasurementVarianceParams>()) }
         .thenReturn(FrequencyVariances(mapOf(), mapOf(), mapOf(), mapOf()))
-      onBlocking {
-          computeMeasurementVariance(any<Methodology>(), any<ImpressionMeasurementVarianceParams>())
-        }
+      onBlocking { computeMeasurementVariance(any(), any<ImpressionMeasurementVarianceParams>()) }
         .thenReturn(VARIANCE_VALUE)
       onBlocking {
-          computeMeasurementVariance(
-            any<Methodology>(),
-            any<WatchDurationMeasurementVarianceParams>(),
-          )
+          computeMeasurementVariance(any(), any<WatchDurationMeasurementVarianceParams>())
         }
         .thenReturn(VARIANCE_VALUE)
     }
