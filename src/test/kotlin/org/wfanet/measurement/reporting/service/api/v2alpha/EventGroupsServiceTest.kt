@@ -987,8 +987,7 @@ class EventGroupsServiceTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message)
-      .contains("activity_contains has invalid date(s)")
+    assertThat(exception.message).contains("activity_contains has invalid date(s)")
   }
 
   @Test
