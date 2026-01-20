@@ -177,6 +177,9 @@ class ResultsFulfiller(
         batchSize = pipelineConfiguration.batchSize,
       )
 
+    // Get the KEK URI from BlobDetails.encryptedDek for TrusTee protocol encryption
+    val kekUri = eventSource.getKekUri()
+
     Tracing.traceSuspending(spanName = SPAN_REPORT_FULFILLMENT, attributes = Attributes.empty()) {
       val span = Span.current()
       val frequencyVectorMap =
@@ -211,6 +214,7 @@ class ResultsFulfiller(
               frequencyVector = frequencyVector,
               populationSpec = populationSpec,
               requisitionsMetadata = requisitionMetadataByName,
+              kekUri = kekUri,
             )
             emit(Unit)
           }
@@ -280,6 +284,7 @@ class ResultsFulfiller(
     frequencyVector: StripedByteFrequencyVector,
     populationSpec: PopulationSpec,
     requisitionsMetadata: Map<String, RequisitionMetadata>,
+    kekUri: String?,
   ) {
 
     val requisitionProcessingTimer = TimeSource.Monotonic.markNow()
@@ -334,6 +339,7 @@ class ResultsFulfiller(
             requisitionSpec,
             frequencyVector,
             populationSpec,
+            kekUri,
           )
         val fulfillerType =
           fulfiller::class.simpleName

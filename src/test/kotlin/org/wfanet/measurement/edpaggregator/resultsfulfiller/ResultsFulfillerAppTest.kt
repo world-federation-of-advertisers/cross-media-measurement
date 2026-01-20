@@ -359,6 +359,7 @@ class ResultsFulfillerAppTest {
           mapOf("some-duchy" to grpcTestServerRule.channel),
         ),
         kmsClients,
+        emptyMap(), // trusTeeConfigs
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
@@ -479,6 +480,7 @@ class ResultsFulfillerAppTest {
             mapOf("some-duchy" to grpcTestServerRule.channel),
           ),
           kmsClients,
+          emptyMap(), // trusTeeConfigs
           getStorageConfig(tmpPath),
           getStorageConfig(tmpPath),
           getStorageConfig(tmpPath),
@@ -613,6 +615,7 @@ class ResultsFulfillerAppTest {
           mapOf("some-duchy" to grpcTestServerRule.channel),
         ),
         kmsClients,
+        emptyMap(), // trusTeeConfigs
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
@@ -741,6 +744,7 @@ class ResultsFulfillerAppTest {
           mapOf("some-duchy" to grpcTestServerRule.channel),
         ),
         kmsClients,
+        emptyMap(), // trusTeeConfigs
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
@@ -860,6 +864,7 @@ class ResultsFulfillerAppTest {
           mapOf("some-duchy" to grpcTestServerRule.channel),
         ),
         kmsClients,
+        emptyMap(), // trusTeeConfigs
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
@@ -1011,6 +1016,7 @@ class ResultsFulfillerAppTest {
           mapOf("some-duchy" to grpcTestServerRule.channel),
         ),
         kmsClients,
+        emptyMap(), // trusTeeConfigs
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
@@ -1155,6 +1161,7 @@ class ResultsFulfillerAppTest {
           mapOf("some-duchy" to grpcTestServerRule.channel),
         ),
         kmsClients,
+        emptyMap(), // trusTeeConfigs
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),

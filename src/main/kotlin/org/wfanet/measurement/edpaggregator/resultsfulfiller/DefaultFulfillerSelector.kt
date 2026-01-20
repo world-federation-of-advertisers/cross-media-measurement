@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.crypto.tink.KmsClient
 import com.google.protobuf.kotlin.unpack
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
@@ -36,6 +37,36 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.Frequ
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusteeFulfillRequisitionRequestBuilder
 
 /**
+ * Configuration for TrusTee protocol envelope encryption.
+ *
+ * @property kmsClient The KMS client for encryption operations.
+ * @property workloadIdentityProvider The workload identity provider URL for GCP WIF.
+ * @property impersonatedServiceAccount The service account to impersonate for KMS operations.
+ */
+data class TrusTeeConfig(
+  val kmsClient: KmsClient,
+  val workloadIdentityProvider: String,
+  val impersonatedServiceAccount: String,
+) {
+  /**
+   * Builds EncryptionParams for the TrusTee protocol using the provided KEK URI.
+   *
+   * @param kekUri The KEK URI from BlobDetails.encryptedDek.
+   * @return EncryptionParams for the TrusTee fulfillment request builder.
+   */
+  fun buildEncryptionParams(
+    kekUri: String
+  ): TrusteeFulfillRequisitionRequestBuilder.EncryptionParams {
+    return TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+      kmsClient = kmsClient,
+      kmsKekUri = kekUri,
+      workloadIdentityProvider = workloadIdentityProvider,
+      impersonatedServiceAccount = impersonatedServiceAccount,
+    )
+  }
+}
+
+/**
  * Default implementation that routes requisitions to protocol-specific fulfillers.
  *
  * @param requisitionsStub gRPC stub for Direct protocol requisitions
@@ -46,7 +77,7 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.Fulf
  * @param kAnonymityParams optional k-anonymity thresholds; null disables k-anonymity
  * @param overrideImpressionMaxFrequencyPerUser optional frequency cap override; null or -1 means no
  *   capping and uses totalUncappedImpressions instead
- * @param trusTeeEncryptionParams encryption parameters for TrusTee protocol envelope encryption
+ * @param trusTeeConfig configuration for TrusTee protocol; null disables TrusTee
  */
 class DefaultFulfillerSelector(
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
@@ -57,7 +88,7 @@ class DefaultFulfillerSelector(
   private val noiserSelector: NoiserSelector,
   private val kAnonymityParams: KAnonymityParams?,
   private val overrideImpressionMaxFrequencyPerUser: Int?,
-  private val trusTeeEncryptionParams: TrusteeFulfillRequisitionRequestBuilder.EncryptionParams,
+  private val trusTeeConfig: TrusTeeConfig?,
 ) : FulfillerSelector {
 
   /**
@@ -68,6 +99,7 @@ class DefaultFulfillerSelector(
    * @param requisitionSpec decrypted requisition details including nonce
    * @param frequencyVector frequency vector containing per-VID frequency counts
    * @param populationSpec population definition for VID range validation
+   * @param kekUri the KEK URI from BlobDetails.encryptedDek for TrusTee encryption
    * @return protocol-specific fulfiller ready for execution
    * @throws IllegalArgumentException if no supported protocol is found
    */
@@ -77,6 +109,7 @@ class DefaultFulfillerSelector(
     requisitionSpec: RequisitionSpec,
     frequencyVector: StripedByteFrequencyVector,
     populationSpec: PopulationSpec,
+    kekUri: String?,
   ): MeasurementFulfiller {
 
     val frequencyDataBytes = frequencyVector.getByteArray()
@@ -90,6 +123,14 @@ class DefaultFulfillerSelector(
         kAnonymityParams = kAnonymityParams,
         overrideImpressionMaxFrequencyPerUser = overrideImpressionMaxFrequencyPerUser,
       )
+
+    // Build TrusTee encryption params dynamically using the kekUri from BlobDetails
+    val trusTeeEncryptionParams =
+      if (trusTeeConfig != null && kekUri != null) {
+        trusTeeConfig.buildEncryptionParams(kekUri)
+      } else {
+        null
+      }
 
     return if (requisition.protocolConfig.protocolsList.any { it.hasDirect() }) {
       val totalUncappedImpressions = frequencyVector.getTotalUncappedImpressions()
