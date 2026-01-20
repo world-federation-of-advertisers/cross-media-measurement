@@ -263,7 +263,6 @@ class InProcessEdpAggregatorComponents(
           capabilities =
             DataProviderKt.capabilities {
               honestMajorityShareShuffleSupported = true
-              trusTeeSupported = true
             }
         }
       )
