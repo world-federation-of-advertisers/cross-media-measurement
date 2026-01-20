@@ -110,14 +110,17 @@ import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParam
 import org.wfanet.measurement.measurementconsumer.stats.DeterministicMethodology
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.FrequencyMethodology
 import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
 import org.wfanet.measurement.measurementconsumer.stats.ImpressionMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ImpressionMeasurementVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.ImpressionMethodology
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.ReachMethodology
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
@@ -741,7 +744,7 @@ abstract class MeasurementConsumerSimulator(
       }
 
     return VariancesImpl.computeMeasurementVariance(
-      measurementComputationInfo.methodology,
+      measurementComputationInfo.methodology as ImpressionMethodology,
       ImpressionMeasurementVarianceParams(
         impression = max(0L, result.impression.value),
         measurementParams =
@@ -766,7 +769,7 @@ abstract class MeasurementConsumerSimulator(
       buildMeasurementComputationInfo(result, protocol, result.frequency.noiseMechanism)
 
     return VariancesImpl.computeMeasurementVariance(
-        measurementComputationInfo.methodology,
+        measurementComputationInfo.methodology as FrequencyMethodology,
         FrequencyMeasurementVarianceParams(
           totalReach = max(0L, result.reach.value),
           reachMeasurementVariance = reachVariance,
@@ -799,7 +802,7 @@ abstract class MeasurementConsumerSimulator(
       buildMeasurementComputationInfo(result, protocol, result.reach.noiseMechanism)
 
     return VariancesImpl.computeMeasurementVariance(
-      measurementComputationInfo.methodology,
+      measurementComputationInfo.methodology as ReachMethodology,
       ReachMeasurementVarianceParams(
         reach = max(0L, result.reach.value),
         measurementParams =
@@ -857,7 +860,7 @@ abstract class MeasurementConsumerSimulator(
         )
       }
       ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE -> {
-        error("TrusTEE is not implemented.")
+        MeasurementComputationInfo(DeterministicMethodology, protocol.trusTee.noiseMechanism)
       }
       ProtocolConfig.Protocol.ProtocolCase.PROTOCOL_NOT_SET -> {
         error("Protocol is not set.")
