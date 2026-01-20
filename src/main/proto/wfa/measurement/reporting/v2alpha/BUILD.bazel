@@ -55,6 +55,15 @@ proto_library(
 )
 
 proto_library(
+    name = "date_interval_proto",
+    srcs = ["date_interval.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/type:date_proto",
+    ],
+)
+
+proto_library(
     name = "event_filter_proto",
     srcs = ["event_filter.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -69,6 +78,7 @@ proto_library(
     srcs = ["event_group.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":date_interval_proto",
         ":media_type_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
@@ -302,6 +312,7 @@ proto_library(
     srcs = ["event_groups_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":date_interval_proto",
         ":event_group_proto",
         ":media_type_proto",
         "@com_google_googleapis//google/api:annotations_proto",
