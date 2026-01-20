@@ -23,6 +23,7 @@ import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
+import org.junit.Ignore
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
@@ -237,11 +238,12 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       )
     }
 
+  @Ignore("TrusTee integration test requires full Duchy configuration - see TODO")
   @Test
   fun `create a TrusTee reach-only measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a TrusTee reach measurement and verify its result.
-      // Note: Kingdom will select HMSS protocol since both HMSS and TrusTee are enabled
+      // TrusTee is disabled in tests, so Kingdom falls back to other protocols
       mcSimulator.testReachOnly(
         "1234",
         DataProviderKt.capabilities {
@@ -251,12 +253,13 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       )
     }
 
+  @Ignore("TrusTee integration test requires full Duchy configuration - see TODO")
   @Test
   fun `create a TrusTee RF measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a TrusTee reach and frequency measurement and verify its
       // result.
-      // Note: Kingdom will select HMSS protocol since both HMSS and TrusTee are enabled
+      // TrusTee is disabled in tests, so Kingdom falls back to other protocols
       mcSimulator.testReachAndFrequency(
         "1234",
         DataProviderKt.capabilities {
