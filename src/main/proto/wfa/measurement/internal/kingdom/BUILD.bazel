@@ -138,9 +138,12 @@ proto_library(
     name = "client_account_proto",
     srcs = ["client_account.proto"],
     strip_import_prefix = IMPORT_PREFIX,
+<<<<<<< HEAD
     deps = [
         "@com_google_protobuf//:timestamp_proto",
     ],
+=======
+>>>>>>> 1c0425bee (feat: add client account proto definitions for internal api)
 )
 
 proto_library(
@@ -149,7 +152,10 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":client_account_proto",
+<<<<<<< HEAD
         "@com_google_protobuf//:timestamp_proto",
+=======
+>>>>>>> 1c0425bee (feat: add client account proto definitions for internal api)
     ],
 )
 
