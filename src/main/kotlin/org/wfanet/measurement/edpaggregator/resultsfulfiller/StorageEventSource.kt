@@ -217,6 +217,31 @@ class StorageEventSource(
     return EventReaderResult(batchCount, eventCount)
   }
 
+  /**
+   * Gets the KEK URI from the impression data sources.
+   *
+   * All data sources for the same EDP should use the same KEK URI, so we return the first one
+   * found. Returns null if no data sources are available or if BlobDetails does not have an
+   * encrypted DEK.
+   */
+  suspend fun getKekUri(): String? {
+    for (details in eventGroupDetailsList) {
+      for (interval in details.collectionIntervalsList) {
+        val sources =
+          impressionDataSourceProvider.listImpressionDataSources(
+            modelLine,
+            details.eventGroupReferenceId,
+            interval,
+          )
+        val firstSource = sources.firstOrNull()
+        if (firstSource != null && firstSource.blobDetails.hasEncryptedDek()) {
+          return firstSource.blobDetails.encryptedDek.kekUri
+        }
+      }
+    }
+    return null
+  }
+
   companion object {
     private val logger = Logger.getLogger(StorageEventSource::class.java.name)
   }

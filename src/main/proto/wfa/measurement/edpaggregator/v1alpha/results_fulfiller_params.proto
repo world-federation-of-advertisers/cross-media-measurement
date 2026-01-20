@@ -135,10 +135,11 @@ message ResultsFulfillerParams {
     // The key is the KEK URI that was used to encrypt the input data.
     // The value is the key name on the same key ring that will be used to
     // re-encrypt the data for TrusTee.
-    // The key name must exist on the same key ring that is used for the input data.
-    // If a KEK URI is not present in this map, the same KEK URI will be used
-    // to both encrypt and decrypt the data.
-    // Example key: "gcp-kms://projects/my-project/locations/global/keyRings/my-ring/cryptoKeys/input-key"
+    // The key name must exist on the same key ring that is used for the input
+    // data. If a KEK URI is not present in this map, the same KEK URI will be
+    // used to both encrypt and decrypt the data. Example key:
+    // "gcp-kms://projects/my-project/locations/global/keyRings/
+    //  my-ring/cryptoKeys/input-key"
     // Example value: "trustee-key"
     map<string, string> kek_uri_to_key_name = 1;
   }
