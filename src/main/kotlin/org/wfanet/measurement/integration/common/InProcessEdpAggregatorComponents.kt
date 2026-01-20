@@ -50,7 +50,6 @@ import kotlinx.coroutines.withContext
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
-import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -84,6 +83,7 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValid
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerApp
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerMetrics
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.TrusTeeConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -200,6 +200,14 @@ class InProcessEdpAggregatorComponents(
         WorkItemAttemptsCoroutineStub(secureComputationPublicApi.publicApiChannel),
       queueSubscriber = subscriber,
       kmsClients = kmsClients.toMutableMap(),
+      trusTeeConfigs =
+        kmsClients.mapValues { (_, kmsClient) ->
+          TrusTeeConfig(
+            kmsClient = kmsClient,
+            workloadIdentityProvider = "test-wip",
+            impersonatedServiceAccount = "test-sa@example.com",
+          )
+        },
       requisitionMetadataStub = requisitionMetadataClient,
       impressionMetadataStub = impressionMetadataClient,
       requisitionStubFactory = requisitionStubFactory,

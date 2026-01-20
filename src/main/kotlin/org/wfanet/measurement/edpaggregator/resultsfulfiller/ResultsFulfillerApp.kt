@@ -38,7 +38,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.NoiseParams.NoiseType
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusteeFulfillRequisitionRequestBuilder
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
@@ -83,6 +82,7 @@ class ResultsFulfillerApp(
   private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub,
   private val requisitionStubFactory: RequisitionStubFactory,
   private val kmsClients: MutableMap<String, KmsClient>,
+  private val trusTeeConfigs: Map<String, TrusTeeConfig>,
   private val getImpressionsMetadataStorageConfig: (StorageParams) -> StorageConfig,
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig,
   private val getRequisitionsStorageConfig: (StorageParams) -> StorageConfig,
@@ -185,16 +185,8 @@ class ResultsFulfillerApp(
       "impressionMaxFrequencyPerUser must be between -1 and ${Byte.MAX_VALUE}, got ${fulfillerParams.impressionMaxFrequencyPerUser}"
     }
 
-    // TODO(world-federation-of-advertisers/cross-media-measurement#XXX): Implement dynamic
-    // construction of TrusTee encryption params using:
-    // 1. Get kekUri from BlobDetails.encryptedDek
-    // 2. Map kekUri to key name using fulfillerParams.trusteeParams.kekUriToKeyNameMap
-    // 3. Replace the key name in kekUri with the mapped key name
-    // 4. Use edpConfig.kmsConfig.kmsAudience for workloadIdentityProvider
-    // 5. Use edpConfig.kmsConfig.serviceAccount for impersonatedServiceAccount
-    // This requires architectural changes to pass edpConfig and access BlobDetails at the
-    // right time in the fulfillment flow.
-    val trusTeeEncryptionParams: TrusteeFulfillRequisitionRequestBuilder.EncryptionParams? = null
+    // Get TrusTeeConfig for this data provider if available
+    val trusTeeConfig: TrusTeeConfig? = trusTeeConfigs[fulfillerParams.dataProvider]
 
     val fulfillerSelector =
       DefaultFulfillerSelector(
@@ -211,7 +203,7 @@ class ResultsFulfillerApp(
           } else {
             fulfillerParams.impressionMaxFrequencyPerUser.takeIf { it > 0 }
           },
-        trusTeeEncryptionParams = trusTeeEncryptionParams,
+        trusTeeConfig = trusTeeConfig,
       )
 
     ResultsFulfiller(
