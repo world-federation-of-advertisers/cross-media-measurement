@@ -92,7 +92,7 @@ message ReportingSetResult {
   Dimension dimension = 4;
 
   // Size of the population. Required. Immutable.
-  int32 population_size = 5;
+  int64 population_size = 5;
 
   // Window for report results.
   //

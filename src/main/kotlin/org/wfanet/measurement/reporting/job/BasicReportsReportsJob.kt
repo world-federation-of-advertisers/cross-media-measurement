@@ -64,9 +64,8 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
-import org.wfanet.measurement.reporting.service.api.v2alpha.createDimensionSpecFilter
-import org.wfanet.measurement.reporting.service.api.v2alpha.createImpressionQualificationFilterSpecsFilter
-import org.wfanet.measurement.reporting.service.api.v2alpha.createMetricCalculationSpecFilters
+import org.wfanet.measurement.reporting.service.api.v2alpha.buildCelExpression
+import org.wfanet.measurement.reporting.service.api.v2alpha.buildCelExpressions
 import org.wfanet.measurement.reporting.service.api.v2alpha.toEventFilter
 import org.wfanet.measurement.reporting.service.api.v2alpha.toImpressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.service.internal.InvalidBasicReportException
@@ -249,7 +248,7 @@ class BasicReportsReportsJob(
     eventTemplateFieldByPredicate: Map<String, EventTemplateField>,
   ): List<CreateReportingSetResultRequest> {
     val (
-      populationCountByPopulationResultKey: Map<PopulationResultKey, Int>,
+      populationCountByPopulationResultKey: Map<PopulationResultKey, Long>,
       reportingSetResultInfoByReportingSetResultInfoKey:
         Map<ReportingSetResultInfoKey, ReportingSetResultInfo>) =
       buildReportResultInfo(
@@ -398,7 +397,7 @@ class BasicReportsReportsJob(
         externalCampaignGroupId = externalCampaignGroupId,
       )
 
-    val populationCountByPopulationResultKey: MutableMap<PopulationResultKey, Int> = mutableMapOf()
+    val populationCountByPopulationResultKey: MutableMap<PopulationResultKey, Long> = mutableMapOf()
     val reportingSetResultInfoByReportingSetResultInfoKey:
       Map<ReportingSetResultInfoKey, ReportingSetResultInfo> =
       buildMap {
@@ -420,7 +419,7 @@ class BasicReportsReportsJob(
                 PopulationResultKey(
                   filter = it.filter,
                   groupingPredicates = it.groupingPredicatesList.toSet(),
-                )] = it.metricResult.populationCount.value.toInt()
+                )] = it.metricResult.populationCount.value
             }
           } else {
             for (resultAttribute in metricCalculationResult.resultAttributesList) {
@@ -512,7 +511,7 @@ class BasicReportsReportsJob(
                     PopulationResultKey(
                       filter = resultAttribute.filter,
                       groupingPredicates = resultAttribute.groupingPredicatesList.toSet(),
-                    )] = resultAttribute.metricResult.populationCount.value.toInt()
+                    )] = resultAttribute.metricResult.populationCount.value
                 }
 
                 MetricSpec.TypeCase.TYPE_NOT_SET -> {
@@ -625,7 +624,7 @@ class BasicReportsReportsJob(
       for (reportingImpressionQualificationFilter in
         basicReport.details.effectiveImpressionQualificationFiltersList) {
         val impressionQualificationFilterString =
-          createImpressionQualificationFilterSpecsFilter(
+          buildCelExpression(
             reportingImpressionQualificationFilter.filterSpecsList.map {
               it.toImpressionQualificationFilterSpec()
             },
@@ -635,15 +634,12 @@ class BasicReportsReportsJob(
         for (resultGroupSpec in basicReport.details.resultGroupSpecsList) {
           val dimensionSpecFilters = resultGroupSpec.dimensionSpec.filtersList
           val dimensionSpecFilter: String =
-            createDimensionSpecFilter(
+            buildCelExpression(
               dimensionSpecFilters.map { it.toEventFilter() },
               eventTemplateFieldsByPath,
             )
           val filter =
-            createMetricCalculationSpecFilters(
-                listOf(impressionQualificationFilterString),
-                dimensionSpecFilter,
-              )
+            buildCelExpressions(listOf(impressionQualificationFilterString), dimensionSpecFilter)
               .first()
 
           val externalImpressionQualificationFilterId: String? =
@@ -741,7 +737,7 @@ class BasicReportsReportsJob(
   )
 
   private data class ReportResultInfo(
-    val populationCountByPopulationResultKey: Map<PopulationResultKey, Int>,
+    val populationCountByPopulationResultKey: Map<PopulationResultKey, Long>,
     val reportingSetResultInfoByReportingSetResultInfoKey:
       Map<ReportingSetResultInfoKey, ReportingSetResultInfo>,
   )

@@ -82,7 +82,7 @@ object BasicReportProcessedResultsTransformation {
       }
 
     val reportStartTimestamp: Timestamp =
-      basicReport.details.reportingInterval.reportStart.toTimestamp()
+      basicReport.details.reportingInterval.effectiveReportStart.toTimestamp()
 
     return buildList {
       for (resultGroupSpec in basicReport.details.resultGroupSpecsList) {
@@ -129,7 +129,7 @@ object BasicReportProcessedResultsTransformation {
           title = resultGroupSpec.title
           results +=
             buildResults(
-              reportStart = basicReport.details.reportingInterval.reportStart,
+              reportStart = basicReport.details.reportingInterval.effectiveReportStart,
               resultGroupSpec = resultGroupSpec,
               reportStartTimestamp = reportStartTimestamp,
               reportingUnitSummary = reportingUnitSummary,
@@ -536,7 +536,7 @@ object BasicReportProcessedResultsTransformation {
       }
 
       if (reportingUnitMetricSetSpec.stackedIncrementalReach) {
-        var prevReach = 0
+        var prevReach = 0L
         // Subtracts the previous reach to get the difference in reach.
         for (reportingSetId in incrementalReportingSetIds) {
           val processedValues = reportResultValuesByExternalReportingSetId.getValue(reportingSetId)
@@ -702,7 +702,7 @@ object BasicReportProcessedResultsTransformation {
   )
 
   private data class ReportingWindowResultValues(
-    val populationSize: Int,
+    val populationSize: Long,
     val reportResultValuesByExternalReportingSetId:
       MutableMap<String, ReportingSetResult.ReportingWindowResult.ReportResultValues>,
   )

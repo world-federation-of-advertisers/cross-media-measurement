@@ -38,7 +38,6 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusTeeFulfillRequisitionRequestBuilder
 import org.wfanet.measurement.loadtest.config.PrivacyBudgets
 import picocli.CommandLine
 
@@ -149,7 +148,6 @@ class LegacyMetadataEdpSimulatorRunner : AbstractEdpSimulatorRunner() {
     throttler: MinimumIntervalThrottler,
     health: SettableHealth,
     random: Random,
-    trusTeeEncryptionParams: TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams?,
   ): AbstractEdpSimulator {
     return LegacyMetadataEdpSimulator(
       edpData,

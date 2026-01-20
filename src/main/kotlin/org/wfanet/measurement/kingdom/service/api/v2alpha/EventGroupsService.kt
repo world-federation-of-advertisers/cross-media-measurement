@@ -22,6 +22,8 @@ import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
+import java.time.DateTimeException
+import java.time.LocalDate
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.min
@@ -34,10 +36,12 @@ import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.DateInterval
 import org.wfanet.measurement.api.v2alpha.DeleteEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
+import org.wfanet.measurement.api.v2alpha.EventGroupKt
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.eventTemplate
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt
@@ -55,6 +59,7 @@ import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.batchCreateEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.dateInterval
 import org.wfanet.measurement.api.v2alpha.encryptedMessage
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
@@ -77,6 +82,7 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.BatchCreateEventGroupsRequest as InternalBatchCreateEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest as InternalCreateEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.DateInterval as InternalDateInterval
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupDetails
 import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt
@@ -89,6 +95,7 @@ import org.wfanet.measurement.internal.kingdom.UpdateEventGroupRequest as Intern
 import org.wfanet.measurement.internal.kingdom.batchCreateEventGroupsRequest as internalBatchCreateEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupsRequest as internalBatchUpdateEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest as internalCreateEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.dateInterval as internalDateInterval
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
 import org.wfanet.measurement.internal.kingdom.eventGroupDetails
@@ -139,6 +146,7 @@ class EventGroupsService(
           internalGetEventGroupRequest {
             externalDataProviderId = ApiId(key.dataProviderId).externalId.value
             externalEventGroupId = ApiId(key.eventGroupId).externalId.value
+            view = request.view.toInternal()
           }
         }
         is MeasurementConsumerEventGroupKey -> {
@@ -148,6 +156,7 @@ class EventGroupsService(
           internalGetEventGroupRequest {
             externalMeasurementConsumerId = ApiId(key.measurementConsumerId).externalId.value
             externalEventGroupId = ApiId(key.eventGroupId).externalId.value
+            view = request.view.toInternal()
           }
         }
         else -> error("Unexpected resource key $key")
@@ -487,6 +496,7 @@ class EventGroupsService(
         parentKey,
         pageSize,
         pageToken,
+        request.view,
       )
     val internalEventGroups: List<InternalEventGroup> =
       try {
@@ -544,6 +554,9 @@ class EventGroupsService(
         dataAvailabilityEndTimeOnOrAfter = internalFilter.dataAvailabilityEndTimeOnOrAfter
       }
       metadataSearchQuery = internalFilter.metadataSearchQuery
+      if (internalFilter.hasActivityContains()) {
+        activityContains = internalFilter.activityContains.toDateInterval()
+      }
       lastEventGroup = previousPageEnd {
         externalDataProviderId = lastInternalEventGroup.externalDataProviderId
         externalEventGroupId = lastInternalEventGroup.externalEventGroupId
@@ -566,6 +579,7 @@ class EventGroupsService(
     parentKey: ResourceKey,
     pageSize: Int,
     pageToken: ListEventGroupsPageToken?,
+    view: EventGroup.View,
   ): StreamEventGroupsRequest {
     return streamEventGroupsRequest {
       allowStaleReads = true
@@ -612,6 +626,10 @@ class EventGroupsService(
           if (filter.hasDataAvailabilityEndTimeOnOrAfter()) {
             dataAvailabilityEndTimeOnOrAfter = filter.dataAvailabilityEndTimeOnOrAfter
           }
+          if (filter.hasActivityContains()) {
+            validateActivityContainsInterval(filter.activityContains)
+            activityContains = filter.activityContains.toInternal()
+          }
           metadataSearchQuery = filter.metadataSearchQuery
           this.showDeleted = showDeleted
           if (pageToken != null) {
@@ -628,7 +646,8 @@ class EventGroupsService(
                 pageToken.dataAvailabilityStartTimeOnOrBefore !=
                   dataAvailabilityStartTimeOnOrBefore ||
                 pageToken.dataAvailabilityEndTimeOnOrAfter != dataAvailabilityEndTimeOnOrAfter ||
-                pageToken.metadataSearchQuery != metadataSearchQuery
+                pageToken.metadataSearchQuery != metadataSearchQuery ||
+                pageToken.activityContains != filter.activityContains
             ) {
               throw Status.INVALID_ARGUMENT.withDescription(
                   "Arguments other than page_size must remain the same for subsequent page requests"
@@ -658,12 +677,40 @@ class EventGroupsService(
           }
       }
       limit = pageSize + 1
+      this.view = view.toInternal()
     }
   }
 
   companion object {
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 500
+  }
+
+  private fun validateActivityContainsInterval(interval: DateInterval) {
+    if (!interval.hasStartDate()) {
+      throw Status.INVALID_ARGUMENT.withDescription("activity_contains.start_date is required")
+        .asRuntimeException()
+    }
+    if (!interval.hasEndDate()) {
+      throw Status.INVALID_ARGUMENT.withDescription("activity_contains.end_date is required")
+        .asRuntimeException()
+    }
+    try {
+      val startDate =
+        LocalDate.of(interval.startDate.year, interval.startDate.month, interval.startDate.day)
+      val endDate =
+        LocalDate.of(interval.endDate.year, interval.endDate.month, interval.endDate.day)
+      if (startDate.isAfter(endDate)) {
+        throw Status.INVALID_ARGUMENT.withDescription(
+            "activity_contains.start_date must be before or equal to activity_contains.end_date"
+          )
+          .asRuntimeException()
+      }
+    } catch (e: DateTimeException) {
+      throw Status.INVALID_ARGUMENT.withDescription("activity_contains dates are invalid")
+        .withCause(e)
+        .asRuntimeException()
+    }
   }
 }
 
@@ -728,6 +775,7 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
       }
     }
     state = source.state.toV2Alpha()
+    aggregatedActivities += source.aggregatedActivitiesList.map { it.toAggregatedActivity() }
   }
 }
 
@@ -858,5 +906,41 @@ private fun ListEventGroupsRequest.OrderBy.Field.toInternal():
     ListEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME ->
       StreamEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME
     ListEventGroupsRequest.OrderBy.Field.UNRECOGNIZED -> error("field unrecognized")
+  }
+}
+
+private fun EventGroup.View.toInternal(): InternalEventGroup.View {
+  return when (this) {
+    EventGroup.View.VIEW_UNSPECIFIED -> InternalEventGroup.View.VIEW_UNSPECIFIED
+    EventGroup.View.BASIC -> InternalEventGroup.View.BASIC
+    EventGroup.View.WITH_ACTIVITY_SUMMARY -> InternalEventGroup.View.WITH_ACTIVITY_SUMMARY
+    EventGroup.View.UNRECOGNIZED -> error("field unrecognized")
+  }
+}
+
+private fun InternalEventGroup.AggregatedActivity.toAggregatedActivity():
+  EventGroup.AggregatedActivity {
+  val source = this
+  return EventGroupKt.aggregatedActivity {
+    interval = dateInterval {
+      startDate = source.interval.startDate
+      endDate = source.interval.endDate
+    }
+  }
+}
+
+private fun DateInterval.toInternal(): InternalDateInterval {
+  val source = this
+  return internalDateInterval {
+    startDate = source.startDate
+    endDate = source.endDate
+  }
+}
+
+private fun InternalDateInterval.toDateInterval(): DateInterval {
+  val source = this
+  return dateInterval {
+    startDate = source.startDate
+    endDate = source.endDate
   }
 }

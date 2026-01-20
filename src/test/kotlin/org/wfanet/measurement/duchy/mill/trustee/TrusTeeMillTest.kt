@@ -81,6 +81,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationS
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.NoiseMechanism
+import org.wfanet.measurement.internal.duchy.RequisitionDetails.RequisitionProtocol.TrusTee.DataFormat
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.trusTee as requisitionTrusTee
 import org.wfanet.measurement.internal.duchy.computationDetails
@@ -91,7 +92,7 @@ import org.wfanet.measurement.internal.duchy.differentialPrivacyParams
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee.ComputationDetails as TrusTeeDetails
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee.Stage
 import org.wfanet.measurement.internal.duchy.protocol.TrusTeeKt
-import org.wfanet.measurement.measurementconsumer.stats.TrusTeeMethodology
+import org.wfanet.measurement.measurementconsumer.stats.DeterministicMethodology
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
@@ -171,7 +172,6 @@ class TrusTeeMillTest {
     // For test only, EDPs share the same fakeKmsClient.
     fakeKmsClient.setAead(KEK_URI_1, KEK_AEAD_1)
     fakeKmsClient.setAead(KEK_URI_2, KEK_AEAD_2)
-    fakeKmsClient.setAead(KEK_URI_3, KEK_AEAD_3)
   }
 
   private val systemComputationStub: ComputationsGrpcKt.ComputationsCoroutineStub by lazy {
@@ -240,8 +240,7 @@ class TrusTeeMillTest {
     val encryptedData2 = encryptWithStreamingAead(DEK_STREAMING_AEAD_2, RAW_DATA_2)
     requisitionStore.write(requisitionBlobContext2, encryptedData2)
 
-    val encryptedData3 = encryptWithStreamingAead(DEK_STREAMING_AEAD_3, RAW_DATA_3)
-    requisitionStore.write(requisitionBlobContext3, encryptedData3)
+    requisitionStore.write(requisitionBlobContext3, RAW_DATA_3.toByteString())
   }
 
   @Test
@@ -406,7 +405,7 @@ class TrusTeeMillTest {
     )
     requisitionStore.write(
       RequisitionBlobContext(GLOBAL_ID, REQUISITION_3.externalKey.externalRequisitionId),
-      encryptWithStreamingAead(DEK_STREAMING_AEAD_3, RAW_DATA_3),
+      RAW_DATA_3.toByteString(),
     )
 
     fakeComputationDb.addComputation(
@@ -468,7 +467,6 @@ class TrusTeeMillTest {
 
     val incompleteKmsClient = FakeKmsClient()
     incompleteKmsClient.setAead(KEK_URI_2, KEK_AEAD_2)
-    incompleteKmsClient.setAead(KEK_URI_3, KEK_AEAD_3)
     whenever(mockKmsClientFactory.getKmsClient(any<GCloudWifCredentials>()))
       .thenReturn(incompleteKmsClient)
 
@@ -684,15 +682,11 @@ class TrusTeeMillTest {
       KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM_HKDF_4KB"))
     private val DEK_KEYSET_HANDLE_2 =
       KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM_HKDF_4KB"))
-    private val DEK_KEYSET_HANDLE_3 =
-      KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM_HKDF_4KB"))
 
     private val DEK_STREAMING_AEAD_1: StreamingAead =
       DEK_KEYSET_HANDLE_1.getPrimitive(StreamingAead::class.java)
     private val DEK_STREAMING_AEAD_2: StreamingAead =
       DEK_KEYSET_HANDLE_2.getPrimitive(StreamingAead::class.java)
-    private val DEK_STREAMING_AEAD_3: StreamingAead =
-      DEK_KEYSET_HANDLE_3.getPrimitive(StreamingAead::class.java)
 
     private val RAW_DATA_1 = byteArrayOf(1, 0, 1, 0, 1)
     private val RAW_DATA_2 = byteArrayOf(0, 1, 2, 0, 0)
@@ -702,18 +696,15 @@ class TrusTeeMillTest {
       ReachAndFrequencyResult(
         reach = 4,
         frequency = mapOf(0L to 0.2, 1L to 0.2, 2L to 0.2, 3L to 0.4, 4L to 0.2, 5L to 0.0),
-        methodology = TrusTeeMethodology(5),
+        methodology = DeterministicMethodology,
       )
 
     private const val KEK_URI_1 = "fake-kms://kek_uri_1"
     private const val KEK_URI_2 = "fake-kms://kek_uri_2"
-    private const val KEK_URI_3 = "fake-kms://kek_uri_3"
     private val KEK_KEYSET_HANDLE_1 = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
     private val KEK_KEYSET_HANDLE_2 = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-    private val KEK_KEYSET_HANDLE_3 = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
     private val KEK_AEAD_1: Aead = KEK_KEYSET_HANDLE_1.getPrimitive(Aead::class.java)
     private val KEK_AEAD_2: Aead = KEK_KEYSET_HANDLE_2.getPrimitive(Aead::class.java)
-    private val KEK_AEAD_3: Aead = KEK_KEYSET_HANDLE_3.getPrimitive(Aead::class.java)
 
     /** Encrypt a dek KeysetHandle and convert into bytes. */
     private fun KeysetHandle.toEncryptedByteString(kekAead: Aead): ByteString {
@@ -729,6 +720,7 @@ class TrusTeeMillTest {
             protocol =
               RequisitionDetailsKt.requisitionProtocol {
                 trusTee = requisitionTrusTee {
+                  dataFormat = DataFormat.ENCRYPTED_FREQUENCY_VECTOR
                   encryptedDekCiphertext = DEK_KEYSET_HANDLE_1.toEncryptedByteString(KEK_AEAD_1)
                   kmsKekUri = KEK_URI_1
                   workloadIdentityProvider = "WIP_1"
@@ -746,6 +738,7 @@ class TrusTeeMillTest {
             protocol =
               RequisitionDetailsKt.requisitionProtocol {
                 trusTee = requisitionTrusTee {
+                  dataFormat = DataFormat.ENCRYPTED_FREQUENCY_VECTOR
                   encryptedDekCiphertext = DEK_KEYSET_HANDLE_2.toEncryptedByteString(KEK_AEAD_2)
                   kmsKekUri = KEK_URI_2
                   workloadIdentityProvider = "WIP_2"
@@ -762,12 +755,7 @@ class TrusTeeMillTest {
           details.copy {
             protocol =
               RequisitionDetailsKt.requisitionProtocol {
-                trusTee = requisitionTrusTee {
-                  encryptedDekCiphertext = DEK_KEYSET_HANDLE_3.toEncryptedByteString(KEK_AEAD_3)
-                  kmsKekUri = KEK_URI_3
-                  workloadIdentityProvider = "WIP_3"
-                  impersonatedServiceAccount = "SA_3"
-                }
+                trusTee = requisitionTrusTee { dataFormat = DataFormat.FREQUENCY_VECTOR }
               }
           }
         path = RequisitionBlobContext(GLOBAL_ID, externalKey.externalRequisitionId).blobKey

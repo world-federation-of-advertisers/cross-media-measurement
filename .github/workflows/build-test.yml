@@ -70,7 +70,9 @@ jobs:
           build --define worker2_id=worker2
           build --define worker2_cert_name=duchies/worker2/certificates/foo
           build --define worker2_public_api_target=worker2.example.com:8443
+          build --define aggregator_id=aggregator
           build --define aggregator_cert_name=duchies/aggregator/certificates/foo
+          build --define aggregator_public_api_target=aggregator.example.com:8443
           build --define mc_name=measurementConsumers/foo
           build --define mc_api_key=foo
           build --define mc_cert_name=measurementConsumers/foo/certificates/bar
@@ -89,6 +91,8 @@ jobs:
           build --define pdp_name=dataProviders/foodp1
           build --define pdp_cert_name=dataProviders/foodp1/certificates/bar1
           build --define google_cloud_project=example-project
+          build --define google_cloud_project_number=12345
+          build --define key_ring_location=us-central1
           build --define basic_reports_enabled=true
           EOF
 

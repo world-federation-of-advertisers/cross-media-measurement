@@ -206,7 +206,6 @@ jobs:
         FINGERPRINT="ECDSA_P256_SHA256:${KEY_ID}"
         echo "fingerprint=${FINGERPRINT}" >> "$GITHUB_OUTPUT"
 
-
     - name: terraform plan
       env:
         KEY_RING: ${{ vars.KEY_RING }}

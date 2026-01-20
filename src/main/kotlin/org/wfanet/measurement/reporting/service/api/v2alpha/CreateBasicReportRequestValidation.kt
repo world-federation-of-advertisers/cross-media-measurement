@@ -17,7 +17,11 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.Descriptors
+import com.google.protobuf.duration
+import com.google.type.DateTime
+import com.google.type.copy
 import io.grpc.Status
+import java.time.DateTimeException
 import java.util.UUID
 import kotlin.collections.Set
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -27,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.mediatype.toEventAnnotationMediaType
+import org.wfanet.measurement.common.toTimestamp
 import org.wfanet.measurement.reporting.service.api.DataProviderNotFoundForCampaignGroupException
 import org.wfanet.measurement.reporting.service.api.EventTemplateFieldInvalidException
 import org.wfanet.measurement.reporting.service.api.FieldUnimplementedException
@@ -83,6 +88,7 @@ object CreateBasicReportRequestValidation {
   fun validateRequest(
     request: CreateBasicReportRequest,
     campaignGroup: ReportingSet,
+    hasDefaultReportStartHour: Boolean,
     eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
   ): ParsedFields {
     if (request.basicReportId.isEmpty()) {
@@ -117,7 +123,7 @@ object CreateBasicReportRequestValidation {
       throw RequiredFieldNotSetException("basic_report")
     }
     if (request.basicReport.hasReportingInterval()) {
-      validateReportingInterval(request.basicReport.reportingInterval)
+      validateReportingInterval(request.basicReport.reportingInterval, hasDefaultReportStartHour)
     } else {
       throw RequiredFieldNotSetException("basic_report.reporting_interval")
     }
@@ -543,38 +549,119 @@ object CreateBasicReportRequestValidation {
    * Validates [reportingInterval] within the context of a [CreateBasicReportRequest].
    *
    * @param reportingInterval [ReportingInterval] to validate
+   * @param hasDefaultReportStartHour whether default report start hour and timeOffset exists
    * @throws RequiredFieldNotSetException when validation fails
    * @throws InvalidFieldValueException when validation fails
    */
-  private fun validateReportingInterval(reportingInterval: ReportingInterval) {
+  private fun validateReportingInterval(
+    reportingInterval: ReportingInterval,
+    hasDefaultReportStartHour: Boolean,
+  ) {
     val fieldPath = "basic_report.reporting_interval"
-    if (!reportingInterval.hasReportStart()) {
-      throw RequiredFieldNotSetException("$fieldPath.report_start")
+
+    if (
+      reportingInterval.reportStartTimeCase ==
+        ReportingInterval.ReportStartTimeCase.REPORTSTARTTIME_NOT_SET
+    ) {
+      throw RequiredFieldNotSetException("$fieldPath.report_start_time") { fieldName ->
+        "$fieldName must be set"
+      }
     }
 
     if (!reportingInterval.hasReportEnd()) {
       throw RequiredFieldNotSetException("$fieldPath.report_end")
     }
 
-    if (
-      reportingInterval.reportStart.year == 0 ||
-        reportingInterval.reportStart.month == 0 ||
-        reportingInterval.reportStart.day == 0 ||
-        !(reportingInterval.reportStart.hasTimeZone() ||
-          reportingInterval.reportStart.hasUtcOffset())
-    ) {
-      throw InvalidFieldValueException("$fieldPath.report_start") { fieldName ->
-        "$fieldName requires year, month, and day to all be set, as well as either time_zone or utc_offset"
+    if (reportingInterval.hasReportStart()) {
+      if (reportingInterval.reportStart.year == 0) {
+        throw RequiredFieldNotSetException("$fieldPath.report_start.year")
+      }
+      if (reportingInterval.reportStart.month == 0) {
+        throw RequiredFieldNotSetException("$fieldPath.report_start.month")
+      }
+      if (reportingInterval.reportStart.day == 0) {
+        throw RequiredFieldNotSetException("$fieldPath.report_start.day")
+      }
+      if (
+        reportingInterval.reportStart.timeOffsetCase == DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET
+      ) {
+        throw RequiredFieldNotSetException("$fieldPath.report_start.time_offset")
+      }
+      if (reportingInterval.reportStart.minutes != 0) {
+        throw InvalidFieldValueException("$fieldPath.report_start.minutes") { fieldName ->
+          "$fieldName cannot be set"
+        }
+      }
+      if (reportingInterval.reportStart.seconds != 0) {
+        throw InvalidFieldValueException("$fieldPath.report_start.seconds") { fieldName ->
+          "$fieldName cannot be set"
+        }
+      }
+      if (reportingInterval.reportStart.nanos != 0) {
+        throw InvalidFieldValueException("$fieldPath.report_start.nanos") { fieldName ->
+          "$fieldName cannot be set"
+        }
+      }
+
+      try {
+        reportingInterval.reportStart.toTimestamp()
+      } catch (_: DateTimeException) {
+        throw InvalidFieldValueException("$fieldPath.report_start") { fieldName ->
+          "$fieldName is an invalid DateTime"
+        }
+      }
+    } else if (reportingInterval.hasReportStartDate()) {
+      if (!hasDefaultReportStartHour) {
+        throw InvalidFieldValueException("$fieldPath.report_start_date") { fieldName ->
+          "$fieldName cannot be set when there are no server defaults"
+        }
+      }
+
+      if (reportingInterval.reportStartDate.year == 0) {
+        throw RequiredFieldNotSetException("$fieldPath.report_start_date.year")
+      }
+      if (reportingInterval.reportStartDate.month == 0) {
+        throw RequiredFieldNotSetException("$fieldPath.report_start_date.month")
+      }
+      if (reportingInterval.reportStartDate.day == 0) {
+        throw RequiredFieldNotSetException("$fieldPath.report_start_date.day")
       }
     }
 
-    if (
-      reportingInterval.reportEnd.year == 0 ||
-        reportingInterval.reportEnd.month == 0 ||
-        reportingInterval.reportEnd.day == 0
-    ) {
+    if (reportingInterval.reportEnd.year == 0) {
+      throw RequiredFieldNotSetException("$fieldPath.report_end.year")
+    }
+    if (reportingInterval.reportEnd.month == 0) {
+      throw RequiredFieldNotSetException("$fieldPath.report_end.month")
+    }
+    if (reportingInterval.reportEnd.day == 0) {
+      throw RequiredFieldNotSetException("$fieldPath.report_end.day")
+    }
+
+    try {
+      if (
+        reportingInterval.reportStart.timeOffsetCase == DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET
+      ) {
+        reportingInterval.reportStart
+          .copy {
+            year = reportingInterval.reportEnd.year
+            month = reportingInterval.reportEnd.month
+            day = reportingInterval.reportEnd.day
+            utcOffset = duration { seconds = 0 }
+          }
+          .toTimestamp()
+      } else {
+        reportingInterval.reportStart
+          .copy {
+            year = reportingInterval.reportEnd.year
+            month = reportingInterval.reportEnd.month
+            day = reportingInterval.reportEnd.day
+          }
+          .toTimestamp()
+      }
+    } catch (_: DateTimeException) {
       throw InvalidFieldValueException("$fieldPath.report_end") { fieldName ->
-        "$fieldName requires year, month, and day to be set"
+        "$fieldName is an invalid Date"
       }
     }
   }
@@ -647,13 +734,12 @@ object CreateBasicReportRequestValidation {
     fieldPath: String,
     eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
   ) {
-    if (customImpressionQualificationFilterSpec.filterSpecList.isEmpty()) {
-      throw RequiredFieldNotSetException("$fieldPath.filter_spec")
-    }
-
     // No more than 1 filter_spec per MediaType
     buildSet<MediaType> {
       customImpressionQualificationFilterSpec.filterSpecList.forEachIndexed { index, filterSpec ->
+        if (filterSpec.mediaType == MediaType.MEDIA_TYPE_UNSPECIFIED) {
+          throw RequiredFieldNotSetException("$fieldPath.filter_specs[$index].media_type")
+        }
         if (this.contains(filterSpec.mediaType)) {
           throw InvalidFieldValueException("$fieldPath.filter_specs") { fieldName ->
             "$fieldName cannot have more than 1 filter_spec for MediaType ${filterSpec.mediaType}. Only 1 filter_spec per MediaType allowed"
@@ -662,9 +748,6 @@ object CreateBasicReportRequestValidation {
         add(filterSpec.mediaType)
 
         val filterSpecFieldPath = "$fieldPath.filter_specs[$index]"
-        if (filterSpec.filtersList.isEmpty()) {
-          throw RequiredFieldNotSetException("$filterSpecFieldPath.filters")
-        }
 
         filterSpec.filtersList.forEachIndexed { filterIndex, filter ->
           val filterFieldPath = "$filterSpecFieldPath.filters[$filterIndex]"

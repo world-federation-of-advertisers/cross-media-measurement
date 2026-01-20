@@ -26,6 +26,7 @@ LIBS = [
     "duchy_measurement_log_entry",
     "duchy_protocol_config",
     "error_code",
+    "event_group_activity",
     "event_group_metadata_descriptor",
     "event_group",
     "event_template",
@@ -81,6 +82,7 @@ SERVICES = [
     "computation_participants",
     "data_providers",
     "event_group_metadata_descriptors",
+    "event_group_activities",
     "event_groups",
     "exchanges",
     "exchange_step_attempts",
@@ -199,6 +201,15 @@ proto_library(
         ":data_provider_details_proto",
         ":model_line_key_proto",
         "@com_google_googleapis//google/type:interval_proto",
+    ],
+)
+
+proto_library(
+    name = "date_interval_proto",
+    srcs = ["date_interval.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/type:date_proto",
     ],
 )
 
@@ -336,9 +347,32 @@ proto_library(
     srcs = ["event_group.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":date_interval_proto",
         ":event_group_details_proto",
         ":media_type_proto",
         "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "event_group_activity_proto",
+    srcs = ["event_group_activity.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/type:date_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "event_group_activities_service_proto",
+    srcs = ["event_group_activities_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":event_group_activity_proto",
+        "@com_google_googleapis//google/type:date_proto",
+        "@com_google_protobuf//:empty_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -348,6 +382,7 @@ proto_library(
     srcs = ["event_groups_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":date_interval_proto",
         ":event_group_proto",
         ":media_type_proto",
         "@com_google_protobuf//:timestamp_proto",

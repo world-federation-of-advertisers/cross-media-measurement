@@ -15,8 +15,10 @@
 name: Accuracy test
 
 on:
-  release:
-    types: [published]
+  push:
+    branches:
+      - main
+      - 'releases/**'  
   workflow_dispatch:
 
 permissions:
@@ -51,7 +53,7 @@ jobs:
     - name: Run tests
       id: run-tests
       run: >
-        bazelisk test --test_output=streamed
+        bazelisk test --test_output=streamed --test_timeout=5400
         //src/test/kotlin/org/wfanet/measurement/integration/deploy/gcloud:GCloudSpannerInProcessReachMeasurementAccuracyTest
 
     - name: Upload Bazel testlogs
