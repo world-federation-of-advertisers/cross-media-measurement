@@ -261,7 +261,7 @@ module "data_watcher_cloud_function" {
   extra_env_vars                                = var.cloud_function_configs.data_watcher.extra_env_vars
   secret_mappings                               = var.cloud_function_configs.data_watcher.secret_mappings
   uber_jar_path                                 = var.cloud_function_configs.data_watcher.uber_jar_path
-  # Default: google.cloud.storage.object.v1.finalized
+  trigger_event_type                            = "google.cloud.storage.object.v1.finalized"
 }
 
 # DataWatcher for OBJECT_DELETE events (triggers cleanup when objects are deleted by lifecycle)
@@ -424,12 +424,6 @@ resource "google_storage_bucket_iam_member" "data_watcher_config_storage_viewer"
   bucket = module.config_files_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
-}
-
-resource "google_storage_bucket_iam_member" "data_watcher_delete_config_storage_viewer" {
-  bucket = module.config_files_bucket.storage_bucket.name
-  role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${module.data_watcher_delete_cloud_function.cloud_function_service_account.email}"
 }
 
 resource "google_storage_bucket_iam_member" "results_fulfiller_config_storage_viewer" {
