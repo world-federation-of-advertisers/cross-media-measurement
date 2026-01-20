@@ -60,7 +60,7 @@ class DataWatcher(
     DataWatcherMetrics(meter = meter, sinkTypeKey = ATTR_SINK_TYPE_KEY, queueKey = ATTR_QUEUE_KEY)
 
   /**
-   * Receives a path for evaluation against configured watchers.
+   * Receives a path for evaluation against configured watched paths.
    *
    * @param path the blob path to evaluate
    * @param objectMetadata optional custom metadata from the GCS object
