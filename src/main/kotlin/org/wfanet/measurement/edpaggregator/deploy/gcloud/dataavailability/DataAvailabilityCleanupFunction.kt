@@ -154,7 +154,7 @@ class DataAvailabilityCleanupFunction : HttpFunction {
                 cleanupStatus = CLEANUP_STATUS_SKIPPED
                 null
               } else {
-                listResponse.impressionMetadataList.first().name
+                listResponse.impressionMetadataList.single().name
               }
             }
 
