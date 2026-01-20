@@ -30,9 +30,14 @@ service ClientAccounts {
 
   rpc DeleteClientAccount(DeleteClientAccountRequest) returns (ClientAccount);
 
+<<<<<<< HEAD
   // Lists ClientAccounts ordered by `create_time` ascending.
   rpc ListClientAccounts(ListClientAccountsRequest)
       returns (ListClientAccountsResponse);
+=======
+  rpc StreamClientAccounts(StreamClientAccountsRequest)
+      returns (stream ClientAccount);
+>>>>>>> ec37b5c8e (fix: fix linter error)
 }
 
 message CreateClientAccountRequest {
