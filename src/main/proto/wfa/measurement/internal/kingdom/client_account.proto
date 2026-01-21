@@ -22,13 +22,13 @@ option java_multiple_files = true;
 // Proto representation of the internal ClientAccount entity type.
 message ClientAccount {
   // External ID of this `ClientAccount`.
-  int64 external_client_account_id = 1;
+  fixed64 external_client_account_id = 1;
 
   // External ID of the `MeasurementConsumer` that owns this `ClientAccount`.
-  int64 external_measurement_consumer_id = 2;
+  fixed64 external_measurement_consumer_id = 2;
 
   // External ID of the `DataProvider` associated with this `ClientAccount`.
-  int64 external_data_provider_id = 3;
+  fixed64 external_data_provider_id = 3;
 
   // Reference ID provided by the client to identify this account.
   string client_account_reference_id = 4;
