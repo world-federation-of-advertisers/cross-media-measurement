@@ -226,7 +226,10 @@ class StorageEventSource(
    *
    * Returns the KEK URI from the most recent data source (sorted by interval end time in
    * descending order). All data sources for the same EDP must use KEK URIs with the same
-   * project ID and location. Returns null if no data sources are available.
+   * project ID and location.
+   *
+   * Returns null if no data sources are available, in which case a non-encrypted empty sketch
+   * will be fulfilled.
    *
    * @throws IllegalArgumentException if KEK URIs have different project IDs or locations
    */
