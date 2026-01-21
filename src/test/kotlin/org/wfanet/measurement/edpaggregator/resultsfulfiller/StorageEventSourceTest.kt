@@ -740,6 +740,83 @@ class StorageEventSourceTest {
     assertThat(batches.all { it.events.size == 5 }).isTrue() // Each batch has 5 events
   }
 
+  /** Helper function to write metadata with a specific KEK URI for validation testing. */
+  private suspend fun writeMetadataWithKekUri(
+    metadataTmpPath: File,
+    date: LocalDate,
+    eventGroupRef: String,
+    kekUri: String,
+    modelLine: String = this.modelLine,
+  ) {
+    val metadataBucketDir = File(metadataTmpPath, "meta-bucket")
+    metadataBucketDir.mkdirs()
+    val metadataFs = FileSystemStorageClient(metadataBucketDir)
+
+    val key = "ds/$date/model-line/$modelLine/event-group-reference-id/$eventGroupRef/metadata"
+    val blobDetailsBytes =
+      blobDetails {
+          blobUri = "file:///impressions/$date/$eventGroupRef"
+          encryptedDek = encryptedDek {
+            this.kekUri = kekUri
+            typeUrl = "type.googleapis.com/google.crypto.tink.Keyset"
+            protobufFormat = EncryptedDek.ProtobufFormat.BINARY
+            ciphertext = ByteString.copyFromUtf8("fake-ciphertext")
+          }
+          eventGroupReferenceId = eventGroupRef
+          this.modelLine = modelLine
+          interval = interval {
+            startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+            endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+          }
+        }
+        .toByteString()
+    metadataFs.writeBlob(key, blobDetailsBytes)
+  }
+
+  @Test
+  fun `getKekUri fails when blobs have different GCP project IDs`(): Unit = runBlocking {
+    val metadataTmpPath = tmp.root
+    val eventGroupRef = "event-group-1"
+
+    // Create two KEK URIs with different GCP project IDs
+    val kekUri1 = "gcp-kms://projects/project-a/locations/us-east1/keyRings/ring/cryptoKeys/key"
+    val kekUri2 = "gcp-kms://projects/project-b/locations/us-east1/keyRings/ring/cryptoKeys/key"
+
+    val dates = listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2))
+    val impressionMetadataList = createImpressionMetadataList(dates, eventGroupRef)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    // Create metadata with different project IDs for each date
+    writeMetadataWithKekUri(metadataTmpPath, dates[0], eventGroupRef, kekUri1)
+    writeMetadataWithKekUri(metadataTmpPath, dates[1], eventGroupRef, kekUri2)
+
+    val eventGroupDetails =
+      createEventGroupDetails(
+        eventGroupRef,
+        LocalDate.of(2025, 1, 1),
+        LocalDate.of(2025, 1, 3),
+        ZoneId.of("UTC"),
+      )
+
+    val impressionService = createImpressionDataSourceProvider(metadataTmpPath)
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = impressionService,
+        eventGroupDetailsList = listOf(eventGroupDetails),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    // getKekUri should fail because blobs have different project IDs
+    val exception = assertFailsWith<IllegalArgumentException> { eventSource.getKekUri() }
+    assertThat(exception.message).contains("All KEK URIs must have the same project ID and location")
+  }
+
   companion object {
     private val TEST_EVENT = testEvent {
       person = person {
