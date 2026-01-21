@@ -23,7 +23,6 @@ import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
@@ -94,6 +93,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     mapOf(
       "edpa-eg-reference-id-1" to syntheticEventGroupSpec,
       "edpa-eg-reference-id-2" to syntheticEventGroupSpec,
+      "edpa-eg-reference-id-3" to syntheticEventGroupSpec,
     )
 
   @get:Rule
@@ -122,6 +122,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     val edpCapabilities = mapOf(
       "edp1" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
       "edp2" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+      "edp3" to DataProviderKt.capabilities { trusTeeSupported = true },
     )
     inProcessEdpAggregatorComponents.startDaemons(
       kingdomChannel,
@@ -243,7 +244,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       )
     }
 
-  @Ignore("TrusTee integration test requires full Duchy configuration - see TODO")
   @Test
   fun `create a TrusTee reach-only measurement and check the result is equal to the expected result`() =
     runBlocking {
@@ -258,7 +258,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       )
     }
 
-  @Ignore("TrusTee integration test requires full Duchy configuration - see TODO")
   @Test
   fun `create a TrusTee RF measurement and check the result is equal to the expected result`() =
     runBlocking {
