@@ -27,6 +27,7 @@ import org.junit.Ignore
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -118,11 +119,15 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     val kingdomChannel = inProcessCmmsComponents.kingdom.publicApiChannel
     val duchyMap =
       inProcessCmmsComponents.duchies.map { it.externalDuchyId to it.publicApiChannel }.toMap()
+    val edpCapabilities = mapOf(
+      "edp1" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+      "edp2" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+    )
     inProcessEdpAggregatorComponents.startDaemons(
       kingdomChannel,
       measurementConsumerData,
       edpDisplayNameToResourceMap,
-      listOf("edp1", "edp2"),
+      edpCapabilities,
       duchyMap,
     )
     initMcSimulator()
