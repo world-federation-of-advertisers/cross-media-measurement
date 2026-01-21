@@ -81,14 +81,16 @@ data class TrusTeeConfig(
    */
   private fun remapKekUri(kekUri: String, kekUriToKeyNameMap: Map<String, String>): String {
     val mappedKeyName = kekUriToKeyNameMap[kekUri] ?: return kekUri
+    require(Regex("[a-zA-Z0-9_-]{1,63}").matches(mappedKeyName)) {
+      "Invalid key name format: $mappedKeyName"
+    }
 
     // KEK URI format: gcp-kms://projects/{project}/locations/{location}/keyRings/{keyring}/cryptoKeys/{key}
-    // We need to replace the {key} part with the mapped key name
-    val lastSlashIndex = kekUri.lastIndexOf("/")
-    if (lastSlashIndex == -1) {
-      return kekUri
-    }
-    return kekUri.substring(0, lastSlashIndex + 1) + mappedKeyName
+    val regex = Regex("gcp-kms://projects/([^/]+)/locations/([^/]+)/keyRings/([^/]+)/cryptoKeys/[^/]+")
+    val matchResult = regex.matchEntire(kekUri) ?: return kekUri
+
+    val (project, location, keyRing) = matchResult.destructured
+    return "gcp-kms://projects/$project/locations/$location/keyRings/$keyRing/cryptoKeys/$mappedKeyName"
   }
 }
 
@@ -175,6 +177,7 @@ class DefaultFulfillerSelector(
         totalUncappedImpressions = totalUncappedImpressions,
       )
     } else if (requisition.protocolConfig.protocolsList.any { it.hasTrusTee() }) {
+      requireNotNull(trusTeeEncryptionParams)
       if (kAnonymityParams == null) {
         TrusTeeMeasurementFulfiller(
           requisition,
@@ -182,7 +185,7 @@ class DefaultFulfillerSelector(
           vec.build(),
           requisitionFulfillmentStubMap,
           requisitionsStub,
-          trusTeeEncryptionParams!!,
+          trusTeeEncryptionParams
         )
       } else {
         TrusTeeMeasurementFulfiller.buildKAnonymized(
@@ -195,7 +198,7 @@ class DefaultFulfillerSelector(
           requisitionsStub,
           kAnonymityParams,
           maxPopulation = null,
-          trusTeeEncryptionParams!!,
+          trusTeeEncryptionParams,
         )
       }
     } else if (
