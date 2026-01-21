@@ -160,6 +160,15 @@ class DefaultFulfillerSelector(
         overrideImpressionMaxFrequencyPerUser = overrideImpressionMaxFrequencyPerUser,
       )
 
+    // If kekUri is null (no data sources), total uncapped impressions must be 0
+    if (kekUri == null) {
+      val totalUncappedImpressions = frequencyVector.getTotalUncappedImpressions()
+      require(totalUncappedImpressions == 0L) {
+        "kekUri is null but totalUncappedImpressions is $totalUncappedImpressions. " +
+          "Expected 0 impressions when no data sources are available."
+      }
+    }
+
     // Build TrusTee encryption params dynamically using the kekUri from BlobDetails
     val trusTeeEncryptionParams =
       if (trusTeeConfig != null) {
