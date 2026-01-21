@@ -81,9 +81,6 @@ data class TrusTeeConfig(
    */
   private fun remapKekUri(kekUri: String, kekUriToKeyNameMap: Map<String, String>): String {
     val mappedKeyName = kekUriToKeyNameMap[kekUri] ?: return kekUri
-    require(Regex("[a-zA-Z0-9_-]{1,63}").matches(mappedKeyName)) {
-      "Invalid key name format: $mappedKeyName"
-    }
 
     // KEK URI format: gcp-kms://projects/{project}/locations/{location}/keyRings/{keyring}/cryptoKeys/{key}
     val regex = Regex("gcp-kms://projects/([^/]+)/locations/([^/]+)/keyRings/([^/]+)/cryptoKeys/[^/]+")
@@ -119,6 +116,16 @@ class DefaultFulfillerSelector(
   private val trusTeeConfig: TrusTeeConfig?,
   private val kekUriToKeyNameMap: Map<String, String>,
 ) : FulfillerSelector {
+
+  init {
+    val keyNamePattern = Regex("[a-zA-Z0-9_-]{1,63}")
+    for ((kekUri, keyName) in kekUriToKeyNameMap) {
+      require(keyNamePattern.matches(keyName)) {
+        "Invalid key name format in kekUriToKeyNameMap: '$keyName' for URI '$kekUri'. " +
+          "Key name must match pattern [a-zA-Z0-9_-]{1,63}"
+      }
+    }
+  }
 
   /**
    * Selects the appropriate fulfiller based on requisition protocol configuration.

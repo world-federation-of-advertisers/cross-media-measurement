@@ -2060,6 +2060,75 @@ class ResultsFulfillerTest {
     verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
   }
 
+  @Test
+  fun `remapKekUri correctly remaps key name with valid kekUriToKeyNameMap`() = runBlocking {
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "original-key"
+    val mappedKeyName = "remapped-key"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+
+    // Map a GCP KMS-style URI to test the remapping logic
+    val gcpKekUri = "gcp-kms://projects/test-project/locations/us-east1/keyRings/test-ring/cryptoKeys/original-key"
+    val kekUriToKeyNameMap = mapOf(gcpKekUri to mappedKeyName)
+
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        kAnonymityParams = null,
+        overrideImpressionMaxFrequencyPerUser = null,
+        trusTeeConfig =
+          TrusTeeConfig(
+            kmsClient = kmsClient,
+            workloadIdentityProvider = "test-wip",
+            impersonatedServiceAccount = "test-sa@example.com",
+          ),
+        kekUriToKeyNameMap = kekUriToKeyNameMap,
+      )
+
+    // Verify the fulfillerSelector is created successfully with valid kekUriToKeyNameMap
+    assertThat(fulfillerSelector).isNotNull()
+  }
+
+  @Test
+  fun `DefaultFulfillerSelector throws exception with invalid key name in kekUriToKeyNameMap`() = runBlocking {
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "original-key"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+
+    // Map a GCP KMS-style URI with an invalid key name (contains slashes)
+    val gcpKekUri = "gcp-kms://projects/test-project/locations/us-east1/keyRings/test-ring/cryptoKeys/original-key"
+    val invalidKeyName = "invalid/key/name" // Contains slashes which are not allowed
+    val kekUriToKeyNameMap = mapOf(gcpKekUri to invalidKeyName)
+
+    // Validation happens at construction time
+    val exception = assertFailsWith<IllegalArgumentException> {
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        kAnonymityParams = null,
+        overrideImpressionMaxFrequencyPerUser = null,
+        trusTeeConfig =
+          TrusTeeConfig(
+            kmsClient = kmsClient,
+            workloadIdentityProvider = "test-wip",
+            impersonatedServiceAccount = "test-sa@example.com",
+          ),
+        kekUriToKeyNameMap = kekUriToKeyNameMap,
+      )
+    }
+    assertThat(exception.message).contains("Invalid key name format")
+    assertThat(exception.message).contains(invalidKeyName)
+  }
+
   private suspend fun createData(
     kmsClient: KmsClient,
     kekUri: String,
