@@ -120,8 +120,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     val duchyMap =
       inProcessCmmsComponents.duchies.map { it.externalDuchyId to it.publicApiChannel }.toMap()
     val edpCapabilities = mapOf(
-      "edp1" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
-      "edp2" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+      "edp1" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true; trusTeeSupported = true },
+      "edp2" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true; trusTeeSupported = true },
       "edp3" to DataProviderKt.capabilities { trusTeeSupported = true },
     )
     inProcessEdpAggregatorComponents.startDaemons(
@@ -248,7 +248,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   fun `create a TrusTee reach-only measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a TrusTee reach measurement and verify its result.
-      // TrusTee is disabled in tests, so Kingdom falls back to other protocols
+      // TrusTee is enabled in tests and Kingdom selects TrusTee protocol
       mcSimulator.testReachOnly(
         "1234",
         DataProviderKt.capabilities {
@@ -263,7 +263,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     runBlocking {
       // Use frontend simulator to create a TrusTee reach and frequency measurement and verify its
       // result.
-      // TrusTee is disabled in tests, so Kingdom falls back to other protocols
+      // TrusTee is enabled in tests and Kingdom selects TrusTee protocol
       mcSimulator.testReachAndFrequency(
         "1234",
         DataProviderKt.capabilities {
