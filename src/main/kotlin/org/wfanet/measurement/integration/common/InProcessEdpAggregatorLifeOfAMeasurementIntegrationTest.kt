@@ -120,9 +120,10 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     val duchyMap =
       inProcessCmmsComponents.duchies.map { it.externalDuchyId to it.publicApiChannel }.toMap()
     val edpCapabilities = mapOf(
-      "edp1" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true; trusTeeSupported = true },
-      "edp2" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true; trusTeeSupported = true },
-      "edp3" to DataProviderKt.capabilities { trusTeeSupported = true },
+      "edp1" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+      "edp2" to DataProviderKt.capabilities { },
+      "edp3" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+      "edp4" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true; trusTeeSupported = true },
     )
     inProcessEdpAggregatorComponents.startDaemons(
       kingdomChannel,
