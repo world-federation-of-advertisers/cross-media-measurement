@@ -83,7 +83,6 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValid
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerApp
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerMetrics
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.TrusTeeConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -121,8 +120,6 @@ class InProcessEdpAggregatorComponents(
   private val syntheticPopulationSpec: SyntheticPopulationSpec,
   private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec>,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
-  private val workloadIdentityProvider: String,
-  private val impersonatedServiceAccount: String,
 ) : TestRule {
 
   private val storageClient: StorageClient = FileSystemStorageClient(storagePath.toFile())
@@ -202,14 +199,6 @@ class InProcessEdpAggregatorComponents(
         WorkItemAttemptsCoroutineStub(secureComputationPublicApi.publicApiChannel),
       queueSubscriber = subscriber,
       kmsClients = kmsClients.toMutableMap(),
-      trusTeeConfigs =
-        kmsClients.mapValues { (_, kmsClient) ->
-          TrusTeeConfig(
-            kmsClient = kmsClient,
-            workloadIdentityProvider = workloadIdentityProvider,
-            impersonatedServiceAccount = impersonatedServiceAccount,
-          )
-        },
       requisitionMetadataStub = requisitionMetadataClient,
       impressionMetadataStub = impressionMetadataClient,
       requisitionStubFactory = requisitionStubFactory,
@@ -262,10 +251,7 @@ class InProcessEdpAggregatorComponents(
       dataProvidersStub.replaceDataProviderCapabilities(
         replaceDataProviderCapabilitiesRequest {
           name = edpResourceName
-          capabilities =
-            DataProviderKt.capabilities {
-              honestMajorityShareShuffleSupported = true
-            }
+          capabilities = DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true }
         }
       )
     }

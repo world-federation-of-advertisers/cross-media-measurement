@@ -64,7 +64,6 @@ import org.wfanet.measurement.config.DuchyCertConfig
 import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
-import org.wfanet.measurement.kingdom.deploy.common.TrusTeeProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
@@ -441,10 +440,6 @@ class InProcessCmmsComponents(
         "worker1",
         "worker2",
         "aggregator",
-      )
-      TrusTeeProtocolConfig.setForTest(
-        TRUSTEE_PROTOCOL_CONFIG_CONFIG.protocolConfig,
-        TRUSTEE_PROTOCOL_CONFIG_CONFIG.duchyId,
       )
       DuchyInfo.initializeFromConfig(
         loadTextProto("duchy_cert_config.textproto", DuchyCertConfig.getDefaultInstance())
