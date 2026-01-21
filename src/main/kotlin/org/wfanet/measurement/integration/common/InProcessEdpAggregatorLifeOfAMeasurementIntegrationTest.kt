@@ -104,6 +104,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       syntheticEventGroupMap = syntheticEventGroupMap,
       syntheticPopulationSpec = syntheticPopulationSpec,
       modelLineInfoMap = modelLineInfoMap,
+      workloadIdentityProvider = "test-wip",
+      impersonatedServiceAccount = "test-sa@example.com",
     )
 
   @Before

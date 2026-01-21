@@ -204,6 +204,7 @@ class ResultsFulfillerApp(
             fulfillerParams.impressionMaxFrequencyPerUser.takeIf { it > 0 }
           },
         trusTeeConfig = trusTeeConfig,
+        kekUriToKeyNameMap = fulfillerParams.trusteeParams.kekUriToKeyNameMap,
       )
 
     ResultsFulfiller(

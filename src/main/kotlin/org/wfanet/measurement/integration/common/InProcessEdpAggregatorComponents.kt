@@ -121,6 +121,8 @@ class InProcessEdpAggregatorComponents(
   private val syntheticPopulationSpec: SyntheticPopulationSpec,
   private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec>,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
+  private val workloadIdentityProvider: String,
+  private val impersonatedServiceAccount: String,
 ) : TestRule {
 
   private val storageClient: StorageClient = FileSystemStorageClient(storagePath.toFile())
@@ -204,8 +206,8 @@ class InProcessEdpAggregatorComponents(
         kmsClients.mapValues { (_, kmsClient) ->
           TrusTeeConfig(
             kmsClient = kmsClient,
-            workloadIdentityProvider = "test-wip",
-            impersonatedServiceAccount = "test-sa@example.com",
+            workloadIdentityProvider = workloadIdentityProvider,
+            impersonatedServiceAccount = impersonatedServiceAccount,
           )
         },
       requisitionMetadataStub = requisitionMetadataClient,
