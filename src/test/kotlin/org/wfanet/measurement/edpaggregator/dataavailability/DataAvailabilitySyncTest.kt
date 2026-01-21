@@ -212,6 +212,7 @@ class DataAvailabilitySyncTest {
         "dataProviders/dataProvider123",
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -239,6 +240,7 @@ class DataAvailabilitySyncTest {
         "dataProviders/dataProvider123",
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -249,6 +251,43 @@ class DataAvailabilitySyncTest {
     }
     assertThat(batchCaptor.firstValue.requestsCount).isEqualTo(1)
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
+  }
+
+  @Test
+  fun `sync updates availability for mapped model lines`() {
+    runBlocking {
+      val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+      val modelLineKey = "dataProviders/dataProvider123/modelLines/modelLineA"
+      val mappedLines =
+        listOf(
+          "dataProviders/dataProvider123/modelLines/modelLineB",
+          "dataProviders/dataProvider123/modelLines/modelLineC",
+        )
+
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = mapOf(modelLineKey to mappedLines),
+        )
+
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+      val requestCaptor = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
+      verifyBlocking(dataProvidersServiceMock, times(1)) {
+        replaceDataAvailabilityIntervals(requestCaptor.capture())
+      }
+      val availabilityKeys = requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key }
+      assertThat(availabilityKeys).containsExactlyElementsIn(mappedLines)
+    }
   }
 
   @Test
@@ -266,6 +305,7 @@ class DataAvailabilitySyncTest {
         "dataProviders/dataProvider123",
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -294,6 +334,7 @@ class DataAvailabilitySyncTest {
           "dataProviders/dataProvider123",
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -324,6 +365,7 @@ class DataAvailabilitySyncTest {
         "dataProviders/dataProvider123",
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -352,6 +394,7 @@ class DataAvailabilitySyncTest {
         "dataProviders/dataProvider123",
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
       )
 
     try {
@@ -377,6 +420,7 @@ class DataAvailabilitySyncTest {
         "dataProviders/dataProvider123",
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
       )
 
     try {
@@ -402,6 +446,7 @@ class DataAvailabilitySyncTest {
         "dataProviders/dataProvider123",
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
       )
 
     try {
@@ -427,6 +472,7 @@ class DataAvailabilitySyncTest {
         "dataProviders/dataProvider123",
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -452,6 +498,7 @@ class DataAvailabilitySyncTest {
           "dataProviders/dataProvider123",
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
           metrics = metricsEnv.metrics,
         )
 
@@ -493,6 +540,7 @@ class DataAvailabilitySyncTest {
           "dataProviders/dataProvider123",
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
           metrics = metricsEnv.metrics,
         )
 
@@ -548,6 +596,7 @@ class DataAvailabilitySyncTest {
         "dataProviders/dataProvider123",
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -586,6 +635,7 @@ class DataAvailabilitySyncTest {
           "dataProviders/dataProvider123",
           recordingThrottler,
           impressionMetadataBatchSize = 2,
+          modelLineMap = emptyMap(),
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -621,6 +671,7 @@ class DataAvailabilitySyncTest {
         "dataProviders/dataProvider123",
         recordingThrottler,
         impressionMetadataBatchSize = 2,
+        modelLineMap = emptyMap(),
       )
 
     assertFailsWith<IllegalArgumentException> {
@@ -648,6 +699,7 @@ class DataAvailabilitySyncTest {
         "dataProviders/dataProvider123",
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
       )
 
     dataAvailabilitySync.sync("$bucket/edp/edpa_edp/model-line/some-model-line/timestamp/done")
@@ -672,7 +724,7 @@ class DataAvailabilitySyncTest {
       batchCreateImpressionMetadata(batchCaptor.capture())
     }
     val createdItems = batchCaptor.firstValue.requestsList.map { it.impressionMetadata }
-    assertThat(createdItems).isEqualTo(impressionMetadataRequests)
+    assertThat(createdItems).containsExactlyElementsIn(impressionMetadataRequests)
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
 
@@ -696,6 +748,7 @@ class DataAvailabilitySyncTest {
         "dataProviders/dataProvider123",
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
       )
 
     dataAvailabilitySync.sync("$bucket/edp/edpa_edp/model-line/some-model-line/timestamp/done")
@@ -720,7 +773,7 @@ class DataAvailabilitySyncTest {
       batchCreateImpressionMetadata(batchCaptor.capture())
     }
     val createdItems = batchCaptor.firstValue.requestsList.map { it.impressionMetadata }
-    assertThat(createdItems).isEqualTo(impressionMetadataRequests)
+    assertThat(createdItems).containsExactlyElementsIn(impressionMetadataRequests)
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
 

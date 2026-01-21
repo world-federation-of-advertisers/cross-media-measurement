@@ -137,6 +137,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           dataAvailabilitySyncConfig.dataProvider,
           globalThrottler,
           impressionMetadataBatchSize = impressionMetadataBatchSize,
+          modelLineMap =
+            dataAvailabilitySyncConfig.modelLineMapMap.mapValues { it.value.modelLinesList },
         )
 
       Tracing.withW3CTraceContext(request) {

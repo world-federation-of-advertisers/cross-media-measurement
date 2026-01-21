@@ -91,6 +91,7 @@ class DataAvailabilitySync(
   private val dataProviderName: String,
   private val throttler: Throttler,
   private val impressionMetadataBatchSize: Int,
+  private val modelLineMap: Map<String, List<String>>,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
 ) {
   private val validImpressionPathRegex: Regex = Regex("^$edpImpressionPath/[^/]+(/.*)?$")
@@ -164,12 +165,21 @@ class DataAvailabilitySync(
 
       // Build availability entries from the response
       val availabilityEntries =
-        modelLineBounds.modelLineBoundsList.map { bound ->
-          dataAvailabilityMapEntry {
-            key = bound.key
-            value = interval {
-              startTime = bound.value.startTime
-              endTime = bound.value.endTime
+        modelLineBounds.modelLineBoundsList.flatMap { bound ->
+          val availabilityInterval = interval {
+            startTime = bound.value.startTime
+            endTime = bound.value.endTime
+          }
+          val modelLines =
+            if (bound.key in modelLineMap) {
+              modelLineMap.getValue(bound.key)
+            } else {
+              listOf(bound.key)
+            }
+          modelLines.map { modelLine ->
+            dataAvailabilityMapEntry {
+              key = modelLine
+              value = availabilityInterval
             }
           }
         }

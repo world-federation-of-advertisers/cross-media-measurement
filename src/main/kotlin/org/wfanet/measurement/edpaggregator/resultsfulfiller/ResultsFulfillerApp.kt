@@ -208,6 +208,7 @@ class ResultsFulfillerApp(
         privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = modelLineInfoMap,
+        modelLineMap = fulfillerParams.modelLineMapMap,
         pipelineConfiguration = pipelineConfiguration,
         impressionDataSourceProvider = impressionsDataSourceProvider,
         impressionsStorageConfig = impressionsStorageConfig,

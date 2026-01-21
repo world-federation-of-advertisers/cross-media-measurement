@@ -147,6 +147,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
@@ -300,12 +302,13 @@ class ResultsFulfillerTest {
   private fun createImpressionMetadataList(
     dates: List<LocalDate>,
     eventGroupRef: String,
+    modelLine: String = "some-model-line",
   ): List<ImpressionMetadata> {
     return dates.map { date ->
       impressionMetadata {
         state = ImpressionMetadata.State.ACTIVE
         blobUri =
-          "file:///$IMPRESSIONS_METADATA_BUCKET/ds/$date/model-line/some-model-line/event-group-reference-id/$eventGroupRef/metadata"
+          "file:///$IMPRESSIONS_METADATA_BUCKET/ds/$date/model-line/$modelLine/event-group-reference-id/$eventGroupRef/metadata"
       }
     }
   }
@@ -390,6 +393,7 @@ class ResultsFulfillerTest {
         requisitionsStub = requisitionsStub,
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        modelLineMap = emptyMap(),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
         impressionDataSourceProvider = impressionsMetadataService,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -437,6 +441,108 @@ class ResultsFulfillerTest {
       startProcessingRequisitionMetadata(any())
     }
     verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
+  }
+
+  @Test
+  fun `runWork uses mapped model line when provided`() = runBlocking {
+    val mappedModelLine = "mapped-model-line"
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+    val impressions =
+      List(130) {
+        LABELED_IMPRESSION.copy {
+          vid = it.toLong() + 1
+          eventTime = TIME_RANGE.start.toProtoTime()
+        }
+      }
+
+    val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
+
+    val impressionMetadataList =
+      createImpressionMetadataList(dates, EVENT_GROUP_NAME, mappedModelLine)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some-prefix"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
+        }
+      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+
+    // Set up KMS
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    createData(
+      kmsClient,
+      kekUri,
+      impressionsTmpPath,
+      metadataTmpPath,
+      requisitionsTmpPath,
+      impressions,
+      listOf(DIRECT_RNF_REQUISITION),
+      modelLine = mappedModelLine,
+    )
+    val impressionsMetadataService =
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = "dataProviders/123",
+        impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+      )
+
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        kAnonymityParams = null,
+        overrideImpressionMaxFrequencyPerUser = null,
+      )
+
+    // Load grouped requisitions from storage
+    val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+
+    val resultsFulfiller =
+      ResultsFulfiller(
+        dataProvider = EDP_NAME,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionMetadataStub = requisitionMetadataStub,
+        requisitionsStub = requisitionsStub,
+        groupedRequisitions = groupedRequisitions,
+        modelLineInfoMap = mapOf(mappedModelLine to MODEL_LINE_INFO),
+        modelLineMap = mapOf("some-model-line" to mappedModelLine),
+        pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+        impressionDataSourceProvider = impressionsMetadataService,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
+      )
+
+    resultsFulfiller.fulfillRequisitions()
+
+    val request: ListImpressionMetadataRequest =
+      verifyAndCapture(
+        impressionMetadataServiceMock,
+        ImpressionMetadataServiceCoroutineImplBase::listImpressionMetadata,
+      )
+    assertThat(request.filter.modelLine).isEqualTo(mappedModelLine)
   }
 
   @Test
@@ -531,6 +637,7 @@ class ResultsFulfillerTest {
         requisitionsStub = requisitionsStub,
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        modelLineMap = emptyMap(),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
         impressionDataSourceProvider = impressionsMetadataService,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -654,6 +761,7 @@ class ResultsFulfillerTest {
           requisitionsStub = requisitionsStub,
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+          modelLineMap = emptyMap(),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
           impressionDataSourceProvider = impressionsMetadataService,
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -788,6 +896,7 @@ class ResultsFulfillerTest {
           requisitionsStub = requisitionsStub,
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+          modelLineMap = emptyMap(),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
           impressionDataSourceProvider = impressionsMetadataService,
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -910,6 +1019,7 @@ class ResultsFulfillerTest {
           requisitionsStub = requisitionsStub,
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+          modelLineMap = emptyMap(),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
           impressionDataSourceProvider = impressionsMetadataService,
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -1029,6 +1139,7 @@ class ResultsFulfillerTest {
         requisitionsStub = requisitionsStub,
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        modelLineMap = emptyMap(),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
         impressionDataSourceProvider = impressionsMetadataService,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -1127,6 +1238,7 @@ class ResultsFulfillerTest {
         requisitionsStub = requisitionsStub,
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        modelLineMap = emptyMap(),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
         impressionDataSourceProvider = impressionsMetadataService,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -1227,6 +1339,7 @@ class ResultsFulfillerTest {
         requisitionsStub = requisitionsStub,
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        modelLineMap = emptyMap(),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
         impressionDataSourceProvider = impressionsMetadataService,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -1325,6 +1438,7 @@ class ResultsFulfillerTest {
         requisitionsStub = requisitionsStub,
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        modelLineMap = emptyMap(),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
         impressionDataSourceProvider = impressionsMetadataService,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -1420,6 +1534,7 @@ class ResultsFulfillerTest {
           requisitionsStub = requisitionsStub,
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+          modelLineMap = emptyMap(),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
           impressionDataSourceProvider = impressionsMetadataService,
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -1536,6 +1651,7 @@ class ResultsFulfillerTest {
           requisitionsStub = requisitionsStub,
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+          modelLineMap = emptyMap(),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
           impressionDataSourceProvider = impressionsMetadataService,
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -1652,6 +1768,7 @@ class ResultsFulfillerTest {
         requisitionsStub = requisitionsStub,
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        modelLineMap = emptyMap(),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
         impressionDataSourceProvider = impressionsMetadataService,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -1813,6 +1930,7 @@ class ResultsFulfillerTest {
         requisitionsStub = requisitionsStub,
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        modelLineMap = emptyMap(),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
         impressionDataSourceProvider = impressionsMetadataService,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -1854,6 +1972,7 @@ class ResultsFulfillerTest {
     requisitionsTmpPath: File,
     allImpressions: List<LabeledImpression>,
     requisitions: List<Requisition>,
+    modelLine: String = "some-model-line",
   ) {
     // Create requisitions storage client
     Files.createDirectories(requisitionsTmpPath.resolve(REQUISITIONS_BUCKET).toPath())
@@ -1921,7 +2040,7 @@ class ResultsFulfillerTest {
 
     for (date in dates) {
       val impressionMetadataBlobKey =
-        "ds/$date/model-line/some-model-line/event-group-reference-id/$EVENT_GROUP_NAME/metadata"
+        "ds/$date/model-line/$modelLine/event-group-reference-id/$EVENT_GROUP_NAME/metadata"
       val impressionsMetadataFileUri =
         "file:///$IMPRESSIONS_METADATA_BUCKET/$impressionMetadataBlobKey"
 

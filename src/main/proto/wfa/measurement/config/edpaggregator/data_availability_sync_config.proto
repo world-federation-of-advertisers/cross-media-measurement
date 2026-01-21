@@ -45,4 +45,13 @@ message DataAvailabilitySyncConfig {
   // Path where an edp uploads their impressions. Optional. Will be required in
   // a future release.
   string edp_impression_path = 5;
+
+  // Mapping from a model line to one or more model lines to apply the same
+  // availability interval to.
+  map<string, ModelLineList> model_line_map = 6;
+
+  // List of model lines to use for a single mapping entry.
+  message ModelLineList {
+    repeated string model_lines = 1;
+  }
 }

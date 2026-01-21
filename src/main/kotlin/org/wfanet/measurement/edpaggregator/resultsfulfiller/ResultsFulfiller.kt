@@ -82,6 +82,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMe
  * @param privateEncryptionKey Private key used to decrypt `RequisitionSpec`s.
  * @param groupedRequisitions The grouped requisitions to fulfill.
  * @param modelLineInfoMap Map of model line to [ModelLineInfo] providing descriptors and indexes.
+ * @param modelLineMap Map from model line to model line overrides.
  * @param pipelineConfiguration Configuration for the event processing pipeline.
  * @param impressionDataSourceProvider Service to resolve impression metadata and sources.
  * @param kmsClient KMS client for accessing encrypted resources in storage.
@@ -97,6 +98,7 @@ class ResultsFulfiller(
   private val privateEncryptionKey: PrivateKeyHandle,
   private val groupedRequisitions: GroupedRequisitions,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
+  private val modelLineMap: Map<String, String>,
   private val pipelineConfiguration: PipelineConfiguration,
   private val impressionDataSourceProvider: ImpressionDataSourceProvider,
   private val kmsClient: KmsClient?,
@@ -159,7 +161,7 @@ class ResultsFulfiller(
       requireNotNull(requisitionsMetadata.mapNotNull { it.createTime?.toInstant() }.minOrNull()) {
         "Create time is missing from requisition metadata for group id: ${groupedRequisitions.groupId}"
       }
-    val modelLine = groupedRequisitions.modelLine
+    val modelLine = modelLineMap[groupedRequisitions.modelLine] ?: groupedRequisitions.modelLine
     val modelInfo = modelLineInfoMap.getValue(modelLine)
     val eventDescriptor = modelInfo.eventDescriptor
 

@@ -45,6 +45,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvider
@@ -57,6 +58,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
+import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigKt.modelLineList
 import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemStorage
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.storageParams
@@ -225,7 +227,12 @@ class DataAvailabilitySyncFunctionTest {
     logger.info("Response status: ${getResponse.statusCode()}")
     logger.info("Response body: ${getResponse.body()}")
 
-    verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+    val requestCaptor = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
+    verifyBlocking(dataProvidersServiceMock, times(1)) {
+      replaceDataAvailabilityIntervals(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
+      .contains("some-model-line-mapped")
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
@@ -322,6 +329,7 @@ class DataAvailabilitySyncFunctionTest {
       }
       dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
       edpImpressionPath = "edp/edp_name"
+      modelLineMap["some-model-line"] = modelLineList { modelLines += "some-model-line-mapped" }
     }
 
   private fun parseTraceparentTraceId(header: String?): String? {

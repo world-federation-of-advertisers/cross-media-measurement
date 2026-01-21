@@ -128,4 +128,8 @@ message ResultsFulfillerParams {
   // The maximum frequency used for impression count in impression measurements.
   // Only apply for direct measurements.
   int32 impression_max_frequency_per_user = 7;
+
+  // Optional mapping from one model line to another.
+  // If a model line key exists here, the mapped value will be used instead.
+  map<string, string> model_line_map = 8;
 }
