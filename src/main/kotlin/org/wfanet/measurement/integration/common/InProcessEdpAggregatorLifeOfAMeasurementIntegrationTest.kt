@@ -123,7 +123,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       "edp1" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
       "edp2" to DataProviderKt.capabilities { },
       "edp3" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
-      "edp4" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true; trusTeeSupported = true },
+      "edp4" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false; trusTeeSupported = true },
     )
     inProcessEdpAggregatorComponents.startDaemons(
       kingdomChannel,
