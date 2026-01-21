@@ -226,14 +226,13 @@ class StorageEventSource(
    *
    * Returns the KEK URI from the most recent data source (sorted by interval end time in
    * descending order). All data sources for the same EDP must use KEK URIs with the same
-   * project ID and location.
+   * project ID and location. Returns null if no data sources are available.
    *
-   * @throws IllegalStateException if no data sources are available
    * @throws IllegalArgumentException if KEK URIs have different project IDs or locations
    */
-  suspend fun getKekUri(): String {
+  suspend fun getKekUri(): String? {
     val uniqueSources = getUniqueImpressionDataSources()
-    require(uniqueSources.isNotEmpty()) { "No impression data sources available" }
+    if (uniqueSources.isEmpty()) return null
 
     // Validate all KEK URIs have the same project ID and location
     val kekUris = uniqueSources.map { it.blobDetails.encryptedDek.kekUri }
