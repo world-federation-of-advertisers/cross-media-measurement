@@ -38,20 +38,40 @@ message CreateClientAccountRequest {
 }
 
 message GetClientAccountRequest {
-  int64 external_client_account_id = 1;
-  int64 external_measurement_consumer_id = 2;
+  fixed64 external_client_account_id = 1;
+  fixed64 external_measurement_consumer_id = 2;
 }
 
 message DeleteClientAccountRequest {
-  int64 external_client_account_id = 1;
-  int64 external_measurement_consumer_id = 2;
+  fixed64 external_client_account_id = 1;
+  fixed64 external_measurement_consumer_id = 2;
 }
 
 message StreamClientAccountsRequest {
   message Filter {
-    int64 external_measurement_consumer_id = 1;
-    int64 external_data_provider_id = 2;
+    fixed64 external_measurement_consumer_id = 1;
+    fixed64 external_data_provider_id = 2;
     string client_account_reference_id = 3;
   }
   Filter filter = 1;
+}
+
+message StreamClientAccountsRequest {
+  message AfterFilter {
+    fixed64 external_measurement_consumer_id = 1;
+    fixed64 external_client_account_id = 2;
+    google.protobuf.Timestamp create_time = 3;
+  }
+
+  message Filter {
+    fixed64 external_measurement_consumer_id = 1;
+    fixed64 external_data_provider_id = 2;
+    string client_account_reference_id = 3;
+    AfterFilter after = 4;
+  }
+  Filter filter = 1;
+
+  // The maximum number of results to return. If not specified or 0, it implies
+  // unlimited.
+  int32 limit = 2;
 }
