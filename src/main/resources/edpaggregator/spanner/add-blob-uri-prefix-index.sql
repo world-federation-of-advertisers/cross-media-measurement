@@ -20,5 +20,5 @@
 -- Index for BlobUri prefix lookups with pagination by ImpressionMetadataResourceId.
 -- Supports STARTS_WITH queries on BlobUri.
 CREATE INDEX ImpressionMetadataByBlobUriPrefix
-  ON ImpressionMetadata(DataProviderResourceId, BlobUri, ImpressionMetadataResourceId);
+  ON ImpressionMetadata(DataProviderResourceId, BlobUri);
 
