@@ -83,6 +83,7 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValid
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerApp
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerMetrics
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.TrusTeeConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -199,6 +200,14 @@ class InProcessEdpAggregatorComponents(
         WorkItemAttemptsCoroutineStub(secureComputationPublicApi.publicApiChannel),
       queueSubscriber = subscriber,
       kmsClients = kmsClients.toMutableMap(),
+      trusTeeConfigs =
+        kmsClients.mapValues { (_, kmsClient) ->
+          TrusTeeConfig(
+            kmsClient = kmsClient,
+            workloadIdentityProvider = "test-wip",
+            impersonatedServiceAccount = "test-sa@example.com",
+          )
+        },
       requisitionMetadataStub = requisitionMetadataClient,
       impressionMetadataStub = impressionMetadataClient,
       requisitionStubFactory = requisitionStubFactory,
@@ -251,7 +260,10 @@ class InProcessEdpAggregatorComponents(
       dataProvidersStub.replaceDataProviderCapabilities(
         replaceDataProviderCapabilitiesRequest {
           name = edpResourceName
-          capabilities = DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true }
+          capabilities =
+            DataProviderKt.capabilities {
+              honestMajorityShareShuffleSupported = true
+            }
         }
       )
     }
