@@ -19,6 +19,7 @@ IMPORT_PREFIX = "/src/main/proto"
 
 MESSAGE_LIBS = [
     ":basic_report_proto",
+    ":date_interval_proto",
     ":event_filter_proto",
     ":event_group_proto",
     ":event_template_field_proto",
