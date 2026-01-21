@@ -23,7 +23,6 @@ import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
@@ -104,8 +103,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       syntheticEventGroupMap = syntheticEventGroupMap,
       syntheticPopulationSpec = syntheticPopulationSpec,
       modelLineInfoMap = modelLineInfoMap,
-      workloadIdentityProvider = "test-wip",
-      impersonatedServiceAccount = "test-sa@example.com",
     )
 
   @Before
@@ -237,37 +234,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       mcSimulator.testReachAndFrequency(
         "1234",
         DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
-      )
-    }
-
-  @Ignore("TrusTee integration test requires full Duchy configuration - see TODO")
-  @Test
-  fun `create a TrusTee reach-only measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a TrusTee reach measurement and verify its result.
-      // TrusTee is disabled in tests, so Kingdom falls back to other protocols
-      mcSimulator.testReachOnly(
-        "1234",
-        DataProviderKt.capabilities {
-          honestMajorityShareShuffleSupported = false
-          trusTeeSupported = true
-        },
-      )
-    }
-
-  @Ignore("TrusTee integration test requires full Duchy configuration - see TODO")
-  @Test
-  fun `create a TrusTee RF measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a TrusTee reach and frequency measurement and verify its
-      // result.
-      // TrusTee is disabled in tests, so Kingdom falls back to other protocols
-      mcSimulator.testReachAndFrequency(
-        "1234",
-        DataProviderKt.capabilities {
-          honestMajorityShareShuffleSupported = false
-          trusTeeSupported = true
-        },
       )
     }
 
