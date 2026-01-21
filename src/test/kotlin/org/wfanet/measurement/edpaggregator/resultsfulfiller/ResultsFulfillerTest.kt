@@ -384,6 +384,7 @@ class ResultsFulfillerTest {
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
           ),
+        kekUriToKeyNameMap = emptyMap(),
       )
 
     // Load grouped requisitions from storage
@@ -531,6 +532,7 @@ class ResultsFulfillerTest {
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
           ),
+        kekUriToKeyNameMap = emptyMap(),
       )
 
     // Load grouped requisitions from storage
@@ -659,7 +661,8 @@ class ResultsFulfillerTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-            ),
+          ),
+        kekUriToKeyNameMap = emptyMap(),
         )
 
       // Load grouped requisitions from storage
@@ -799,7 +802,8 @@ class ResultsFulfillerTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-            ),
+          ),
+        kekUriToKeyNameMap = emptyMap(),
         )
 
       // Load grouped requisitions from storage
@@ -927,7 +931,8 @@ class ResultsFulfillerTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-            ),
+          ),
+        kekUriToKeyNameMap = emptyMap(),
         )
 
       // Load grouped requisitions from storage
@@ -1053,6 +1058,7 @@ class ResultsFulfillerTest {
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
           ),
+        kekUriToKeyNameMap = emptyMap(),
       )
 
     // Load grouped requisitions from storage
@@ -1157,6 +1163,7 @@ class ResultsFulfillerTest {
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
           ),
+        kekUriToKeyNameMap = emptyMap(),
       )
 
     // Load grouped requisitions from storage
@@ -1263,6 +1270,7 @@ class ResultsFulfillerTest {
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
           ),
+        kekUriToKeyNameMap = emptyMap(),
       )
 
     // Load grouped requisitions from storage
@@ -1367,6 +1375,7 @@ class ResultsFulfillerTest {
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
           ),
+        kekUriToKeyNameMap = emptyMap(),
       )
 
     // Load grouped requisitions from storage
@@ -1467,7 +1476,8 @@ class ResultsFulfillerTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-            ),
+          ),
+        kekUriToKeyNameMap = emptyMap(),
         )
 
       // Load grouped requisitions from storage
@@ -1589,7 +1599,8 @@ class ResultsFulfillerTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-            ),
+          ),
+        kekUriToKeyNameMap = emptyMap(),
         )
 
       // Load grouped requisitions from storage
@@ -1711,6 +1722,7 @@ class ResultsFulfillerTest {
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
           ),
+        kekUriToKeyNameMap = emptyMap(),
       )
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -1822,6 +1834,11 @@ class ResultsFulfillerTest {
         }
       }
 
+    val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
+    val impressionMetadataList = createImpressionMetadataList(dates, EVENT_GROUP_NAME)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
     whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
       .thenReturn(
         listRequisitionMetadataResponse {
@@ -1880,6 +1897,7 @@ class ResultsFulfillerTest {
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
           ),
+        kekUriToKeyNameMap = emptyMap(),
       )
 
     // Load grouped requisitions from storage
@@ -1938,6 +1956,11 @@ class ResultsFulfillerTest {
         }
       }
 
+    val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
+    val impressionMetadataList = createImpressionMetadataList(dates, EVENT_GROUP_NAME)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
     whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
       .thenReturn(
         listRequisitionMetadataResponse {
@@ -1992,6 +2015,7 @@ class ResultsFulfillerTest {
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
           ),
+        kekUriToKeyNameMap = emptyMap(),
       )
 
     // Load grouped requisitions from storage

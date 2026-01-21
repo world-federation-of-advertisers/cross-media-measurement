@@ -51,18 +51,44 @@ data class TrusTeeConfig(
   /**
    * Builds EncryptionParams for the TrusTee protocol using the provided KEK URI.
    *
+   * If the kekUri is found in the kekUriToKeyNameMap, the output KEK URI will be constructed
+   * by replacing the key name in the original URI with the mapped key name (on the same keyring).
+   * If not found in the map, the original kekUri is used unchanged.
+   *
    * @param kekUri The KEK URI from BlobDetails.encryptedDek.
+   * @param kekUriToKeyNameMap Map from input KEK URI to output key name for re-encryption.
    * @return EncryptionParams for the TrusTee fulfillment request builder.
    */
   fun buildEncryptionParams(
-    kekUri: String
+    kekUri: String,
+    kekUriToKeyNameMap: Map<String, String>,
   ): TrusteeFulfillRequisitionRequestBuilder.EncryptionParams {
+    val remappedKekUri = remapKekUri(kekUri, kekUriToKeyNameMap)
     return TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
       kmsClient = kmsClient,
-      kmsKekUri = kekUri,
+      kmsKekUri = remappedKekUri,
       workloadIdentityProvider = workloadIdentityProvider,
       impersonatedServiceAccount = impersonatedServiceAccount,
     )
+  }
+
+  /**
+   * Remaps the input KEK URI using the provided map.
+   *
+   * If the kekUri is found in the map, constructs a new KEK URI by replacing
+   * the key name component with the mapped key name (keeping the same keyring).
+   * If not found, returns the original kekUri unchanged.
+   */
+  private fun remapKekUri(kekUri: String, kekUriToKeyNameMap: Map<String, String>): String {
+    val mappedKeyName = kekUriToKeyNameMap[kekUri] ?: return kekUri
+
+    // KEK URI format: gcp-kms://projects/{project}/locations/{location}/keyRings/{keyring}/cryptoKeys/{key}
+    // We need to replace the {key} part with the mapped key name
+    val lastSlashIndex = kekUri.lastIndexOf("/")
+    if (lastSlashIndex == -1) {
+      return kekUri
+    }
+    return kekUri.substring(0, lastSlashIndex + 1) + mappedKeyName
   }
 }
 
@@ -89,6 +115,7 @@ class DefaultFulfillerSelector(
   private val kAnonymityParams: KAnonymityParams?,
   private val overrideImpressionMaxFrequencyPerUser: Int?,
   private val trusTeeConfig: TrusTeeConfig?,
+  private val kekUriToKeyNameMap: Map<String, String>,
 ) : FulfillerSelector {
 
   /**
@@ -126,8 +153,12 @@ class DefaultFulfillerSelector(
 
     // Build TrusTee encryption params dynamically using the kekUri from BlobDetails
     val trusTeeEncryptionParams =
-      if (trusTeeConfig != null && kekUri != null) {
-        trusTeeConfig.buildEncryptionParams(kekUri)
+      if (trusTeeConfig != null) {
+        requireNotNull(kekUri) {
+          "TrusTee protocol selected but kekUri is not available. " +
+            "BlobDetails.encryptedDek must contain a valid kekUri for TrusTee requisitions."
+        }
+        trusTeeConfig.buildEncryptionParams(kekUri, kekUriToKeyNameMap)
       } else {
         null
       }
@@ -151,7 +182,7 @@ class DefaultFulfillerSelector(
           vec.build(),
           requisitionFulfillmentStubMap,
           requisitionsStub,
-          trusTeeEncryptionParams,
+          trusTeeEncryptionParams!!,
         )
       } else {
         TrusTeeMeasurementFulfiller.buildKAnonymized(
@@ -164,7 +195,7 @@ class DefaultFulfillerSelector(
           requisitionsStub,
           kAnonymityParams,
           maxPopulation = null,
-          trusTeeEncryptionParams,
+          trusTeeEncryptionParams!!,
         )
       }
     } else if (
