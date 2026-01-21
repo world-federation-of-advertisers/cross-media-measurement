@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/kingdom/client_account.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
@@ -45,15 +46,6 @@ message GetClientAccountRequest {
 message DeleteClientAccountRequest {
   fixed64 external_client_account_id = 1;
   fixed64 external_measurement_consumer_id = 2;
-}
-
-message StreamClientAccountsRequest {
-  message Filter {
-    fixed64 external_measurement_consumer_id = 1;
-    fixed64 external_data_provider_id = 2;
-    string client_account_reference_id = 3;
-  }
-  Filter filter = 1;
 }
 
 message StreamClientAccountsRequest {
