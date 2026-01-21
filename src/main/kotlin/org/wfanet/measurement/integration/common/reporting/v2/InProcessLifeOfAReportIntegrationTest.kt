@@ -89,7 +89,7 @@ import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
 import org.wfanet.measurement.dataprovider.MeasurementResults
-import org.wfanet.measurement.integration.common.ALL_EDP_WITH_TRUSTEE_CAPABILITIES_DISPLAY_NAMES
+import org.wfanet.measurement.integration.common.ALL_EDP_WITHOUT_HMSS_OR_TRUSTEE_CAPABILITIES_DISPLAY_NAMES
 import org.wfanet.measurement.integration.common.ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
@@ -645,7 +645,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       eventGroups.filter {
         inProcessCmmsComponents.getDataProviderDisplayNameFromDataProviderName(
           it.cmmsDataProvider
-        )!! in ALL_EDP_WITH_TRUSTEE_CAPABILITIES_DISPLAY_NAMES
+        )!! in ALL_EDP_WITHOUT_HMSS_OR_TRUSTEE_CAPABILITIES_DISPLAY_NAMES
       }
 
     val hmssEventGroups: List<EventGroup> =
