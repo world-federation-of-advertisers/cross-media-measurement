@@ -26,6 +26,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -92,6 +93,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     mapOf(
       "edpa-eg-reference-id-1" to syntheticEventGroupSpec,
       "edpa-eg-reference-id-2" to syntheticEventGroupSpec,
+      "edpa-eg-reference-id-3" to syntheticEventGroupSpec,
     )
 
   @get:Rule
@@ -117,11 +119,17 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     val kingdomChannel = inProcessCmmsComponents.kingdom.publicApiChannel
     val duchyMap =
       inProcessCmmsComponents.duchies.map { it.externalDuchyId to it.publicApiChannel }.toMap()
+    val edpCapabilities = mapOf(
+      "edp1" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+      "edp2" to DataProviderKt.capabilities { },
+      "edp3" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+      "edp4" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false; trusTeeSupported = true },
+    )
     inProcessEdpAggregatorComponents.startDaemons(
       kingdomChannel,
       measurementConsumerData,
       edpDisplayNameToResourceMap,
-      listOf("edp1", "edp2"),
+      edpCapabilities,
       duchyMap,
     )
     initMcSimulator()
@@ -234,6 +242,35 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       mcSimulator.testReachAndFrequency(
         "1234",
         DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+      )
+    }
+
+  @Test
+  fun `create a TrusTee reach-only measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Use frontend simulator to create a TrusTee reach measurement and verify its result.
+      // TrusTee is enabled in tests and Kingdom selects TrusTee protocol
+      mcSimulator.testReachOnly(
+        "1234",
+        DataProviderKt.capabilities {
+          honestMajorityShareShuffleSupported = false
+          trusTeeSupported = true
+        },
+      )
+    }
+
+  @Test
+  fun `create a TrusTee RF measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Use frontend simulator to create a TrusTee reach and frequency measurement and verify its
+      // result.
+      // TrusTee is enabled in tests and Kingdom selects TrusTee protocol
+      mcSimulator.testReachAndFrequency(
+        "1234",
+        DataProviderKt.capabilities {
+          honestMajorityShareShuffleSupported = false
+          trusTeeSupported = true
+        },
       )
     }
 

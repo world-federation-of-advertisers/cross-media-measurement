@@ -49,6 +49,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
 import org.wfanet.measurement.internal.kingdom.HmssProtocolConfigConfig
+import org.wfanet.measurement.internal.kingdom.TrusTeeProtocolConfigConfig
 import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
@@ -89,6 +90,11 @@ val HMSS_PROTOCOL_CONFIG_CONFIG: HmssProtocolConfigConfig =
   loadTextProto(
     "hmss_protocol_config_config.textproto",
     HmssProtocolConfigConfig.getDefaultInstance(),
+  )
+val TRUSTEE_PROTOCOL_CONFIG_CONFIG: TrusTeeProtocolConfigConfig =
+  loadTextProto(
+    "trustee_protocol_config_config.textproto",
+    TrusTeeProtocolConfigConfig.getDefaultInstance(),
   )
 val IMPRESSION_QUALIFICATION_FILTER_CONFIG: ImpressionQualificationFilterConfig =
   loadTextProto(
@@ -150,10 +156,11 @@ val PERMISSIONS_CONFIG: PermissionsConfig =
     PermissionsConfig.getDefaultInstance(),
   )
 
+val ALL_EDP_WITHOUT_HMSS_OR_TRUSTEE_CAPABILITIES_DISPLAY_NAMES = listOf("edp2")
 val ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES = listOf("edp1", "edp3")
-val ALL_EDP_WITHOUT_HMSS_CAPABILITIES_DISPLAY_NAMES = listOf("edp2")
+val ALL_EDP_WITH_TRUSTEE_CAPABILITIES_DISPLAY_NAMES = listOf("edp4")
 val ALL_EDP_DISPLAY_NAMES =
-  ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES + ALL_EDP_WITHOUT_HMSS_CAPABILITIES_DISPLAY_NAMES
+  ALL_EDP_WITHOUT_HMSS_OR_TRUSTEE_CAPABILITIES_DISPLAY_NAMES + ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES + ALL_EDP_WITH_TRUSTEE_CAPABILITIES_DISPLAY_NAMES
 
 const val DUCHY_MILL_PARALLELISM = 3
 
