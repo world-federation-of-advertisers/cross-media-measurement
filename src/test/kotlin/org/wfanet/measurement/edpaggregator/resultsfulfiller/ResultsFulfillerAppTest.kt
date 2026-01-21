@@ -47,6 +47,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.toList
 import org.junit.Before
 import org.junit.ClassRule
 import org.junit.Rule
@@ -62,6 +64,8 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
@@ -71,12 +75,16 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.Requisition.DuchyEntry
+import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
+import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.events
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.eventGroup
@@ -116,6 +124,7 @@ import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.SingleRequisitionGrouper
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.TrusTeeConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
@@ -182,6 +191,23 @@ class ResultsFulfillerAppTest {
         }
     }
   }
+  private class FakeRequisitionFulfillmentService : RequisitionFulfillmentCoroutineImplBase() {
+    data class FulfillRequisitionInvocation(val requests: List<FulfillRequisitionRequest>)
+
+    private val _fulfillRequisitionInvocations = mutableListOf<FulfillRequisitionInvocation>()
+    val fulfillRequisitionInvocations: List<FulfillRequisitionInvocation>
+      get() = _fulfillRequisitionInvocations
+
+    override suspend fun fulfillRequisition(
+      requests: Flow<FulfillRequisitionRequest>
+    ): FulfillRequisitionResponse {
+      _fulfillRequisitionInvocations.add(FulfillRequisitionInvocation(requests.toList()))
+      return FulfillRequisitionResponse.getDefaultInstance()
+    }
+  }
+
+  private val requisitionFulfillmentMock = FakeRequisitionFulfillmentService()
+
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -191,6 +217,7 @@ class ResultsFulfillerAppTest {
     addService(eventGroupsServiceMock)
     addService(requisitionMetadataServiceMock)
     addService(impressionMetadataServiceMock)
+    addService(requisitionFulfillmentMock)
   }
 
   private val requisitionsStub: RequisitionsCoroutineStub by lazy {
@@ -1174,6 +1201,162 @@ class ResultsFulfillerAppTest {
     verifyBlocking(requisitionsServiceMock, times(0)) { fulfillDirectRequisition(any()) }
   }
 
+
+  @Test
+  fun `runWork processes TrusTee requisition successfully`() = runBlocking {
+    val subscriber =
+      Subscriber(
+        projectId = PROJECT_ID,
+        googlePubSubClient = emulatorClient,
+        maxMessages = 1,
+        pullIntervalMillis = 100,
+        ackDeadlineExtensionIntervalSeconds = 60,
+        ackDeadlineExtensionSeconds = 600,
+        blockingContext = Dispatchers.IO,
+      )
+    val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
+    val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
+
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some blob uri"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
+        }
+      )
+
+    val testWorkItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    val workItemParams =
+      createWorkItemParams(
+        ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
+        kAnonymityParams = null,
+      )
+    val workItem = createWorkItem(workItemParams)
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { completeWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { failWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+    }
+    workItemsServiceMock.stub { onBlocking { failWorkItem(any()) } doReturn workItem }
+
+    val tmpPath = Files.createTempDirectory(null).toFile()
+
+    // Create requisitions storage client
+    Files.createDirectories(tmpPath.resolve(REQUISITIONS_BUCKET).toPath())
+    val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
+
+    val requisitionValidator =
+      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+    val groupedRequisitions =
+      SingleRequisitionGrouper(
+          requisitionsClient = requisitionsStub,
+          eventGroupsClient = eventGroupsStub,
+          requisitionValidator = requisitionValidator,
+          throttler = throttler,
+        )
+        .groupRequisitions(listOf(TRUSTEE_REQUISITION))
+    // Add requisitions to storage
+    requisitionsStorageClient.writeBlob(
+      REQUISITIONS_BLOB_KEY,
+      Any.pack(groupedRequisitions.single()).toByteString(),
+    )
+
+    val kmsClients = getKmsClientMap()
+    val kmsClient = kmsClients.getValue(EDP_NAME)
+
+    val serializedEncryptionKey = getSerializedEncryptionKey(kmsClient)
+    val mesosRecordIoStorageClient =
+      getImpressionStorageClient(tmpPath, kmsClient, serializedEncryptionKey)
+
+    val impressions =
+      List(100) {
+        LABELED_IMPRESSION.copy {
+          vid = (it % 80 + 1).toLong()
+          eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          event = TEST_EVENT.pack()
+        }
+      }
+
+    val impressionsFlow = flow {
+      impressions.forEach { impression -> emit(impression.toByteString()) }
+    }
+
+    // Write impressions to storage
+    mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
+
+    writeImpressionMetadata(tmpPath, serializedEncryptionKey)
+
+    val start = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC)
+    val end = FIRST_EVENT_DATE.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            state = ImpressionMetadata.State.ACTIVE
+            blobUri = "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
+            interval = interval {
+              startTime = timestamp {
+                seconds = start.epochSecond
+                nanos = start.nano
+              }
+              endTime = timestamp {
+                seconds = end.epochSecond
+                nanos = end.nano
+              }
+            }
+          }
+        }
+      )
+
+    val trusTeeConfigs = mapOf(
+      EDP_NAME to TrusTeeConfig(
+        kmsClient = kmsClient,
+        workloadIdentityProvider = "test-wip",
+        impersonatedServiceAccount = "test-sa@example.com",
+      )
+    )
+
+    val app =
+      ResultsFulfillerApp(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = subscriber,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+        requisitionMetadataStub,
+        impressionMetadataStub,
+        TestRequisitionStubFactory(
+          grpcTestServerRule.channel,
+          mapOf(DUCHY_NAME to grpcTestServerRule.channel),
+        ),
+        kmsClients,
+        trusTeeConfigs,
+        getStorageConfig(tmpPath),
+        getStorageConfig(tmpPath),
+        getStorageConfig(tmpPath),
+        mapOf("some-model-line" to MODEL_LINE_INFO),
+        metrics = ResultsFulfillerMetrics.create(),
+      )
+    app.runWork(Any.pack(workItemParams))
+
+    // Verify TrusTee fulfillment was called instead of direct fulfillment
+    verifyBlocking(requisitionsServiceMock, times(0)) { fulfillDirectRequisition(any()) }
+    assertThat(requisitionFulfillmentMock.fulfillRequisitionInvocations).hasSize(1)
+    val fulfilledRequests = requisitionFulfillmentMock.fulfillRequisitionInvocations[0].requests
+    assertThat(fulfilledRequests).isNotEmpty()
+    assertThat(fulfilledRequests[0].header.name).isEqualTo(TRUSTEE_REQUISITION.name)
+    assertThat(fulfilledRequests[0].header.hasTrusTee()).isTrue()
+  }
   private suspend fun writeImpressionMetadata(tmpPath: File, serializedEncryptionKey: ByteString) {
     // Create the impressions metadata store
     Files.createDirectories(tmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).toPath())
@@ -1439,6 +1622,38 @@ class ResultsFulfillerAppTest {
       dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
     }
 
+
+    private const val DUCHY_NAME = "some-duchy"
+    private const val DUCHY_CERTIFICATE_NAME = "duchies/some-duchy/certificates/cert1"
+
+    private val TRUSTEE_DUCHY_ENTRY = duchyEntry {
+      key = DUCHY_NAME
+      value = value {
+        duchyCertificate = DUCHY_CERTIFICATE_NAME
+        trusTee = DuchyEntry.TrusTee.getDefaultInstance()
+      }
+    }
+
+    private val TRUSTEE_REQUISITION = requisition {
+      name = REQUISITION_NAME
+      measurement = "$MEASUREMENT_CONSUMER_NAME/measurements/BBBBBBBBBHs"
+      state = Requisition.State.UNFULFILLED
+      measurementConsumerCertificate = "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
+      measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY)
+      encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
+      protocolConfig = protocolConfig {
+        protocols +=
+          ProtocolConfigKt.protocol {
+            trusTee =
+              ProtocolConfigKt.trusTee {
+                noiseMechanism = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+              }
+          }
+      }
+      dataProviderCertificate = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAcg"
+      dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
+      duchies += TRUSTEE_DUCHY_ENTRY
+    }
     private val EDP_RESULT_SIGNING_KEY =
       loadSigningKey(
         "${EDP_DISPLAY_NAME}_result_cs_cert.der",
