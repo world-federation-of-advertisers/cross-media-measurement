@@ -127,82 +127,61 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
   }
 
   @Test
-  fun `getEventGroup with default view returns no aggregated activities`() = runBlocking {
-    val created = createEventGroup("eg-view-default")
-    val date = date {
-      year = 2023
-      month = 1
-      day = 1
-    }
+  fun `get with default view returns no aggregated activities`() = runBlocking {
+    val eventGroup = createEventGroup("eg-view-default")
 
-    createActivities(created.name, listOf(date))
+    createActivities(eventGroup.name, listOf(DATE_0))
 
-    val response: EventGroup = getEventGroup(created.name)
-    assertThat(response).isEqualTo(created)
+    val response: EventGroup = getEventGroup(eventGroup.name)
+    assertThat(response).isEqualTo(eventGroup)
     assertThat(response.aggregatedActivitiesList).isEmpty()
   }
 
   @Test
-  fun `getEventGroup with view BASIC returns no aggregated activities`() = runBlocking {
-    val created = createEventGroup("eg-view-basic")
-    val date = date {
-      year = 2023
-      month = 1
-      day = 1
-    }
+  fun `get with view BASIC returns no aggregated activities`() = runBlocking {
+    val eventGroup = createEventGroup("eg-view-basic")
 
-    createActivities(created.name, listOf(date))
+    createActivities(eventGroup.name, listOf(DATE_0))
 
     val response: EventGroup =
       publicEventGroupsClient.getEventGroup(
         getEventGroupRequest {
-          name = created.name
+          name = eventGroup.name
           view = EventGroup.View.BASIC
         }
       )
 
-    assertThat(response).isEqualTo(created)
+    assertThat(response).isEqualTo(eventGroup)
     assertThat(response.aggregatedActivitiesList).isEmpty()
   }
 
   @Test
-  fun `getEventGroup with view WITH_ACTIVITY_SUMMARY returns aggregated activities`() =
-    runBlocking {
-      val created = createEventGroup("eg-view-summary")
-      val date1 = date {
-        year = 2023
-        month = 1
-        day = 1
-      }
-      val date2 = date {
-        year = 2023
-        month = 1
-        day = 2
-      }
+  fun `get with view WITH_ACTIVITY_SUMMARY returns aggregated activities`() = runBlocking {
+    val eventGroup = createEventGroup("eg-view-summary")
 
-      createActivities(created.name, listOf(date1, date2))
+    createActivities(eventGroup.name, listOf(DATE_1, DATE_2))
 
-      val response: EventGroup =
-        publicEventGroupsClient.getEventGroup(
-          getEventGroupRequest {
-            name = created.name
-            view = EventGroup.View.WITH_ACTIVITY_SUMMARY
-          }
-        )
+    val response: EventGroup =
+      publicEventGroupsClient.getEventGroup(
+        getEventGroupRequest {
+          name = eventGroup.name
+          view = EventGroup.View.WITH_ACTIVITY_SUMMARY
+        }
+      )
 
-      assertThat(response)
-        .isEqualTo(
-          created.copy {
-            aggregatedActivities +=
-              EventGroupKt.aggregatedActivity {
-                interval = dateInterval {
-                  startDate = date1
-                  endDate = date2
-                }
+    assertThat(response)
+      .isEqualTo(
+        eventGroup.copy {
+          aggregatedActivities +=
+            EventGroupKt.aggregatedActivity {
+              interval = dateInterval {
+                startDate = DATE_1
+                endDate = DATE_2
               }
-          }
-        )
-    }
+            }
+        }
+      )
+  }
 
   @Test
   fun `delete transitions EventGroup state to DELETED`(): Unit = runBlocking {
@@ -250,61 +229,34 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
   }
 
   @Test
-  fun `listEventGroups with activity_contains filter returns matched EventGroups in the correct view`() =
+  fun `list with activity_contains filter returns matched EventGroups in the default view`() =
     runBlocking {
       val eventGroupWithSameInterval = createEventGroup("eg-equal-interval")
       val eventGroupWithContainingInterval = createEventGroup("eg-containing-interval")
       val eventGroupWithLeftPartInterval = createEventGroup("eg-left-part-interval")
       val eventGroupWithRightPartInterval = createEventGroup("eg-right-part-interval")
 
-      val date0 = date {
-        year = 2022
-        month = 12
-        day = 31
-      }
-      val date1 = date {
-        year = 2023
-        month = 1
-        day = 1
-      }
-      val date2 = date {
-        year = 2023
-        month = 1
-        day = 2
-      }
-      val date3 = date {
-        year = 2023
-        month = 1
-        day = 3
-      }
-      val date4 = date {
-        year = 2023
-        month = 1
-        day = 4
-      }
-
-      createActivities(eventGroupWithSameInterval.name, listOf(date1, date2, date3))
+      createActivities(eventGroupWithSameInterval.name, listOf(DATE_1, DATE_2, DATE_3))
       createActivities(
         eventGroupWithContainingInterval.name,
-        listOf(date0, date1, date2, date3, date4),
+        listOf(DATE_0, DATE_1, DATE_2, DATE_3, DATE_4),
       )
-      createActivities(eventGroupWithLeftPartInterval.name, listOf(date1, date2))
-      createActivities(eventGroupWithRightPartInterval.name, listOf(date2, date3))
+      createActivities(eventGroupWithLeftPartInterval.name, listOf(DATE_1, DATE_2))
+      createActivities(eventGroupWithRightPartInterval.name, listOf(DATE_2, DATE_3))
 
-      // default view
-      val responseInDefaultView: ListEventGroupsResponse =
+      val response: ListEventGroupsResponse =
         publicEventGroupsClient.listEventGroups(
           listEventGroupsRequest {
             parent = edpResourceName
             filter = filter {
               activityContains = dateInterval {
-                startDate = date1
-                endDate = date3
+                startDate = DATE_1
+                endDate = DATE_3
               }
             }
           }
         )
-      assertThat(responseInDefaultView)
+      assertThat(response)
         .ignoringRepeatedFieldOrder()
         .isEqualTo(
           listEventGroupsResponse {
@@ -312,22 +264,38 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
             eventGroups += eventGroupWithContainingInterval
           }
         )
+    }
 
-      // basic view
-      val responseInBasicView: ListEventGroupsResponse =
+  @Test
+  fun `list with activity_contains filter returns matched EventGroups in the BASIC view`() =
+    runBlocking {
+      val eventGroupWithSameInterval = createEventGroup("eg-equal-interval")
+      val eventGroupWithContainingInterval = createEventGroup("eg-containing-interval")
+      val eventGroupWithLeftPartInterval = createEventGroup("eg-left-part-interval")
+      val eventGroupWithRightPartInterval = createEventGroup("eg-right-part-interval")
+
+      createActivities(eventGroupWithSameInterval.name, listOf(DATE_1, DATE_2, DATE_3))
+      createActivities(
+        eventGroupWithContainingInterval.name,
+        listOf(DATE_0, DATE_1, DATE_2, DATE_3, DATE_4),
+      )
+      createActivities(eventGroupWithLeftPartInterval.name, listOf(DATE_1, DATE_2))
+      createActivities(eventGroupWithRightPartInterval.name, listOf(DATE_2, DATE_3))
+
+      val response: ListEventGroupsResponse =
         publicEventGroupsClient.listEventGroups(
           listEventGroupsRequest {
             parent = edpResourceName
             view = EventGroup.View.BASIC
             filter = filter {
               activityContains = dateInterval {
-                startDate = date1
-                endDate = date3
+                startDate = DATE_1
+                endDate = DATE_3
               }
             }
           }
         )
-      assertThat(responseInBasicView)
+      assertThat(response)
         .ignoringRepeatedFieldOrder()
         .isEqualTo(
           listEventGroupsResponse {
@@ -335,22 +303,38 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
             eventGroups += eventGroupWithContainingInterval
           }
         )
+    }
 
-      // WITH_ACTIVITY_SUMMARY view
-      val responseInWithSummaryView: ListEventGroupsResponse =
+  @Test
+  fun `list with activity_contains filter returns matched EventGroups in the WITH_SUMMARY view`() =
+    runBlocking {
+      val eventGroupWithSameInterval = createEventGroup("eg-equal-interval")
+      val eventGroupWithContainingInterval = createEventGroup("eg-containing-interval")
+      val eventGroupWithLeftPartInterval = createEventGroup("eg-left-part-interval")
+      val eventGroupWithRightPartInterval = createEventGroup("eg-right-part-interval")
+
+      createActivities(eventGroupWithSameInterval.name, listOf(DATE_1, DATE_2, DATE_3))
+      createActivities(
+        eventGroupWithContainingInterval.name,
+        listOf(DATE_0, DATE_1, DATE_2, DATE_3, DATE_4),
+      )
+      createActivities(eventGroupWithLeftPartInterval.name, listOf(DATE_1, DATE_2))
+      createActivities(eventGroupWithRightPartInterval.name, listOf(DATE_2, DATE_3))
+
+      val response: ListEventGroupsResponse =
         publicEventGroupsClient.listEventGroups(
           listEventGroupsRequest {
             parent = edpResourceName
             view = EventGroup.View.WITH_ACTIVITY_SUMMARY
             filter = filter {
               activityContains = dateInterval {
-                startDate = date1
-                endDate = date3
+                startDate = DATE_1
+                endDate = DATE_3
               }
             }
           }
         )
-      assertThat(responseInWithSummaryView)
+      assertThat(response)
         .ignoringRepeatedFieldOrder()
         .isEqualTo(
           listEventGroupsResponse {
@@ -359,8 +343,8 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
                 aggregatedActivities +=
                   EventGroupKt.aggregatedActivity {
                     interval = dateInterval {
-                      startDate = date1
-                      endDate = date3
+                      startDate = DATE_1
+                      endDate = DATE_3
                     }
                   }
               }
@@ -369,8 +353,8 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
                 aggregatedActivities +=
                   EventGroupKt.aggregatedActivity {
                     interval = dateInterval {
-                      startDate = date0
-                      endDate = date4
+                      startDate = DATE_0
+                      endDate = DATE_4
                     }
                   }
               }
@@ -381,22 +365,12 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
   @Test
   fun `deleteEventGroupActivity updates aggregated activities`() = runBlocking {
     val eventGroup = createEventGroup("eg-delete-activity")
-    val date1 = date {
-      year = 2023
-      month = 1
-      day = 1
-    }
-    val date2 = date {
-      year = 2023
-      month = 1
-      day = 2
-    }
 
-    createActivities(eventGroup.name, listOf(date1, date2))
+    createActivities(eventGroup.name, listOf(DATE_1, DATE_2))
 
     publicEventGroupActivitiesClient.deleteEventGroupActivity(
       deleteEventGroupActivityRequest {
-        name = "${eventGroup.name}/eventGroupActivities/2023-01-01"
+        name = "${eventGroup.name}/eventGroupActivities/${DATE_1.toLocalDate()}"
       }
     )
 
@@ -413,8 +387,8 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
           aggregatedActivities +=
             EventGroupKt.aggregatedActivity {
               interval = dateInterval {
-                startDate = date2
-                endDate = date2
+                startDate = DATE_2
+                endDate = DATE_2
               }
             }
         }
@@ -425,35 +399,25 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
   fun `batchDeleteEventGroupActivities updates aggregated activities`() = runBlocking {
     val eventGroup = createEventGroup("eg-batch-delete-activity")
     val eventGroupName = eventGroup.name
-    val date1 = date {
-      year = 2023
-      month = 1
-      day = 1
-    }
-    val date2 = date {
-      year = 2023
-      month = 1
-      day = 2
-    }
 
-    createActivities(eventGroupName, listOf(date1, date2))
+    createActivities(eventGroupName, listOf(DATE_1, DATE_2))
 
     publicEventGroupActivitiesClient.batchDeleteEventGroupActivities(
       batchDeleteEventGroupActivitiesRequest {
         parent = eventGroupName
-        names += "$eventGroupName/eventGroupActivities/2023-01-01"
-        names += "$eventGroupName/eventGroupActivities/2023-01-02"
+        names += "$eventGroupName/eventGroupActivities/${DATE_1.toLocalDate()}"
+        names += "$eventGroupName/eventGroupActivities/${DATE_2.toLocalDate()}"
       }
     )
 
-    val eventGroupSummaryAfterBatchDelete =
+    val response: EventGroup =
       publicEventGroupsClient.getEventGroup(
         getEventGroupRequest {
           name = eventGroupName
           view = EventGroup.View.WITH_ACTIVITY_SUMMARY
         }
       )
-    assertThat(eventGroupSummaryAfterBatchDelete.aggregatedActivitiesList).isEmpty()
+    assertThat(response).isEqualTo(eventGroup)
   }
 
   private suspend fun createActivities(eventGroupName: String, dates: List<Date>) {
@@ -496,5 +460,31 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
 
   companion object {
     private val MC_ENTITY_CONTENT: EntityContent = createEntityContent(MC_DISPLAY_NAME)
+
+    private val DATE_0 = date {
+      year = 2022
+      month = 12
+      day = 31
+    }
+    private val DATE_1 = date {
+      year = 2023
+      month = 1
+      day = 1
+    }
+    private val DATE_2 = date {
+      year = 2023
+      month = 1
+      day = 2
+    }
+    private val DATE_3 = date {
+      year = 2023
+      month = 1
+      day = 3
+    }
+    private val DATE_4 = date {
+      year = 2023
+      month = 1
+      day = 4
+    }
   }
 }
