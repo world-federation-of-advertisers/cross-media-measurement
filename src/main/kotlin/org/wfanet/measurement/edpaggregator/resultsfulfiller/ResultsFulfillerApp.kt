@@ -200,6 +200,19 @@ class ResultsFulfillerApp(
             fulfillerParams.impressionMaxFrequencyPerUser.takeIf { it > 0 }
           },
       )
+    val modelLineInfoMapWithAliases =
+      if (fulfillerParams.modelLineMapMap.isEmpty()) {
+        modelLineInfoMap
+      } else {
+        modelLineInfoMap.mapValues { (modelLine, modelLineInfo) ->
+          val mappedValue = fulfillerParams.modelLineMapMap[modelLine]
+          if (mappedValue == null || mappedValue == modelLineInfo.localAlias) {
+            info
+          } else {
+            info.copy(localAlias = alias)
+          }
+        }
+      }
 
     ResultsFulfiller(
         dataProvider = fulfillerParams.dataProvider,
@@ -207,8 +220,7 @@ class ResultsFulfillerApp(
         requisitionsStub = requisitionsStub,
         privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
         groupedRequisitions = groupedRequisitions,
-        modelLineInfoMap = modelLineInfoMap,
-        modelLineMap = fulfillerParams.modelLineMapMap,
+        modelLineInfoMap = modelLineInfoMapWithAliases,
         pipelineConfiguration = pipelineConfiguration,
         impressionDataSourceProvider = impressionsDataSourceProvider,
         impressionsStorageConfig = impressionsStorageConfig,
