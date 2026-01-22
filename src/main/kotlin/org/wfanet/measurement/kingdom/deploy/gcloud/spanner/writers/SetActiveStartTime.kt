@@ -52,7 +52,7 @@ class SetActiveStartTime(private val request: SetActiveStartTimeRequest, private
     val now = clock.instant().toProtoTime()
     val activeEndTime = modelLineResult.modelLine.activeEndTime
 
-    if (Timestamps.compare(now, request.activeStartTime) >= 0) {
+    if (Timestamps.compare(now, request.activeStartTime!!) >= 0) {
       throw ModelLineInvalidArgsException(
         ExternalId(request.externalModelProviderId),
         ExternalId(request.externalModelSuiteId),
@@ -61,7 +61,7 @@ class SetActiveStartTime(private val request: SetActiveStartTimeRequest, private
       )
     }
 
-    if (modelLineResult.modelLine.hasActiveEndTime() && Timestamps.compare(request.activeStartTime, activeEndTime) > 0) {
+    if (modelLineResult.modelLine.hasActiveEndTime() && Timestamps.compare(request.activeStartTime!!, activeEndTime) > 0) {
       throw ModelLineInvalidArgsException(
         ExternalId(request.externalModelProviderId),
         ExternalId(request.externalModelSuiteId),
@@ -75,10 +75,10 @@ class SetActiveStartTime(private val request: SetActiveStartTimeRequest, private
       set("ModelSuiteId" to modelLineResult.modelSuiteId.value)
       set("ModelProviderId" to modelLineResult.modelProviderId.value)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      set("ActiveStartTime" to request.activeStartTime.toGcloudTimestamp())
+      set("ActiveStartTime" to request.activeStartTime!!.toGcloudTimestamp())
     }
 
-    return modelLineResult.modelLine.copy { activeStartTime = request.activeStartTime }
+    return modelLineResult.modelLine.copy { activeStartTime = request.activeStartTime!! }
   }
 
   override fun ResultScope<ModelLine>.buildResult(): ModelLine {
