@@ -454,11 +454,12 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
   @Test
   fun `setActiveEndTime fails if ActiveEndTime is before ActiveStartTime`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+    val now = clock.instant()
 
     val modelLine = modelLine {
       externalModelSuiteId = modelSuite.externalModelSuiteId
       externalModelProviderId = modelSuite.externalModelProviderId
-      activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+      activeStartTime = now.plusSeconds(2000L).toProtoTime()
       type = ModelLine.Type.PROD
       displayName = "display name"
       description = "description"
@@ -470,7 +471,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
       externalModelLineId = createdModelLine.externalModelLineId
       externalModelSuiteId = createdModelLine.externalModelSuiteId
       externalModelProviderId = createdModelLine.externalModelProviderId
-      activeEndTime = Instant.now().plusSeconds(500L).toProtoTime()
+      activeEndTime = now.plusSeconds(500L).toProtoTime()
     }
 
     val exception =
@@ -481,7 +482,41 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception)
       .hasMessageThat()
-      .contains("ActiveEndTime must be later than or equal to ActiveStartTime.")
+      .contains("ActiveEndTime must be later than ActiveStartTime.")
+  }
+
+  @Test
+  fun `setActiveEndTime fails if ActiveEndTime equals ActiveStartTime`() = runBlocking {
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+    val now = clock.instant()
+
+    val modelLine = modelLine {
+      externalModelSuiteId = modelSuite.externalModelSuiteId
+      externalModelProviderId = modelSuite.externalModelProviderId
+      activeStartTime = now.plusSeconds(2000L).toProtoTime()
+      type = ModelLine.Type.PROD
+      displayName = "display name"
+      description = "description"
+    }
+
+    val createdModelLine = modelLinesService.createModelLine(modelLine)
+
+    val setActiveEndTimeRequest = setActiveEndTimeRequest {
+      externalModelLineId = createdModelLine.externalModelLineId
+      externalModelSuiteId = createdModelLine.externalModelSuiteId
+      externalModelProviderId = createdModelLine.externalModelProviderId
+      activeEndTime = now.plusSeconds(2000L).toProtoTime()
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        modelLinesService.setActiveEndTime(setActiveEndTimeRequest)
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("ActiveEndTime must be later than ActiveStartTime.")
   }
 
   @Test
@@ -580,7 +615,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
   @Test
   fun `setActiveStartTime fails if ActiveStartTime is after ActiveEndTime`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val now = Instant.now()
+    val now = clock.instant()
 
     val modelLine = modelLine {
       externalModelSuiteId = modelSuite.externalModelSuiteId
@@ -609,17 +644,19 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception)
       .hasMessageThat()
-      .contains("ActiveStartTime must be before or equal to ActiveEndTime.")
+      .contains("ActiveStartTime must be before ActiveEndTime.")
   }
 
   @Test
-  fun `setActiveStartTime fails if ActiveStartTime is in the past`() = runBlocking {
+  fun `setActiveStartTime fails if ActiveStartTime equals ActiveEndTime`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+    val now = clock.instant()
 
     val modelLine = modelLine {
       externalModelSuiteId = modelSuite.externalModelSuiteId
       externalModelProviderId = modelSuite.externalModelProviderId
-      activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+      activeStartTime = now.plusSeconds(2000L).toProtoTime()
+      activeEndTime = now.plusSeconds(3000L).toProtoTime()
       type = ModelLine.Type.PROD
       displayName = "display name"
       description = "description"
@@ -631,7 +668,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
       externalModelLineId = createdModelLine.externalModelLineId
       externalModelSuiteId = createdModelLine.externalModelSuiteId
       externalModelProviderId = createdModelLine.externalModelProviderId
-      activeStartTime = Instant.now().minusSeconds(500L).toProtoTime()
+      activeStartTime = now.plusSeconds(3000L).toProtoTime()
     }
 
     val exception =
@@ -640,15 +677,47 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("ActiveStartTime must be in the future.")
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("ActiveStartTime must be before ActiveEndTime.")
+  }
+
+  @Test
+  fun `setActiveStartTime succeeds if ActiveStartTime is in the past`() = runBlocking {
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+    val now = clock.instant()
+
+    val modelLine = modelLine {
+      externalModelSuiteId = modelSuite.externalModelSuiteId
+      externalModelProviderId = modelSuite.externalModelProviderId
+      activeStartTime = now.plusSeconds(2000L).toProtoTime()
+      type = ModelLine.Type.PROD
+      displayName = "display name"
+      description = "description"
+    }
+
+    val createdModelLine = modelLinesService.createModelLine(modelLine)
+    val pastTime = now.minusSeconds(500L).toProtoTime()
+
+    val setActiveStartTimeRequest = setActiveStartTimeRequest {
+      externalModelLineId = createdModelLine.externalModelLineId
+      externalModelSuiteId = createdModelLine.externalModelSuiteId
+      externalModelProviderId = createdModelLine.externalModelProviderId
+      activeStartTime = pastTime
+    }
+
+    val updatedModelLine = modelLinesService.setActiveStartTime(setActiveStartTimeRequest)
+
+    assertThat(updatedModelLine.activeStartTime).isEqualTo(pastTime)
   }
 
   @Test
   fun `setActiveStartTime succeeds`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+    val now = clock.instant()
 
-    val ast = Instant.now().plusSeconds(2000L).toProtoTime()
-    val newAst = Instant.now().plusSeconds(2500L).toProtoTime()
+    val ast = now.plusSeconds(2000L).toProtoTime()
+    val newAst = now.plusSeconds(2500L).toProtoTime()
 
     val modelLine = modelLine {
       externalModelSuiteId = modelSuite.externalModelSuiteId

@@ -61,12 +61,12 @@ class SetActiveEndTime(private val request: SetActiveEndTimeRequest, private val
       )
     }
 
-    if (Timestamps.compare(activeStartTime, request.activeEndTime) > 0) {
+    if (Timestamps.compare(activeStartTime, request.activeEndTime) >= 0) {
       throw ModelLineInvalidArgsException(
         ExternalId(request.externalModelProviderId),
         ExternalId(request.externalModelSuiteId),
         ExternalId(request.externalModelLineId),
-        "ActiveEndTime must be later than or equal to ActiveStartTime.",
+        "ActiveEndTime must be later than ActiveStartTime.",
       )
     }
 
