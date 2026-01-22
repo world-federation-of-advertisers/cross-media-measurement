@@ -266,13 +266,22 @@ class StorageEventSource(
   /**
    * Extracts the project ID and location from a KEK URI.
    *
-   * @return Pair of (projectId, location)
+   * For GCP KMS URIs (gcp-kms://projects/{PROJECT}/locations/{LOCATION}/...), returns the actual
+   * project ID and location. For non-GCP URIs (e.g., fake-kms:// used in tests), returns empty
+   * strings which allows consistency checking to still work (all non-GCP URIs are considered to
+   * have the same "empty" project/location).
+   *
+   * @return Pair of (projectId, location), or empty strings for non-GCP URIs
    */
   private fun extractProjectAndLocation(kekUri: String): Pair<String, String> {
+    // For non-GCP-KMS URIs (e.g., fake-kms:// used in tests), skip project/location extraction
+    if (!kekUri.startsWith("gcp-kms://")) {
+      return Pair("", "")
+    }
     val regex =
       Regex("gcp-kms://projects/([^/]+)/locations/([^/]+)/keyRings/[^/]+/cryptoKeys/[^/]+")
     val matchResult = regex.matchEntire(kekUri)
-    requireNotNull(matchResult) { "Invalid KEK URI format: $kekUri" }
+    requireNotNull(matchResult) { "Invalid GCP KMS KEK URI format: $kekUri" }
     return Pair(matchResult.groupValues[1], matchResult.groupValues[2])
   }
 
