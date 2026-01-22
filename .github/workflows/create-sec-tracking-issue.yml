@@ -99,13 +99,19 @@ jobs:
 
           # compute title
           first_id=$(echo "${ids}" | head -n1)
-          title=$(cat "${CODE_SCANNING_JSON_FILE}" | jq --arg TARGET_ID "${first_id}" '.[] | select(.number == ($TARGET_ID | tonumber)) | .rule.description' -rc)
+          rule_description=$(cat "${CODE_SCANNING_JSON_FILE}" | jq --arg TARGET_ID "${first_id}" '.[] | select(.number == ($TARGET_ID | tonumber)) | .rule.description' -rc)
+          title="Fix code scanning alert - ${RULE_ID} - ${rule_description}"
 
-          echo "Fix code scanning alert - ${RULE_ID} - ${title}"
+          body=$(cat <<EOF
+          Vulnerability: [${RULE_ID}](https://nvd.nist.gov/vuln/detail/${RULE_ID})
+
+          Tracking issue for:
+          $(for id in ${ids}; do
+              echo "- https://github.com/world-federation-of-advertisers/cross-media-measurement/security/code-scanning/${id}"
+            done)
+          EOF
+          )
+
+          echo "${title}"
           echo 
-          echo "Vulnerability: [${RULE_ID}](https://nvd.nist.gov/vuln/detail/$RULE_ID)"
-          echo
-          echo "Tracking issue for:"
-          for id in ${ids}; do
-            echo "- https://github.com/world-federation-of-advertisers/cross-media-measurement/security/code-scanning/$id"
-          done
+          echo "${body}"
