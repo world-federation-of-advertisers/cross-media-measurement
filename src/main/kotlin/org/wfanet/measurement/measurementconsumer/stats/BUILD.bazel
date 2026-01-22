@@ -30,11 +30,6 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "stats_exceptions",
-    srcs = ["StatsExceptions.kt"],
-)
-
-kt_jvm_library(
     name = "variances",
     srcs = ["Variances.kt"],
     deps = [
@@ -43,7 +38,6 @@ kt_jvm_library(
         ":liquid_legions",
         ":measurement_statistics",
         ":metric_statistics",
-        ":stats_exceptions",
         "//imports/java/org/apache/commons/numbers/core",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
     ],
@@ -56,7 +50,6 @@ kt_jvm_library(
         ":liquid_legions",
         ":measurement_statistics",
         ":metric_statistics",
-        ":stats_exceptions",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
     ],
 )

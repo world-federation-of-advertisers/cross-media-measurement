@@ -21,7 +21,7 @@ import org.wfanet.measurement.duchy.utils.ComputationResult
 import org.wfanet.measurement.duchy.utils.ReachAndFrequencyResult
 import org.wfanet.measurement.duchy.utils.ReachResult
 import org.wfanet.measurement.internal.duchy.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
-import org.wfanet.measurement.measurementconsumer.stats.TrusTeeMethodology
+import org.wfanet.measurement.measurementconsumer.stats.DeterministicMethodology
 
 /** A concrete, stateful implementation of [TrusTeeProcessor]. */
 class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeProcessor {
@@ -95,7 +95,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
             kAnonymityParams = null,
           )
 
-        ReachResult(reach = reach, methodology = TrusTeeMethodology(frequencyVector.size.toLong()))
+        ReachResult(reach = reach, methodology = DeterministicMethodology)
       }
       is TrusTeeReachAndFrequencyParams -> {
         val reach =
@@ -115,7 +115,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
             vidSamplingIntervalWidth = null,
           )
 
-        ReachAndFrequencyResult(reach, frequency, TrusTeeMethodology(frequencyVector.size.toLong()))
+        ReachAndFrequencyResult(reach, frequency, DeterministicMethodology)
       }
     }
   }

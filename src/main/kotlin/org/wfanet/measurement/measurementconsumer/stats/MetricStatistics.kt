@@ -18,54 +18,67 @@ package org.wfanet.measurement.measurementconsumer.stats
 
 sealed interface Methodology
 
-data class CustomDirectScalarMethodology(val variance: Double) : Methodology
+/** Methodology for reach measurements. */
+sealed interface ReachMethodology : Methodology
+
+/** Methodology for frequency measurements. */
+sealed interface FrequencyMethodology : Methodology
+
+/** Methodology for impression measurements. */
+sealed interface ImpressionMethodology : Methodology
+
+/** Methodology for watch duration measurements. */
+sealed interface WatchDurationMethodology : Methodology
+
+data class CustomDirectScalarMethodology(val variance: Double) :
+  ReachMethodology, ImpressionMethodology, WatchDurationMethodology
 
 data class CustomDirectFrequencyMethodology(
   val relativeVariances: FrequencyVariance,
   val kPlusRelativeVariances: FrequencyVariance,
-) : Methodology
+) : FrequencyMethodology
 
-object DeterministicMethodology : Methodology
+object DeterministicMethodology :
+  ReachMethodology, FrequencyMethodology, ImpressionMethodology, WatchDurationMethodology
 
 data class LiquidLegionsSketchMethodology(val decayRate: Double, val sketchSize: Long) :
-  Methodology
+  ReachMethodology, FrequencyMethodology
 
 data class LiquidLegionsV2Methodology(
   val decayRate: Double,
   val sketchSize: Long,
   val samplingIndicatorSize: Long,
-) : Methodology
+) : ReachMethodology, FrequencyMethodology
 
-data class HonestMajorityShareShuffleMethodology(val frequencyVectorSize: Long) : Methodology
-
-data class TrusTeeMethodology(val frequencyVectorSize: Long) : Methodology
+data class HonestMajorityShareShuffleMethodology(val frequencyVectorSize: Long) :
+  ReachMethodology, FrequencyMethodology
 
 data class WeightedReachMeasurementVarianceParams(
   val binaryRepresentation: Int,
   val weight: Int,
   val measurementVarianceParams: ReachMeasurementVarianceParams,
-  val methodology: Methodology,
+  val methodology: ReachMethodology,
 )
 
 data class WeightedFrequencyMeasurementVarianceParams(
   val binaryRepresentation: Int,
   val weight: Int,
   val measurementVarianceParams: FrequencyMeasurementVarianceParams,
-  val methodology: Methodology,
+  val methodology: FrequencyMethodology,
 )
 
 data class WeightedImpressionMeasurementVarianceParams(
   val binaryRepresentation: Int,
   val weight: Int,
   val measurementVarianceParams: ImpressionMeasurementVarianceParams,
-  val methodology: Methodology,
+  val methodology: ImpressionMethodology,
 )
 
 data class WeightedWatchDurationMeasurementVarianceParams(
   val binaryRepresentation: Int,
   val weight: Int,
   val measurementVarianceParams: WatchDurationMeasurementVarianceParams,
-  val methodology: Methodology,
+  val methodology: WatchDurationMethodology,
 )
 
 /** The parameters used to compute the variance of a reach metric. */
