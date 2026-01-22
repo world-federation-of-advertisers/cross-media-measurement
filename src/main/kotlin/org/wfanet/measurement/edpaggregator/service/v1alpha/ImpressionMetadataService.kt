@@ -427,6 +427,9 @@ class ImpressionMetadataService(
         if (request.filter.hasIntervalOverlaps()) {
           intervalOverlaps = request.filter.intervalOverlaps
         }
+        if (request.filter.blobUriPrefix.isNotEmpty()) {
+          blobUriPrefix = request.filter.blobUriPrefix
+        }
 
         state =
           if (!request.showDeleted) {
