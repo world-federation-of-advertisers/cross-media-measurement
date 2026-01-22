@@ -207,9 +207,9 @@ class ResultsFulfillerApp(
         modelLineInfoMap.mapValues { (modelLine, modelLineInfo) ->
           val mappedValue = fulfillerParams.modelLineMapMap[modelLine]
           if (mappedValue == null || mappedValue == modelLineInfo.localAlias) {
-            info
+            modelLineInfo
           } else {
-            info.copy(localAlias = alias)
+            modelLineInfo.copy(localAlias = mappedValue)
           }
         }
       }

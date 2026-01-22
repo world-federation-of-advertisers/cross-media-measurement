@@ -81,6 +81,11 @@ import org.wfanet.measurement.storage.StorageClient
  * @property dataProviderName The resource name of the data provider, used as a parent identifier in
  *   gRPC requests.
  * @property throttler A throttling utility to regulate request flow to external services.
+ * @property impressionMetadataBatchSize Maximum number of impression metadata records per batch
+ *   request.
+ * @property modelLineMap Mapping from a source model line to additional model lines that should
+ *   receive the same availability interval updates.
+ * @property metrics Metrics recorder for telemetry.
  */
 class DataAvailabilitySync(
   private val edpImpressionPath: String,
