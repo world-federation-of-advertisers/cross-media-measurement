@@ -205,6 +205,7 @@ class InProcessEdpAggregatorComponents(
       getImpressionsMetadataStorageConfig = getStorageConfig,
       getImpressionsStorageConfig = getStorageConfig,
       getRequisitionsStorageConfig = getStorageConfig,
+      trusTeeConfigs = emptyMap(),
       modelLineInfoMap = modelLineInfoMap,
       metrics = ResultsFulfillerMetrics.create(),
     )
