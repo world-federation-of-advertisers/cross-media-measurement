@@ -160,26 +160,17 @@ class DefaultFulfillerSelector(
         overrideImpressionMaxFrequencyPerUser = overrideImpressionMaxFrequencyPerUser,
       )
 
-    // If kekUri is null (no data sources), total uncapped impressions must be 0
-    if (kekUri == null) {
-      val totalUncappedImpressions = frequencyVector.getTotalUncappedImpressions()
-      require(totalUncappedImpressions == 0L) {
-        "kekUri is null but totalUncappedImpressions is $totalUncappedImpressions. " +
-          "Expected 0 impressions when no data sources are available."
+    // Build TrusTee encryption params dynamically using the kekUri from BlobDetails.
+    // If kekUri is not null, trusTeeConfig must be provided.
+    val trusTeeEncryptionParams = if (kekUri != null) {
+      requireNotNull(trusTeeConfig) {
+        "kekUri is present but trusTeeConfig is null. " +
+          "TrusTeeConfig must be provided when impression data sources are available."
       }
+      trusTeeConfig.buildEncryptionParams(kekUri, kekUriToKeyNameMap)
+    } else {
+      null
     }
-
-    // Build TrusTee encryption params dynamically using the kekUri from BlobDetails
-    val trusTeeEncryptionParams =
-      if (trusTeeConfig != null) {
-        requireNotNull(kekUri) {
-          "TrusTee protocol selected but kekUri is not available. " +
-            "BlobDetails.encryptedDek must contain a valid kekUri for TrusTee requisitions."
-        }
-        trusTeeConfig.buildEncryptionParams(kekUri, kekUriToKeyNameMap)
-      } else {
-        null
-      }
 
     return if (requisition.protocolConfig.protocolsList.any { it.hasDirect() }) {
       val totalUncappedImpressions = frequencyVector.getTotalUncappedImpressions()
@@ -193,7 +184,14 @@ class DefaultFulfillerSelector(
         totalUncappedImpressions = totalUncappedImpressions,
       )
     } else if (requisition.protocolConfig.protocolsList.any { it.hasTrusTee() }) {
-      requireNotNull(trusTeeEncryptionParams)
+      // If kekUri is null for TrusTee protocol, verify no impressions exist
+      if (trusTeeEncryptionParams == null) {
+        val totalUncappedImpressions = frequencyVector.getTotalUncappedImpressions()
+        require(totalUncappedImpressions == 0L) {
+          "TrusTee protocol selected with null kekUri but totalUncappedImpressions is $totalUncappedImpressions. " +
+            "Expected 0 impressions when no data sources are available."
+        }
+      }
       if (kAnonymityParams == null) {
         TrusTeeMeasurementFulfiller(
           requisition,
@@ -201,7 +199,7 @@ class DefaultFulfillerSelector(
           vec.build(),
           requisitionFulfillmentStubMap,
           requisitionsStub,
-          trusTeeEncryptionParams
+          trusTeeEncryptionParams,
         )
       } else {
         TrusTeeMeasurementFulfiller.buildKAnonymized(
