@@ -35,6 +35,7 @@ import org.wfanet.measurement.internal.kingdom.GetModelLineRequest
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.SetActiveEndTimeRequest
+import org.wfanet.measurement.internal.kingdom.SetActiveStartTimeRequest
 import org.wfanet.measurement.internal.kingdom.SetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.SetModelLineTypeRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequest
@@ -49,6 +50,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelL
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelLine
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetActiveEndTime
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetActiveStartTime
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetModelLineHoldbackModelLine
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetModelLineType
 
@@ -137,6 +139,20 @@ class SpannerModelLinesService(
     grpcRequire(request.activeEndTime != null) { "ActiveEndTime field is missing." }
     try {
       return SetActiveEndTime(request, clock).execute(client, idGenerator)
+    } catch (e: ModelLineNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelLine not found.")
+    } catch (e: ModelLineInvalidArgsException) {
+      throw e.asStatusRuntimeException(
+        Status.Code.INVALID_ARGUMENT,
+        e.message ?: "ModelLine invalid active time argument.",
+      )
+    }
+  }
+
+  override suspend fun setActiveStartTime(request: SetActiveStartTimeRequest): ModelLine {
+    grpcRequire(request.activeStartTime != null) { "ActiveStartTime field is missing." }
+    try {
+      return SetActiveStartTime(request, clock).execute(client, idGenerator)
     } catch (e: ModelLineNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelLine not found.")
     } catch (e: ModelLineInvalidArgsException) {

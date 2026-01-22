@@ -65,6 +65,7 @@ import org.wfanet.measurement.internal.kingdom.modelLineKey
 import org.wfanet.measurement.internal.kingdom.modelRollout
 import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest
+import org.wfanet.measurement.internal.kingdom.setActiveStartTimeRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineTypeRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
@@ -480,7 +481,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception)
       .hasMessageThat()
-      .contains("ActiveEndTime must be later than ActiveStartTime.")
+      .contains("ActiveEndTime must be later than or equal to ActiveStartTime.")
   }
 
   @Test
@@ -556,6 +557,136 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
           .toList()
           .get(0)
       )
+  }
+
+  @Test
+  fun `setActiveStartTime fails if ModelLine is not found`() = runBlocking {
+    val setActiveStartTimeRequest = setActiveStartTimeRequest {
+      externalModelLineId = 123L
+      externalModelSuiteId = 456L
+      externalModelProviderId = 789L
+      activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        modelLinesService.setActiveStartTime(setActiveStartTimeRequest)
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("ModelLine not found.")
+  }
+
+  @Test
+  fun `setActiveStartTime fails if ActiveStartTime is after ActiveEndTime`() = runBlocking {
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+    val now = Instant.now()
+
+    val modelLine = modelLine {
+      externalModelSuiteId = modelSuite.externalModelSuiteId
+      externalModelProviderId = modelSuite.externalModelProviderId
+      activeStartTime = now.plusSeconds(2000L).toProtoTime()
+      activeEndTime = now.plusSeconds(3000L).toProtoTime()
+      type = ModelLine.Type.PROD
+      displayName = "display name"
+      description = "description"
+    }
+
+    val createdModelLine = modelLinesService.createModelLine(modelLine)
+
+    val setActiveStartTimeRequest = setActiveStartTimeRequest {
+      externalModelLineId = createdModelLine.externalModelLineId
+      externalModelSuiteId = createdModelLine.externalModelSuiteId
+      externalModelProviderId = createdModelLine.externalModelProviderId
+      activeStartTime = now.plusSeconds(4000L).toProtoTime()
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        modelLinesService.setActiveStartTime(setActiveStartTimeRequest)
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("ActiveStartTime must be before or equal to ActiveEndTime.")
+  }
+
+  @Test
+  fun `setActiveStartTime fails if ActiveStartTime is in the past`() = runBlocking {
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+
+    val modelLine = modelLine {
+      externalModelSuiteId = modelSuite.externalModelSuiteId
+      externalModelProviderId = modelSuite.externalModelProviderId
+      activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+      type = ModelLine.Type.PROD
+      displayName = "display name"
+      description = "description"
+    }
+
+    val createdModelLine = modelLinesService.createModelLine(modelLine)
+
+    val setActiveStartTimeRequest = setActiveStartTimeRequest {
+      externalModelLineId = createdModelLine.externalModelLineId
+      externalModelSuiteId = createdModelLine.externalModelSuiteId
+      externalModelProviderId = createdModelLine.externalModelProviderId
+      activeStartTime = Instant.now().minusSeconds(500L).toProtoTime()
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        modelLinesService.setActiveStartTime(setActiveStartTimeRequest)
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("ActiveStartTime must be in the future.")
+  }
+
+  @Test
+  fun `setActiveStartTime succeeds`() = runBlocking {
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+
+    val ast = Instant.now().plusSeconds(2000L).toProtoTime()
+    val newAst = Instant.now().plusSeconds(2500L).toProtoTime()
+
+    val modelLine = modelLine {
+      externalModelSuiteId = modelSuite.externalModelSuiteId
+      externalModelProviderId = modelSuite.externalModelProviderId
+      activeStartTime = ast
+      type = ModelLine.Type.PROD
+      displayName = "display name"
+      description = "description"
+    }
+
+    val createdModelLine = modelLinesService.createModelLine(modelLine)
+
+    val setActiveStartTimeRequest = setActiveStartTimeRequest {
+      externalModelLineId = createdModelLine.externalModelLineId
+      externalModelSuiteId = createdModelLine.externalModelSuiteId
+      externalModelProviderId = createdModelLine.externalModelProviderId
+      activeStartTime = newAst
+    }
+
+    val updatedModelLine = modelLinesService.setActiveStartTime(setActiveStartTimeRequest)
+
+    assertThat(updatedModelLine)
+      .ignoringFields(ModelLine.UPDATE_TIME_FIELD_NUMBER)
+      .isEqualTo(
+        modelLinesService
+          .streamModelLines(
+            streamModelLinesRequest {
+              filter = filter {
+                externalModelProviderId = createdModelLine.externalModelProviderId
+                externalModelSuiteId = createdModelLine.externalModelSuiteId
+              }
+            }
+          )
+          .toList()
+          .get(0)
+      )
+
+    assertThat(updatedModelLine.activeStartTime).isEqualTo(newAst)
   }
 
   @Test
