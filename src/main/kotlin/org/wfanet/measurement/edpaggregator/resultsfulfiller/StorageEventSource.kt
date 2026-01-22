@@ -159,9 +159,7 @@ class StorageEventSource(
     }
   }
 
-  /**
-   * Collects all impression data sources and deduplicates by blob URI.
-   */
+  /** Collects all impression data sources and deduplicates by blob URI. */
   private suspend fun getUniqueImpressionDataSources(): List<ImpressionDataSource> {
     val allSources =
       eventGroupDetailsList.flatMap { details ->
@@ -177,6 +175,7 @@ class StorageEventSource(
       }
     return allSources.distinctBy { it.blobDetails.blobUri }
   }
+
   private suspend fun createEventReaders(): List<StorageEventReader> {
     logger.info("Creating event readers... ")
     val uniqueSources = getUniqueImpressionDataSources()
@@ -220,16 +219,15 @@ class StorageEventSource(
     return EventReaderResult(batchCount, eventCount)
   }
 
-
   /**
    * Gets the KEK URI from the impression data sources.
    *
-   * Returns the KEK URI from the most recent data source (sorted by interval end time in
-   * descending order). All data sources for the same EDP must use KEK URIs with the same
-   * project ID and location.
+   * Returns the KEK URI from the most recent data source (sorted by interval end time in descending
+   * order). All data sources for the same EDP must use KEK URIs with the same project ID and
+   * location.
    *
-   * Returns null if no data sources are available, in which case a non-encrypted empty sketch
-   * will be fulfilled.
+   * Returns null if no data sources are available, in which case a non-encrypted empty sketch will
+   * be fulfilled.
    *
    * @throws IllegalArgumentException if KEK URIs have different project IDs or locations
    */
@@ -249,7 +247,8 @@ class StorageEventSource(
   /**
    * Validates that all KEK URIs have the same project ID and location.
    *
-   * KEK URI format: gcp-kms://projects/{PROJECT_ID}/locations/{LOCATION}/keyRings/{KEY_RING}/cryptoKeys/{KEY_NAME}
+   * KEK URI format:
+   * gcp-kms://projects/{PROJECT_ID}/locations/{LOCATION}/keyRings/{KEY_RING}/cryptoKeys/{KEY_NAME}
    */
   private fun validateKekUrisConsistency(kekUris: List<String>) {
     if (kekUris.size <= 1) return
@@ -270,12 +269,12 @@ class StorageEventSource(
    * @return Pair of (projectId, location)
    */
   private fun extractProjectAndLocation(kekUri: String): Pair<String, String> {
-    val regex = Regex("gcp-kms://projects/([^/]+)/locations/([^/]+)/keyRings/[^/]+/cryptoKeys/[^/]+")
+    val regex =
+      Regex("gcp-kms://projects/([^/]+)/locations/([^/]+)/keyRings/[^/]+/cryptoKeys/[^/]+")
     val matchResult = regex.matchEntire(kekUri)
     requireNotNull(matchResult) { "Invalid KEK URI format: $kekUri" }
     return Pair(matchResult.groupValues[1], matchResult.groupValues[2])
   }
-
 
   companion object {
     private val logger = Logger.getLogger(StorageEventSource::class.java.name)

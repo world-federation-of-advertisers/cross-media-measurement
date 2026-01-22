@@ -814,7 +814,38 @@ class StorageEventSourceTest {
 
     // getKekUri should fail because blobs have different project IDs
     val exception = assertFailsWith<IllegalArgumentException> { eventSource.getKekUri() }
-    assertThat(exception.message).contains("All KEK URIs must have the same project ID and location")
+    assertThat(exception.message)
+      .contains("All KEK URIs must have the same project ID and location")
+  }
+
+  @Test
+  fun `getKekUri returns null when no impression data sources available`(): Unit = runBlocking {
+    // Return empty impression metadata list - no data sources available
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(ListImpressionMetadataResponse.getDefaultInstance())
+
+    val eventGroupDetails =
+      createEventGroupDetails(
+        "event-group-1",
+        LocalDate.of(2025, 1, 1),
+        LocalDate.of(2025, 1, 3),
+        ZoneId.of("UTC"),
+      )
+
+    val impressionService = createImpressionDataSourceProvider(tmp.root)
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = impressionService,
+        eventGroupDetailsList = listOf(eventGroupDetails),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    // getKekUri should return null when no data sources are available
+    assertThat(eventSource.getKekUri()).isNull()
   }
 
   companion object {

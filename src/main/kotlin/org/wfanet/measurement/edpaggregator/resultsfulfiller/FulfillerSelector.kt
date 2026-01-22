@@ -34,7 +34,8 @@ interface FulfillerSelector {
    * @param requisitionSpec The requisition specification
    * @param frequencyVector The frequency vector containing per-VID frequency counts
    * @param populationSpec The population specification
-   * @param kekUri The KEK URI from BlobDetails.encryptedDek. Required if TrusTee is the requested protocol.
+   * @param kekUri The KEK URI from BlobDetails.encryptedDek. Required if TrustTee protocol is
+   *   selected and the frequencyVector is non-empty.
    * @return The selected MeasurementFulfiller
    */
   suspend fun selectFulfiller(

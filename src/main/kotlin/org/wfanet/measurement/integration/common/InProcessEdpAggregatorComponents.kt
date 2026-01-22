@@ -205,7 +205,8 @@ class InProcessEdpAggregatorComponents(
       getImpressionsMetadataStorageConfig = getStorageConfig,
       getImpressionsStorageConfig = getStorageConfig,
       getRequisitionsStorageConfig = getStorageConfig,
-      trusTeeConfigs = emptyMap(), //TODO: test trusTee protocol in integration tests in follow-up PR
+      trusTeeConfigs =
+        emptyMap(), // TODO: test trusTee protocol in integration tests in follow-up PR
       modelLineInfoMap = modelLineInfoMap,
       metrics = ResultsFulfillerMetrics.create(),
     )

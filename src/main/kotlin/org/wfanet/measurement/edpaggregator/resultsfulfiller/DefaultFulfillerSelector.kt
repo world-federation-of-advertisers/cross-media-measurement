@@ -51,9 +51,9 @@ data class TrusTeeConfig(
   /**
    * Builds EncryptionParams for the TrusTee protocol using the provided KEK URI.
    *
-   * If the kekUri is found in the kekUriToKeyNameMap, the output KEK URI will be constructed
-   * by replacing the key name in the original URI with the mapped key name (on the same keyring).
-   * If not found in the map, the original kekUri is used unchanged.
+   * If the kekUri is found in the kekUriToKeyNameMap, the output KEK URI will be constructed by
+   * replacing the key name in the original URI with the mapped key name (on the same keyring). If
+   * not found in the map, the original kekUri is used unchanged.
    *
    * @param kekUri The KEK URI from BlobDetails.encryptedDek.
    * @param kekUriToKeyNameMap Map from input KEK URI to output key name for re-encryption.
@@ -75,15 +75,17 @@ data class TrusTeeConfig(
   /**
    * Remaps the input KEK URI using the provided map.
    *
-   * If the kekUri is found in the map, constructs a new KEK URI by replacing
-   * the key name component with the mapped key name (keeping the same keyring).
-   * If not found, returns the original kekUri unchanged.
+   * If the kekUri is found in the map, constructs a new KEK URI by replacing the key name component
+   * with the mapped key name (keeping the same keyring). If not found, returns the original kekUri
+   * unchanged.
    */
   private fun remapKekUri(kekUri: String, kekUriToKeyNameMap: Map<String, String>): String {
     val mappedKeyName = kekUriToKeyNameMap[kekUri] ?: return kekUri
 
-    // KEK URI format: gcp-kms://projects/{project}/locations/{location}/keyRings/{keyring}/cryptoKeys/{key}
-    val regex = Regex("gcp-kms://projects/([^/]+)/locations/([^/]+)/keyRings/([^/]+)/cryptoKeys/[^/]+")
+    // KEK URI format:
+    // gcp-kms://projects/{project}/locations/{location}/keyRings/{keyring}/cryptoKeys/{key}
+    val regex =
+      Regex("gcp-kms://projects/([^/]+)/locations/([^/]+)/keyRings/([^/]+)/cryptoKeys/[^/]+")
     val matchResult = regex.matchEntire(kekUri) ?: return kekUri
 
     val (project, location, keyRing) = matchResult.destructured
@@ -135,7 +137,8 @@ class DefaultFulfillerSelector(
    * @param requisitionSpec decrypted requisition details including nonce
    * @param frequencyVector frequency vector containing per-VID frequency counts
    * @param populationSpec population definition for VID range validation
-   * @param kekUri the KEK URI from BlobDetails.encryptedDek for TrusTee encryption
+   * @param kekUri the KEK URI from BlobDetails.encryptedDek for TrusTee encryption. Required if the
+   *   frequencyVector is non-empty and the protocol is TrusTee.
    * @return protocol-specific fulfiller ready for execution
    * @throws IllegalArgumentException if no supported protocol is found
    */
@@ -174,21 +177,22 @@ class DefaultFulfillerSelector(
     } else if (requisition.protocolConfig.protocolsList.any { it.hasTrusTee() }) {
       // Build TrusTee encryption params dynamically using the kekUri from BlobDetails.
       // If kekUri is not null, trusTeeConfig must be provided.
-      // If kekUri is null, verify no impressions exist.
-      val trusTeeEncryptionParams = if (kekUri != null) {
-        requireNotNull(trusTeeConfig) {
-          "TrusTee protocol selected but trusTeeConfig is null. " +
-            "TrusTeeConfig must be provided when impression data sources are available."
+      // If kekUri is null, it implies there were no input blobs; verify no impressions exist.
+      val trusTeeEncryptionParams =
+        if (kekUri != null) {
+          requireNotNull(trusTeeConfig) {
+            "TrusTee protocol selected but trusTeeConfig is null. " +
+              "TrusTeeConfig must be provided when impression data sources are available."
+          }
+          trusTeeConfig.buildEncryptionParams(kekUri, kekUriToKeyNameMap)
+        } else {
+          val totalUncappedImpressions = frequencyVector.getTotalUncappedImpressions()
+          require(totalUncappedImpressions == 0L) {
+            "TrusTee protocol selected with null kekUri but totalUncappedImpressions is $totalUncappedImpressions. " +
+              "Expected 0 impressions when no data sources are available."
+          }
+          null
         }
-        trusTeeConfig.buildEncryptionParams(kekUri, kekUriToKeyNameMap)
-      } else {
-        val totalUncappedImpressions = frequencyVector.getTotalUncappedImpressions()
-        require(totalUncappedImpressions == 0L) {
-          "TrusTee protocol selected with null kekUri but totalUncappedImpressions is $totalUncappedImpressions. " +
-            "Expected 0 impressions when no data sources are available."
-        }
-        null
-      }
 
       if (kAnonymityParams == null) {
         TrusTeeMeasurementFulfiller(

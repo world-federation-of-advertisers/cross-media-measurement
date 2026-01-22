@@ -661,8 +661,8 @@ class ResultsFulfillerTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-          ),
-        kekUriToKeyNameMap = emptyMap(),
+            ),
+          kekUriToKeyNameMap = emptyMap(),
         )
 
       // Load grouped requisitions from storage
@@ -802,8 +802,8 @@ class ResultsFulfillerTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-          ),
-        kekUriToKeyNameMap = emptyMap(),
+            ),
+          kekUriToKeyNameMap = emptyMap(),
         )
 
       // Load grouped requisitions from storage
@@ -931,8 +931,8 @@ class ResultsFulfillerTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-          ),
-        kekUriToKeyNameMap = emptyMap(),
+            ),
+          kekUriToKeyNameMap = emptyMap(),
         )
 
       // Load grouped requisitions from storage
@@ -1476,8 +1476,8 @@ class ResultsFulfillerTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-          ),
-        kekUriToKeyNameMap = emptyMap(),
+            ),
+          kekUriToKeyNameMap = emptyMap(),
         )
 
       // Load grouped requisitions from storage
@@ -1599,8 +1599,8 @@ class ResultsFulfillerTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-          ),
-        kekUriToKeyNameMap = emptyMap(),
+            ),
+          kekUriToKeyNameMap = emptyMap(),
         )
 
       // Load grouped requisitions from storage
@@ -2061,6 +2061,125 @@ class ResultsFulfillerTest {
   }
 
   @Test
+  fun `runWork fulfills TrusTee requisition with unencrypted empty frequency vector when no impression data sources available`() =
+    runBlocking {
+      val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+      val metadataTmpPath = Files.createTempDirectory(null).toFile()
+      val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+
+      // Empty impressions - no data sources available
+      val impressions = emptyList<LabeledImpression>()
+
+      // Return empty impression metadata list - no data sources
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse {})
+      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+        .thenReturn(
+          listRequisitionMetadataResponse {
+            requisitionMetadata += requisitionMetadata {
+              state = RequisitionMetadata.State.STORED
+              cmmsCreateTime = timestamp { seconds = 12345 }
+              cmmsRequisition = REQUISITION_NAME
+              blobUri = "some-prefix"
+              blobTypeUrl = "some-blob-type-url"
+              groupId = "an-existing-group-id"
+              report = "report-name"
+            }
+          }
+        )
+      whenever(requisitionsServiceMock.getRequisition(any()))
+        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+
+      // Set up KMS
+      val kmsClient = FakeKmsClient()
+      val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+      val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+      kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+      createData(
+        kmsClient,
+        kekUri,
+        impressionsTmpPath,
+        metadataTmpPath,
+        requisitionsTmpPath,
+        impressions,
+        listOf(TRUSTEE_REQUISITION),
+      )
+
+      val impressionsMetadataService =
+        ImpressionDataSourceProvider(
+          impressionMetadataStub = impressionMetadataStub,
+          dataProvider = "dataProviders/123",
+          impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+        )
+
+      // TrusTeeConfig is provided but kekUri will be null (no data sources from empty impression
+      // metadata)
+      val fulfillerSelector =
+        DefaultFulfillerSelector(
+          requisitionsStub = requisitionsStub,
+          requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
+          dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+          dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+          noiserSelector = ContinuousGaussianNoiseSelector(),
+          kAnonymityParams = null,
+          overrideImpressionMaxFrequencyPerUser = null,
+          trusTeeConfig =
+            TrusTeeConfig(
+              kmsClient = kmsClient,
+              workloadIdentityProvider = "test-wip",
+              impersonatedServiceAccount = "test-sa@example.com",
+            ),
+          kekUriToKeyNameMap = emptyMap(),
+        )
+
+      // Load grouped requisitions from storage
+      val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+      val resultsFulfiller =
+        ResultsFulfiller(
+          dataProvider = EDP_NAME,
+          privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+          requisitionMetadataStub = requisitionMetadataStub,
+          requisitionsStub = requisitionsStub,
+          groupedRequisitions = groupedRequisitions,
+          modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+          pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+          impressionDataSourceProvider = impressionsMetadataService,
+          impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+          kmsClient = kmsClient,
+          fulfillerSelector = fulfillerSelector,
+          metrics = metrics,
+        )
+
+      resultsFulfiller.fulfillRequisitions()
+
+      val fulfilledRequisitions =
+        requisitionFulfillmentMock.fullfillRequisitionInvocations.single().requests
+      assertThat(fulfilledRequisitions).hasSize(2)
+
+      // Verify the header
+      val header = fulfilledRequisitions[0].header
+      assertThat(header.name).isEqualTo(TRUSTEE_REQUISITION.name)
+      assertThat(header.nonce).isEqualTo(REQUISITION_SPEC.nonce)
+      assertThat(header.hasTrusTee()).isTrue()
+
+      // Verify unencrypted empty frequency vector
+      val trusTeeHeader = header.trusTee
+      assertThat(trusTeeHeader.dataFormat)
+        .isEqualTo(FulfillRequisitionRequest.Header.TrusTee.DataFormat.FREQUENCY_VECTOR)
+      assertThat(trusTeeHeader.hasEnvelopeEncryption()).isFalse()
+
+      // Verify body contains empty frequency vector (all zeros) matching population size
+      val body = fulfilledRequisitions[1].bodyChunk.data
+      assertThat(body.size()).isEqualTo(1000) // POPULATION_SPEC VID range
+      assertThat(body.toByteArray().all { it == 0.toByte() }).isTrue()
+
+      verifyBlocking(requisitionMetadataServiceMock, times(1)) {
+        startProcessingRequisitionMetadata(any())
+      }
+      verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
+    }
+
+  @Test
   fun `remapKekUri correctly remaps key name with valid kekUriToKeyNameMap`() = runBlocking {
     val kmsClient = FakeKmsClient()
     val kekUri = FakeKmsClient.KEY_URI_PREFIX + "original-key"
@@ -2069,7 +2188,8 @@ class ResultsFulfillerTest {
     kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
 
     // Map a GCP KMS-style URI to test the remapping logic
-    val gcpKekUri = "gcp-kms://projects/test-project/locations/us-east1/keyRings/test-ring/cryptoKeys/original-key"
+    val gcpKekUri =
+      "gcp-kms://projects/test-project/locations/us-east1/keyRings/test-ring/cryptoKeys/original-key"
     val kekUriToKeyNameMap = mapOf(gcpKekUri to mappedKeyName)
 
     val fulfillerSelector =
@@ -2095,39 +2215,42 @@ class ResultsFulfillerTest {
   }
 
   @Test
-  fun `DefaultFulfillerSelector throws exception with invalid key name in kekUriToKeyNameMap`() = runBlocking {
-    val kmsClient = FakeKmsClient()
-    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "original-key"
-    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+  fun `DefaultFulfillerSelector throws exception with invalid key name in kekUriToKeyNameMap`() =
+    runBlocking {
+      val kmsClient = FakeKmsClient()
+      val kekUri = FakeKmsClient.KEY_URI_PREFIX + "original-key"
+      val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+      kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
 
-    // Map a GCP KMS-style URI with an invalid key name (contains slashes)
-    val gcpKekUri = "gcp-kms://projects/test-project/locations/us-east1/keyRings/test-ring/cryptoKeys/original-key"
-    val invalidKeyName = "invalid/key/name" // Contains slashes which are not allowed
-    val kekUriToKeyNameMap = mapOf(gcpKekUri to invalidKeyName)
+      // Map a GCP KMS-style URI with an invalid key name (contains slashes)
+      val gcpKekUri =
+        "gcp-kms://projects/test-project/locations/us-east1/keyRings/test-ring/cryptoKeys/original-key"
+      val invalidKeyName = "invalid/key/name" // Contains slashes which are not allowed
+      val kekUriToKeyNameMap = mapOf(gcpKekUri to invalidKeyName)
 
-    // Validation happens at construction time
-    val exception = assertFailsWith<IllegalArgumentException> {
-      DefaultFulfillerSelector(
-        requisitionsStub = requisitionsStub,
-        requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
-        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
-        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
-        noiserSelector = ContinuousGaussianNoiseSelector(),
-        kAnonymityParams = null,
-        overrideImpressionMaxFrequencyPerUser = null,
-        trusTeeConfig =
-          TrusTeeConfig(
-            kmsClient = kmsClient,
-            workloadIdentityProvider = "test-wip",
-            impersonatedServiceAccount = "test-sa@example.com",
-          ),
-        kekUriToKeyNameMap = kekUriToKeyNameMap,
-      )
+      // Validation happens at construction time
+      val exception =
+        assertFailsWith<IllegalArgumentException> {
+          DefaultFulfillerSelector(
+            requisitionsStub = requisitionsStub,
+            requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
+            dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+            dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+            noiserSelector = ContinuousGaussianNoiseSelector(),
+            kAnonymityParams = null,
+            overrideImpressionMaxFrequencyPerUser = null,
+            trusTeeConfig =
+              TrusTeeConfig(
+                kmsClient = kmsClient,
+                workloadIdentityProvider = "test-wip",
+                impersonatedServiceAccount = "test-sa@example.com",
+              ),
+            kekUriToKeyNameMap = kekUriToKeyNameMap,
+          )
+        }
+      assertThat(exception.message).contains("Invalid key name format")
+      assertThat(exception.message).contains(invalidKeyName)
     }
-    assertThat(exception.message).contains("Invalid key name format")
-    assertThat(exception.message).contains(invalidKeyName)
-  }
 
   private suspend fun createData(
     kmsClient: KmsClient,

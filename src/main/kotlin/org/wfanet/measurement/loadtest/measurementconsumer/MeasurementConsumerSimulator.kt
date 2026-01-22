@@ -253,8 +253,7 @@ abstract class MeasurementConsumerSimulator(
         assertThat(protocol.protocolCase)
           .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
       requiredCapabilities.trusTeeSupported ->
-        assertThat(protocol.protocolCase)
-          .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE)
+        assertThat(protocol.protocolCase).isEqualTo(ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE)
       else ->
         assertThat(protocol.protocolCase)
           .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
@@ -587,8 +586,7 @@ abstract class MeasurementConsumerSimulator(
         assertThat(protocol.protocolCase)
           .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
       requiredCapabilities.trusTeeSupported ->
-        assertThat(protocol.protocolCase)
-          .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE)
+        assertThat(protocol.protocolCase).isEqualTo(ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE)
       else ->
         assertThat(protocol.protocolCase)
           .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2)
