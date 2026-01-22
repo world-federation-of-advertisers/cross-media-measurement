@@ -160,18 +160,6 @@ class DefaultFulfillerSelector(
         overrideImpressionMaxFrequencyPerUser = overrideImpressionMaxFrequencyPerUser,
       )
 
-    // Build TrusTee encryption params dynamically using the kekUri from BlobDetails.
-    // If kekUri is not null, trusTeeConfig must be provided.
-    val trusTeeEncryptionParams = if (kekUri != null) {
-      requireNotNull(trusTeeConfig) {
-        "kekUri is present but trusTeeConfig is null. " +
-          "TrusTeeConfig must be provided when impression data sources are available."
-      }
-      trusTeeConfig.buildEncryptionParams(kekUri, kekUriToKeyNameMap)
-    } else {
-      null
-    }
-
     return if (requisition.protocolConfig.protocolsList.any { it.hasDirect() }) {
       val totalUncappedImpressions = frequencyVector.getTotalUncappedImpressions()
       buildDirectMeasurementFulfiller(
@@ -184,14 +172,24 @@ class DefaultFulfillerSelector(
         totalUncappedImpressions = totalUncappedImpressions,
       )
     } else if (requisition.protocolConfig.protocolsList.any { it.hasTrusTee() }) {
-      // If kekUri is null for TrusTee protocol, verify no impressions exist
-      if (trusTeeEncryptionParams == null) {
+      // Build TrusTee encryption params dynamically using the kekUri from BlobDetails.
+      // If kekUri is not null, trusTeeConfig must be provided.
+      // If kekUri is null, verify no impressions exist.
+      val trusTeeEncryptionParams = if (kekUri != null) {
+        requireNotNull(trusTeeConfig) {
+          "TrusTee protocol selected but trusTeeConfig is null. " +
+            "TrusTeeConfig must be provided when impression data sources are available."
+        }
+        trusTeeConfig.buildEncryptionParams(kekUri, kekUriToKeyNameMap)
+      } else {
         val totalUncappedImpressions = frequencyVector.getTotalUncappedImpressions()
         require(totalUncappedImpressions == 0L) {
           "TrusTee protocol selected with null kekUri but totalUncappedImpressions is $totalUncappedImpressions. " +
             "Expected 0 impressions when no data sources are available."
         }
+        null
       }
+
       if (kAnonymityParams == null) {
         TrusTeeMeasurementFulfiller(
           requisition,
