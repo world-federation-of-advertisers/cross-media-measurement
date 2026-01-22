@@ -18,26 +18,58 @@ on:
   # DO_NOT_SUBMIT: remove pr event (for testing)
   pull_request:
   workflow_dispatch:
+    inputs:
+      scanned-ref:
+        description: "Scanned ref. Defaults to latest nightly build"
+        type: string
+        required: false
+      rule-id:
+        description: "CVE or other rule id as used in code scanning alerts"
+        type: string
+        # DO_NOT_SUBMIT: add required: true
 
 permissions:
   contents: read
 
 jobs:
-  build-test:
+  create-tracking-issue:
     name: Create tracking issue
     runs-on: ubuntu-22.04
     permissions:
       security-events: read    
     env:
       GH_TOKEN: ${{ github.token }}
-      JSON_FILE: "code-scanning-alerts.json"
+      CODE_SCANNING_JSON_FILE: "code-scanning-alerts.json"
     steps:
-      - name: Check out revision
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - id: compute-ref-to-use
+        name: Compute ref to use
+        env:
+          SUPPLIED_REF: ${{ inputs.scanned-ref }}
+        run: |
+          set -euo pipefail
+
+          declare ref
+          if [[ -n "${SUPPLIED_REF}" ]]; then
+            ref="${SUPPLIED_REF}"
+          else
+            ref=$(gh api graphql -f query='
+              query {
+                repository(owner:"world-federation-of-advertisers", name:"cross-media-measurement") {
+                  refs(refPrefix:"refs/tags/nightly/", last:1, orderBy:{field:TAG_COMMIT_DATE, direction:ASC}) {
+                    nodes { 
+                      name
+                      prefix
+                    }
+                  }
+                }
+              }' --jq '.data.repository.refs.nodes[0] | "\(.prefix)\(.name)"')
+          fi
+          echo "ref=${ref}" >> "$GITHUB_OUTPUT"
 
       - name: Download code scanning alerts
         env:
-          REF: "refs/tags/nightly/20260120.1"
+          REF: ${{ steps.compute-ref-to-use.outputs.ref }}
         run: |
           set -euo pipefail
 
@@ -51,21 +83,23 @@ jobs:
               --raw-field ref="${REF}" \
               --raw-field tool_name="Trivy" \
               --raw-field per_page="100" \
-              --raw-field severity="${severity}" >> "${JSON_FILE}"
+              --raw-field severity="${severity}" >> "${CODE_SCANNING_JSON_FILE}"
           done
-          cat "${JSON_FILE}"
+          cat "${CODE_SCANNING_JSON_FILE}"
 
       - name: Create tracking issue
         env:
+          # DO_NOT_SUBMIT: remove hardcoded rule
           RULE_ID: "CVE-2026-0861"
+          #RULE_ID: ${{ inputs.rule-id }}
         run: |
           set -euo pipefail
 
-          ids=$(cat ${JSON_FILE} | jq '.[] | [.number, .rule.id] | @csv' -rc | grep ${RULE_ID} | cut -d "," -f1)
+          ids=$(cat ${CODE_SCANNING_JSON_FILE} | jq '.[] | [.number, .rule.id] | @csv' -rc | grep "${RULE_ID}" | cut -d "," -f1)
 
           # compute title
           first_id=$(echo "${ids}" | head -n1)
-          title=$(cat "${JSON_FILE}" | jq --arg TARGET_ID "${first_id}" '.[] | select(.number == ($TARGET_ID | tonumber)) | .rule.description' -rc)
+          title=$(cat "${CODE_SCANNING_JSON_FILE}" | jq --arg TARGET_ID "${first_id}" '.[] | select(.number == ($TARGET_ID | tonumber)) | .rule.description' -rc)
 
           echo "Fix code scanning alert - ${RULE_ID} - ${title}"
           echo 
