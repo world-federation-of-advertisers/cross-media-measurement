@@ -138,7 +138,14 @@ class SpannerModelLinesService(
   override suspend fun setActiveEndTime(request: SetActiveEndTimeRequest): ModelLine {
     grpcRequire(request.hasActiveEndTime()) { "ActiveEndTime field is missing." }
     try {
-      return SetActiveEndTime(request, clock).execute(client, idGenerator)
+      return SetActiveEndTime(
+          ExternalId(request.externalModelProviderId),
+          ExternalId(request.externalModelSuiteId),
+          ExternalId(request.externalModelLineId),
+          request.activeEndTime,
+          clock,
+        )
+        .execute(client, idGenerator)
     } catch (e: ModelLineNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelLine not found.")
     } catch (e: ModelLineInvalidArgsException) {
@@ -152,7 +159,13 @@ class SpannerModelLinesService(
   override suspend fun setActiveStartTime(request: SetActiveStartTimeRequest): ModelLine {
     grpcRequire(request.hasActiveStartTime()) { "ActiveStartTime field is missing." }
     try {
-      return SetActiveStartTime(request, clock).execute(client, idGenerator)
+      return SetActiveStartTime(
+          ExternalId(request.externalModelProviderId),
+          ExternalId(request.externalModelSuiteId),
+          ExternalId(request.externalModelLineId),
+          request.activeStartTime,
+        )
+        .execute(client, idGenerator)
     } catch (e: ModelLineNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelLine not found.")
     } catch (e: ModelLineInvalidArgsException) {
