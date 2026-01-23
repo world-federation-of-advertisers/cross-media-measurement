@@ -129,4 +129,6 @@ enum ErrorCode {
   MODEL_SHARD_INVALID_ARGS = 41;
   /** Population could not be found. */
   POPULATION_NOT_FOUND = 42;
+  /** ClientAccount resource queried could not be found. */
+  CLIENT_ACCOUNT_NOT_FOUND = 53;
 }
