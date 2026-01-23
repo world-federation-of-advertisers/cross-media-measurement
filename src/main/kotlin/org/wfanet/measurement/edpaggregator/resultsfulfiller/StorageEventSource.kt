@@ -281,8 +281,8 @@ class StorageEventSource(
    * @return Pair of (projectId, location), or empty strings for non-GCP URIs
    */
   private fun extractProjectAndLocation(kekUri: String): Pair<String, String> {
-    // For non-GCP-KMS URIs (e.g., fake-kms:// used in tests), skip project/location extraction
-    if (!kekUri.startsWith("gcp-kms://")) {
+    // For fake-kms:// URIs (used in tests), skip project/location extraction
+    if (kekUri.startsWith("fake-kms://")) {
       return Pair("", "")
     }
     val regex =
