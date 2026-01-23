@@ -268,8 +268,8 @@ module "data_watcher_cloud_function" {
 module "data_watcher_delete_cloud_function" {
   source = "../gcs-bucket-cloud-function"
 
-  cloud_function_service_account_name           = var.data_watcher_service_account_name
-  cloud_function_trigger_service_account_name   = var.data_watcher_trigger_service_account_name
+  cloud_function_service_account_name           = var.data_watcher_delete_service_account_name
+  cloud_function_trigger_service_account_name   = var.data_watcher_delete_trigger_service_account_name
   trigger_bucket_name                           = module.edp_aggregator_bucket.storage_bucket.name
   terraform_service_account                     = var.terraform_service_account
   function_name                                 = var.cloud_function_configs.data_watcher_delete.function_name

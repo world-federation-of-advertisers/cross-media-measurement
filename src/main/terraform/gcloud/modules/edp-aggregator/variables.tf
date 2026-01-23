@@ -234,6 +234,18 @@ variable "data_watcher_trigger_service_account_name" {
   nullable    = false
 }
 
+variable "data_watcher_delete_service_account_name" {
+  description = "Name of the DataWatcherDelete service account."
+  type        = string
+  nullable    = false
+}
+
+variable "data_watcher_delete_trigger_service_account_name" {
+  description = "The name of the service account used to trigger the DataWatcherDelete Cloud Function."
+  type        = string
+  nullable    = false
+}
+
 variable "data_availability_cleanup_service_account_name" {
   description = "Name of the DataAvailabilityCleanup service account."
   type        = string
