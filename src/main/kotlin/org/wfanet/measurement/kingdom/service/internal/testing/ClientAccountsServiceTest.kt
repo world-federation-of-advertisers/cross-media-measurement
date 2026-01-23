@@ -18,6 +18,7 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -38,6 +39,7 @@ import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.StreamClientAccountsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamClientAccountsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.clientAccount
 import org.wfanet.measurement.internal.kingdom.createClientAccountRequest
@@ -102,9 +104,13 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
       )
 
     assertThat(result)
-      .ignoringFields(ClientAccount.EXTERNAL_CLIENT_ACCOUNT_ID_FIELD_NUMBER)
+      .ignoringFields(
+        ClientAccount.EXTERNAL_CLIENT_ACCOUNT_ID_FIELD_NUMBER,
+        ClientAccount.CREATE_TIME_FIELD_NUMBER,
+      )
       .isEqualTo(clientAccount)
     assertThat(result.externalClientAccountId).isGreaterThan(0L)
+    assertThat(result.hasCreateTime()).isTrue()
   }
 
   @Test
@@ -398,4 +404,120 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
 
     assertThat(result).containsExactly(clientAccount2)
   }
+
+  @Test
+  fun `streamClientAccounts with clientAccountReferenceId filter succeeds`(): Unit = runBlocking {
+    val measurementConsumer: MeasurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+
+    val clientAccount1 =
+      clientAccountsService.createClientAccount(
+        createClientAccountRequest {
+          this.clientAccount = clientAccount {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            externalDataProviderId = dataProvider.externalDataProviderId
+            clientAccountReferenceId = "reference-id-1"
+          }
+        }
+      )
+
+    clientAccountsService.createClientAccount(
+      createClientAccountRequest {
+        this.clientAccount = clientAccount {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          externalDataProviderId = dataProvider.externalDataProviderId
+          clientAccountReferenceId = "reference-id-2"
+        }
+      }
+    )
+
+    val result: List<ClientAccount> =
+      clientAccountsService
+        .streamClientAccounts(
+          streamClientAccountsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              clientAccountReferenceId = "reference-id-1"
+            }
+          }
+        )
+        .toList()
+
+    assertThat(result).containsExactly(clientAccount1)
+  }
+
+  @Test
+  fun `streamClientAccounts with AfterFilter fails when missing createTime`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        clientAccountsService
+          .streamClientAccounts(
+            streamClientAccountsRequest {
+              filter = filter {
+                after =
+                  StreamClientAccountsRequestKt.afterFilter {
+                    externalMeasurementConsumerId = 1L
+                    externalClientAccountId = 1L
+                    // Missing createTime
+                  }
+              }
+            }
+          )
+          .toList()
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("Missing After filter fields")
+  }
+
+  @Test
+  fun `streamClientAccounts with AfterFilter fails when missing externalMeasurementConsumerId`():
+    Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        clientAccountsService
+          .streamClientAccounts(
+            streamClientAccountsRequest {
+              filter = filter {
+                after =
+                  StreamClientAccountsRequestKt.afterFilter {
+                    externalClientAccountId = 1L
+                    createTime = timestamp { seconds = 1000 }
+                    // Missing externalMeasurementConsumerId (defaults to 0)
+                  }
+              }
+            }
+          )
+          .toList()
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("Missing After filter fields")
+  }
+
+  @Test
+  fun `streamClientAccounts with AfterFilter fails when missing externalClientAccountId`(): Unit =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          clientAccountsService
+            .streamClientAccounts(
+              streamClientAccountsRequest {
+                filter = filter {
+                  after =
+                    StreamClientAccountsRequestKt.afterFilter {
+                      externalMeasurementConsumerId = 1L
+                      createTime = timestamp { seconds = 1000 }
+                      // Missing externalClientAccountId (defaults to 0)
+                    }
+                }
+              }
+            )
+            .toList()
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("Missing After filter fields")
+    }
 }
