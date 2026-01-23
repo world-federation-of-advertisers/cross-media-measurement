@@ -165,11 +165,15 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
     assertThat(exception.errorInfo)
       .isEqualTo(
         errorInfo {
+          domain = KingdomInternalException.DOMAIN
           reason = ErrorCode.DATA_PROVIDER_NOT_FOUND.name
           metadata["external_data_provider_id"] = "404"
         }
       )
   }
+
+  @Test
+  fun `getClientAccount returns created ClientAccount`(): Unit = runBlocking {
     val measurementConsumer: MeasurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
