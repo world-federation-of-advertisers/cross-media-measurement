@@ -138,6 +138,9 @@ proto_library(
     name = "client_account_proto",
     srcs = ["client_account.proto"],
     strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
 )
 
 proto_library(
