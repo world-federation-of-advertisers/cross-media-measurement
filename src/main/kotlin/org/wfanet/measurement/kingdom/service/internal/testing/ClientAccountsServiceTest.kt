@@ -38,10 +38,8 @@ import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.StreamClientAccountsRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamClientAccountsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.clientAccount
-import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.deleteClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.getClientAccountRequest
@@ -401,6 +399,3 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
     assertThat(result).containsExactly(clientAccount2)
   }
 }
-
-
-

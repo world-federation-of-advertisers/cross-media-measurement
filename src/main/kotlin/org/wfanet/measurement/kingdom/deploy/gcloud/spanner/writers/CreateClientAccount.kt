@@ -57,15 +57,10 @@ class CreateClientAccount(private val clientAccount: ClientAccount) :
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }
 
-    return clientAccount.copy {
-      this.externalClientAccountId = externalClientAccountId.value
-    }
+    return clientAccount.copy { this.externalClientAccountId = externalClientAccountId.value }
   }
 
   override fun ResultScope<ClientAccount>.buildResult(): ClientAccount {
     return checkNotNull(transactionResult)
   }
 }
-
-
-
