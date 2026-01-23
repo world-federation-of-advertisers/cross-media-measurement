@@ -27,7 +27,6 @@ import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
 import java.time.Instant
-import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
@@ -88,7 +87,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
     val populationsService: PopulationsCoroutineImplBase,
   )
 
-  protected val clock: Clock = Clock.fixed(Instant.parse("2025-05-01T10:00:00Z"), ZoneOffset.UTC)
+  protected val clock: Clock = Clock.systemUTC()
   protected val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
   private val population = Population(clock, idGenerator)
 
@@ -455,7 +454,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
   @Test
   fun `setActiveEndTime fails if ActiveEndTime is before ActiveStartTime`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val now = Instant.parse("2025-05-01T10:00:00Z")
+    val now = clock.instant()
 
     val modelLine = modelLine {
       externalModelSuiteId = modelSuite.externalModelSuiteId
@@ -489,7 +488,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
   @Test
   fun `setActiveEndTime fails if ActiveEndTime equals ActiveStartTime`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val now = Instant.parse("2025-05-01T10:00:00Z")
+    val now = clock.instant()
 
     val modelLine = modelLine {
       externalModelSuiteId = modelSuite.externalModelSuiteId
@@ -523,12 +522,12 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
   @Test
   fun `setActiveEndTime fails if ActiveEndTime is in the past`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val now = Instant.parse("2025-05-01T10:00:00Z")
+    val now = clock.instant()
 
     val modelLine = modelLine {
       externalModelSuiteId = modelSuite.externalModelSuiteId
       externalModelProviderId = modelSuite.externalModelProviderId
-      activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+      activeStartTime = now.plusSeconds(2000L).toProtoTime()
       type = ModelLine.Type.PROD
       displayName = "display name"
       description = "description"
@@ -555,7 +554,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
   @Test
   fun `setActiveEndTime succeeds`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val now = Instant.parse("2025-05-01T10:00:00Z")
+    val now = clock.instant()
 
     val ast = now.plusSeconds(2000L).toProtoTime()
     val aet = now.plusSeconds(3000L).toProtoTime()
@@ -618,7 +617,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
   @Test
   fun `setActiveStartTime fails if ActiveStartTime is after ActiveEndTime`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val now = Instant.parse("2025-05-01T10:00:00Z")
+    val now = clock.instant()
 
     val modelLine = modelLine {
       externalModelSuiteId = modelSuite.externalModelSuiteId
@@ -653,7 +652,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
   @Test
   fun `setActiveStartTime fails if ActiveStartTime equals ActiveEndTime`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val now = Instant.parse("2025-05-01T10:00:00Z")
+    val now = clock.instant()
 
     val modelLine = modelLine {
       externalModelSuiteId = modelSuite.externalModelSuiteId
@@ -688,7 +687,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
   @Test
   fun `setActiveStartTime succeeds if ActiveStartTime is in the past`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val now = Instant.parse("2025-05-01T10:00:00Z")
+    val now = clock.instant()
 
     val modelLine = modelLine {
       externalModelSuiteId = modelSuite.externalModelSuiteId
@@ -717,7 +716,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
   @Test
   fun `setActiveStartTime succeeds`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val now = Instant.parse("2025-05-01T10:00:00Z")
+    val now = clock.instant()
 
     val ast = now.plusSeconds(2000L).toProtoTime()
     val newAst = now.plusSeconds(2500L).toProtoTime()

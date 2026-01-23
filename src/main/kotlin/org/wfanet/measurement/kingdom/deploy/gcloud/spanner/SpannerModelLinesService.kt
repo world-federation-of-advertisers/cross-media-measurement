@@ -136,7 +136,7 @@ class SpannerModelLinesService(
   }
 
   override suspend fun setActiveEndTime(request: SetActiveEndTimeRequest): ModelLine {
-    grpcRequire(request.hasActiveEndTime()) { "ActiveEndTime field is missing." }
+    grpcRequire(request.activeEndTime != null) { "ActiveEndTime field is missing." }
     try {
       return SetActiveEndTime(request, clock).execute(client, idGenerator)
     } catch (e: ModelLineNotFoundException) {
@@ -150,7 +150,7 @@ class SpannerModelLinesService(
   }
 
   override suspend fun setActiveStartTime(request: SetActiveStartTimeRequest): ModelLine {
-    grpcRequire(request.hasActiveStartTime()) { "ActiveStartTime field is missing." }
+    grpcRequire(request.activeStartTime != null) { "ActiveStartTime field is missing." }
     try {
       return SetActiveStartTime(request).execute(client, idGenerator)
     } catch (e: ModelLineNotFoundException) {
