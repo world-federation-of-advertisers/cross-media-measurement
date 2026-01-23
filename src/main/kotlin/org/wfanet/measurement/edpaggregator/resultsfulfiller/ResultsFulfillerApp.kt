@@ -82,6 +82,7 @@ class ResultsFulfillerApp(
   private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub,
   private val requisitionStubFactory: RequisitionStubFactory,
   private val kmsClients: MutableMap<String, KmsClient>,
+  private val trusTeeConfigs: Map<String, TrusTeeConfig>,
   private val getImpressionsMetadataStorageConfig: (StorageParams) -> StorageConfig,
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig,
   private val getRequisitionsStorageConfig: (StorageParams) -> StorageConfig,
@@ -184,6 +185,9 @@ class ResultsFulfillerApp(
       "impressionMaxFrequencyPerUser must be between -1 and ${Byte.MAX_VALUE}, got ${fulfillerParams.impressionMaxFrequencyPerUser}"
     }
 
+    // Get TrusTeeConfig for this data provider if available
+    val trusTeeConfig: TrusTeeConfig? = trusTeeConfigs[fulfillerParams.dataProvider]
+
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
@@ -199,6 +203,8 @@ class ResultsFulfillerApp(
           } else {
             fulfillerParams.impressionMaxFrequencyPerUser.takeIf { it > 0 }
           },
+        trusTeeConfig = trusTeeConfig,
+        kekUriToKeyNameMap = fulfillerParams.trusteeParams.kekUriToKeyNameMap,
       )
     val modelLineInfoMapWithAliases =
       if (fulfillerParams.modelLineMapMap.isEmpty()) {
