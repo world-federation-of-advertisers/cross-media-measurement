@@ -1483,6 +1483,7 @@ class ResultsFulfillerAppTest {
         eventDescriptor = TestEvent.getDescriptor(),
         populationSpec = POPULATION_SPEC,
         vidIndexMap = InMemoryVidIndexMap.build(POPULATION_SPEC),
+        localAlias = null,
       )
   }
 }
