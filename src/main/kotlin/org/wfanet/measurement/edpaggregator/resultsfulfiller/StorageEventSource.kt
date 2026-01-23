@@ -159,9 +159,8 @@ class StorageEventSource(
     }
   }
 
-  /** Creates EventReader instances for all data sources provided by the metadata service. */
-  private suspend fun createEventReaders(): List<StorageEventReader> {
-    logger.info("Creating event readers... ")
+  /** Collects all impression data sources and deduplicates by blob URI. */
+  private suspend fun getUniqueImpressionDataSources(): List<ImpressionDataSource> {
     val allSources =
       eventGroupDetailsList.flatMap { details ->
         logger.info("EventGroup details: $details")
@@ -174,9 +173,12 @@ class StorageEventSource(
           )
         }
       }
+    return allSources.distinctBy { it.blobDetails.blobUri }
+  }
 
-    // Deduplicate sources by blob URI to avoid double-reading overlapping intervals.
-    val uniqueSources = allSources.distinctBy { it.blobDetails.blobUri }
+  private suspend fun createEventReaders(): List<StorageEventReader> {
+    logger.info("Creating event readers... ")
+    val uniqueSources = getUniqueImpressionDataSources()
 
     return uniqueSources.map { source ->
       StorageEventReader(
@@ -215,6 +217,72 @@ class StorageEventSource(
 
     logger.fine("Read $eventCount events in $batchCount batches for ${blobDetails.blobUri}")
     return EventReaderResult(batchCount, eventCount)
+  }
+
+  /**
+   * Gets the KEK URI from the impression data sources.
+   *
+   * Returns the KEK URI from the most recent data source (sorted by interval end time in descending
+   * order). All data sources for the same EDP must use KEK URIs with the same project ID and
+   * location.
+   *
+   * Returns null if no data sources are available, in which case a non-encrypted empty sketch will
+   * be fulfilled.
+   *
+   * @throws IllegalArgumentException if KEK URIs have different project IDs or locations
+   */
+  suspend fun getKekUri(): String? {
+    val uniqueSources = getUniqueImpressionDataSources()
+    if (uniqueSources.isEmpty()) return null
+
+    // Validate all KEK URIs have the same project ID and location
+    val kekUris = uniqueSources.map { it.blobDetails.encryptedDek.kekUri }
+    validateKekUrisConsistency(kekUris)
+
+    // Sort by interval end time in descending order and return the first KEK URI
+    val sortedSources = uniqueSources.sortedByDescending { it.interval.endTime.seconds }
+    return sortedSources.first().blobDetails.encryptedDek.kekUri
+  }
+
+  /**
+   * Validates that all KEK URIs have the same project ID and location.
+   *
+   * KEK URI format:
+   * gcp-kms://projects/{PROJECT_ID}/locations/{LOCATION}/keyRings/{KEY_RING}/cryptoKeys/{KEY_NAME}
+   */
+  private fun validateKekUrisConsistency(kekUris: List<String>) {
+    if (kekUris.size <= 1) return
+
+    val firstProjectAndLocation = extractProjectAndLocation(kekUris.first())
+    for (kekUri in kekUris.drop(1)) {
+      val projectAndLocation = extractProjectAndLocation(kekUri)
+      require(projectAndLocation == firstProjectAndLocation) {
+        "All KEK URIs must have the same project ID and location. " +
+          "Expected: $firstProjectAndLocation, Found: $projectAndLocation in URI: $kekUri"
+      }
+    }
+  }
+
+  /**
+   * Extracts the project ID and location from a KEK URI.
+   *
+   * For GCP KMS URIs (gcp-kms://projects/{PROJECT}/locations/{LOCATION}/...), returns the actual
+   * project ID and location. For non-GCP URIs (e.g., fake-kms:// used in tests), returns empty
+   * strings which allows consistency checking to still work (all non-GCP URIs are considered to
+   * have the same "empty" project/location).
+   *
+   * @return Pair of (projectId, location), or empty strings for non-GCP URIs
+   */
+  private fun extractProjectAndLocation(kekUri: String): Pair<String, String> {
+    // For non-GCP-KMS URIs (e.g., fake-kms:// used in tests), skip project/location extraction
+    if (!kekUri.startsWith("gcp-kms://")) {
+      return Pair("", "")
+    }
+    val regex =
+      Regex("gcp-kms://projects/([^/]+)/locations/([^/]+)/keyRings/[^/]+/cryptoKeys/[^/]+")
+    val matchResult = regex.matchEntire(kekUri)
+    requireNotNull(matchResult) { "Invalid GCP KMS KEK URI format: $kekUri" }
+    return Pair(matchResult.groupValues[1], matchResult.groupValues[2])
   }
 
   companion object {
