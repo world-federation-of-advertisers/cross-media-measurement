@@ -66,11 +66,11 @@ class StreamClientAccounts(
     if (filter.hasAfter()) {
       conjuncts.add(
         """
-          ClientAccounts.CreateTime < @${CREATE_TIME} OR (
+          (ClientAccounts.CreateTime < @${CREATE_TIME} OR (
             ClientAccounts.CreateTime = @${CREATE_TIME} AND MeasurementConsumers.ExternalMeasurementConsumerId > @${AFTER_EXTERNAL_MEASUREMENT_CONSUMER_ID}
           ) OR (
             ClientAccounts.CreateTime = @${CREATE_TIME} AND MeasurementConsumers.ExternalMeasurementConsumerId = @${AFTER_EXTERNAL_MEASUREMENT_CONSUMER_ID} AND ClientAccounts.ExternalClientAccountId > @${EXTERNAL_CLIENT_ACCOUNT_ID}
-          )
+          ))
         """
           .trimIndent()
       )
@@ -97,6 +97,3 @@ class StreamClientAccounts(
     private const val CREATE_TIME = "createTime"
   }
 }
-
-
-
