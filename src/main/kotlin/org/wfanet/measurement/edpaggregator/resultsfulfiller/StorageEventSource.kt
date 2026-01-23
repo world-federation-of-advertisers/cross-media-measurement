@@ -109,6 +109,9 @@ class StorageEventSource(
   private val batchSize: Int,
 ) : EventSource<Message> {
 
+  /** Cache for unique impression data sources to avoid duplicate API calls. */
+  private var cachedImpressionDataSources: List<ImpressionDataSource>? = null
+
   /**
    * Generates batches of events by reading from storage in parallel.
    *
@@ -161,6 +164,8 @@ class StorageEventSource(
 
   /** Collects all impression data sources and deduplicates by blob URI. */
   private suspend fun getUniqueImpressionDataSources(): List<ImpressionDataSource> {
+    cachedImpressionDataSources?.let { return it }
+
     val allSources =
       eventGroupDetailsList.flatMap { details ->
         logger.info("EventGroup details: $details")
@@ -173,7 +178,9 @@ class StorageEventSource(
           )
         }
       }
-    return allSources.distinctBy { it.blobDetails.blobUri }
+    val result = allSources.distinctBy { it.blobDetails.blobUri }
+    cachedImpressionDataSources = result
+    return result
   }
 
   private suspend fun createEventReaders(): List<StorageEventReader> {
