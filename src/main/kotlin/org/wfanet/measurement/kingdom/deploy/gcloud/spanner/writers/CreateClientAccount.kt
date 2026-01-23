@@ -89,4 +89,8 @@ class CreateClientAccount(private val clientAccount: ClientAccount) :
   override fun ResultScope<ClientAccount>.buildResult(): ClientAccount {
     return checkNotNull(transactionResult).copy { createTime = commitTimestamp.toProto() }
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> de213432e (fix: run linter)

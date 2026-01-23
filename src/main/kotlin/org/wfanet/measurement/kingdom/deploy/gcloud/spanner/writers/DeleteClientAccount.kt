@@ -48,7 +48,11 @@ class DeleteClientAccount(
 
     val clientAccountResult =
       ClientAccountReader()
-        .readByExternalId(transactionContext, externalMeasurementConsumerId, externalClientAccountId)
+        .readByExternalId(
+          transactionContext,
+          externalMeasurementConsumerId,
+          externalClientAccountId,
+        )
         ?: throw ClientAccountNotFoundException(
           externalMeasurementConsumerId,
           externalClientAccountId,
@@ -69,6 +73,3 @@ class DeleteClientAccount(
     return clientAccountResult.clientAccount
   }
 }
-
-
-
