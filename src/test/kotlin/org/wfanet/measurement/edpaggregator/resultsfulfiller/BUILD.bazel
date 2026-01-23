@@ -120,6 +120,17 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "ResultsFulfillerAppRunnerTest",
+    srcs = ["ResultsFulfillerAppRunnerTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunnerTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller_app_runner",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
     name = "EventReaderTest",
     srcs = ["EventReaderTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.EventReaderTest",
