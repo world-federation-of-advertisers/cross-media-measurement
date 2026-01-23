@@ -49,4 +49,3 @@ class SpannerClientAccountsServiceTest : ClientAccountsServiceTest<SpannerClient
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
   }
 }
-

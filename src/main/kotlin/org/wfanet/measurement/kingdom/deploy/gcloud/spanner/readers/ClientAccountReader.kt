@@ -107,6 +107,3 @@ class ClientAccountReader : SpannerReader<ClientAccountReader.Result>() {
     clientAccountReferenceId = struct.getString("ClientAccountReferenceId")
   }
 }
-
-
-
