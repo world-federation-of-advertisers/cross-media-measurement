@@ -17,50 +17,46 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
-import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.ModelLine
+import org.wfanet.measurement.internal.kingdom.SetActiveStartTimeRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineReader
 
-class SetActiveStartTime(
-  private val externalModelProviderId: ExternalId,
-  private val externalModelSuiteId: ExternalId,
-  private val externalModelLineId: ExternalId,
-  private val activeStartTime: Timestamp,
-) : SpannerWriter<ModelLine, ModelLine>() {
+class SetActiveStartTime(private val request: SetActiveStartTimeRequest) :
+  SpannerWriter<ModelLine, ModelLine>() {
 
   override suspend fun TransactionScope.runTransaction(): ModelLine {
     val modelLineResult =
       ModelLineReader()
         .readByExternalModelLineId(
           transactionContext,
-          externalModelProviderId,
-          externalModelSuiteId,
-          externalModelLineId,
+          ExternalId(request.externalModelProviderId),
+          ExternalId(request.externalModelSuiteId),
+          ExternalId(request.externalModelLineId),
         )
         ?: throw ModelLineNotFoundException(
-          externalModelProviderId,
-          externalModelSuiteId,
-          externalModelLineId,
+          ExternalId(request.externalModelProviderId),
+          ExternalId(request.externalModelSuiteId),
+          ExternalId(request.externalModelLineId),
         )
 
     val activeEndTime = modelLineResult.modelLine.activeEndTime
 
     if (
       modelLineResult.modelLine.hasActiveEndTime() &&
-        Timestamps.compare(activeStartTime, activeEndTime) >= 0
+        Timestamps.compare(request.activeStartTime, activeEndTime) >= 0
     ) {
       throw ModelLineInvalidArgsException(
-        externalModelProviderId,
-        externalModelSuiteId,
-        externalModelLineId,
+        ExternalId(request.externalModelProviderId),
+        ExternalId(request.externalModelSuiteId),
+        ExternalId(request.externalModelLineId),
         "ActiveStartTime must be before ActiveEndTime.",
       )
     }
@@ -70,10 +66,10 @@ class SetActiveStartTime(
       set("ModelSuiteId" to modelLineResult.modelSuiteId.value)
       set("ModelProviderId" to modelLineResult.modelProviderId.value)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      set("ActiveStartTime" to activeStartTime.toGcloudTimestamp())
+      set("ActiveStartTime" to request.activeStartTime.toGcloudTimestamp())
     }
 
-    return modelLineResult.modelLine.copy { activeStartTime = this@SetActiveStartTime.activeStartTime }
+    return modelLineResult.modelLine.copy { activeStartTime = request.activeStartTime }
   }
 
   override fun ResultScope<ModelLine>.buildResult(): ModelLine {

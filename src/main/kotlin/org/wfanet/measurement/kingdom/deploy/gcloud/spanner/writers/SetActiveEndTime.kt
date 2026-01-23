@@ -17,7 +17,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
-import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
 import java.time.Clock
 import org.wfanet.measurement.common.identity.ExternalId
@@ -26,51 +25,47 @@ import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.ModelLine
+import org.wfanet.measurement.internal.kingdom.SetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineReader
 
-class SetActiveEndTime(
-  private val externalModelProviderId: ExternalId,
-  private val externalModelSuiteId: ExternalId,
-  private val externalModelLineId: ExternalId,
-  private val activeEndTime: Timestamp,
-  private val clock: Clock,
-) : SpannerWriter<ModelLine, ModelLine>() {
+class SetActiveEndTime(private val request: SetActiveEndTimeRequest, private val clock: Clock) :
+  SpannerWriter<ModelLine, ModelLine>() {
 
   override suspend fun TransactionScope.runTransaction(): ModelLine {
     val modelLineResult =
       ModelLineReader()
         .readByExternalModelLineId(
           transactionContext,
-          externalModelProviderId,
-          externalModelSuiteId,
-          externalModelLineId,
+          ExternalId(request.externalModelProviderId),
+          ExternalId(request.externalModelSuiteId),
+          ExternalId(request.externalModelLineId),
         )
         ?: throw ModelLineNotFoundException(
-          externalModelProviderId,
-          externalModelSuiteId,
-          externalModelLineId,
+          ExternalId(request.externalModelProviderId),
+          ExternalId(request.externalModelSuiteId),
+          ExternalId(request.externalModelLineId),
         )
 
     val now = clock.instant().toProtoTime()
     val activeStartTime = modelLineResult.modelLine.activeStartTime
 
-    if (Timestamps.compare(now, activeEndTime) >= 0) {
+    if (Timestamps.compare(now, request.activeEndTime) >= 0) {
       throw ModelLineInvalidArgsException(
-        externalModelProviderId,
-        externalModelSuiteId,
-        externalModelLineId,
+        ExternalId(request.externalModelProviderId),
+        ExternalId(request.externalModelSuiteId),
+        ExternalId(request.externalModelLineId),
         "ActiveEndTime must be in the future.",
       )
     }
 
-    if (Timestamps.compare(activeStartTime, activeEndTime) >= 0) {
+    if (Timestamps.compare(activeStartTime, request.activeEndTime) >= 0) {
       throw ModelLineInvalidArgsException(
-        externalModelProviderId,
-        externalModelSuiteId,
-        externalModelLineId,
+        ExternalId(request.externalModelProviderId),
+        ExternalId(request.externalModelSuiteId),
+        ExternalId(request.externalModelLineId),
         "ActiveEndTime must be later than ActiveStartTime.",
       )
     }
@@ -80,10 +75,10 @@ class SetActiveEndTime(
       set("ModelSuiteId" to modelLineResult.modelSuiteId.value)
       set("ModelProviderId" to modelLineResult.modelProviderId.value)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      set("ActiveEndTime" to activeEndTime.toGcloudTimestamp())
+      set("ActiveEndTime" to request.activeEndTime.toGcloudTimestamp())
     }
 
-    return modelLineResult.modelLine.copy { activeEndTime = this@SetActiveEndTime.activeEndTime }
+    return modelLineResult.modelLine.copy { activeEndTime = request.activeEndTime }
   }
 
   override fun ResultScope<ModelLine>.buildResult(): ModelLine {
