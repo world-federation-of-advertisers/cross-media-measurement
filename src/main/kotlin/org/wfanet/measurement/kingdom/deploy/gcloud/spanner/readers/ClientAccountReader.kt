@@ -21,6 +21,7 @@ import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.gcloud.common.toProtoTime
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getInternalId
@@ -126,6 +127,7 @@ class ClientAccountReader : SpannerReader<ClientAccountReader.Result>() {
     externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
     externalDataProviderId = struct.getLong("ExternalDataProviderId")
     clientAccountReferenceId = struct.getString("ClientAccountReferenceId")
+<<<<<<< HEAD
     createTime = struct.getTimestamp("CreateTime").toProto()
   }
 
@@ -159,5 +161,8 @@ class ClientAccountReader : SpannerReader<ClientAccountReader.Result>() {
         CLIENT_ACCOUNT_ID_COLUMN,
       ) != null
     }
+=======
+    createTime = struct.getTimestamp("CreateTime").toProtoTime()
+>>>>>>> 8aacf1b78 (perf: add tests and run linter)
   }
 }
