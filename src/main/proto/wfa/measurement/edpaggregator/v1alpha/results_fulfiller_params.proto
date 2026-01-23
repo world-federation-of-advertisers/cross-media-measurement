@@ -129,7 +129,17 @@ message ResultsFulfillerParams {
   // Only apply for direct measurements.
   int32 impression_max_frequency_per_user = 7;
 
-  // Optional mapping from one model line to another.
-  // If a model line key exists here, the mapped value will be used instead.
+  // Optional mapping from a requisition model line to the model line used for
+  // impression lookup in storage.
+  //
+  // This is the inverse of the data availability sync mapping:
+  // - Results fulfiller: external (requisition) model line -> internal (EDPA) model line
+  // - Data availability: internal (EDPA) model line -> external model lines
+  //
+  // When a requisition's model line exists in this map, the fulfiller uses the
+  // mapped value to locate impression files. This supports cases where an
+  // external model line name changes, where multiple external model lines should
+  // map to a single internal model line, or where a deleted model line known by
+  // the EDP maps to a replacement model line known by the kingdom.
   map<string, string> model_line_map = 8;
 }

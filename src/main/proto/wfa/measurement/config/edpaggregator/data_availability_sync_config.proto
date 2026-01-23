@@ -46,8 +46,17 @@ message DataAvailabilitySyncConfig {
   // a future release.
   string edp_impression_path = 5;
 
-  // Mapping from a model line to one or more model lines to apply the same
-  // availability interval to.
+  // Mapping from an internal EDPA model line to one or more external model
+  // lines to apply the same availability interval to.
+  //
+  // This is the inverse of the results fulfiller mapping:
+  // - Results fulfiller: external (requisition) model line -> internal (EDPA) model line
+  // - Data availability: internal (EDPA) model line -> external model lines
+  //
+  // Use this to keep external model line availability in sync when names change,
+  // when multiple external model lines should map to a single internal model
+  // line, or when a deleted external model line should point at a replacement
+  // model line that the kingdom recognizes.
   map<string, ModelLineList> model_line_map = 6;
 
   // List of model lines to use for a single mapping entry.
