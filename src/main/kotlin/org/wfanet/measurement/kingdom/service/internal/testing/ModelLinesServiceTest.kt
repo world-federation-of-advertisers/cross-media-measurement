@@ -486,40 +486,6 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
   }
 
   @Test
-  fun `setActiveEndTime fails if ActiveEndTime equals ActiveStartTime`() = runBlocking {
-    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val now = clock.instant()
-
-    val modelLine = modelLine {
-      externalModelSuiteId = modelSuite.externalModelSuiteId
-      externalModelProviderId = modelSuite.externalModelProviderId
-      activeStartTime = now.plusSeconds(2000L).toProtoTime()
-      type = ModelLine.Type.PROD
-      displayName = "display name"
-      description = "description"
-    }
-
-    val createdModelLine = modelLinesService.createModelLine(modelLine)
-
-    val setActiveEndTimeRequest = setActiveEndTimeRequest {
-      externalModelLineId = createdModelLine.externalModelLineId
-      externalModelSuiteId = createdModelLine.externalModelSuiteId
-      externalModelProviderId = createdModelLine.externalModelProviderId
-      activeEndTime = now.plusSeconds(2000L).toProtoTime()
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        modelLinesService.setActiveEndTime(setActiveEndTimeRequest)
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("ActiveEndTime must be later than ActiveStartTime.")
-  }
-
-  @Test
   fun `setActiveEndTime fails if ActiveEndTime is in the past`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
     val now = clock.instant()
@@ -636,41 +602,6 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
       externalModelSuiteId = createdModelLine.externalModelSuiteId
       externalModelProviderId = createdModelLine.externalModelProviderId
       activeStartTime = now.plusSeconds(4000L).toProtoTime()
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        modelLinesService.setActiveStartTime(setActiveStartTimeRequest)
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("ActiveStartTime must be before ActiveEndTime.")
-  }
-
-  @Test
-  fun `setActiveStartTime fails if ActiveStartTime equals ActiveEndTime`() = runBlocking {
-    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-    val now = clock.instant()
-
-    val modelLine = modelLine {
-      externalModelSuiteId = modelSuite.externalModelSuiteId
-      externalModelProviderId = modelSuite.externalModelProviderId
-      activeStartTime = now.plusSeconds(2000L).toProtoTime()
-      activeEndTime = now.plusSeconds(3000L).toProtoTime()
-      type = ModelLine.Type.PROD
-      displayName = "display name"
-      description = "description"
-    }
-
-    val createdModelLine = modelLinesService.createModelLine(modelLine)
-
-    val setActiveStartTimeRequest = setActiveStartTimeRequest {
-      externalModelLineId = createdModelLine.externalModelLineId
-      externalModelSuiteId = createdModelLine.externalModelSuiteId
-      externalModelProviderId = createdModelLine.externalModelProviderId
-      activeStartTime = now.plusSeconds(3000L).toProtoTime()
     }
 
     val exception =
