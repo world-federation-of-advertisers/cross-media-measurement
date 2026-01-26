@@ -230,16 +230,16 @@ locals {
     data_watcher_delete = {
       function_name       = "data-watcher-delete"
       entry_point         = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction"
-      extra_env_vars      = var.data_watcher_env_var
-      secret_mappings     = var.data_watcher_secret_mapping
-      uber_jar_path       = var.data_watcher_uber_jar_path
+      extra_env_vars      = var.data_watcher_delete_env_var
+      secret_mappings     = var.data_watcher_delete_secret_mapping
+      uber_jar_path       = var.data_watcher_delete_uber_jar_path
     }
     data_availability_cleanup = {
       function_name       = "data-availability-cleanup"
-      entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncFunction"
-      extra_env_vars      = var.data_availability_env_var
-      secret_mappings     = var.data_availability_secret_mapping
-      uber_jar_path       = var.data_availability_uber_jar_path
+      entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilityCleanupFunction"
+      extra_env_vars      = var.data_availability_cleanup_env_var
+      secret_mappings     = var.data_availability_cleanup_secret_mapping
+      uber_jar_path       = var.data_availability_cleanup_uber_jar_path
     }
   }
 
