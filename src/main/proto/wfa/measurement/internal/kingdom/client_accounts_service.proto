@@ -39,13 +39,23 @@ message CreateClientAccountRequest {
 }
 
 message GetClientAccountRequest {
-  fixed64 external_client_account_id = 1;
-  fixed64 external_measurement_consumer_id = 2;
+  // External ID of the parent. Required.
+  oneof external_parent_id {
+    fixed64 external_measurement_consumer_id = 1;
+    fixed64 external_data_provider_id = 3;
+  }
+  // External ID of the ClientAccount. Required.
+  fixed64 external_client_account_id = 2;
 }
 
 message DeleteClientAccountRequest {
-  fixed64 external_client_account_id = 1;
-  fixed64 external_measurement_consumer_id = 2;
+  // External ID of the parent. Required.
+  oneof external_parent_id {
+    fixed64 external_measurement_consumer_id = 1;
+    fixed64 external_data_provider_id = 3;
+  }
+  // External ID of the ClientAccount. Required.
+  fixed64 external_client_account_id = 2;
 }
 
 message StreamClientAccountsRequest {
