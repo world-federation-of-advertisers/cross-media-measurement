@@ -119,7 +119,7 @@ class DataWatcherTest() {
           idTokenProvider = mockIdTokenProvider,
         )
 
-      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data")
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
       verifyBlocking(workItemsServiceMock, times(1)) {
         createWorkItem(createWorkItemRequestCaptor.capture())
@@ -165,7 +165,7 @@ class DataWatcherTest() {
           idTokenProvider = mockIdTokenProvider,
         )
 
-      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data")
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
       verifyBlocking(workItemsServiceMock, times(0)) {
         createWorkItem(createWorkItemRequestCaptor.capture())
@@ -192,7 +192,7 @@ class DataWatcherTest() {
 
       val dataWatcher =
         DataWatcher(workItemsStub, listOf(config), idTokenProvider = mockIdTokenProvider)
-      dataWatcher.receivePath("test-schema://test-bucket/some-other-path/some-data")
+      dataWatcher.receivePath("test-schema://test-bucket/some-other-path/some-data", emptyMap())
 
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
       verifyBlocking(workItemsServiceMock, times(0)) {
@@ -225,7 +225,7 @@ class DataWatcherTest() {
           idTokenProvider = mockIdTokenProvider,
         )
 
-      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data")
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
 
       val metrics = getMetrics()
       val processingDurationMetric =
@@ -270,7 +270,7 @@ class DataWatcherTest() {
           idTokenProvider = mockIdTokenProvider,
         )
 
-      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data")
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
 
       val metrics = getMetrics()
       val queueWritesMetric = metrics.find { it.name == "edpa.data_watcher.queue_writes" }
@@ -312,9 +312,9 @@ class DataWatcherTest() {
           idTokenProvider = mockIdTokenProvider,
         )
 
-      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/data-1")
-      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/data-2")
-      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/data-3")
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/data-1", emptyMap())
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/data-2", emptyMap())
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/data-3", emptyMap())
 
       val metrics = getMetrics()
       val queueWritesMetric = metrics.find { it.name == "edpa.data_watcher.queue_writes" }
@@ -346,7 +346,7 @@ class DataWatcherTest() {
 
       val dataWatcher =
         DataWatcher(workItemsStub, listOf(config), idTokenProvider = mockIdTokenProvider)
-      dataWatcher.receivePath("test-schema://test-bucket/some-other-path/some-data")
+      dataWatcher.receivePath("test-schema://test-bucket/some-other-path/some-data", emptyMap())
 
       val metrics = getMetrics()
       // No metrics should be recorded since path didn't match

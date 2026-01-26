@@ -65,7 +65,7 @@ class DataWatcher(
    * @param path the blob path to evaluate
    * @param objectMetadata optional custom metadata from the GCS object
    */
-  suspend fun receivePath(path: String, objectMetadata: Map<String, String>? = null) {
+  suspend fun receivePath(path: String, objectMetadata: Map<String, String>) {
     logger.log(Level.INFO, "Received data path for evaluation: path=$path")
     for (config in dataWatcherConfigs) {
       processPathForConfig(config, path, objectMetadata)
@@ -75,7 +75,7 @@ class DataWatcher(
   private suspend fun processPathForConfig(
     config: WatchedPath,
     path: String,
-    objectMetadata: Map<String, String>? = null,
+    objectMetadata: Map<String, String>,
   ) {
     val regex = config.sourcePathRegex.toRegex()
     if (!regex.matches(path)) {
@@ -131,7 +131,7 @@ class DataWatcher(
   private fun sendToHttpEndpoint(
     config: WatchedPath,
     path: String,
-    objectMetadata: Map<String, String>? = null,
+    objectMetadata: Map<String, String>,
   ) {
     val idToken: IdToken =
       idTokenProvider.idTokenWithAudience(config.httpEndpointSink.endpointUri, emptyList())
@@ -147,7 +147,7 @@ class DataWatcher(
         .POST(HttpRequest.BodyPublishers.ofString(httpEndpointConfig.appParams.toJson()))
 
     // Pass GCS object metadata as headers if available
-    objectMetadata?.get(IMPRESSION_METADATA_RESOURCE_ID_KEY)?.let { resourceId ->
+    objectMetadata[IMPRESSION_METADATA_RESOURCE_ID_KEY]?.let { resourceId ->
       requestBuilder.header(IMPRESSION_METADATA_RESOURCE_ID_HEADER, resourceId)
     }
 
