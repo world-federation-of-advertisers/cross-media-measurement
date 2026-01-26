@@ -17,24 +17,33 @@ package org.wfanet.measurement.api.v2alpha
 import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.api.ResourceKey
 
-/** [ResourceKey] of a Measurement Consumer. */
-data class MeasurementConsumerKey(val measurementConsumerId: String) :
-  ResourceKey, CertificateParentKey, ClientAccountParentKey, PublicKeyParentKey {
+private val parser =
+  ResourceNameParser("dataProviders/{data_provider}/clientAccounts/{client_account}")
+
+/** [ResourceKey] of a DataProvider ClientAccount. */
+data class DataProviderClientAccountKey(
+  val dataProviderId: String,
+  override val clientAccountId: String,
+) : ClientAccountKey {
+  override val parentKey = DataProviderKey(dataProviderId)
+
   override fun toName(): String {
-    return parser.assembleName(mapOf(IdVariable.MEASUREMENT_CONSUMER to measurementConsumerId))
+    return parser.assembleName(
+      mapOf(IdVariable.DATA_PROVIDER to dataProviderId, IdVariable.CLIENT_ACCOUNT to clientAccountId)
+    )
   }
 
-  companion object FACTORY : ResourceKey.Factory<MeasurementConsumerKey> {
-    const val COLLECTION_NAME = "measurementConsumers"
-    const val PATTERN = "$COLLECTION_NAME/{measurement_consumer}"
-    val defaultValue = MeasurementConsumerKey("")
+  companion object {
+    val defaultValue = DataProviderClientAccountKey("", "")
 
-    private val parser = ResourceNameParser(PATTERN)
-
-    override fun fromName(resourceName: String): MeasurementConsumerKey? {
+    fun fromName(resourceName: String): DataProviderClientAccountKey? {
       return parser.parseIdVars(resourceName)?.let {
-        MeasurementConsumerKey(it.getValue(IdVariable.MEASUREMENT_CONSUMER))
+        DataProviderClientAccountKey(
+          it.getValue(IdVariable.DATA_PROVIDER),
+          it.getValue(IdVariable.CLIENT_ACCOUNT),
+        )
       }
     }
   }
 }
+
