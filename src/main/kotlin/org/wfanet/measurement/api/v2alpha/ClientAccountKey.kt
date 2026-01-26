@@ -33,4 +33,3 @@ sealed interface ClientAccountKey : ChildResourceKey {
 
 /** [ResourceKey] of the parent of a ClientAccount resource. */
 sealed interface ClientAccountParentKey : ResourceKey
-

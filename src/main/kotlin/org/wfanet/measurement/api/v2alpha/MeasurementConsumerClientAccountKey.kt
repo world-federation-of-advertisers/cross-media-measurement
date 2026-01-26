@@ -49,4 +49,3 @@ data class MeasurementConsumerClientAccountKey(
     }
   }
 }
-
