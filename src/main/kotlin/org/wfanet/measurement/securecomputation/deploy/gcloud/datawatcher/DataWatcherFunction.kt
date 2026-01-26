@@ -53,7 +53,7 @@ import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
  *   relying on static test hooks.
  */
 class DataWatcherFunction(
-  private val pathReceiver: suspend (String, Map<String, String>?) -> Unit = { path, metadata ->
+  private val pathReceiver: suspend (String, Map<String, String>) -> Unit = { path, metadata ->
     defaultDataWatcher.receivePath(path, metadata)
   }
 ) : CloudEventsFunction {
@@ -85,8 +85,7 @@ class DataWatcherFunction(
       }
 
       // Extract custom metadata from the GCS object
-      val objectMetadata: Map<String, String>? =
-        data.metadataMap.takeIf { it.isNotEmpty() }
+      val objectMetadata: Map<String, String> = data.metadataMap
 
       Tracing.withW3CTraceContext(event) {
         Tracing.trace(
