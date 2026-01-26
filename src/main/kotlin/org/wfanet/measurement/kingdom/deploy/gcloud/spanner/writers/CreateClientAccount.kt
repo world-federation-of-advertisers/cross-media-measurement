@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.ErrorCode as SpannerErrorCode
+import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.generateNewExternalId
 import org.wfanet.measurement.common.generateNewInternalId
@@ -88,5 +90,17 @@ class CreateClientAccount(private val clientAccount: ClientAccount) :
 
   override fun ResultScope<ClientAccount>.buildResult(): ClientAccount {
     return checkNotNull(transactionResult).copy { createTime = commitTimestamp.toProto() }
+  }
+
+  override suspend fun handleSpannerException(e: SpannerException): ClientAccount? {
+    when (e.errorCode) {
+      SpannerErrorCode.ALREADY_EXISTS ->
+        throw ClientAccountAlreadyExistsException(
+          ExternalId(clientAccount.externalDataProviderId),
+          clientAccount.clientAccountReferenceId,
+          e,
+        )
+      else -> throw e
+    }
   }
 }
