@@ -891,6 +891,7 @@ class ClientAccountNotFoundException(
       )
 }
 
+<<<<<<< HEAD
 class ClientAccountNotFoundByDataProviderException(
   val externalDataProviderId: ExternalId,
   val externalClientAccountId: ExternalId,
@@ -904,6 +905,8 @@ class ClientAccountNotFoundByDataProviderException(
       )
 }
 
+=======
+>>>>>>> 462fa43e9 (fix: resolve comments and fix tests)
 class ClientAccountAlreadyExistsException(
   val externalDataProviderId: ExternalId,
   val clientAccountReferenceId: String,

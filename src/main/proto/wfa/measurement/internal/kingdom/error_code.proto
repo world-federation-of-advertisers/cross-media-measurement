@@ -132,9 +132,14 @@ enum ErrorCode {
   /** ClientAccount resource queried could not be found. */
   CLIENT_ACCOUNT_NOT_FOUND = 53;
 <<<<<<< HEAD
+<<<<<<< HEAD
   /** ClientAccount with the same DataProvider and reference ID already exists.
    */
   CLIENT_ACCOUNT_ALREADY_EXISTS = 54;
 =======
 >>>>>>> 03fd3a11a (feat: implement spanner persistence layer for client accounts)
+=======
+  /** ClientAccount with the same DataProvider and reference ID already exists. */
+  CLIENT_ACCOUNT_ALREADY_EXISTS = 54;
+>>>>>>> 462fa43e9 (fix: resolve comments and fix tests)
 }

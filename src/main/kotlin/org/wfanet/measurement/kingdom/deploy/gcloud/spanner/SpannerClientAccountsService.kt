@@ -29,6 +29,7 @@ import org.wfanet.measurement.internal.kingdom.ClientAccountsGrpcKt.ClientAccoun
 import org.wfanet.measurement.internal.kingdom.CreateClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.DeleteClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.GetClientAccountRequest
+<<<<<<< HEAD
 import org.wfanet.measurement.internal.kingdom.ListClientAccountsPageTokenKt
 import org.wfanet.measurement.internal.kingdom.ListClientAccountsRequest
 import org.wfanet.measurement.internal.kingdom.ListClientAccountsResponse
@@ -36,6 +37,10 @@ import org.wfanet.measurement.internal.kingdom.listClientAccountsPageToken
 import org.wfanet.measurement.internal.kingdom.listClientAccountsResponse
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountAlreadyExistsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountNotFoundByDataProviderException
+=======
+import org.wfanet.measurement.internal.kingdom.StreamClientAccountsRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountAlreadyExistsException
+>>>>>>> 462fa43e9 (fix: resolve comments and fix tests)
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
@@ -76,6 +81,7 @@ class SpannerClientAccountsService(
   }
 
   override suspend fun getClientAccount(request: GetClientAccountRequest): ClientAccount {
+<<<<<<< HEAD
     grpcRequire(request.externalClientAccountId != 0L) {
       "external_client_account_id not specified"
     }
@@ -90,6 +96,25 @@ class SpannerClientAccountsService(
           client.singleUse(),
           externalMeasurementConsumerId,
           externalClientAccountId,
+=======
+    grpcRequire(request.externalMeasurementConsumerId != 0L) {
+      "external_measurement_consumer_id not specified"
+    }
+    grpcRequire(request.externalClientAccountId != 0L) {
+      "external_client_account_id not specified"
+    }
+
+    return ClientAccountReader()
+      .readByExternalId(
+        client.singleUse(),
+        ExternalId(request.externalMeasurementConsumerId),
+        ExternalId(request.externalClientAccountId),
+      )
+      ?.clientAccount
+      ?: throw ClientAccountNotFoundException(
+          ExternalId(request.externalMeasurementConsumerId),
+          ExternalId(request.externalClientAccountId),
+>>>>>>> 462fa43e9 (fix: resolve comments and fix tests)
         )
           ?: throw ClientAccountNotFoundException(
               externalMeasurementConsumerId,
@@ -124,9 +149,12 @@ class SpannerClientAccountsService(
       "external_client_account_id not specified"
     }
 
+<<<<<<< HEAD
     val externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
     val externalClientAccountId = ExternalId(request.externalClientAccountId)
 
+=======
+>>>>>>> 462fa43e9 (fix: resolve comments and fix tests)
     try {
       return DeleteClientAccountByMeasurementConsumer(
           externalMeasurementConsumerId,
