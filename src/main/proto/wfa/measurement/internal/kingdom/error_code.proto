@@ -131,4 +131,6 @@ enum ErrorCode {
   POPULATION_NOT_FOUND = 42;
   /** ClientAccount resource queried could not be found. */
   CLIENT_ACCOUNT_NOT_FOUND = 53;
+  /** ClientAccount with the same DataProvider and reference ID already exists. */
+  CLIENT_ACCOUNT_ALREADY_EXISTS = 54;
 }

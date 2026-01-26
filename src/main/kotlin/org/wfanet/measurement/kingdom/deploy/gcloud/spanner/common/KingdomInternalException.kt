@@ -891,3 +891,17 @@ class ClientAccountNotFoundException(
         "external_client_account_id" to externalClientAccountId.value.toString(),
       )
 }
+
+class ClientAccountAlreadyExistsException(
+  val externalDataProviderId: ExternalId,
+  val clientAccountReferenceId: String,
+  cause: Throwable? = null,
+  provideDescription: () -> String = { "ClientAccount already exists" },
+) : KingdomInternalException(ErrorCode.CLIENT_ACCOUNT_ALREADY_EXISTS, provideDescription(), cause) {
+  override val context
+    get() =
+      mapOf(
+        "external_data_provider_id" to externalDataProviderId.value.toString(),
+        "client_account_reference_id" to clientAccountReferenceId,
+      )
+}

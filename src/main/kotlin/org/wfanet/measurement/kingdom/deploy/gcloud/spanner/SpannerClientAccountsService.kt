@@ -32,6 +32,7 @@ import org.wfanet.measurement.internal.kingdom.CreateClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.DeleteClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.GetClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.StreamClientAccountsRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountAlreadyExistsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
@@ -47,16 +48,39 @@ class SpannerClientAccountsService(
 ) : ClientAccountsCoroutineImplBase(coroutineContext) {
 
   override suspend fun createClientAccount(request: CreateClientAccountRequest): ClientAccount {
+    grpcRequire(request.hasClientAccount()) { "client_account not specified" }
+    grpcRequire(request.clientAccount.externalMeasurementConsumerId != 0L) {
+      "external_measurement_consumer_id not specified"
+    }
+    grpcRequire(request.clientAccount.externalDataProviderId != 0L) {
+      "external_data_provider_id not specified"
+    }
+    grpcRequire(request.clientAccount.clientAccountReferenceId.isNotEmpty()) {
+      "client_account_reference_id not specified"
+    }
+
     try {
       return CreateClientAccount(request.clientAccount).execute(client, idGenerator)
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
     } catch (e: DataProviderNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
+    } catch (e: ClientAccountAlreadyExistsException) {
+      throw e.asStatusRuntimeException(
+        Status.Code.ALREADY_EXISTS,
+        "ClientAccount with this reference ID already exists for DataProvider.",
+      )
     }
   }
 
   override suspend fun getClientAccount(request: GetClientAccountRequest): ClientAccount {
+    grpcRequire(request.externalMeasurementConsumerId != 0L) {
+      "external_measurement_consumer_id not specified"
+    }
+    grpcRequire(request.externalClientAccountId != 0L) {
+      "external_client_account_id not specified"
+    }
+
     return ClientAccountReader()
       .readByExternalId(
         client.singleUse(),
@@ -72,6 +96,13 @@ class SpannerClientAccountsService(
   }
 
   override suspend fun deleteClientAccount(request: DeleteClientAccountRequest): ClientAccount {
+    grpcRequire(request.externalMeasurementConsumerId != 0L) {
+      "external_measurement_consumer_id not specified"
+    }
+    grpcRequire(request.externalClientAccountId != 0L) {
+      "external_client_account_id not specified"
+    }
+
     try {
       return DeleteClientAccount(
           ExternalId(request.externalMeasurementConsumerId),
