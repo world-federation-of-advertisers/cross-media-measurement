@@ -54,6 +54,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomIntern
 abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
   @get:Rule val duchyIdSetter = DuchyIdSetter(Population.DUCHIES)
 
+  @get:Rule val duchyIdSetter = DuchyIdSetter(Population.DUCHIES)
+
   protected data class Services<T>(
     val clientAccountsService: T,
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
