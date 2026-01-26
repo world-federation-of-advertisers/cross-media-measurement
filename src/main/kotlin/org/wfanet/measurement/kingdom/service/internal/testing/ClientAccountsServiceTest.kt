@@ -27,6 +27,7 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -46,11 +47,14 @@ import org.wfanet.measurement.internal.kingdom.createClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.deleteClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.getClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.streamClientAccountsRequest
+import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
 
 @RunWith(JUnit4::class)
 abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
+
+  @get:Rule val duchyIdSetter = DuchyIdSetter(Population.DUCHIES)
 
   protected data class Services<T>(
     val clientAccountsService: T,
@@ -520,4 +524,71 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception).hasMessageThat().contains("Missing After filter fields")
     }
+
+  @Test
+  fun `streamClientAccounts can get one page at a time`(): Unit = runBlocking {
+    val measurementConsumer: MeasurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+
+    val clientAccount1 =
+      clientAccountsService.createClientAccount(
+        createClientAccountRequest {
+          this.clientAccount = clientAccount {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            externalDataProviderId = dataProvider.externalDataProviderId
+            clientAccountReferenceId = "test-reference-id-1"
+          }
+        }
+      )
+
+    val clientAccount2 =
+      clientAccountsService.createClientAccount(
+        createClientAccountRequest {
+          this.clientAccount = clientAccount {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            externalDataProviderId = dataProvider.externalDataProviderId
+            clientAccountReferenceId = "test-reference-id-2"
+          }
+        }
+      )
+
+    val page1: List<ClientAccount> =
+      clientAccountsService
+        .streamClientAccounts(
+          streamClientAccountsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            }
+            limit = 1
+          }
+        )
+        .toList()
+
+    assertThat(page1).hasSize(1)
+    assertThat(page1).containsAnyOf(clientAccount1, clientAccount2)
+
+    val page2: List<ClientAccount> =
+      clientAccountsService
+        .streamClientAccounts(
+          streamClientAccountsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              after =
+                StreamClientAccountsRequestKt.afterFilter {
+                  this.createTime = page1.last().createTime
+                  this.externalMeasurementConsumerId = page1.last().externalMeasurementConsumerId
+                  this.externalClientAccountId = page1.last().externalClientAccountId
+                }
+            }
+            limit = 1
+          }
+        )
+        .toList()
+
+    assertThat(page2).hasSize(1)
+    assertThat(page2).containsAnyOf(clientAccount1, clientAccount2)
+    assertThat(page2.first().externalClientAccountId)
+      .isNotEqualTo(page1.first().externalClientAccountId)
+  }
 }

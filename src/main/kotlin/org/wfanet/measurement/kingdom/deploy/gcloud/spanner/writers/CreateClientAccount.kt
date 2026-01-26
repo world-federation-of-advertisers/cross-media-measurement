@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.ErrorCode as SpannerErrorCode
+import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
@@ -23,6 +25,7 @@ import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.ClientAccount
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountAlreadyExistsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
@@ -62,5 +65,17 @@ class CreateClientAccount(private val clientAccount: ClientAccount) :
 
   override fun ResultScope<ClientAccount>.buildResult(): ClientAccount {
     return checkNotNull(transactionResult).copy { createTime = commitTimestamp.toProto() }
+  }
+
+  override suspend fun handleSpannerException(e: SpannerException): ClientAccount? {
+    when (e.errorCode) {
+      SpannerErrorCode.ALREADY_EXISTS ->
+        throw ClientAccountAlreadyExistsException(
+          ExternalId(clientAccount.externalDataProviderId),
+          clientAccount.clientAccountReferenceId,
+          e,
+        )
+      else -> throw e
+    }
   }
 }
