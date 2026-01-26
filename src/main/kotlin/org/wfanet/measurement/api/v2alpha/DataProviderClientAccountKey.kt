@@ -29,7 +29,10 @@ data class DataProviderClientAccountKey(
 
   override fun toName(): String {
     return parser.assembleName(
-      mapOf(IdVariable.DATA_PROVIDER to dataProviderId, IdVariable.CLIENT_ACCOUNT to clientAccountId)
+      mapOf(
+        IdVariable.DATA_PROVIDER to dataProviderId,
+        IdVariable.CLIENT_ACCOUNT to clientAccountId,
+      )
     )
   }
 
@@ -46,4 +49,3 @@ data class DataProviderClientAccountKey(
     }
   }
 }
-
