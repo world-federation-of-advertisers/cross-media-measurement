@@ -416,7 +416,12 @@ private class TestServer() {
   }
 
   fun getLastRequestHeader(headerName: String): String? {
-    return handler.requestHeaders[headerName]?.firstOrNull()
+    // HttpServer normalizes header names (first char uppercase, rest lowercase)
+    // so we need case-insensitive lookup
+    return handler.requestHeaders.entries
+      .firstOrNull { it.key.equals(headerName, ignoreCase = true) }
+      ?.value
+      ?.firstOrNull()
   }
 
   class ServerHandler : HttpHandler {
