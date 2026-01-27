@@ -30,6 +30,14 @@ class ResultsFulfillerAppRunnerTest {
 
   @Rule @JvmField val tempFolder = TemporaryFolder()
 
+  companion object {
+    init {
+      System.setProperty("otel.metrics.exporter", "none")
+      System.setProperty("otel.traces.exporter", "none")
+      System.setProperty("otel.logs.exporter", "none")
+    }
+  }
+
   @Test
   fun `saveSecretToFile writes bytes to file`() {
     val testFile = tempFolder.newFile("test.pem")
