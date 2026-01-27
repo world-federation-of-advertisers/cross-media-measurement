@@ -40,13 +40,21 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccount
 =======
 import org.wfanet.measurement.internal.kingdom.StreamClientAccountsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountAlreadyExistsException
+<<<<<<< HEAD
 >>>>>>> 462fa43e9 (fix: resolve comments and fix tests)
+=======
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountNotFoundByMeasurementConsumerException
+>>>>>>> 00120a250 (fix: modify get and delete methods to support both measurement consumer and data provider parents)
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamClientAccounts
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ClientAccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateClientAccount
+<<<<<<< HEAD
+=======
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.DeleteClientAccountByDataProvider
+>>>>>>> 00120a250 (fix: modify get and delete methods to support both measurement consumer and data provider parents)
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.DeleteClientAccountByMeasurementConsumer
 
 class SpannerClientAccountsService(
@@ -82,6 +90,7 @@ class SpannerClientAccountsService(
 
   override suspend fun getClientAccount(request: GetClientAccountRequest): ClientAccount {
 <<<<<<< HEAD
+<<<<<<< HEAD
     grpcRequire(request.externalClientAccountId != 0L) {
       "external_client_account_id not specified"
     }
@@ -100,10 +109,15 @@ class SpannerClientAccountsService(
     grpcRequire(request.externalMeasurementConsumerId != 0L) {
       "external_measurement_consumer_id not specified"
     }
+=======
+>>>>>>> 00120a250 (fix: modify get and delete methods to support both measurement consumer and data provider parents)
     grpcRequire(request.externalClientAccountId != 0L) {
       "external_client_account_id not specified"
     }
+    val externalClientAccountId = ExternalId(request.externalClientAccountId)
+    val reader = ClientAccountReader()
 
+<<<<<<< HEAD
     return ClientAccountReader()
       .readByExternalId(
         client.singleUse(),
@@ -117,6 +131,18 @@ class SpannerClientAccountsService(
 >>>>>>> 462fa43e9 (fix: resolve comments and fix tests)
         )
           ?: throw ClientAccountNotFoundException(
+=======
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+    return when (request.externalParentIdCase) {
+      GetClientAccountRequest.ExternalParentIdCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
+        val externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
+        reader.readByMeasurementConsumer(
+          client.singleUse(),
+          externalMeasurementConsumerId,
+          externalClientAccountId,
+        )
+          ?: throw ClientAccountNotFoundByMeasurementConsumerException(
+>>>>>>> 00120a250 (fix: modify get and delete methods to support both measurement consumer and data provider parents)
               externalMeasurementConsumerId,
               externalClientAccountId,
             )
@@ -129,7 +155,11 @@ class SpannerClientAccountsService(
           externalDataProviderId,
           externalClientAccountId,
         )
+<<<<<<< HEAD
           ?: throw ClientAccountNotFoundByDataProviderException(
+=======
+          ?: throw ClientAccountNotFoundException(
+>>>>>>> 00120a250 (fix: modify get and delete methods to support both measurement consumer and data provider parents)
               externalDataProviderId,
               externalClientAccountId,
             )
@@ -142,13 +172,12 @@ class SpannerClientAccountsService(
   }
 
   override suspend fun deleteClientAccount(request: DeleteClientAccountRequest): ClientAccount {
-    grpcRequire(request.externalMeasurementConsumerId != 0L) {
-      "external_measurement_consumer_id not specified"
-    }
     grpcRequire(request.externalClientAccountId != 0L) {
       "external_client_account_id not specified"
     }
+    val externalClientAccountId = ExternalId(request.externalClientAccountId)
 
+<<<<<<< HEAD
 <<<<<<< HEAD
     val externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
     val externalClientAccountId = ExternalId(request.externalClientAccountId)
@@ -165,6 +194,35 @@ class SpannerClientAccountsService(
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
     } catch (e: ClientAccountNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ClientAccount not found.")
+=======
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+    return when (request.externalParentIdCase) {
+      DeleteClientAccountRequest.ExternalParentIdCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
+        val externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
+        try {
+          DeleteClientAccountByMeasurementConsumer(externalMeasurementConsumerId, externalClientAccountId)
+            .execute(client, idGenerator)
+        } catch (e: MeasurementConsumerNotFoundException) {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
+        } catch (e: ClientAccountNotFoundByMeasurementConsumerException) {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ClientAccount not found.")
+        }
+      }
+      DeleteClientAccountRequest.ExternalParentIdCase.EXTERNAL_DATA_PROVIDER_ID -> {
+        val externalDataProviderId = ExternalId(request.externalDataProviderId)
+        try {
+          DeleteClientAccountByDataProvider(externalDataProviderId, externalClientAccountId)
+            .execute(client, idGenerator)
+        } catch (e: DataProviderNotFoundException) {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
+        } catch (e: ClientAccountNotFoundException) {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ClientAccount not found.")
+        }
+      }
+      DeleteClientAccountRequest.ExternalParentIdCase.EXTERNALPARENTID_NOT_SET ->
+        throw Status.INVALID_ARGUMENT.withDescription("external_parent_id not specified")
+          .asRuntimeException()
+>>>>>>> 00120a250 (fix: modify get and delete methods to support both measurement consumer and data provider parents)
     }
   }
 
