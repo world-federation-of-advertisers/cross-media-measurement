@@ -74,10 +74,12 @@ object EdpaTelemetry {
    * - OTEL_METRIC_EXPORT_INTERVAL: Export interval in ms
    */
   init {
-    logger.info("Initializing OpenTelemetry SDK jusing autoconfiguration")
+    logger.info("Initializing OpenTelemetry SDK using autoconfiguration")
 
-    // Initialize SDK using autoconfiguration
-    val openTelemetry = AutoConfiguredOpenTelemetrySdk.initialize().openTelemetrySdk
+    // Initialize SDK using autoconfiguration.
+    // Don't set as global since common-jvm's Instrumentation.openTelemetry already registers globally.
+    val openTelemetry =
+      AutoConfiguredOpenTelemetrySdk.builder().setResultAsGlobal(false).build().openTelemetrySdk
 
     // Get providers for flush/shutdown operations
     meterProvider = openTelemetry.sdkMeterProvider
