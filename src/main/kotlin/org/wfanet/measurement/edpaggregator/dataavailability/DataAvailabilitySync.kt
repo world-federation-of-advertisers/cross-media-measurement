@@ -81,6 +81,11 @@ import org.wfanet.measurement.storage.StorageClient
  * @property dataProviderName The resource name of the data provider, used as a parent identifier in
  *   gRPC requests.
  * @property throttler A throttling utility to regulate request flow to external services.
+ * @property impressionMetadataBatchSize Maximum number of impression metadata records per batch
+ *   request.
+ * @property modelLineMap Mapping from a source model line to additional model lines that should
+ *   receive the same availability interval updates.
+ * @property metrics Metrics recorder for telemetry.
  */
 class DataAvailabilitySync(
   private val edpImpressionPath: String,
@@ -91,6 +96,7 @@ class DataAvailabilitySync(
   private val dataProviderName: String,
   private val throttler: Throttler,
   private val impressionMetadataBatchSize: Int,
+  private val modelLineMap: Map<String, List<String>>,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
 ) {
   private val validImpressionPathRegex: Regex = Regex("^$edpImpressionPath/[^/]+(/.*)?$")
@@ -164,12 +170,21 @@ class DataAvailabilitySync(
 
       // Build availability entries from the response
       val availabilityEntries =
-        modelLineBounds.modelLineBoundsList.map { bound ->
-          dataAvailabilityMapEntry {
-            key = bound.key
-            value = interval {
-              startTime = bound.value.startTime
-              endTime = bound.value.endTime
+        modelLineBounds.modelLineBoundsList.flatMap { bound ->
+          val availabilityInterval = interval {
+            startTime = bound.value.startTime
+            endTime = bound.value.endTime
+          }
+          val modelLines =
+            if (bound.key in modelLineMap) {
+              modelLineMap.getValue(bound.key)
+            } else {
+              listOf(bound.key)
+            }
+          modelLines.map { modelLine ->
+            dataAvailabilityMapEntry {
+              key = modelLine
+              value = availabilityInterval
             }
           }
         }
