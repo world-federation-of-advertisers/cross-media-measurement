@@ -117,12 +117,10 @@ class SpannerClientAccountsService(
   }
 
   override suspend fun deleteClientAccount(request: DeleteClientAccountRequest): ClientAccount {
-    grpcRequire(request.externalMeasurementConsumerId != 0L) {
-      "external_measurement_consumer_id not specified"
-    }
     grpcRequire(request.externalClientAccountId != 0L) {
       "external_client_account_id not specified"
     }
+    val externalClientAccountId = ExternalId(request.externalClientAccountId)
 
     val externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
     val externalClientAccountId = ExternalId(request.externalClientAccountId)
