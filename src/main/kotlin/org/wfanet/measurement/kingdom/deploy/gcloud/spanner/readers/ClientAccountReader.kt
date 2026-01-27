@@ -58,7 +58,7 @@ class ClientAccountReader : SpannerReader<ClientAccountReader.Result>() {
       buildClientAccount(struct),
     )
 
-  suspend fun readByExternalId(
+  suspend fun readByMeasurementConsumer(
     readContext: AsyncDatabaseClient.ReadContext,
     externalMeasurementConsumerId: ExternalId,
     externalClientAccountId: ExternalId,
@@ -72,6 +72,27 @@ class ClientAccountReader : SpannerReader<ClientAccountReader.Result>() {
             .trimIndent()
         )
         bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
+        bind("externalClientAccountId").to(externalClientAccountId.value)
+        appendClause("LIMIT 1")
+      }
+      .execute(readContext)
+      .singleOrNull()
+  }
+
+  suspend fun readByDataProvider(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalDataProviderId: ExternalId,
+    externalClientAccountId: ExternalId,
+  ): Result? {
+    return fillStatementBuilder {
+        appendClause(
+          """
+          WHERE ExternalDataProviderId = @externalDataProviderId
+            AND ExternalClientAccountId = @externalClientAccountId
+          """
+            .trimIndent()
+        )
+        bind("externalDataProviderId").to(externalDataProviderId.value)
         bind("externalClientAccountId").to(externalClientAccountId.value)
         appendClause("LIMIT 1")
       }
