@@ -22,39 +22,37 @@ import com.google.cloud.spanner.Mutation
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.ClientAccount
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ClientAccountReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 
 /**
- * Deletes a [ClientAccount] from the database.
+ * Deletes a [ClientAccount] from the database by DataProvider.
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
  *
  * @throws [ClientAccountNotFoundException] ClientAccount not found
- * @throws [MeasurementConsumerNotFoundException] MeasurementConsumer not found
+ * @throws [DataProviderNotFoundException] DataProvider not found
  */
-class DeleteClientAccount(
-  private val externalMeasurementConsumerId: ExternalId,
+class DeleteClientAccountByDataProvider(
+  private val externalDataProviderId: ExternalId,
   private val externalClientAccountId: ExternalId,
 ) : SimpleSpannerWriter<ClientAccount>() {
 
   override suspend fun TransactionScope.runTransaction(): ClientAccount {
-    MeasurementConsumerReader.readMeasurementConsumerId(
-      transactionContext,
-      externalMeasurementConsumerId,
-    ) ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
+    DataProviderReader.readDataProviderId(transactionContext, externalDataProviderId)
+      ?: throw DataProviderNotFoundException(externalDataProviderId)
 
     val clientAccountResult =
       ClientAccountReader()
-        .readByExternalId(
+        .readByDataProvider(
           transactionContext,
-          externalMeasurementConsumerId,
+          externalDataProviderId,
           externalClientAccountId,
         )
         ?: throw ClientAccountNotFoundException(
-          externalMeasurementConsumerId,
+          externalDataProviderId,
           externalClientAccountId,
         )
 
@@ -73,3 +71,4 @@ class DeleteClientAccount(
     return clientAccountResult.clientAccount
   }
 }
+
