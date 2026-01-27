@@ -104,10 +104,7 @@ class SpannerClientAccountsService(
           externalDataProviderId,
           externalClientAccountId,
         )
-          ?: throw ClientAccountNotFoundException(
-              externalDataProviderId,
-              externalClientAccountId,
-            )
+          ?: throw ClientAccountNotFoundException(externalDataProviderId, externalClientAccountId)
             .asStatusRuntimeException(Status.Code.NOT_FOUND, "ClientAccount not found.")
       }
       GetClientAccountRequest.ExternalParentIdCase.EXTERNALPARENTID_NOT_SET ->
@@ -127,7 +124,10 @@ class SpannerClientAccountsService(
       DeleteClientAccountRequest.ExternalParentIdCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
         val externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
         try {
-          DeleteClientAccountByMeasurementConsumer(externalMeasurementConsumerId, externalClientAccountId)
+          DeleteClientAccountByMeasurementConsumer(
+              externalMeasurementConsumerId,
+              externalClientAccountId,
+            )
             .execute(client, idGenerator)
         } catch (e: MeasurementConsumerNotFoundException) {
           throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
