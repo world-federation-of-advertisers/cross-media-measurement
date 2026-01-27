@@ -70,11 +70,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataReques
  *   Function. This is used to configure the gRPC channel.
  */
 class DataAvailabilityCleanupFunction : HttpFunction {
-  private val metrics = DataAvailabilityCleanupMetrics()
-
   init {
     EdpaTelemetry.ensureInitialized()
   }
+
+  private val metrics = DataAvailabilityCleanupMetrics()
 
   override fun service(request: HttpRequest, response: HttpResponse) {
     val startTime = TimeSource.Monotonic.markNow()
