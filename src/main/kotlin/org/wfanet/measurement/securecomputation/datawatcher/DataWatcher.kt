@@ -139,20 +139,21 @@ class DataWatcher(
 
     val httpEndpointConfig = config.httpEndpointSink
     val client = HttpClient.newHttpClient()
-    val requestBuilder =
+    val request =
       HttpRequest.newBuilder()
         .uri(URI.create(httpEndpointConfig.endpointUri))
         .header("Authorization", "Bearer $jwt")
         .header(DATA_WATCHER_PATH_HEADER, path)
         .POST(HttpRequest.BodyPublishers.ofString(httpEndpointConfig.appParams.toJson()))
-
-    // Pass GCS object metadata as headers if available
-    if (IMPRESSION_METADATA_RESOURCE_ID_KEY in objectMetadata) {
-      val resourceId: String = objectMetadata.getValue(IMPRESSION_METADATA_RESOURCE_ID_KEY)
-      requestBuilder.header(IMPRESSION_METADATA_RESOURCE_ID_HEADER, resourceId)
-    }
-
-    val request = requestBuilder.build()
+        .also { builder ->
+          if (IMPRESSION_METADATA_RESOURCE_ID_KEY in objectMetadata) {
+            builder.header(
+              IMPRESSION_METADATA_RESOURCE_ID_HEADER,
+              objectMetadata.getValue(IMPRESSION_METADATA_RESOURCE_ID_KEY),
+            )
+          }
+        }
+        .build()
     val response = client.send(request, BodyHandlers.ofString())
     val statusCode = response.statusCode()
     check(statusCode == 200) {

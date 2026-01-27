@@ -354,6 +354,44 @@ class DataWatcherTest() {
       assertThat(metrics.filter { it.name == "edpa.data_watcher.queue_writes" }).isEmpty()
     }
   }
+
+  @Test
+  fun `propagates object metadata as header to webhook sink`() {
+    runBlocking {
+      val appParams =
+        Struct.newBuilder()
+          .putFields("some-key", Value.newBuilder().setStringValue("some-value").build())
+          .build()
+      val localPort = ServerSocket(0).use { it.localPort }
+      val config = watchedPath {
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+        this.httpEndpointSink = httpEndpointSink {
+          endpointUri = "http://localhost:$localPort"
+          this.appParams = appParams
+        }
+      }
+      val server = TestServer()
+      server.start(localPort)
+
+      val dataWatcher =
+        DataWatcher(
+          workItemsStub = workItemsStub,
+          dataWatcherConfigs = listOf(config),
+          idTokenProvider = mockIdTokenProvider,
+        )
+
+      val testResourceId = "test-impression-metadata-resource-id-123"
+      val objectMetadata = mapOf("impression-metadata-resource-id" to testResourceId)
+      dataWatcher.receivePath(
+        "test-schema://test-bucket/path-to-watch/some-data",
+        objectMetadata,
+      )
+
+      assertThat(server.getLastRequestHeader("X-Impression-Metadata-Resource-Id"))
+        .isEqualTo(testResourceId)
+      server.stop()
+    }
+  }
 }
 
 private class TestServer() {
@@ -377,12 +415,18 @@ private class TestServer() {
     return handler.requestBody
   }
 
+  fun getLastRequestHeader(headerName: String): String? {
+    return handler.requestHeaders[headerName]?.firstOrNull()
+  }
+
   class ServerHandler : HttpHandler {
     lateinit var requestBody: String
+    lateinit var requestHeaders: Map<String, List<String>>
 
     override fun handle(t: HttpExchange) {
       val requestBodyBytes = t.requestBody.readBytes()
       requestBody = requestBodyBytes.toString(Charsets.UTF_8)
+      requestHeaders = t.requestHeaders.toMap()
       val response = "Success"
       t.sendResponseHeaders(200, response.length.toLong())
       val os = t.responseBody
