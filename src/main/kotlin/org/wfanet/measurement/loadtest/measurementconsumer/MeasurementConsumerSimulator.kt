@@ -248,12 +248,15 @@ abstract class MeasurementConsumerSimulator(
       throw IllegalStateException("Expected result cannot be less than tolerance")
     }
 
-    if (requiredCapabilities.honestMajorityShareShuffleSupported) {
-      assertThat(protocol.protocolCase)
-        .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
-    } else {
-      assertThat(protocol.protocolCase)
-        .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
+    when {
+      requiredCapabilities.honestMajorityShareShuffleSupported ->
+        assertThat(protocol.protocolCase)
+          .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
+      requiredCapabilities.trusTeeSupported ->
+        assertThat(protocol.protocolCase).isEqualTo(ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE)
+      else ->
+        assertThat(protocol.protocolCase)
+          .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
     }
     assertThat(reachAndFrequencyResult)
       .reachValue()
@@ -578,12 +581,15 @@ abstract class MeasurementConsumerSimulator(
       throw IllegalStateException("Expected result cannot be less than tolerance")
     }
 
-    if (requiredCapabilities.honestMajorityShareShuffleSupported) {
-      assertThat(protocol.protocolCase)
-        .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
-    } else {
-      assertThat(protocol.protocolCase)
-        .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2)
+    when {
+      requiredCapabilities.honestMajorityShareShuffleSupported ->
+        assertThat(protocol.protocolCase)
+          .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
+      requiredCapabilities.trusTeeSupported ->
+        assertThat(protocol.protocolCase).isEqualTo(ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE)
+      else ->
+        assertThat(protocol.protocolCase)
+          .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2)
     }
     assertThat(result.actualResult)
       .reachValue()
@@ -907,10 +913,11 @@ abstract class MeasurementConsumerSimulator(
         .entries
         .filter {
           val dataProvider = keyToDataProviderMap.getValue(it.key)
-          if (requiredCapabilities.honestMajorityShareShuffleSupported) {
-            dataProvider.capabilities.honestMajorityShareShuffleSupported
-          } else {
-            true
+          when {
+            requiredCapabilities.honestMajorityShareShuffleSupported ->
+              dataProvider.capabilities.honestMajorityShareShuffleSupported
+            requiredCapabilities.trusTeeSupported -> dataProvider.capabilities.trusTeeSupported
+            else -> true
           }
         }
         .take(maxDataProviders)

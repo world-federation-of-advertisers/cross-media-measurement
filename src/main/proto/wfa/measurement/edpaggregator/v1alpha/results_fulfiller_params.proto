@@ -137,10 +137,28 @@ message ResultsFulfillerParams {
   // model line
   // - Data availability: internal (EDPA) model line -> external model lines
   //
-  // When a requisition's model line exists in this map, the fulfiller uses the
+  // When a requisition model line exists in this map, the fulfiller uses the
   // mapped value to locate impression files. This supports cases where an
   // external model line name changes, where multiple external model lines
   // should map to a single internal model line, or where a deleted model line
   // known by the EDP maps to a replacement model line known by the kingdom.
   map<string, string> model_line_map = 8;
+
+  // Parameters for TrusTee protocol envelope encryption.
+  message TrusTeeParams {
+    // Map of KEK URI to key name for re-encryption.
+    // The key is the KEK URI that was used to encrypt the input data.
+    // The value is the key name on the same key ring that will be used to
+    // re-encrypt the data for TrusTee.
+    // The key name must exist on the same key ring that is used for the input
+    // data. If a KEK URI is not present in this map, the same KEK URI will be
+    // used to both encrypt and decrypt the data. Example key:
+    // "gcp-kms://projects/my-project/locations/global/keyRings/
+    //  my-ring/cryptoKeys/input-key"
+    // Example value: "trustee-key"
+    map<string, string> kek_uri_to_key_name = 1;
+  }
+
+  // TrusTee encryption parameters. Required for TrusTee protocol support.
+  TrusTeeParams trustee_params = 9;
 }
