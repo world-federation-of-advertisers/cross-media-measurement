@@ -174,7 +174,7 @@ locals {
   }
 
   data_watcher_delete_config = {
-    local_path  = var.data_watcher_config_file_path
+    local_path  = var.data_watcher_delete_config_file_path
     destination = "data-watcher-delete-config.textproto"
   }
 

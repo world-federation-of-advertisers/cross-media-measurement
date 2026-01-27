@@ -114,6 +114,12 @@ variable "data_watcher_config_file_path" {
   nullable    = false
 }
 
+variable "data_watcher_delete_config_file_path" {
+  description = "Path to the data watcher delete config file."
+  type        = string
+  nullable    = false
+}
+
 variable "requisition_fetcher_config_file_path" {
   description = "Path to the requisition fetcher config file."
   type        = string
