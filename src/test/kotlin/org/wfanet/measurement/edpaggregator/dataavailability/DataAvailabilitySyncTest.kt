@@ -266,7 +266,8 @@ class DataAvailabilitySyncTest {
   @Test
   fun `sync updates availability for mapped model lines`() {
     runBlocking {
-      val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
       seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
@@ -768,6 +769,7 @@ class DataAvailabilitySyncTest {
         "dataProviders/dataProvider123",
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -811,20 +813,21 @@ class DataAvailabilitySyncTest {
         impressionsBlobKey = customImpressionsPath,
       )
 
-      val dataAvailabilitySync =
-        DataAvailabilitySync(
-          "edp/edpa_edp",
-          storageClient,
-          dataProvidersStub,
-          impressionMetadataStub,
-          "dataProviders/dataProvider123",
-          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
-        )
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+      )
 
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
 
-      // Verify that updateBlobMetadata was called with the correct impressions blob key
+    // Verify that updateBlobMetadata was called with the correct impressions blob key
       // from BlobDetails, not inferred from the metadata URI
       val impressionsUpdateCalls =
         storageClient.updateBlobMetadataCalls.filter { it.blobKey == customImpressionsPath }
@@ -845,7 +848,7 @@ class DataAvailabilitySyncTest {
       assertThat(metadataUpdate.metadata)
         .containsKey(DataAvailabilitySync.IMPRESSION_METADATA_RESOURCE_ID_KEY)
       assertThat(metadataUpdate.metadata[DataAvailabilitySync.IMPRESSION_METADATA_RESOURCE_ID_KEY])
-        .isEqualTo("edp/edpa_edp/impressionMetadata/im-0")
+        .isEqualTo("dataProviders/dataProvider123/impressionMetadata/im-0")
 
       // Verify both files have the same customCreateTime (derived from the interval start time)
       assertThat(impressionsUpdateCalls.first().customCreateTime)
