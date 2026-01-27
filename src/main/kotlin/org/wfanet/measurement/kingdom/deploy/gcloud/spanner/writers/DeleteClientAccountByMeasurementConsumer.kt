@@ -21,21 +21,21 @@ import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.ClientAccount
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ClientAccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 
 /**
- * Deletes a [ClientAccount] from the database.
+ * Deletes a [ClientAccount] from the database by MeasurementConsumer.
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
  *
- * @throws [ClientAccountNotFoundException] ClientAccount not found
+ * @throws [ClientAccountNotFoundByMeasurementConsumerException] ClientAccount not found
  * @throws [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  */
-class DeleteClientAccount(
+class DeleteClientAccountByMeasurementConsumer(
   private val externalMeasurementConsumerId: ExternalId,
   private val externalClientAccountId: ExternalId,
 ) : SimpleSpannerWriter<ClientAccount>() {
@@ -48,12 +48,12 @@ class DeleteClientAccount(
 
     val clientAccountResult =
       ClientAccountReader()
-        .readByExternalId(
+        .readByMeasurementConsumer(
           transactionContext,
           externalMeasurementConsumerId,
           externalClientAccountId,
         )
-        ?: throw ClientAccountNotFoundException(
+        ?: throw ClientAccountNotFoundByMeasurementConsumerException(
           externalMeasurementConsumerId,
           externalClientAccountId,
         )
@@ -73,3 +73,4 @@ class DeleteClientAccount(
     return clientAccountResult.clientAccount
   }
 }
+
