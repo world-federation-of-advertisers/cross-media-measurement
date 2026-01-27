@@ -134,7 +134,8 @@ class DataAvailabilityCleanupFunction : HttpFunction {
                 impressionMetadataServiceStub.listImpressionMetadata(
                   listImpressionMetadataRequest {
                     parent = dataAvailabilitySyncConfig.dataProvider
-                    filter = ListImpressionMetadataRequestKt.filter { blobUriPrefix = deletedBlobPath }
+                    filter =
+                      ListImpressionMetadataRequestKt.filter { blobUriPrefix = deletedBlobPath }
                   }
                 )
               if (listResponse.impressionMetadataList.isEmpty()) {

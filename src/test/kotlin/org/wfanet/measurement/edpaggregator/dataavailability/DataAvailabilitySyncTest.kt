@@ -813,21 +813,21 @@ class DataAvailabilitySyncTest {
         impressionsBlobKey = customImpressionsPath,
       )
 
-    val dataAvailabilitySync =
-      DataAvailabilitySync(
-        "edp/edpa_edp",
-        storageClient,
-        dataProvidersStub,
-        impressionMetadataStub,
-        "dataProviders/dataProvider123",
-        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
-        modelLineMap = emptyMap(),
-      )
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+        )
 
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
 
-    // Verify that updateBlobMetadata was called with the correct impressions blob key
+      // Verify that updateBlobMetadata was called with the correct impressions blob key
       // from BlobDetails, not inferred from the metadata URI
       val impressionsUpdateCalls =
         storageClient.updateBlobMetadataCalls.filter { it.blobKey == customImpressionsPath }
