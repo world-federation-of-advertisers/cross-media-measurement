@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.crypto.tink.KmsClient
 import com.google.protobuf.kotlin.unpack
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
@@ -31,19 +32,79 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.d
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffleMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.MeasurementFulfiller
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.TrusTeeMeasurementFulfiller
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusteeFulfillRequisitionRequestBuilder
+
+/**
+ * Configuration for TrusTee protocol envelope encryption.
+ *
+ * @property kmsClient The KMS client for encryption operations.
+ * @property workloadIdentityProvider The workload identity provider URL for GCP WIF.
+ * @property impersonatedServiceAccount The service account to impersonate for KMS operations.
+ */
+data class TrusTeeConfig(
+  val kmsClient: KmsClient,
+  val workloadIdentityProvider: String,
+  val impersonatedServiceAccount: String,
+) {
+  /**
+   * Builds EncryptionParams for the TrusTee protocol using the provided KEK URI.
+   *
+   * If the kekUri is found in the kekUriToKeyNameMap, the output KEK URI will be constructed by
+   * replacing the key name in the original URI with the mapped key name (on the same keyring). If
+   * not found in the map, the original kekUri is used unchanged.
+   *
+   * @param kekUri The KEK URI from BlobDetails.encryptedDek.
+   * @param kekUriToKeyNameMap Map from input KEK URI to output key name for re-encryption.
+   * @return EncryptionParams for the TrusTee fulfillment request builder.
+   */
+  fun buildEncryptionParams(
+    kekUri: String,
+    kekUriToKeyNameMap: Map<String, String>,
+  ): TrusteeFulfillRequisitionRequestBuilder.EncryptionParams {
+    val remappedKekUri = remapKekUri(kekUri, kekUriToKeyNameMap)
+    return TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
+      kmsClient = kmsClient,
+      kmsKekUri = remappedKekUri,
+      workloadIdentityProvider = workloadIdentityProvider,
+      impersonatedServiceAccount = impersonatedServiceAccount,
+    )
+  }
+
+  /**
+   * Remaps the input KEK URI using the provided map.
+   *
+   * If the kekUri is found in the map, constructs a new KEK URI by replacing the key name component
+   * with the mapped key name (keeping the same keyring). If not found, returns the original kekUri
+   * unchanged.
+   */
+  private fun remapKekUri(kekUri: String, kekUriToKeyNameMap: Map<String, String>): String {
+    val mappedKeyName = kekUriToKeyNameMap[kekUri] ?: return kekUri
+
+    // KEK URI format:
+    // gcp-kms://projects/{project}/locations/{location}/keyRings/{keyring}/cryptoKeys/{key}
+    val regex =
+      Regex("gcp-kms://projects/([^/]+)/locations/([^/]+)/keyRings/([^/]+)/cryptoKeys/[^/]+")
+    val matchResult = regex.matchEntire(kekUri) ?: return kekUri
+
+    val (project, location, keyRing) = matchResult.destructured
+    return "gcp-kms://projects/$project/locations/$location/keyRings/$keyRing/cryptoKeys/$mappedKeyName"
+  }
+}
 
 /**
  * Default implementation that routes requisitions to protocol-specific fulfillers.
  *
  * @param requisitionsStub gRPC stub for Direct protocol requisitions
- * @param requisitionFulfillmentStubMap duchy name → gRPC stub mapping for HM Shuffle
+ * @param requisitionFulfillmentStubMap duchy name → gRPC stub mapping for HM Shuffle and TrusTee
  * @param dataProviderCertificateKey EDP certificate identifier for result signing
  * @param dataProviderSigningKeyHandle cryptographic key for result authentication
  * @param noiserSelector strategy for selecting differential privacy mechanisms
  * @param kAnonymityParams optional k-anonymity thresholds; null disables k-anonymity
  * @param overrideImpressionMaxFrequencyPerUser optional frequency cap override; null or -1 means no
  *   capping and uses totalUncappedImpressions instead
+ * @param trusTeeConfig configuration for TrusTee protocol; null disables TrusTee
  */
 class DefaultFulfillerSelector(
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
@@ -54,7 +115,19 @@ class DefaultFulfillerSelector(
   private val noiserSelector: NoiserSelector,
   private val kAnonymityParams: KAnonymityParams?,
   private val overrideImpressionMaxFrequencyPerUser: Int?,
+  private val trusTeeConfig: TrusTeeConfig? = null,
+  private val kekUriToKeyNameMap: Map<String, String> = emptyMap(),
 ) : FulfillerSelector {
+
+  init {
+    val keyNamePattern = Regex("[a-zA-Z0-9_-]{1,63}")
+    for ((kekUri, keyName) in kekUriToKeyNameMap) {
+      require(keyNamePattern.matches(keyName)) {
+        "Invalid key name format in kekUriToKeyNameMap: '$keyName' for URI '$kekUri'. " +
+          "Key name must match pattern [a-zA-Z0-9_-]{1,63}"
+      }
+    }
+  }
 
   /**
    * Selects the appropriate fulfiller based on requisition protocol configuration.
@@ -64,6 +137,8 @@ class DefaultFulfillerSelector(
    * @param requisitionSpec decrypted requisition details including nonce
    * @param frequencyVector frequency vector containing per-VID frequency counts
    * @param populationSpec population definition for VID range validation
+   * @param kekUri the KEK URI from BlobDetails.encryptedDek for TrusTee encryption. Required if the
+   *   frequencyVector is non-empty and the protocol is TrusTee.
    * @return protocol-specific fulfiller ready for execution
    * @throws IllegalArgumentException if no supported protocol is found
    */
@@ -73,6 +148,7 @@ class DefaultFulfillerSelector(
     requisitionSpec: RequisitionSpec,
     frequencyVector: StripedByteFrequencyVector,
     populationSpec: PopulationSpec,
+    kekUri: String?,
   ): MeasurementFulfiller {
 
     val frequencyDataBytes = frequencyVector.getByteArray()
@@ -98,6 +174,49 @@ class DefaultFulfillerSelector(
         kAnonymityParams = kAnonymityParams,
         totalUncappedImpressions = totalUncappedImpressions,
       )
+    } else if (requisition.protocolConfig.protocolsList.any { it.hasTrusTee() }) {
+      // Build TrusTee encryption params dynamically using the kekUri from BlobDetails.
+      // If kekUri is not null, trusTeeConfig must be provided.
+      // If kekUri is null, it implies there were no input blobs; verify no impressions exist.
+      val trusTeeEncryptionParams =
+        if (kekUri != null) {
+          requireNotNull(trusTeeConfig) {
+            "TrusTee protocol selected but trusTeeConfig is null. " +
+              "TrusTeeConfig must be provided when impression data sources are available."
+          }
+          trusTeeConfig.buildEncryptionParams(kekUri, kekUriToKeyNameMap)
+        } else {
+          val totalUncappedImpressions = frequencyVector.getTotalUncappedImpressions()
+          require(totalUncappedImpressions == 0L) {
+            "TrusTee protocol selected with null kekUri but totalUncappedImpressions is $totalUncappedImpressions. " +
+              "Expected 0 impressions when no data sources are available."
+          }
+          null
+        }
+
+      if (kAnonymityParams == null) {
+        TrusTeeMeasurementFulfiller(
+          requisition,
+          requisitionSpec.nonce,
+          vec.build(),
+          requisitionFulfillmentStubMap,
+          requisitionsStub,
+          trusTeeEncryptionParams,
+        )
+      } else {
+        TrusTeeMeasurementFulfiller.buildKAnonymized(
+          requisition,
+          requisitionSpec.nonce,
+          measurementSpec,
+          populationSpec,
+          vec,
+          requisitionFulfillmentStubMap,
+          requisitionsStub,
+          kAnonymityParams,
+          maxPopulation = null,
+          trusTeeEncryptionParams,
+        )
+      }
     } else if (
       requisition.protocolConfig.protocolsList.any { it.hasHonestMajorityShareShuffle() }
     ) {

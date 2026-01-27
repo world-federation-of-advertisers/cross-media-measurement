@@ -40,6 +40,7 @@ class NoOpFulfillerSelector : FulfillerSelector {
     requisitionSpec: RequisitionSpec,
     frequencyVector: StripedByteFrequencyVector,
     populationSpec: PopulationSpec,
+    kekUri: String?,
   ): MeasurementFulfiller {
     return NoOpMeasurementFulfiller(
       requisition,
