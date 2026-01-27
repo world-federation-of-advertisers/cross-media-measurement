@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.edpaggregator.telemetry
 
-import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.Meter
 import io.opentelemetry.api.trace.Span
@@ -25,7 +24,7 @@ import io.opentelemetry.instrumentation.runtimemetrics.java8.Cpu
 import io.opentelemetry.instrumentation.runtimemetrics.java8.GarbageCollector
 import io.opentelemetry.instrumentation.runtimemetrics.java8.MemoryPools
 import io.opentelemetry.instrumentation.runtimemetrics.java8.Threads
-import io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdk
+import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.logs.SdkLoggerProvider
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.trace.SdkTracerProvider
@@ -34,30 +33,35 @@ import java.util.concurrent.TimeUnit
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.coroutines.cancellation.CancellationException
+import org.wfanet.measurement.common.Instrumentation
 
 /**
- * OpenTelemetry SDK initialization for EDPA components using autoconfiguration.
+ * OpenTelemetry utilities for EDPA Cloud Functions.
  *
- * Uses OpenTelemetry's SDK autoconfiguration for zero-code setup via environment variables.
- * Automatically initializes on first access and registers globally so common-jvm code
- * (GcsStorageClient, etc.) and all application code can access the configured SDK.
+ * Uses common-jvm's [Instrumentation.openTelemetry] as the single SDK instance, ensuring all
+ * telemetry (gRPC traces, metrics, etc.) goes through the same pipeline and can be flushed
+ * together before Cloud Functions freeze.
  *
  * Provides:
- * - Google Cloud Monitoring metric exporter
- * - Google Cloud Trace exporter
- * - JVM runtime metrics
+ * - JVM runtime metrics (CPU, memory, GC, threads)
+ * - Flush capability for Cloud Functions
+ *
+ * Required environment variables (for OpenTelemetry autoconfiguration):
+ * - OTEL_SERVICE_NAME: Service identifier
+ * - OTEL_METRICS_EXPORTER: Metric exporter (e.g., "google_cloud_monitoring")
+ * - OTEL_TRACES_EXPORTER: Trace exporter (e.g., "google_cloud_trace")
+ * - OTEL_METRIC_EXPORT_INTERVAL: Export interval in ms
  *
  * See: https://opentelemetry.io/docs/languages/java/configuration/
  */
 object EdpaTelemetry {
   private val logger = Logger.getLogger(EdpaTelemetry::class.java.name)
 
-  private lateinit var openTelemetry: OpenTelemetry
-  private var meterProvider: SdkMeterProvider
-  private var tracerProvider: SdkTracerProvider
-  private var loggerProvider: SdkLoggerProvider
-  private var meter: Meter
-  private var tracer: Tracer
+  private val meterProvider: SdkMeterProvider
+  private val tracerProvider: SdkTracerProvider
+  private val loggerProvider: SdkLoggerProvider
+  private val meter: Meter
+  private val tracer: Tracer
 
   /** Ensure the init block of this object is being executed. */
   fun ensureInitialized() {
@@ -65,28 +69,28 @@ object EdpaTelemetry {
   }
 
   /**
-   * Initializes OpenTelemetry SDK using autoconfiguration.
+   * Initializes EdpaTelemetry using the global [Instrumentation.openTelemetry] SDK.
    *
-   * Following env vars should be set:
-   * - OTEL_SERVICE_NAME: Service identifier
-   * - OTEL_METRICS_EXPORTER: Metric exporter
-   * - OTEL_TRACES_EXPORTER: Trace exporter
-   * - OTEL_METRIC_EXPORT_INTERVAL: Export interval in ms
+   * Registers JVM runtime metrics and obtains references to SDK providers for flush operations.
    */
   init {
-    logger.info("Initializing OpenTelemetry SDK using autoconfiguration")
+    logger.info("Initializing EdpaTelemetry using Instrumentation.openTelemetry")
 
-    // Initialize SDK using autoconfiguration.
-    // Don't set as global since common-jvm's Instrumentation.openTelemetry already registers globally.
-    val openTelemetry =
-      AutoConfiguredOpenTelemetrySdk.builder().setResultAsGlobal(false).build().openTelemetrySdk
+    val openTelemetry = Instrumentation.openTelemetry
 
-    // Get providers for flush/shutdown operations
-    meterProvider = openTelemetry.sdkMeterProvider
-    tracerProvider = openTelemetry.sdkTracerProvider
-    loggerProvider = openTelemetry.sdkLoggerProvider
+    // Cast to OpenTelemetrySdk to access providers for flush/shutdown operations.
+    // Instrumentation.openTelemetry is configured via autoconfiguration and is an OpenTelemetrySdk.
+    val sdk =
+      openTelemetry as? OpenTelemetrySdk
+        ?: throw IllegalStateException(
+          "Instrumentation.openTelemetry must be an OpenTelemetrySdk for flush support"
+        )
 
-    // Install JVM runtime metrics instrumentation
+    meterProvider = sdk.sdkMeterProvider
+    tracerProvider = sdk.sdkTracerProvider
+    loggerProvider = sdk.sdkLoggerProvider
+
+    // Install JVM runtime metrics instrumentation on the global SDK
     Classes.registerObservers(openTelemetry)
     Cpu.registerObservers(openTelemetry)
     GarbageCollector.registerObservers(openTelemetry)
@@ -97,14 +101,16 @@ object EdpaTelemetry {
     meter = openTelemetry.getMeter("edpa-instrumentation")
     tracer = openTelemetry.getTracer("edpa-instrumentation")
 
-    logger.info("OpenTelemetry SDK initialized successfully")
+    logger.info("EdpaTelemetry initialized successfully")
   }
 
   /**
    * Forces immediate export of all pending metrics, traces, and logs in parallel.
    *
    * **Critical for Cloud Functions**: Call this at the end of the function handler to ensure all
-   * telemetry is exported before the function instance is frozen.
+   * telemetry is exported before the function instance is frozen. This flushes all telemetry
+   * including gRPC traces, custom metrics, and JVM runtime metrics since they all use the same
+   * global [Instrumentation.openTelemetry] SDK.
    *
    * **Performance**: Flushes metrics, traces, and logs in parallel to minimize latency. Total flush
    * time ~= max(metric_flush_time, trace_flush_time, log_flush_time).
@@ -155,7 +161,8 @@ object EdpaTelemetry {
   /**
    * Shuts down the OpenTelemetry SDK, flushing all pending telemetry.
    *
-   * Only needed for testing.
+   * **Warning**: This shuts down the global [Instrumentation.openTelemetry] SDK, which will affect
+   * all code using it. Only use this in tests or when the process is terminating.
    */
   fun shutdown() {
     try {
