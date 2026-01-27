@@ -27,9 +27,11 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIn
  * @property eventDescriptor Descriptor for the event associated with the model line.
  * @property vidIndexMap Mapping of VIDs to their corresponding FrequencyVector indices for the
  *   model line.
+ * @property localAlias Optional local model line alias used for impression lookup.
  */
 data class ModelLineInfo(
   val populationSpec: PopulationSpec,
   val eventDescriptor: Descriptor,
   val vidIndexMap: VidIndexMap,
+  val localAlias: String?,
 )

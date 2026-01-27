@@ -431,6 +431,7 @@ class ResultsFulfillerAppRunner : Runnable {
           populationSpec = populationSpec,
           vidIndexMap = vidIndexMap,
           eventDescriptor = eventDescriptor,
+          localAlias = null,
         )
     }
   }
