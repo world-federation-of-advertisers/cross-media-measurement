@@ -35,6 +35,7 @@ class SpannerDataServices(
       SpannerAccountsService(idGenerator, client, coroutineContext),
       SpannerApiKeysService(idGenerator, client, coroutineContext),
       SpannerCertificatesService(idGenerator, client, coroutineContext),
+      SpannerClientAccountsService(idGenerator, client, coroutineContext),
       SpannerDataProvidersService(idGenerator, client, coroutineContext),
       SpannerModelProvidersService(idGenerator, client, coroutineContext),
       SpannerEventGroupMetadataDescriptorsService(
