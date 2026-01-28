@@ -24,6 +24,8 @@ import io.grpc.Deadline.Ticker
 import io.grpc.Status
 import io.grpc.StatusException
 import java.security.GeneralSecurityException
+import java.time.DateTimeException
+import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -34,6 +36,7 @@ import org.projectnessie.cel.common.types.ref.Val
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DateInterval as CmmsDateInterval
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
@@ -44,6 +47,7 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt as CmmsListEv
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsResponse as CmmsListEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
+import org.wfanet.measurement.api.v2alpha.dateInterval as cmmsDateInterval
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
@@ -55,12 +59,14 @@ import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptMetadata
 import org.wfanet.measurement.reporting.service.api.CelEnvProvider
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
+import org.wfanet.measurement.reporting.v2alpha.DateInterval
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupKt
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.reporting.v2alpha.MediaType
+import org.wfanet.measurement.reporting.v2alpha.dateInterval
 import org.wfanet.measurement.reporting.v2alpha.eventGroup
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsResponse
 
@@ -114,6 +120,7 @@ class EventGroupsService(
               if (request.hasOrderBy()) {
                 orderBy = request.orderBy.toCmmsOrderBy()
               }
+              this.view = request.view.toCmmsEventGroupView()
             }
           )
 
@@ -323,6 +330,7 @@ class EventGroupsService(
             metadata = cmmsMetadata.metadata
           }
       }
+      aggregatedActivities += source.aggregatedActivitiesList.map { it.toAggregatedActivity() }
     }
   }
 
@@ -398,5 +406,67 @@ private fun ListEventGroupsRequest.Filter.toCmmsFilter(): CmmsListEventGroupsReq
       dataAvailabilityEndTimeOnOrAfter = source.dataAvailabilityEndTimeOnOrAfter
     }
     metadataSearchQuery = source.metadataSearchQuery
+    if (source.hasActivityContains()) {
+      validateActivityContains(source.activityContains)
+      activityContains = source.activityContains.toCmmsDateInterval()
+    }
   }
+}
+
+private fun DateInterval.toCmmsDateInterval(): CmmsDateInterval {
+  val source = this
+  return cmmsDateInterval {
+    startDate = source.startDate
+    endDate = source.endDate
+  }
+}
+
+private fun validateActivityContains(interval: DateInterval) {
+  if (!interval.hasStartDate()) {
+    throw Status.INVALID_ARGUMENT.withDescription("activity_contains.start_date is required")
+      .asRuntimeException()
+  }
+  if (!interval.hasEndDate()) {
+    throw Status.INVALID_ARGUMENT.withDescription("activity_contains.end_date is required")
+      .asRuntimeException()
+  }
+
+  try {
+    val startDate =
+      LocalDate.of(interval.startDate.year, interval.startDate.month, interval.startDate.day)
+    val endDate = LocalDate.of(interval.endDate.year, interval.endDate.month, interval.endDate.day)
+    if (startDate.isAfter(endDate)) {
+      throw Status.INVALID_ARGUMENT.withDescription(
+          "activity_contains.start_date must be before or equal to activity_contains.end_date"
+        )
+        .asRuntimeException()
+    }
+  } catch (e: DateTimeException) {
+    throw Status.INVALID_ARGUMENT.withDescription("activity_contains has invalid date(s)")
+      .withCause(e)
+      .asRuntimeException()
+  }
+}
+
+private fun CmmsDateInterval.toDateInterval(): DateInterval {
+  val source = this
+  return dateInterval {
+    startDate = source.startDate
+    endDate = source.endDate
+  }
+}
+
+private fun EventGroup.View.toCmmsEventGroupView(): CmmsEventGroup.View {
+  return when (this) {
+    EventGroup.View.VIEW_UNSPECIFIED -> CmmsEventGroup.View.VIEW_UNSPECIFIED
+    EventGroup.View.BASIC -> CmmsEventGroup.View.BASIC
+    EventGroup.View.WITH_ACTIVITY_SUMMARY -> CmmsEventGroup.View.WITH_ACTIVITY_SUMMARY
+    EventGroup.View.UNRECOGNIZED -> error("EventGroup.View unrecognized")
+  }
+}
+
+private fun CmmsEventGroup.AggregatedActivity.toAggregatedActivity():
+  EventGroup.AggregatedActivity {
+  val source = this
+  return EventGroupKt.aggregatedActivity { interval = source.interval.toDateInterval() }
 }
