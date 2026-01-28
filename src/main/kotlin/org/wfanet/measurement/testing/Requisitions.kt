@@ -28,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.Requisition.DuchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.honestMajorityShareShuffle
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
@@ -237,5 +238,31 @@ object Requisitions {
     dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
     duchies += DUCHY_ENTRY_ONE
     duchies += DUCHY_ENTRY_TWO
+  }
+
+  val TRUSTEE_DUCHY_ENTRY_ONE = duchyEntry {
+    key = DUCHY_ONE_NAME
+    value = value {
+      duchyCertificate = DUCHY_ONE_CERTIFICATE.name
+      trusTee = DuchyEntry.TrusTee.getDefaultInstance()
+    }
+  }
+
+  val TRUSTEE_REQUISITION = requisition {
+    name = "$EDP_NAME/requisitions/trustee-foo"
+    measurement = MEASUREMENT_NAME
+    state = Requisition.State.UNFULFILLED
+    measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+    measurementSpec = signMeasurementSpec(RF_MEASUREMENT_SPEC, MC_SIGNING_KEY)
+    encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
+    protocolConfig = protocolConfig {
+      protocols +=
+        ProtocolConfigKt.protocol {
+          trusTee = ProtocolConfigKt.trusTee { noiseMechanism = NOISE_MECHANISM }
+        }
+    }
+    dataProviderCertificate = DATA_PROVIDER_CERTIFICATE.name
+    dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
+    duchies += TRUSTEE_DUCHY_ENTRY_ONE
   }
 }
