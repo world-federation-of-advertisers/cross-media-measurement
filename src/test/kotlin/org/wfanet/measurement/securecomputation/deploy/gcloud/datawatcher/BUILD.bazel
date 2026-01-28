@@ -51,6 +51,7 @@ kt_jvm_test(
     srcs = ["DataWatcherFunctionTracingTest.kt"],
     test_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunctionTracingTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:data_watcher_function",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/io/cloudevents/core",
