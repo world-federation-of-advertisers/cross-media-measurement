@@ -39,29 +39,29 @@ message CreateClientAccountRequest {
 }
 
 message GetClientAccountRequest {
-  // Optional. External ID of the MeasurementConsumer parent.
-  optional fixed64 external_measurement_consumer_id = 1;
-  // Optional. External ID of the DataProvider parent.
-  optional fixed64 external_data_provider_id = 2;
+  // External ID of the parent. Required.
+  oneof external_parent_id {
+    fixed64 external_measurement_consumer_id = 1;
+    fixed64 external_data_provider_id = 2;
+  }
   // External ID of the ClientAccount. Required.
   fixed64 external_client_account_id = 3;
 }
 
 message DeleteClientAccountRequest {
-  // Optional. External ID of the MeasurementConsumer parent.
-  optional fixed64 external_measurement_consumer_id = 1;
-  // Optional. External ID of the DataProvider parent.
-  optional fixed64 external_data_provider_id = 2;
+  // External ID of the parent. Required.
+  oneof external_parent_id {
+    fixed64 external_measurement_consumer_id = 1;
+    fixed64 external_data_provider_id = 2;
+  }
   // External ID of the ClientAccount. Required.
   fixed64 external_client_account_id = 3;
 }
 
 message ListClientAccountsRequest {
   message Filter {
-    // Optional. Filter by MeasurementConsumer.
-    optional fixed64 external_measurement_consumer_id = 1;
-    // Optional. Filter by DataProvider.
-    optional fixed64 external_data_provider_id = 2;
+    fixed64 external_measurement_consumer_id = 1;
+    fixed64 external_data_provider_id = 2;
     string client_account_reference_id = 3;
   }
   Filter filter = 1;
