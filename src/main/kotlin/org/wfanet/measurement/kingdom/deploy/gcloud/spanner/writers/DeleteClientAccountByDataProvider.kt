@@ -39,22 +39,14 @@ class DeleteClientAccountByDataProvider(
   private val externalDataProviderId: ExternalId,
   private val externalClientAccountId: ExternalId,
 ) : SimpleSpannerWriter<ClientAccount>() {
-
   override suspend fun TransactionScope.runTransaction(): ClientAccount {
     DataProviderReader.readDataProviderId(transactionContext, externalDataProviderId)
       ?: throw DataProviderNotFoundException(externalDataProviderId)
 
     val clientAccountResult =
       ClientAccountReader()
-        .readByDataProvider(
-          transactionContext,
-          externalDataProviderId,
-          externalClientAccountId,
-        )
-        ?: throw ClientAccountNotFoundException(
-          externalDataProviderId,
-          externalClientAccountId,
-        )
+        .readByDataProvider(transactionContext, externalDataProviderId, externalClientAccountId)
+        ?: throw ClientAccountNotFoundException(externalDataProviderId, externalClientAccountId)
 
     transactionContext.buffer(
       Mutation.delete(
@@ -71,4 +63,3 @@ class DeleteClientAccountByDataProvider(
     return clientAccountResult.clientAccount
   }
 }
-
