@@ -20,17 +20,18 @@ import com.google.cloud.spanner.Statement
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
-import org.wfanet.measurement.internal.kingdom.StreamClientAccountsRequest
+import org.wfanet.measurement.internal.kingdom.ListClientAccountsPageToken
+import org.wfanet.measurement.internal.kingdom.ListClientAccountsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ClientAccountReader
 
 class StreamClientAccounts(
-  private val requestFilter: StreamClientAccountsRequest.Filter,
+  private val requestFilter: ListClientAccountsRequest.Filter,
   limit: Int = 0,
+  private val after: ListClientAccountsPageToken.After? = null,
 ) : SimpleSpannerQuery<ClientAccountReader.Result>() {
-
   override val reader =
     ClientAccountReader().fillStatementBuilder {
-      appendWhereClause(requestFilter)
+      appendWhereClause()
       appendClause(
         """
           ORDER BY ClientAccounts.CreateTime DESC,
@@ -45,25 +46,25 @@ class StreamClientAccounts(
       }
     }
 
-  private fun Statement.Builder.appendWhereClause(filter: StreamClientAccountsRequest.Filter) {
+  private fun Statement.Builder.appendWhereClause() {
     val conjuncts = mutableListOf<String>()
 
-    if (filter.externalMeasurementConsumerId != 0L) {
+    if (requestFilter.externalMeasurementConsumerId != 0L) {
       conjuncts.add("ExternalMeasurementConsumerId = @${EXTERNAL_MEASUREMENT_CONSUMER_ID}")
-      bind(EXTERNAL_MEASUREMENT_CONSUMER_ID to filter.externalMeasurementConsumerId)
+      bind(EXTERNAL_MEASUREMENT_CONSUMER_ID to requestFilter.externalMeasurementConsumerId)
     }
 
-    if (filter.externalDataProviderId != 0L) {
+    if (requestFilter.externalDataProviderId != 0L) {
       conjuncts.add("ExternalDataProviderId = @${EXTERNAL_DATA_PROVIDER_ID}")
-      bind(EXTERNAL_DATA_PROVIDER_ID to filter.externalDataProviderId)
+      bind(EXTERNAL_DATA_PROVIDER_ID to requestFilter.externalDataProviderId)
     }
 
-    if (filter.clientAccountReferenceId.isNotEmpty()) {
+    if (requestFilter.clientAccountReferenceId.isNotEmpty()) {
       conjuncts.add("ClientAccountReferenceId = @${CLIENT_ACCOUNT_REFERENCE_ID}")
-      bind(CLIENT_ACCOUNT_REFERENCE_ID to filter.clientAccountReferenceId)
+      bind(CLIENT_ACCOUNT_REFERENCE_ID to requestFilter.clientAccountReferenceId)
     }
 
-    if (filter.hasAfter()) {
+    if (after != null) {
       conjuncts.add(
         """
           (ClientAccounts.CreateTime < @${CREATE_TIME} OR (
@@ -74,9 +75,9 @@ class StreamClientAccounts(
         """
           .trimIndent()
       )
-      bind(CREATE_TIME to filter.after.createTime.toGcloudTimestamp())
-      bind(EXTERNAL_CLIENT_ACCOUNT_ID to filter.after.externalClientAccountId)
-      bind(AFTER_EXTERNAL_MEASUREMENT_CONSUMER_ID to filter.after.externalMeasurementConsumerId)
+      bind(CREATE_TIME to after.createTime.toGcloudTimestamp())
+      bind(EXTERNAL_CLIENT_ACCOUNT_ID to after.externalClientAccountId)
+      bind(AFTER_EXTERNAL_MEASUREMENT_CONSUMER_ID to after.externalMeasurementConsumerId)
     }
 
     if (conjuncts.isEmpty()) {

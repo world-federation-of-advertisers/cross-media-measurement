@@ -39,7 +39,6 @@ class DeleteClientAccountByMeasurementConsumer(
   private val externalMeasurementConsumerId: ExternalId,
   private val externalClientAccountId: ExternalId,
 ) : SimpleSpannerWriter<ClientAccount>() {
-
   override suspend fun TransactionScope.runTransaction(): ClientAccount {
     MeasurementConsumerReader.readMeasurementConsumerId(
       transactionContext,
@@ -73,4 +72,3 @@ class DeleteClientAccountByMeasurementConsumer(
     return clientAccountResult.clientAccount
   }
 }
-
