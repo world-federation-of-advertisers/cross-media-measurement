@@ -163,19 +163,14 @@ abstract class AbstractEdpSimulator(
   throttler: Throttler,
   private val privacyBudgetManager: PrivacyBudgetManager,
   trustedCertificates: Map<ByteString, X509Certificate>,
-  /**
-   * EDP uses the vidIndexMap to fulfill the requisitions for the honest majority share shuffle
-   * protocol.
-   *
-   * When the vidIndexMap is empty, the honest majority share shuffle protocol is not supported.
-   */
-  private val vidIndexMap: VidIndexMap?,
+  private val vidIndexMap: VidIndexMap,
   private val sketchEncrypter: SketchEncrypter,
   private val random: Random,
   private val logSketchDetails: Boolean,
   private val health: SettableHealth,
   private val blockingCoroutineContext: @BlockingExecutor CoroutineContext,
   private val trusTeeEncryptionParams: TrusTeeRequisitionRequestBuilder.EncryptionParams?,
+  private val trusTeeSupported: Boolean,
 ) :
   RequisitionFulfiller(edpData, certificatesStub, requisitionsStub, throttler, trustedCertificates),
   Health by health {
@@ -211,8 +206,8 @@ abstract class AbstractEdpSimulator(
   private val supportedProtocols = buildSet {
     add(ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
     add(ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2)
-    if (vidIndexMap != null) {
-      add(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
+    add(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
+    if (trusTeeSupported) {
       add(ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE)
     }
   }
@@ -236,8 +231,10 @@ abstract class AbstractEdpSimulator(
         name = edpData.name
         capabilities =
           DataProviderKt.capabilities {
-            honestMajorityShareShuffleSupported = (vidIndexMap != null)
-            trusTeeSupported = true
+            honestMajorityShareShuffleSupported =
+              ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE in
+                supportedProtocols
+            trusTeeSupported = ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE in supportedProtocols
           }
       }
     )
@@ -1085,8 +1082,6 @@ abstract class AbstractEdpSimulator(
     nonce: Long,
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
   ) {
-    requireNotNull(vidIndexMap) { "HMSS VidIndexMap cannot be null." }
-
     val protocolConfig: ProtocolConfig.HonestMajorityShareShuffle =
       requireNotNull(
           requisition.protocolConfig.protocolsList.find { protocol ->
@@ -1160,8 +1155,6 @@ abstract class AbstractEdpSimulator(
     nonce: Long,
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
   ) {
-    requireNotNull(vidIndexMap) { "TrusTee VidIndexMap cannot be null." }
-
     requireNotNull(
       requisition.protocolConfig.protocolsList.find { protocol -> protocol.hasTrusTee() }
     ) {
