@@ -88,6 +88,7 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
       EXTRA_ENV_VARS          = var.extra_env_vars
       SECRET_MAPPINGS         = var.secret_mappings
       UBER_JAR_DIRECTORY      = dirname(var.uber_jar_path)
+      TRIGGER_EVENT_TYPE      = var.trigger_event_type
     }
     command = <<-EOT
       #!/bin/bash
@@ -102,7 +103,7 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
         "--region=$CLOUD_REGION"
         "--run-service-account=$RUN_SERVICE_ACCOUNT"
         "--source=$UBER_JAR_DIRECTORY"
-        "--trigger-event-filters=type=google.cloud.storage.object.v1.finalized"
+        "--trigger-event-filters=type=$TRIGGER_EVENT_TYPE"
         "--trigger-event-filters=bucket=$TRIGGER_BUCKET"
         "--trigger-service-account=$TRIGGER_SERVICE_ACCOUNT"
         "--no-allow-unauthenticated"

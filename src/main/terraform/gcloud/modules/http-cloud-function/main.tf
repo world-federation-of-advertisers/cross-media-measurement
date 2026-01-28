@@ -15,25 +15,28 @@
 data "google_project" "project" {}
 data "google_client_config" "default" {}
 
+locals {
+  create_service_account = var.existing_service_account == null
+  service_account_name   = local.create_service_account ? google_service_account.http_cloud_function_service_account[0].name : var.existing_service_account.name
+  service_account_email  = local.create_service_account ? google_service_account.http_cloud_function_service_account[0].email : var.existing_service_account.email
+}
+
 resource "google_service_account" "http_cloud_function_service_account" {
+  count        = local.create_service_account ? 1 : 0
   account_id   = var.http_cloud_function_service_account_name
   display_name = "Service account for Cloud Function"
 }
 
 resource "google_service_account_iam_member" "allow_terraform_to_use_cloud_function_service_account" {
-  service_account_id = google_service_account.http_cloud_function_service_account.name
+  count              = local.create_service_account ? 1 : 0
+  service_account_id = google_service_account.http_cloud_function_service_account[0].name
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${var.terraform_service_account}"
 }
 
 resource "terraform_data" "deploy_http_cloud_function" {
 
-  depends_on = [
-    google_service_account.http_cloud_function_service_account,
-    google_service_account_iam_member.allow_terraform_to_use_cloud_function_service_account,
-  ]
-
-  triggers_replace = [var.uber_jar_path]
+  triggers_replace = concat([var.uber_jar_path], var.deployment_dependencies)
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
@@ -41,7 +44,7 @@ resource "terraform_data" "deploy_http_cloud_function" {
       FUNCTION_NAME           = var.function_name
       ENTRY_POINT             = var.entry_point
       CLOUD_REGION            = data.google_client_config.default.region
-      RUN_SERVICE_ACCOUNT     = google_service_account.http_cloud_function_service_account.email
+      RUN_SERVICE_ACCOUNT     = local.service_account_email
       EXTRA_ENV_VARS          = var.extra_env_vars
       SECRET_MAPPINGS         = var.secret_mappings
       UBER_JAR_DIRECTORY      = dirname(var.uber_jar_path)

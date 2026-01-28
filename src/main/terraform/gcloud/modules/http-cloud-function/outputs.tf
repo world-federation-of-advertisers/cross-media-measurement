@@ -13,5 +13,8 @@
 # limitations under the License.
 
 output "cloud_function_service_account" {
-  value = google_service_account.http_cloud_function_service_account
+  value = {
+    name  = local.service_account_name
+    email = local.service_account_email
+  }
 }
