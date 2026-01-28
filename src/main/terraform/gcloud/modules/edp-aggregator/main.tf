@@ -449,6 +449,12 @@ resource "google_storage_bucket_iam_member" "data_watcher_config_storage_viewer"
   member = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
 }
 
+resource "google_storage_bucket_iam_member" "data_watcher_delete_config_storage_viewer" {
+  bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.data_watcher_delete_cloud_function.cloud_function_service_account.email}"
+}
+
 resource "google_storage_bucket_iam_member" "results_fulfiller_config_storage_viewer" {
   bucket = module.config_files_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
