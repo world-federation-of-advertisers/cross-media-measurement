@@ -255,8 +255,6 @@ class MetricsService(
   private val secureRandom: Random,
   signingPrivateKeyDir: File,
   trustedCertificates: Map<ByteString, X509Certificate>,
-  private val defaultVidModelLine: String,
-  private val measurementConsumerModelLines: Map<String, String>,
   populationDataProvider: String,
   certificateCacheExpirationDuration: Duration = Duration.ofMinutes(60),
   dataProviderCacheExpirationDuration: Duration = Duration.ofMinutes(60),
@@ -304,10 +302,7 @@ class MetricsService(
     cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
     private val populationDataProvider: String,
   ) {
-    data class RunningMetric(
-      val internalMetric: InternalMetric,
-      val effectiveModelLineName: String,
-    ) {
+    data class RunningMetric(val internalMetric: InternalMetric, val modelLineName: String) {
       init {
         require(internalMetric.state == InternalMetric.State.RUNNING)
       }
@@ -599,7 +594,7 @@ class MetricsService(
               "Unset metric type should've already raised error."
             }
         }
-        modelLine = runningMetric.effectiveModelLineName
+        modelLine = runningMetric.modelLineName
 
         // Add reporting metadata
         reportingMetadata = reportingMetadata {
@@ -1447,35 +1442,33 @@ class MetricsService(
           .asRuntimeException()
     val measurementConsumerCreds =
       MeasurementConsumerCredentials.fromConfig(parentKey, measurementConsumerConfig)
-    val effectiveModelLineName =
-      try {
-        getEffectiveModelLine(
-          request.metric.modelLine,
-          "metric.model_line",
-          measurementConsumerName,
-        )
-      } catch (e: InvalidFieldValueException) {
-        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
+
+    if (request.metric.modelLine.isEmpty()) {
+      throw RequiredFieldNotSetException("metric.model_line")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    ModelLineKey.fromName(request.metric.modelLine)
+      ?: throw InvalidFieldValueException("metric.model_line")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
     val requiredPermissionIds = buildSet {
       add(Permission.CREATE)
-      if (effectiveModelLineName.isNotEmpty()) {
-        val modelLine =
-          try {
-            kingdomModelLinesStub
-              .withAuthenticationKey(measurementConsumerCreds.callCredentials.apiAuthenticationKey)
-              .getModelLine(getModelLineRequest { name = effectiveModelLineName })
-          } catch (e: StatusException) {
-            throw when (e.status.code) {
-              Status.Code.NOT_FOUND ->
-                ModelLineNotFoundException(effectiveModelLineName, e)
-                  .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-              else -> Status.INTERNAL.withCause(e).asRuntimeException()
-            }
+      val modelLine =
+        try {
+          kingdomModelLinesStub
+            .withAuthenticationKey(measurementConsumerCreds.callCredentials.apiAuthenticationKey)
+            .getModelLine(getModelLineRequest { name = request.metric.modelLine })
+        } catch (e: StatusException) {
+          throw when (e.status.code) {
+            Status.Code.NOT_FOUND ->
+              ModelLineNotFoundException(request.metric.modelLine, e)
+                .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+            else -> Status.INTERNAL.withCause(e).asRuntimeException()
           }
-        if (modelLine.type == ModelLine.Type.DEV) {
-          add(Permission.CREATE_WITH_DEV_MODEL_LINE)
         }
+      if (modelLine.type == ModelLine.Type.DEV) {
+        add(Permission.CREATE_WITH_DEV_MODEL_LINE)
       }
     }
     authorization.check(measurementConsumerName, requiredPermissionIds)
@@ -1523,7 +1516,7 @@ class MetricsService(
 
     if (internalMetric.state == InternalMetric.State.RUNNING) {
       measurementSupplier.createCmmsMeasurements(
-        listOf(MeasurementSupplier.RunningMetric(internalMetric, effectiveModelLineName)),
+        listOf(MeasurementSupplier.RunningMetric(internalMetric, request.metric.modelLine)),
         internalPrimitiveReportingSetMap,
         measurementConsumerCreds,
       )
@@ -1548,34 +1541,35 @@ class MetricsService(
           .asRuntimeException()
     val measurementConsumerCreds =
       MeasurementConsumerCredentials.fromConfig(parentKey, measurementConsumerConfig)
-    val effectiveModelLineNames =
+    val modelLineNames =
       request.requestsList.mapIndexed { index, subRequest ->
-        try {
-          getEffectiveModelLine(
-            subRequest.metric.modelLine,
-            "requests[$index].metric.model_line",
-            measurementConsumerName,
-          )
-        } catch (e: InvalidFieldValueException) {
-          throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        if (subRequest.metric.modelLine.isEmpty()) {
+          throw RequiredFieldNotSetException("requests[$index].metric.model_line")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
+
+        ModelLineKey.fromName(subRequest.metric.modelLine)
+          ?: throw InvalidFieldValueException("requests[$index].metric.model_line")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+        subRequest.metric.modelLine
       }
 
     val requiredPermissionIds = buildSet {
       add(Permission.CREATE)
-      for (effectiveModelLineName in effectiveModelLineNames) {
-        if (effectiveModelLineName.isEmpty()) {
+      for (modelLineName in modelLineNames) {
+        if (modelLineName.isEmpty()) {
           continue
         }
         val modelLine =
           try {
             kingdomModelLinesStub
               .withAuthenticationKey(measurementConsumerCreds.callCredentials.apiAuthenticationKey)
-              .getModelLine(getModelLineRequest { name = effectiveModelLineName })
+              .getModelLine(getModelLineRequest { name = modelLineName })
           } catch (e: StatusException) {
             throw when (e.status.code) {
               Status.Code.NOT_FOUND ->
-                ModelLineNotFoundException(effectiveModelLineName, e)
+                ModelLineNotFoundException(modelLineName, e)
                   .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
               else -> StatusRuntimeException(Status.INTERNAL)
             }
@@ -1686,10 +1680,10 @@ class MetricsService(
 
     val internalRunningMetrics: List<MeasurementSupplier.RunningMetric> =
       internalMetrics
-        .zip(effectiveModelLineNames)
+        .zip(modelLineNames)
         .filter { (internalMetric, _) -> internalMetric.state == InternalMetric.State.RUNNING }
-        .map { (internalMetric, effectiveModelLineName) ->
-          MeasurementSupplier.RunningMetric(internalMetric, effectiveModelLineName)
+        .map { (internalMetric, modelLineName) ->
+          MeasurementSupplier.RunningMetric(internalMetric, modelLineName)
         }
     if (internalRunningMetrics.isNotEmpty()) {
       measurementSupplier.createCmmsMeasurements(
@@ -1701,37 +1695,6 @@ class MetricsService(
 
     // Convert the internal metric to public and return it.
     return batchCreateMetricsResponse { metrics += internalMetrics.map { it.toMetric(variances) } }
-  }
-
-  /**
-   * Returns the resource name of the effective [ModelLine], or empty string if there is none.
-   *
-   * @param requestModelLine resource name of the [ModelLine] from a request, which may be empty
-   * @param fieldPath field path of [requestModelLine] relative to the request
-   * @param measurementConsumer resource name of the [MeasurementConsumer]
-   * @throws InvalidFieldValueException if [requestModelLine] is specified and invalid
-   */
-  private fun getEffectiveModelLine(
-    requestModelLine: String,
-    fieldPath: String,
-    measurementConsumer: String,
-  ): String {
-    val key: ModelLineKey? =
-      if (requestModelLine.isEmpty()) {
-        val effectiveModelLine =
-          measurementConsumerModelLines[measurementConsumer] ?: defaultVidModelLine.ifEmpty { null }
-        if (effectiveModelLine == null) {
-          null
-        } else {
-          checkNotNull(ModelLineKey.fromName(effectiveModelLine)) {
-            "Invalid ModelLine $effectiveModelLine for $measurementConsumer in config"
-          }
-        }
-      } else {
-        ModelLineKey.fromName(requestModelLine) ?: throw InvalidFieldValueException(fieldPath)
-      }
-
-    return key?.toName() ?: ""
   }
 
   /** Builds an [InternalCreateMetricRequest]. */

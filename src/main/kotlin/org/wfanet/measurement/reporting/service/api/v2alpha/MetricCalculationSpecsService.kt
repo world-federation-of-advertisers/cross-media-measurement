@@ -50,6 +50,7 @@ import org.wfanet.measurement.internal.reporting.v2.getMetricCalculationSpecRequ
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec as internalMetricCalculationSpec
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
+import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.GetMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricCalculationSpecsPageToken
@@ -262,24 +263,27 @@ class MetricCalculationSpecsService(
         }
       }
 
-    if (source.modelLine.isNotEmpty()) {
-      ModelLineKey.fromName(source.modelLine)
-        ?: throw InvalidFieldValueException("request.metric_calculation_spec.model_line")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    val modelLineFieldPath = "request.metric_calculation_spec.model_line"
 
-      try {
-        kingdomModelLinesStub
-          .withAuthenticationKey(
-            measurementConsumerCredentials.callCredentials.apiAuthenticationKey
-          )
-          .getModelLine(getModelLineRequest { name = source.modelLine })
-      } catch (e: StatusException) {
-        throw when (e.status.code) {
-          Status.Code.NOT_FOUND ->
-            InvalidFieldValueException("request.metric_calculation_spec.model_line")
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          else -> StatusRuntimeException(Status.INTERNAL)
-        }
+    if (source.modelLine.isEmpty()) {
+      throw RequiredFieldNotSetException(modelLineFieldPath)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    ModelLineKey.fromName(source.modelLine)
+      ?: throw InvalidFieldValueException(modelLineFieldPath)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    try {
+      kingdomModelLinesStub
+        .withAuthenticationKey(measurementConsumerCredentials.callCredentials.apiAuthenticationKey)
+        .getModelLine(getModelLineRequest { name = source.modelLine })
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND ->
+          InvalidFieldValueException(modelLineFieldPath)
+            .asStatusRuntimeException(Status.Code.NOT_FOUND)
+        else -> StatusRuntimeException(Status.INTERNAL)
       }
     }
 
