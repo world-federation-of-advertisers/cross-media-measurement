@@ -19,6 +19,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.util.Timestamps
 import com.google.type.copy
+import com.google.type.date
 import com.google.type.endTimeOrNull
 import com.google.type.interval
 import io.grpc.Status
@@ -49,6 +50,7 @@ import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroup
+import org.wfanet.measurement.internal.kingdom.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.EventGroupMetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.EventGroupMetadataKt.adMetadata
 import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.eventGroupMetadata
@@ -62,16 +64,20 @@ import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.orderBy
 import org.wfanet.measurement.internal.kingdom.batchCreateEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.dateInterval
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup
+import org.wfanet.measurement.internal.kingdom.eventGroupActivity
 import org.wfanet.measurement.internal.kingdom.eventGroupDetails
 import org.wfanet.measurement.internal.kingdom.eventGroupKey
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.updateEventGroupActivityRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
@@ -113,6 +119,9 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   protected lateinit var accountsService: AccountsCoroutineImplBase
     private set
 
+  protected lateinit var eventGroupActivitiesService: EventGroupActivitiesCoroutineImplBase
+    private set
+
   protected abstract fun newServices(idGenerator: IdGenerator): EventGroupAndHelperServices<T>
 
   @Before
@@ -122,6 +131,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     measurementConsumersService = services.measurementConsumersService
     dataProvidersService = services.dataProvidersService
     accountsService = services.accountsService
+    eventGroupActivitiesService = services.eventGroupActivitiesService
   }
 
   @Test
@@ -2076,6 +2086,331 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
     assertThat(eventGroups).isEmpty()
   }
+
+  @Test
+  fun `getEventGroup respects view`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val eventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          this.eventGroup = eventGroup {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+          }
+        }
+      )
+
+    eventGroupActivitiesService.batchUpdateEventGroupActivities(
+      batchUpdateEventGroupActivitiesRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalEventGroupId = eventGroup.externalEventGroupId
+        requests += updateEventGroupActivityRequest {
+          eventGroupActivity = eventGroupActivity {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = eventGroup.externalEventGroupId
+            date = date {
+              year = 2023
+              month = 1
+              day = 1
+            }
+          }
+          allowMissing = true
+        }
+      }
+    )
+
+    val basicResponse =
+      eventGroupsService.getEventGroup(
+        getEventGroupRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+          view = EventGroup.View.BASIC
+        }
+      )
+    assertThat(basicResponse.aggregatedActivitiesList).isEmpty()
+
+    val summaryResponse =
+      eventGroupsService.getEventGroup(
+        getEventGroupRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+          view = EventGroup.View.WITH_ACTIVITY_SUMMARY
+        }
+      )
+    assertThat(summaryResponse.aggregatedActivitiesList).isNotEmpty()
+  }
+
+  @Test
+  fun `streamEventGroups respects view`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val eventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          this.eventGroup = eventGroup {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+          }
+        }
+      )
+
+    eventGroupActivitiesService.batchUpdateEventGroupActivities(
+      batchUpdateEventGroupActivitiesRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalEventGroupId = eventGroup.externalEventGroupId
+        requests += updateEventGroupActivityRequest {
+          eventGroupActivity = eventGroupActivity {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = eventGroup.externalEventGroupId
+            date = date {
+              year = 2023
+              month = 1
+              day = 1
+            }
+          }
+          allowMissing = true
+        }
+      }
+    )
+
+    val basicResponse =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter { externalDataProviderIdIn += dataProvider.externalDataProviderId }
+            view = EventGroup.View.BASIC
+          }
+        )
+        .single()
+    assertThat(basicResponse.aggregatedActivitiesList).isEmpty()
+
+    val summaryResponse =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter { externalDataProviderIdIn += dataProvider.externalDataProviderId }
+            view = EventGroup.View.WITH_ACTIVITY_SUMMARY
+          }
+        )
+        .single()
+    assertThat(summaryResponse.aggregatedActivitiesList).isNotEmpty()
+  }
+
+  @Test
+  fun `streamEventGroups respects activity_contains filter`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val eventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          this.eventGroup = eventGroup {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+          }
+        }
+      )
+
+    val date1 = date {
+      year = 2023
+      month = 1
+      day = 1
+    }
+    val date2 = date {
+      year = 2023
+      month = 1
+      day = 2
+    }
+
+    eventGroupActivitiesService.batchUpdateEventGroupActivities(
+      batchUpdateEventGroupActivitiesRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalEventGroupId = eventGroup.externalEventGroupId
+        requests += updateEventGroupActivityRequest {
+          eventGroupActivity = eventGroupActivity {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = eventGroup.externalEventGroupId
+            date = date1
+          }
+          allowMissing = true
+        }
+      }
+    )
+    eventGroupActivitiesService.batchUpdateEventGroupActivities(
+      batchUpdateEventGroupActivitiesRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalEventGroupId = eventGroup.externalEventGroupId
+        requests += updateEventGroupActivityRequest {
+          eventGroupActivity = eventGroupActivity {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = eventGroup.externalEventGroupId
+            date = date2
+          }
+          allowMissing = true
+        }
+      }
+    )
+
+    val responseMatch =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter {
+              externalDataProviderIdIn += dataProvider.externalDataProviderId
+              activityContains = dateInterval {
+                startDate = date1
+                endDate = date2
+              }
+            }
+          }
+        )
+        .toList()
+    assertThat(responseMatch).containsExactly(eventGroup)
+
+    val responseNoMatch =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter {
+              externalDataProviderIdIn += dataProvider.externalDataProviderId
+              activityContains = dateInterval {
+                startDate = date1
+                endDate = date {
+                  year = 2023
+                  month = 1
+                  day = 3
+                }
+              }
+            }
+          }
+        )
+        .toList()
+    assertThat(responseNoMatch).isEmpty()
+  }
+
+  @Test
+  fun `streamEventGroups throws INVALID_ARGUMENT when activity_contains start_date is invalid`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupsService.streamEventGroups(
+            streamEventGroupsRequest {
+              filter = filter {
+                activityContains = dateInterval {
+                  startDate = date {
+                    year = 2023
+                    month = 2
+                    day = 30 // Invalid date
+                  }
+                  endDate = date {
+                    year = 2023
+                    month = 3
+                    day = 1
+                  }
+                }
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("filter.activity_contains.start_date")
+    }
+
+  @Test
+  fun `streamEventGroups throws INVALID_ARGUMENT when activity_contains end_date is invalid`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupsService.streamEventGroups(
+            streamEventGroupsRequest {
+              filter = filter {
+                activityContains = dateInterval {
+                  startDate = date {
+                    year = 2023
+                    month = 1
+                    day = 1
+                  }
+                  endDate = date {
+                    year = 2023
+                    month = 13 // Invalid Month
+                    day = 30
+                  }
+                }
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("filter.activity_contains.end_date")
+    }
+
+  @Test
+  fun `streamEventGroups throws INVALID_ARGUMENT when activity_contains start_date is after end_date`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupsService.streamEventGroups(
+            streamEventGroupsRequest {
+              filter = filter {
+                activityContains = dateInterval {
+                  startDate = date {
+                    year = 2023
+                    month = 2
+                    day = 1
+                  }
+                  endDate = date {
+                    year = 2023
+                    month = 1
+                    day = 1
+                  }
+                }
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .hasMessageThat()
+        .contains("start_date must be before or equal to end_date")
+    }
+
+  @Test
+  fun `streamEventGroups throws INVALID_ARGUMENT when activity_contains start_date year is missing`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupsService.streamEventGroups(
+            streamEventGroupsRequest {
+              filter = filter {
+                activityContains = dateInterval {
+                  startDate = date {
+                    // year missing
+                    month = 1
+                    day = 1
+                  }
+                  endDate = date {
+                    year = 2023
+                    month = 1
+                    day = 2
+                  }
+                }
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("filter.activity_contains.start_date")
+    }
 }
 
 data class EventGroupAndHelperServices<T : EventGroupsCoroutineImplBase>(
@@ -2083,6 +2418,7 @@ data class EventGroupAndHelperServices<T : EventGroupsCoroutineImplBase>(
   val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
   val dataProvidersService: DataProvidersCoroutineImplBase,
   val accountsService: AccountsCoroutineImplBase,
+  val eventGroupActivitiesService: EventGroupActivitiesCoroutineImplBase,
 )
 
 private operator fun OpenEndRange<Instant>.contains(other: ClosedRange<Instant>): Boolean {

@@ -114,7 +114,7 @@ jobs:
 
   update-secure-computation:
     uses: ./.github/workflows/configure-secure-computation-control-plane.yml
-    needs: [ publish-images, terraform ]
+    needs: [ publish-images, terraform, update-kingdom]
     secrets: inherit
     permissions:
       contents: read

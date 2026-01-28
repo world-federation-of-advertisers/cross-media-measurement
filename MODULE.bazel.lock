@@ -538,13 +538,14 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.14.0/MODULE.bazel": "1bfc0048abf7c87aba25d041caaf8f96e0252848d79de6b442cd56ace3189f2e",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.14.0/source.json": "abc2a96da0f5af0a85672811998798a55a8dce68083a470cfd341c68e06d2262",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.129.0/MODULE.bazel": "2bf570f12d4cd8b5d743bc3d619b7bd554f7f18d8179114c33a30f39abb7e447",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.132.0/MODULE.bazel": "c25fbec7ab5af06be1fd42d1612a395788ee0ef1247de67868dc97344cabcc57",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.132.0/source.json": "0db9c3f3371bbee43d311df6dff221482532e200866fe6ecdd8558c3d90f528d",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.134.0/MODULE.bazel": "3facc838e9aab920e70b1d00f1393def5c6d49c75bd6cde8d9d0eda9882cfcfc",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.134.0/source.json": "4231d580cb7cb8af7fa4ebbe78e26019d9820cfbceaf9d1c59af29fe171b0564",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.23.0/MODULE.bazel": "5fde5a3f897ec6a39300666bc745cb309b4c12e74ce4fcddef6429e5e4a627a2",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.23.0/source.json": "3798af185e6c71cabea6550303035ea4ad325a6d53854ab056ee6c93acf03b89",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/crc32c/1.1.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.87.0/MODULE.bazel": "c678b3f46885c8dea8e0de6215dc3b935ff93d632eec5d603e0690ce61571398",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.87.0/source.json": "2bc4a06e472991aad6a89c70938cd042379697d7029a54eec3aaf761a54bedb0",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.88.0/MODULE.bazel": "5f9c9987a1befdfee9ee7b295e7d57bbfbb5fc4a9bf4903fa90d853c4196f43f",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.88.0/source.json": "c763499d68dacd8995edcdfda5c333dc68dedb7f4c02a58d44363b65ea760ae6",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/curl/8.4.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/curl/8.7.1/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/curl/8.8.0.bcr.3/MODULE.bazel": "not found",
@@ -1684,7 +1685,7 @@
     "@@cross-media-measurement-api~//build:non_module_deps.bzl%non_module_deps": {
       "general": {
         "bzlTransitiveDigest": "tARYNwoTv9sVEd2saAAd0hgtPkV9rwO2ltHTb2278qs=",
-        "usagesDigest": "eAtK7Pcx2zz2VH4k33sq+L6l8lWp/rL4kyIosJ4+1Qw=",
+        "usagesDigest": "DfzvVSrfHOPK8nwnAhSgT2FH82d1P904DxStPMzMs+8=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -2352,7 +2353,7 @@
     "@@rules_oci~//oci:extensions.bzl%oci": {
       "general": {
         "bzlTransitiveDigest": "yyTvBSVukHEf+iGms4+jq+/Zy1xLOGnxYiCLJFatSUE=",
-        "usagesDigest": "3tn8cx1zDZaYiqWKGsjBPI/jgLM6/Pb6aKkOJvWAh1Q=",
+        "usagesDigest": "iVIig4/O5K/HJWYGdPLcm5HrPSxsn0QX5v/d7g3PjZ4=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},

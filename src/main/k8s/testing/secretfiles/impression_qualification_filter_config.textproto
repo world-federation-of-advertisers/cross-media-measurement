@@ -7,14 +7,12 @@ impression_qualification_filters {
   impression_qualification_filter_id: 1
   filter_specs {
     media_type: DISPLAY
-    filters: {
-      terms: {
-        path: "banner_ad.viewable"
-        value {
-          bool_value: false
-        }
-      }
-    }
+  }
+  filter_specs {
+    media_type: VIDEO
+  }
+  filter_specs {
+    media_type: OTHER
   }
 }
 

@@ -16,9 +16,8 @@ package org.wfanet.measurement.reporting.postprocessing.v2alpha
 
 import com.google.cloud.storage.StorageOptions
 import com.google.protobuf.Timestamp
-import java.io.BufferedReader
 import java.io.File
-import java.io.InputStreamReader
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -70,7 +69,8 @@ class GcsStorageFactory : ReportProcessor.StorageFactory {
   }
 }
 
-class ReportProcessorFailureException(message: String) : RuntimeException(message)
+class ReportProcessorFailureException(message: String, cause: Throwable? = null) :
+  RuntimeException(message, cause)
 
 /** Corrects the inconsistent measurements in a serialized [Report]. */
 interface ReportProcessor {
@@ -136,7 +136,7 @@ interface ReportProcessor {
       Files.copy(resourcePath, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
     }
 
-    // Default factory instance.
+    // Default storage factory instance.
     private val gcsStorageFactory = GcsStorageFactory()
 
     /**
@@ -386,29 +386,40 @@ interface ReportProcessor {
     ): ReportPostProcessorResult {
       logger.info { "Start processing report summary.." }
 
+      val tempInputFile: File =
+        try {
+          File.createTempFile("report_summary", ".binpb").apply { deleteOnExit() }
+        } catch (e: IOException) {
+          throw ReportProcessorFailureException("Failed to create temporary input file.", e)
+        }
+      val tempOutputFile: File =
+        try {
+          File.createTempFile("report_post_processor_result", ".binpb").apply { deleteOnExit() }
+        } catch (e: IOException) {
+          throw ReportProcessorFailureException("Failed to create temporary output file.", e)
+        }
+
+      try {
+        tempInputFile.outputStream().use { reportSummary.writeTo(it) }
+      } catch (e: IOException) {
+        throw ReportProcessorFailureException("Failed to write to temporary input file.", e)
+      }
+
       // TODO(bazelbuild/bazel#17629): Execute the Python zip directly once this bug is fixed.
-      val processBuilder = ProcessBuilder("python3", tempFile.toPath().toString())
-
-      // Sets verbosity for python program.
-      if (verbose) {
-        processBuilder.command().add("--debug")
+      val command = buildList {
+        add("python3")
+        add(tempFile.toPath().toString())
+        if (verbose) {
+          add("--debug")
+        }
+        add("--input_file=${tempInputFile.absolutePath}")
+        add("--output_file=${tempOutputFile.absolutePath}")
       }
-      val process = processBuilder.start()
-
-      // Write the process' argument to its stdin.
-      process.outputStream.use { outputStream ->
-        reportSummary.writeTo(outputStream)
-        outputStream.flush()
-      }
-
-      // Reads the report post processor result.
-      val result: ReportPostProcessorResult =
-        ReportPostProcessorResult.parseFrom(process.inputStream)
+      val process = ProcessBuilder(command).start()
 
       // Logs from python program, which are written to stderr, are read and re-logged. When
       // encountering an error or a critical log, throws a RuntimeException.
-      val processError =
-        BufferedReader(InputStreamReader(process.errorStream)).use { it.readText() }
+      val processError = process.errorStream.bufferedReader().use { it.readText() }
 
       val exitCode = process.waitFor()
 
@@ -417,6 +428,12 @@ interface ReportProcessor {
       } else {
         throw ReportProcessorFailureException(processError)
       }
+
+      // Reads the report post processor result from the temporary file.
+      val result: ReportPostProcessorResult =
+        tempOutputFile.inputStream().use { inputStream ->
+          ReportPostProcessorResult.parseFrom(inputStream)
+        }
 
       logger.info { "Finished processing report summary.." }
 

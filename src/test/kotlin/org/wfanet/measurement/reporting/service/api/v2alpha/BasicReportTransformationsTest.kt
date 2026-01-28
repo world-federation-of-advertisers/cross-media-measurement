@@ -2822,6 +2822,132 @@ class BasicReportTransformationsTest {
   }
 
   @Test
+  fun `resultGroupSpec with IQF with only MediaType OTHER transforms into correct map`() {
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+    }
+    val resultGroupSpecs =
+      listOf(
+        resultGroupSpec {
+          reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
+          metricFrequency = metricFrequencySpec { total = true }
+          dimensionSpec = dimensionSpec {
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              }
+            }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.gender"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              }
+          }
+        }
+      )
+
+    val impressionQualificationFilterSpecList: List<List<ImpressionQualificationFilterSpec>> =
+      buildList {
+        add(listOf(impressionQualificationFilterSpec { mediaType = MediaType.OTHER }))
+      }
+
+    val reportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecList,
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap.keys)
+      .containsExactly(PRIMITIVE_REPORTING_SET_1)
+    assertThat(reportingSetMetricCalculationSpecDetailsMap[PRIMITIVE_REPORTING_SET_1])
+      .containsExactly(
+        MetricCalculationSpecKt.details {
+          filter = "person.age_group == 1 && person.gender == 1"
+          metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+          metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
+        }
+      )
+  }
+
+  @Test
+  fun `resultGroupSpec with IQF MediaType OtHER plus another transforms into correct map`() {
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+    }
+    val resultGroupSpecs =
+      listOf(
+        resultGroupSpec {
+          reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
+          metricFrequency = metricFrequencySpec { total = true }
+          dimensionSpec = dimensionSpec {
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              }
+            }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.gender"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              }
+          }
+        }
+      )
+
+    val impressionQualificationFilterSpecList: List<List<ImpressionQualificationFilterSpec>> =
+      buildList {
+        add(
+          listOf(
+            impressionQualificationFilterSpec { mediaType = MediaType.VIDEO },
+            impressionQualificationFilterSpec { mediaType = MediaType.OTHER },
+          )
+        )
+      }
+
+    val reportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecList,
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap.keys)
+      .containsExactly(PRIMITIVE_REPORTING_SET_1)
+    assertThat(reportingSetMetricCalculationSpecDetailsMap[PRIMITIVE_REPORTING_SET_1])
+      .containsExactly(
+        MetricCalculationSpecKt.details {
+          filter = "person.age_group == 1 && person.gender == 1"
+          metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
+        },
+        MetricCalculationSpecKt.details {
+          filter = "(video_ad != null) && (person.age_group == 1 && person.gender == 1)"
+          metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+        },
+      )
+  }
+
+  @Test
   fun `resultGroupSpec with IQF with no filters transforms into correct map`() {
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
@@ -2860,6 +2986,7 @@ class BasicReportTransformationsTest {
           listOf(
             impressionQualificationFilterSpec { mediaType = MediaType.VIDEO },
             impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY },
+            impressionQualificationFilterSpec { mediaType = MediaType.OTHER },
           )
         )
       }
@@ -2886,6 +3013,65 @@ class BasicReportTransformationsTest {
             "((banner_ad != null) || (video_ad != null)) && (person.age_group == 1 && person.gender == 1)"
           metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
         },
+      )
+  }
+
+  @Test
+  fun `resultGroupSpec with IQF with no specs transforms into correct map`() {
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+    }
+    val resultGroupSpecs =
+      listOf(
+        resultGroupSpec {
+          reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
+          metricFrequency = metricFrequencySpec { total = true }
+          dimensionSpec = dimensionSpec {
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              }
+            }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.gender"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              }
+          }
+        }
+      )
+
+    val impressionQualificationFilterSpecList: List<List<ImpressionQualificationFilterSpec>> =
+      buildList {
+        add(emptyList())
+      }
+
+    val reportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecList,
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap.keys)
+      .containsExactly(PRIMITIVE_REPORTING_SET_1)
+    assertThat(reportingSetMetricCalculationSpecDetailsMap[PRIMITIVE_REPORTING_SET_1])
+      .containsExactly(
+        MetricCalculationSpecKt.details {
+          filter = "person.age_group == 1 && person.gender == 1"
+          metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+          metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
+        }
       )
   }
 
