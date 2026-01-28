@@ -27,7 +27,6 @@ import org.wfanet.measurement.kingdom.service.internal.testing.ClientAccountsSer
 
 @RunWith(JUnit4::class)
 class SpannerClientAccountsServiceTest : ClientAccountsServiceTest<SpannerClientAccountsService>() {
-
   @get:Rule
   val spannerDatabase =
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.KINGDOM_CHANGELOG_PATH)

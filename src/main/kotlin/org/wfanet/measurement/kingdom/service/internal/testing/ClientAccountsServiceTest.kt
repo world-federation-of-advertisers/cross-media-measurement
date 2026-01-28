@@ -18,13 +18,11 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -38,22 +36,20 @@ import org.wfanet.measurement.internal.kingdom.ClientAccount
 import org.wfanet.measurement.internal.kingdom.ClientAccountsGrpcKt.ClientAccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ListClientAccountsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.StreamClientAccountsRequestKt
-import org.wfanet.measurement.internal.kingdom.StreamClientAccountsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.clientAccount
 import org.wfanet.measurement.internal.kingdom.createClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.deleteClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.getClientAccountRequest
-import org.wfanet.measurement.internal.kingdom.streamClientAccountsRequest
+import org.wfanet.measurement.internal.kingdom.listClientAccountsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
 
 @RunWith(JUnit4::class)
 abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
-
   @get:Rule val duchyIdSetter = DuchyIdSetter(Population.DUCHIES)
 
   protected data class Services<T>(
@@ -283,7 +279,7 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
   }
 
   @Test
-  fun `streamClientAccounts returns results`(): Unit = runBlocking {
+  fun `listClientAccounts returns results`(): Unit = runBlocking {
     val measurementConsumer: MeasurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
@@ -310,22 +306,20 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
         }
       )
 
-    val result: List<ClientAccount> =
-      clientAccountsService
-        .streamClientAccounts(
-          streamClientAccountsRequest {
-            filter = filter {
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            }
+    val result =
+      clientAccountsService.listClientAccounts(
+        listClientAccountsRequest {
+          filter = filter {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
           }
-        )
-        .toList()
+        }
+      )
 
-    assertThat(result).containsExactly(clientAccount2, clientAccount1).inOrder()
+    assertThat(result.clientAccountsList).containsExactly(clientAccount2, clientAccount1).inOrder()
   }
 
   @Test
-  fun `streamClientAccounts with filter succeeds`(): Unit = runBlocking {
+  fun `listClientAccounts with filter succeeds`(): Unit = runBlocking {
     val measurementConsumer: MeasurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider1: DataProvider = population.createDataProvider(dataProvidersService)
@@ -352,23 +346,21 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
       }
     )
 
-    val result: List<ClientAccount> =
-      clientAccountsService
-        .streamClientAccounts(
-          streamClientAccountsRequest {
-            filter = filter {
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-              externalDataProviderId = dataProvider1.externalDataProviderId
-            }
+    val result =
+      clientAccountsService.listClientAccounts(
+        listClientAccountsRequest {
+          filter = filter {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            externalDataProviderId = dataProvider1.externalDataProviderId
           }
-        )
-        .toList()
+        }
+      )
 
-    assertThat(result).containsExactly(clientAccount1)
+    assertThat(result.clientAccountsList).containsExactly(clientAccount1)
   }
 
   @Test
-  fun `streamClientAccounts with limit succeeds`(): Unit = runBlocking {
+  fun `listClientAccounts with pageSize succeeds`(): Unit = runBlocking {
     val measurementConsumer: MeasurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
@@ -394,23 +386,21 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
         }
       )
 
-    val result: List<ClientAccount> =
-      clientAccountsService
-        .streamClientAccounts(
-          streamClientAccountsRequest {
-            filter = filter {
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            }
-            limit = 1
+    val result =
+      clientAccountsService.listClientAccounts(
+        listClientAccountsRequest {
+          filter = filter {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
           }
-        )
-        .toList()
+          pageSize = 1
+        }
+      )
 
-    assertThat(result).containsExactly(clientAccount2)
+    assertThat(result.clientAccountsList).containsExactly(clientAccount2)
   }
 
   @Test
-  fun `streamClientAccounts with clientAccountReferenceId filter succeeds`(): Unit = runBlocking {
+  fun `listClientAccounts with clientAccountReferenceId filter succeeds`(): Unit = runBlocking {
     val measurementConsumer: MeasurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
@@ -436,97 +426,21 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
       }
     )
 
-    val result: List<ClientAccount> =
-      clientAccountsService
-        .streamClientAccounts(
-          streamClientAccountsRequest {
-            filter = filter {
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-              clientAccountReferenceId = "reference-id-1"
-            }
+    val result =
+      clientAccountsService.listClientAccounts(
+        listClientAccountsRequest {
+          filter = filter {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            clientAccountReferenceId = "reference-id-1"
           }
-        )
-        .toList()
-
-    assertThat(result).containsExactly(clientAccount1)
-  }
-
-  @Test
-  fun `streamClientAccounts with AfterFilter fails when missing createTime`(): Unit = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        clientAccountsService
-          .streamClientAccounts(
-            streamClientAccountsRequest {
-              filter = filter {
-                after =
-                  StreamClientAccountsRequestKt.afterFilter {
-                    externalMeasurementConsumerId = 1L
-                    externalClientAccountId = 1L
-                    // Missing createTime
-                  }
-              }
-            }
-          )
-          .toList()
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("Missing After filter fields")
-  }
-
-  @Test
-  fun `streamClientAccounts with AfterFilter fails when missing externalMeasurementConsumerId`():
-    Unit = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        clientAccountsService
-          .streamClientAccounts(
-            streamClientAccountsRequest {
-              filter = filter {
-                after =
-                  StreamClientAccountsRequestKt.afterFilter {
-                    externalClientAccountId = 1L
-                    createTime = timestamp { seconds = 1000 }
-                    // Missing externalMeasurementConsumerId (defaults to 0)
-                  }
-              }
-            }
-          )
-          .toList()
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("Missing After filter fields")
-  }
-
-  @Test
-  fun `streamClientAccounts with AfterFilter fails when missing externalClientAccountId`(): Unit =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          clientAccountsService
-            .streamClientAccounts(
-              streamClientAccountsRequest {
-                filter = filter {
-                  after =
-                    StreamClientAccountsRequestKt.afterFilter {
-                      externalMeasurementConsumerId = 1L
-                      createTime = timestamp { seconds = 1000 }
-                      // Missing externalClientAccountId (defaults to 0)
-                    }
-                }
-              }
-            )
-            .toList()
         }
+      )
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception).hasMessageThat().contains("Missing After filter fields")
-    }
+    assertThat(result.clientAccountsList).containsExactly(clientAccount1)
+  }
 
   @Test
-  fun `streamClientAccounts can get one page at a time`(): Unit = runBlocking {
+  fun `listClientAccounts can paginate using pageToken`(): Unit = runBlocking {
     val measurementConsumer: MeasurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
@@ -553,42 +467,34 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
         }
       )
 
-    val page1: List<ClientAccount> =
-      clientAccountsService
-        .streamClientAccounts(
-          streamClientAccountsRequest {
-            filter = filter {
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            }
-            limit = 1
+    val page1 =
+      clientAccountsService.listClientAccounts(
+        listClientAccountsRequest {
+          filter = filter {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
           }
-        )
-        .toList()
+          pageSize = 1
+        }
+      )
 
-    assertThat(page1).hasSize(1)
-    assertThat(page1).containsAnyOf(clientAccount1, clientAccount2)
+    assertThat(page1.clientAccountsList).hasSize(1)
+    assertThat(page1.clientAccountsList).containsAnyOf(clientAccount1, clientAccount2)
+    assertThat(page1.hasNextPageToken()).isTrue()
 
-    val page2: List<ClientAccount> =
-      clientAccountsService
-        .streamClientAccounts(
-          streamClientAccountsRequest {
-            filter = filter {
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-              after =
-                StreamClientAccountsRequestKt.afterFilter {
-                  this.createTime = page1.last().createTime
-                  this.externalMeasurementConsumerId = page1.last().externalMeasurementConsumerId
-                  this.externalClientAccountId = page1.last().externalClientAccountId
-                }
-            }
-            limit = 1
+    val page2 =
+      clientAccountsService.listClientAccounts(
+        listClientAccountsRequest {
+          filter = filter {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
           }
-        )
-        .toList()
+          pageSize = 1
+          pageToken = page1.nextPageToken
+        }
+      )
 
-    assertThat(page2).hasSize(1)
-    assertThat(page2).containsAnyOf(clientAccount1, clientAccount2)
-    assertThat(page2.first().externalClientAccountId)
-      .isNotEqualTo(page1.first().externalClientAccountId)
+    assertThat(page2.clientAccountsList).hasSize(1)
+    assertThat(page2.clientAccountsList).containsAnyOf(clientAccount1, clientAccount2)
+    assertThat(page2.clientAccountsList.first().externalClientAccountId)
+      .isNotEqualTo(page1.clientAccountsList.first().externalClientAccountId)
   }
 }

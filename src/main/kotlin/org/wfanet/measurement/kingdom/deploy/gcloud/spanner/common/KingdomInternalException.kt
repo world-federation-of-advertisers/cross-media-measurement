@@ -170,7 +170,6 @@ private constructor(
   val activeRange: OpenEndRange<Instant>,
   override val context: Map<String, String>,
 ) : KingdomInternalException(ErrorCode.MODEL_LINE_NOT_ACTIVE, buildMessage(context)) {
-
   constructor(
     externalModelLineKey: ModelLineKey,
     activeRange: OpenEndRange<Instant>,
@@ -491,7 +490,7 @@ class ComputationParticipantETagMismatchException(
   val requestETag: String,
   val actualETag: String,
   message: String =
-    "ComputationParticipant etag mismatch. Expected ${requestETag}, actual ${actualETag}",
+    "ComputationParticipant etag mismatch. Expected $requestETag, actual $actualETag",
 ) : KingdomInternalException(ErrorCode.COMPUTATION_PARTICIPANT_ETAG_MISMATCH, message) {
   override val context
     get() = mapOf("actual_etag" to actualETag, "request_etag" to requestETag)

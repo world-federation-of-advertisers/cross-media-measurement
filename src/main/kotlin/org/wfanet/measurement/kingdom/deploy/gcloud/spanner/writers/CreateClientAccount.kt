@@ -33,7 +33,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
 
 class CreateClientAccount(private val clientAccount: ClientAccount) :
   SpannerWriter<ClientAccount, ClientAccount>() {
-
   override suspend fun TransactionScope.runTransaction(): ClientAccount {
     val externalMeasurementConsumerId = ExternalId(clientAccount.externalMeasurementConsumerId)
     val measurementConsumerId =

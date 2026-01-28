@@ -19,9 +19,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 import io.grpc.Status
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.common.grpc.failGrpc
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -31,7 +29,11 @@ import org.wfanet.measurement.internal.kingdom.ClientAccountsGrpcKt.ClientAccoun
 import org.wfanet.measurement.internal.kingdom.CreateClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.DeleteClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.GetClientAccountRequest
-import org.wfanet.measurement.internal.kingdom.StreamClientAccountsRequest
+import org.wfanet.measurement.internal.kingdom.ListClientAccountsPageTokenKt
+import org.wfanet.measurement.internal.kingdom.ListClientAccountsRequest
+import org.wfanet.measurement.internal.kingdom.ListClientAccountsResponse
+import org.wfanet.measurement.internal.kingdom.listClientAccountsPageToken
+import org.wfanet.measurement.internal.kingdom.listClientAccountsResponse
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountAlreadyExistsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountNotFoundException
@@ -48,7 +50,6 @@ class SpannerClientAccountsService(
   private val client: AsyncDatabaseClient,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : ClientAccountsCoroutineImplBase(coroutineContext) {
-
   override suspend fun createClientAccount(request: CreateClientAccountRequest): ClientAccount {
     grpcRequire(request.hasClientAccount()) { "client_account not specified" }
     grpcRequire(request.clientAccount.externalMeasurementConsumerId != 0L) {
@@ -152,18 +153,47 @@ class SpannerClientAccountsService(
     }
   }
 
-  override fun streamClientAccounts(request: StreamClientAccountsRequest): Flow<ClientAccount> {
-    grpcRequire(request.limit >= 0) { "Limit cannot be less than 0" }
-    if (
-      request.filter.hasAfter() &&
-        (!request.filter.after.hasCreateTime() ||
-          request.filter.after.externalMeasurementConsumerId == 0L ||
-          request.filter.after.externalClientAccountId == 0L)
-    ) {
-      failGrpc(Status.INVALID_ARGUMENT) { "Missing After filter fields" }
+  override suspend fun listClientAccounts(
+    request: ListClientAccountsRequest
+  ): ListClientAccountsResponse {
+    grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
+    val pageSize =
+      if (request.pageSize == 0) {
+        DEFAULT_PAGE_SIZE
+      } else {
+        request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
+      }
+
+    val after = if (request.hasPageToken()) request.pageToken.after else null
+
+    val clientAccountList =
+      StreamClientAccounts(request.filter, pageSize + 1, after).execute(client.singleUse()).toList()
+
+    if (clientAccountList.isEmpty()) {
+      return ListClientAccountsResponse.getDefaultInstance()
     }
-    return StreamClientAccounts(request.filter, request.limit).execute(client.singleUse()).map {
-      it.clientAccount
+
+    return listClientAccountsResponse {
+      for ((index, result) in clientAccountList.withIndex()) {
+        if (index == pageSize) {
+          val lastAccount = clientAccounts.last()
+          nextPageToken = listClientAccountsPageToken {
+            this.after =
+              ListClientAccountsPageTokenKt.after {
+                externalMeasurementConsumerId = lastAccount.externalMeasurementConsumerId
+                externalClientAccountId = lastAccount.externalClientAccountId
+                createTime = lastAccount.createTime
+              }
+          }
+        } else {
+          clientAccounts += result.clientAccount
+        }
+      }
     }
+  }
+
+  companion object {
+    private const val MAX_PAGE_SIZE = 1000
+    private const val DEFAULT_PAGE_SIZE = 50
   }
 }

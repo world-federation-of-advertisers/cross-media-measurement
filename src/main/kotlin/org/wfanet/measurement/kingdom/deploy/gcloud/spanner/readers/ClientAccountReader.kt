@@ -27,7 +27,6 @@ import org.wfanet.measurement.internal.kingdom.ClientAccount
 import org.wfanet.measurement.internal.kingdom.clientAccount
 
 class ClientAccountReader : SpannerReader<ClientAccountReader.Result>() {
-
   data class Result(
     val measurementConsumerId: InternalId,
     val clientAccountId: InternalId,
