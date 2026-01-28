@@ -309,7 +309,8 @@ class DataAvailabilityCleanupTest {
       val metricByName = metricData.associateBy { it.name }
 
       // Verify duration metric
-      val durationPoint = metricByName.getValue(CLEANUP_DURATION_METRIC).histogramData.points.single()
+      val durationPoint =
+        metricByName.getValue(CLEANUP_DURATION_METRIC).histogramData.points.single()
       assertThat(durationPoint.attributes.get(cleanupStatusAttributeKey)).isEqualTo("success")
       assertThat(durationPoint.attributes.get(dataProviderKeyAttributeKey))
         .isEqualTo(DATA_PROVIDER_NAME)
@@ -342,7 +343,8 @@ class DataAvailabilityCleanupTest {
       val metricByName = metricData.associateBy { it.name }
 
       // Verify duration metric with skipped status
-      val durationPoint = metricByName.getValue(CLEANUP_DURATION_METRIC).histogramData.points.single()
+      val durationPoint =
+        metricByName.getValue(CLEANUP_DURATION_METRIC).histogramData.points.single()
       assertThat(durationPoint.attributes.get(cleanupStatusAttributeKey)).isEqualTo("skipped")
       assertThat(durationPoint.attributes.get(dataProviderKeyAttributeKey))
         .isEqualTo(DATA_PROVIDER_NAME)
@@ -378,7 +380,8 @@ class DataAvailabilityCleanupTest {
       val metricByName = metricData.associateBy { it.name }
 
       // Verify duration metric with failed status
-      val durationPoint = metricByName.getValue(CLEANUP_DURATION_METRIC).histogramData.points.single()
+      val durationPoint =
+        metricByName.getValue(CLEANUP_DURATION_METRIC).histogramData.points.single()
       assertThat(durationPoint.attributes.get(cleanupStatusAttributeKey)).isEqualTo("failed")
       assertThat(durationPoint.attributes.get(dataProviderKeyAttributeKey))
         .isEqualTo(DATA_PROVIDER_NAME)
@@ -412,7 +415,8 @@ class DataAvailabilityCleanupTest {
       val metricByName = metricData.associateBy { it.name }
 
       // Verify duration metric with skipped status (already deleted is treated as skip)
-      val durationPoint = metricByName.getValue(CLEANUP_DURATION_METRIC).histogramData.points.single()
+      val durationPoint =
+        metricByName.getValue(CLEANUP_DURATION_METRIC).histogramData.points.single()
       assertThat(durationPoint.attributes.get(cleanupStatusAttributeKey)).isEqualTo("skipped")
       assertThat(durationPoint.attributes.get(dataProviderKeyAttributeKey))
         .isEqualTo(DATA_PROVIDER_NAME)
