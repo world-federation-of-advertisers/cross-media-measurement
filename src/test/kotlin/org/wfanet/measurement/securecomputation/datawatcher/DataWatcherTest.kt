@@ -382,10 +382,7 @@ class DataWatcherTest() {
 
       val testResourceId = "test-impression-metadata-resource-id-123"
       val objectMetadata = mapOf("impression-metadata-resource-id" to testResourceId)
-      dataWatcher.receivePath(
-        "test-schema://test-bucket/path-to-watch/some-data",
-        objectMetadata,
-      )
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", objectMetadata)
 
       assertThat(server.getLastRequestHeader("X-Impression-Metadata-Resource-Id"))
         .isEqualTo(testResourceId)
