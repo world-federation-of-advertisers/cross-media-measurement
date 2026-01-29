@@ -190,7 +190,9 @@ class DataAvailabilityCleanup(
             DataAvailabilityCleanupMetrics.ERROR_TYPE_MULTIPLE_MATCHES,
           ),
         )
-        results.first().name
+        throw IllegalStateException(
+          "Multiple ImpressionMetadata records (${results.size}) found for blob URI: $blobUri"
+        )
       }
       else -> results.first().name
     }

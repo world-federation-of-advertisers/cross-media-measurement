@@ -190,7 +190,7 @@ class DataAvailabilityCleanupTest {
   }
 
   @Test
-  fun `cleanup uses first match and emits metric when multiple records found`() = runBlocking {
+  fun `cleanup throws exception and emits metric when multiple records found`() = runBlocking {
     val firstResourceId = "$DATA_PROVIDER_NAME/impressionMetadata/im-first"
     val secondResourceId = "$DATA_PROVIDER_NAME/impressionMetadata/im-second"
 
@@ -229,17 +229,14 @@ class DataAvailabilityCleanupTest {
       val dataAvailabilityCleanup =
         DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, metricsEnv.metrics)
 
-      val result = dataAvailabilityCleanup.cleanup(BLOB_URI, null)
+      val exception =
+        assertFailsWith<IllegalStateException> { dataAvailabilityCleanup.cleanup(BLOB_URI, null) }
 
-      // Should still succeed using first match
-      assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SUCCESS)
+      assertThat(exception.message).contains("Multiple ImpressionMetadata records (2) found")
+      assertThat(exception.message).contains(BLOB_URI)
 
-      // Verify delete was called with the FIRST resource ID
-      val deleteCaptor = argumentCaptor<DeleteImpressionMetadataRequest>()
-      verifyBlocking(impressionMetadataServiceMock, times(1)) {
-        deleteImpressionMetadata(deleteCaptor.capture())
-      }
-      assertThat(deleteCaptor.firstValue.name).isEqualTo(firstResourceId)
+      // Verify delete was NOT called since exception was thrown
+      verifyBlocking(impressionMetadataServiceMock, never()) { deleteImpressionMetadata(any()) }
 
       // Verify multiple_matches error metric was emitted
       metricsEnv.metricReader.forceFlush()
