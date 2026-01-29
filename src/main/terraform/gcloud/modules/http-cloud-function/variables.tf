@@ -13,18 +13,9 @@
 # limitations under the License.
 
 variable "http_cloud_function_service_account_name" {
-  description = "The name of the service account assigned to the Cloud Function (`google_service_account.name`). Used when creating a new service account."
+  description = "The name of the service account assigned to the Cloud Function (`google_service_account.name`)."
   type        = string
-  default     = null
-}
-
-variable "existing_service_account" {
-  description = "An existing service account to use instead of creating a new one. If provided, http_cloud_function_service_account_name is ignored."
-  type = object({
-    name  = string
-    email = string
-  })
-  default = null
+  nullable    = false
 }
 
 variable "terraform_service_account" {

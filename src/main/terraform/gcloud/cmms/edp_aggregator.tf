@@ -255,8 +255,8 @@ module "edp_aggregator" {
   edp_aggregator_buckets_location               = local.storage_bucket_location
   data_watcher_service_account_name             = "edpa-data-watcher"
   data_watcher_trigger_service_account_name     = "edpa-data-watcher-trigger"
-  data_watcher_delete_service_account_name      = "edpa-data-watcher-del"
-  data_watcher_delete_trigger_service_account_name = "edpa-data-watcher-del-trig"
+  data_watcher_delete_service_account_name      = "edpa-data-watcher-delete"
+  data_watcher_delete_trigger_service_account_name = "edpa-data-delete-trigger"
   terraform_service_account                     = var.terraform_service_account
   requisition_fetcher_service_account_name      = "edpa-requisition-fetcher"
   data_availability_sync_service_account_name   = "edpa-data-availability-sync"
