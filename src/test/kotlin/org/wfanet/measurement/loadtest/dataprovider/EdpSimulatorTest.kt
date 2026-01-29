@@ -659,10 +659,10 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
   }
 
   @Test
-  fun `refuses HMSS requisition due to empty vidIndexMap`() {
+  fun `refuses TrusTEE requisition due to not being supported`() {
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
-        .thenReturn(listRequisitionsResponse { requisitions += HMSS_REQUISITION })
+        .thenReturn(listRequisitionsResponse { requisitions += TRUSTEE_REQUISITION })
     }
 
     val edpSimulator =
@@ -682,6 +682,8 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
+        VID_INDEX_MAP,
+        trusTeeSupported = false,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -729,6 +731,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         PrivacyBudgets.createNoOpPrivacyBudgetManager(),
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -784,6 +787,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeEncryptionParams = trusTeeEncryptionParams,
+        trusTeeSupported = true,
       )
 
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }

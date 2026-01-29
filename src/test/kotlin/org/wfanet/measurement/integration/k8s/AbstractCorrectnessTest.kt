@@ -51,10 +51,10 @@ import org.wfanet.measurement.access.v1alpha.lookupPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.policy
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.access.v1alpha.role
-import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpc
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -101,15 +101,15 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
   fun `HMSS reach and frequency measurement completes with expected result`() = runBlocking {
     testHarness.testReachAndFrequency(
       "$runId-hmss-reach-and-freq",
-      DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+      ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
     )
   }
 
   @Test
-  fun `LLv2 reach and frequency measurement completes with expected result`() = runBlocking {
+  fun `TrusTEE reach and frequency measurement completes with expected result`() = runBlocking {
     testHarness.testReachAndFrequency(
-      "$runId-llv2-reach-and-freq",
-      DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+      "$runId-trus-tee-reach-and-freq",
+      ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
     )
   }
 

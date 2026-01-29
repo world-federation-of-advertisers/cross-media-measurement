@@ -25,11 +25,11 @@ import "list"
 }
 
 #EdpConfig: {
-	displayName:             string
-	resourceName:            string
-	certResourceName:        string
-	supportHmss:             bool | *false
-	supportEncryptedTrustee: bool | *false
+	displayName:      string
+	resourceName:     string
+	certResourceName: string
+	supportTrusTee:   bool | *false
+	encryptTrusTee:   bool | *false
 	eventGroupConfigs: [...#EventGroupConfig]
 }
 
@@ -106,10 +106,10 @@ import "list"
 				"--log-sketch-details=\(_logSketchDetails)",
 				"--health-file=\(HealthFile)",
 				"--population-spec=\(_populationSpecPath)",
-				"--support-hmss=\(_edpConfig.supportHmss)",
-				if (_edpConfig.supportEncryptedTrustee ) {_trusteeKmsKekUriFlag},
-				if (_edpConfig.supportEncryptedTrustee ) {_trusteeWipFlag},
-				if (_edpConfig.supportEncryptedTrustee ) {_trusteeImpersonatedSaFlag},
+				"--support-trustee=\(_edpConfig.supportTrusTee)",
+				if (_edpConfig.encryptTrusTee ) {_trusteeKmsKekUriFlag},
+				if (_edpConfig.encryptTrusTee ) {_trusteeWipFlag},
+				if (_edpConfig.encryptTrusTee ) {_trusteeImpersonatedSaFlag},
 			] + RequisitionFulfillmentServiceOptions + EventGroupOptions
 		}
 		spec: template: spec: {
