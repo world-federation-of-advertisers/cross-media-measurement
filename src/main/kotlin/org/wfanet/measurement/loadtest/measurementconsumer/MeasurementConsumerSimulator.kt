@@ -203,7 +203,7 @@ abstract class MeasurementConsumerSimulator(
   /** A sequence of operations done in the simulator involving a reach and frequency measurement. */
   suspend fun testReachAndFrequency(
     runId: String,
-    protocol: ProtocolConfig.Protocol.ProtocolCase,
+    expectedProtocol: ProtocolConfig.Protocol.ProtocolCase,
     vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
     eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   ) {
@@ -215,7 +215,7 @@ abstract class MeasurementConsumerSimulator(
         measurementConsumer,
         runId,
         ::newReachAndFrequencyMeasurementSpec,
-        protocol,
+        expectedProtocol,
         vidSamplingInterval = vidSamplingInterval,
         eventGroupFilter = eventGroupFilter,
       )
@@ -233,8 +233,9 @@ abstract class MeasurementConsumerSimulator(
     val expectedResult = getExpectedResult(measurementInfo)
     logger.info("Expected result: $expectedResult")
 
-    val protocol = measurementInfo.measurement.protocolConfig.protocolsList.first()
-    assertThat(protocol.protocolCase).isEqualTo(protocol)
+    val protocol: ProtocolConfig.Protocol =
+      measurementInfo.measurement.protocolConfig.protocolsList.first()
+    assertThat(protocol.protocolCase).isEqualTo(expectedProtocol)
 
     val reachVariance: Double =
       computeReachVariance(
@@ -545,16 +546,17 @@ abstract class MeasurementConsumerSimulator(
   /** A sequence of operations done in the simulator involving a reach-only measurement. */
   suspend fun testReachOnly(
     runId: String,
-    protocol: ProtocolConfig.Protocol.ProtocolCase =
+    expectedProtocol: ProtocolConfig.Protocol.ProtocolCase =
       ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
     vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
     eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   ) {
     logger.info { "Creating reach only Measurement..." }
-    val result = executeReachOnly(runId, protocol, vidSamplingInterval, eventGroupFilter)
+    val result = executeReachOnly(runId, expectedProtocol, vidSamplingInterval, eventGroupFilter)
 
-    val protocol = result.measurementInfo.measurement.protocolConfig.protocolsList.first()
-    assertThat(protocol.protocolCase).isEqualTo(protocol)
+    val protocol: ProtocolConfig.Protocol =
+      result.measurementInfo.measurement.protocolConfig.protocolsList.first()
+    assertThat(protocol.protocolCase).isEqualTo(expectedProtocol)
 
     val reachVariance: Double =
       computeReachVariance(
