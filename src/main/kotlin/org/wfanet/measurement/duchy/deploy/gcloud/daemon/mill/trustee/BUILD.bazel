@@ -30,13 +30,18 @@ java_binary(
     main_class = "org.wfanet.measurement.duchy.deploy.gcloud.daemon.mill.trustee.GcsTrusTeeMillDaemonKt",
     runtime_deps = [
         ":gcs_trus_tee_mill_daemon",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
+        "//imports/java/com/google/cloud/logging",
     ],
 )
 
 java_image(
     name = "gcs_trus_tee_mill_daemon_image",
+    base = "@java_image_base_root",
     binary = ":GcsTrusTeeMillDaemon",
+    jvm_args = [
+        "-Djava.util.logging.config.file=/usr/lib/jvm/default-java/conf/logging.properties",
+    ],
     main_class = "org.wfanet.measurement.duchy.deploy.gcloud.daemon.mill.trustee.GcsTrusTeeMillDaemonKt",
+    tars = ["//build/rules_oci:gcloud_logging_java_config_layer"],
     visibility = ["//src:docker_image_deployment"],
 )
