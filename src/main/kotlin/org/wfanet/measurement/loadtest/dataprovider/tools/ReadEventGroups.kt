@@ -18,10 +18,12 @@ package org.wfanet.measurement.loadtest.dataprovider.tools
 
 import com.google.common.math.Quantiles
 import com.google.common.math.Stats
+import com.google.type.date
 import io.grpc.ManagedChannel
 import io.grpc.StatusException
 import io.grpc.serviceconfig.copy
 import java.time.Duration
+import java.time.LocalDate
 import kotlin.properties.Delegates
 import kotlin.system.exitProcess
 import kotlin.time.Duration.Companion.milliseconds
@@ -36,11 +38,13 @@ import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.throttler.MaximumRateThrottler
 import org.wfanet.measurement.common.toProtoDuration
+import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.reporting.v2alpha.MediaType
+import org.wfanet.measurement.reporting.v2alpha.dateInterval
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 import picocli.CommandLine
 
@@ -48,7 +52,9 @@ import picocli.CommandLine
  * Tool for load testing by reading [org.wfanet.measurement.reporting.v2alpha.EventGroup] resources.
  */
 @CommandLine.Command(name = "ReadEventGroups", subcommands = [CommandLine.HelpCommand::class])
-class ReadEventGroups private constructor() : Runnable {
+class ReadEventGroups(
+  private val injectedEventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub? = null
+) : Runnable {
   @CommandLine.Option(names = ["--reporting-public-api-target"], required = true)
   private lateinit var reportingPublicApiTarget: String
 
@@ -68,6 +74,11 @@ class ReadEventGroups private constructor() : Runnable {
 
   private fun init() {
     throttler = MaximumRateThrottler(maxQps)
+
+    if (injectedEventGroupsStub != null) {
+      eventGroupsStub = injectedEventGroupsStub
+      return
+    }
 
     val clientCerts =
       SigningCerts.fromPemFiles(
@@ -97,16 +108,23 @@ class ReadEventGroups private constructor() : Runnable {
   @CommandLine.Command(name = "list", description = ["Calls ListEventGroups until interrupted"])
   private fun list(
     @CommandLine.Option(names = ["--parent"], required = true) parent: String,
-    @CommandLine.Option(names = ["--media-type"]) mediaTypes: Set<MediaType>,
+    @CommandLine.Option(names = ["--media-type"]) mediaTypes: Set<MediaType>?,
     @CommandLine.Option(names = ["--metadata-search-query"], defaultValue = "")
     metadataSearchQuery: String,
     @CommandLine.Option(names = ["--page-token"], required = false, defaultValue = "")
     pageToken: String,
     @CommandLine.Option(names = ["--legacy"], required = false, defaultValue = "false")
     legacy: Boolean,
+    @CommandLine.Option(names = ["--activity-contains-start-date"], required = false)
+    activityContainsStartDateString: String?,
+    @CommandLine.Option(names = ["--activity-contains-end-date"], required = false)
+    activityContainsEndDateString: String?,
+    @CommandLine.Option(names = ["--view"], required = false, defaultValue = "BASIC")
+    view: EventGroup.View,
   ) {
     init()
 
+    val effectiveMediaTypes = mediaTypes ?: emptySet()
     runBlocking {
       val latencies = flow {
         while (coroutineContext.isActive) {
@@ -115,8 +133,8 @@ class ReadEventGroups private constructor() : Runnable {
             this.pageToken = pageToken
             if (legacy) {
               val terms = buildList {
-                if (mediaTypes.isNotEmpty()) {
-                  add(mediaTypes.joinToString(" || ") { "${it.number} in media_types" })
+                if (effectiveMediaTypes.isNotEmpty()) {
+                  add(effectiveMediaTypes.joinToString(" || ") { "${it.number} in media_types" })
                 }
                 if (metadataSearchQuery.isNotEmpty()) {
                   add(
@@ -134,9 +152,28 @@ class ReadEventGroups private constructor() : Runnable {
                 }
               structuredFilter =
                 ListEventGroupsRequestKt.filter {
-                  mediaTypesIntersect += mediaTypes
+                  mediaTypesIntersect += effectiveMediaTypes
                   this.metadataSearchQuery = metadataSearchQuery
+                  if (
+                    activityContainsStartDateString != null && activityContainsEndDateString != null
+                  ) {
+                    val start = LocalDate.parse(activityContainsStartDateString)
+                    val end = LocalDate.parse(activityContainsEndDateString)
+                    activityContains = dateInterval {
+                      startDate = date {
+                        year = start.year
+                        month = start.monthValue
+                        day = start.dayOfMonth
+                      }
+                      endDate = date {
+                        year = end.year
+                        month = end.monthValue
+                        day = end.dayOfMonth
+                      }
+                    }
+                  }
                 }
+              this.view = view
             }
           }
 
@@ -169,6 +206,9 @@ class ReadEventGroups private constructor() : Runnable {
   }
 
   private fun outputStats(latenciesMillis: Collection<Long>) {
+    if (latenciesMillis.isEmpty()) {
+      return
+    }
     val stats = Stats.of(latenciesMillis)
     val mean: kotlin.time.Duration = stats.mean().milliseconds
     val standardDeviation: kotlin.time.Duration = stats.populationStandardDeviation().milliseconds
@@ -193,4 +233,3 @@ class ReadEventGroups private constructor() : Runnable {
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ReadEventGroups(), args)
   }
 }
-
