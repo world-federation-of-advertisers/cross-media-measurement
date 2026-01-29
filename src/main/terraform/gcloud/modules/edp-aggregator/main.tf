@@ -15,6 +15,18 @@
 data "google_client_config" "default" {}
 data "google_project" "project" {}
 
+# Custom role for data availability functions that need to read and update object metadata
+resource "google_project_iam_custom_role" "storage_object_viewer_updater" {
+  role_id     = "storageObjectViewerUpdater"
+  title       = "Storage Object Viewer and Updater"
+  description = "Read objects and update object metadata (no create/delete)"
+  permissions = [
+    "storage.objects.get",
+    "storage.objects.list",
+    "storage.objects.update",
+  ]
+}
+
 locals {
 
   # IP addresses for private.googleapis.com (Private Google Access default VIPs)
@@ -398,10 +410,10 @@ resource "google_storage_bucket_iam_member" "result_fulfiller_storage_creator" {
   member = "serviceAccount:${module.result_fulfiller_tee_app.mig_service_account.email}"
 }
 
-resource "google_storage_bucket_iam_member" "data_availability_storage_viewer" {
-  depends_on = [module.data_availability_sync_cloud_function]
+resource "google_storage_bucket_iam_member" "data_availability_storage_viewer_updater" {
+  depends_on = [module.data_availability_sync_cloud_function, google_project_iam_custom_role.storage_object_viewer_updater]
   bucket = module.edp_aggregator_bucket.storage_bucket.name
-  role   = "roles/storage.objectViewer"
+  role   = google_project_iam_custom_role.storage_object_viewer_updater.id
   member = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
 }
 
@@ -412,13 +424,16 @@ resource "google_storage_bucket_iam_member" "data_availability_cleanup_storage_v
   member = "serviceAccount:${module.data_availability_cleanup_cloud_function.cloud_function_service_account.email}"
 }
 
-resource "google_storage_bucket_iam_binding" "aggregator_storage_admin" {
+resource "google_storage_bucket_iam_member" "requisition_fetcher_storage_admin" {
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectAdmin"
-  members = [
-    "serviceAccount:${module.requisition_fetcher_cloud_function.cloud_function_service_account.email}",
-    "serviceAccount:${module.event_group_sync_cloud_function.cloud_function_service_account.email}",
-  ]
+  member = "serviceAccount:${module.requisition_fetcher_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "event_group_sync_storage_admin" {
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${module.event_group_sync_cloud_function.cloud_function_service_account.email}"
 }
 
 resource "google_storage_bucket_iam_member" "requisition_fetcher_config_storage_viewer" {
