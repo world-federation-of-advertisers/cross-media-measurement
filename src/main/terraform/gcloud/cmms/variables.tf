@@ -114,6 +114,12 @@ variable "data_watcher_config_file_path" {
   nullable    = false
 }
 
+variable "data_watcher_delete_config_file_path" {
+  description = "Path to the data watcher delete config file."
+  type        = string
+  nullable    = false
+}
+
 variable "requisition_fetcher_config_file_path" {
   description = "Path to the requisition fetcher config file."
   type        = string
@@ -211,6 +217,37 @@ variable "data_availability_uber_jar_path" {
   description = "Path to DataAvailability uber jar."
   type = string
 }
+
+variable "data_watcher_delete_env_var" {
+  description = "DataWatcherDelete extra env variables"
+  type        = string
+}
+
+variable "data_watcher_delete_secret_mapping" {
+  description = "DataWatcherDelete secret mapping"
+  type        = string
+}
+
+variable "data_watcher_delete_uber_jar_path" {
+  description = "Path to DataWatcherDelete uber jar."
+  type = string
+}
+
+variable "data_availability_cleanup_env_var" {
+  description = "DataAvailabilityCleanup extra env variables"
+  type        = string
+}
+
+variable "data_availability_cleanup_secret_mapping" {
+  description = "DataAvailabilityCleanup secret mapping"
+  type        = string
+}
+
+variable "data_availability_cleanup_uber_jar_path" {
+  description = "Path to DataAvailabilityCleanup uber jar."
+  type = string
+}
+
 
 variable "results_fulfiller_event_proto_descriptor_path" {
   description = "Serialized FileDescriptorSet path for EventTemplate metadata types."
