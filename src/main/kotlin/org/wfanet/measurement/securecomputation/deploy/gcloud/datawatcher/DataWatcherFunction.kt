@@ -190,11 +190,11 @@ class DataWatcherFunction(
 
     private val workItemsStub by lazy { WorkItemsCoroutineStub(publicChannel) }
 
-    private const val CONFIG_BLOB_KEY = "data-watcher-config.textproto"
+    private val configBlobKey: String by lazy { checkNotEmpty("CONFIG_BLOB_KEY") }
     private val dataWatcherConfig by lazy {
       runBlocking {
         getConfigAsProtoMessage(
-          CONFIG_BLOB_KEY,
+          configBlobKey,
           DataWatcherConfig.getDefaultInstance(),
           TypeRegistry.newBuilder().add(ResultsFulfillerParams.getDescriptor()).build(),
         )
