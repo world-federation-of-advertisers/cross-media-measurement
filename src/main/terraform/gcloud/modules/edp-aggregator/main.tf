@@ -165,7 +165,7 @@ locals {
     "event_group_sync"          = module.event_group_sync_cloud_function.cloud_function_service_account.email
     "data_availability_sync"    = module.data_availability_sync_cloud_function.cloud_function_service_account.email
     "data_watcher_delete"       = module.data_watcher_delete_cloud_function.cloud_function_service_account.email
-    "data_availability_cleanup" = google_service_account.data_availability_cleanup_service_account.email
+    "data_availability_cleanup" = module.data_availability_cleanup_cloud_function.cloud_function_service_account.email
   }
 
   otel_metadata = {
@@ -323,33 +323,17 @@ module "data_availability_sync_cloud_function" {
   uber_jar_path                             = var.cloud_function_configs.data_availability_sync.uber_jar_path
 }
 
-# Service account for DataAvailabilityCleanup - created separately to allow IAM bindings before function deployment
-resource "google_service_account" "data_availability_cleanup_service_account" {
-  account_id   = var.data_availability_cleanup_service_account_name
-  display_name = "Service account for DataAvailabilityCleanup Cloud Function"
-}
-
-resource "google_service_account_iam_member" "allow_terraform_to_use_data_availability_cleanup_sa" {
-  service_account_id = google_service_account.data_availability_cleanup_service_account.name
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${var.terraform_service_account}"
-}
-
 # DataAvailabilityCleanup function for soft-deleting ImpressionMetadata when objects are deleted
 module "data_availability_cleanup_cloud_function" {
   source = "../http-cloud-function"
 
-  existing_service_account = {
-    name  = google_service_account.data_availability_cleanup_service_account.name
-    email = google_service_account.data_availability_cleanup_service_account.email
-  }
+  http_cloud_function_service_account_name  = var.data_availability_cleanup_service_account_name
   terraform_service_account                 = var.terraform_service_account
   function_name                             = var.cloud_function_configs.data_availability_cleanup.function_name
   entry_point                               = var.cloud_function_configs.data_availability_cleanup.entry_point
   extra_env_vars                            = var.cloud_function_configs.data_availability_cleanup.extra_env_vars
   secret_mappings                           = var.cloud_function_configs.data_availability_cleanup.secret_mappings
   uber_jar_path                             = var.cloud_function_configs.data_availability_cleanup.uber_jar_path
-  deployment_dependencies                   = [for k, v in google_secret_manager_secret_iam_member.secret_accessor : v.etag if startswith(k, "data_availability_cleanup:")]
 }
 
 resource "google_secret_manager_secret_iam_member" "secret_accessor" {
@@ -422,10 +406,10 @@ resource "google_storage_bucket_iam_member" "data_availability_storage_viewer" {
 }
 
 resource "google_storage_bucket_iam_member" "data_availability_cleanup_storage_viewer" {
-  depends_on = [google_service_account.data_availability_cleanup_service_account]
+  depends_on = [module.data_availability_cleanup_cloud_function]
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${google_service_account.data_availability_cleanup_service_account.email}"
+  member = "serviceAccount:${module.data_availability_cleanup_cloud_function.cloud_function_service_account.email}"
 }
 
 resource "google_storage_bucket_iam_binding" "aggregator_storage_admin" {
