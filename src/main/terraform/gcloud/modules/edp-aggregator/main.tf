@@ -119,6 +119,12 @@ locals {
     local.edp_tls_keys
   )
 
+  # Secrets access for data_watcher_delete (same as data_watcher)
+  data_watcher_delete_secrets_access = local.data_watcher_secrets_access
+
+  # Secrets access for data_availability_cleanup (same as data_availability_sync)
+  data_availability_cleanup_secrets_access = local.data_availability_sync_secrets_access
+
   requisition_fetcher_secrets_access = concat(
     [
       "trusted_root_ca_collection",
@@ -139,6 +145,8 @@ locals {
     "requisition_fetcher"       = module.requisition_fetcher_cloud_function.cloud_function_service_account.email
     "event_group_sync"          = module.event_group_sync_cloud_function.cloud_function_service_account.email
     "data_availability_sync"    = module.data_availability_sync_cloud_function.cloud_function_service_account.email
+    "data_watcher_delete"       = module.data_watcher_delete_cloud_function.cloud_function_service_account.email
+    "data_availability_cleanup" = module.data_availability_cleanup_cloud_function.cloud_function_service_account.email
   }
 
   otel_metadata = {
@@ -170,6 +178,12 @@ resource "google_storage_bucket_object" "upload_data_watcher_config" {
   name   = var.data_watcher_config.destination
   bucket = module.config_files_bucket.storage_bucket.name
   source = var.data_watcher_config.local_path
+}
+
+resource "google_storage_bucket_object" "upload_data_watcher_delete_config" {
+  name   = var.data_watcher_delete_config.destination
+  bucket = module.config_files_bucket.storage_bucket.name
+  source = var.data_watcher_delete_config.local_path
 }
 
 resource "google_storage_bucket_object" "upload_requisition_fetcher_config" {
@@ -233,6 +247,23 @@ module "data_watcher_cloud_function" {
   secrets_to_access                             = [for key in local.data_watcher_secrets_access : local.all_secrets[key].secret_id]
 }
 
+module "data_watcher_delete_cloud_function" {
+  source    = "../gcs-bucket-cloud-function"
+
+  depends_on = [module.secrets]
+
+  cloud_function_service_account_name           = var.data_watcher_delete_service_account_name
+  cloud_function_trigger_service_account_name   = var.data_watcher_delete_trigger_service_account_name
+  trigger_bucket_name                           = module.edp_aggregator_bucket.storage_bucket.name
+  terraform_service_account                     = var.terraform_service_account
+  function_name                                 = var.cloud_function_configs.data_watcher_delete.function_name
+  entry_point                                   = var.cloud_function_configs.data_watcher_delete.entry_point
+  extra_env_vars                                = var.cloud_function_configs.data_watcher_delete.extra_env_vars
+  secret_mappings                               = var.cloud_function_configs.data_watcher_delete.secret_mappings
+  uber_jar_path                                 = var.cloud_function_configs.data_watcher_delete.uber_jar_path
+  secrets_to_access                             = [for key in local.data_watcher_delete_secrets_access : local.all_secrets[key].secret_id]
+}
+
 module "requisition_fetcher_cloud_function" {
   source    = "../http-cloud-function"
 
@@ -283,6 +314,21 @@ module "data_availability_sync_cloud_function" {
   secret_mappings                           = var.cloud_function_configs.data_availability_sync.secret_mappings
   uber_jar_path                             = var.cloud_function_configs.data_availability_sync.uber_jar_path
   secrets_to_access                         = [for key in local.data_availability_sync_secrets_access : local.all_secrets[key].secret_id]
+}
+
+module "data_availability_cleanup_cloud_function" {
+  source    = "../http-cloud-function"
+
+  depends_on = [module.secrets]
+
+  http_cloud_function_service_account_name  = var.data_availability_cleanup_service_account_name
+  terraform_service_account                 = var.terraform_service_account
+  function_name                             = var.cloud_function_configs.data_availability_cleanup.function_name
+  entry_point                               = var.cloud_function_configs.data_availability_cleanup.entry_point
+  extra_env_vars                            = var.cloud_function_configs.data_availability_cleanup.extra_env_vars
+  secret_mappings                           = var.cloud_function_configs.data_availability_cleanup.secret_mappings
+  uber_jar_path                             = var.cloud_function_configs.data_availability_cleanup.uber_jar_path
+  secrets_to_access                         = [for key in local.data_availability_cleanup_secrets_access : local.all_secrets[key].secret_id]
 }
 
 module "result_fulfiller_queue" {
@@ -346,6 +392,13 @@ resource "google_storage_bucket_iam_member" "data_availability_storage_viewer" {
   member = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
 }
 
+resource "google_storage_bucket_iam_member" "data_availability_cleanup_storage_viewer" {
+  depends_on = [module.data_availability_cleanup_cloud_function]
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.data_availability_cleanup_cloud_function.cloud_function_service_account.email}"
+}
+
 resource "google_storage_bucket_iam_binding" "aggregator_storage_admin" {
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectAdmin"
@@ -367,6 +420,12 @@ resource "google_storage_bucket_iam_member" "data_watcher_config_storage_viewer"
   member = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
 }
 
+resource "google_storage_bucket_iam_member" "data_watcher_delete_config_storage_viewer" {
+  bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.data_watcher_delete_cloud_function.cloud_function_service_account.email}"
+}
+
 resource "google_storage_bucket_iam_member" "results_fulfiller_config_storage_viewer" {
   bucket = module.config_files_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
@@ -385,6 +444,13 @@ resource "google_cloud_run_service_iam_member" "data_availability_sync_invoker" 
   service  = var.data_availability_sync_function_name
   role     = "roles/run.invoker"
   member   = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_cloud_run_service_iam_member" "data_availability_cleanup_invoker" {
+  depends_on = [module.data_availability_cleanup_cloud_function]
+  service    = var.data_availability_cleanup_function_name
+  role       = "roles/run.invoker"
+  member     = "serviceAccount:${module.data_watcher_delete_cloud_function.cloud_function_service_account.email}"
 }
 
 resource "google_compute_subnetwork" "private_subnetwork" {
