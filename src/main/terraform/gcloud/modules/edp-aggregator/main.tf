@@ -184,8 +184,9 @@ locals {
 module "edp_aggregator_bucket" {
   source   = "../storage-bucket"
 
-  name     = var.edp_aggregator_bucket_name
-  location = var.edp_aggregator_buckets_location
+  name                   = var.edp_aggregator_bucket_name
+  location               = var.edp_aggregator_buckets_location
+  enable_lifecycle_rules = true
 }
 
 module "config_files_bucket" {
