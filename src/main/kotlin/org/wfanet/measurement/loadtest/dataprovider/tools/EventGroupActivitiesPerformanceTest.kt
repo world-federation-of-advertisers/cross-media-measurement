@@ -17,6 +17,7 @@
 package org.wfanet.measurement.loadtest.dataprovider.tools
 
 import io.grpc.ManagedChannel
+import java.io.File
 import java.time.Duration
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -29,7 +30,6 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.toDuration
 import picocli.CommandLine
@@ -51,9 +51,23 @@ class EventGroupActivitiesPerformanceTest : Runnable {
   @CommandLine.Option(names = ["--reporting-public-api-cert-host"], required = false)
   private var reportingPublicApiCertHost: String? = null
 
-  @CommandLine.Mixin(name = "kingdom") private lateinit var kingdomTlsFlags: TlsFlags
+  @CommandLine.Option(names = ["--kingdom-tls-cert-file"], required = true)
+  private lateinit var kingdomTlsCertFile: File
 
-  @CommandLine.Mixin(name = "reporting") private lateinit var reportingTlsFlags: TlsFlags
+  @CommandLine.Option(names = ["--kingdom-tls-key-file"], required = true)
+  private lateinit var kingdomTlsKeyFile: File
+
+  @CommandLine.Option(names = ["--kingdom-cert-collection-file"], required = true)
+  private lateinit var kingdomCertCollectionFile: File
+
+  @CommandLine.Option(names = ["--reporting-tls-cert-file"], required = true)
+  private lateinit var reportingTlsCertFile: File
+
+  @CommandLine.Option(names = ["--reporting-tls-key-file"], required = true)
+  private lateinit var reportingTlsKeyFile: File
+
+  @CommandLine.Option(names = ["--reporting-cert-collection-file"], required = true)
+  private lateinit var reportingCertCollectionFile: File
 
   @CommandLine.Option(
     names = ["--measurement-consumer"],
@@ -71,11 +85,7 @@ class EventGroupActivitiesPerformanceTest : Runnable {
 
   private fun buildKingdomChannel(): ManagedChannel {
     val clientCerts =
-      SigningCerts.fromPemFiles(
-        kingdomTlsFlags.certFile,
-        kingdomTlsFlags.privateKeyFile,
-        kingdomTlsFlags.certCollectionFile,
-      )
+      SigningCerts.fromPemFiles(kingdomTlsCertFile, kingdomTlsKeyFile, kingdomCertCollectionFile)
     return buildMutualTlsChannel(
       kingdomPublicApiTarget,
       clientCerts,
@@ -98,8 +108,9 @@ class EventGroupActivitiesPerformanceTest : Runnable {
         kingdomEventGroupsStub,
         dataProviderName,
         measurementConsumerName,
-        "eg-write-perf",
+        "ega-write-perf",
       )
+    println("--event-group=$eventGroupName")
 
     val startDate = LocalDate.of(2024, 1, 1)
     val endDate = startDate.plusWeeks(10).minusDays(1)
@@ -120,10 +131,9 @@ class EventGroupActivitiesPerformanceTest : Runnable {
           .registerConverter(Duration::class.java) { it.toDuration() }
           .execute(
             "--kingdom-public-api-target=$kingdomPublicApiTarget",
-            "--kingdom-public-api-cert-host=${kingdomPublicApiCertHost ?: ""}",
-            "--tls-cert-file=${kingdomTlsFlags.certFile}",
-            "--tls-key-file=${kingdomTlsFlags.privateKeyFile}",
-            "--cert-collection-file=${kingdomTlsFlags.certCollectionFile}",
+            "--tls-cert-file=$kingdomTlsCertFile",
+            "--tls-key-file=$kingdomTlsKeyFile",
+            "--cert-collection-file=$kingdomCertCollectionFile",
             "--measurement-consumer=$measurementConsumerName",
             "--max-qps=20",
             "--parallelism=5",
@@ -158,7 +168,7 @@ class EventGroupActivitiesPerformanceTest : Runnable {
     val kingdomChannel = buildKingdomChannel()
     val kingdomEventGroupsStub = EventGroupsGrpcKt.EventGroupsCoroutineStub(kingdomChannel)
 
-    val totalEventGroups = 10000
+    val totalEventGroups = 1000
     val startDate = LocalDate.of(2024, 1, 1)
     val endDate = startDate.plusDays(364)
 
@@ -171,19 +181,19 @@ class EventGroupActivitiesPerformanceTest : Runnable {
               kingdomEventGroupsStub,
               dataProviderName,
               measurementConsumerName,
-              "eg-list-perf-$it",
+              "ega-list-perf-$it",
             )
           }
         }
         .awaitAll()
+    eventGroupNames.forEach { println("--event-group=$it") }
 
     val commonArgs =
       listOf(
         "--kingdom-public-api-target=$kingdomPublicApiTarget",
-        "--kingdom-public-api-cert-host=${kingdomPublicApiCertHost ?: ""}",
-        "--tls-cert-file=${kingdomTlsFlags.certFile}",
-        "--tls-key-file=${kingdomTlsFlags.privateKeyFile}",
-        "--cert-collection-file=${kingdomTlsFlags.certCollectionFile}",
+        "--tls-cert-file=$kingdomTlsCertFile",
+        "--tls-key-file=$kingdomTlsKeyFile",
+        "--cert-collection-file=$kingdomCertCollectionFile",
         "--measurement-consumer=$measurementConsumerName",
         "--max-qps=50",
         "--parallelism=50",
@@ -229,9 +239,9 @@ class EventGroupActivitiesPerformanceTest : Runnable {
         .execute(
           "--reporting-public-api-target=$reportingPublicApiTarget",
           "--reporting-public-api-cert-host=${reportingPublicApiCertHost ?: ""}",
-          "--tls-cert-file=${reportingTlsFlags.certFile}",
-          "--tls-key-file=${reportingTlsFlags.privateKeyFile}",
-          "--cert-collection-file=${reportingTlsFlags.certCollectionFile}",
+          "--tls-cert-file=$reportingTlsCertFile",
+          "--tls-key-file=$reportingTlsKeyFile",
+          "--cert-collection-file=$reportingCertCollectionFile",
           "list",
           "--parent=$measurementConsumerName",
           "--activity-contains-start-date=$filterStart",
