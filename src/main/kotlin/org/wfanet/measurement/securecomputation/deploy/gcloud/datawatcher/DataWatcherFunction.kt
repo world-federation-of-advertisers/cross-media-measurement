@@ -48,12 +48,13 @@ import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
  * Cloud Function receives a CloudEvent. If the cloud event path matches config, it calls the
  * DataWatcher with the path and config.
  *
- * @param pathReceiver Function to handle received paths. Defaults to the production DataWatcher,
- *   but can be overridden in tests to inject custom behavior without relying on static test hooks.
+ * @param pathReceiver Function to handle received paths with optional metadata. Defaults to the
+ *   production DataWatcher, but can be overridden in tests to inject custom behavior without
+ *   relying on static test hooks.
  */
 class DataWatcherFunction(
-  private val pathReceiver: suspend (String) -> Unit = { path ->
-    defaultDataWatcher.receivePath(path)
+  private val pathReceiver: suspend (String, Map<String, String>) -> Unit = { path, metadata ->
+    defaultDataWatcher.receivePath(path, metadata)
   }
 ) : CloudEventsFunction {
 
@@ -82,6 +83,10 @@ class DataWatcherFunction(
           return
         }
       }
+
+      // Extract custom metadata from the GCS object
+      val objectMetadata: Map<String, String> = data.metadataMap
+
       Tracing.withW3CTraceContext(event) {
         Tracing.trace(
           spanName = SPAN_DATA_WATCHER_HANDLE_EVENT,
@@ -98,7 +103,7 @@ class DataWatcherFunction(
             ),
         ) {
           val currentContext = Context.current()
-          runBlocking(currentContext.asContextElement()) { pathReceiver(path) }
+          runBlocking(currentContext.asContextElement()) { pathReceiver(path, objectMetadata) }
         }
       }
     } finally {
