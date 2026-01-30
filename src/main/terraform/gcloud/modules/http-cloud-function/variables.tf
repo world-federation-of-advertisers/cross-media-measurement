@@ -12,14 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-variable "http_cloud_function_service_account_name" {
-  description = "The name of the service account assigned to the Cloud Function (`google_service_account.name`)."
-  type        = string
-  nullable    = false
-}
-
-variable "terraform_service_account" {
-  description = "Service account used by terraform that needs to attach the MIG service account to the VM."
+variable "service_account_email" {
+  description = "The email of the service account to run the Cloud Function."
   type        = string
   nullable    = false
 }

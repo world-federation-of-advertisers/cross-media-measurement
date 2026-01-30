@@ -12,19 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-data "google_project" "project" {}
 data "google_client_config" "default" {}
-
-resource "google_service_account" "http_cloud_function_service_account" {
-  account_id   = var.http_cloud_function_service_account_name
-  display_name = "Service account for Cloud Function"
-}
-
-resource "google_service_account_iam_member" "allow_terraform_to_use_cloud_function_service_account" {
-  service_account_id = google_service_account.http_cloud_function_service_account.name
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${var.terraform_service_account}"
-}
 
 resource "terraform_data" "deploy_http_cloud_function" {
 
@@ -36,7 +24,7 @@ resource "terraform_data" "deploy_http_cloud_function" {
       FUNCTION_NAME           = var.function_name
       ENTRY_POINT             = var.entry_point
       CLOUD_REGION            = data.google_client_config.default.region
-      RUN_SERVICE_ACCOUNT     = google_service_account.http_cloud_function_service_account.email
+      RUN_SERVICE_ACCOUNT     = var.service_account_email
       EXTRA_ENV_VARS          = var.extra_env_vars
       SECRET_MAPPINGS         = var.secret_mappings
       UBER_JAR_DIRECTORY      = dirname(var.uber_jar_path)
