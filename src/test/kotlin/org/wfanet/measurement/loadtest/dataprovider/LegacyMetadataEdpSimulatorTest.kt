@@ -107,6 +107,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         knownEventGroupMetadataTypes,
         vidIndexMap = VID_INDEX_MAP,
+        trusTeeSupported = false,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -172,6 +173,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         knownEventGroupMetadataTypes = emptyList(),
         vidIndexMap = VID_INDEX_MAP,
+        trusTeeSupported = false,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -229,6 +231,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         knownEventGroupMetadataTypes = emptyList(),
         vidIndexMap = VID_INDEX_MAP,
+        trusTeeSupported = false,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -279,6 +282,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         knownEventGroupMetadataTypes = emptyList(),
         vidIndexMap = VID_INDEX_MAP,
+        trusTeeSupported = false,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -348,6 +352,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         knownEventGroupMetadataTypes = emptyList(),
         vidIndexMap = VID_INDEX_MAP,
+        trusTeeSupported = false,
       )
 
     val exception =

@@ -195,6 +195,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -255,6 +256,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -296,6 +298,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
         random = Random(RANDOM_SEED),
       )
 
@@ -377,6 +380,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
       )
 
     runBlocking {
@@ -418,6 +422,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -474,6 +479,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -544,6 +550,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         PrivacyBudgets.createNoOpPrivacyBudgetManager(),
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
       )
 
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
@@ -626,6 +633,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
       )
 
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
@@ -659,10 +667,10 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
   }
 
   @Test
-  fun `refuses HMSS requisition due to empty vidIndexMap`() {
+  fun `refuses TrusTEE requisition due to not being supported`() {
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
-        .thenReturn(listRequisitionsResponse { requisitions += HMSS_REQUISITION })
+        .thenReturn(listRequisitionsResponse { requisitions += TRUSTEE_REQUISITION })
     }
 
     val edpSimulator =
@@ -682,6 +690,8 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
+        VID_INDEX_MAP,
+        trusTeeSupported = false,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -729,6 +739,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         PrivacyBudgets.createNoOpPrivacyBudgetManager(),
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -783,6 +794,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
         trusTeeEncryptionParams = trusTeeEncryptionParams,
       )
 
@@ -885,6 +897,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
           privacyBudgetManager,
           TRUSTED_CERTIFICATES,
           VID_INDEX_MAP,
+          trusTeeSupported = true,
         )
       runBlocking {
         edpSimulator.ensureEventGroups()
@@ -1016,6 +1029,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
           privacyBudgetManager,
           TRUSTED_CERTIFICATES,
           VID_INDEX_MAP,
+          trusTeeSupported = true,
         )
       runBlocking {
         edpSimulator.ensureEventGroups()
@@ -1167,6 +1181,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
           privacyBudgetManager,
           TRUSTED_CERTIFICATES,
           VID_INDEX_MAP,
+          trusTeeSupported = true,
         )
       runBlocking {
         edpSimulator.ensureEventGroups()
@@ -1276,6 +1291,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
         sketchEncrypter = fakeSketchEncrypter,
       )
 
@@ -1336,6 +1352,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
       )
     val requisition =
       REQUISITION.copy {
@@ -1398,6 +1415,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
       )
     eventGroupsServiceMock.stub {
       onBlocking { getEventGroup(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
@@ -1471,6 +1489,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1541,6 +1560,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
         random = Random(RANDOM_SEED),
       )
 
@@ -1611,6 +1631,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1679,6 +1700,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1747,6 +1769,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1815,6 +1838,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1883,6 +1907,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1948,6 +1973,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
         random = Random(RANDOM_SEED),
       )
 
@@ -2007,6 +2033,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
         random = Random(RANDOM_SEED),
       )
 
@@ -2113,6 +2140,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
         random = Random(RANDOM_SEED),
       )
 
@@ -2186,6 +2214,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
         random = Random(RANDOM_SEED),
       )
 
@@ -2259,6 +2288,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
         random = Random(RANDOM_SEED),
       )
 
@@ -2319,6 +2349,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
         random = Random(RANDOM_SEED),
       )
 
@@ -2386,6 +2417,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
         random = Random(RANDOM_SEED),
       )
 
@@ -2453,6 +2485,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
         random = Random(RANDOM_SEED),
       )
 
@@ -2521,6 +2554,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
         random = Random(RANDOM_SEED),
       )
 
@@ -2586,6 +2620,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
         random = Random(RANDOM_SEED),
       )
 
@@ -2652,6 +2687,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
         random = Random(RANDOM_SEED),
       )
 
@@ -2721,6 +2757,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
         random = Random(RANDOM_SEED),
       )
 
@@ -2785,6 +2822,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
         random = Random(RANDOM_SEED),
       )
 
@@ -2846,6 +2884,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
+        trusTeeSupported = true,
         random = Random(RANDOM_SEED),
       )
 
