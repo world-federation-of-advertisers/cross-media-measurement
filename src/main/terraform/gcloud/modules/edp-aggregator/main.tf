@@ -134,23 +134,6 @@ locals {
     local.edp_tls_keys
   )
 
-  cloud_function_secret_pairs = tomap({
-    data_watcher            = local.data_watcher_secrets_access,
-    requisition_fetcher     = local.requisition_fetcher_secrets_access,
-    event_group_sync        = local.event_group_sync_secrets_access,
-    data_availability_sync  = local.data_availability_sync_secrets_access,
-  })
-
-  secret_access_map = merge([
-    for fn, key_list in local.cloud_function_secret_pairs : {
-      for secret_key in key_list :
-        "${fn}:${secret_key}" => {
-          function_name = fn
-          secret_key    = secret_key
-        }
-    }
-  ]...)
-
   service_accounts = {
     "data_watcher"              = module.data_watcher_cloud_function.cloud_function_service_account.email
     "requisition_fetcher"       = module.requisition_fetcher_cloud_function.cloud_function_service_account.email
@@ -236,6 +219,8 @@ module "secrets" {
 module "data_watcher_cloud_function" {
   source    = "../gcs-bucket-cloud-function"
 
+  depends_on = [module.secrets]
+
   cloud_function_service_account_name           = var.data_watcher_service_account_name
   cloud_function_trigger_service_account_name   = var.data_watcher_trigger_service_account_name
   trigger_bucket_name                           = module.edp_aggregator_bucket.storage_bucket.name
@@ -245,10 +230,13 @@ module "data_watcher_cloud_function" {
   extra_env_vars                                = var.cloud_function_configs.data_watcher.extra_env_vars
   secret_mappings                               = var.cloud_function_configs.data_watcher.secret_mappings
   uber_jar_path                                 = var.cloud_function_configs.data_watcher.uber_jar_path
+  secrets_to_access                             = [for key in local.data_watcher_secrets_access : local.all_secrets[key].secret_id]
 }
 
 module "requisition_fetcher_cloud_function" {
   source    = "../http-cloud-function"
+
+  depends_on = [module.secrets]
 
   http_cloud_function_service_account_name  = var.requisition_fetcher_service_account_name
   terraform_service_account                 = var.terraform_service_account
@@ -257,6 +245,7 @@ module "requisition_fetcher_cloud_function" {
   extra_env_vars                            = var.cloud_function_configs.requisition_fetcher.extra_env_vars
   secret_mappings                           = var.cloud_function_configs.requisition_fetcher.secret_mappings
   uber_jar_path                             = var.cloud_function_configs.requisition_fetcher.uber_jar_path
+  secrets_to_access                         = [for key in local.requisition_fetcher_secrets_access : local.all_secrets[key].secret_id]
 }
 
 module "requisition_fetcher_cloud_scheduler" {
@@ -269,6 +258,8 @@ module "requisition_fetcher_cloud_scheduler" {
 module "event_group_sync_cloud_function" {
   source    = "../http-cloud-function"
 
+  depends_on = [module.secrets]
+
   http_cloud_function_service_account_name  = var.event_group_sync_service_account_name
   terraform_service_account                 = var.terraform_service_account
   function_name                             = var.cloud_function_configs.event_group_sync.function_name
@@ -276,10 +267,13 @@ module "event_group_sync_cloud_function" {
   extra_env_vars                            = var.cloud_function_configs.event_group_sync.extra_env_vars
   secret_mappings                           = var.cloud_function_configs.event_group_sync.secret_mappings
   uber_jar_path                             = var.cloud_function_configs.event_group_sync.uber_jar_path
+  secrets_to_access                         = [for key in local.event_group_sync_secrets_access : local.all_secrets[key].secret_id]
 }
 
 module "data_availability_sync_cloud_function" {
   source    = "../http-cloud-function"
+
+  depends_on = [module.secrets]
 
   http_cloud_function_service_account_name  = var.data_availability_sync_service_account_name
   terraform_service_account                 = var.terraform_service_account
@@ -288,14 +282,7 @@ module "data_availability_sync_cloud_function" {
   extra_env_vars                            = var.cloud_function_configs.data_availability_sync.extra_env_vars
   secret_mappings                           = var.cloud_function_configs.data_availability_sync.secret_mappings
   uber_jar_path                             = var.cloud_function_configs.data_availability_sync.uber_jar_path
-}
-
-resource "google_secret_manager_secret_iam_member" "secret_accessor" {
-  depends_on = [module.secrets]
-  for_each = local.secret_access_map
-  secret_id = local.all_secrets[each.value.secret_key].secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${local.service_accounts[each.value.function_name]}"
+  secrets_to_access                         = [for key in local.data_availability_sync_secrets_access : local.all_secrets[key].secret_id]
 }
 
 module "result_fulfiller_queue" {
