@@ -95,9 +95,10 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
     kingdomPublicApiChannel: ManagedChannel,
     requisitionFulfillmentStubsByDuchyId:
       Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
+    trusTeeSupported: Boolean,
     trustedCertificates: Map<ByteString, X509Certificate>,
     eventQuery: SyntheticGeneratorEventQuery,
-    vidIndexMap: InMemoryVidIndexMap?,
+    vidIndexMap: InMemoryVidIndexMap,
     logSketchDetails: Boolean,
     throttler: MinimumIntervalThrottler,
     health: SettableHealth,
@@ -134,12 +135,8 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
         it.duchyId to stub
       }
 
-    val vidIndexMap: InMemoryVidIndexMap? =
-      if (flags.supportHmss) {
-        InMemoryVidIndexMap.build(syntheticPopulationSpec.toPopulationSpecWithoutAttributes())
-      } else {
-        null
-      }
+    val vidIndexMap: InMemoryVidIndexMap =
+      InMemoryVidIndexMap.build(syntheticPopulationSpec.toPopulationSpecWithoutAttributes())
 
     val randomSeed = flags.randomSeed
     val random =
@@ -167,6 +164,7 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
         flags.mcResourceName,
         kingdomPublicApiChannel,
         requisitionFulfillmentStubsByDuchyId,
+        flags.supportTrusTee,
         clientCerts.trustedCertificates,
         eventQuery,
         vidIndexMap,

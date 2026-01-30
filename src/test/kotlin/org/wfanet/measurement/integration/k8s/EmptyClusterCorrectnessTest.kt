@@ -233,10 +233,11 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL
     override val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
       SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL
+    override val trusTeeSupported: Boolean = false // TrusTEE is not supported locally.
 
     private val portForwarders = mutableListOf<PortForwarder>()
-    private val channels = mutableListOf<ManagedChannel>()
 
+    private val channels = mutableListOf<ManagedChannel>()
     private val k8sClient: KubernetesClient by k8sClient
     private val tempDir: TemporaryFolder by tempDir
     override val runId: String by runId
