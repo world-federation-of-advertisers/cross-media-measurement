@@ -4,6 +4,33 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library", "kt_jvm_test")
 
 package(default_testonly = True)
 
+kt_jvm_test(
+    name = "GCloudInProcessEventGroupActivitiesPerformanceTest",
+    timeout = "long",
+    srcs = ["GCloudInProcessEventGroupActivitiesPerformanceTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
+    flaky = True,
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudEventGroupActivitiesPerformanceTest",
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_event_group_activities_performance_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
+    ],
+)
+
 spanner_emulator_test(
     name = "GCloudInProcessLifeOfAnEventGroupIntegrationTest",
     size = "large",

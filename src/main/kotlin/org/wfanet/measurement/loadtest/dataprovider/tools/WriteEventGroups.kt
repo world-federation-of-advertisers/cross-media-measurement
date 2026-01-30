@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.loadtest.dataprovider.tools
 
+import com.google.type.date
 import com.google.type.interval
 import io.grpc.ManagedChannel
 import io.grpc.StatusException
@@ -23,7 +24,9 @@ import io.grpc.serviceconfig.copy
 import java.io.PrintStream
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 import java.time.temporal.ChronoUnit
+import java.util.concurrent.TimeUnit
 import kotlin.properties.Delegates
 import kotlin.system.exitProcess
 import kotlinx.coroutines.CoroutineDispatcher
@@ -32,15 +35,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupKt
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MediaType
+import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.deleteEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
+import org.wfanet.measurement.api.v2alpha.eventGroupActivity
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
+import org.wfanet.measurement.api.v2alpha.updateEventGroupActivityRequest
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
@@ -54,7 +61,12 @@ import picocli.CommandLine
 
 /** Tool for load testing by writing [EventGroup] resources. */
 @CommandLine.Command(name = "WriteEventGroups", subcommands = [CommandLine.HelpCommand::class])
-class WriteEventGroups private constructor() : Runnable {
+class WriteEventGroups(
+  private val injectedEventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub? = null,
+  private val injectedEventGroupActivitiesStub:
+    EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub? =
+    null,
+) : Runnable {
   @CommandLine.Option(names = ["--kingdom-public-api-target"], required = true)
   private lateinit var kingdomPublicApiTarget: String
 
@@ -86,12 +98,25 @@ class WriteEventGroups private constructor() : Runnable {
   private lateinit var semaphore: Semaphore
   private lateinit var dispatcher: CoroutineDispatcher
   private lateinit var eventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub
+  private lateinit var eventGroupActivitiesStub:
+    EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
 
   private fun init() {
     commandSpec.commandLine().setUseSimplifiedAtFiles(true)
     throttler = MaximumRateThrottler(maxQps)
     dispatcher = Dispatchers.IO.limitedParallelism(parallelism)
     semaphore = Semaphore(parallelism)
+
+    if (injectedEventGroupsStub != null && injectedEventGroupActivitiesStub != null) {
+      eventGroupsStub =
+        injectedEventGroupsStub.withDeadlineAfter(rpcTimeout.toMillis(), TimeUnit.MILLISECONDS)
+      eventGroupActivitiesStub =
+        injectedEventGroupActivitiesStub.withDeadlineAfter(
+          rpcTimeout.toMillis(),
+          TimeUnit.MILLISECONDS,
+        )
+      return
+    }
 
     val clientCerts =
       SigningCerts.fromPemFiles(
@@ -110,7 +135,10 @@ class WriteEventGroups private constructor() : Runnable {
         hostName = kingdomPublicApiCertHost,
         defaultServiceConfig = serviceConfig,
       )
+
     eventGroupsStub = EventGroupsGrpcKt.EventGroupsCoroutineStub(apiChannel)
+    eventGroupActivitiesStub =
+      EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub(apiChannel)
   }
 
   override fun run() {
@@ -260,6 +288,67 @@ class WriteEventGroups private constructor() : Runnable {
             System.err.println("Deleted $eventGroupName")
           } finally {
             semaphore.release()
+          }
+        }
+      }
+    }
+  }
+
+  @CommandLine.Command(name = "create-activities")
+  private fun createActivities(
+    @CommandLine.Option(names = ["--event-group"], required = true) eventGroupNames: List<String>,
+    @CommandLine.Option(names = ["--start-date"], required = true) startDate: String,
+    @CommandLine.Option(names = ["--end-date"], required = true) endDate: String,
+    @CommandLine.Option(names = ["--batch-size"], defaultValue = "50") batchSize: Int,
+    @CommandLine.Option(names = ["--step-days"], defaultValue = "1") stepDays: Long,
+  ) {
+    init()
+    val start = LocalDate.parse(startDate)
+    val end = LocalDate.parse(endDate)
+
+    runBlocking {
+      for (eventGroupName in eventGroupNames) {
+        val dates = mutableListOf<LocalDate>()
+        var currentDate = start
+        while (!currentDate.isAfter(end)) {
+          dates.add(currentDate)
+          currentDate = currentDate.plusDays(stepDays)
+        }
+
+        dates.chunked(batchSize).forEach { batchDates ->
+          val request = batchUpdateEventGroupActivitiesRequest {
+            parent = eventGroupName
+            requests +=
+              batchDates.map { date ->
+                updateEventGroupActivityRequest {
+                  eventGroupActivity = eventGroupActivity {
+                    name = "$eventGroupName/eventGroupActivities/$date"
+                    this.date = date {
+                      year = date.year
+                      month = date.monthValue
+                      day = date.dayOfMonth
+                    }
+                  }
+                  allowMissing = true
+                }
+              }
+          }
+
+          semaphore.acquire()
+          throttler.acquire()
+          launch(dispatcher) {
+            try {
+              eventGroupActivitiesStub.batchUpdateEventGroupActivities(request)
+              println(
+                "Created ${batchDates.size} activities for $eventGroupName from ${batchDates.first()} to ${batchDates.last()}"
+              )
+            } catch (e: Exception) {
+              System.err.println(
+                "Failed to create activities for $eventGroupName from ${batchDates.first()} to ${batchDates.last()}: $e"
+              )
+            } finally {
+              semaphore.release()
+            }
           }
         }
       }

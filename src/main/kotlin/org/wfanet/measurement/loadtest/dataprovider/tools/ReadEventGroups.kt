@@ -18,11 +18,13 @@ package org.wfanet.measurement.loadtest.dataprovider.tools
 
 import com.google.common.math.Quantiles
 import com.google.common.math.Stats
+import com.google.type.date
 import io.grpc.ManagedChannel
 import io.grpc.StatusException
 import io.grpc.serviceconfig.copy
 import java.io.PrintStream
 import java.time.Duration
+import java.time.LocalDate
 import kotlin.properties.Delegates
 import kotlin.system.exitProcess
 import kotlin.time.Duration.Companion.milliseconds
@@ -37,11 +39,13 @@ import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.throttler.MaximumRateThrottler
 import org.wfanet.measurement.common.toProtoDuration
+import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.reporting.v2alpha.MediaType
+import org.wfanet.measurement.reporting.v2alpha.dateInterval
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 import picocli.CommandLine
 
@@ -98,13 +102,19 @@ class ReadEventGroups private constructor() : Runnable {
   @CommandLine.Command(name = "list", description = ["Calls ListEventGroups until interrupted"])
   private fun list(
     @CommandLine.Option(names = ["--parent"], required = true) parent: String,
-    @CommandLine.Option(names = ["--media-type"]) mediaTypes: Set<MediaType>,
+    @CommandLine.Option(names = ["--media-type"]) mediaTypes: Set<MediaType>?,
     @CommandLine.Option(names = ["--metadata-search-query"], defaultValue = "")
     metadataSearchQuery: String,
     @CommandLine.Option(names = ["--page-token"], required = false, defaultValue = "")
     pageToken: String,
     @CommandLine.Option(names = ["--legacy"], required = false, defaultValue = "false")
     legacy: Boolean,
+    @CommandLine.Option(names = ["--activity-contains-start-date"], required = false)
+    activityContainsStartDateString: String?,
+    @CommandLine.Option(names = ["--activity-contains-end-date"], required = false)
+    activityContainsEndDateString: String?,
+    @CommandLine.Option(names = ["--view"], required = false, defaultValue = "BASIC")
+    view: EventGroup.View,
   ) {
     init()
 
@@ -137,7 +147,26 @@ class ReadEventGroups private constructor() : Runnable {
                 ListEventGroupsRequestKt.filter {
                   mediaTypesIntersect += mediaTypes
                   this.metadataSearchQuery = metadataSearchQuery
+                  if (
+                    activityContainsStartDateString != null && activityContainsEndDateString != null
+                  ) {
+                    val start = LocalDate.parse(activityContainsStartDateString)
+                    val end = LocalDate.parse(activityContainsEndDateString)
+                    activityContains = dateInterval {
+                      startDate = date {
+                        year = start.year
+                        month = start.monthValue
+                        day = start.dayOfMonth
+                      }
+                      endDate = date {
+                        year = end.year
+                        month = end.monthValue
+                        day = end.dayOfMonth
+                      }
+                    }
+                  }
                 }
+              this.view = view
             }
           }
 

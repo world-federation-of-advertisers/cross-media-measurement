@@ -19,10 +19,12 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
+import com.google.type.date
 import com.google.type.interval
 import io.grpc.Deadline
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.lang.IllegalStateException
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Duration
@@ -66,6 +68,7 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt as CmmsListEv
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.dateInterval as cmmsDateInterval
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
@@ -98,6 +101,8 @@ import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.reporting.v2alpha.MediaType
+import org.wfanet.measurement.reporting.v2alpha.copy
+import org.wfanet.measurement.reporting.v2alpha.dateInterval
 import org.wfanet.measurement.reporting.v2alpha.eventGroup
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsResponse
@@ -244,6 +249,134 @@ class EventGroupsServiceTest {
         listEventGroupsResponse {
           eventGroups += EVENT_GROUP
           eventGroups += EVENT_GROUP_2
+        }
+      )
+  }
+
+  @Test
+  fun `listEventGroups delegates to CMMS API when view is WITH_ACTIVITY_SUMMARY`() {
+    val startDate = date {
+      year = 2023
+      month = 1
+      day = 1
+    }
+    val endDate = date {
+      year = 2023
+      month = 1
+      day = 2
+    }
+    val cmmsAggregatedActivity =
+      CmmsEventGroupKt.aggregatedActivity {
+        interval = cmmsDateInterval {
+          this.startDate = startDate
+          this.endDate = endDate
+        }
+      }
+    val cmmsEventGroupWithActivities =
+      CMMS_EVENT_GROUP.copy { aggregatedActivities += cmmsAggregatedActivity }
+
+    wheneverBlocking { cmmsEventGroupsMock.listEventGroups(any()) } doReturn
+      cmmsListEventGroupsResponse { eventGroups += cmmsEventGroupWithActivities }
+
+    val request = listEventGroupsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      view = EventGroup.View.WITH_ACTIVITY_SUMMARY
+    }
+
+    val response: ListEventGroupsResponse =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listEventGroups(request) } }
+
+    verifyProtoArgument(cmmsEventGroupsMock, EventGroupsCoroutineImplBase::listEventGroups)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        cmmsListEventGroupsRequest {
+          parent = request.parent
+          view = CmmsEventGroup.View.WITH_ACTIVITY_SUMMARY
+          pageSize = DEFAULT_PAGE_SIZE
+        }
+      )
+
+    val expectedEventGroup =
+      EVENT_GROUP.copy {
+        aggregatedActivities +=
+          EventGroupKt.aggregatedActivity {
+            interval = dateInterval {
+              this.startDate = startDate
+              this.endDate = endDate
+            }
+          }
+      }
+
+    assertThat(response.eventGroupsList).containsExactly(expectedEventGroup)
+  }
+
+  @Test
+  fun `listEventGroups delegates to CMMS API when view is BASIC`() {
+    wheneverBlocking { cmmsEventGroupsMock.listEventGroups(any()) } doReturn
+      cmmsListEventGroupsResponse { eventGroups += CMMS_EVENT_GROUP }
+
+    val request = listEventGroupsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      view = EventGroup.View.BASIC
+    }
+
+    val response: ListEventGroupsResponse =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listEventGroups(request) } }
+
+    verifyProtoArgument(cmmsEventGroupsMock, EventGroupsCoroutineImplBase::listEventGroups)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        cmmsListEventGroupsRequest {
+          parent = request.parent
+          view = CmmsEventGroup.View.BASIC
+          pageSize = DEFAULT_PAGE_SIZE
+        }
+      )
+
+    assertThat(response.eventGroupsList).containsExactly(EVENT_GROUP)
+  }
+
+  @Test
+  fun `listEventGroups delegates to CMMS API when activity_contains is specified`() {
+    wheneverBlocking { cmmsEventGroupsMock.listEventGroups(any()) } doReturn
+      cmmsListEventGroupsResponse { eventGroups += CMMS_EVENT_GROUP }
+
+    val startDate = date {
+      year = 2023
+      month = 1
+      day = 1
+    }
+    val endDate = date {
+      year = 2023
+      month = 1
+      day = 2
+    }
+    val request = listEventGroupsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      structuredFilter =
+        ListEventGroupsRequestKt.filter {
+          activityContains = dateInterval {
+            this.startDate = startDate
+            this.endDate = endDate
+          }
+        }
+    }
+
+    withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listEventGroups(request) } }
+
+    verifyProtoArgument(cmmsEventGroupsMock, EventGroupsCoroutineImplBase::listEventGroups)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        cmmsListEventGroupsRequest {
+          parent = request.parent
+          filter =
+            CmmsListEventGroupsRequestKt.filter {
+              activityContains = cmmsDateInterval {
+                this.startDate = startDate
+                this.endDate = endDate
+              }
+            }
+          pageSize = DEFAULT_PAGE_SIZE
         }
       )
   }
@@ -823,6 +956,91 @@ class EventGroupsServiceTest {
         }
       }
     }
+  }
+
+  @Test
+  fun `listEventGroups throws INVALID_ARGUMENT when activity_contains has invalid date`() {
+    val request = listEventGroupsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      structuredFilter =
+        ListEventGroupsRequestKt.filter {
+          activityContains = dateInterval {
+            startDate = date {
+              year = 2023
+              month = 0
+              day = 1
+            }
+            endDate = date {
+              year = 2023
+              month = 1
+              day = 1
+            }
+          }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking { service.listEventGroups(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("activity_contains has invalid date(s)")
+  }
+
+  @Test
+  fun `listEventGroups throws INVALID_ARGUMENT when activity_contains start date is after end date`() {
+    val request = listEventGroupsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      structuredFilter =
+        ListEventGroupsRequestKt.filter {
+          activityContains = dateInterval {
+            startDate = date {
+              year = 2023
+              month = 2
+              day = 1
+            }
+            endDate = date {
+              year = 2023
+              month = 1
+              day = 1
+            }
+          }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking { service.listEventGroups(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message)
+      .contains("activity_contains.start_date must be before or equal to")
+  }
+
+  @Test
+  fun `listEventGroups throws INVALID_ARGUMENT when view is invalid`() {
+    val request =
+      ListEventGroupsRequest.newBuilder()
+        .apply {
+          parent = MEASUREMENT_CONSUMER_NAME
+          viewValue = 100 // Invalid enum value
+        }
+        .build()
+
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking { service.listEventGroups(request) }
+        }
+      }
+
+    assertThat(exception.message).contains("EventGroup.View unrecognized")
   }
 
   companion object {
