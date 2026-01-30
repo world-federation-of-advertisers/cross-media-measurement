@@ -187,7 +187,10 @@ class DefaultFulfillerSelector(
           trusTeeConfig.buildEncryptionParams(kekUri, kekUriToKeyNameMap)
         } else {
           val totalUncappedImpressions = frequencyVector.getTotalUncappedImpressions()
-          require(totalUncappedImpressions == 0L) {
+          require(
+            totalUncappedImpressions == 0L
+          ) { // if no kekUri, then we don't know a valid project id to encrypt with so can only
+              // fulfill an empty vector
             "TrusTee protocol selected with null kekUri but totalUncappedImpressions is $totalUncappedImpressions. " +
               "Expected 0 impressions when no data sources are available."
           }
