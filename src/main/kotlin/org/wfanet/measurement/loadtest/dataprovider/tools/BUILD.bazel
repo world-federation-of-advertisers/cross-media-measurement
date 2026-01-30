@@ -44,3 +44,25 @@ java_binary(
     main_class = "org.wfanet.measurement.loadtest.dataprovider.tools.ReadEventGroups",
     runtime_deps = [":read_event_groups"],
 )
+
+kt_jvm_library(
+    name = "event_group_activities_performance_test",
+    srcs = ["EventGroupActivitiesPerformanceTest.kt"],
+    deps = [
+        ":read_event_groups",
+        ":write_event_groups",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+java_binary(
+    name = "EventGroupActivitiesPerformanceTest",
+    main_class = "org.wfanet.measurement.loadtest.dataprovider.tools.EventGroupActivitiesPerformanceTest",
+    runtime_deps = [":event_group_activities_performance_test"],
+)
