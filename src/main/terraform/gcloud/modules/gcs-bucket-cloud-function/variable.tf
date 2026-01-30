@@ -12,26 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-variable "cloud_function_service_account_name" {
-  description = "The name of the service account assigned to the Cloud Function (`google_service_account.name`)."
+variable "service_account_email" {
+  description = "The email of the service account to run the Cloud Function."
   type        = string
   nullable    = false
 }
 
-variable "cloud_function_trigger_service_account_name" {
-  description = "The name of the service account used to trigger the Cloud Function (`google_service_account.name`)."
+variable "trigger_service_account_email" {
+  description = "The email of the service account used to trigger the Cloud Function."
   type        = string
   nullable    = false
 }
 
 variable "trigger_bucket_name" {
-  description = "The name of the Google Cloud Storage bucket that triggers the Cloud Function. The Cloud Function will be invoked when a specific file is uploaded in this bucket."
-  type        = string
-  nullable    = false
-}
-
-variable "terraform_service_account" {
-  description = "Service account used by terraform that needs to attach the MIG service account to the VM."
+  description = "The name of the Google Cloud Storage bucket that triggers the Cloud Function."
   type        = string
   nullable    = false
 }
@@ -64,4 +58,10 @@ variable "uber_jar_path" {
   description = "The path to the uber jar."
   type        = string
   nullable    = false
+}
+
+variable "deployment_dependencies" {
+  description = "List of resources that must be created before deploying the function (e.g., IAM bindings)."
+  type        = list(any)
+  default     = []
 }
