@@ -84,9 +84,8 @@ message ListClientAccountsResponse {
 message ListClientAccountsPageToken {
   message After {
     fixed64 external_measurement_consumer_id = 1;
-    fixed64 external_data_provider_id = 2;
-    fixed64 external_client_account_id = 3;
-    google.protobuf.Timestamp create_time = 4;
+    fixed64 external_client_account_id = 2;
+    google.protobuf.Timestamp create_time = 3;
   }
   After after = 1;
 }
