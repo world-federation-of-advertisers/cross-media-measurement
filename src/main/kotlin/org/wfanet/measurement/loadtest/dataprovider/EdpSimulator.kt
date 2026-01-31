@@ -38,7 +38,7 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusTeeFulfillRequisitionRequestBuilder
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder
 
 class EdpSimulator(
   edpData: DataProviderData,
@@ -57,13 +57,14 @@ class EdpSimulator(
   throttler: Throttler,
   privacyBudgetManager: PrivacyBudgetManager,
   trustedCertificates: Map<ByteString, X509Certificate>,
-  vidIndexMap: VidIndexMap? = null,
+  vidIndexMap: VidIndexMap,
+  trusTeeSupported: Boolean,
   sketchEncrypter: SketchEncrypter = SketchEncrypter.Default,
   random: Random = Random,
   logSketchDetails: Boolean = false,
   health: SettableHealth = SettableHealth(),
   blockingCoroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
-  trusTeeEncryptionParams: TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams? = null,
+  trusTeeEncryptionParams: FulfillRequisitionRequestBuilder.EncryptionParams? = null,
 ) :
   AbstractEdpSimulator(
     edpData,
@@ -88,6 +89,7 @@ class EdpSimulator(
     health,
     blockingCoroutineContext,
     trusTeeEncryptionParams,
+    trusTeeSupported,
   ) {
 
   interface EventGroupOptions : AbstractEdpSimulator.EventGroupOptions {
