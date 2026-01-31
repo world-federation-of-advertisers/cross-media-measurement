@@ -53,6 +53,7 @@ import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineS
 import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineStub as InternalApiKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
+import org.wfanet.measurement.internal.kingdom.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub as InternalEventGroupActivitiesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as InternalEventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub as InternalEventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub as InternalExchangeStepAttemptsCoroutineStub
@@ -85,6 +86,7 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.ApiKeyAuthenticationSe
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ApiKeysService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.CertificatesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.DataProvidersService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.EventGroupActivitiesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.EventGroupMetadataDescriptorsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptsService
@@ -221,6 +223,17 @@ private fun run(
           akidInterceptor,
         ),
       EventGroupsService(InternalEventGroupsCoroutineStub(channel), serviceDispatcher)
+        .withInterceptors(
+          apiChangeMetricsInterceptor,
+          apiKeyPrincipalInterceptor,
+          akidPrincipalInterceptor,
+          rateLimitingInterceptor,
+          akidInterceptor,
+        ),
+      EventGroupActivitiesService(
+          InternalEventGroupActivitiesCoroutineStub(channel),
+          serviceDispatcher,
+        )
         .withInterceptors(
           apiChangeMetricsInterceptor,
           apiKeyPrincipalInterceptor,
