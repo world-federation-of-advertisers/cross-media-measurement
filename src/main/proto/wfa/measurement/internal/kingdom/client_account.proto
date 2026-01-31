@@ -35,6 +35,6 @@ message ClientAccount {
   // Reference ID provided by the client to identify this account.
   string client_account_reference_id = 4;
 
-  // Output-only. When this `ClientAccount` was created.
+  // When this `ClientAccount` was created. Output-only.
   google.protobuf.Timestamp create_time = 5;
 }

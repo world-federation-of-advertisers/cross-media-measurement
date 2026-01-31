@@ -30,6 +30,7 @@ service ClientAccounts {
 
   rpc DeleteClientAccount(DeleteClientAccountRequest) returns (ClientAccount);
 
+  // Lists ClientAccounts ordered by `create_time` ascending.
   rpc ListClientAccounts(ListClientAccountsRequest)
       returns (ListClientAccountsResponse);
 }
@@ -49,13 +50,10 @@ message GetClientAccountRequest {
 }
 
 message DeleteClientAccountRequest {
-  // External ID of the parent. Required.
-  oneof external_parent_id {
-    fixed64 external_measurement_consumer_id = 1;
-    fixed64 external_data_provider_id = 2;
-  }
+  // External ID of the owning `MeasurementConsumer`. Required.
+  fixed64 external_measurement_consumer_id = 1;
   // External ID of the ClientAccount. Required.
-  fixed64 external_client_account_id = 3;
+  fixed64 external_client_account_id = 2;
 }
 
 message ListClientAccountsRequest {
