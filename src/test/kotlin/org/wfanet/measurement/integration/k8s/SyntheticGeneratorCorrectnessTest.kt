@@ -84,10 +84,13 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt
 /**
  * Test for correctness of an existing CMMS on Kubernetes with EDP simulators.
  *
- * The computation composition is using ACDP by assumption.
- *
- * This currently assumes that the CMMS instance is using the certificates and keys from this Bazel
- * workspace. It also assumes that there is a Reporting system connected to the CMMS.
+ * Assumptions:
+ * * The CMMS instance is using the same certificates and keys used to build this test.
+ * * The EDP simulators are using [SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE]
+ * * There is a Reporting system connected to the CMMS instance.
+ * * The CMMS instance supports the TrusTEE protocol.
+ * * A strict subset of EDP simulators support the TrusTEE protocol such that it's possible to run
+ *   HMSS Measurements.
  */
 class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
   private class RunningMeasurementSystem : MeasurementSystem(), TestRule {
@@ -97,6 +100,8 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
       SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_LARGE_2M
     override val populationDataProviderName: String
       get() = TEST_CONFIG.populationDataProvider
+
+    override val trusTeeSupported: Boolean = true
 
     override val runId: String by lazy { UUID.randomUUID().toString() }
 
