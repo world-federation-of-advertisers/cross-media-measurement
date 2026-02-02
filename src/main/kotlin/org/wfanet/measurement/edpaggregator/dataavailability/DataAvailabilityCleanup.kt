@@ -194,7 +194,7 @@ class DataAvailabilityCleanup(
           "Multiple ImpressionMetadata records (${results.size}) found for blob URI: $blobUri"
         )
       }
-      else -> results.first().name
+      else -> results.single().name
     }
   }
 
