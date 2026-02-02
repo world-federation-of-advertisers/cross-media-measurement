@@ -25,7 +25,7 @@ resource "google_storage_bucket" "bucket" {
     content {
       condition {
         days_since_custom_time = lifecycle_rule.value.retention_days
-        matches_prefix         = lifecycle_rule.value.prefix != "" ? [lifecycle_rule.value.prefix] : null
+        matches_prefix         = [lifecycle_rule.value.prefix]
       }
       action {
         type = "Delete"
@@ -39,7 +39,7 @@ resource "google_storage_bucket" "bucket" {
     content {
       condition {
         age            = lifecycle_rule.value.fallback_retention_days
-        matches_prefix = lifecycle_rule.value.prefix != "" ? [lifecycle_rule.value.prefix] : null
+        matches_prefix = [lifecycle_rule.value.prefix]
       }
       action {
         type = "Delete"

@@ -26,15 +26,14 @@ variable "location" {
 
 variable "lifecycle_rules" {
   description = <<-EOT
-    Lifecycle rule configurations. Each entry can target a specific prefix (e.g., for per-EDP
-    folders) or the entire bucket (empty prefix).
+    Lifecycle rule configurations. Each entry targets a specific prefix.
     
     Each entry contains:
     - name: Identifier for the rule (used for documentation/clarity)
-    - prefix: Object prefix to match (e.g., "edp/edp7/" for a folder, or "" for entire bucket)
+    - prefix: Object prefix to match (e.g., "edp/edp7/")
     - retention_days: Days to retain objects after Custom-Time (e.g., impression date)
     - enable_fallback: Whether to enable fallback rule based on upload date (default: true)
-    - fallback_retention_days: Days to retain objects after upload (default: 90)
+    - fallback_retention_days: Days to retain objects after upload (default: 4 years)
   EOT
   type = list(object({
     name                    = string

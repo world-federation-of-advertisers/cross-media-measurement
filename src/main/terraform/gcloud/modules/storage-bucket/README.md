@@ -6,9 +6,7 @@ lifecycle management rules.
 ## Lifecycle Rule Configuration
 
 Configure lifecycle rules to automatically delete objects based on retention periods.
-Rules can target specific prefixes (e.g., per-EDP folders) or the entire bucket.
-
-### Multiple prefixes (e.g., per-EDP folders)
+Each rule targets a specific prefix (e.g., per-EDP folders).
 
 ```hcl
 module "shared_bucket" {
@@ -19,37 +17,14 @@ module "shared_bucket" {
 
   lifecycle_rules = [
     {
-      name                    = "edp-alpha"
-      prefix                  = "edp/edp-alpha/"
-      retention_days          = 90
-      enable_fallback         = true
-      fallback_retention_days = 120
+      name           = "edp7"
+      prefix         = "edp/edp7/"
+      retention_days = 1460  # 4 years
     },
     {
-      name                    = "edp-beta"
-      prefix                  = "edp/edp-beta/"
-      retention_days          = 180
-    },
-  ]
-}
-```
-
-### Entire bucket
-
-Use an empty prefix to apply rules to the entire bucket:
-
-```hcl
-module "dedicated_bucket" {
-  source = "../storage-bucket"
-
-  name     = "dedicated-bucket"
-  location = "US"
-
-  lifecycle_rules = [
-    {
-      name           = "all-objects"
-      prefix         = ""
-      retention_days = 90
+      name           = "edp_meta"
+      prefix         = "edp/edp_meta/"
+      retention_days = 1460  # 4 years
     },
   ]
 }
