@@ -85,17 +85,6 @@ jobs:
           artifact-group-id: org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
           bazel_target_label: //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar
 
-      - name: Build and Deploy Data Watcher Delete
-        env:
-          MAVEN_USERNAME: ${{ github.actor }}
-          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        uses: ./.github/actions/build-and-push-uber-jar
-        with:
-          package-version: ${{ steps.get-artifact-version.outputs.artifact-version }}
-          artifact-id: data-watcher-delete
-          artifact-group-id: org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
-          bazel_target_label: //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar
-
       - name: Build and Deploy Requisition Fetcher
         env:
           MAVEN_USERNAME: ${{ github.actor }}

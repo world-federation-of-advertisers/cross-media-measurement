@@ -232,7 +232,7 @@ locals {
       entry_point         = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction"
       extra_env_vars      = "${var.data_watcher_delete_env_var},CONFIG_BLOB_KEY=${local.data_watcher_delete_config.destination}"
       secret_mappings     = var.data_watcher_delete_secret_mapping
-      uber_jar_path       = var.data_watcher_delete_uber_jar_path
+      uber_jar_path       = var.data_watcher_uber_jar_path  # Uses same JAR as data_watcher
     }
     data_availability_cleanup = {
       function_name       = "data-availability-cleanup"

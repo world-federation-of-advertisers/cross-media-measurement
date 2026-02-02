@@ -149,7 +149,6 @@ jobs:
 
         declare -A coords
         coords[data-watcher]="org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher:data-watcher:$ARTIFACT_VERSION:jar"
-        coords[data-watcher-delete]="org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher:data-watcher-delete:$ARTIFACT_VERSION:jar"
         coords[requisition-fetcher]="org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher:requisition-fetcher:$ARTIFACT_VERSION:jar"
         coords[event-group-sync]="org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups:event-group-sync:$ARTIFACT_VERSION:jar"
         coords[data-availability-sync]="org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability:data-availability-sync:$ARTIFACT_VERSION:jar"
@@ -281,7 +280,6 @@ jobs:
         -var="data_watcher_uber_jar_path=${{ steps.download-uber-jars.outputs.data_watcher_source_path }}"
         -var="data_watcher_delete_env_var=$DATA_WATCHER_DELETE_ENV_VAR"
         -var="data_watcher_delete_secret_mapping=$DATA_WATCHER_DELETE_SECRET_MAPPING"
-        -var="data_watcher_delete_uber_jar_path=${{ steps.download-uber-jars.outputs.data_watcher_delete_source_path }}"
         -var="requisition_fetcher_uber_jar_path=${{ steps.download-uber-jars.outputs.requisition_fetcher_source_path }}"
         -var="event_group_uber_jar_path=${{ steps.download-uber-jars.outputs.event_group_sync_source_path }}"
         -var="data_availability_uber_jar_path=${{ steps.download-uber-jars.outputs.data_availability_sync_source_path }}"

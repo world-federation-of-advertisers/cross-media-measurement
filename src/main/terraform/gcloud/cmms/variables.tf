@@ -228,10 +228,6 @@ variable "data_watcher_delete_secret_mapping" {
   type        = string
 }
 
-variable "data_watcher_delete_uber_jar_path" {
-  description = "Path to DataWatcherDelete uber jar."
-  type = string
-}
 
 variable "data_availability_cleanup_env_var" {
   description = "DataAvailabilityCleanup extra env variables"
