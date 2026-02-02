@@ -162,8 +162,9 @@ class BatchCreateClientAccounts(private val request: BatchCreateClientAccountsRe
     val commitTime = commitTimestamp.toProto()
     return batchCreateClientAccountsResponse {
       clientAccounts +=
-        checkNotNull(transactionResult).clientAccountsList.map { it.copy { createTime = commitTime } }
+        checkNotNull(transactionResult).clientAccountsList.map {
+          it.copy { createTime = commitTime }
+        }
     }
   }
 }
-

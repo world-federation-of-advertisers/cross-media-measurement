@@ -22,7 +22,6 @@ import com.google.cloud.spanner.Mutation
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.BatchDeleteClientAccountsRequest
 import org.wfanet.measurement.internal.kingdom.BatchDeleteClientAccountsResponse
-import org.wfanet.measurement.internal.kingdom.ClientAccount
 import org.wfanet.measurement.internal.kingdom.batchDeleteClientAccountsResponse
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
@@ -66,12 +65,7 @@ class BatchDeleteClientAccounts(private val request: BatchDeleteClientAccountsRe
       transactionContext.buffer(
         Mutation.delete(
           "ClientAccounts",
-          KeySet.singleKey(
-            Key.of(
-              result.measurementConsumerId.value,
-              result.clientAccountId.value,
-            )
-          ),
+          KeySet.singleKey(Key.of(result.measurementConsumerId.value, result.clientAccountId.value)),
         )
       )
     }
@@ -81,4 +75,3 @@ class BatchDeleteClientAccounts(private val request: BatchDeleteClientAccountsRe
     }
   }
 }
-
