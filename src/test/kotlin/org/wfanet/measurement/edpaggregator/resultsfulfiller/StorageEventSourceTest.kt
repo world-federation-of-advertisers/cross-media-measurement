@@ -848,6 +848,52 @@ class StorageEventSourceTest {
     assertThat(eventSource.getKekUri()).isNull()
   }
 
+
+  @Test
+  fun `getKekUri returns KEK URI from most recent data source`(): Unit = runBlocking {
+    val metadataTmpPath = tmp.root
+    val eventGroupRef = "event-group-1"
+
+    // Create KEK URIs with same project ID and location
+    val kekUri1 = "gcp-kms://projects/my-project/locations/us-east1/keyRings/ring/cryptoKeys/key1"
+    val kekUri2 = "gcp-kms://projects/my-project/locations/us-east1/keyRings/ring/cryptoKeys/key2"
+
+    val dates = listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2))
+    val impressionMetadataList = createImpressionMetadataList(dates, eventGroupRef)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    // Create metadata with same project ID for each date
+    writeMetadataWithKekUri(metadataTmpPath, dates[0], eventGroupRef, kekUri1)
+    writeMetadataWithKekUri(metadataTmpPath, dates[1], eventGroupRef, kekUri2)
+
+    val eventGroupDetails =
+      createEventGroupDetails(
+        eventGroupRef,
+        LocalDate.of(2025, 1, 1),
+        LocalDate.of(2025, 1, 3),
+        ZoneId.of("UTC"),
+      )
+
+    val impressionService = createImpressionDataSourceProvider(metadataTmpPath)
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = impressionService,
+        eventGroupDetailsList = listOf(eventGroupDetails),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    // getKekUri should return the KEK URI from the most recent data source (sorted by interval end time)
+    val result = eventSource.getKekUri()
+    assertThat(result).isNotNull()
+    assertThat(result).isEqualTo("gcp-kms://projects/my-project/locations/us-east1/keyRings/ring/cryptoKeys/key1")
+  }
+
   companion object {
     private val TEST_EVENT = testEvent {
       person = person {
