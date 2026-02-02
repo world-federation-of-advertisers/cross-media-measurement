@@ -21,6 +21,7 @@ import "google/api/client.proto";
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/reporting/v2alpha/date_interval.proto";
 import "wfa/measurement/reporting/v2alpha/event_group.proto";
 import "wfa/measurement/reporting/v2alpha/media_type.proto";
 
@@ -103,6 +104,11 @@ message ListEventGroupsRequest {
     // Query for text search on string fields in
     // [EventGroup.event_group_metadata][].
     string metadata_search_query = 5 [(google.api.field_behavior) = OPTIONAL];
+    // Interval that must be fully contained by an
+    // [activity_summary.interval][EventGroup.ActivitySummary.interval] in the
+    // [EventGroup][]. [start_date][DateInterval.start_date] and
+    // [end_date][DateInterval.end_date] are required.
+    DateInterval activity_contains = 8;
   }
 
   // Filter criteria for results. Optional.
@@ -141,6 +147,9 @@ message ListEventGroupsRequest {
   // (-- api-linter: core::0132::request-field-types=disabled
   //     aip.dev/not-precedent: Only supporting a limited set of orderings. --)
   OrderBy order_by = 6 [(google.api.field_behavior) = OPTIONAL];
+
+  // The view of EventGroup to return
+  EventGroup.View view = 7;
 }
 
 // Response message for `ListEventGroups` method.

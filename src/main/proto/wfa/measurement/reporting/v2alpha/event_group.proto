@@ -20,6 +20,7 @@ import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/any.proto";
 import "google/type/interval.proto";
+import "wfa/measurement/reporting/v2alpha/date_interval.proto";
 import "wfa/measurement/reporting/v2alpha/media_type.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
@@ -117,4 +118,31 @@ message EventGroup {
   // The metadata of the event group. This will eventually be deprecated in
   // favor of [event_group_metadata][].
   Metadata metadata = 6;
+
+  // View of an `EventGroup`.
+  enum View {
+    // The default/unset value.
+    //
+    // The API will default to the `BASIC` view unless otherwise specified by
+    // the method.
+    VIEW_UNSPECIFIED = 0;
+
+    // Basic view.
+    BASIC = 1;
+
+    // View with activity summary
+    WITH_ACTIVITY_SUMMARY = 2;
+  }
+
+  // Aggregated EventGroupActivity for a contiguous date interval.
+  message AggregatedActivity {
+    // Aggregated interval.
+    DateInterval interval = 1;
+  }
+
+  // A summary of EventGroupActivity resources for this EventGroup.
+  //
+  // Only set when the view is `WITH_ACTIVITY_SUMMARY`.
+  repeated AggregatedActivity aggregated_activities = 10
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 }
