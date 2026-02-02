@@ -19,13 +19,13 @@ resource "google_storage_bucket" "bucket" {
   uniform_bucket_level_access = true
   public_access_prevention    = "enforced"
 
-  # Lifecycle Rule 1: Delete objects based on Custom-Time (impression date)
+  # Delete objects based on Custom-Time (e.g., impression date)
   dynamic "lifecycle_rule" {
-    for_each = var.enable_lifecycle_rules ? [1] : []
+    for_each = var.lifecycle_rules
     content {
       condition {
-        days_since_custom_time = var.retention_days
-        matches_prefix         = var.lifecycle_prefix != "" ? [var.lifecycle_prefix] : null
+        days_since_custom_time = lifecycle_rule.value.retention_days
+        matches_prefix         = lifecycle_rule.value.prefix != "" ? [lifecycle_rule.value.prefix] : null
       }
       action {
         type = "Delete"
@@ -33,13 +33,13 @@ resource "google_storage_bucket" "bucket" {
     }
   }
 
-  # Lifecycle Rule 2: Safety net for objects without Custom-Time (based on upload date)
+  # Fallback: Delete objects based on upload date (safety net for objects without Custom-Time)
   dynamic "lifecycle_rule" {
-    for_each = var.enable_lifecycle_rules && var.enable_fallback_lifecycle_rule ? [1] : []
+    for_each = [for rule in var.lifecycle_rules : rule if rule.enable_fallback]
     content {
       condition {
-        age            = var.fallback_retention_days
-        matches_prefix = var.lifecycle_prefix != "" ? [var.lifecycle_prefix] : null
+        age            = lifecycle_rule.value.fallback_retention_days
+        matches_prefix = lifecycle_rule.value.prefix != "" ? [lifecycle_rule.value.prefix] : null
       }
       action {
         type = "Delete"

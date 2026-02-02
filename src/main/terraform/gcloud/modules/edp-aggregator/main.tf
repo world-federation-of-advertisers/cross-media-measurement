@@ -184,9 +184,22 @@ locals {
 module "edp_aggregator_bucket" {
   source   = "../storage-bucket"
 
-  name                   = var.edp_aggregator_bucket_name
-  location               = var.edp_aggregator_buckets_location
-  enable_lifecycle_rules = true
+  name     = var.edp_aggregator_bucket_name
+  location = var.edp_aggregator_buckets_location
+
+  # Per-EDP lifecycle rules for impression data retention
+  lifecycle_rules = [
+    {
+      name           = "edp7"
+      prefix         = "edp/edp7/"
+      retention_days = 1460  # 4 years
+    },
+    {
+      name           = "edp_meta"
+      prefix         = "edp/edp_meta/"
+      retention_days = 1460  # 4 years
+    },
+  ]
 }
 
 module "config_files_bucket" {

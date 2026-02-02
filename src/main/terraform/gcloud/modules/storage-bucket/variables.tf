@@ -24,32 +24,24 @@ variable "location" {
   nullable    = false
 }
 
-variable "enable_lifecycle_rules" {
-  description = "Enable object lifecycle management rules"
-  type        = bool
-  default     = false
-}
-
-variable "retention_days" {
-  description = "Number of days to retain objects after Custom-Time"
-  type        = number
-  default     = 90
-}
-
-variable "lifecycle_prefix" {
-  description = "Prefix to match for lifecycle rules (e.g., impression storage prefix)"
-  type        = string
-  default     = ""
-}
-
-variable "enable_fallback_lifecycle_rule" {
-  description = "Enable fallback lifecycle rule for objects without Custom-Time"
-  type        = bool
-  default     = true
-}
-
-variable "fallback_retention_days" {
-  description = "Number of days to retain objects after upload (safety net for objects without Custom-Time)"
-  type        = number
-  default     = 90
+variable "lifecycle_rules" {
+  description = <<-EOT
+    Lifecycle rule configurations. Each entry can target a specific prefix (e.g., for per-EDP
+    folders) or the entire bucket (empty prefix).
+    
+    Each entry contains:
+    - name: Identifier for the rule (used for documentation/clarity)
+    - prefix: Object prefix to match (e.g., "edp/edp7/" for a folder, or "" for entire bucket)
+    - retention_days: Days to retain objects after Custom-Time (e.g., impression date)
+    - enable_fallback: Whether to enable fallback rule based on upload date (default: true)
+    - fallback_retention_days: Days to retain objects after upload (default: 90)
+  EOT
+  type = list(object({
+    name                    = string
+    prefix                  = string
+    retention_days          = number
+    enable_fallback         = optional(bool, true)
+    fallback_retention_days = optional(number, 1460)  # Default: 4 years
+  }))
+  default = []
 }
