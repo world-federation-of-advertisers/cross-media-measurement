@@ -16,8 +16,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.ErrorCode as SpannerErrorCode
-import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.generateNewExternalId
 import org.wfanet.measurement.common.generateNewInternalId
@@ -33,6 +31,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementCo
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ClientAccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
+
+private const val MAX_ID_GENERATION_ATTEMPTS = 10
 
 class CreateClientAccount(private val clientAccount: ClientAccount) :
   SpannerWriter<ClientAccount, ClientAccount>() {
@@ -64,6 +64,7 @@ class CreateClientAccount(private val clientAccount: ClientAccount) :
       )
     }
 
+<<<<<<< HEAD
     val internalClientAccountId =
       idGenerator.generateNewInternalId { id ->
         ClientAccountReader.existsByInternalId(transactionContext, measurementConsumerId, id)
@@ -75,6 +76,42 @@ class CreateClientAccount(private val clientAccount: ClientAccount) :
           ClientAccountReader()
             .readByDataProvider(transactionContext, externalDataProviderId, id) != null
       }
+=======
+    var internalClientAccountId: InternalId
+    var externalClientAccountId: ExternalId
+    var attempts = 0
+
+    do {
+      attempts++
+      check(attempts <= MAX_ID_GENERATION_ATTEMPTS) {
+        "Failed to generate unique IDs after $MAX_ID_GENERATION_ATTEMPTS attempts"
+      }
+
+      internalClientAccountId = idGenerator.generateInternalId()
+      externalClientAccountId = idGenerator.generateExternalId()
+
+      val internalIdInUseByMc =
+        ClientAccountReader()
+          .readByInternalId(transactionContext, measurementConsumerId, internalClientAccountId)
+      if (internalIdInUseByMc != null) continue
+
+      val externalIdInUseByMc =
+        ClientAccountReader()
+          .readByMeasurementConsumer(
+            transactionContext,
+            externalMeasurementConsumerId,
+            externalClientAccountId,
+          )
+      if (externalIdInUseByMc != null) continue
+
+      val externalIdInUseByDp =
+        ClientAccountReader()
+          .readByDataProvider(transactionContext, externalDataProviderId, externalClientAccountId)
+      if (externalIdInUseByDp != null) continue
+
+      break
+    } while (true)
+>>>>>>> 7be847ebc (resolve comments and fix tests)
 
     transactionContext.bufferInsertMutation("ClientAccounts") {
       set("MeasurementConsumerId" to measurementConsumerId)
@@ -93,6 +130,7 @@ class CreateClientAccount(private val clientAccount: ClientAccount) :
   }
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 
   override suspend fun handleSpannerException(e: SpannerException): ClientAccount? {
@@ -107,6 +145,8 @@ class CreateClientAccount(private val clientAccount: ClientAccount) :
     }
   }
 >>>>>>> 462fa43e9 (fix: resolve comments and fix tests)
+=======
+>>>>>>> 7be847ebc (resolve comments and fix tests)
 }
 =======
 }
