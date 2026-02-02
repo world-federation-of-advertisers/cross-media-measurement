@@ -36,6 +36,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGro
 /** Result of processing a single EventReader. */
 data class EventReaderResult(val batchCount: Int, val eventCount: Int)
 
+/** Project ID and location extracted from a GCP KMS KEK URI. */
+data class KmsKeyLocation(val projectId: String, val location: String)
+
 /** Component for tracking progress during event processing. */
 class ProgressTracker(private val totalEventReaders: Int) : AutoCloseable {
   private var processedReaders = 0L
@@ -237,7 +240,7 @@ class StorageEventSource(
    *
    * Returns the KEK URI from the most recent data source (sorted by interval end time in descending
    * order). All data sources for the same EDP must use KEK URIs with the same project ID and
-   * location.
+   * location; having different project IDs for the same EDP is currently not supported.
    *
    * Returns null if no data sources are available, in which case a non-encrypted empty sketch will
    * be fulfilled.
@@ -284,18 +287,18 @@ class StorageEventSource(
    * strings which allows consistency checking to still work (all non-GCP URIs are considered to
    * have the same "empty" project/location).
    *
-   * @return Pair of (projectId, location), or empty strings for non-GCP URIs
+   * @return KmsKeyLocation with projectId and location, or empty strings for non-GCP URIs
    */
-  private fun extractProjectAndLocation(kekUri: String): Pair<String, String> {
+  private fun extractProjectAndLocation(kekUri: String): KmsKeyLocation {
     // For fake-kms:// URIs (used in tests), skip project/location extraction
     if (kekUri.startsWith("fake-kms://")) {
-      return Pair("", "")
+      return KmsKeyLocation("", "")
     }
     val regex =
       Regex("gcp-kms://projects/([^/]+)/locations/([^/]+)/keyRings/[^/]+/cryptoKeys/[^/]+")
     val matchResult = regex.matchEntire(kekUri)
     requireNotNull(matchResult) { "Invalid GCP KMS KEK URI format: $kekUri" }
-    return Pair(matchResult.groupValues[1], matchResult.groupValues[2])
+    return KmsKeyLocation(matchResult.groupValues[1], matchResult.groupValues[2])
   }
 
   companion object {
