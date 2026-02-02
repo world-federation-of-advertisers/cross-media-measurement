@@ -186,12 +186,15 @@ class DataAvailabilitySync(
             startTime = bound.value.startTime
             endTime = bound.value.endTime
           }
-          val modelLines =
-            if (bound.key in modelLineMap) {
-              modelLineMap.getValue(bound.key)
-            } else {
-              listOf(bound.key)
-            }
+          val mappedModelLines = modelLineMap[bound.key]
+          if (mappedModelLines != null) {
+            logger.info(
+              "Model line mapping found: ${bound.key} -> ${mappedModelLines.joinToString(", ")}"
+            )
+          } else {
+            logger.info("No model line mapping found for: ${bound.key}")
+          }
+          val modelLines = mappedModelLines ?: listOf(bound.key)
           modelLines.map { modelLine ->
             dataAvailabilityMapEntry {
               key = modelLine
