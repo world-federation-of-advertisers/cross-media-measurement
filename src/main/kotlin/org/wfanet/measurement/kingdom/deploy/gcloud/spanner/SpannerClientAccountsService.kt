@@ -171,7 +171,6 @@ class SpannerClientAccountsService(
       throw RequiredFieldNotSetException("external_client_account_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    val externalClientAccountId = ExternalId(request.externalClientAccountId)
 
     val externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
     val externalClientAccountId = ExternalId(request.externalClientAccountId)

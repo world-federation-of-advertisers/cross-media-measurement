@@ -16,8 +16,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.ErrorCode as SpannerErrorCode
-import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.generateNewExternalId
 import org.wfanet.measurement.common.generateNewInternalId
@@ -33,6 +31,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementCo
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ClientAccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
+
+private const val MAX_ID_GENERATION_ATTEMPTS = 10
 
 class CreateClientAccount(private val clientAccount: ClientAccount) :
   SpannerWriter<ClientAccount, ClientAccount>() {
@@ -90,17 +90,5 @@ class CreateClientAccount(private val clientAccount: ClientAccount) :
 
   override fun ResultScope<ClientAccount>.buildResult(): ClientAccount {
     return checkNotNull(transactionResult).copy { createTime = commitTimestamp.toProto() }
-  }
-
-  override suspend fun handleSpannerException(e: SpannerException): ClientAccount? {
-    when (e.errorCode) {
-      SpannerErrorCode.ALREADY_EXISTS ->
-        throw ClientAccountAlreadyExistsException(
-          ExternalId(clientAccount.externalDataProviderId),
-          clientAccount.clientAccountReferenceId,
-          e,
-        )
-      else -> throw e
-    }
   }
 }

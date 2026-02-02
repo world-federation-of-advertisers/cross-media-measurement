@@ -879,19 +879,6 @@ class PopulationNotFoundException(
 }
 
 class ClientAccountNotFoundException(
-  val externalDataProviderId: ExternalId,
-  val externalClientAccountId: ExternalId,
-  provideDescription: () -> String = { "ClientAccount not found" },
-) : KingdomInternalException(ErrorCode.CLIENT_ACCOUNT_NOT_FOUND, provideDescription) {
-  override val context
-    get() =
-      mapOf(
-        "external_data_provider_id" to externalDataProviderId.value.toString(),
-        "external_client_account_id" to externalClientAccountId.value.toString(),
-      )
-}
-
-class ClientAccountNotFoundByMeasurementConsumerException(
   val externalMeasurementConsumerId: ExternalId,
   val externalClientAccountId: ExternalId,
   provideDescription: () -> String = { "ClientAccount not found" },
