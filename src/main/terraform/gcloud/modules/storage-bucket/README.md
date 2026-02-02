@@ -17,14 +17,14 @@ module "shared_bucket" {
 
   lifecycle_rules = [
     {
-      name           = "edp7"
-      prefix         = "edp/edp7/"
-      retention_days = 1460  # 4 years
+      name           = "edp-alpha"
+      prefix         = "edp/edp-alpha/"
+      retention_days = 90
     },
     {
-      name           = "edp_meta"
-      prefix         = "edp/edp_meta/"
-      retention_days = 1460  # 4 years
+      name           = "edp-beta"
+      prefix         = "edp/edp-beta/"
+      retention_days = 90
     },
   ]
 }

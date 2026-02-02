@@ -192,12 +192,12 @@ module "edp_aggregator_bucket" {
     {
       name           = "edp7"
       prefix         = "edp/edp7/"
-      retention_days = 1460  # 4 years
+      retention_days = 3650  # 10 years
     },
     {
       name           = "edp_meta"
       prefix         = "edp/edp_meta/"
-      retention_days = 1460  # 4 years
+      retention_days = 3650  # 10 years
     },
   ]
 }
