@@ -177,10 +177,6 @@ class DataAvailabilityCleanup(
         null
       }
       results.size > 1 -> {
-        logger.warning(
-          "Multiple ImpressionMetadata records (${results.size}) found for blob URI: $blobUri. " +
-            "Using first match: ${results.first().name}"
-        )
         metrics.cleanupErrorsCounter.add(
           1,
           Attributes.of(
