@@ -59,6 +59,8 @@ import org.wfanet.measurement.internal.kingdom.ClientAccount as InternalClientAc
 import org.wfanet.measurement.internal.kingdom.ClientAccountsGrpcKt.ClientAccountsCoroutineStub as InternalClientAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ListClientAccountsRequest as InternalListClientAccountsRequest
 import org.wfanet.measurement.internal.kingdom.ListClientAccountsRequestKt
+import org.wfanet.measurement.internal.kingdom.batchCreateClientAccountsRequest as internalBatchCreateClientAccountsRequest
+import org.wfanet.measurement.internal.kingdom.batchDeleteClientAccountsRequest as internalBatchDeleteClientAccountsRequest
 import org.wfanet.measurement.internal.kingdom.clientAccount as internalClientAccount
 import org.wfanet.measurement.internal.kingdom.createClientAccountRequest as internalCreateClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.deleteClientAccountRequest as internalDeleteClientAccountRequest
@@ -80,8 +82,7 @@ class ClientAccountsService(
     GET,
     LIST,
     CREATE,
-    DELETE,
-    ;
+    DELETE;
 
     fun deniedStatus(name: String): Status =
       Status.PERMISSION_DENIED.withDescription(
@@ -90,6 +91,9 @@ class ClientAccountsService(
   }
 
   override suspend fun createClientAccount(request: CreateClientAccountRequest): ClientAccount {
+    fun permissionDeniedStatus() =
+      Permission.CREATE.deniedStatus("${request.parent}/clientAccounts")
+
     val parentKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
         "Parent is either unspecified or invalid"
@@ -97,7 +101,7 @@ class ClientAccountsService(
 
     val principal: MeasurementPrincipal = principalFromCurrentContext
     if (principal.resourceKey != parentKey) {
-      throw Permission.CREATE.deniedStatus("${request.parent}/clientAccounts").asRuntimeException()
+      throw permissionDeniedStatus().asRuntimeException()
     }
 
     grpcRequire(request.hasClientAccount()) { "client_account must be specified" }
@@ -139,6 +143,9 @@ class ClientAccountsService(
   override suspend fun batchCreateClientAccounts(
     request: BatchCreateClientAccountsRequest
   ): BatchCreateClientAccountsResponse {
+    fun permissionDeniedStatus() =
+      Permission.CREATE.deniedStatus("${request.parent}/clientAccounts")
+
     val parentKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
         "Parent is either unspecified or invalid"
@@ -146,7 +153,7 @@ class ClientAccountsService(
 
     val principal: MeasurementPrincipal = principalFromCurrentContext
     if (principal.resourceKey != parentKey) {
-      throw Permission.CREATE.deniedStatus("${request.parent}/clientAccounts").asRuntimeException()
+      throw permissionDeniedStatus().asRuntimeException()
     }
 
     grpcRequire(request.requestsCount <= MAX_BATCH_SIZE) {
@@ -186,36 +193,39 @@ class ClientAccountsService(
       }
     }
 
-    val response = batchCreateClientAccountsResponse {
+    val internalRequest = internalBatchCreateClientAccountsRequest {
+      externalMeasurementConsumerId = apiIdToExternalId(parentKey.measurementConsumerId)
       for (subRequest in request.requestsList) {
         val dataProviderKey =
           grpcRequireNotNull(DataProviderKey.fromName(subRequest.clientAccount.dataProvider)) {
             "client_account.data_provider is invalid"
           }
 
-        val internalRequest = internalCreateClientAccountRequest {
-          clientAccount = internalClientAccount {
-            externalMeasurementConsumerId = apiIdToExternalId(parentKey.measurementConsumerId)
-            externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
-            clientAccountReferenceId = subRequest.clientAccount.clientAccountReferenceId
+        requests +=
+          org.wfanet.measurement.internal.kingdom.createClientAccountRequest {
+            clientAccount = internalClientAccount {
+              externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
+              clientAccountReferenceId = subRequest.clientAccount.clientAccountReferenceId
+            }
           }
-        }
-
-        try {
-          clientAccounts +=
-            internalClientAccountsStub.createClientAccount(internalRequest).toClientAccount()
-        } catch (e: StatusException) {
-          throw when (e.status.code) {
-            Status.Code.NOT_FOUND -> Status.NOT_FOUND
-            Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            else -> Status.UNKNOWN
-          }.toExternalStatusRuntimeException(e)
-        }
       }
     }
 
-    return response
+    val internalResponse =
+      try {
+        internalClientAccountsStub.batchCreateClientAccounts(internalRequest)
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
+      }
+
+    return batchCreateClientAccountsResponse {
+      clientAccounts += internalResponse.clientAccountsList.map { it.toClientAccount() }
+    }
   }
 
   override suspend fun getClientAccount(request: GetClientAccountRequest): ClientAccount {
@@ -247,8 +257,7 @@ class ClientAccountsService(
         is DataProviderClientAccountKey -> {
           val denied =
             when (principal) {
-              is DataProviderPrincipal ->
-                principal.resourceKey.dataProviderId != key.dataProviderId
+              is DataProviderPrincipal -> principal.resourceKey.dataProviderId != key.dataProviderId
               else -> true
             }
           if (denied) throw permissionDeniedStatus().asRuntimeException()
@@ -300,7 +309,8 @@ class ClientAccountsService(
     val pageSize =
       if (request.pageSize == 0) DEFAULT_PAGE_SIZE else request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
 
-    val internalRequest = buildInternalListClientAccountsRequest(request, parentKey, pageSize, pageToken)
+    val internalRequest =
+      buildInternalListClientAccountsRequest(request, parentKey, pageSize, pageToken)
 
     val internalResponse =
       try {
@@ -376,9 +386,10 @@ class ClientAccountsService(
     return Empty.getDefaultInstance()
   }
 
-  override suspend fun batchDeleteClientAccounts(
-    request: BatchDeleteClientAccountsRequest
-  ): Empty {
+  override suspend fun batchDeleteClientAccounts(request: BatchDeleteClientAccountsRequest): Empty {
+    fun permissionDeniedStatus() =
+      Permission.DELETE.deniedStatus("${request.parent}/clientAccounts")
+
     val parentKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
         "Parent is either unspecified or invalid"
@@ -386,10 +397,10 @@ class ClientAccountsService(
 
     val principal: MeasurementPrincipal = principalFromCurrentContext
     if (principal !is MeasurementConsumerPrincipal) {
-      throw Permission.DELETE.deniedStatus("${request.parent}/clientAccounts").asRuntimeException()
+      throw permissionDeniedStatus().asRuntimeException()
     }
     if (principal.resourceKey != parentKey) {
-      throw Permission.DELETE.deniedStatus("${request.parent}/clientAccounts").asRuntimeException()
+      throw permissionDeniedStatus().asRuntimeException()
     }
 
     grpcRequire(request.namesCount <= MAX_BATCH_SIZE) {
@@ -398,30 +409,13 @@ class ClientAccountsService(
 
     for (name in request.namesList) {
       val key: ClientAccountKey =
-        grpcRequireNotNull(ClientAccountKey.fromName(name)) {
-          "Resource name $name is invalid"
-        }
+        grpcRequireNotNull(ClientAccountKey.fromName(name)) { "Resource name $name is invalid" }
 
       when (key) {
         is MeasurementConsumerClientAccountKey -> {
           if (key.measurementConsumerId != parentKey.measurementConsumerId) {
-            throw Status.INVALID_ARGUMENT.withDescription(
-                "Resource $name does not match parent"
-              )
+            throw Status.INVALID_ARGUMENT.withDescription("Resource $name does not match parent")
               .asRuntimeException()
-          }
-          val internalRequest = internalDeleteClientAccountRequest {
-            externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
-            externalClientAccountId = apiIdToExternalId(key.clientAccountId)
-          }
-          try {
-            internalClientAccountsStub.deleteClientAccount(internalRequest)
-          } catch (e: StatusException) {
-            throw when (e.status.code) {
-              Status.Code.NOT_FOUND -> Permission.DELETE.deniedStatus(name)
-              Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-              else -> Status.UNKNOWN
-            }.toExternalStatusRuntimeException(e)
           }
         }
         else ->
@@ -430,6 +424,26 @@ class ClientAccountsService(
             )
             .asRuntimeException()
       }
+    }
+
+    val internalRequest = internalBatchDeleteClientAccountsRequest {
+      externalMeasurementConsumerId = apiIdToExternalId(parentKey.measurementConsumerId)
+      for (name in request.namesList) {
+        val key = MeasurementConsumerClientAccountKey.fromName(name)!!
+        requests += internalDeleteClientAccountRequest {
+          externalClientAccountId = apiIdToExternalId(key.clientAccountId)
+        }
+      }
+    }
+
+    try {
+      internalClientAccountsStub.batchDeleteClientAccounts(internalRequest)
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND -> permissionDeniedStatus()
+        Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
     }
 
     return Empty.getDefaultInstance()
@@ -447,7 +461,8 @@ class ClientAccountsService(
           when (parentKey) {
             is MeasurementConsumerKey ->
               externalMeasurementConsumerId = apiIdToExternalId(parentKey.measurementConsumerId)
-            is DataProviderKey -> externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
+            is DataProviderKey ->
+              externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
           }
 
           if (request.filter.measurementConsumer.isNotEmpty()) {
@@ -521,20 +536,18 @@ class ClientAccountsService(
     internalPageToken: org.wfanet.measurement.internal.kingdom.ListClientAccountsPageToken,
   ): ListClientAccountsPageToken {
     return listClientAccountsPageToken {
-      this.parentKey =
-        parentKey {
-          when (parentKey) {
-            is MeasurementConsumerKey ->
-              externalMeasurementConsumerId = apiIdToExternalId(parentKey.measurementConsumerId)
-            is DataProviderKey -> externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
-          }
+      this.parentKey = parentKey {
+        when (parentKey) {
+          is MeasurementConsumerKey ->
+            externalMeasurementConsumerId = apiIdToExternalId(parentKey.measurementConsumerId)
+          is DataProviderKey -> externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
         }
+      }
       lastClientAccount = previousPageEnd {
-        this.parentKey =
-          parentKey {
-            externalMeasurementConsumerId = internalPageToken.after.externalMeasurementConsumerId
-            externalDataProviderId = internalPageToken.after.externalDataProviderId
-          }
+        this.parentKey = parentKey {
+          externalMeasurementConsumerId = internalPageToken.after.externalMeasurementConsumerId
+          externalDataProviderId = internalPageToken.after.externalDataProviderId
+        }
         externalClientAccountId = internalPageToken.after.externalClientAccountId
         createTime = internalPageToken.after.createTime
       }
@@ -555,7 +568,8 @@ private fun InternalClientAccount.toClientAccount(): ClientAccount {
   val dataProviderApiId = externalIdToApiId(externalDataProviderId)
 
   return clientAccount {
-    name = MeasurementConsumerClientAccountKey(measurementConsumerApiId, clientAccountApiId).toName()
+    name =
+      MeasurementConsumerClientAccountKey(measurementConsumerApiId, clientAccountApiId).toName()
     dataProvider = DataProviderKey(dataProviderApiId).toName()
     clientAccountReferenceId = this@toClientAccount.clientAccountReferenceId
     createTime = this@toClientAccount.createTime

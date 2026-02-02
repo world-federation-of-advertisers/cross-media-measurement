@@ -26,9 +26,15 @@ option java_multiple_files = true;
 service ClientAccounts {
   rpc CreateClientAccount(CreateClientAccountRequest) returns (ClientAccount);
 
+  rpc BatchCreateClientAccounts(BatchCreateClientAccountsRequest)
+      returns (BatchCreateClientAccountsResponse);
+
   rpc GetClientAccount(GetClientAccountRequest) returns (ClientAccount);
 
   rpc DeleteClientAccount(DeleteClientAccountRequest) returns (ClientAccount);
+
+  rpc BatchDeleteClientAccounts(BatchDeleteClientAccountsRequest)
+      returns (BatchDeleteClientAccountsResponse);
 
   // Lists ClientAccounts ordered by `create_time` ascending.
   rpc ListClientAccounts(ListClientAccountsRequest)
@@ -37,6 +43,16 @@ service ClientAccounts {
 
 message CreateClientAccountRequest {
   ClientAccount client_account = 1;
+}
+
+message BatchCreateClientAccountsRequest {
+  // External ID of the owning `MeasurementConsumer`. Required.
+  fixed64 external_measurement_consumer_id = 1;
+  repeated CreateClientAccountRequest requests = 2;
+}
+
+message BatchCreateClientAccountsResponse {
+  repeated ClientAccount client_accounts = 1;
 }
 
 message GetClientAccountRequest {
@@ -54,6 +70,16 @@ message DeleteClientAccountRequest {
   fixed64 external_measurement_consumer_id = 1;
   // External ID of the ClientAccount. Required.
   fixed64 external_client_account_id = 2;
+}
+
+message BatchDeleteClientAccountsRequest {
+  // External ID of the owning `MeasurementConsumer`. Required.
+  fixed64 external_measurement_consumer_id = 1;
+  repeated DeleteClientAccountRequest requests = 2;
+}
+
+message BatchDeleteClientAccountsResponse {
+  repeated ClientAccount client_accounts = 1;
 }
 
 message ListClientAccountsRequest {

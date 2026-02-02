@@ -24,6 +24,10 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.kingdom.BatchCreateClientAccountsRequest
+import org.wfanet.measurement.internal.kingdom.BatchCreateClientAccountsResponse
+import org.wfanet.measurement.internal.kingdom.BatchDeleteClientAccountsRequest
+import org.wfanet.measurement.internal.kingdom.BatchDeleteClientAccountsResponse
 import org.wfanet.measurement.internal.kingdom.ClientAccount
 import org.wfanet.measurement.internal.kingdom.ClientAccountsGrpcKt.ClientAccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.CreateClientAccountRequest
@@ -41,6 +45,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderN
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamClientAccounts
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ClientAccountReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchCreateClientAccounts
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchDeleteClientAccounts
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateClientAccount
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.DeleteClientAccountByMeasurementConsumer
 
@@ -63,6 +69,43 @@ class SpannerClientAccountsService(
 
     try {
       return CreateClientAccount(request.clientAccount).execute(client, idGenerator)
+    } catch (e: MeasurementConsumerNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
+    } catch (e: DataProviderNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
+    } catch (e: ClientAccountAlreadyExistsException) {
+      throw e.asStatusRuntimeException(
+        Status.Code.ALREADY_EXISTS,
+        "ClientAccount with this reference ID already exists for DataProvider.",
+      )
+    }
+  }
+
+  override suspend fun batchCreateClientAccounts(
+    request: BatchCreateClientAccountsRequest
+  ): BatchCreateClientAccountsResponse {
+    grpcRequire(request.externalMeasurementConsumerId != 0L) {
+      "external_measurement_consumer_id not specified"
+    }
+
+    for ((index, subRequest) in request.requestsList.withIndex()) {
+      grpcRequire(subRequest.hasClientAccount()) { "requests[$index].client_account not specified" }
+      val clientExternalMcId = subRequest.clientAccount.externalMeasurementConsumerId
+      grpcRequire(
+        clientExternalMcId == 0L || clientExternalMcId == request.externalMeasurementConsumerId
+      ) {
+        "requests[$index].client_account.external_measurement_consumer_id differs from parent"
+      }
+      grpcRequire(subRequest.clientAccount.externalDataProviderId != 0L) {
+        "requests[$index].client_account.external_data_provider_id not specified"
+      }
+      grpcRequire(subRequest.clientAccount.clientAccountReferenceId.isNotEmpty()) {
+        "requests[$index].client_account.client_account_reference_id not specified"
+      }
+    }
+
+    try {
+      return BatchCreateClientAccounts(request).execute(client, idGenerator)
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
     } catch (e: DataProviderNotFoundException) {
@@ -133,6 +176,34 @@ class SpannerClientAccountsService(
           externalClientAccountId,
         )
         .execute(client, idGenerator)
+    } catch (e: MeasurementConsumerNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
+    } catch (e: ClientAccountNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ClientAccount not found.")
+    }
+  }
+
+  override suspend fun batchDeleteClientAccounts(
+    request: BatchDeleteClientAccountsRequest
+  ): BatchDeleteClientAccountsResponse {
+    grpcRequire(request.externalMeasurementConsumerId != 0L) {
+      "external_measurement_consumer_id not specified"
+    }
+
+    for ((index, subRequest) in request.requestsList.withIndex()) {
+      val clientExternalMcId = subRequest.externalMeasurementConsumerId
+      grpcRequire(
+        clientExternalMcId == 0L || clientExternalMcId == request.externalMeasurementConsumerId
+      ) {
+        "requests[$index].external_measurement_consumer_id differs from parent"
+      }
+      grpcRequire(subRequest.externalClientAccountId != 0L) {
+        "requests[$index].external_client_account_id not specified"
+      }
+    }
+
+    try {
+      return BatchDeleteClientAccounts(request).execute(client, idGenerator)
     } catch (e: MeasurementConsumerNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
     } catch (e: ClientAccountNotFoundException) {
