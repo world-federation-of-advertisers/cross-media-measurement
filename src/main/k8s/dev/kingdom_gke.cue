@@ -60,6 +60,7 @@ kingdom: #Kingdom & {
 	_spannerConfig: database: "kingdom"
 
 	_verboseGrpcServerLogging: true
+	_trusTeeEnabled:           true
 
 	_imageSuffixes: [string]: string
 	_imageSuffixes: {
