@@ -84,8 +84,7 @@ data class TrusTeeConfig(
 
     // KEK URI format:
     // gcp-kms://projects/{project}/locations/{location}/keyRings/{keyring}/cryptoKeys/{key}
-    val regex =
-      Regex("gcp-kms://projects/([^/]+)/locations/([^/]+)/keyRings/([^/]+)/cryptoKeys/[^/]+")
+    val regex = KmsConstants.GCP_KMS_KEY_URI_REGEX
     val matchResult = regex.matchEntire(kekUri) ?: return kekUri
 
     val (project, location, keyRing) = matchResult.destructured
@@ -187,7 +186,10 @@ class DefaultFulfillerSelector(
           trusTeeConfig.buildEncryptionParams(kekUri, kekUriToKeyNameMap)
         } else {
           val totalUncappedImpressions = frequencyVector.getTotalUncappedImpressions()
-          require(totalUncappedImpressions == 0L) {
+          require(
+            totalUncappedImpressions == 0L
+          ) { // if no kekUri, then we don't know a valid project id to encrypt with so can only
+            // fulfill an empty vector
             "TrusTee protocol selected with null kekUri but totalUncappedImpressions is $totalUncappedImpressions. " +
               "Expected 0 impressions when no data sources are available."
           }

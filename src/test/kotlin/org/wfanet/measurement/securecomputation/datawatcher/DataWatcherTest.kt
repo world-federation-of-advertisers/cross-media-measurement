@@ -119,7 +119,7 @@ class DataWatcherTest() {
           idTokenProvider = mockIdTokenProvider,
         )
 
-      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data")
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
       verifyBlocking(workItemsServiceMock, times(1)) {
         createWorkItem(createWorkItemRequestCaptor.capture())
@@ -165,7 +165,7 @@ class DataWatcherTest() {
           idTokenProvider = mockIdTokenProvider,
         )
 
-      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data")
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
       verifyBlocking(workItemsServiceMock, times(0)) {
         createWorkItem(createWorkItemRequestCaptor.capture())
@@ -192,7 +192,7 @@ class DataWatcherTest() {
 
       val dataWatcher =
         DataWatcher(workItemsStub, listOf(config), idTokenProvider = mockIdTokenProvider)
-      dataWatcher.receivePath("test-schema://test-bucket/some-other-path/some-data")
+      dataWatcher.receivePath("test-schema://test-bucket/some-other-path/some-data", emptyMap())
 
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
       verifyBlocking(workItemsServiceMock, times(0)) {
@@ -225,7 +225,7 @@ class DataWatcherTest() {
           idTokenProvider = mockIdTokenProvider,
         )
 
-      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data")
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
 
       val metrics = getMetrics()
       val processingDurationMetric =
@@ -270,7 +270,7 @@ class DataWatcherTest() {
           idTokenProvider = mockIdTokenProvider,
         )
 
-      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data")
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
 
       val metrics = getMetrics()
       val queueWritesMetric = metrics.find { it.name == "edpa.data_watcher.queue_writes" }
@@ -312,9 +312,9 @@ class DataWatcherTest() {
           idTokenProvider = mockIdTokenProvider,
         )
 
-      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/data-1")
-      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/data-2")
-      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/data-3")
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/data-1", emptyMap())
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/data-2", emptyMap())
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/data-3", emptyMap())
 
       val metrics = getMetrics()
       val queueWritesMetric = metrics.find { it.name == "edpa.data_watcher.queue_writes" }
@@ -346,12 +346,47 @@ class DataWatcherTest() {
 
       val dataWatcher =
         DataWatcher(workItemsStub, listOf(config), idTokenProvider = mockIdTokenProvider)
-      dataWatcher.receivePath("test-schema://test-bucket/some-other-path/some-data")
+      dataWatcher.receivePath("test-schema://test-bucket/some-other-path/some-data", emptyMap())
 
       val metrics = getMetrics()
       // No metrics should be recorded since path didn't match
       assertThat(metrics.filter { it.name == "edpa.data_watcher.processing_duration" }).isEmpty()
       assertThat(metrics.filter { it.name == "edpa.data_watcher.queue_writes" }).isEmpty()
+    }
+  }
+
+  @Test
+  fun `propagates object metadata as header to webhook sink`() {
+    runBlocking {
+      val appParams =
+        Struct.newBuilder()
+          .putFields("some-key", Value.newBuilder().setStringValue("some-value").build())
+          .build()
+      val localPort = ServerSocket(0).use { it.localPort }
+      val config = watchedPath {
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+        this.httpEndpointSink = httpEndpointSink {
+          endpointUri = "http://localhost:$localPort"
+          this.appParams = appParams
+        }
+      }
+      val server = TestServer()
+      server.start(localPort)
+
+      val dataWatcher =
+        DataWatcher(
+          workItemsStub = workItemsStub,
+          dataWatcherConfigs = listOf(config),
+          idTokenProvider = mockIdTokenProvider,
+        )
+
+      val testResourceId = "test-impression-metadata-resource-id-123"
+      val objectMetadata = mapOf("impression-metadata-resource-id" to testResourceId)
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", objectMetadata)
+
+      assertThat(server.getLastRequestHeader("X-Impression-Metadata-Resource-Id"))
+        .isEqualTo(testResourceId)
+      server.stop()
     }
   }
 }
@@ -377,12 +412,23 @@ private class TestServer() {
     return handler.requestBody
   }
 
+  fun getLastRequestHeader(headerName: String): String? {
+    // HttpServer normalizes header names (first char uppercase, rest lowercase)
+    // so we need case-insensitive lookup
+    return handler.requestHeaders.entries
+      .firstOrNull { it.key.equals(headerName, ignoreCase = true) }
+      ?.value
+      ?.firstOrNull()
+  }
+
   class ServerHandler : HttpHandler {
     lateinit var requestBody: String
+    lateinit var requestHeaders: Map<String, List<String>>
 
     override fun handle(t: HttpExchange) {
       val requestBodyBytes = t.requestBody.readBytes()
       requestBody = requestBodyBytes.toString(Charsets.UTF_8)
+      requestHeaders = t.requestHeaders.toMap()
       val response = "Success"
       t.sendResponseHeaders(200, response.length.toLong())
       val os = t.responseBody
