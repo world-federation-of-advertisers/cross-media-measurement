@@ -2144,6 +2144,82 @@ class ResultsFulfillerTest {
       .unpack(org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions::class.java)
   }
 
+  @Test
+  fun `TrusTeeConfig buildEncryptionParams remaps KEK URI when found in map`() {
+    val kmsClient = FakeKmsClient()
+    val trusTeeConfig =
+      TrusTeeConfig(
+        kmsClient = kmsClient,
+        workloadIdentityProvider = "test-wip",
+        impersonatedServiceAccount = "test-sa@example.com",
+      )
+
+    val inputKekUri =
+      "gcp-kms://projects/my-project/locations/us-east1/keyRings/my-ring/cryptoKeys/input-key"
+    val kekUriToKeyNameMap = mapOf(inputKekUri to "output-key")
+
+    val params = trusTeeConfig.buildEncryptionParams(inputKekUri, kekUriToKeyNameMap)
+
+    assertThat(params.kmsKekUri)
+      .isEqualTo(
+        "gcp-kms://projects/my-project/locations/us-east1/keyRings/my-ring/cryptoKeys/output-key"
+      )
+  }
+
+  @Test
+  fun `TrusTeeConfig buildEncryptionParams uses original URI when not in map`() {
+    val kmsClient = FakeKmsClient()
+    val trusTeeConfig =
+      TrusTeeConfig(
+        kmsClient = kmsClient,
+        workloadIdentityProvider = "test-wip",
+        impersonatedServiceAccount = "test-sa@example.com",
+      )
+
+    val inputKekUri =
+      "gcp-kms://projects/my-project/locations/us-east1/keyRings/my-ring/cryptoKeys/original-key"
+    val kekUriToKeyNameMap = mapOf("other-uri" to "other-key")
+
+    val params = trusTeeConfig.buildEncryptionParams(inputKekUri, kekUriToKeyNameMap)
+
+    assertThat(params.kmsKekUri).isEqualTo(inputKekUri)
+  }
+
+  @Test
+  fun `DefaultFulfillerSelector rejects invalid key name with special characters`() {
+    assertFailsWith<IllegalArgumentException> {
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = emptyMap(),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = NoNoiserSelector(),
+        kAnonymityParams = null,
+        overrideImpressionMaxFrequencyPerUser = null,
+        kekUriToKeyNameMap = mapOf("uri" to "invalid/key/name"),
+      )
+    }
+  }
+
+  @Test
+  fun `DefaultFulfillerSelector rejects key name exceeding 63 characters`() {
+    // GCP Cloud KMS key names must be 1-63 characters: [a-zA-Z0-9_-]{1,63}
+    val longKeyName = "a".repeat(64)
+
+    assertFailsWith<IllegalArgumentException> {
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = emptyMap(),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = NoNoiserSelector(),
+        kAnonymityParams = null,
+        overrideImpressionMaxFrequencyPerUser = null,
+        kekUriToKeyNameMap = mapOf("uri" to longKeyName),
+      )
+    }
+  }
+
   init {
     AeadConfig.register()
     StreamingAeadConfig.register()

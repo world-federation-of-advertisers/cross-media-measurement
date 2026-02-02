@@ -15,6 +15,7 @@ kt_jvm_library(
     srcs = [
         "DefaultFulfillerSelector.kt",
         "FulfillerSelector.kt",
+        "KmsConstants.kt",
         "ResultsFulfiller.kt",
         "ResultsFulfillerMetrics.kt",
     ],
@@ -40,6 +41,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/compute/protocols/direct:direct_measurement_result_factory",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:direct_measurement_fulfiller",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:hmshuffle_measurement_fulfiller",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:trustee_measurement_fulfiller",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:requisition",
