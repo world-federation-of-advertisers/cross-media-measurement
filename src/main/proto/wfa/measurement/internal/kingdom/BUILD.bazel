@@ -150,9 +150,6 @@ proto_library(
     deps = [
         ":client_account_proto",
         "@com_google_protobuf//:timestamp_proto",
-
-        ":client_account_proto",
-        "@com_google_protobuf//:timestamp_proto",
     ],
 )
 
