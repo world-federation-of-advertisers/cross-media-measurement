@@ -22,10 +22,16 @@ private val parser =
 
 /** [ResourceKey] of a DataProvider ClientAccount. */
 data class DataProviderClientAccountKey(
-  val dataProviderId: String,
+  override val parentKey: DataProviderKey,
   override val clientAccountId: String,
 ) : ClientAccountKey {
-  override val parentKey = DataProviderKey(dataProviderId)
+  val dataProviderId: String
+    get() = parentKey.dataProviderId
+
+  constructor(
+    dataProviderId: String,
+    clientAccountId: String,
+  ) : this(DataProviderKey(dataProviderId), clientAccountId)
 
   override fun toName(): String {
     return parser.assembleName(
