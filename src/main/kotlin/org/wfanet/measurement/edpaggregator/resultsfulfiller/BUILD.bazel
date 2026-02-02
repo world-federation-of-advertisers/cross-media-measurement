@@ -15,6 +15,7 @@ kt_jvm_library(
     srcs = [
         "DefaultFulfillerSelector.kt",
         "FulfillerSelector.kt",
+        "KmsConstants.kt",
         "ResultsFulfiller.kt",
         "ResultsFulfillerMetrics.kt",
     ],
