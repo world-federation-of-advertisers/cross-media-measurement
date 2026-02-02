@@ -21,8 +21,6 @@ import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import org.wfanet.frequencycount.FrequencyVector
-import org.wfanet.frequencycount.SecretShareGeneratorAdapter
-import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
@@ -30,82 +28,80 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
-import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.KAnonymizer
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.FulfillRequisitionRequestBuilder
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder
 
-class HMShuffleMeasurementFulfiller(
+class TrusTeeMeasurementFulfiller(
   private val requisition: Requisition,
   private val requisitionNonce: Long,
   private val sampledFrequencyVector: FrequencyVector,
-  private val dataProviderSigningKeyHandle: SigningKeyHandle,
-  private val dataProviderCertificateKey: DataProviderCertificateKey,
   private val requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
   private val requisitionsStub: RequisitionsCoroutineStub,
-  private val generateSecretShares: (ByteArray) -> (ByteArray) =
-    SecretShareGeneratorAdapter::generateSecretShares,
+  private val encryptionParams: FulfillRequisitionRequestBuilder.EncryptionParams?,
 ) : MeasurementFulfiller {
   override suspend fun fulfillRequisition() {
     logger.info("Fulfilling requisition ${requisition.name}...")
-    val duchyId = getDuchyWithoutPublicKey(requisition)
+    val duchyId = getAggregatorDuchy(requisition)
     val requisitionFulfillmentStub = requisitionFulfillmentStubMap.getValue(duchyId)
     try {
       val getRequisitionResponse =
         requisitionsStub.getRequisition(getRequisitionRequest { name = requisition.name })
       if (getRequisitionResponse.state === Requisition.State.UNFULFILLED) {
         val requests: Flow<FulfillRequisitionRequest> =
-          FulfillRequisitionRequestBuilder.build(
-              requisition,
-              requisitionNonce,
-              sampledFrequencyVector,
-              dataProviderCertificateKey,
-              dataProviderSigningKeyHandle,
-              getRequisitionResponse.etag,
-              generateSecretShares,
-            )
-            .asFlow()
+          if (encryptionParams != null) {
+            FulfillRequisitionRequestBuilder.buildEncrypted(
+                requisition,
+                requisitionNonce,
+                sampledFrequencyVector,
+                encryptionParams,
+              )
+              .asFlow()
+          } else {
+            FulfillRequisitionRequestBuilder.buildUnencrypted(
+                requisition,
+                requisitionNonce,
+                sampledFrequencyVector,
+              )
+              .asFlow()
+          }
         requisitionFulfillmentStub.fulfillRequisition(requests)
-        logger.info("Successfully fulfilled HMShuffle requisition ${requisition.name}")
+        logger.info("Successfully fulfilled TrusTee requisition ${requisition.name}")
       } else {
         logger.info(
           "Cannot fulfill requisition ${requisition.name} with state ${getRequisitionResponse.state}"
         )
       }
     } catch (e: StatusException) {
-      throw Exception("Error fulfilling requisition ${requisition.name}", e)
+      logger.warning("Error fulfilling requisition ${requisition.name}")
+      throw e
     }
   }
 
-  private fun getDuchyWithoutPublicKey(requisition: Requisition): String {
-    return requisition.duchiesList
-      .singleOrNull { !it.value.honestMajorityShareShuffle.hasPublicKey() }
-      ?.key
+  private fun getAggregatorDuchy(requisition: Requisition): String {
+    return requisition.duchiesList.singleOrNull { it.value.hasTrusTee() }?.key
       ?: throw IllegalArgumentException(
-        "Expected exactly one Duchy entry with an HMSS encryption public key."
+        "Expected exactly one Duchy entry with TrusTee protocol configuration."
       )
   }
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    /** Constructs a [HMShuffleMeasurementFulfiller] with a k-anonymized FrequencyVector. */
+    /** Constructs a [TrusTeeMeasurementFulfiller] with a k-anonymized FrequencyVector. */
     fun buildKAnonymized(
       requisition: Requisition,
       requisitionNonce: Long,
       measurementSpec: MeasurementSpec,
       populationSpec: PopulationSpec,
       frequencyVectorBuilder: FrequencyVectorBuilder,
-      dataProviderSigningKeyHandle: SigningKeyHandle,
-      dataProviderCertificateKey: DataProviderCertificateKey,
       requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
       requisitionsStub: RequisitionsCoroutineStub,
       kAnonymityParams: KAnonymityParams,
       maxPopulation: Int?,
-      generateSecretShares: (ByteArray) -> (ByteArray) =
-        SecretShareGeneratorAdapter::generateSecretShares,
-    ): HMShuffleMeasurementFulfiller {
+      encryptionParams: FulfillRequisitionRequestBuilder.EncryptionParams?,
+    ): TrusTeeMeasurementFulfiller {
       val kAnonymizedFrequencyVector =
         KAnonymizer.kAnonymizeFrequencyVector(
           measurementSpec,
@@ -114,15 +110,13 @@ class HMShuffleMeasurementFulfiller(
           kAnonymityParams,
           maxPopulation,
         )
-      return HMShuffleMeasurementFulfiller(
+      return TrusTeeMeasurementFulfiller(
         requisition,
         requisitionNonce,
         kAnonymizedFrequencyVector,
-        dataProviderSigningKeyHandle,
-        dataProviderCertificateKey,
         requisitionFulfillmentStubMap,
         requisitionsStub,
-        generateSecretShares,
+        encryptionParams,
       )
     }
   }
