@@ -21,7 +21,7 @@ import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.ClientAccount
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountNotFoundByMeasurementConsumerException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ClientAccountReader
@@ -32,7 +32,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
  *
- * @throws [ClientAccountNotFoundByMeasurementConsumerException] ClientAccount not found
+ * @throws [ClientAccountNotFoundException] ClientAccount not found
  * @throws [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  */
 class DeleteClientAccountByMeasurementConsumer(
@@ -52,7 +52,7 @@ class DeleteClientAccountByMeasurementConsumer(
           externalMeasurementConsumerId,
           externalClientAccountId,
         )
-        ?: throw ClientAccountNotFoundByMeasurementConsumerException(
+        ?: throw ClientAccountNotFoundException(
           externalMeasurementConsumerId,
           externalClientAccountId,
         )

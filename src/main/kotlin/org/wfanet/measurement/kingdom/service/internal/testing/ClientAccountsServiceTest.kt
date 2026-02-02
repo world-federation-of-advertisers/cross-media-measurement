@@ -18,6 +18,7 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -29,6 +30,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
@@ -36,6 +38,7 @@ import org.wfanet.measurement.internal.kingdom.ClientAccount
 import org.wfanet.measurement.internal.kingdom.ClientAccountsGrpcKt.ClientAccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.ListClientAccountsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
@@ -45,8 +48,7 @@ import org.wfanet.measurement.internal.kingdom.deleteClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.getClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.listClientAccountsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
-
-private const val RANDOM_SEED = 1
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 
 @RunWith(JUnit4::class)
 abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
@@ -92,32 +94,32 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
 
-    val clientAccount = clientAccount {
+    val request = clientAccount {
       externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
       externalDataProviderId = dataProvider.externalDataProviderId
       clientAccountReferenceId = "test-reference-id"
     }
 
-    val result =
+    val response =
       clientAccountsService.createClientAccount(
-        createClientAccountRequest { this.clientAccount = clientAccount }
+        createClientAccountRequest { this.clientAccount = request }
       )
 
-    assertThat(result)
+    assertThat(response)
       .ignoringFields(
         ClientAccount.EXTERNAL_CLIENT_ACCOUNT_ID_FIELD_NUMBER,
         ClientAccount.CREATE_TIME_FIELD_NUMBER,
       )
-      .isEqualTo(clientAccount)
-    assertThat(result.externalClientAccountId).isGreaterThan(0L)
-    assertThat(result.hasCreateTime()).isTrue()
+      .isEqualTo(request)
+    assertThat(response.externalClientAccountId).isGreaterThan(0L)
+    assertThat(response.hasCreateTime()).isTrue()
   }
 
   @Test
   fun `createClientAccount fails with invalid MeasurementConsumer ID`(): Unit = runBlocking {
     val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
 
-    val clientAccount = clientAccount {
+    val request = clientAccount {
       externalMeasurementConsumerId = 404L
       externalDataProviderId = dataProvider.externalDataProviderId
       clientAccountReferenceId = "test-reference-id"
@@ -126,12 +128,19 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         clientAccountsService.createClientAccount(
-          createClientAccountRequest { this.clientAccount = clientAccount }
+          createClientAccountRequest { this.clientAccount = request }
         )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("MeasurementConsumer not found")
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = KingdomInternalException.DOMAIN
+          reason = ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND.name
+          metadata["external_measurement_consumer_id"] = "404"
+        }
+      )
   }
 
   @Test
@@ -139,7 +148,7 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
     val measurementConsumer: MeasurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
-    val clientAccount = clientAccount {
+    val request = clientAccount {
       externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
       externalDataProviderId = 404L
       clientAccountReferenceId = "test-reference-id"
@@ -148,12 +157,19 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         clientAccountsService.createClientAccount(
-          createClientAccountRequest { this.clientAccount = clientAccount }
+          createClientAccountRequest { this.clientAccount = request }
         )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("DataProvider not found")
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = KingdomInternalException.DOMAIN
+          reason = ErrorCode.DATA_PROVIDER_NOT_FOUND.name
+          metadata["external_data_provider_id"] = "404"
+        }
+      )
   }
 
   @Test
@@ -173,7 +189,7 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
         }
       )
 
-    val result =
+    val response =
       clientAccountsService.getClientAccount(
         getClientAccountRequest {
           externalMeasurementConsumerId = clientAccount.externalMeasurementConsumerId
@@ -181,7 +197,7 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
         }
       )
 
-    assertThat(result).isEqualTo(clientAccount)
+    assertThat(response).isEqualTo(clientAccount)
   }
 
   @Test
@@ -200,7 +216,16 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("ClientAccount not found")
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = KingdomInternalException.DOMAIN
+          reason = ErrorCode.CLIENT_ACCOUNT_NOT_FOUND.name
+          metadata["external_measurement_consumer_id"] =
+            measurementConsumer.externalMeasurementConsumerId.toString()
+          metadata["external_client_account_id"] = "404"
+        }
+      )
   }
 
   @Test
@@ -241,6 +266,16 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = KingdomInternalException.DOMAIN
+          reason = ErrorCode.CLIENT_ACCOUNT_NOT_FOUND.name
+          metadata["external_measurement_consumer_id"] =
+            clientAccount.externalMeasurementConsumerId.toString()
+          metadata["external_client_account_id"] = clientAccount.externalClientAccountId.toString()
+        }
+      )
   }
 
   @Test
@@ -259,7 +294,16 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("ClientAccount not found")
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = KingdomInternalException.DOMAIN
+          reason = ErrorCode.CLIENT_ACCOUNT_NOT_FOUND.name
+          metadata["external_measurement_consumer_id"] =
+            measurementConsumer.externalMeasurementConsumerId.toString()
+          metadata["external_client_account_id"] = "404"
+        }
+      )
   }
 
   @Test
@@ -275,7 +319,14 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("MeasurementConsumer not found")
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = KingdomInternalException.DOMAIN
+          reason = ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND.name
+          metadata["external_measurement_consumer_id"] = "404"
+        }
+      )
   }
 
   @Test
@@ -306,7 +357,7 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
         }
       )
 
-    val result =
+    val response =
       clientAccountsService.listClientAccounts(
         listClientAccountsRequest {
           filter = filter {
@@ -315,7 +366,9 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
         }
       )
 
-    assertThat(result.clientAccountsList).containsExactly(clientAccount2, clientAccount1).inOrder()
+    assertThat(response.clientAccountsList)
+      .containsExactly(clientAccount2, clientAccount1)
+      .inOrder()
   }
 
   @Test
@@ -346,7 +399,7 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
       }
     )
 
-    val result =
+    val response =
       clientAccountsService.listClientAccounts(
         listClientAccountsRequest {
           filter = filter {
@@ -356,7 +409,7 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
         }
       )
 
-    assertThat(result.clientAccountsList).containsExactly(clientAccount1)
+    assertThat(response.clientAccountsList).containsExactly(clientAccount1)
   }
 
   @Test
@@ -386,7 +439,7 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
         }
       )
 
-    val result =
+    val response =
       clientAccountsService.listClientAccounts(
         listClientAccountsRequest {
           filter = filter {
@@ -396,7 +449,7 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
         }
       )
 
-    assertThat(result.clientAccountsList).containsExactly(clientAccount2)
+    assertThat(response.clientAccountsList).containsExactly(clientAccount2)
   }
 
   @Test
@@ -426,7 +479,7 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
       }
     )
 
-    val result =
+    val response =
       clientAccountsService.listClientAccounts(
         listClientAccountsRequest {
           filter = filter {
@@ -436,7 +489,7 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
         }
       )
 
-    assertThat(result.clientAccountsList).containsExactly(clientAccount1)
+    assertThat(response.clientAccountsList).containsExactly(clientAccount1)
   }
 
   @Test
@@ -496,5 +549,9 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
     assertThat(page2.clientAccountsList).containsAnyOf(clientAccount1, clientAccount2)
     assertThat(page2.clientAccountsList.first().externalClientAccountId)
       .isNotEqualTo(page1.clientAccountsList.first().externalClientAccountId)
+  }
+
+  companion object {
+    private const val RANDOM_SEED = 1
   }
 }

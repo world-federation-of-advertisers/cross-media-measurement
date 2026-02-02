@@ -16,8 +16,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.ErrorCode as SpannerErrorCode
-import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
@@ -28,8 +26,11 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountAlreadyExistsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ClientAccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
+
+private const val MAX_ID_GENERATION_ATTEMPTS = 10
 
 class CreateClientAccount(private val clientAccount: ClientAccount) :
   SpannerWriter<ClientAccount, ClientAccount>() {
@@ -47,8 +48,54 @@ class CreateClientAccount(private val clientAccount: ClientAccount) :
         ?: throw DataProviderNotFoundException(externalDataProviderId)
     val dataProviderId = InternalId(dataProviderResult.dataProviderId)
 
-    val internalClientAccountId = idGenerator.generateInternalId()
-    val externalClientAccountId = idGenerator.generateExternalId()
+    val existingByReferenceId =
+      ClientAccountReader()
+        .readByDataProviderAndReferenceId(
+          transactionContext,
+          externalDataProviderId,
+          clientAccount.clientAccountReferenceId,
+        )
+    if (existingByReferenceId != null) {
+      throw ClientAccountAlreadyExistsException(
+        externalDataProviderId,
+        clientAccount.clientAccountReferenceId,
+      )
+    }
+
+    var internalClientAccountId: InternalId
+    var externalClientAccountId: ExternalId
+    var attempts = 0
+
+    do {
+      attempts++
+      check(attempts <= MAX_ID_GENERATION_ATTEMPTS) {
+        "Failed to generate unique IDs after $MAX_ID_GENERATION_ATTEMPTS attempts"
+      }
+
+      internalClientAccountId = idGenerator.generateInternalId()
+      externalClientAccountId = idGenerator.generateExternalId()
+
+      val internalIdInUseByMc =
+        ClientAccountReader()
+          .readByInternalId(transactionContext, measurementConsumerId, internalClientAccountId)
+      if (internalIdInUseByMc != null) continue
+
+      val externalIdInUseByMc =
+        ClientAccountReader()
+          .readByMeasurementConsumer(
+            transactionContext,
+            externalMeasurementConsumerId,
+            externalClientAccountId,
+          )
+      if (externalIdInUseByMc != null) continue
+
+      val externalIdInUseByDp =
+        ClientAccountReader()
+          .readByDataProvider(transactionContext, externalDataProviderId, externalClientAccountId)
+      if (externalIdInUseByDp != null) continue
+
+      break
+    } while (true)
 
     transactionContext.bufferInsertMutation("ClientAccounts") {
       set("MeasurementConsumerId" to measurementConsumerId)
@@ -64,17 +111,5 @@ class CreateClientAccount(private val clientAccount: ClientAccount) :
 
   override fun ResultScope<ClientAccount>.buildResult(): ClientAccount {
     return checkNotNull(transactionResult).copy { createTime = commitTimestamp.toProto() }
-  }
-
-  override suspend fun handleSpannerException(e: SpannerException): ClientAccount? {
-    when (e.errorCode) {
-      SpannerErrorCode.ALREADY_EXISTS ->
-        throw ClientAccountAlreadyExistsException(
-          ExternalId(clientAccount.externalDataProviderId),
-          clientAccount.clientAccountReferenceId,
-          e,
-        )
-      else -> throw e
-    }
   }
 }
