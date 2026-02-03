@@ -83,7 +83,7 @@ class ImpressionQualificationFiltersService(
           InternalErrors.Reason.INVALID_BASIC_REPORT,
           null -> {
             if (e.status.code == Status.Code.UNIMPLEMENTED) {
-              throw e.asRuntimeException()
+              throw e.status.asRuntimeException()
             }
             Status.INTERNAL.withCause(e).asRuntimeException()
           }
@@ -129,7 +129,7 @@ class ImpressionQualificationFiltersService(
         )
       } catch (e: StatusException) {
         if (e.status.code == Status.Code.UNIMPLEMENTED) {
-          throw e.asRuntimeException()
+          throw e.status.asRuntimeException()
         }
         throw Status.INTERNAL.withCause(e).asRuntimeException()
       }
