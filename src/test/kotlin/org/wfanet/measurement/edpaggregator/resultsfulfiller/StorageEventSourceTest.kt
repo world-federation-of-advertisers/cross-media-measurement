@@ -173,8 +173,8 @@ class StorageEventSourceTest {
   private fun createImpressionMetadataList(
     dates: List<LocalDate>,
     eventGroupRef: String,
-    bucket: String = "meta-bucket",
-    modelLine: String = this.modelLine,
+    bucket: String,
+    modelLine: String,
   ): List<ImpressionMetadata> {
     return dates.map { date ->
       impressionMetadata {
@@ -423,7 +423,8 @@ class StorageEventSourceTest {
 
       val dates =
         listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2), LocalDate.of(2025, 1, 3))
-      val impressionMetadataList = createImpressionMetadataList(dates, eventGroupRef)
+      val impressionMetadataList =
+        createImpressionMetadataList(dates, eventGroupRef, "meta-bucket", modelLine)
 
       whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
         .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
@@ -513,7 +514,8 @@ class StorageEventSourceTest {
     }
 
     val dates = listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2), LocalDate.of(2025, 1, 3))
-    val impressionMetadataList = createImpressionMetadataList(dates, eventGroupRef)
+    val impressionMetadataList =
+      createImpressionMetadataList(dates, eventGroupRef, "meta-bucket", modelLine)
 
     whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
       .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
@@ -575,7 +577,8 @@ class StorageEventSourceTest {
     val metadataFs = FileSystemStorageClient(metadataBucketDir)
 
     val dates = listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2), LocalDate.of(2025, 1, 3))
-    val impressionMetadataList = createImpressionMetadataList(dates, eventGroupRef)
+    val impressionMetadataList =
+      createImpressionMetadataList(dates, eventGroupRef, "meta-bucket", modelLine)
 
     whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
       .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
@@ -632,7 +635,9 @@ class StorageEventSourceTest {
     val groups = listOf("group-1", "group-2")
 
     val impressionMetadataList =
-      groups.flatMap { group -> createImpressionMetadataList(dates, group) }
+      groups.flatMap { group ->
+        createImpressionMetadataList(dates, group, "meta-bucket", modelLine)
+      }
 
     whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
       .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
@@ -702,7 +707,8 @@ class StorageEventSourceTest {
 
     val dates = start.datesUntil(end.plusDays(1)).toList()
 
-    val impressionMetadataList = createImpressionMetadataList(dates, eventGroupRef)
+    val impressionMetadataList =
+      createImpressionMetadataList(dates, eventGroupRef, "meta-bucket", modelLine)
 
     whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
       .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
@@ -789,7 +795,8 @@ class StorageEventSourceTest {
     val kekUri2 = "gcp-kms://projects/project-b/locations/us-east1/keyRings/ring/cryptoKeys/key"
 
     val dates = listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2))
-    val impressionMetadataList = createImpressionMetadataList(dates, eventGroupRef)
+    val impressionMetadataList =
+      createImpressionMetadataList(dates, eventGroupRef, "meta-bucket", modelLine)
 
     whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
       .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
@@ -864,7 +871,8 @@ class StorageEventSourceTest {
     val kekUri2 = "gcp-kms://projects/my-project/locations/us-east1/keyRings/ring/cryptoKeys/key2"
 
     val dates = listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2))
-    val impressionMetadataList = createImpressionMetadataList(dates, eventGroupRef)
+    val impressionMetadataList =
+      createImpressionMetadataList(dates, eventGroupRef, "meta-bucket", modelLine)
 
     whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
       .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
