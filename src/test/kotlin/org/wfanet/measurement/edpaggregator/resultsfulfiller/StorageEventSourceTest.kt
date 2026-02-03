@@ -848,7 +848,6 @@ class StorageEventSourceTest {
     assertThat(eventSource.getKekUri()).isNull()
   }
 
-
   @Test
   fun `getKekUri returns KEK URI from most recent data source`(): Unit = runBlocking {
     val metadataTmpPath = tmp.root
@@ -888,10 +887,12 @@ class StorageEventSourceTest {
         batchSize = 1000,
       )
 
-    // getKekUri should return the KEK URI from the most recent data source (sorted by interval end time)
+    // getKekUri should return the KEK URI from the most recent data source (sorted by interval end
+    // time)
     val result = eventSource.getKekUri()
     assertThat(result).isNotNull()
-    assertThat(result).isEqualTo("gcp-kms://projects/my-project/locations/us-east1/keyRings/ring/cryptoKeys/key1")
+    assertThat(result)
+      .isEqualTo("gcp-kms://projects/my-project/locations/us-east1/keyRings/ring/cryptoKeys/key1")
   }
 
   companion object {
