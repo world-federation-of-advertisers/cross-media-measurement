@@ -173,12 +173,18 @@ class StorageEventSourceTest {
   private fun createImpressionMetadataList(
     dates: List<LocalDate>,
     eventGroupRef: String,
+    bucket: String = "meta-bucket",
+    modelLine: String = this.modelLine,
   ): List<ImpressionMetadata> {
     return dates.map { date ->
       impressionMetadata {
         state = ImpressionMetadata.State.ACTIVE
         blobUri =
-          "file:///meta-bucket/ds/$date/model-line/test-model-line/event-group-reference-id/$eventGroupRef/metadata"
+          "file:///$bucket/ds/$date/model-line/$modelLine/event-group-reference-id/$eventGroupRef/metadata"
+        interval = interval {
+          startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+          endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+        }
       }
     }
   }
@@ -746,7 +752,7 @@ class StorageEventSourceTest {
     date: LocalDate,
     eventGroupRef: String,
     kekUri: String,
-    modelLine: String = this.modelLine,
+    modelLine: String,
   ) {
     val metadataBucketDir = File(metadataTmpPath, "meta-bucket")
     metadataBucketDir.mkdirs()
@@ -789,8 +795,8 @@ class StorageEventSourceTest {
       .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
 
     // Create metadata with different project IDs for each date
-    writeMetadataWithKekUri(metadataTmpPath, dates[0], eventGroupRef, kekUri1)
-    writeMetadataWithKekUri(metadataTmpPath, dates[1], eventGroupRef, kekUri2)
+    writeMetadataWithKekUri(metadataTmpPath, dates[0], eventGroupRef, kekUri1, modelLine)
+    writeMetadataWithKekUri(metadataTmpPath, dates[1], eventGroupRef, kekUri2, modelLine)
 
     val eventGroupDetails =
       createEventGroupDetails(
@@ -864,8 +870,8 @@ class StorageEventSourceTest {
       .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
 
     // Create metadata with same project ID for each date
-    writeMetadataWithKekUri(metadataTmpPath, dates[0], eventGroupRef, kekUri1)
-    writeMetadataWithKekUri(metadataTmpPath, dates[1], eventGroupRef, kekUri2)
+    writeMetadataWithKekUri(metadataTmpPath, dates[0], eventGroupRef, kekUri1, modelLine)
+    writeMetadataWithKekUri(metadataTmpPath, dates[1], eventGroupRef, kekUri2, modelLine)
 
     val eventGroupDetails =
       createEventGroupDetails(
@@ -892,7 +898,7 @@ class StorageEventSourceTest {
     val result = eventSource.getKekUri()
     assertThat(result).isNotNull()
     assertThat(result)
-      .isEqualTo("gcp-kms://projects/my-project/locations/us-east1/keyRings/ring/cryptoKeys/key1")
+      .isEqualTo("gcp-kms://projects/my-project/locations/us-east1/keyRings/ring/cryptoKeys/key2")
   }
 
   companion object {
