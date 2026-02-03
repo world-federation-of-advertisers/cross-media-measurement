@@ -36,7 +36,7 @@ class FrequencyVectorSink<T : Message>(
   private val vidIndexMap: VidIndexMap,
 ) {
   private val zeroVidAttributes =
-    Attributes.of(FILTER_SPEC_HASH_ATTR, filterProcessor.filterSpec.hashCode().toString())
+    Attributes.of(FILTER_SPEC_ATTR, filterProcessor.filterSpec.toString())
   private val zeroVidCounter =
     Instrumentation.meter
       .counterBuilder("edpa.results_fulfiller.zero_vids_skipped")
@@ -53,7 +53,7 @@ class FrequencyVectorSink<T : Message>(
       if (event.vid == 0L) {
         zeroVidCounter.add(1, zeroVidAttributes)
         logger.warning(
-          "Skipping event with zero VID for filterSpecHash=${filterProcessor.filterSpec.hashCode()}"
+          "Skipping event with zero VID for filterSpec=${filterProcessor.filterSpec.toString()}"
         )
         return@forEach
       }
@@ -84,7 +84,7 @@ class FrequencyVectorSink<T : Message>(
 
   companion object {
     private val logger: Logger = Logger.getLogger(FrequencyVectorSink::class.java.name)
-    private val FILTER_SPEC_HASH_ATTR: AttributeKey<String> =
+    private val FILTER_SPEC_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("edpa.results_fulfiller.filter_spec_hash")
   }
 }
