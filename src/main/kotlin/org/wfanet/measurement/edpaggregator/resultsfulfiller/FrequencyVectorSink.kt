@@ -85,6 +85,6 @@ class FrequencyVectorSink<T : Message>(
   companion object {
     private val logger: Logger = Logger.getLogger(FrequencyVectorSink::class.java.name)
     private val FILTER_SPEC_ATTR: AttributeKey<String> =
-      AttributeKey.stringKey("edpa.results_fulfiller.filter_spec_hash")
+      AttributeKey.stringKey("edpa.results_fulfiller.filter_spec")
   }
 }
