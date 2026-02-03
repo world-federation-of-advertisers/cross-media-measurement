@@ -61,6 +61,13 @@ resource "google_project_iam_member" "trigger_run_invoker" {
   member  = "serviceAccount:${google_service_account.cloud_function_trigger_service_account.email}"
 }
 
+resource "google_secret_manager_secret_iam_member" "secret_accessor" {
+  for_each  = toset(var.secrets_to_access)
+  secret_id = each.value
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.cloud_function_service_account.email}"
+}
+
 resource "terraform_data" "deploy_gcs_cloud_function" {
 
   depends_on = [
@@ -72,6 +79,7 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
     google_storage_bucket_iam_member.cloud_function_object_creator,
     google_project_iam_member.trigger_event_receiver,
     google_project_iam_member.trigger_run_invoker,
+    google_secret_manager_secret_iam_member.secret_accessor,
   ]
 
   triggers_replace = [var.uber_jar_path]
