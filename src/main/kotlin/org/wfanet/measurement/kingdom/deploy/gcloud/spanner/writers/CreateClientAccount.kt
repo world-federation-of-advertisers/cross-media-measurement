@@ -17,6 +17,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
+import org.wfanet.measurement.common.generateNewExternalId
+import org.wfanet.measurement.common.generateNewInternalId
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -29,8 +31,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementCo
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ClientAccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
-
-private const val MAX_ID_GENERATION_ATTEMPTS = 10
 
 class CreateClientAccount(private val clientAccount: ClientAccount) :
   SpannerWriter<ClientAccount, ClientAccount>() {
@@ -62,40 +62,17 @@ class CreateClientAccount(private val clientAccount: ClientAccount) :
       )
     }
 
-    var internalClientAccountId: InternalId
-    var externalClientAccountId: ExternalId
-    var attempts = 0
-
-    do {
-      attempts++
-      check(attempts <= MAX_ID_GENERATION_ATTEMPTS) {
-        "Failed to generate unique IDs after $MAX_ID_GENERATION_ATTEMPTS attempts"
+    val internalClientAccountId =
+      idGenerator.generateNewInternalId { id ->
+        ClientAccountReader.existsByInternalId(transactionContext, measurementConsumerId, id)
       }
 
-      internalClientAccountId = idGenerator.generateInternalId()
-      externalClientAccountId = idGenerator.generateExternalId()
-
-      val internalIdInUseByMc =
-        ClientAccountReader()
-          .readByInternalId(transactionContext, measurementConsumerId, internalClientAccountId)
-      if (internalIdInUseByMc != null) continue
-
-      val externalIdInUseByMc =
-        ClientAccountReader()
-          .readByMeasurementConsumer(
-            transactionContext,
-            externalMeasurementConsumerId,
-            externalClientAccountId,
-          )
-      if (externalIdInUseByMc != null) continue
-
-      val externalIdInUseByDp =
-        ClientAccountReader()
-          .readByDataProvider(transactionContext, externalDataProviderId, externalClientAccountId)
-      if (externalIdInUseByDp != null) continue
-
-      break
-    } while (true)
+    val externalClientAccountId =
+      idGenerator.generateNewExternalId { id ->
+        ClientAccountReader.existsByExternalId(transactionContext, measurementConsumerId, id) ||
+          ClientAccountReader()
+            .readByDataProvider(transactionContext, externalDataProviderId, id) != null
+      }
 
     transactionContext.bufferInsertMutation("ClientAccounts") {
       set("MeasurementConsumerId" to measurementConsumerId)

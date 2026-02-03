@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
+import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
@@ -120,33 +121,43 @@ class ClientAccountReader : SpannerReader<ClientAccountReader.Result>() {
       .singleOrNull()
   }
 
-  /** Checks if a ClientAccount exists with the given internal ID for the MeasurementConsumer. */
-  suspend fun readByInternalId(
-    readContext: AsyncDatabaseClient.ReadContext,
-    measurementConsumerId: InternalId,
-    clientAccountId: InternalId,
-  ): Result? {
-    return fillStatementBuilder {
-        appendClause(
-          """
-          WHERE MeasurementConsumerId = @measurementConsumerId
-            AND ClientAccountId = @clientAccountId
-          """
-            .trimIndent()
-        )
-        bind("measurementConsumerId").to(measurementConsumerId.value)
-        bind("clientAccountId").to(clientAccountId.value)
-        appendClause("LIMIT 1")
-      }
-      .execute(readContext)
-      .singleOrNull()
-  }
-
   private fun buildClientAccount(struct: Struct): ClientAccount = clientAccount {
     externalClientAccountId = struct.getLong("ExternalClientAccountId")
     externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
     externalDataProviderId = struct.getLong("ExternalDataProviderId")
     clientAccountReferenceId = struct.getString("ClientAccountReferenceId")
     createTime = struct.getTimestamp("CreateTime").toProto()
+  }
+
+  companion object {
+    private const val TABLE_NAME = "ClientAccounts"
+    private const val CLIENT_ACCOUNT_ID_COLUMN = "ClientAccountId"
+
+    /** Checks if a ClientAccount exists with the given internal ID for the MeasurementConsumer. */
+    suspend fun existsByInternalId(
+      readContext: AsyncDatabaseClient.ReadContext,
+      measurementConsumerId: InternalId,
+      clientAccountId: InternalId,
+    ): Boolean {
+      return readContext.readRow(
+        TABLE_NAME,
+        Key.of(measurementConsumerId.value, clientAccountId.value),
+        listOf(CLIENT_ACCOUNT_ID_COLUMN),
+      ) != null
+    }
+
+    /** Checks if a ClientAccount exists with the given external ID for the MeasurementConsumer. */
+    suspend fun existsByExternalId(
+      readContext: AsyncDatabaseClient.ReadContext,
+      measurementConsumerId: InternalId,
+      externalClientAccountId: ExternalId,
+    ): Boolean {
+      return readContext.readRowUsingIndex(
+        TABLE_NAME,
+        "ClientAccountsByMeasurementConsumerAndExternalId",
+        Key.of(measurementConsumerId.value, externalClientAccountId.value),
+        CLIENT_ACCOUNT_ID_COLUMN,
+      ) != null
+    }
   }
 }
