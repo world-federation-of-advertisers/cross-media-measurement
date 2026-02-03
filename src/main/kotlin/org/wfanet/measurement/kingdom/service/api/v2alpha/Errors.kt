@@ -832,6 +832,51 @@ fun Status.toExternalStatusRuntimeException(
         put("population", populationName)
         errorMessage = "Population $populationName not found."
       }
+      ErrorCode.CLIENT_ACCOUNT_NOT_FOUND -> {
+        val externalClientAccountId =
+          externalIdToApiId(
+            checkNotNull(errorInfo.metadataMap["external_client_account_id"]).toLong()
+          )
+        put("externalClientAccountId", externalClientAccountId)
+        if (errorInfo.metadataMap.containsKey("external_measurement_consumer_id")) {
+          val measurementConsumerName =
+            MeasurementConsumerKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_measurement_consumer_id"]).toLong()
+                )
+              )
+              .toName()
+          put("measurementConsumer", measurementConsumerName)
+          errorMessage = "ClientAccount not found for MeasurementConsumer $measurementConsumerName."
+        } else if (errorInfo.metadataMap.containsKey("external_data_provider_id")) {
+          val dataProviderName =
+            DataProviderKey(
+                externalIdToApiId(
+                  checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
+                )
+              )
+              .toName()
+          put("dataProvider", dataProviderName)
+          errorMessage = "ClientAccount not found for DataProvider $dataProviderName."
+        } else {
+          errorMessage = "ClientAccount not found."
+        }
+      }
+      ErrorCode.CLIENT_ACCOUNT_ALREADY_EXISTS -> {
+        val dataProviderName =
+          DataProviderKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
+              )
+            )
+            .toName()
+        val clientAccountReferenceId =
+          checkNotNull(errorInfo.metadataMap["client_account_reference_id"])
+        put("dataProvider", dataProviderName)
+        put("clientAccountReferenceId", clientAccountReferenceId)
+        errorMessage =
+          "ClientAccount with reference ID $clientAccountReferenceId already exists for DataProvider $dataProviderName."
+      }
       ErrorCode.UNKNOWN_ERROR -> {
         errorMessage = "Unknown exception."
       }
