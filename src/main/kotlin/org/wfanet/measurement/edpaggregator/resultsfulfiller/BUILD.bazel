@@ -131,11 +131,11 @@ kt_jvm_library(
     name = "storage_event_source",
     srcs = ["StorageEventSource.kt"],
     deps = [
-        ":kms_constants",
         ":event_batch",
         ":event_reader",
         ":event_source",
         ":impression_data_source_provider",
+        ":kms_constants",
         ":labeled_event",
         ":storage_event_reader",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
