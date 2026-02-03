@@ -26,11 +26,19 @@ resource "google_service_account_iam_member" "allow_terraform_to_use_cloud_funct
   member             = "serviceAccount:${var.terraform_service_account}"
 }
 
+resource "google_secret_manager_secret_iam_member" "secret_accessor" {
+  for_each  = toset(var.secrets_to_access)
+  secret_id = each.value
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.http_cloud_function_service_account.email}"
+}
+
 resource "terraform_data" "deploy_http_cloud_function" {
 
   depends_on = [
     google_service_account.http_cloud_function_service_account,
     google_service_account_iam_member.allow_terraform_to_use_cloud_function_service_account,
+    google_secret_manager_secret_iam_member.secret_accessor,
   ]
 
   triggers_replace = [var.uber_jar_path]
