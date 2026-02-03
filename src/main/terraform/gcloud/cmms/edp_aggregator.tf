@@ -173,6 +173,11 @@ locals {
     destination = "data-watcher-config.textproto"
   }
 
+  data_watcher_delete_config = {
+    local_path  = var.data_watcher_delete_config_file_path
+    destination = "data-watcher-delete-config.textproto"
+  }
+
   requisition_fetcher_config = {
     local_path  = var.requisition_fetcher_config_file_path
     destination = "requisition-fetcher-config.textproto"
@@ -197,7 +202,7 @@ locals {
     data_watcher = {
       function_name       = "data-watcher"
       entry_point         = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction"
-      extra_env_vars      = var.data_watcher_env_var
+      extra_env_vars      = "${var.data_watcher_env_var},CONFIG_BLOB_KEY=${local.data_watcher_config.destination}"
       secret_mappings     = var.data_watcher_secret_mapping
       uber_jar_path       = var.data_watcher_uber_jar_path
     },
@@ -222,6 +227,20 @@ locals {
       secret_mappings     = var.data_availability_secret_mapping
       uber_jar_path       = var.data_availability_uber_jar_path
     }
+    data_watcher_delete = {
+      function_name       = "data-watcher-delete"
+      entry_point         = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction"
+      extra_env_vars      = "${var.data_watcher_delete_env_var},CONFIG_BLOB_KEY=${local.data_watcher_delete_config.destination}"
+      secret_mappings     = var.data_watcher_delete_secret_mapping
+      uber_jar_path       = var.data_watcher_uber_jar_path  # Uses same JAR as data_watcher
+    }
+    data_availability_cleanup = {
+      function_name       = "data-availability-cleanup"
+      entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilityCleanupFunction"
+      extra_env_vars      = var.data_availability_cleanup_env_var
+      secret_mappings     = var.data_availability_cleanup_secret_mapping
+      uber_jar_path       = var.data_availability_cleanup_uber_jar_path
+    }
   }
 
 }
@@ -236,10 +255,14 @@ module "edp_aggregator" {
   edp_aggregator_buckets_location               = local.storage_bucket_location
   data_watcher_service_account_name             = "edpa-data-watcher"
   data_watcher_trigger_service_account_name     = "edpa-data-watcher-trigger"
+  data_watcher_delete_service_account_name      = "edpa-data-watcher-delete"
+  data_watcher_delete_trigger_service_account_name = "edpa-data-delete-trigger"
   terraform_service_account                     = var.terraform_service_account
   requisition_fetcher_service_account_name      = "edpa-requisition-fetcher"
   data_availability_sync_service_account_name   = "edpa-data-availability-sync"
+  data_availability_cleanup_service_account_name = "edpa-data-availability-cleanup"
   data_watcher_config                           = local.data_watcher_config
+  data_watcher_delete_config                    = local.data_watcher_delete_config
   requisition_fetcher_config                    = local.requisition_fetcher_config
   edps_config                                   = local.edps_config
   results_fulfiller_event_descriptor            = local.results_fulfiller_event_descriptor
@@ -247,6 +270,7 @@ module "edp_aggregator" {
   event_group_sync_service_account_name         = "edpa-event-group-sync"
   event_group_sync_function_name                = "event-group-sync"
   data_availability_sync_function_name          = "data-availability-sync"
+  data_availability_cleanup_function_name       = "data-availability-cleanup"
   edpa_tee_app_tls_key                          = local.edpa_tee_app_tls_key
   edpa_tee_app_tls_pem                          = local.edpa_tee_app_tls_pem
   data_watcher_tls_key                          = local.data_watcher_tls_key
