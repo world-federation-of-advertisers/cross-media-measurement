@@ -71,8 +71,4 @@ class DeleteClientAccountByMeasurementConsumer(
 
     return clientAccountResult.clientAccount
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> cd536738b (support list instead of stream)

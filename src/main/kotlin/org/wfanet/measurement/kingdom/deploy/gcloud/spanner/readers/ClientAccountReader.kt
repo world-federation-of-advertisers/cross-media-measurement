@@ -36,19 +36,19 @@ class ClientAccountReader : SpannerReader<ClientAccountReader.Result>() {
 
   override val baseSql: String =
     """
-    SELECT
-      ClientAccounts.MeasurementConsumerId,
-      ClientAccounts.ClientAccountId,
-      ClientAccounts.ExternalClientAccountId,
-      ClientAccounts.DataProviderId,
-      ClientAccounts.ClientAccountReferenceId,
-      ClientAccounts.CreateTime,
-      MeasurementConsumers.ExternalMeasurementConsumerId,
-      DataProviders.ExternalDataProviderId
-    FROM ClientAccounts
-    JOIN MeasurementConsumers USING (MeasurementConsumerId)
-    JOIN DataProviders USING (DataProviderId)
-    """
+     SELECT
+       ClientAccounts.MeasurementConsumerId,
+       ClientAccounts.ClientAccountId,
+       ClientAccounts.ExternalClientAccountId,
+       ClientAccounts.DataProviderId,
+       ClientAccounts.ClientAccountReferenceId,
+       ClientAccounts.CreateTime,
+       MeasurementConsumers.ExternalMeasurementConsumerId,
+       DataProviders.ExternalDataProviderId
+     FROM ClientAccounts
+     JOIN MeasurementConsumers USING (MeasurementConsumerId)
+     JOIN DataProviders USING (DataProviderId)
+     """
       .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
@@ -66,9 +66,9 @@ class ClientAccountReader : SpannerReader<ClientAccountReader.Result>() {
     return fillStatementBuilder {
         appendClause(
           """
-          WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId
-            AND ExternalClientAccountId = @externalClientAccountId
-          """
+           WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId
+             AND ExternalClientAccountId = @externalClientAccountId
+           """
             .trimIndent()
         )
         bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
@@ -87,9 +87,9 @@ class ClientAccountReader : SpannerReader<ClientAccountReader.Result>() {
     return fillStatementBuilder {
         appendClause(
           """
-          WHERE ExternalDataProviderId = @externalDataProviderId
-            AND ExternalClientAccountId = @externalClientAccountId
-          """
+           WHERE ExternalDataProviderId = @externalDataProviderId
+             AND ExternalClientAccountId = @externalClientAccountId
+           """
             .trimIndent()
         )
         bind("externalDataProviderId").to(externalDataProviderId.value)
@@ -108,35 +108,13 @@ class ClientAccountReader : SpannerReader<ClientAccountReader.Result>() {
     return fillStatementBuilder {
         appendClause(
           """
-          WHERE ExternalDataProviderId = @externalDataProviderId
-            AND ClientAccountReferenceId = @clientAccountReferenceId
-          """
+           WHERE ExternalDataProviderId = @externalDataProviderId
+             AND ClientAccountReferenceId = @clientAccountReferenceId
+           """
             .trimIndent()
         )
         bind("externalDataProviderId").to(externalDataProviderId.value)
         bind("clientAccountReferenceId").to(clientAccountReferenceId)
-        appendClause("LIMIT 1")
-      }
-      .execute(readContext)
-      .singleOrNull()
-  }
-
-  /** Checks if a ClientAccount exists with the given internal ID for the MeasurementConsumer. */
-  suspend fun readByInternalId(
-    readContext: AsyncDatabaseClient.ReadContext,
-    measurementConsumerId: InternalId,
-    clientAccountId: InternalId,
-  ): Result? {
-    return fillStatementBuilder {
-        appendClause(
-          """
-          WHERE MeasurementConsumerId = @measurementConsumerId
-            AND ClientAccountId = @clientAccountId
-          """
-            .trimIndent()
-        )
-        bind("measurementConsumerId").to(measurementConsumerId.value)
-        bind("clientAccountId").to(clientAccountId.value)
         appendClause("LIMIT 1")
       }
       .execute(readContext)
@@ -148,8 +126,6 @@ class ClientAccountReader : SpannerReader<ClientAccountReader.Result>() {
     externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
     externalDataProviderId = struct.getLong("ExternalDataProviderId")
     clientAccountReferenceId = struct.getString("ClientAccountReferenceId")
-<<<<<<< HEAD
-<<<<<<< HEAD
     createTime = struct.getTimestamp("CreateTime").toProto()
   }
 
@@ -183,11 +159,5 @@ class ClientAccountReader : SpannerReader<ClientAccountReader.Result>() {
         CLIENT_ACCOUNT_ID_COLUMN,
       ) != null
     }
-=======
-    createTime = struct.getTimestamp("CreateTime").toProtoTime()
->>>>>>> 8aacf1b78 (perf: add tests and run linter)
-=======
-    createTime = struct.getTimestamp("CreateTime").toProto()
->>>>>>> 462fa43e9 (fix: resolve comments and fix tests)
   }
 }

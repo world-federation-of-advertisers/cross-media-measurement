@@ -97,8 +97,4 @@ class StreamClientAccounts(
     private const val CLIENT_ACCOUNT_REFERENCE_ID = "clientAccountReferenceId"
     private const val CREATE_TIME = "createTime"
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> de213432e (fix: run linter)
