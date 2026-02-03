@@ -15,6 +15,9 @@
 # Moved blocks for refactoring google_secret_manager_secret_iam_member resources
 # from edp-aggregator module into gcs-bucket-cloud-function and http-cloud-function modules.
 # See: https://developer.hashicorp.com/terraform/language/modules/develop/refactoring
+#
+# NOTE: Terraform moved blocks require static expressions - variable references are not
+# allowed. These values must match the secret_id values passed to the module.
 
 # =============================================================================
 # data_watcher_cloud_function (gcs-bucket-cloud-function module)
@@ -22,17 +25,17 @@
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["data_watcher:secure_computation_root_ca"]
-  to   = module.data_watcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.secure_computation_root_ca.secret_id]
+  to   = module.data_watcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["securecomputation-root-ca"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["data_watcher:data_watcher_tls_key"]
-  to   = module.data_watcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.data_watcher_tls_key.secret_id]
+  to   = module.data_watcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edpa-data-watcher-tls-key"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["data_watcher:data_watcher_tls_pem"]
-  to   = module.data_watcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.data_watcher_tls_pem.secret_id]
+  to   = module.data_watcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edpa-data-watcher-tls-pem"]
 }
 
 # =============================================================================
@@ -41,22 +44,22 @@ moved {
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["requisition_fetcher:trusted_root_ca_collection"]
-  to   = module.requisition_fetcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.trusted_root_ca_collection.secret_id]
+  to   = module.requisition_fetcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["trusted-root-ca"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["requisition_fetcher:requisition_fetcher_tls_pem"]
-  to   = module.requisition_fetcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.requisition_fetcher_tls_pem.secret_id]
+  to   = module.requisition_fetcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edpa-requisition-fetcher-tls-pem"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["requisition_fetcher:requisition_fetcher_tls_key"]
-  to   = module.requisition_fetcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.requisition_fetcher_tls_key.secret_id]
+  to   = module.requisition_fetcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edpa-requisition-fetcher-tls-key"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["requisition_fetcher:metadata_storage_root_ca"]
-  to   = module.requisition_fetcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.metadata_storage_root_ca.secret_id]
+  to   = module.requisition_fetcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edpaggregator-root-ca"]
 }
 
 # =============================================================================
@@ -65,7 +68,7 @@ moved {
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["event_group_sync:trusted_root_ca_collection"]
-  to   = module.event_group_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.trusted_root_ca_collection.secret_id]
+  to   = module.event_group_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["trusted-root-ca"]
 }
 
 # =============================================================================
@@ -74,26 +77,26 @@ moved {
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["data_availability_sync:metadata_storage_root_ca"]
-  to   = module.data_availability_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.metadata_storage_root_ca.secret_id]
+  to   = module.data_availability_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edpaggregator-root-ca"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["data_availability_sync:trusted_root_ca_collection"]
-  to   = module.data_availability_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.trusted_root_ca_collection.secret_id]
+  to   = module.data_availability_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["trusted-root-ca"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["data_availability_sync:data_availability_tls_key"]
-  to   = module.data_availability_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.data_availability_tls_key.secret_id]
+  to   = module.data_availability_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edpa-data-availability-tls-key"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["data_availability_sync:data_availability_tls_pem"]
-  to   = module.data_availability_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.data_availability_tls_pem.secret_id]
+  to   = module.data_availability_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edpa-data-availability-tls-pem"]
 }
 
 # =============================================================================
-# EDP-specific secrets (dynamically generated based on var.edps_certs)
+# EDP-specific secrets (edp7 and edpa_meta)
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -102,32 +105,32 @@ moved {
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["requisition_fetcher:edp7_tls_key"]
-  to   = module.requisition_fetcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.edps_certs["edp7"].tls_key.secret_id]
+  to   = module.requisition_fetcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edp7-tls-key"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["requisition_fetcher:edp7_tls_pem"]
-  to   = module.requisition_fetcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.edps_certs["edp7"].tls_pem.secret_id]
+  to   = module.requisition_fetcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edp7-tls-pem"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["requisition_fetcher:edp7_enc_private"]
-  to   = module.requisition_fetcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.edps_certs["edp7"].enc_private.secret_id]
+  to   = module.requisition_fetcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edp7-enc-private"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["requisition_fetcher:edpa_meta_tls_key"]
-  to   = module.requisition_fetcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.edps_certs["edpa_meta"].tls_key.secret_id]
+  to   = module.requisition_fetcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edpa_meta-tls-key"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["requisition_fetcher:edpa_meta_tls_pem"]
-  to   = module.requisition_fetcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.edps_certs["edpa_meta"].tls_pem.secret_id]
+  to   = module.requisition_fetcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edpa_meta-tls-pem"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["requisition_fetcher:edpa_meta_enc_private"]
-  to   = module.requisition_fetcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.edps_certs["edpa_meta"].enc_private.secret_id]
+  to   = module.requisition_fetcher_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edpa_meta-enc-private"]
 }
 
 # -----------------------------------------------------------------------------
@@ -136,32 +139,32 @@ moved {
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["event_group_sync:edp7_tls_key"]
-  to   = module.event_group_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.edps_certs["edp7"].tls_key.secret_id]
+  to   = module.event_group_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edp7-tls-key"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["event_group_sync:edp7_tls_pem"]
-  to   = module.event_group_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.edps_certs["edp7"].tls_pem.secret_id]
+  to   = module.event_group_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edp7-tls-pem"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["event_group_sync:edp7_enc_private"]
-  to   = module.event_group_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.edps_certs["edp7"].enc_private.secret_id]
+  to   = module.event_group_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edp7-enc-private"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["event_group_sync:edpa_meta_tls_key"]
-  to   = module.event_group_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.edps_certs["edpa_meta"].tls_key.secret_id]
+  to   = module.event_group_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edpa_meta-tls-key"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["event_group_sync:edpa_meta_tls_pem"]
-  to   = module.event_group_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.edps_certs["edpa_meta"].tls_pem.secret_id]
+  to   = module.event_group_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edpa_meta-tls-pem"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["event_group_sync:edpa_meta_enc_private"]
-  to   = module.event_group_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.edps_certs["edpa_meta"].enc_private.secret_id]
+  to   = module.event_group_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edpa_meta-enc-private"]
 }
 
 # -----------------------------------------------------------------------------
@@ -170,30 +173,30 @@ moved {
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["data_availability_sync:edp7_tls_key"]
-  to   = module.data_availability_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.edps_certs["edp7"].tls_key.secret_id]
+  to   = module.data_availability_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edp7-tls-key"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["data_availability_sync:edp7_tls_pem"]
-  to   = module.data_availability_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.edps_certs["edp7"].tls_pem.secret_id]
+  to   = module.data_availability_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edp7-tls-pem"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["data_availability_sync:edp7_enc_private"]
-  to   = module.data_availability_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.edps_certs["edp7"].enc_private.secret_id]
+  to   = module.data_availability_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edp7-enc-private"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["data_availability_sync:edpa_meta_tls_key"]
-  to   = module.data_availability_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.edps_certs["edpa_meta"].tls_key.secret_id]
+  to   = module.data_availability_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edpa_meta-tls-key"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["data_availability_sync:edpa_meta_tls_pem"]
-  to   = module.data_availability_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.edps_certs["edpa_meta"].tls_pem.secret_id]
+  to   = module.data_availability_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edpa_meta-tls-pem"]
 }
 
 moved {
   from = google_secret_manager_secret_iam_member.secret_accessor["data_availability_sync:edpa_meta_enc_private"]
-  to   = module.data_availability_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor[var.edps_certs["edpa_meta"].enc_private.secret_id]
+  to   = module.data_availability_sync_cloud_function.google_secret_manager_secret_iam_member.secret_accessor["edpa_meta-enc-private"]
 }
