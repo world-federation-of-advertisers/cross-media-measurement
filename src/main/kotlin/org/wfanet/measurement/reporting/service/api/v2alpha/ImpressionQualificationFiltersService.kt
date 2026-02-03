@@ -81,7 +81,12 @@ class ImpressionQualificationFiltersService(
           InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
           InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
           InternalErrors.Reason.INVALID_BASIC_REPORT,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+          null -> {
+            if (e.status.code == Status.Code.UNIMPLEMENTED) {
+              throw e.asRuntimeException()
+            }
+            Status.INTERNAL.withCause(e).asRuntimeException()
+          }
         }
       }
 
@@ -123,6 +128,9 @@ class ImpressionQualificationFiltersService(
           }
         )
       } catch (e: StatusException) {
+        if (e.status.code == Status.Code.UNIMPLEMENTED) {
+          throw e.asRuntimeException()
+        }
         throw Status.INTERNAL.withCause(e).asRuntimeException()
       }
 
