@@ -109,9 +109,6 @@ class InProcessKingdom(
   private val internalMeasurementConsumersClient by lazy {
     InternalMeasurementConsumersCoroutineStub(internalApiChannel)
   }
-  private val internalEventGroupActivitiesClient by lazy {
-    InternalEventGroupActivitiesCoroutineStub(internalApiChannel)
-  }
   private val internalEventGroupsClient by lazy {
     InternalEventGroupsCoroutineStub(internalApiChannel)
   }
