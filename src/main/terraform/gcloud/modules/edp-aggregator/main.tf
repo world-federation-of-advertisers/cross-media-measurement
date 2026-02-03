@@ -271,6 +271,7 @@ module "data_watcher_cloud_function" {
   secret_mappings                               = var.cloud_function_configs.data_watcher.secret_mappings
   uber_jar_path                                 = var.cloud_function_configs.data_watcher.uber_jar_path
   secrets_to_access                             = [for key in local.data_watcher_secrets_access : local.all_secrets[key].secret_id]
+  trigger_event_type                            = "finalized"
 }
 
 module "data_watcher_delete_cloud_function" {
@@ -288,6 +289,7 @@ module "data_watcher_delete_cloud_function" {
   secret_mappings                               = var.cloud_function_configs.data_watcher_delete.secret_mappings
   uber_jar_path                                 = var.cloud_function_configs.data_watcher_delete.uber_jar_path
   secrets_to_access                             = [for key in local.data_watcher_delete_secrets_access : local.all_secrets[key].secret_id]
+  trigger_event_type                            = "deleted"
 }
 
 module "requisition_fetcher_cloud_function" {
