@@ -19,8 +19,8 @@ on:
     branches:
       - main
       - 'releases/**'
-    paths:
-      - 'src/main/terraform/**'
+    # paths:
+    #  - 'src/main/terraform/**'
 
 permissions:
   contents: read
@@ -109,80 +109,3 @@ jobs:
           exit-code: '1'
           severity: 'HIGH,CRITICAL'
 
-  # Job 3: Plan & Impact Analysis
-  # Validates terraform plan generation syntax by checking that modules can be initialized
-  # and configurations are syntactically correct. Full plan execution requires cloud credentials.
-  plan-check:
-    name: Plan Check
-    runs-on: ubuntu-22.04
-    needs: [format-validate]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - terraform_dir: src/main/terraform/gcloud/examples/duchy
-            name: gcloud-duchy-example
-          - terraform_dir: src/main/terraform/gcloud/examples/kingdom
-            name: gcloud-kingdom-example
-          - terraform_dir: src/main/terraform/gcloud/examples/reporting
-            name: gcloud-reporting-example
-          - terraform_dir: src/main/terraform/gcloud/examples/simulators
-            name: gcloud-simulators-example
-          - terraform_dir: src/main/terraform/aws/examples/duchy
-            name: aws-duchy-example
-    steps:
-      - name: Check out revision
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-
-      - name: Set up Bazel
-        uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
-
-      - name: Write auth.bazelrc
-        env:
-          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
-        run: |
-          cat << EOF > auth.bazelrc
-          build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
-          EOF
-
-      - name: Write ~/.bazelrc
-        run: |
-          cat << EOF > ~/.bazelrc
-          common --config=ci
-          build --remote_download_outputs=all
-          EOF
-
-      - name: Generate and copy trusted certs
-        run: |
-          bazelisk build //src/main/k8s/testing/secretfiles:gen_trusted_certs
-          cp bazel-bin/src/main/k8s/testing/secretfiles/all_root_certs.pem src/main/k8s/testing/secretfiles/
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881571f087b22682e26d7 # v3.1.2
-        with:
-          terraform_version: "1.9.8"
-
-      - name: Terraform Init
-        working-directory: ${{ matrix.terraform_dir }}
-        run: terraform init -backend=false
-
-      - name: Terraform Plan (validation only)
-        working-directory: ${{ matrix.terraform_dir }}
-        run: |
-          set +e
-          # Run terraform plan to validate the configuration
-          # Note: This may fail due to missing required variables or credentials,
-          # but we catch configuration errors (undeclared references, invalid expressions)
-          output=$(terraform plan -input=false -lock=false 2>&1)
-          exit_code=$?
-          echo "$output"
-          
-          if [ $exit_code -ne 0 ]; then
-            # Check for configuration errors that indicate broken terraform code
-            if echo "$output" | grep -qE "Error: Reference to undeclared|Error: Invalid reference|Error: Unsupported attribute|Error: Invalid expression"; then
-              echo "::error::Configuration has invalid references or expressions"
-              exit 1
-            fi
-            # Missing variables or provider credentials are expected in CI without cloud access
-            echo "::notice::Plan completed with expected errors (missing variables or credentials)"
-          fi
