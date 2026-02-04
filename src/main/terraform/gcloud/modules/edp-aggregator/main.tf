@@ -15,18 +15,6 @@
 data "google_client_config" "default" {}
 data "google_project" "project" {}
 
-# Custom role for data availability sync that needs to read and update object metadata
-resource "google_project_iam_custom_role" "storage_object_viewer_updater" {
-  role_id     = "storageObjectViewerUpdater"
-  title       = "Storage Object Viewer and Updater"
-  description = "Read objects and update object metadata (no create/delete)"
-  permissions = [
-    "storage.objects.get",
-    "storage.objects.list",
-    "storage.objects.update",
-  ]
-}
-
 locals {
 
   # IP addresses for private.googleapis.com (Private Google Access default VIPs)
@@ -271,6 +259,7 @@ module "data_watcher_cloud_function" {
   secret_mappings                               = var.cloud_function_configs.data_watcher.secret_mappings
   uber_jar_path                                 = var.cloud_function_configs.data_watcher.uber_jar_path
   secrets_to_access                             = [for key in local.data_watcher_secrets_access : local.all_secrets[key].secret_id]
+  trigger_event_type                            = "finalized"
 }
 
 module "data_watcher_delete_cloud_function" {
@@ -288,6 +277,7 @@ module "data_watcher_delete_cloud_function" {
   secret_mappings                               = var.cloud_function_configs.data_watcher_delete.secret_mappings
   uber_jar_path                                 = var.cloud_function_configs.data_watcher_delete.uber_jar_path
   secrets_to_access                             = [for key in local.data_watcher_delete_secrets_access : local.all_secrets[key].secret_id]
+  trigger_event_type                            = "deleted"
 }
 
 module "requisition_fetcher_cloud_function" {
@@ -411,10 +401,10 @@ resource "google_storage_bucket_iam_member" "result_fulfiller_storage_creator" {
   member = "serviceAccount:${module.result_fulfiller_tee_app.mig_service_account.email}"
 }
 
-resource "google_storage_bucket_iam_member" "data_availability_storage_viewer_updater" {
+resource "google_storage_bucket_iam_member" "data_availability_storage_object_user" {
   depends_on = [module.data_availability_sync_cloud_function]
   bucket = module.edp_aggregator_bucket.storage_bucket.name
-  role   = google_project_iam_custom_role.storage_object_viewer_updater.id
+  role   = "roles/storage.objectUser"
   member = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
 }
 

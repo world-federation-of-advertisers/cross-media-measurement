@@ -21,6 +21,7 @@ import org.wfanet.measurement.common.api.ResourceKey
 data class DataProviderKey(val dataProviderId: String) :
   ResourceKey,
   CertificateParentKey,
+  ClientAccountParentKey,
   RecurringExchangeParentKey,
   RequisitionParentKey,
   PublicKeyParentKey {

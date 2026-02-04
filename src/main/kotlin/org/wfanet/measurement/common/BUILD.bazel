@@ -44,6 +44,7 @@ kt_jvm_library(
 kt_jvm_library(
     name = "id_generator",
     srcs = ["IdGenerator.kt"],
+    deps = ["@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity"],
 )
 
 kt_jvm_library(
