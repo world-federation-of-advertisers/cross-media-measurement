@@ -17,6 +17,9 @@
 package org.wfanet.measurement.common
 
 import kotlin.random.Random
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.IdGenerator as IdentityIdGenerator
+import org.wfanet.measurement.common.identity.InternalId
 
 fun interface IdGenerator {
   /** Returns a non-zero ID. */
@@ -41,6 +44,26 @@ inline fun IdGenerator.generateNewId(idExists: (id: Long) -> Boolean): Long {
   var id = generateId()
   while (idExists(id)) {
     id = generateId()
+  }
+  return id
+}
+
+inline fun IdentityIdGenerator.generateNewInternalId(
+  idExists: (InternalId) -> Boolean
+): InternalId {
+  var id = generateInternalId()
+  while (idExists(id)) {
+    id = generateInternalId()
+  }
+  return id
+}
+
+inline fun IdentityIdGenerator.generateNewExternalId(
+  idExists: (ExternalId) -> Boolean
+): ExternalId {
+  var id = generateExternalId()
+  while (idExists(id)) {
+    id = generateExternalId()
   }
   return id
 }
