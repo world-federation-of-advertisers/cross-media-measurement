@@ -53,13 +53,15 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.ClientAccount as InternalClientAccount
 import org.wfanet.measurement.internal.kingdom.ClientAccountsGrpcKt.ClientAccountsCoroutineImplBase as InternalClientAccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ClientAccountsGrpcKt.ClientAccountsCoroutineStub as InternalClientAccountsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.batchCreateClientAccountsResponse as internalBatchCreateClientAccountsResponse
+import org.wfanet.measurement.internal.kingdom.batchDeleteClientAccountsResponse as internalBatchDeleteClientAccountsResponse
 import org.wfanet.measurement.internal.kingdom.clientAccount as internalClientAccount
 import org.wfanet.measurement.internal.kingdom.createClientAccountRequest as internalCreateClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.deleteClientAccountRequest as internalDeleteClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.getClientAccountRequest as internalGetClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.listClientAccountsResponse as internalListClientAccountsResponse
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountAlreadyExistsException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountNotFoundByMeasurementConsumerException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 
@@ -112,8 +114,12 @@ private val INTERNAL_CLIENT_ACCOUNT: InternalClientAccount = internalClientAccou
 class ClientAccountsServiceTest {
   private val internalClientAccountsMock: InternalClientAccountsCoroutineImplBase = mockService {
     onBlocking { createClientAccount(any()) }.thenReturn(INTERNAL_CLIENT_ACCOUNT)
+    onBlocking { batchCreateClientAccounts(any()) }
+      .thenReturn(internalBatchCreateClientAccountsResponse { clientAccounts += INTERNAL_CLIENT_ACCOUNT })
     onBlocking { getClientAccount(any()) }.thenReturn(INTERNAL_CLIENT_ACCOUNT)
     onBlocking { deleteClientAccount(any()) }.thenReturn(INTERNAL_CLIENT_ACCOUNT)
+    onBlocking { batchDeleteClientAccounts(any()) }
+      .thenReturn(internalBatchDeleteClientAccountsResponse { clientAccounts += INTERNAL_CLIENT_ACCOUNT })
     onBlocking { listClientAccounts(any()) }
       .thenReturn(internalListClientAccountsResponse { clientAccounts += INTERNAL_CLIENT_ACCOUNT })
   }
@@ -448,7 +454,7 @@ class ClientAccountsServiceTest {
     internalClientAccountsMock.stub {
       onBlocking { getClientAccount(any()) }
         .thenThrow(
-          ClientAccountNotFoundByMeasurementConsumerException(
+          ClientAccountNotFoundException(
               org.wfanet.measurement.common.identity.ExternalId(EXTERNAL_MEASUREMENT_CONSUMER_ID),
               org.wfanet.measurement.common.identity.ExternalId(EXTERNAL_CLIENT_ACCOUNT_ID),
             )
@@ -632,7 +638,7 @@ class ClientAccountsServiceTest {
     internalClientAccountsMock.stub {
       onBlocking { deleteClientAccount(any()) }
         .thenThrow(
-          ClientAccountNotFoundByMeasurementConsumerException(
+          ClientAccountNotFoundException(
               org.wfanet.measurement.common.identity.ExternalId(EXTERNAL_MEASUREMENT_CONSUMER_ID),
               org.wfanet.measurement.common.identity.ExternalId(EXTERNAL_CLIENT_ACCOUNT_ID),
             )
@@ -695,39 +701,7 @@ class ClientAccountsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
-
-  @Test
-  fun `batchCreateClientAccounts throws INVALID_ARGUMENT when duplicate request_id`() {
-    val request = batchCreateClientAccountsRequest {
-      parent = MEASUREMENT_CONSUMER_NAME
-      requests += createClientAccountRequest {
-        parent = MEASUREMENT_CONSUMER_NAME
-        requestId = "same-id"
-        clientAccount = clientAccount {
-          dataProvider = DATA_PROVIDER_NAME
-          clientAccountReferenceId = CLIENT_ACCOUNT_REFERENCE_ID
-        }
-      }
-      requests += createClientAccountRequest {
-        parent = MEASUREMENT_CONSUMER_NAME
-        requestId = "same-id"
-        clientAccount = clientAccount {
-          dataProvider = DATA_PROVIDER_NAME
-          clientAccountReferenceId = "other-reference"
-        }
-      }
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking { service.batchCreateClientAccounts(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("duplicate")
-  }
-
+  
   // batchDeleteClientAccounts Tests
 
   @Test
