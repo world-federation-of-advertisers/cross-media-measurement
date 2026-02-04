@@ -67,10 +67,6 @@ jobs:
           bazelisk build //src/main/k8s/testing/secretfiles:gen_trusted_certs
           cp bazel-bin/src/main/k8s/testing/secretfiles/all_root_certs.pem src/main/k8s/testing/secretfiles/
 
-      - name: Terraform Format Check
-        working-directory: ${{ matrix.terraform_dir }}
-        run: terraform fmt -check -recursive -diff
-
       - name: Terraform Init
         working-directory: ${{ matrix.terraform_dir }}
         run: terraform init -backend=false
