@@ -115,11 +115,15 @@ class ClientAccountsServiceTest {
   private val internalClientAccountsMock: InternalClientAccountsCoroutineImplBase = mockService {
     onBlocking { createClientAccount(any()) }.thenReturn(INTERNAL_CLIENT_ACCOUNT)
     onBlocking { batchCreateClientAccounts(any()) }
-      .thenReturn(internalBatchCreateClientAccountsResponse { clientAccounts += INTERNAL_CLIENT_ACCOUNT })
+      .thenReturn(
+        internalBatchCreateClientAccountsResponse { clientAccounts += INTERNAL_CLIENT_ACCOUNT }
+      )
     onBlocking { getClientAccount(any()) }.thenReturn(INTERNAL_CLIENT_ACCOUNT)
     onBlocking { deleteClientAccount(any()) }.thenReturn(INTERNAL_CLIENT_ACCOUNT)
     onBlocking { batchDeleteClientAccounts(any()) }
-      .thenReturn(internalBatchDeleteClientAccountsResponse { clientAccounts += INTERNAL_CLIENT_ACCOUNT })
+      .thenReturn(
+        internalBatchDeleteClientAccountsResponse { clientAccounts += INTERNAL_CLIENT_ACCOUNT }
+      )
     onBlocking { listClientAccounts(any()) }
       .thenReturn(internalListClientAccountsResponse { clientAccounts += INTERNAL_CLIENT_ACCOUNT })
   }
@@ -701,7 +705,7 @@ class ClientAccountsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
-  
+
   // batchDeleteClientAccounts Tests
 
   @Test
