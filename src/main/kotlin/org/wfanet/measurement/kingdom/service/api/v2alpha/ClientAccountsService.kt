@@ -163,23 +163,12 @@ class ClientAccountsService(
       "requests count exceeds maximum batch size of $MAX_BATCH_SIZE"
     }
 
-    val requestIdSet = mutableSetOf<String>()
     for (subRequest in request.requestsList) {
       if (subRequest.parent.isNotEmpty() && subRequest.parent != request.parent) {
         throw Status.INVALID_ARGUMENT.withDescription(
             "Parent in child request does not match batch parent"
           )
           .asRuntimeException()
-      }
-
-      val requestId = subRequest.requestId
-      if (requestId.isNotEmpty()) {
-        if (!requestIdSet.add(requestId)) {
-          throw Status.INVALID_ARGUMENT.withDescription(
-              "request_id $requestId is duplicate in the batch of requests"
-            )
-            .asRuntimeException()
-        }
       }
 
       grpcRequire(subRequest.hasClientAccount()) {
@@ -549,7 +538,6 @@ class ClientAccountsService(
       lastClientAccount = previousPageEnd {
         this.parentKey = parentKey {
           externalMeasurementConsumerId = internalPageToken.after.externalMeasurementConsumerId
-          externalDataProviderId = internalPageToken.after.externalDataProviderId
         }
         externalClientAccountId = internalPageToken.after.externalClientAccountId
         createTime = internalPageToken.after.createTime
@@ -575,6 +563,5 @@ private fun InternalClientAccount.toClientAccount(): ClientAccount {
       MeasurementConsumerClientAccountKey(measurementConsumerApiId, clientAccountApiId).toName()
     dataProvider = DataProviderKey(dataProviderApiId).toName()
     clientAccountReferenceId = this@toClientAccount.clientAccountReferenceId
-    createTime = this@toClientAccount.createTime
   }
 }
