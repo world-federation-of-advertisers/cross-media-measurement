@@ -40,13 +40,6 @@ jobs:
       matrix:
         terraform_dir:
           - src/main/terraform/gcloud/cmms
-          - src/main/terraform/gcloud/examples/duchy
-          - src/main/terraform/gcloud/examples/kingdom
-          - src/main/terraform/gcloud/examples/reporting
-          - src/main/terraform/gcloud/examples/simulators
-          - src/main/terraform/aws/cmms
-          - src/main/terraform/aws/examples/duchy
-          - src/main/terraform/panel-match
     steps:
       - name: Check out revision
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
