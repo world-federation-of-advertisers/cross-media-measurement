@@ -52,6 +52,11 @@ bazel_dep(
     version = "0.88.0",
     repo_name = "wfa_measurement_proto",
 )
+git_override(
+    module_name = "cross-media-measurement-api",
+    commit = "c63e15940de41e9992587e5e51e3855112a98565",
+    remote = "https://github.com/world-federation-of-advertisers/cross-media-measurement-api.git",
+)
 bazel_dep(
     name = "consent-signaling-client",
     version = "0.23.0",
