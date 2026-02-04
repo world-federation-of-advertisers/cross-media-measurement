@@ -167,7 +167,9 @@ class StorageEventSource(
 
   /** Collects all impression data sources and deduplicates by blob URI. */
   private suspend fun getUniqueImpressionDataSources(): List<ImpressionDataSource> {
-    cachedImpressionDataSources?.let { return it }
+    cachedImpressionDataSources?.let {
+      return it
+    }
 
     val allSources =
       eventGroupDetailsList.flatMap { details ->
@@ -233,10 +235,10 @@ class StorageEventSource(
    * Gets the KEK URI from the impression data sources for TrusTee protocol encryption.
    *
    * The TrusTee protocol encrypts output data using a Key Encryption Key (KEK) from GCP KMS. We
-   * obtain the KEK URI from the impression metadata because the EDP's impression data was
-   * encrypted using a KEK on their keyring, and the TrusTee output should use a key on the same
-   * keyring (either the same key or a remapped key via kekUriToKeyNameMap). This ensures consistent
-   * key management and access control within the EDP's GCP KMS keyring.
+   * obtain the KEK URI from the impression metadata because the EDP's impression data was encrypted
+   * using a KEK on their keyring, and the TrusTee output should use a key on the same keyring
+   * (either the same key or a remapped key via kekUriToKeyNameMap). This ensures consistent key
+   * management and access control within the EDP's GCP KMS keyring.
    *
    * Returns the KEK URI from the most recent data source (sorted by interval end time in descending
    * order). All data sources for the same EDP must use KEK URIs with the same project ID and
