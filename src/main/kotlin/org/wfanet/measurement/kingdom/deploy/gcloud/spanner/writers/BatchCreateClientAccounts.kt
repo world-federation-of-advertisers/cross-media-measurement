@@ -33,8 +33,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ClientAccoun
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 
-private const val MAX_ID_GENERATION_ATTEMPTS = 10
-
 /**
  * Creates ClientAccounts in a batch atomically within a single transaction.
  *
@@ -56,20 +54,11 @@ class BatchCreateClientAccounts(private val request: BatchCreateClientAccountsRe
         externalMeasurementConsumerId,
       ) ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
 
-    val externalDataProviderIds =
-      request.requestsList.map { ExternalId(it.clientAccount.externalDataProviderId) }.distinct()
-
-    val dataProviderIdMap: Map<ExternalId, InternalId> =
-      externalDataProviderIds.associateWith { externalDataProviderId ->
-        val dataProviderResult =
-          DataProviderReader()
-            .readByExternalDataProviderId(transactionContext, externalDataProviderId)
-            ?: throw DataProviderNotFoundException(externalDataProviderId)
-        InternalId(dataProviderResult.dataProviderId)
-      }
+    val dataProviderIdMap = mutableMapOf<ExternalId, InternalId>()
 
     for (subRequest in request.requestsList) {
       val externalDataProviderId = ExternalId(subRequest.clientAccount.externalDataProviderId)
+
       val existingByReferenceId =
         ClientAccountReader()
           .readByDataProviderAndReferenceId(
@@ -82,6 +71,15 @@ class BatchCreateClientAccounts(private val request: BatchCreateClientAccountsRe
           externalDataProviderId,
           subRequest.clientAccount.clientAccountReferenceId,
         )
+      }
+
+      // Lookup DataProvider if not already cached
+      if (!dataProviderIdMap.containsKey(externalDataProviderId)) {
+        val dataProviderResult =
+          DataProviderReader()
+            .readByExternalDataProviderId(transactionContext, externalDataProviderId)
+            ?: throw DataProviderNotFoundException(externalDataProviderId)
+        dataProviderIdMap[externalDataProviderId] = InternalId(dataProviderResult.dataProviderId)
       }
     }
 
@@ -110,40 +108,17 @@ class BatchCreateClientAccounts(private val request: BatchCreateClientAccountsRe
     externalDataProviderId: ExternalId,
     clientAccount: ClientAccount,
   ): ClientAccount {
-    var internalClientAccountId: InternalId
-    var externalClientAccountId: ExternalId
-    var attempts = 0
-
-    do {
-      attempts++
-      check(attempts <= MAX_ID_GENERATION_ATTEMPTS) {
-        "Failed to generate unique IDs after $MAX_ID_GENERATION_ATTEMPTS attempts"
+    val internalClientAccountId =
+      idGenerator.generateNewInternalId { id ->
+        ClientAccountReader.existsByInternalId(transactionContext, measurementConsumerId, id)
       }
 
-      internalClientAccountId = idGenerator.generateInternalId()
-      externalClientAccountId = idGenerator.generateExternalId()
-
-      val internalIdInUseByMc =
-        ClientAccountReader()
-          .readByInternalId(transactionContext, measurementConsumerId, internalClientAccountId)
-      if (internalIdInUseByMc != null) continue
-
-      val externalIdInUseByMc =
-        ClientAccountReader()
-          .readByMeasurementConsumer(
-            transactionContext,
-            externalMeasurementConsumerId,
-            externalClientAccountId,
-          )
-      if (externalIdInUseByMc != null) continue
-
-      val externalIdInUseByDp =
-        ClientAccountReader()
-          .readByDataProvider(transactionContext, externalDataProviderId, externalClientAccountId)
-      if (externalIdInUseByDp != null) continue
-
-      break
-    } while (true)
+    val externalClientAccountId =
+      idGenerator.generateNewExternalId { id ->
+        ClientAccountReader.existsByExternalId(transactionContext, measurementConsumerId, id) ||
+          ClientAccountReader()
+            .readByDataProvider(transactionContext, externalDataProviderId, id) != null
+      }
 
     transactionContext.bufferInsertMutation("ClientAccounts") {
       set("MeasurementConsumerId" to measurementConsumerId)
