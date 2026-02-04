@@ -232,7 +232,9 @@ class ClientAccountsService(
     val internalRequest =
       when (key) {
         is MeasurementConsumerClientAccountKey -> {
-          if (principal !is MeasurementConsumerPrincipal || principal.resourceKey != key.parentKey) {
+          if (
+            principal !is MeasurementConsumerPrincipal || principal.resourceKey != key.parentKey
+          ) {
             throw permissionDeniedStatus().asRuntimeException()
           }
           internalGetClientAccountRequest {
@@ -318,7 +320,7 @@ class ClientAccountsService(
           buildNextPageToken(
               parentKey,
               request.filter.clientAccountReferenceId,
-              internalResponse.nextPageToken
+              internalResponse.nextPageToken,
             )
             .toByteString()
             .base64UrlEncode()
@@ -339,8 +341,8 @@ class ClientAccountsService(
     // Only MeasurementConsumer can delete
     if (
       principal !is MeasurementConsumerPrincipal ||
-      key !is MeasurementConsumerClientAccountKey ||
-      principal.resourceKey != key.parentKey
+        key !is MeasurementConsumerClientAccountKey ||
+        principal.resourceKey != key.parentKey
     ) {
       throw permissionDeniedStatus().asRuntimeException()
     }
@@ -457,19 +459,21 @@ class ClientAccountsService(
       if (pageToken != null) {
         // Validate page token matches filter
         val tokenParentKey = pageToken.parentKey
-        val isValidToken = when {
-          tokenParentKey.hasExternalMeasurementConsumerId() ->
-            parentKey is MeasurementConsumerKey &&
-              tokenParentKey.externalMeasurementConsumerId ==
-                apiIdToExternalId(parentKey.measurementConsumerId)
-          tokenParentKey.hasExternalDataProviderId() ->
-            parentKey is DataProviderKey &&
-              tokenParentKey.externalDataProviderId == apiIdToExternalId(parentKey.dataProviderId)
-          else -> false
-        }
+        val isValidToken =
+          when {
+            tokenParentKey.hasExternalMeasurementConsumerId() ->
+              parentKey is MeasurementConsumerKey &&
+                tokenParentKey.externalMeasurementConsumerId ==
+                  apiIdToExternalId(parentKey.measurementConsumerId)
+            tokenParentKey.hasExternalDataProviderId() ->
+              parentKey is DataProviderKey &&
+                tokenParentKey.externalDataProviderId == apiIdToExternalId(parentKey.dataProviderId)
+            else -> false
+          }
 
         grpcRequire(
-          isValidToken && pageToken.clientAccountReferenceId == request.filter.clientAccountReferenceId
+          isValidToken &&
+            pageToken.clientAccountReferenceId == request.filter.clientAccountReferenceId
         ) {
           "Arguments other than page_size must remain the same for subsequent page requests"
         }

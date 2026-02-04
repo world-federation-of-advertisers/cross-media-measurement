@@ -142,11 +142,15 @@ class SpannerClientAccountsService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
       if (subRequest.clientAccount.externalDataProviderId == 0L) {
-        throw RequiredFieldNotSetException("requests.$index.client_account.external_data_provider_id")
+        throw RequiredFieldNotSetException(
+            "requests.$index.client_account.external_data_provider_id"
+          )
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
       if (subRequest.clientAccount.clientAccountReferenceId.isEmpty()) {
-        throw RequiredFieldNotSetException("requests.$index.client_account.client_account_reference_id")
+        throw RequiredFieldNotSetException(
+            "requests.$index.client_account.client_account_reference_id"
+          )
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
