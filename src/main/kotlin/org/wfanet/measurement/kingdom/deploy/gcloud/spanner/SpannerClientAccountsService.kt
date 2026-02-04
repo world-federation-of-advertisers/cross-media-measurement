@@ -120,46 +120,6 @@ class SpannerClientAccountsService(
     }
   }
 
-  override suspend fun batchCreateClientAccounts(
-    request: BatchCreateClientAccountsRequest
-  ): BatchCreateClientAccountsResponse {
-    if (request.externalMeasurementConsumerId == 0L) {
-      throw RequiredFieldNotSetException("external_measurement_consumer_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
-    for ((index, subRequest) in request.requestsList.withIndex()) {
-      if (!subRequest.hasClientAccount()) {
-        throw RequiredFieldNotSetException("requests.$index.client_account")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-      val clientExternalMcId = subRequest.clientAccount.externalMeasurementConsumerId
-      if (clientExternalMcId != 0L && clientExternalMcId != request.externalMeasurementConsumerId) {
-        throw InvalidFieldValueException("requests.$index.client_account.external_measurement_consumer_id") {
-            fieldPath ->
-            "Value of $fieldPath differs from that of the parent request"
-          }
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-      if (subRequest.clientAccount.externalDataProviderId == 0L) {
-        throw RequiredFieldNotSetException(
-            "requests.$index.client_account.external_data_provider_id"
-          )
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-      if (subRequest.clientAccount.clientAccountReferenceId.isEmpty()) {
-        throw RequiredFieldNotSetException(
-            "requests.$index.client_account.client_account_reference_id"
-          )
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-    }
-
-    return handleCreateExceptions {
-      BatchCreateClientAccounts(request).execute(client, idGenerator)
-    }
-  }
-
   override suspend fun getClientAccount(request: GetClientAccountRequest): ClientAccount {
     if (request.externalClientAccountId == 0L) {
       throw RequiredFieldNotSetException("external_client_account_id")
@@ -250,32 +210,6 @@ class SpannerClientAccountsService(
     return handleDeleteExceptions {
       BatchDeleteClientAccounts(request).execute(client, idGenerator)
     }
-  }
-
-  override suspend fun batchDeleteClientAccounts(
-    request: BatchDeleteClientAccountsRequest
-  ): BatchDeleteClientAccountsResponse {
-    if (request.externalMeasurementConsumerId == 0L) {
-      throw RequiredFieldNotSetException("external_measurement_consumer_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
-    for ((index, subRequest) in request.requestsList.withIndex()) {
-      val clientExternalMcId = subRequest.externalMeasurementConsumerId
-      if (clientExternalMcId != 0L && clientExternalMcId != request.externalMeasurementConsumerId) {
-        throw InvalidFieldValueException("requests.$index.external_measurement_consumer_id") {
-            fieldPath ->
-            "Value of $fieldPath differs from that of the parent request"
-          }
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-      if (subRequest.externalClientAccountId == 0L) {
-        throw RequiredFieldNotSetException("requests.$index.external_client_account_id")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-    }
-
-    return handleDeleteExceptions { BatchDeleteClientAccounts(request).execute(client, idGenerator) }
   }
 
   override suspend fun listClientAccounts(
