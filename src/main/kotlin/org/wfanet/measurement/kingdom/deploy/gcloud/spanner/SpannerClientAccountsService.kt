@@ -20,7 +20,6 @@ import io.grpc.Status
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.toList
-import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -42,7 +41,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccount
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountNotFoundByDataProviderException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamClientAccounts
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ClientAccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchCreateClientAccounts
@@ -56,71 +57,68 @@ class SpannerClientAccountsService(
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : ClientAccountsCoroutineImplBase(coroutineContext) {
   override suspend fun createClientAccount(request: CreateClientAccountRequest): ClientAccount {
-    grpcRequire(request.hasClientAccount()) { "client_account not specified" }
-    grpcRequire(request.clientAccount.externalMeasurementConsumerId != 0L) {
-      "external_measurement_consumer_id not specified"
+    if (!request.hasClientAccount()) {
+      throw RequiredFieldNotSetException("client_account")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    grpcRequire(request.clientAccount.externalDataProviderId != 0L) {
-      "external_data_provider_id not specified"
+    if (request.clientAccount.externalMeasurementConsumerId == 0L) {
+      throw RequiredFieldNotSetException("client_account.external_measurement_consumer_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    grpcRequire(request.clientAccount.clientAccountReferenceId.isNotEmpty()) {
-      "client_account_reference_id not specified"
+    if (request.clientAccount.externalDataProviderId == 0L) {
+      throw RequiredFieldNotSetException("client_account.external_data_provider_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.clientAccount.clientAccountReferenceId.isEmpty()) {
+      throw RequiredFieldNotSetException("client_account.client_account_reference_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    try {
-      return CreateClientAccount(request.clientAccount).execute(client, idGenerator)
-    } catch (e: MeasurementConsumerNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
-    } catch (e: DataProviderNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
-    } catch (e: ClientAccountAlreadyExistsException) {
-      throw e.asStatusRuntimeException(
-        Status.Code.ALREADY_EXISTS,
-        "ClientAccount with this reference ID already exists for DataProvider.",
-      )
+    return handleCreateExceptions {
+      CreateClientAccount(request.clientAccount).execute(client, idGenerator)
     }
   }
 
   override suspend fun batchCreateClientAccounts(
     request: BatchCreateClientAccountsRequest
   ): BatchCreateClientAccountsResponse {
-    grpcRequire(request.externalMeasurementConsumerId != 0L) {
-      "external_measurement_consumer_id not specified"
+    if (request.externalMeasurementConsumerId == 0L) {
+      throw RequiredFieldNotSetException("external_measurement_consumer_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     for ((index, subRequest) in request.requestsList.withIndex()) {
-      grpcRequire(subRequest.hasClientAccount()) { "requests[$index].client_account not specified" }
+      if (!subRequest.hasClientAccount()) {
+        throw RequiredFieldNotSetException("requests.$index.client_account")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
       val clientExternalMcId = subRequest.clientAccount.externalMeasurementConsumerId
-      grpcRequire(
-        clientExternalMcId == 0L || clientExternalMcId == request.externalMeasurementConsumerId
-      ) {
-        "requests[$index].client_account.external_measurement_consumer_id differs from parent"
+      if (clientExternalMcId != 0L && clientExternalMcId != request.externalMeasurementConsumerId) {
+        throw InvalidFieldValueException("requests.$index.client_account.external_measurement_consumer_id") {
+            fieldPath ->
+            "Value of $fieldPath differs from that of the parent request"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
-      grpcRequire(subRequest.clientAccount.externalDataProviderId != 0L) {
-        "requests[$index].client_account.external_data_provider_id not specified"
+      if (subRequest.clientAccount.externalDataProviderId == 0L) {
+        throw RequiredFieldNotSetException("requests.$index.client_account.external_data_provider_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
-      grpcRequire(subRequest.clientAccount.clientAccountReferenceId.isNotEmpty()) {
-        "requests[$index].client_account.client_account_reference_id not specified"
+      if (subRequest.clientAccount.clientAccountReferenceId.isEmpty()) {
+        throw RequiredFieldNotSetException("requests.$index.client_account.client_account_reference_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
 
-    try {
-      return BatchCreateClientAccounts(request).execute(client, idGenerator)
-    } catch (e: MeasurementConsumerNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
-    } catch (e: DataProviderNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
-    } catch (e: ClientAccountAlreadyExistsException) {
-      throw e.asStatusRuntimeException(
-        Status.Code.ALREADY_EXISTS,
-        "ClientAccount with this reference ID already exists for DataProvider.",
-      )
+    return handleCreateExceptions {
+      BatchCreateClientAccounts(request).execute(client, idGenerator)
     }
   }
 
   override suspend fun getClientAccount(request: GetClientAccountRequest): ClientAccount {
-    grpcRequire(request.externalClientAccountId != 0L) {
-      "external_client_account_id not specified"
+    if (request.externalClientAccountId == 0L) {
+      throw RequiredFieldNotSetException("external_client_account_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     val externalClientAccountId = ExternalId(request.externalClientAccountId)
     val reader = ClientAccountReader()
@@ -138,7 +136,7 @@ class SpannerClientAccountsService(
               externalMeasurementConsumerId,
               externalClientAccountId,
             )
-            .asStatusRuntimeException(Status.Code.NOT_FOUND, "ClientAccount not found.")
+            .asStatusRuntimeException(Status.Code.NOT_FOUND)
       }
       GetClientAccountRequest.ExternalParentIdCase.EXTERNAL_DATA_PROVIDER_ID -> {
         val externalDataProviderId = ExternalId(request.externalDataProviderId)
@@ -151,7 +149,7 @@ class SpannerClientAccountsService(
               externalDataProviderId,
               externalClientAccountId,
             )
-            .asStatusRuntimeException(Status.Code.NOT_FOUND, "ClientAccount not found.")
+            .asStatusRuntimeException(Status.Code.NOT_FOUND)
       }
       GetClientAccountRequest.ExternalParentIdCase.EXTERNALPARENTID_NOT_SET ->
         throw Status.INVALID_ARGUMENT.withDescription("external_parent_id not specified")
@@ -160,61 +158,60 @@ class SpannerClientAccountsService(
   }
 
   override suspend fun deleteClientAccount(request: DeleteClientAccountRequest): ClientAccount {
-    grpcRequire(request.externalMeasurementConsumerId != 0L) {
-      "external_measurement_consumer_id not specified"
+    if (request.externalMeasurementConsumerId == 0L) {
+      throw RequiredFieldNotSetException("external_measurement_consumer_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    grpcRequire(request.externalClientAccountId != 0L) {
-      "external_client_account_id not specified"
+    if (request.externalClientAccountId == 0L) {
+      throw RequiredFieldNotSetException("external_client_account_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     val externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
     val externalClientAccountId = ExternalId(request.externalClientAccountId)
 
-    try {
-      return DeleteClientAccountByMeasurementConsumer(
+    return handleDeleteExceptions {
+      DeleteClientAccountByMeasurementConsumer(
           externalMeasurementConsumerId,
           externalClientAccountId,
         )
         .execute(client, idGenerator)
-    } catch (e: MeasurementConsumerNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
-    } catch (e: ClientAccountNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ClientAccount not found.")
     }
   }
 
   override suspend fun batchDeleteClientAccounts(
     request: BatchDeleteClientAccountsRequest
   ): BatchDeleteClientAccountsResponse {
-    grpcRequire(request.externalMeasurementConsumerId != 0L) {
-      "external_measurement_consumer_id not specified"
+    if (request.externalMeasurementConsumerId == 0L) {
+      throw RequiredFieldNotSetException("external_measurement_consumer_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     for ((index, subRequest) in request.requestsList.withIndex()) {
       val clientExternalMcId = subRequest.externalMeasurementConsumerId
-      grpcRequire(
-        clientExternalMcId == 0L || clientExternalMcId == request.externalMeasurementConsumerId
-      ) {
-        "requests[$index].external_measurement_consumer_id differs from parent"
+      if (clientExternalMcId != 0L && clientExternalMcId != request.externalMeasurementConsumerId) {
+        throw InvalidFieldValueException("requests.$index.external_measurement_consumer_id") {
+            fieldPath ->
+            "Value of $fieldPath differs from that of the parent request"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
-      grpcRequire(subRequest.externalClientAccountId != 0L) {
-        "requests[$index].external_client_account_id not specified"
+      if (subRequest.externalClientAccountId == 0L) {
+        throw RequiredFieldNotSetException("requests.$index.external_client_account_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
 
-    try {
-      return BatchDeleteClientAccounts(request).execute(client, idGenerator)
-    } catch (e: MeasurementConsumerNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
-    } catch (e: ClientAccountNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ClientAccount not found.")
-    }
+    return handleDeleteExceptions { BatchDeleteClientAccounts(request).execute(client, idGenerator) }
   }
 
   override suspend fun listClientAccounts(
     request: ListClientAccountsRequest
   ): ListClientAccountsResponse {
-    grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
+    if (request.pageSize < 0) {
+      throw InvalidFieldValueException("page_size") { "Page size cannot be less than 0" }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val pageSize =
       if (request.pageSize == 0) {
         DEFAULT_PAGE_SIZE
@@ -232,21 +229,44 @@ class SpannerClientAccountsService(
     }
 
     return listClientAccountsResponse {
-      for ((index, result) in clientAccountList.withIndex()) {
-        if (index == pageSize) {
-          val lastAccount = clientAccounts.last()
-          nextPageToken = listClientAccountsPageToken {
-            this.after =
-              ListClientAccountsPageTokenKt.after {
-                externalMeasurementConsumerId = lastAccount.externalMeasurementConsumerId
-                externalClientAccountId = lastAccount.externalClientAccountId
-                createTime = lastAccount.createTime
-              }
-          }
-        } else {
-          clientAccounts += result.clientAccount
+      clientAccounts.addAll(clientAccountList.take(pageSize).map { it.clientAccount })
+
+      if (clientAccountList.size > pageSize) {
+        val lastAccount = clientAccounts.last()
+        nextPageToken = listClientAccountsPageToken {
+          this.after =
+            ListClientAccountsPageTokenKt.after {
+              externalMeasurementConsumerId = lastAccount.externalMeasurementConsumerId
+              externalClientAccountId = lastAccount.externalClientAccountId
+              createTime = lastAccount.createTime
+            }
         }
       }
+    }
+  }
+
+  private suspend fun <T> handleCreateExceptions(block: suspend () -> T): T {
+    try {
+      return block()
+    } catch (e: MeasurementConsumerNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: DataProviderNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: ClientAccountAlreadyExistsException) {
+      throw e.asStatusRuntimeException(
+        Status.Code.ALREADY_EXISTS,
+        "ClientAccount with this reference ID already exists for DataProvider.",
+      )
+    }
+  }
+
+  private suspend fun <T> handleDeleteExceptions(block: suspend () -> T): T {
+    try {
+      return block()
+    } catch (e: MeasurementConsumerNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: ClientAccountNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
   }
 

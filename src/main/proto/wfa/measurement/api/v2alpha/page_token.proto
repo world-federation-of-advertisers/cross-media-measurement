@@ -253,12 +253,6 @@ message ListClientAccountsPageToken {
     }
   }
   ParentKey parent_key = 1;
-  string client_account_reference_id = 2;
-
-  message PreviousPageEnd {
-    ParentKey parent_key = 1;
-    fixed64 external_client_account_id = 2;
-    google.protobuf.Timestamp create_time = 3;
-  }
-  PreviousPageEnd last_client_account = 3;
+  bytes internal_page_token = 2;
+  string client_account_reference_id = 3;
 }
