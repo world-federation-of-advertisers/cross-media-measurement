@@ -2,26 +2,15 @@
 
 ## 1. System Overview
 
-The **Secure Computation** subsystem provides a distributed work orchestration framework for privacy-preserving computations executed within Trusted Execution Environments (TEEs). It serves as the control plane for managing asynchronous workloads in the WFA Measurement System, particularly for the EDP (Event Data Provider) Aggregator components.
+The **Secure Computation** subsystem provides a control plane for managing work items and their execution attempts. It includes gRPC services for work item lifecycle management, storage event observation via DataWatcher, and infrastructure for building TEE (Trusted Execution Environment) applications.
 
 ### Purpose
 
 The subsystem enables:
-- **Asynchronous Task Distribution**: Queue-based work item distribution across distributed TEE workers
-- **Lifecycle Management**: Complete tracking of work items from creation through completion or failure
-- **Retry Mechanisms**: Automatic retry handling through work item attempts with state tracking
-- **Event-Driven Processing**: Storage event observation and automatic workflow triggering
-- **Privacy-First Computation**: Integration with TEE environments for secure data processing
-
-### Role in the Broader System
-
-Within the WFA Measurement System ecosystem:
-- **Kingdom**: Central controller for measurement campaigns and report configuration
-- **Duchies**: Distributed secure multiparty computation nodes for encrypted data processing
-- **EDP Aggregator**: Event data aggregation system using the Secure Computation control plane
-- **Secure Computation**: Provides the control plane infrastructure for orchestrating TEE-based workloads in the EDP Aggregator
-
-The Secure Computation subsystem abstracts the complexity of distributed task management, allowing higher-level systems (like EDP Aggregator) to focus on business logic rather than infrastructure concerns.
+- **Work Item Management**: Creation, retrieval, listing, and failure handling of work items
+- **Attempt Tracking**: Management of execution attempts for work items with state transitions
+- **Event-Driven Processing**: Storage event observation via DataWatcher with path pattern matching
+- **TEE Application Framework**: Base infrastructure for building applications that process work items from queues
 
 ## 2. Architecture Diagram
 
@@ -29,250 +18,331 @@ The Secure Computation subsystem abstracts the complexity of distributed task ma
 graph TB
     subgraph "External Systems"
         GCS[Google Cloud Storage]
-        Kingdom[Kingdom API]
         PubSub[Google Pub/Sub]
     end
 
     subgraph "Secure Computation Control Plane"
         direction TB
 
-        subgraph "Public API Layer"
-            PublicAPI[PublicApiServer<br/>gRPC Service]
+        subgraph "API Layer"
+            PublicAPI[PublicApiServer]
+            InternalAPI[InternalApiServer]
         end
 
-        subgraph "Internal API Layer"
-            InternalAPI[InternalApiServer<br/>gRPC Service]
+        subgraph "Services"
             WorkItemsSvc[WorkItemsService]
             WorkItemAttemptsSvc[WorkItemAttemptsService]
         end
 
         subgraph "Data Layer"
-            Spanner[(Cloud Spanner<br/>WorkItems &<br/>WorkItemAttempts)]
-            Publisher[GoogleWorkItemPublisher<br/>Pub/Sub Client]
+            Spanner[(Cloud Spanner)]
+            Publisher[GoogleWorkItemPublisher]
         end
 
         subgraph "Event Processing"
-            DataWatcher[DataWatcher<br/>Cloud Function]
-            QueueMapping[QueueMapping<br/>Queue Router]
+            DataWatcherFn[DataWatcherFunction]
+            DataWatcher[DataWatcher]
+            DLQListener[DeadLetterQueueListener]
         end
     end
 
-    subgraph "TEE Worker Layer"
-        direction LR
-        Subscriber[QueueSubscriber]
-        BaseTeeApp[BaseTeeApplication<br/>Abstract Worker]
-        Worker1[ResultsFulfiller<br/>TEE App]
-        Worker2[Custom TEE App]
-    end
-
-    subgraph "Configuration"
-        QueueConfig[QueuesConfig]
-        WatcherConfig[DataWatcherConfig]
+    subgraph "TEE Application"
+        BaseTeeApp[BaseTeeApplication]
     end
 
     %% External to Control Plane
-    GCS -->|CloudEvent| DataWatcher
+    GCS -->|CloudEvent| DataWatcherFn
+    DataWatcherFn --> DataWatcher
 
     %% Within Control Plane
-    PublicAPI -->|mTLS| InternalAPI
+    PublicAPI --> InternalAPI
     InternalAPI --> WorkItemsSvc
     InternalAPI --> WorkItemAttemptsSvc
     WorkItemsSvc --> Spanner
     WorkItemsSvc --> Publisher
     WorkItemAttemptsSvc --> Spanner
-    DataWatcher -->|gRPC| WorkItemsSvc
-    DataWatcher --> QueueMapping
+    DataWatcher --> WorkItemsSvc
     Publisher -->|Publish| PubSub
+    DLQListener --> WorkItemsSvc
 
     %% TEE Layer
-    PubSub -->|Subscribe| Subscriber
-    Subscriber --> BaseTeeApp
-    BaseTeeApp --> Worker1
-    BaseTeeApp --> Worker2
-    Worker1 -->|gRPC| PublicAPI
-    Worker2 -->|gRPC| PublicAPI
-    Worker1 -->|Fulfill| Kingdom
-
-    %% Configuration
-    QueueConfig -.->|Configure| QueueMapping
-    QueueConfig -.->|Configure| Publisher
-    WatcherConfig -.->|Configure| DataWatcher
+    PubSub --> BaseTeeApp
+    BaseTeeApp --> PublicAPI
 
     classDef external fill:#e1f5ff,stroke:#0078d4,stroke-width:2px
     classDef api fill:#fff4e6,stroke:#ff8c00,stroke-width:2px
     classDef data fill:#e8f5e9,stroke:#4caf50,stroke-width:2px
     classDef worker fill:#fce4ec,stroke:#e91e63,stroke-width:2px
-    classDef config fill:#f3e5f5,stroke:#9c27b0,stroke-width:2px
 
-    class GCS,Kingdom,PubSub external
-    class PublicAPI,InternalAPI,WorkItemsSvc,WorkItemAttemptsSvc,DataWatcher api
+    class GCS,PubSub external
+    class PublicAPI,InternalAPI,WorkItemsSvc,WorkItemAttemptsSvc,DataWatcherFn,DataWatcher,DLQListener api
     class Spanner,Publisher data
-    class Subscriber,BaseTeeApp,Worker1,Worker2 worker
-    class QueueConfig,WatcherConfig config
+    class BaseTeeApp worker
 ```
 
 ## 3. Key Components
 
 ### 3.1 Control Plane Services (`controlplane.v1alpha`)
 
-**Purpose**: Public gRPC API for external clients to manage work items and attempts.
+**Purpose**: Public gRPC API for managing work items and attempts.
 
 **Components**:
-- `WorkItemsService`: CRUD operations for work items
-  - `createWorkItem()`: Create new work item in a queue
-  - `getWorkItem()`: Retrieve work item by resource name
-  - `listWorkItems()`: Paginated listing of work items
-  - `failWorkItem()`: Mark work item as failed
+- `WorkItemsService`: gRPC service managing work item lifecycle
+  - `createWorkItem(request: CreateWorkItemRequest)`: Creates a new work item in a queue
+  - `getWorkItem(request: GetWorkItemRequest)`: Retrieves a work item by resource name
+  - `listWorkItems(request: ListWorkItemsRequest)`: Lists work items with pagination support
+  - `failWorkItem(request: FailWorkItemRequest)`: Marks a work item as failed
 
-- `WorkItemAttemptsService`: Manage execution attempts
-  - `createWorkItemAttempt()`: Start new execution attempt
-  - `getWorkItemAttempt()`: Retrieve attempt details
-  - `completeWorkItemAttempt()`: Mark attempt as successful
-  - `failWorkItemAttempt()`: Mark attempt as failed with error details
-  - `listWorkItemAttempts()`: List attempts for a work item
+- `WorkItemAttemptsService`: gRPC service managing execution attempts
+  - `createWorkItemAttempt(request: CreateWorkItemAttemptRequest)`: Creates a new execution attempt for a work item
+  - `getWorkItemAttempt(request: GetWorkItemAttemptRequest)`: Retrieves an attempt by resource name
+  - `completeWorkItemAttempt(request: CompleteWorkItemAttemptRequest)`: Marks an attempt as successfully completed
+  - `failWorkItemAttempt(request: FailWorkItemAttemptRequest)`: Marks an attempt as failed with error message
+  - `listWorkItemAttempts(request: ListWorkItemAttemptsRequest)`: Lists attempts with pagination support
 
-**Key Features**:
-- Resource name-based addressing (`workItems/{id}/workItemAttempts/{attempt-id}`)
-- Pagination support (default 50, max 100 items)
-- State transition validation
-- Error translation from internal to public API exceptions
+- `Services`: Service container and factory for instantiating public API service implementations
+  - `toList()`: Converts service container to bindable list
+  - `build(internalApiChannel, coroutineContext)`: Creates service instances from internal channel
+
+**Pagination**:
+- Default page size: 50 items
+- Maximum page size: 100 items
+- Page tokens use base64-URL-encoded internal protobuf tokens
 
 ### 3.2 Service Layer (`service`)
 
-**Purpose**: Core business logic and error handling infrastructure.
+**Purpose**: Core service abstractions, resource keys, and error handling.
 
 **Components**:
-- `WorkItemKey` / `WorkItemAttemptKey`: Resource name parsing and validation
-- `ServiceException` hierarchy: Domain-specific exceptions with gRPC status mapping
-  - `WorkItemNotFoundException`
-  - `WorkItemAlreadyExistsException`
-  - `WorkItemInvalidStateException`
-  - `RequiredFieldNotSetException`
-  - `InvalidFieldValueException`
+- `WorkItemKey`: Resource key for work item entities with name parsing
+  - `toName()`: Converts key to resource name
+  - `fromName(resourceName)`: Parses resource name to key
+
+- `WorkItemAttemptKey`: Child resource key for work item attempts
+  - `toName()`: Converts key to resource name
+  - `fromName(resourceName)`: Parses resource name to key
+  - Properties: `workItemId`, `workItemAttemptId`, `parentKey`
 
 **Error Domain**: `internal.control-plane.secure-computation.halo-cmm.org`
 
+**Exception Types**:
+| Exception | gRPC Status Code | Description |
+|-----------|------------------|-------------|
+| RequiredFieldNotSetException | INVALID_ARGUMENT | Required field not populated in request |
+| InvalidFieldValueException | INVALID_ARGUMENT | Invalid field value |
+| WorkItemNotFoundException | NOT_FOUND | Work item does not exist |
+| WorkItemAttemptNotFoundException | NOT_FOUND | Work item attempt does not exist |
+| WorkItemAlreadyExistsException | ALREADY_EXISTS | Duplicate work item creation |
+| WorkItemAttemptAlreadyExistsException | ALREADY_EXISTS | Duplicate attempt creation |
+| WorkItemInvalidStateException | FAILED_PRECONDITION | Work item state prevents operation |
+| WorkItemAttemptInvalidStateException | FAILED_PRECONDITION | Attempt state prevents operation |
+| QueueNotFoundException | NOT_FOUND | Queue does not exist |
+| QueueNotFoundForWorkItem | NOT_FOUND | No queue mapping for work item |
+
 **Internal Package**:
-- `WorkItemPublisher`: Interface for publishing messages to queues
-- `QueueMapping`: Maps queue resource IDs to numeric fingerprints using FarmHash
-- `Services`: Container for internal API gRPC service implementations
+- `WorkItemPublisher`: Interface for publishing work item messages to queues
+  - `publishMessage(queueName: String, message: Message)`: Publishes protobuf message to specified queue
+
+- `QueueMapping`: Maps queue resource IDs to numeric queue IDs using FarmHash fingerprinting
+  - `getQueueById(queueId: Long)`: Retrieves queue by numeric fingerprint ID
+  - `getQueueByResourceId(queueResourceId: String)`: Retrieves queue by string resource identifier
+  - Properties: `queues: List<Queue>`
+
+- `Queue`: Represents a work queue
+  - Properties: `queueId: Long`, `queueResourceId: String`
+
+- `Services`: Container for control plane internal API gRPC services
+  - Properties: `workItems: WorkItemsCoroutineImplBase`, `workItemAttempts: WorkItemAttemptsCoroutineImplBase`
+  - `toList()`: Converts services to bindable list
 
 ### 3.3 Data Watcher (`datawatcher`)
 
-**Purpose**: Observe blob storage events and trigger workflows.
+**Purpose**: Observe blob storage events and route them to configured sinks.
 
 **Components**:
-- `DataWatcher`: Core path processing and routing logic
-  - Evaluates blob paths against regex patterns
-  - Routes to Control Plane queues or HTTP endpoints
-  - OpenTelemetry instrumentation
+- `DataWatcher`: Observes blob creation events and routes them based on path regex matching
+  - `receivePath(path: String)`: Evaluates path against all configs and processes matches
+  - `sendToControlPlane(config, path)`: Creates work item and submits to control plane queue
+  - `sendToHttpEndpoint(config, path)`: Sends authenticated HTTP POST to configured endpoint
 
-- `DataWatcherFunction`: Google Cloud Function implementation
-  - Processes CloudEvents from GCS bucket notifications
-  - Validates blob paths (allows empty blobs ending with "done")
-  - W3C trace context propagation
-
-**Supported Sinks**:
-1. **Control Plane Queue Sink**: Creates work items in specified queue
-2. **HTTP Endpoint Sink**: Sends authenticated POST with Google Cloud ID token
+- `DataWatcherMetrics`: Collects OpenTelemetry metrics
+  - `recordProcessingDuration(config, durationSeconds)`: Records histogram of processing time
+  - `recordQueueWrite(config, queueName)`: Increments counter for work items submitted
 
 **Metrics**:
-- `edpa.data_watcher.processing_duration`: Processing time histogram
-- `edpa.data_watcher.queue_writes`: Work items submitted counter
+| Metric Name | Type | Unit | Description |
+|-------------|------|------|-------------|
+| edpa.data_watcher.processing_duration | DoubleHistogram | s | Time from regex match to successful sink submission |
+| edpa.data_watcher.queue_writes | LongCounter | - | Number of work items submitted to control plane queue |
+
+**Trace Events**:
+| Event Name | Description |
+|------------|-------------|
+| edpa.data_watcher.processing_completed | Successful path processing |
+| edpa.data_watcher.processing_failed | Failed path processing |
+| edpa.data_watcher.queue_write | Work item submitted to queue |
+| edpa.data_watcher.http_dispatch_completed | HTTP endpoint notification sent |
+
+**HTTP Endpoint Integration**:
+- Authentication: Google Cloud ID token (Bearer token)
+- Header: `X-DataWatcher-Path` contains the blob path
+- Body: JSON-serialized application parameters from configuration
+- Expected Response: HTTP 200
 
 ### 3.4 TEE SDK (`teesdk`)
 
 **Purpose**: Framework for building TEE applications that process work items.
 
 **Components**:
-- `BaseTeeApplication`: Abstract base class for TEE workers
-  - Automatic queue subscription and message handling
-  - Work item attempt lifecycle management
-  - Error classification (retriable vs. non-retriable)
-  - Graceful shutdown and cleanup
+- `BaseTeeApplication`: Abstract base class for TEE applications
+  - `run()`: Starts the application and listens for messages
+  - `runWork(message: Any)`: Abstract method to implement work processing logic
+  - `close()`: Closes the application and queue subscriber
 
-**Lifecycle**:
-1. Subscribe to Pub/Sub queue
-2. Receive work item message
-3. Create work item attempt (UUID-based)
-4. Parse and validate work item parameters
-5. Execute `runWork()` (abstract method)
-6. Complete or fail attempt based on outcome
-7. Acknowledge/Nack message for retry control
+- `ControlPlaneApiException`: Custom exception wrapping failures in control plane API interactions
 
-**Error Handling**:
-- Non-retriable errors (invalid state, not found): Acknowledge message
-- Protocol buffer parsing errors: Fail work item, acknowledge
-- Work processing errors: Fail attempt, nack for retry
-- Idempotency: Completing already-succeeded attempt treated as success
+**Constructor Parameters**:
+- `subscriptionId: String` - Name of the subscription to monitor
+- `queueSubscriber: QueueSubscriber` - Client for queue interactions
+- `parser: Parser<WorkItem>` - Protobuf parser for work items
+- `workItemsStub: WorkItemsCoroutineStub` - gRPC stub for work item operations
+- `workItemAttemptsStub: WorkItemAttemptsCoroutineStub` - gRPC stub for work item attempt operations
+
+**Key Behavior**:
+- Automatically creates work item attempts with unique UUIDs
+- Handles message acknowledgment/negative-acknowledgment based on processing outcomes
+- Gracefully handles non-retriable errors (invalid state, not found) by acknowledging messages
+- Manages work item attempt lifecycle (create, complete, fail)
+
+**Error Handling Strategy**:
+1. Non-retriable Control Plane Errors: When work item creation fails due to `INVALID_WORK_ITEM_STATE` or `WORK_ITEM_NOT_FOUND`, messages are acknowledged
+2. Protocol Buffer Parsing Errors: Invalid messages trigger work item failure and message acknowledgment
+3. Work Processing Errors: Exceptions during `runWork` execution cause work item attempt failure and message negative-acknowledgment for retry
+4. Idempotency Protection: Completing an already-succeeded work item attempt is treated as success
 
 ### 3.5 Deployment Layer (`deploy`)
 
 #### Common (`deploy.common.server`)
-- `PublicApiServer`: Gateway server with mutual TLS
-  - Forwards validated requests to internal API
-  - Command-line configuration
-  - Certificate-based authentication
 
-#### Google Cloud (`deploy.gcloud`)
+- `PublicApiServer`: Command-line application that runs the Secure Computation public API server
+  - Acts as a gateway to the internal API with mutual TLS authentication
+  - `run()`: Initializes TLS certificates, builds internal API channel, creates gRPC services, and starts the server
+  - `main(args)`: Entry point that parses command-line arguments
 
-**Spanner Database** (`deploy.gcloud.spanner.db`):
-- `WorkItems.kt`: Extension functions for WorkItem CRUD
-  - State transitions: QUEUED → RUNNING → SUCCEEDED/FAILED
-  - Commit timestamp tracking
+**Command-Line Options**:
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `--secure-computation-internal-api-target` | String | Yes | gRPC target of the internal API server |
+| `--secure-computation-internal-api-cert-host` | String | No | Expected hostname in internal API TLS certificate |
+| `--debug-verbose-grpc-client-logging` | Boolean | No | Enables full gRPC request/response logging |
+| `--channel-shutdown-timeout` | Duration | No | Grace period for gRPC channel shutdown (default: 3s) |
 
-- `WorkItemAttempts.kt`: Extension functions for WorkItemAttempt CRUD
-  - State transitions: ACTIVE → SUCCEEDED/FAILED
-  - Parent-child relationship with WorkItems
+#### Google Cloud Spanner (`deploy.gcloud.spanner`)
 
-**Schema**:
-```
-WorkItems
-  ├─ WorkItemId (PK)
-  ├─ WorkItemResourceId
-  ├─ QueueId
-  ├─ State
-  ├─ WorkItemParams (Any)
-  ├─ CreateTime (commit timestamp)
-  └─ UpdateTime (commit timestamp)
+**SpannerWorkItemsService**: gRPC service implementation with Spanner persistence
+- `createWorkItem`: Creates new work item in queue with validation
+- `getWorkItem`: Retrieves work item by resource identifier
+- `listWorkItems`: Lists work items with pagination support
+- `failWorkItem`: Marks work item and all attempts as failed
 
-WorkItemAttempts
-  ├─ (WorkItemId, WorkItemAttemptId) (PK)
-  ├─ WorkItemAttemptResourceId
-  ├─ State
-  ├─ ErrorMessage
-  ├─ CreateTime (commit timestamp)
-  └─ UpdateTime (commit timestamp)
-```
+**SpannerWorkItemAttemptsService**: gRPC service for execution attempts
+- `createWorkItemAttempt`: Creates new attempt, transitions parent to RUNNING
+- `getWorkItemAttempt`: Retrieves attempt by resource identifiers
+- `completeWorkItemAttempt`: Marks attempt SUCCEEDED, parent to SUCCEEDED
+- `failWorkItemAttempt`: Marks attempt as FAILED
+- `listWorkItemAttempts`: Lists attempts for work item with pagination
 
-**Publisher** (`deploy.gcloud.publisher`):
-- `GoogleWorkItemPublisher`: Pub/Sub message publishing
-  - Implements `WorkItemPublisher` interface
-  - Project-scoped topic management
+**InternalApiServer**: Command-line server application
+- Orchestrates gRPC services with optional dead letter queue monitoring
+- Command-line flags: `--queue-config`, `--google-project-id`, `--dead-letter-subscription-id`, `--channel-shutdown-timeout`
 
-**Data Watcher** (`deploy.gcloud.datawatcher`):
-- Cloud Function deployment with environment-based configuration
-- mTLS channel to Control Plane
-- Telemetry flush before function termination
+**InternalApiServices**: Factory for constructing configured service instances
+
+**Database Operations** (`db` subpackage):
+
+*WorkItems.kt*:
+- `workItemIdExists(workItemId)`: Checks if work item ID exists
+- `insertWorkItem(workItemId, workItemResourceId, queueId, workItemParams)`: Inserts new work item with QUEUED state
+- `getWorkItemByResourceId(queueMapping, workItemResourceId)`: Retrieves work item
+- `readWorkItems(queueMapping, limit, after)`: Streams paginated work items
+- `failWorkItem(workItemId)`: Updates work item to FAILED state
+
+*WorkItemAttempts.kt*:
+- `workItemAttemptExists(workItemId, workItemAttemptId)`: Checks if attempt exists
+- `insertWorkItemAttempt(workItemId, workItemAttemptId, workItemAttemptResourceId)`: Inserts attempt, updates parent to RUNNING
+- `getWorkItemAttemptByResourceId(workItemResourceId, workItemAttemptResourceId)`: Retrieves attempt
+- `completeWorkItemAttempt(workItemId, workItemAttemptId)`: Updates attempt and parent to SUCCEEDED
+- `failWorkItemAttempt(workItemId, workItemAttemptId)`: Updates attempt to FAILED
+- `readWorkItemAttempts(limit, workItemResourceId, after)`: Streams paginated attempts
+
+**Database Schema**:
+
+WorkItems table:
+- Primary Key: `WorkItemId`
+- Fields: `WorkItemResourceId`, `QueueId`, `State`, `WorkItemParams`, `CreateTime`, `UpdateTime`
+
+WorkItemAttempts table:
+- Primary Key: `(WorkItemId, WorkItemAttemptId)`
+- Fields: `WorkItemAttemptResourceId`, `State`, `ErrorMessage`, `CreateTime`, `UpdateTime`
+- Foreign Key relationship with WorkItems table
+
+Both tables use commit timestamps for `CreateTime` and `UpdateTime` fields.
+
+#### Publisher (`deploy.gcloud.publisher`)
+
+- `GoogleWorkItemPublisher`: Google Cloud Pub/Sub implementation of WorkItemPublisher
+  - `publishMessage(queueName, message)`: Publishes a protobuf message to the specified Pub/Sub queue
+  - Constructor: `projectId: String`, `googlePubSubClient: GooglePubSubClient`
+
+#### DataWatcher Function (`deploy.gcloud.datawatcher`)
+
+- `DataWatcherFunction`: Google Cloud Function that processes storage object events
+  - `accept(event: CloudEvent)`: Processes incoming CloudEvent from GCS bucket notifications
+  - Constructs GCS path in format `gs://bucket/blobKey`
+  - Validates blob size (allows empty blobs only if name ends with "done")
+  - Extracts W3C trace context for distributed tracing
+  - Flushes telemetry metrics before function termination
+
+**Environment Variables**:
+| Variable | Required | Description |
+|----------|----------|-------------|
+| CERT_FILE_PATH | Yes | Path to client certificate PEM file |
+| PRIVATE_KEY_FILE_PATH | Yes | Path to client private key PEM file |
+| CERT_COLLECTION_FILE_PATH | Yes | Path to trusted CA certificate collection |
+| CONTROL_PLANE_TARGET | Yes | gRPC target address for control plane service |
+| CONTROL_PLANE_CERT_HOST | Yes | Expected hostname in control plane certificate |
+
+#### Dead Letter Queue (`deploy.gcloud.deadletter`)
+
+- `DeadLetterQueueListener`: Monitors dead letter queue and marks failed work items
+  - `run()`: Starts the listener by subscribing to the dead letter queue
+  - `close()`: Closes the queue subscriber connection
+
+**Message Processing Flow**:
+1. Subscribes to configured dead letter queue subscription
+2. Receives messages from the queue
+3. Parses each message to extract the WorkItem
+4. Invokes `failWorkItem` on the WorkItems API
+5. Acknowledges message if successfully processed, or if work item not found, or if already in FAILED state
+6. Nacks message for retry on other errors
+
+#### Testing Utilities (`deploy.gcloud.spanner.testing`, `deploy.gcloud.testing`)
+
+- `Schemata`: Provides access to Spanner database schema resources
+  - `SECURECOMPUTATION_CHANGELOG_PATH`: Path to Liquibase changelog YAML file
+
+- `TestIdTokenProvider`: Test implementation of IdTokenProvider that returns a hardcoded JWT token
 
 ### 3.6 Queue Management
 
 **QueueMapping**:
-- Fingerprint-based ID generation (FarmHash 64-bit)
-- Resource ID validation (RFC 1034 compliance)
-- Collision detection
-- Bidirectional lookup (ID ↔ Resource ID)
+- Maps queue resource IDs to numeric queue IDs using FarmHash fingerprinting (64-bit)
+- Constructor: `config: QueuesConfig`
+- Properties: `queues: List<Queue>` (sorted by resource ID)
 
-**Configuration** (`QueuesConfig`):
-```protobuf
-message QueueInfo {
-  string queue_resource_id = 1;
-}
-
-message QueuesConfig {
-  repeated QueueInfo queue_infos = 1;
-}
-```
+**Queue**:
+- `queueId: Long` - FarmHash fingerprint of queue resource ID
+- `queueResourceId: String` - Human-readable queue identifier string
 
 ## 4. Data Flow
 
@@ -281,25 +351,24 @@ message QueuesConfig {
 ```mermaid
 sequenceDiagram
     participant GCS as Cloud Storage
-    participant DWF as DataWatcher Function
-    participant WIS as WorkItems Service
+    participant DWF as DataWatcherFunction
+    participant DW as DataWatcher
+    participant WIS as WorkItemsService
     participant DB as Cloud Spanner
     participant PS as Pub/Sub
-    participant TEE as TEE Application
+    participant TEE as BaseTeeApplication
 
     GCS->>DWF: CloudEvent (object.finalized)
-    DWF->>DWF: Parse blob path
-    DWF->>DWF: Match regex pattern
-    DWF->>WIS: CreateWorkItem(queue, params)
+    DWF->>DW: receivePath(gs://bucket/blob)
+    DW->>DW: Match regex pattern
+    DW->>WIS: CreateWorkItem(queue, params)
     WIS->>DB: INSERT WorkItem (QUEUED)
-    DB-->>WIS: WorkItem created
     WIS->>PS: Publish message to queue
-    WIS-->>DWF: WorkItem response
+    WIS-->>DW: WorkItem response
     PS->>TEE: Message delivered
     TEE->>WIS: CreateWorkItemAttempt
     WIS->>DB: INSERT WorkItemAttempt (ACTIVE)
     WIS->>DB: UPDATE WorkItem (RUNNING)
-    DB-->>WIS: Attempt created
     WIS-->>TEE: WorkItemAttempt response
     TEE->>TEE: Execute runWork()
     alt Success
@@ -318,345 +387,83 @@ sequenceDiagram
 
 **WorkItem States**:
 ```
-QUEUED → RUNNING → SUCCEEDED
-                 ↘ FAILED
+QUEUED -> RUNNING -> SUCCEEDED
+                  -> FAILED
 ```
+- **QUEUED**: Initial state when work item is created
+- **RUNNING**: Set when first WorkItemAttempt is created
+- **SUCCEEDED**: Set when any attempt completes successfully
+- **FAILED**: Set via explicit failWorkItem call or DLQ processing
 
 **WorkItemAttempt States**:
 ```
-ACTIVE → SUCCEEDED
-       ↘ FAILED
+ACTIVE -> SUCCEEDED
+       -> FAILED
 ```
-
-## 5. Integration Points
-
-### 5.1 Google Cloud Platform
-
-**Cloud Storage**:
-- CloudEvents via bucket notifications
-- Blob path pattern matching
-- Storage client abstraction for testing
-
-**Cloud Spanner**:
-- Primary data store for work items and attempts
-- Commit timestamp-based ordering
-- Transaction support for atomic state updates
-
-**Cloud Pub/Sub**:
-- Message queue infrastructure
-- At-least-once delivery guarantees
-- Subscription-based worker pools
-
-**Cloud Functions**:
-- Serverless event handlers
-- CloudEvents protocol
-- Environment variable configuration
-
-**Google Secrets Manager**:
-- Certificate storage
-- mTLS credential management
-- Service account authentication
-
-### 5.2 EDP Aggregator
-
-The Secure Computation subsystem serves as the foundational control plane for EDP Aggregator workflows:
-
-**DataWatcher Integration**:
-- Requisition detection triggers ResultsFulfiller workflow
-- Event group detection triggers synchronization
-- Impressions detection triggers data availability updates
-
-**TEE Applications**:
-- `ResultsFulfiller`: Processes requisitions in confidential VMs
-- Custom aggregation pipelines using `BaseTeeApplication`
-
-**Configuration**:
-- DataWatcherConfig defines path patterns and routing
-- QueuesConfig defines work distribution topology
-
-### 5.3 Kingdom System
-
-**Indirect Integration**:
-- TEE applications (e.g., ResultsFulfiller) interact with Kingdom APIs
-- Work item completion triggers Kingdom state updates
-- Requisition fulfillment workflow orchestrated through Secure Computation
-
-### 5.4 External HTTP Endpoints
-
-**HTTP Endpoint Sink**:
-- Google Cloud ID token authentication
-- `X-DataWatcher-Path` header with blob path
-- JSON-serialized application parameters in body
-- Expected HTTP 200 response
-
-## 6. Design Patterns
-
-### 6.1 Control Plane Pattern
-
-The subsystem implements a classic control plane architecture separating orchestration from execution:
-- **Control Plane**: Manages work item lifecycle, state persistence, queue routing
-- **Data Plane**: TEE workers execute actual computations independently
-
-### 6.2 Gateway Pattern
-
-**PublicApiServer** acts as a gateway:
-- External clients connect via mTLS
-- Requests validated and forwarded to internal API
-- Separation of concerns (authentication vs. business logic)
-
-### 6.3 State Machine Pattern
-
-Work items and attempts follow explicit state machines:
-- State transitions validated before database updates
-- Invalid state exceptions prevent illegal transitions
-- Idempotent operations for retry safety
-
-### 6.4 Extension Function Pattern
-
-Kotlin extension functions augment Spanner database contexts:
-- `TransactionContext.insertWorkItem()`
-- `ReadContext.readWorkItems()`
-- Clean separation of database operations from business logic
-
-### 6.5 Observer Pattern
-
-DataWatcher observes storage events:
-- Decoupled event source (GCS) from processors
-- Configuration-driven routing
-- Extensible sink types (queues, HTTP endpoints)
-
-### 6.6 Queue-Based Load Leveling
-
-Pub/Sub queues buffer work items:
-- Decouples producers (DataWatcher) from consumers (TEE apps)
-- Natural load distribution across worker pools
-- Retry mechanisms for transient failures
-
-### 6.7 Retry Pattern
-
-Multi-level retry strategy:
-- **Message-level**: Pub/Sub automatic retry on NACK
-- **Attempt-level**: WorkItemAttempts track individual retries
-- **Classification**: Distinguish retriable vs. non-retriable errors
-
-### 6.8 Resource Name Pattern
-
-API-style resource naming:
-- Hierarchical: `workItems/{id}/workItemAttempts/{attempt-id}`
-- Parseable keys for validation and extraction
-- RESTful semantics in gRPC API
-
-## 7. Technology Stack
-
-### 7.1 Core Technologies
-
-**Language**:
-- Kotlin (primary implementation language)
-- Protocol Buffers (data serialization)
-- SQL (Spanner schema definitions)
-
-**Frameworks**:
-- gRPC (service communication)
-- Coroutines (asynchronous programming)
-- Picocli (command-line parsing)
-
-**Build System**:
-- Bazel (build orchestration)
-- Gradle (dependency management)
-
-### 7.2 Google Cloud Services
-
-**Compute**:
-- Google Kubernetes Engine (GKE) - Service hosting
-- Confidential VMs (Managed Instance Groups) - TEE workers
-- Cloud Functions (2nd gen) - Event handlers
-
-**Storage**:
-- Cloud Spanner - Primary database
-- Cloud Storage - Blob storage
-
-**Messaging**:
-- Cloud Pub/Sub - Message queues
-
-**Security**:
-- Secrets Manager - Certificate storage
-- Identity-Aware Proxy (IAP) - Authentication
-- Mutual TLS - Service-to-service auth
-
-**Observability**:
-- OpenTelemetry - Metrics and tracing
-- Cloud Logging - Log aggregation
-
-### 7.3 Libraries and Dependencies
-
-**gRPC Ecosystem**:
-- `io.grpc:grpc-kotlin-stub` - Kotlin coroutine support
-- `io.grpc:grpc-netty` - HTTP/2 transport
-- `io.grpc:grpc-services` - Health checking, reflection
-
-**Google Cloud Client Libraries**:
-- `com.google.cloud:google-cloud-spanner` - Spanner database client
-- `com.google.cloud:google-cloud-pubsub` - Pub/Sub messaging
-- `com.google.cloud:google-cloud-storage` - Blob storage
-- `com.google.cloud.functions:functions-framework-api` - Cloud Functions
-
-**Protocol Buffers**:
-- `com.google.protobuf:protobuf-kotlin` - Protobuf runtime
-- `com.google.protobuf:protobuf-java-util` - Any type support
-
-**Authentication**:
-- `com.google.auth:google-auth-library-oauth2-http` - OAuth2 tokens
-
-**Observability**:
-- `io.opentelemetry:opentelemetry-api` - Metrics and tracing API
-- `io.opentelemetry:opentelemetry-sdk` - SDK implementation
-
-**Utilities**:
-- `com.google.common:guava` - Common utilities (FarmHash)
-- `kotlinx.coroutines:kotlinx-coroutines-core` - Coroutine primitives
-- `kotlinx.coroutines:kotlinx-coroutines-flow` - Reactive streams
-
-### 7.4 Development and Testing
-
-**Testing**:
-- JUnit 5 - Test framework
-- Mockito / MockK - Mocking
-- Truth - Assertions
-- Testcontainers - Integration testing
-
-**CI/CD**:
-- GitHub Actions - Continuous integration
-- Bazel Remote Execution - Build caching
-- Container Registry - Image storage
-
-### 7.5 Protocols and Standards
-
-**APIs**:
-- gRPC / Protocol Buffers 3
-- CloudEvents 1.0 (storage notifications)
-- W3C Trace Context (distributed tracing)
-
-**Authentication**:
-- X.509 certificates (mTLS)
-- Google Cloud ID tokens (HTTP endpoints)
-
-**Resource Naming**:
-- RFC 1034 (domain name syntax for resource IDs)
-- Google API Resource Names (hierarchical naming)
-
-## 8. Operational Characteristics
-
-### 8.1 Scalability
-
-**Horizontal Scaling**:
-- Stateless API servers scale independently
-- TEE worker pools scale via Managed Instance Groups
-- Queue-based decoupling enables elastic scaling
-
-**Database Scaling**:
-- Cloud Spanner provides horizontal scalability
-- Automatic sharding and replication
-
-### 8.2 Reliability
-
-**Fault Tolerance**:
-- At-least-once message delivery (Pub/Sub)
-- Idempotent operations (attempt completion)
-- Automatic retry for transient failures
-
-**Data Durability**:
-- Spanner multi-region replication
-- Commit timestamp-based consistency
-
-### 8.3 Security
-
-**Confidentiality**:
-- mTLS for all service-to-service communication
-- TEE execution for sensitive computations
-- Secrets Manager for credential storage
-
-**Authentication**:
-- Certificate-based mutual authentication
-- Service account identity
-- Google Cloud ID tokens for HTTP
-
-**Authorization**:
-- IAM-based access control
-- Queue-level permissions
-- Resource name validation
-
-### 8.4 Observability
-
-**Metrics**:
-- Processing duration histograms
-- Queue write counters
-- gRPC call instrumentation
-
-**Tracing**:
-- Distributed traces across components
-- W3C Trace Context propagation
-- Span attributes for debugging
-
-**Logging**:
-- Structured logging throughout
-- Error context capture
-- Audit trails for state transitions
-
-## 9. Future Considerations
-
-### 9.1 Potential Enhancements
-
-**Multi-Cloud Support**:
-- Abstract cloud-specific implementations (Pub/Sub, Spanner)
-- Pluggable storage and queue backends
-- AWS/Azure deployment modules
-
-**Advanced Scheduling**:
-- Priority queues for urgent work items
-- Deadline-based scheduling
-- Resource-aware placement
-
-**Enhanced Monitoring**:
-- Custom dashboards and alerts
-- SLO tracking and reporting
-- Anomaly detection
-
-**Developer Experience**:
-- SDK for building TEE applications
-- Testing utilities and simulators
-- Documentation and examples
-
-### 9.2 Known Limitations
-
-**Queue Management**:
-- FarmHash collisions possible (requires manual resolution)
-- No queue priority or ordering guarantees beyond FIFO
-
-**Error Handling**:
-- Limited automatic recovery for some error classes
-- Manual intervention required for certain failure modes
-
-**Configuration**:
-- Static configuration (requires redeployment for changes)
-- No dynamic routing rules
-
-## 10. References
-
-### Internal Documentation
-- `/Users/mmg/xmm/docs/org.wfanet.measurement.securecomputation.*.md` - Package-level documentation
-- `/Users/mmg/xmm/docs/edpaggregator/deployment-guide.md` - EDP Aggregator integration
-
-### Protocol Definitions
-- `/Users/mmg/xmm/src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha/` - Public API
-- `/Users/mmg/xmm/src/main/proto/wfa/measurement/internal/securecomputation/controlplane/` - Internal API
-- `/Users/mmg/xmm/src/main/proto/wfa/measurement/config/securecomputation/` - Configuration protos
-
-### Source Code
-- `/Users/mmg/xmm/src/main/kotlin/org/wfanet/measurement/securecomputation/` - Main implementation
-- `/Users/mmg/xmm/src/test/kotlin/org/wfanet/measurement/securecomputation/` - Test suite
-
-### External Resources
-- [Google Cloud Spanner Documentation](https://cloud.google.com/spanner/docs)
-- [Google Cloud Pub/Sub Documentation](https://cloud.google.com/pubsub/docs)
-- [gRPC Documentation](https://grpc.io/docs/)
-- [OpenTelemetry Documentation](https://opentelemetry.io/docs/)
+- **ACTIVE**: Initial state when attempt is created
+- **SUCCEEDED**: Terminal state when completeWorkItemAttempt is called
+- **FAILED**: Terminal state when failWorkItemAttempt is called
+
+## 5. Resource Naming
+
+Resource names follow these patterns:
+- Work Items: `workItems/{work_item}`
+- Work Item Attempts: `workItems/{work_item}/workItemAttempts/{work_item_attempt}`
+
+Validation includes:
+- Resource name format validation using `WorkItemKey` and `WorkItemAttemptKey` parsers
+- RFC 1034 compliance for resource IDs
+
+## 6. Dependencies
+
+### Core Dependencies
+- `io.grpc` - gRPC framework for service implementation and channel management
+- `com.google.protobuf` - Protocol buffer serialization
+- `kotlinx.coroutines` - Coroutine support for async operations
+
+### Google Cloud Dependencies
+- `com.google.cloud.spanner` - Spanner client library for database operations
+- `com.google.cloud.functions` - Cloud Functions framework for event handling
+- `com.google.auth.oauth2` - Google authentication for ID tokens
+
+### Internal Dependencies
+- `org.wfanet.measurement.common` - Resource name parsing, API utilities, crypto certificate handling
+- `org.wfanet.measurement.common.grpc` - gRPC utilities including error info extraction
+- `org.wfanet.measurement.gcloud.spanner` - Custom async Spanner client wrapper
+- `org.wfanet.measurement.gcloud.pubsub` - Google Pub/Sub client
+- `org.wfanet.measurement.queue` - Queue subscription abstraction
+- `org.wfanet.measurement.config.securecomputation` - Configuration protocol buffers
+- `io.opentelemetry.api` - Metrics and tracing instrumentation
+
+## 7. Testing Infrastructure
+
+### Abstract Test Suites (`service.internal.testing`)
+
+- `WorkItemsServiceTest`: Abstract test suite for validating WorkItems service implementations
+  - Tests: creation, retrieval, listing, pagination, failure handling, field validation
+
+- `WorkItemAttemptsServiceTest`: Abstract test suite for validating WorkItemAttempts service implementations
+  - Tests: creation, retrieval, listing, pagination, state transitions, field validation
+
+- `TestConfig`: Provides shared test configuration including pre-configured queue mapping
+
+### Testing Utilities
+
+- `DataWatcherSubscribingStorageClient`: Test harness that wraps StorageClient to simulate storage notifications
+  - `writeBlob(blobKey, content)`: Writes blob and notifies all subscribed watchers
+  - `subscribe(watcher)`: Registers watcher to receive notifications on blob writes
+
+## 8. References
+
+### Source Documentation
+- `docs/org.wfanet.measurement.securecomputation.controlplane.v1alpha.md`
+- `docs/org.wfanet.measurement.securecomputation.service.md`
+- `docs/org.wfanet.measurement.securecomputation.service.internal.md`
+- `docs/org.wfanet.measurement.securecomputation.datawatcher.md`
+- `docs/org.wfanet.measurement.securecomputation.teesdk.md`
+- `docs/org.wfanet.measurement.securecomputation.deploy.common.server.md`
+- `docs/org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.md`
+- `docs/org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.md`
+- `docs/org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.md`
+- `docs/org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.md`
+- `docs/org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter.md`

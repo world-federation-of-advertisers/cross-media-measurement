@@ -2,7 +2,7 @@
 
 ## 1. System Overview
 
-The **Event Data Provider Aggregator (EDPA)** is a privacy-preserving advertising measurement subsystem that orchestrates the collection, processing, and fulfillment of measurement requisitions using encrypted impression data. It serves as the bridge between Event Data Providers (EDPs) and the Cross-Media Measurement System (CMMS) Kingdom, enabling privacy-preserving analytics through cryptographic protocols while maintaining differential privacy and k-anonymity guarantees.
+The **Event Data Provider Aggregator (EDPA)** is a package that provides infrastructure for event-level measurement in privacy-preserving advertising measurement systems. It orchestrates the collection, validation, processing, and fulfillment of measurement requisitions using encrypted impression data. The package coordinates synchronization with the CMMS (Cross-Media Measurement System) Kingdom, manages impression and requisition metadata, and executes cryptographic measurement protocols including Direct and HonestMajority Shuffle (HMShuffle) approaches.
 
 ### Core Responsibilities
 
@@ -10,27 +10,17 @@ The **Event Data Provider Aggregator (EDPA)** is a privacy-preserving advertisin
 - **Event Processing**: Processes encrypted impression data through parallel pipelines with CEL-based filtering
 - **Measurement Computation**: Computes reach, frequency, and impression metrics using direct protocol implementations
 - **Privacy Preservation**: Applies differential privacy noise and k-anonymity thresholds to protect user privacy
-- **Metadata Synchronization**: Maintains bidirectional sync of event groups and data availability with the Kingdom
+- **Metadata Synchronization**: Synchronizes event groups and data availability with the Kingdom
 - **Results Fulfillment**: Signs, encrypts, and submits measurement results back to the Kingdom
-
-### Role in the Broader System
-
-The edpaggregator sits between:
-- **Data Providers (EDPs)**: Organizations with impression data stored in encrypted cloud storage
-- **CMMS Kingdom**: Central orchestration service managing measurement campaigns
-- **Measurement Consumers**: Advertisers requesting privacy-preserving analytics
-
-It acts as the EDP's agent, processing measurement requests while ensuring that raw user-level data never leaves the EDP's control.
 
 ## 2. Architecture Diagram
 
 ```mermaid
 graph TB
     subgraph "CMMS Kingdom"
-        KINGDOM[Kingdom API]
-        EVENTGROUPS[Event Groups API]
-        DATAPROVIDERS[Data Providers API]
-        REQUISITIONS[Requisitions API]
+        REQUISITIONS[RequisitionsCoroutineStub]
+        EVENTGROUPS[EventGroupsCoroutineStub]
+        DATAPROVIDERS[DataProvidersCoroutineStub]
     end
 
     subgraph "Event Data Provider Aggregator"
@@ -56,10 +46,8 @@ graph TB
         subgraph "Computation Layer"
             FULFILLERS[MeasurementFulfiller]
             DIRECTFULFILLER[DirectMeasurementFulfiller]
-            RESULTBUILDER[MeasurementResultBuilder]
-            DIRECTREACH[DirectReachResultBuilder]
-            DIRECTIMPRESSION[DirectImpressionResultBuilder]
-            DIRECTREACHFREQ[DirectReachAndFrequencyResultBuilder]
+            HMSSFULFILLER[HMShuffleMeasurementFulfiller]
+            DIRECTFACTORY[DirectMeasurementResultFactory]
         end
 
         subgraph "Metadata Services"
@@ -67,7 +55,7 @@ graph TB
             REQUISITIONMETA[RequisitionMetadataService]
         end
 
-        subgraph "Storage & Persistence"
+        subgraph "Storage"
             SPANNER[(Cloud Spanner)]
             CLOUDSTORAGE[(Cloud Storage)]
         end
@@ -78,42 +66,39 @@ graph TB
     end
 
     %% Synchronization flows
-    EVENTGROUPSYNC -->|List/Create/Update/Delete| EVENTGROUPS
-    DATAAVAILSYNC -->|Update Availability| DATAPROVIDERS
-    DATAAVAILSYNC -->|Store Metadata| IMPRESSIONMETA
-    IMPRESSIONS -->|Read Metadata| DATAAVAILSYNC
+    EVENTGROUPSYNC --> EVENTGROUPS
+    DATAAVAILSYNC --> DATAPROVIDERS
+    DATAAVAILSYNC --> IMPRESSIONMETA
+    IMPRESSIONS --> DATAAVAILSYNC
 
     %% Requisition flows
-    REQUISITIONS -->|Fetch Unfulfilled| REQFETCHER
-    REQFETCHER -->|Validate| REQVALIDATOR
-    REQFETCHER -->|Group| REQGROUPER
-    REQGROUPER -->|Store Grouped| CLOUDSTORAGE
-    REQGROUPER -->|Create Metadata| REQUISITIONMETA
+    REQUISITIONS --> REQFETCHER
+    REQFETCHER --> REQVALIDATOR
+    REQFETCHER --> REQGROUPER
+    REQGROUPER --> CLOUDSTORAGE
 
     %% Processing flows
-    CLOUDSTORAGE -->|Load Grouped Requisitions| RESULTSFULFILLER
-    RESULTSFULFILLER -->|Orchestrate| ORCHESTRATOR
-    ORCHESTRATOR -->|Execute Pipeline| PIPELINE
-    PIPELINE -->|Read Events| EVENTSOURCE
-    EVENTSOURCE -->|Stream Batches| EVENTREADER
-    IMPRESSIONS -->|Read Encrypted Data| EVENTREADER
-    IMPRESSIONMETA -->|Query Available Data| EVENTSOURCE
+    CLOUDSTORAGE --> RESULTSFULFILLER
+    RESULTSFULFILLER --> ORCHESTRATOR
+    ORCHESTRATOR --> PIPELINE
+    PIPELINE --> EVENTSOURCE
+    EVENTSOURCE --> EVENTREADER
+    IMPRESSIONS --> EVENTREADER
+    IMPRESSIONMETA --> EVENTSOURCE
 
     %% Computation flows
-    ORCHESTRATOR -->|Build Frequency Vectors| FULFILLERS
-    FULFILLERS -->|Direct Protocol| DIRECTFULFILLER
-    DIRECTFULFILLER -->|Select Builder| RESULTBUILDER
-    RESULTBUILDER -.->|Reach| DIRECTREACH
-    RESULTBUILDER -.->|Impression| DIRECTIMPRESSION
-    RESULTBUILDER -.->|Reach+Frequency| DIRECTREACHFREQ
+    ORCHESTRATOR --> FULFILLERS
+    FULFILLERS --> DIRECTFULFILLER
+    FULFILLERS --> HMSSFULFILLER
+    DIRECTFULFILLER --> DIRECTFACTORY
 
     %% Result submission
-    DIRECTFULFILLER -->|Fulfill| REQUISITIONS
-    DIRECTFULFILLER -->|Update State| REQUISITIONMETA
+    DIRECTFULFILLER --> REQUISITIONS
+    HMSSFULFILLER --> REQUISITIONS
 
     %% Persistence
-    IMPRESSIONMETA -->|CRUD Operations| SPANNER
-    REQUISITIONMETA -->|CRUD Operations| SPANNER
+    IMPRESSIONMETA --> SPANNER
+    REQUISITIONMETA --> SPANNER
 
     style EVENTGROUPSYNC fill:#e1f5ff
     style DATAAVAILSYNC fill:#e1f5ff
@@ -131,40 +116,43 @@ graph TB
 #### RequisitionFetcher
 **Location**: `org.wfanet.measurement.edpaggregator.requisitionfetcher`
 
-Orchestrates the complete workflow of fetching unfulfilled requisitions from the Kingdom and persisting them to Cloud Storage.
+Orchestrates the complete workflow of fetching unfulfilled requisitions from the Kingdom and persisting them to Google Cloud Storage.
 
 **Key Methods**:
-- `fetchAndStoreRequisitions()`: Fetches requisitions, groups them, and stores to blob storage
+- `fetchAndStoreRequisitions()`: Fetches unfulfilled requisitions and stores grouped requisitions to storage
 
-**Key Features**:
-- Pagination support for large requisition lists
-- Metrics tracking (fetch latency, requisitions fetched, storage writes/failures)
-- Integration with storage client abstraction
+**Constructor Parameters**:
+- `requisitionsStub: RequisitionsCoroutineStub` - gRPC client for Kingdom requisition operations
+- `storageClient: StorageClient` - Client for blob storage operations
+- `dataProviderName: String` - Resource name of the data provider
+- `storagePathPrefix: String` - Blob key prefix for storage
+- `requisitionGrouper: RequisitionGrouper` - Strategy for grouping requisitions
+- `responsePageSize: Int?` - Optional page size for listing operations
+- `metrics: RequisitionFetcherMetrics` - OpenTelemetry metrics instance
 
 #### RequisitionGrouper
 **Location**: `org.wfanet.measurement.edpaggregator.requisitionfetcher`
 
-Abstract base class defining the workflow for transforming raw requisitions into grouped forms ready for execution.
+Abstract base class defining the core workflow for transforming raw requisitions into grouped forms ready for execution.
+
+**Key Methods**:
+- `groupRequisitions(requisitions: List<Requisition>)`: Validates and groups requisitions, refusing invalid ones
+- `createGroupedRequisitions(requisitions: List<Requisition>)` (abstract): Combines validated requisitions using subclass-specific strategy
 
 **Implementations**:
-- `SingleRequisitionGrouper`: Naive one-per-requisition grouping (not for production)
-- `RequisitionGrouperByReportId`: Production-ready grouping by Report ID with metadata persistence and recovery
-
-**Key Features**:
-- Validation of requisition specs and measurement specs
-- Event group metadata fetching and caching
-- Automatic requisition refusal for invalid requests
-- Model line consistency validation
+- `SingleRequisitionGrouper`: Naive grouping strategy that creates one group per requisition (not recommended for production)
+- `RequisitionGrouperByReportId`: Production-ready grouping strategy that aggregates requisitions by Report ID with metadata persistence and recovery capabilities
 
 #### RequisitionsValidator
 **Location**: `org.wfanet.measurement.edpaggregator.requisitionfetcher`
 
 Validates requisitions ensuring they are well-formed and ready for processing.
 
-**Key Features**:
-- Decrypts and validates RequisitionSpec using private encryption key
-- Validates MeasurementSpec and checks for required Report ID
-- Ensures model line consistency across grouped requisitions
+**Key Methods**:
+- `validateMeasurementSpec(requisition: Requisition)`: Validates and unpacks MeasurementSpec, checking for report ID
+- `getRequisitionSpec(requisition: Requisition)`: Decrypts and unpacks RequisitionSpec
+- `validateRequisitionSpec(requisition: Requisition)`: Validates RequisitionSpec decryption and parsing
+- `validateModelLines(groupedRequisitions: List<GroupedRequisitions>, reportId: String)`: Ensures all requisitions have consistent model lines
 
 ### 3.2 Results Fulfillment
 
@@ -173,118 +161,191 @@ Validates requisitions ensuring they are well-formed and ready for processing.
 
 Main orchestrator that manages the lifecycle of grouped requisitions from decryption through fulfillment.
 
-**Key Features**:
-- Parallel requisition processing with configurable parallelism
-- Integration with EventProcessingOrchestrator for event processing
-- Protocol-specific fulfiller selection via FulfillerSelector
-- Metrics tracking for fulfillment operations
+**Key Methods**:
+- `fulfillRequisitions(parallelism: Int)`: Processes requisitions in batches with concurrent fulfillment
+
+**Constructor Parameters**:
+- `dataProvider: String` - Data provider resource name
+- `requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub` - Metadata service stub
+- `requisitionsStub: RequisitionsCoroutineStub` - Kingdom requisitions stub
+- `privateEncryptionKey: PrivateKeyHandle` - Key for decrypting requisition specs
+- `groupedRequisitions: GroupedRequisitions` - Requisitions to fulfill
+- `modelLineInfoMap: Map<String, ModelLineInfo>` - Model line configurations
+- `pipelineConfiguration: PipelineConfiguration` - Event processing config
+- `impressionDataSourceProvider: ImpressionDataSourceProvider` - Impression data resolver
+- `kmsClient: KmsClient?` - Optional KMS client for encrypted storage
+- `impressionsStorageConfig: StorageConfig` - Storage configuration
+- `fulfillerSelector: FulfillerSelector` - Protocol implementation selector
+- `metrics: ResultsFulfillerMetrics` - Telemetry metrics
 
 #### EventProcessingOrchestrator
 **Location**: `org.wfanet.measurement.edpaggregator.resultsfulfiller`
 
 Coordinates storage-backed event processing to fulfill requisitions by deduplicating filters and executing a parallel pipeline.
 
-**Key Features**:
-- Filter specification deduplication across requisitions
-- Creates FrequencyVectorSink instances per unique filter
-- Manages parallel event processing pipeline
-- Returns frequency vectors mapped to requisition names
+**Key Methods**:
+- `run(eventSource, vidIndexMap, populationSpec, requisitions, eventGroupReferenceIdMap, config, eventDescriptor)`: Runs pipeline and returns frequency vectors by requisition name
+- `createSinksFromFilterSpecs(filterSpecs, vidIndexMap, populationSpec, eventDescriptor)`: Creates one sink per unique filter specification
+
+#### EventProcessingPipeline
+**Location**: `org.wfanet.measurement.edpaggregator.resultsfulfiller`
+
+Interface defining event batch processing strategy.
+
+**Key Methods**:
+- `processEventBatches(eventSource, sinks)`: Processes event batches through all sinks
 
 #### ParallelBatchedPipeline
 **Location**: `org.wfanet.measurement.edpaggregator.resultsfulfiller`
 
 Parallel implementation using structured concurrency with round-robin batch distribution to workers.
 
-**Key Features**:
-- Configurable worker count and channel capacity
-- Bounded backpressure management
-- Thread pool for CPU-intensive operations
-- Round-robin batch distribution
+**Key Methods**:
+- `processEventBatches(eventSource, sinks)`: Processes batches with parallel workers and bounded backpressure
 
-#### StorageEventSource / StorageEventReader
+#### StorageEventSource
 **Location**: `org.wfanet.measurement.edpaggregator.resultsfulfiller`
 
 Reads events from cloud storage blobs via impression metadata service.
 
-**Key Features**:
-- Parallel blob reading with flow-based streaming
-- Encrypted storage support via KMS and Tink
-- Batch size configuration
-- Integration with ImpressionDataSourceProvider
+**Key Methods**:
+- `generateEventBatches()`: Generates batches by reading from storage in parallel
+
+#### StorageEventReader
+**Location**: `org.wfanet.measurement.edpaggregator.resultsfulfiller`
+
+Reads labeled events from encrypted impression blobs in storage.
+
+**Key Methods**:
+- `readEvents()`: Streams events from blob with decryption support
+- `getBlobDetails()`: Returns underlying blob metadata
 
 ### 3.3 Computation & Protocol Implementation
 
 #### MeasurementFulfiller Interface
 **Location**: `org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers`
 
-Interface for protocol-specific requisition fulfillment implementations.
+Interface defining the contract for fulfilling measurement requisitions.
+
+**Key Methods**:
+- `fulfillRequisition()`: Fulfills a requisition
 
 **Implementations**:
-- `DirectMeasurementFulfiller`: Fulfills measurements using direct protocol
+- `DirectMeasurementFulfiller`: Fulfiller for direct measurement protocol - signs, encrypts, and submits direct measurement result
+- `HMShuffleMeasurementFulfiller`: Fulfiller for Honest Majority Share Shuffle protocol with k-anonymization support
 
-#### DirectMeasurementResultBuilder
+#### FulfillerSelector
+**Location**: `org.wfanet.measurement.edpaggregator.resultsfulfiller`
+
+Interface for selecting protocol-specific measurement fulfillers.
+
+**Key Methods**:
+- `selectFulfiller(requisition, measurementSpec, requisitionSpec, frequencyVector, populationSpec)`: Selects appropriate fulfiller implementation
+
+#### DirectMeasurementResultFactory
 **Location**: `org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct`
 
-Factory and implementations for computing reach, frequency, and impression metrics.
+Factory object that orchestrates the creation of measurement results based on measurement type specification.
+
+**Key Methods**:
+- `buildMeasurementResult(directProtocolConfig, directNoiseMechanism, measurementSpec, frequencyData, maxPopulation, kAnonymityParams, impressionMaxFrequencyPerUser, totalUncappedImpressions)`: Routes to appropriate builder based on measurement type
+
+**Supported Measurement Types**:
+- REACH: Uses `DirectReachResultBuilder`
+- IMPRESSION: Uses `DirectImpressionResultBuilder`
+- REACH_AND_FREQUENCY: Uses `DirectReachAndFrequencyResultBuilder`
+- DURATION: Not yet implemented
+- POPULATION: Not yet implemented
+
+#### MeasurementResultBuilder Interface
+**Location**: `org.wfanet.measurement.edpaggregator.resultsfulfiller.compute`
+
+Interface defining the contract for building measurement results.
+
+**Key Methods**:
+- `buildMeasurementResult()`: Builds and returns a measurement result
 
 **Implementations**:
-- `DirectReachResultBuilder`: Reach-only measurements with DP noise and k-anonymity
-- `DirectImpressionResultBuilder`: Impression counts with frequency capping support
-- `DirectReachAndFrequencyResultBuilder`: Combined reach and frequency distribution
-
-**Key Features**:
-- Differential privacy noise addition (Continuous Gaussian)
-- K-anonymity threshold enforcement
-- Frequency capping with configurable max frequency per user
-- Protocol configuration validation
+- `DirectReachResultBuilder`: Builds reach-only metrics with differential privacy and k-anonymity
+- `DirectImpressionResultBuilder`: Builds impression counts with configurable frequency capping
+- `DirectReachAndFrequencyResultBuilder`: Builds combined reach and frequency distribution metrics
 
 ### 3.4 Synchronization Components
 
 #### EventGroupSync
 **Location**: `org.wfanet.measurement.edpaggregator.eventgroups`
 
-Orchestrates event group synchronization with the CMMS Public API.
+Orchestrates event group synchronization with the CMMS Public API, performing create, update, and delete operations based on input flow differences.
 
-**Key Features**:
-- Three-way merge: create, update, delete
-- Flow-based streaming of sync results
-- OpenTelemetry metrics (attempts, success, failure, latency)
-- Validation of event group fields
+**Key Methods**:
+- `sync()`: Synchronizes event groups with CMMS, returning mapped results as Flow<MappedEventGroup>
+- `validateEventGroup(eventGroup: EventGroup)`: Validates event group fields are properly populated
+
+**Constructor Parameters**:
+- `edpName: String` - Data provider resource name
+- `eventGroupsStub: EventGroupsCoroutineStub` - gRPC stub for CMMS event groups API
+- `eventGroups: Flow<EventGroup>` - Flow of event groups to synchronize
+- `throttler: Throttler` - Rate limiter for API calls
+- `listEventGroupPageSize: Int` - Page size for listing operations
+- `tracer: Tracer` - OpenTelemetry tracer
+
+**Synchronization Behavior**:
+The `EventGroupSync.sync()` method performs a three-way merge:
+1. **Create**: Event groups in input flow but not in CMMS are created
+2. **Update**: Event groups in both locations are updated if content differs
+3. **Delete**: Event groups in CMMS but not in input flow are removed
 
 #### DataAvailabilitySync
 **Location**: `org.wfanet.measurement.edpaggregator.dataavailability`
 
-Synchronizes impression data availability between Cloud Storage and Kingdom.
+Coordinates the complete workflow for synchronizing impression metadata from Cloud Storage to the Kingdom after a "done" blob signals upload completion.
 
-**Key Features**:
-- Triggered by "done" blob signals
-- Parses metadata files (.binpb or .json)
-- Batch creation of impression metadata
-- Model line availability interval computation
-- Updates Kingdom data provider availability
+**Key Methods**:
+- `sync(doneBlobPath: String)`: Synchronizes impression availability data after completion signal
+
+**Constructor Parameters**:
+- `edpImpressionPath: String` - Path name for the EDP; all impressions reside in subfolders
+- `storageClient: StorageClient` - Client for accessing Cloud Storage blobs
+- `dataProvidersStub: DataProvidersCoroutineStub` - gRPC stub for Kingdom Data Providers service
+- `impressionMetadataServiceStub: ImpressionMetadataServiceCoroutineStub` - gRPC stub for impression metadata operations
+- `dataProviderName: String` - Resource name of the data provider
+- `throttler: Throttler` - Rate limiting utility for external service requests
+- `impressionMetadataBatchSize: Int` - Batch size for creating impression metadata
+- `metrics: DataAvailabilitySyncMetrics` - OpenTelemetry metrics
 
 ### 3.5 Metadata Services
 
 #### ImpressionMetadataService
 **Location**: `org.wfanet.measurement.edpaggregator.service.v1alpha`
 
-Public gRPC service for managing impression metadata operations.
+Public gRPC service for managing impression metadata resources with CRUD operations and batch processing capabilities.
 
-**Key Operations**:
-- Create, get, delete impression metadata (single and batch)
-- List with filtering and pagination
-- Compute model line bounds for availability intervals
+**Key Methods**:
+- `getImpressionMetadata(request)`: Retrieves impression metadata by name
+- `createImpressionMetadata(request)`: Creates new impression metadata with deduplication via requestId
+- `batchCreateImpressionMetadata(request)`: Creates multiple impression metadata in single transaction
+- `deleteImpressionMetadata(request)`: Soft-deletes impression metadata by name
+- `batchDeleteImpressionMetadata(request)`: Deletes multiple impression metadata in single transaction
+- `listImpressionMetadata(request)`: Lists impression metadata with filtering and pagination
+- `computeModelLineBounds(request)`: Computes time bounds for specified model lines
 
 #### RequisitionMetadataService
 **Location**: `org.wfanet.measurement.edpaggregator.service.v1alpha`
 
-Public gRPC service for managing requisition metadata lifecycle.
+Public gRPC service for managing requisition metadata with state machine transitions and workflow operations.
 
-**Key Operations**:
-- Create, get, lookup requisition metadata
-- State transitions: queue, start processing, fulfill, refuse, mark withdrawn
-- List with filtering by state and pagination
-- Fetch latest CMMS create timestamp
+**Key Methods**:
+- `createRequisitionMetadata(request)`: Creates new requisition metadata
+- `batchCreateRequisitionMetadata(request)`: Creates multiple requisition metadata in batch
+- `getRequisitionMetadata(request)`: Retrieves requisition metadata by resource name
+- `listRequisitionMetadata(request)`: Lists requisition metadata with filtering and pagination
+- `lookupRequisitionMetadata(request)`: Looks up by CMMS requisition key
+- `fetchLatestCmmsCreateTime(request)`: Retrieves latest CMMS creation timestamp
+- `queueRequisitionMetadata(request)`: Transitions to QUEUED state with etag validation
+- `startProcessingRequisitionMetadata(request)`: Transitions to PROCESSING state
+- `fulfillRequisitionMetadata(request)`: Transitions to FULFILLED state
+- `refuseRequisitionMetadata(request)`: Transitions to REFUSED state with message
+- `markWithdrawnRequisitionMetadata(request)`: Transitions to WITHDRAWN state
 
 ### 3.6 Data Structures
 
@@ -293,11 +354,15 @@ Public gRPC service for managing requisition metadata lifecycle.
 
 Thread-safe frequency vector using lock striping for concurrent access.
 
-**Key Features**:
-- Configurable stripe count (default 1024)
-- Atomic increment operations
-- Vector merging support
-- Uncapped impression tracking
+**Key Methods**:
+- `increment(index: Int)`: Increments frequency count at index
+- `getByteArray()`: Returns cloned byte array
+- `getTotalUncappedImpressions()`: Returns total uncapped impression count
+- `merge(other: StripedByteFrequencyVector)`: Merges another frequency vector into this one
+
+**Properties**:
+- `size: Int` - Number of entries in the vector
+- `stripeCount: Int` - Number of lock stripes (default 1024)
 
 #### FilterSpec
 **Location**: `org.wfanet.measurement.edpaggregator`
@@ -305,9 +370,9 @@ Thread-safe frequency vector using lock striping for concurrent access.
 Immutable specification for event filtering and deduplication.
 
 **Properties**:
-- CEL expression for filtering
-- Collection interval (time range)
-- Event group reference IDs (sorted)
+- `celExpression: String` - CEL expression for filtering events
+- `collectionInterval: Interval` - Time interval for event collection
+- `eventGroupReferenceIds: List<String>` - Sorted reference IDs of event groups
 
 #### ModelLineInfo
 **Location**: `org.wfanet.measurement.edpaggregator`
@@ -315,122 +380,80 @@ Immutable specification for event filtering and deduplication.
 Information required to fulfill requisitions for a specific model line.
 
 **Properties**:
-- PopulationSpec: Population specification
-- EventDescriptor: Protobuf descriptor for event messages
-- VidIndexMap: VID to frequency vector index mapping
+- `populationSpec: PopulationSpec` - Population specification for the model line
+- `eventDescriptor: Descriptor` - Protobuf descriptor for event messages
+- `vidIndexMap: VidIndexMap` - VID to frequency vector index mapping
+
+#### PipelineConfiguration
+**Location**: `org.wfanet.measurement.edpaggregator.resultsfulfiller`
+
+Configuration for event processing pipeline.
+
+**Properties**:
+- `batchSize: Int` - Events per batch
+- `channelCapacity: Int` - Per-worker channel capacity in batches
+- `threadPoolSize: Int` - Thread pool size for dispatcher
+- `workers: Int` - Parallel worker coroutines
+
+#### FilterSpecIndex
+**Location**: `org.wfanet.measurement.edpaggregator`
+
+Index for requisition-to-filter mappings enabling deduplication.
+
+**Properties**:
+- `filterSpecToRequisitionNames: Map<FilterSpec, List<String>>` - Maps filter specs to requisition names
+- `requisitionNameToFilterSpec: Map<String, FilterSpec>` - Maps requisition names to filter specs
+
+**Static Methods**:
+- `fromRequisitions(requisitions, eventGroupReferenceIdMap, privateEncryptionKey)`: Builds index from requisitions with canonicalized filter specs
+
+#### EventGroupKey
+**Location**: `org.wfanet.measurement.edpaggregator`
+
+Unique identifier for event groups across measurement consumers.
+
+**Properties**:
+- `eventGroupReferenceId: String` - Event group reference identifier
+- `measurementConsumer: String` - Measurement consumer owner
 
 ## 4. Data Flow
 
-### 4.1 Requisition Fetching Flow
+### 4.1 Requisition Fetching Workflow
 
-```
-1. RequisitionFetcher.fetchAndStoreRequisitions()
-   ├─> List unfulfilled requisitions from Kingdom API (paginated)
-   ├─> For each requisition:
-   │   ├─> RequisitionsValidator.validateMeasurementSpec()
-   │   ├─> RequisitionsValidator.validateRequisitionSpec() (decrypt with private key)
-   │   └─> RequisitionGrouper.groupRequisitions()
-   │       ├─> For each requisition spec:
-   │       │   └─> getEventGroupMapEntries() (fetch event group metadata, cached)
-   │       ├─> RequisitionGrouperByReportId.createGroupedRequisitions()
-   │       │   ├─> Group requisitions by Report ID
-   │       │   ├─> Create/lookup RequisitionMetadata for each
-   │       │   ├─> Union overlapping collection intervals
-   │       │   └─> Recover missing groups from metadata if needed
-   │       └─> Refuse invalid requisitions to Kingdom
-   └─> Store GroupedRequisitions to Cloud Storage (serialized protobuf)
-```
+1. `RequisitionFetcher` lists unfulfilled requisitions from Kingdom
+2. `RequisitionGrouper` validates and groups requisitions by strategy (e.g., report ID)
+3. Invalid requisitions are refused to Kingdom
+4. Valid grouped requisitions are serialized and stored in Cloud Storage
+5. Metrics and telemetry events are recorded
 
-### 4.2 Data Availability Sync Flow
+### 4.2 Results Fulfillment Workflow
 
-```
-1. DataAvailabilitySync.sync(doneBlobPath)
-   ├─> Parse done blob path to extract folder
-   ├─> List metadata blobs in folder (*.binpb, *.json with "metadata" in name)
-   ├─> For each metadata blob:
-   │   ├─> Read blob bytes
-   │   ├─> Parse as BlobDetails (try binary, fallback to JSON)
-   │   ├─> Validate interval (startTime and endTime required)
-   │   ├─> Check impression blob exists in storage
-   │   └─> Build ImpressionMetadata with deterministic UUID
-   ├─> Group metadata by model line
-   ├─> Batch create ImpressionMetadata (idempotent with request IDs)
-   ├─> For each model line:
-   │   ├─> Compute availability intervals (min startTime, max endTime)
-   │   └─> Update Kingdom DataProvider availability via replaceDataAvailabilityIntervals
-   └─> Record sync metrics (duration, records synced, errors)
-```
+1. `ResultsFulfiller` loads grouped requisitions from storage
+2. `EventProcessingOrchestrator` deduplicates filter specifications across requisitions
+3. `EventSource` streams encrypted impression data from storage
+4. `EventProcessingPipeline` processes event batches through `FrequencyVectorSink` instances
+5. Each sink maintains a `StripedByteFrequencyVector` counting matching events
+6. `FulfillerSelector` chooses protocol implementation (Direct or HMShuffle)
+7. `MeasurementFulfiller` submits computed results to Kingdom
+8. `RequisitionMetadataService` updates metadata states through lifecycle transitions
 
-### 4.3 Results Fulfillment Flow
+### 4.3 Data Availability Sync Workflow
 
-```
-1. ResultsFulfiller.fulfillRequisitions(parallelism)
-   ├─> For each GroupedRequisitions (with parallelism limit):
-   │   ├─> Extract model line from requisitions
-   │   ├─> Get ModelLineInfo (populationSpec, eventDescriptor, vidIndexMap)
-   │   └─> EventProcessingOrchestrator.run()
-   │       ├─> Build FilterSpecIndex from requisitions (deduplicate filters)
-   │       ├─> Create FrequencyVectorSink per unique FilterSpec
-   │       ├─> Create StorageEventSource
-   │       │   ├─> Query ImpressionMetadataService for available data
-   │       │   ├─> For each impression blob:
-   │       │   │   └─> Create StorageEventReader (handles encryption/decryption)
-   │       │   └─> Generate EventBatch flow (batched by configured size)
-   │       ├─> ParallelBatchedPipeline.processEventBatches()
-   │       │   ├─> Distribute batches round-robin to workers
-   │       │   ├─> Each worker:
-   │       │   │   └─> For each FrequencyVectorSink:
-   │       │   │       ├─> FilterProcessor.processBatch() (CEL, time, event group filtering)
-   │       │   │       └─> StripedByteFrequencyVector.increment() (thread-safe)
-   │       │   └─> Wait for all batches processed
-   │       └─> Return Map<RequisitionName, StripedByteFrequencyVector>
-   │
-   │   ├─> For each requisition:
-   │   │   ├─> Get frequency vector for requisition
-   │   │   ├─> Update RequisitionMetadata state to PROCESSING
-   │   │   ├─> FulfillerSelector.selectFulfiller()
-   │   │   │   └─> Return DirectMeasurementFulfiller
-   │   │   ├─> DirectMeasurementFulfiller.fulfillRequisition()
-   │   │   │   ├─> DirectMeasurementResultFactory.buildMeasurementResult()
-   │   │   │   │   ├─> Route by measurement type:
-   │   │   │   │   │   ├─> REACH -> DirectReachResultBuilder
-   │   │   │   │   │   ├─> IMPRESSION -> DirectImpressionResultBuilder
-   │   │   │   │   │   └─> REACH_AND_FREQUENCY -> DirectReachAndFrequencyResultBuilder
-   │   │   │   │   ├─> Build histogram from frequency data
-   │   │   │   │   ├─> Apply k-anonymity thresholds (if configured)
-   │   │   │   │   ├─> Add differential privacy noise (if CONTINUOUS_GAUSSIAN)
-   │   │   │   │   └─> Return Measurement.Result
-   │   │   │   ├─> Sign result with private key
-   │   │   │   ├─> Encrypt result for measurement consumer
-   │   │   │   ├─> Submit to Kingdom via FulfillDirectRequisitionRequest
-   │   │   │   └─> Update RequisitionMetadata state to FULFILLED
-   │   │   └─> On error:
-   │   │       └─> Update RequisitionMetadata state to REFUSED (with message)
-   │   └─> Record fulfillment metrics
-   └─> All requisitions processed
-```
+1. Impression upload completes with a "done" blob signal
+2. `DataAvailabilitySync` crawls folder for metadata files (`.binpb` or `.json`)
+3. Metadata is parsed and validated
+4. `ImpressionMetadataService` persists metadata records in batches
+5. Model line availability intervals are computed from metadata
+6. Kingdom data provider availability is updated via `replaceDataAvailabilityIntervals`
 
-### 4.4 Event Group Sync Flow
+### 4.4 Event Group Sync Workflow
 
-```
-1. EventGroupSync.sync()
-   ├─> Fetch existing event groups from Kingdom (paginated)
-   ├─> Build map of existing EventGroupKey -> CmmsEventGroup
-   ├─> For each local EventGroup:
-   │   ├─> EventGroupSync.validateEventGroup()
-   │   ├─> Check if exists in Kingdom:
-   │   │   ├─> Not exists:
-   │   │   │   └─> createCmmsEventGroup() -> emit MappedEventGroup
-   │   │   ├─> Exists and different:
-   │   │   │   ├─> updateEventGroup() (create updated copy)
-   │   │   │   └─> updateCmmsEventGroup() -> emit MappedEventGroup
-   │   │   └─> Exists and same:
-   │   │       └─> emit existing MappedEventGroup
-   │   └─> Record sync metrics (attempts, success/failure, latency)
-   ├─> For each Kingdom EventGroup not in local flow:
-   │   └─> deleteCmmsEventGroup()
-   └─> Return Flow<MappedEventGroup>
-```
+1. `EventGroupSync` fetches existing event groups from Kingdom
+2. Local event groups are compared with Kingdom state
+3. Missing event groups are created in Kingdom
+4. Changed event groups are updated in Kingdom
+5. Orphaned event groups are deleted from Kingdom
+6. `MappedEventGroup` results are emitted for successfully synced groups
 
 ## 5. Integration Points
 
@@ -440,14 +463,6 @@ Information required to fulfill requisitions for a specific model line.
 - `RequisitionsCoroutineStub`: Fetch, fulfill, refuse requisitions
 - `EventGroupsCoroutineStub`: List, create, update, delete event groups
 - `DataProvidersCoroutineStub`: Update data availability intervals
-- `MeasurementsCoroutineStub`: Submit measurement results
-
-**Authentication**: Uses gRPC with mutual TLS and API authentication tokens
-
-**Resource Names**: Follows Kingdom resource naming conventions:
-- `dataProviders/{data_provider_id}`
-- `dataProviders/{data_provider_id}/requisitions/{requisition_id}`
-- `dataProviders/{data_provider_id}/eventGroups/{event_group_id}`
 
 ### 5.2 Cloud Storage Integration
 
@@ -457,11 +472,6 @@ Information required to fulfill requisitions for a specific model line.
 - Write blobs (for grouped requisitions)
 - Get blob (for existence checks)
 
-**Encryption**:
-- Envelope encryption using Google Cloud KMS
-- Data Encryption Keys (DEK) encrypted with Key Encryption Keys (KEK)
-- Support for Tink keysets with AES128_GCM
-
 **Blob Formats**:
 - Impression data: Mesos Record IO format with encrypted messages
 - Metadata: Protocol Buffer binary (.binpb) or JSON (.json)
@@ -469,254 +479,29 @@ Information required to fulfill requisitions for a specific model line.
 
 ### 5.3 Cloud Spanner Integration
 
-**Database Schema**:
-
-Tables:
+**Database Tables** (from deploy.gcloud.spanner.db):
 - `ImpressionMetadata`: Stores impression metadata records
 - `RequisitionMetadata`: Stores requisition metadata with state transitions
 - `RequisitionMetadataActions`: Audit trail for requisition state changes
-- `DataProviders`: Data provider configuration (inherited from parent schema)
-
-**Indexes**:
-- `ImpressionMetadataByResourceId`: Lookup by public resource ID
-- `ImpressionMetadataByBlobUri`: Lookup by blob URI
-- `RequisitionMetadataByResourceId`: Lookup by public resource ID
-- `RequisitionMetadataByBlobUri`: Lookup by blob URI
-- `RequisitionMetadataByCmmsRequisition`: Lookup by CMMS requisition name
-- `RequisitionMetadataByState`: Filtering and pagination by state
 
 **Operations**:
 - CRUD operations for metadata entities
 - Batch create with idempotency via request IDs
 - State transitions with optimistic concurrency (ETags)
-- Cursor-based pagination with compound keys
+- Cursor-based pagination
 
-### 5.4 Internal Service Integration
+### 5.4 Internal Service Architecture
 
-**Service Architecture**:
+**Service Layers**:
 - Public v1alpha API (ImpressionMetadataService, RequisitionMetadataService)
 - Internal API (InternalImpressionMetadataService, InternalRequisitionMetadataService)
 - Public API delegates to Internal API via gRPC channel
 
-**Error Handling**:
-- Custom exception hierarchy (ServiceException subclasses)
-- gRPC ErrorInfo with reason codes and metadata
-- Status codes mapped to appropriate gRPC codes (NOT_FOUND, ALREADY_EXISTS, FAILED_PRECONDITION)
+## 6. State Machines
 
-## 6. Design Patterns
-
-### 6.1 Strategy Pattern
-
-**RequisitionGrouper Hierarchy**:
-- Abstract `RequisitionGrouper` defines template method `groupRequisitions()`
-- Concrete implementations provide `createGroupedRequisitions()`:
-  - `SingleRequisitionGrouper`: One-per-requisition strategy
-  - `RequisitionGrouperByReportId`: Group-by-report-id strategy with recovery
-
-**FulfillerSelector**:
-- Interface allows pluggable protocol selection
-- Currently supports Direct protocol
-- Extensible to HonestMajority Shuffle (HMShuffle) in future
-
-### 6.2 Factory Pattern
-
-**DirectMeasurementResultFactory**:
-- Routes to appropriate builder based on measurement type
-- Encapsulates builder instantiation logic
-- Provides single entry point for result building
-
-**EventSource / EventReader**:
-- Abstract interfaces with storage-backed implementations
-- Allows different data source types (cloud storage, streaming, etc.)
-
-### 6.3 Builder Pattern
-
-**MeasurementResultBuilder Interface**:
-- Multiple implementations for different measurement types
-- Each builder encapsulates complex construction logic
-- Validates protocol configuration requirements
-
-### 6.4 Pipeline Pattern
-
-**EventProcessingPipeline**:
-- Separates event source, processing, and sinks
-- `ParallelBatchedPipeline`: Structured concurrency with worker pools
-- Flow-based event streaming with backpressure
-
-**Filter-Sink Architecture**:
-- Each unique FilterSpec gets dedicated FrequencyVectorSink
-- Deduplication minimizes redundant processing
-- Parallel processing across independent sinks
-
-### 6.5 Repository Pattern
-
-**Spanner Database Layer**:
-- Extension functions on ReadContext and TransactionContext
-- Encapsulates query and mutation logic
-- Result objects separate from database implementation
-
-**StorageClient Abstraction**:
-- Cloud-agnostic blob storage interface
-- Implementations for GCS (Google Cloud Storage)
-- Supports encrypted storage via decorator pattern
-
-### 6.6 Observer Pattern
-
-**OpenTelemetry Metrics**:
-- Metrics objects (EventGroupSyncMetrics, RequisitionFetcherMetrics, etc.)
-- Instruments observe operations and emit telemetry
-- Centralized via EdpaTelemetry singleton
-
-### 6.7 Template Method Pattern
-
-**RequisitionGrouper.groupRequisitions()**:
-- Defines overall workflow (validate, group, refuse invalid)
-- Subclasses implement `createGroupedRequisitions()` for specific strategy
-- Protected helpers for event group fetching and refusal
-
-### 6.8 Adapter Pattern
-
-**Service Converters**:
-- Extension functions convert between internal and public protobuf models
-- `toImpressionMetadata()`, `toInternal()`, etc.
-- Bidirectional conversion with resource key handling
-
-### 6.9 Singleton Pattern
-
-**EdpaTelemetry**:
-- Kotlin object for global OpenTelemetry SDK initialization
-- Lazy initialization on first access
-- Manages SDK lifecycle (flush, shutdown)
-
-**Tracing**:
-- Kotlin object for distributed tracing utilities
-- W3C trace context propagation support
-- Convenience methods for span creation
-
-## 7. Technology Stack
-
-### 7.1 Core Technologies
-
-**Language**:
-- Kotlin (JVM)
-- Coroutines for asynchronous programming
-- Flow for reactive streams
-
-**Frameworks**:
-- gRPC and Protocol Buffers for service communication
-- Google Cloud SDK (Storage, Spanner, KMS)
-- OpenTelemetry for observability
-
-### 7.2 Data & Storage
-
-**Databases**:
-- Google Cloud Spanner (relational, globally distributed)
-  - Metadata persistence (impressions, requisitions, actions)
-  - Transactional guarantees with optimistic concurrency
-
-**Blob Storage**:
-- Google Cloud Storage
-  - Encrypted impression data
-  - Metadata files (.binpb, .json)
-  - Grouped requisitions
-
-### 7.3 Cryptography & Privacy
-
-**Encryption**:
-- Google Tink for envelope encryption
-- Google Cloud KMS for key management
-- Support for AES128_GCM and other Tink key templates
-
-**Privacy Technologies**:
-- Differential Privacy (Continuous Gaussian noise)
-- K-anonymity thresholds
-- Homomorphic encryption (planned for secure computation protocols)
-
-**Signing**:
-- Private key signing for result integrity
-- Public key encryption for measurement consumers
-
-### 7.4 Event Processing
-
-**CEL (Common Expression Language)**:
-- Event filtering expressions
-- Dynamic evaluation on event protobuf messages
-- Integration via ProjectNessie CEL library
-
-**Protocol Buffers**:
-- Message serialization (events, metadata, requests)
-- Dynamic message parsing with Descriptors
-- JSON format support for metadata
-
-### 7.5 Concurrency & Parallelism
-
-**Kotlin Coroutines**:
-- Structured concurrency for lifecycle management
-- Channels for inter-coroutine communication
-- Dispatchers for thread pool management
-
-**Threading**:
-- Configurable thread pools for CPU-intensive operations
-- Lock striping for thread-safe frequency vectors
-- Throttlers for rate limiting external API calls
-
-### 7.6 Observability
-
-**OpenTelemetry**:
-- Metrics: Counters, histograms for operations
-- Traces: Distributed tracing with W3C context propagation
-- Logs: Structured logging via SDK
-
-**JVM Instrumentation**:
-- Runtime metrics (CPU, memory, GC, threads, classes)
-- Auto-instrumentation for JVM observability
-
-**Cloud Integration**:
-- Google Cloud Trace and Monitoring
-- Cloud Functions telemetry flushing
-- CloudEvents distributed tracing extension
-
-### 7.7 Deployment & Runtime
-
-**Container Platform**:
-- Docker containers
-- Kubernetes orchestration (GKE)
-
-**Execution Models**:
-- Long-running daemons (requisition fetcher, results fulfiller)
-- Cloud Functions (event-driven sync operations)
-- Cron jobs (scheduled fetching and sync)
-
-**Configuration**:
-- Environment variables for OpenTelemetry
-- TextFormat protocol configurations
-- Flag-based service configuration
-
-### 7.8 Key Libraries
-
-| Library | Purpose | Package |
-|---------|---------|---------|
-| `grpc-kotlin` | gRPC Kotlin coroutine stubs | io.grpc |
-| `protobuf-kotlin` | Protocol Buffer Kotlin DSL | com.google.protobuf |
-| `google-cloud-spanner` | Cloud Spanner client | com.google.cloud.spanner |
-| `google-cloud-storage` | Cloud Storage client | com.google.cloud.storage |
-| `google-cloud-kms` | KMS client for encryption | com.google.cloud.kms |
-| `tink` | Cryptographic library | com.google.crypto.tink |
-| `cel-java` | CEL expression evaluation | org.projectnessie.cel |
-| `opentelemetry-sdk` | OpenTelemetry implementation | io.opentelemetry |
-| `kotlinx-coroutines-core` | Coroutines primitives | org.jetbrains.kotlinx |
-| `functions-framework-api` | Cloud Functions support | com.google.cloud.functions |
-
----
-
-## Appendix A: State Machines
-
-### A.1 RequisitionMetadata State Machine
+### 6.1 RequisitionMetadata State Machine
 
 ```
-REQUISITION_METADATA_STATE_UNSPECIFIED
-    |
-    v
 STORED (created from Kingdom requisition)
     |
     +---> QUEUED (assigned to work item)
@@ -730,98 +515,100 @@ STORED (created from Kingdom requisition)
                     +---> WITHDRAWN (canceled by Kingdom)
 ```
 
-### A.2 ImpressionMetadata State Machine
+### 6.2 ImpressionMetadata State Machine
 
 ```
-IMPRESSION_METADATA_STATE_UNSPECIFIED
-    |
-    v
 ACTIVE (available for requisition fulfillment)
     |
     +---> DELETED (removed from availability)
 ```
 
+## 7. Privacy and Security
+
+### 7.1 Differential Privacy
+
+All direct measurement builders support optional differential privacy noise addition:
+- Noise mechanisms: NONE, CONTINUOUS_LAPLACE, CONTINUOUS_GAUSSIAN
+- Current implementation uses Continuous Gaussian for DP operations
+- Privacy budgets controlled via epsilon and delta parameters
+- Separate privacy parameters for reach and frequency in combined measurements
+
+### 7.2 K-Anonymity
+
+Optional k-anonymity thresholds protect against low-count disclosure:
+- `minUsers`: Minimum user count threshold
+- `minImpressions`: Minimum impression count threshold
+- `reachMaxFrequencyPerUser`: Maximum frequency per user for reach calculations
+- Returns zero values when thresholds are not met
+
+### 7.3 Encryption
+
+**Encryption Support** (from EncryptedStorage utility):
+- `generateSerializedEncryptionKey()`: Generates serialized encrypted keyset using KMS client
+- `buildEncryptedMesosStorageClient()`: Builds envelope encryption storage client wrapped by Mesos Record IO
+- `writeDek()`: Writes data encryption key to storage
+
+**Key Types Supported** (from resultsfulfiller.crypto):
+- AES-GCM-HKDF streaming encryption keys
+- Standard AES-GCM encryption keys
+
+## 8. Telemetry
+
+### 8.1 EdpaTelemetry
+**Location**: `org.wfanet.measurement.edpaggregator.telemetry`
+
+Singleton object managing OpenTelemetry SDK initialization, JVM runtime metrics, and telemetry lifecycle.
+
+**Key Methods**:
+- `ensureInitialized()`: Triggers initialization
+- `flush(timeout: Duration)`: Forces parallel export of pending metrics, traces, and logs
+- `shutdown()`: Shuts down SDK and flushes all telemetry
+
+**Features**:
+- Auto-initializes on first access
+- Configures SDK using environment variables (OTEL_SERVICE_NAME, OTEL_METRICS_EXPORTER, OTEL_TRACES_EXPORTER, OTEL_METRIC_EXPORT_INTERVAL)
+- Registers JVM runtime metrics observers (Classes, CPU, GarbageCollector, MemoryPools, Threads)
+- Creates global meter and tracer instances with instrumentation scope "edpa-instrumentation"
+
+### 8.2 Tracing
+**Location**: `org.wfanet.measurement.edpaggregator.telemetry`
+
+Singleton object providing distributed tracing helpers with W3C trace context propagation support.
+
+**Key Methods**:
+- `withW3CTraceContext(request: HttpRequest, block)`: Extracts W3C context from HTTP request
+- `withW3CTraceContext(event: CloudEvent, block)`: Extracts W3C context from CloudEvent
+- `trace(spanName, attributes, block)`: Executes block within a new internal span
+- `traceSuspending(spanName, attributes, block)`: Executes suspending block within a new span
+
+### 8.3 Metrics Classes
+
+- `RequisitionFetcherMetrics`: Tracks fetch latency, requisitions fetched, storage writes/failures
+- `EventGroupSyncMetrics`: Tracks sync attempts, success, failure, latency
+- `DataAvailabilitySyncMetrics`: Tracks sync duration, records synced, CMMS RPC errors
+- `ResultsFulfillerMetrics`: Tracks fulfillment operations
+
+## 9. Dependencies
+
+### Core Libraries
+- `org.wfanet.measurement.api.v2alpha` - CMMS Kingdom API client definitions
+- `org.wfanet.measurement.storage` - Storage abstraction layer
+- `org.wfanet.measurement.common.crypto` - Cryptographic primitives and key handling
+- `org.wfanet.measurement.consent.client.dataprovider` - Consent and encryption utilities
+- `org.wfanet.measurement.eventdataprovider` - Event filtering, VID indexing, and noise mechanism support
+
+### External Libraries
+- `com.google.crypto.tink` - Google Tink cryptography library
+- `io.grpc` - gRPC framework for service communication
+- `io.opentelemetry.api` - OpenTelemetry observability
+- `kotlinx.coroutines` - Kotlin coroutines for async/concurrent operations
+- `com.google.protobuf` - Protocol Buffers message serialization
+- `org.projectnessie.cel` - Common Expression Language (CEL) program compilation and execution
+- `com.google.cloud.spanner` - Google Cloud Spanner client
+- `com.google.cloud.functions` - Cloud Functions support
+
 ---
 
-## Appendix B: Security Considerations
-
-### B.1 Data Protection
-
-- **Encryption at Rest**: All impression data encrypted in Cloud Storage using KMS
-- **Encryption in Transit**: gRPC with mutual TLS for all Kingdom communication
-- **Key Management**: Envelope encryption with KEK in Cloud KMS, DEK per data blob
-- **Access Control**: IAM-based access to storage, Spanner, and KMS resources
-
-### B.2 Privacy Guarantees
-
-- **Differential Privacy**: Configurable epsilon/delta parameters, Continuous Gaussian noise
-- **K-Anonymity**: Minimum user and impression thresholds, frequency capping
-- **Secure Computation**: Direct protocol current, HMShuffle planned for future
-- **Result Signing**: Private key signing ensures result integrity and non-repudiation
-
-### B.3 Audit & Compliance
-
-- **State Transitions**: RequisitionMetadataActions table logs all state changes
-- **Request IDs**: Idempotent operations with request ID deduplication
-- **OpenTelemetry**: Distributed tracing for audit trails
-- **Resource Names**: Traceable resource hierarchies across Kingdom and EDP
-
----
-
-## Appendix C: Performance Characteristics
-
-### C.1 Scalability
-
-- **Parallel Processing**: Configurable worker count for event processing pipeline
-- **Batch Processing**: Configurable batch sizes for event reading and API operations
-- **Cloud Spanner**: Horizontally scalable metadata storage
-- **Cloud Storage**: Unlimited blob storage with parallel reads
-
-### C.2 Optimization Techniques
-
-- **Filter Deduplication**: Minimizes redundant event processing across requisitions
-- **Event Group Caching**: Reduces Kingdom API calls during requisition grouping
-- **Lock Striping**: Thread-safe frequency vectors with configurable stripe count (default 1024)
-- **Pagination**: Efficient large result set handling for listings
-- **Throttling**: Rate limiting for external API calls to prevent quota exhaustion
-
-### C.3 Configuration Parameters
-
-| Parameter | Default | Purpose |
-|-----------|---------|---------|
-| `batchSize` | 256 | Events per batch in pipeline |
-| `channelCapacity` | 128 | Per-worker channel capacity in batches |
-| `threadPoolSize` | 8 | Thread pool size for dispatcher |
-| `workers` | 8 | Parallel worker coroutines |
-| `stripeCount` | 1024 | Lock stripes for frequency vector |
-| `responsePageSize` | 100 | API pagination page size |
-| `impressionMetadataBatchSize` | 100 | Batch size for metadata creation |
-
----
-
-## Appendix D: Future Enhancements
-
-### D.1 Planned Protocol Support
-
-- **HonestMajority Shuffle (HMShuffle)**: Secure multi-party computation protocol
-- **Duration Measurements**: Time-based metrics (watch time, engagement duration)
-- **Population Measurements**: Unique user counts across campaigns
-
-### D.2 Potential Optimizations
-
-- **Incremental Processing**: Avoid reprocessing unchanged impression data
-- **Result Caching**: Cache computed frequency vectors for reuse
-- **Adaptive Parallelism**: Auto-tune worker count based on load
-- **Streaming Aggregation**: Reduce memory footprint for large datasets
-
-### D.3 Extended Integrations
-
-- **Multiple Cloud Providers**: AWS S3, Azure Blob Storage support
-- **Alternative Databases**: PostgreSQL backend for Spanner compatibility
-- **Enhanced Telemetry**: Custom dashboards, alerting, SLO tracking
-
----
-
-**Document Version**: 1.0
-**Last Updated**: 2026-01-16
-**Maintainer**: Cross-Media Measurement Team
+**Document Version**: 1.1
+**Last Updated**: 2026-01-20
+**Based on**: Source documentation files in `docs/org.wfanet.measurement.edpaggregator*.md`
