@@ -67,11 +67,6 @@ jobs:
           bazelisk build //src/main/k8s/testing/secretfiles:gen_trusted_certs
           cp bazel-bin/src/main/k8s/testing/secretfiles/all_root_certs.pem src/main/k8s/testing/secretfiles/
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881571f087b22682e26d7 # v3.1.2
-        with:
-          terraform_version: "1.9.8"
-
       - name: Terraform Format Check
         working-directory: ${{ matrix.terraform_dir }}
         run: terraform fmt -check -recursive -diff
