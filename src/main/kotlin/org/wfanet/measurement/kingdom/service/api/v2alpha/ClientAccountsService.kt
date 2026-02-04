@@ -72,6 +72,9 @@ import org.wfanet.measurement.internal.kingdom.listClientAccountsRequest as inte
  *
  * Translates between the public API resource names (e.g.,
  * `measurementConsumers/{mc}/clientAccounts/{ca}`) and the internal API external IDs.
+ *
+ * @param internalClientAccountsStub stub for the internal ClientAccounts service
+ * @param coroutineContext coroutine context for the service
  */
 class ClientAccountsService(
   private val internalClientAccountsStub: InternalClientAccountsCoroutineStub,
