@@ -131,7 +131,7 @@ kt_jvm_library(
 kt_jvm_library(
     name = "storage_event_source",
     srcs = ["StorageEventSource.kt"],
-    deps = [        
+    deps = [
         ":event_batch",
         ":event_reader",
         ":event_source",
