@@ -36,7 +36,6 @@ import org.wfanet.measurement.api.v2alpha.DeleteClientAccountRequest
 import org.wfanet.measurement.api.v2alpha.GetClientAccountRequest
 import org.wfanet.measurement.api.v2alpha.ListClientAccountsPageToken
 import org.wfanet.measurement.api.v2alpha.ListClientAccountsPageTokenKt.parentKey
-import org.wfanet.measurement.api.v2alpha.ListClientAccountsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.ListClientAccountsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerClientAccountKey
@@ -233,27 +232,18 @@ class ClientAccountsService(
     val internalRequest =
       when (key) {
         is MeasurementConsumerClientAccountKey -> {
-          val denied =
-            when (principal) {
-              is MeasurementConsumerPrincipal ->
-                principal.resourceKey.measurementConsumerId != key.measurementConsumerId
-              else -> true
-            }
-          if (denied) throw permissionDeniedStatus().asRuntimeException()
-
+          if (principal !is MeasurementConsumerPrincipal || principal.resourceKey != key.parentKey) {
+            throw permissionDeniedStatus().asRuntimeException()
+          }
           internalGetClientAccountRequest {
             externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
             externalClientAccountId = apiIdToExternalId(key.clientAccountId)
           }
         }
         is DataProviderClientAccountKey -> {
-          val denied =
-            when (principal) {
-              is DataProviderPrincipal -> principal.resourceKey.dataProviderId != key.dataProviderId
-              else -> true
-            }
-          if (denied) throw permissionDeniedStatus().asRuntimeException()
-
+          if (principal !is DataProviderPrincipal || principal.resourceKey != key.parentKey) {
+            throw permissionDeniedStatus().asRuntimeException()
+          }
           internalGetClientAccountRequest {
             externalDataProviderId = apiIdToExternalId(key.dataProviderId)
             externalClientAccountId = apiIdToExternalId(key.clientAccountId)
@@ -276,10 +266,7 @@ class ClientAccountsService(
   override suspend fun listClientAccounts(
     request: ListClientAccountsRequest
   ): ListClientAccountsResponse {
-    fun permissionDeniedStatus() =
-      Status.PERMISSION_DENIED.withDescription(
-        "Permission LIST denied on resource ${request.parent} (or it might not exist)"
-      )
+    fun permissionDeniedStatus() = Permission.LIST.deniedStatus("${request.parent}/clientAccounts")
 
     grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
 
@@ -295,8 +282,11 @@ class ClientAccountsService(
     }
 
     val pageToken: ListClientAccountsPageToken? =
-      if (request.pageToken.isEmpty()) null
-      else ListClientAccountsPageToken.parseFrom(request.pageToken.base64UrlDecode())
+      if (request.pageToken.isEmpty()) {
+        null
+      } else {
+        ListClientAccountsPageToken.parseFrom(request.pageToken.base64UrlDecode())
+      }
 
     val pageSize =
       if (request.pageSize == 0) DEFAULT_PAGE_SIZE else request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
@@ -325,7 +315,11 @@ class ClientAccountsService(
           .map(InternalClientAccount::toClientAccount)
       if (internalResponse.hasNextPageToken()) {
         nextPageToken =
-          buildNextPageToken(parentKey, internalResponse.nextPageToken)
+          buildNextPageToken(
+              parentKey,
+              request.filter.clientAccountReferenceId,
+              internalResponse.nextPageToken
+            )
             .toByteString()
             .base64UrlEncode()
       }
@@ -343,27 +337,18 @@ class ClientAccountsService(
     val principal: MeasurementPrincipal = principalFromCurrentContext
 
     // Only MeasurementConsumer can delete
-    if (principal !is MeasurementConsumerPrincipal) {
+    if (
+      principal !is MeasurementConsumerPrincipal ||
+      key !is MeasurementConsumerClientAccountKey ||
+      principal.resourceKey != key.parentKey
+    ) {
       throw permissionDeniedStatus().asRuntimeException()
     }
 
-    val internalRequest =
-      when (key) {
-        is MeasurementConsumerClientAccountKey -> {
-          if (principal.resourceKey.measurementConsumerId != key.measurementConsumerId) {
-            throw permissionDeniedStatus().asRuntimeException()
-          }
-          internalDeleteClientAccountRequest {
-            externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
-            externalClientAccountId = apiIdToExternalId(key.clientAccountId)
-          }
-        }
-        is DataProviderClientAccountKey -> {
-          // MC deleting via DP parent - needs to verify ownership
-          throw permissionDeniedStatus().asRuntimeException()
-        }
-        else -> error("Unexpected resource key type: $key")
-      }
+    val internalRequest = internalDeleteClientAccountRequest {
+      externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
+      externalClientAccountId = apiIdToExternalId(key.clientAccountId)
+    }
 
     try {
       internalClientAccountsStub.deleteClientAccount(internalRequest)
@@ -388,10 +373,7 @@ class ClientAccountsService(
       }
 
     val principal: MeasurementPrincipal = principalFromCurrentContext
-    if (principal !is MeasurementConsumerPrincipal) {
-      throw permissionDeniedStatus().asRuntimeException()
-    }
-    if (principal.resourceKey != parentKey) {
+    if (principal !is MeasurementConsumerPrincipal || principal.resourceKey != parentKey) {
       throw permissionDeniedStatus().asRuntimeException()
     }
 
@@ -403,18 +385,11 @@ class ClientAccountsService(
       val key: ClientAccountKey =
         grpcRequireNotNull(ClientAccountKey.fromName(name)) { "Resource name $name is invalid" }
 
-      when (key) {
-        is MeasurementConsumerClientAccountKey -> {
-          if (key.measurementConsumerId != parentKey.measurementConsumerId) {
-            throw Status.INVALID_ARGUMENT.withDescription("Resource $name does not match parent")
-              .asRuntimeException()
-          }
-        }
-        else ->
-          throw Status.INVALID_ARGUMENT.withDescription(
-              "Resource name $name is not under parent ${request.parent}"
-            )
-            .asRuntimeException()
+      if (key !is MeasurementConsumerClientAccountKey || key.parentKey != parentKey) {
+        throw Status.INVALID_ARGUMENT.withDescription(
+            "Resource $name does not match parent ${request.parent}"
+          )
+          .asRuntimeException()
       }
     }
 
@@ -482,49 +457,35 @@ class ClientAccountsService(
       if (pageToken != null) {
         // Validate page token matches filter
         val tokenParentKey = pageToken.parentKey
-        if (tokenParentKey.hasExternalMeasurementConsumerId()) {
-          if (parentKey is MeasurementConsumerKey) {
-            grpcRequire(
+        val isValidToken = when {
+          tokenParentKey.hasExternalMeasurementConsumerId() ->
+            parentKey is MeasurementConsumerKey &&
               tokenParentKey.externalMeasurementConsumerId ==
                 apiIdToExternalId(parentKey.measurementConsumerId)
-            ) {
-              "Arguments other than page_size must remain the same for subsequent page requests"
-            }
-          }
-        }
-        if (tokenParentKey.hasExternalDataProviderId()) {
-          if (parentKey is DataProviderKey) {
-            grpcRequire(
+          tokenParentKey.hasExternalDataProviderId() ->
+            parentKey is DataProviderKey &&
               tokenParentKey.externalDataProviderId == apiIdToExternalId(parentKey.dataProviderId)
-            ) {
-              "Arguments other than page_size must remain the same for subsequent page requests"
-            }
-          }
-        }
-        if (pageToken.clientAccountReferenceId != request.filter.clientAccountReferenceId) {
-          throw Status.INVALID_ARGUMENT.withDescription(
-              "Arguments other than page_size must remain the same for subsequent page requests"
-            )
-            .asRuntimeException()
+          else -> false
         }
 
-        // Set the internal page token
+        grpcRequire(
+          isValidToken && pageToken.clientAccountReferenceId == request.filter.clientAccountReferenceId
+        ) {
+          "Arguments other than page_size must remain the same for subsequent page requests"
+        }
+
+        // Deserialize the internal page token
         this.pageToken =
-          org.wfanet.measurement.internal.kingdom.listClientAccountsPageToken {
-            after =
-              org.wfanet.measurement.internal.kingdom.ListClientAccountsPageTokenKt.after {
-                externalMeasurementConsumerId =
-                  pageToken.lastClientAccount.parentKey.externalMeasurementConsumerId
-                externalClientAccountId = pageToken.lastClientAccount.externalClientAccountId
-                createTime = pageToken.lastClientAccount.createTime
-              }
-          }
+          org.wfanet.measurement.internal.kingdom.ListClientAccountsPageToken.parseFrom(
+            pageToken.internalPageToken
+          )
       }
     }
   }
 
   private fun buildNextPageToken(
     parentKey: ResourceKey,
+    clientAccountReferenceId: String,
     internalPageToken: org.wfanet.measurement.internal.kingdom.ListClientAccountsPageToken,
   ): ListClientAccountsPageToken {
     return listClientAccountsPageToken {
@@ -535,13 +496,8 @@ class ClientAccountsService(
           is DataProviderKey -> externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
         }
       }
-      lastClientAccount = previousPageEnd {
-        this.parentKey = parentKey {
-          externalMeasurementConsumerId = internalPageToken.after.externalMeasurementConsumerId
-        }
-        externalClientAccountId = internalPageToken.after.externalClientAccountId
-        createTime = internalPageToken.after.createTime
-      }
+      this.internalPageToken = internalPageToken.toByteString()
+      this.clientAccountReferenceId = clientAccountReferenceId
     }
   }
 

@@ -123,37 +123,36 @@ class SpannerClientAccountsService(
   override suspend fun batchCreateClientAccounts(
     request: BatchCreateClientAccountsRequest
   ): BatchCreateClientAccountsResponse {
-    grpcRequire(request.externalMeasurementConsumerId != 0L) {
-      "external_measurement_consumer_id not specified"
+    if (request.externalMeasurementConsumerId == 0L) {
+      throw RequiredFieldNotSetException("external_measurement_consumer_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     for ((index, subRequest) in request.requestsList.withIndex()) {
-      grpcRequire(subRequest.hasClientAccount()) { "requests[$index].client_account not specified" }
+      if (!subRequest.hasClientAccount()) {
+        throw RequiredFieldNotSetException("requests.$index.client_account")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
       val clientExternalMcId = subRequest.clientAccount.externalMeasurementConsumerId
-      grpcRequire(
-        clientExternalMcId == 0L || clientExternalMcId == request.externalMeasurementConsumerId
-      ) {
-        "requests[$index].client_account.external_measurement_consumer_id differs from parent"
+      if (clientExternalMcId != 0L && clientExternalMcId != request.externalMeasurementConsumerId) {
+        throw InvalidFieldValueException("requests.$index.client_account.external_measurement_consumer_id") {
+            fieldPath ->
+            "Value of $fieldPath differs from that of the parent request"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
-      grpcRequire(subRequest.clientAccount.externalDataProviderId != 0L) {
-        "requests[$index].client_account.external_data_provider_id not specified"
+      if (subRequest.clientAccount.externalDataProviderId == 0L) {
+        throw RequiredFieldNotSetException("requests.$index.client_account.external_data_provider_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
-      grpcRequire(subRequest.clientAccount.clientAccountReferenceId.isNotEmpty()) {
-        "requests[$index].client_account.client_account_reference_id not specified"
+      if (subRequest.clientAccount.clientAccountReferenceId.isEmpty()) {
+        throw RequiredFieldNotSetException("requests.$index.client_account.client_account_reference_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
 
-    try {
-      return BatchCreateClientAccounts(request).execute(client, idGenerator)
-    } catch (e: MeasurementConsumerNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
-    } catch (e: DataProviderNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
-    } catch (e: ClientAccountAlreadyExistsException) {
-      throw e.asStatusRuntimeException(
-        Status.Code.ALREADY_EXISTS,
-        "ClientAccount with this reference ID already exists for DataProvider.",
-      )
+    return handleCreateExceptions {
+      BatchCreateClientAccounts(request).execute(client, idGenerator)
     }
   }
 
@@ -252,29 +251,27 @@ class SpannerClientAccountsService(
   override suspend fun batchDeleteClientAccounts(
     request: BatchDeleteClientAccountsRequest
   ): BatchDeleteClientAccountsResponse {
-    grpcRequire(request.externalMeasurementConsumerId != 0L) {
-      "external_measurement_consumer_id not specified"
+    if (request.externalMeasurementConsumerId == 0L) {
+      throw RequiredFieldNotSetException("external_measurement_consumer_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     for ((index, subRequest) in request.requestsList.withIndex()) {
       val clientExternalMcId = subRequest.externalMeasurementConsumerId
-      grpcRequire(
-        clientExternalMcId == 0L || clientExternalMcId == request.externalMeasurementConsumerId
-      ) {
-        "requests[$index].external_measurement_consumer_id differs from parent"
+      if (clientExternalMcId != 0L && clientExternalMcId != request.externalMeasurementConsumerId) {
+        throw InvalidFieldValueException("requests.$index.external_measurement_consumer_id") {
+            fieldPath ->
+            "Value of $fieldPath differs from that of the parent request"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
-      grpcRequire(subRequest.externalClientAccountId != 0L) {
-        "requests[$index].external_client_account_id not specified"
+      if (subRequest.externalClientAccountId == 0L) {
+        throw RequiredFieldNotSetException("requests.$index.external_client_account_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
 
-    try {
-      return BatchDeleteClientAccounts(request).execute(client, idGenerator)
-    } catch (e: MeasurementConsumerNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "MeasurementConsumer not found.")
-    } catch (e: ClientAccountNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ClientAccount not found.")
-    }
+    return handleDeleteExceptions { BatchDeleteClientAccounts(request).execute(client, idGenerator) }
   }
 
   override suspend fun listClientAccounts(
