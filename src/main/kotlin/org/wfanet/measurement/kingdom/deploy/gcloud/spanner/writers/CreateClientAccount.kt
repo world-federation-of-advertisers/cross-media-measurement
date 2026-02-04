@@ -32,8 +32,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ClientAccoun
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 
-private const val MAX_ID_GENERATION_ATTEMPTS = 10
-
 class CreateClientAccount(private val clientAccount: ClientAccount) :
   SpannerWriter<ClientAccount, ClientAccount>() {
   override suspend fun TransactionScope.runTransaction(): ClientAccount {

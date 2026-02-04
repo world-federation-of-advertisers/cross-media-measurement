@@ -121,28 +121,6 @@ class ClientAccountReader : SpannerReader<ClientAccountReader.Result>() {
       .singleOrNull()
   }
 
-  /** Checks if a ClientAccount exists with the given internal ID for the MeasurementConsumer. */
-  suspend fun readByInternalId(
-    readContext: AsyncDatabaseClient.ReadContext,
-    measurementConsumerId: InternalId,
-    clientAccountId: InternalId,
-  ): Result? {
-    return fillStatementBuilder {
-        appendClause(
-          """
-          WHERE MeasurementConsumerId = @measurementConsumerId
-            AND ClientAccountId = @clientAccountId
-          """
-            .trimIndent()
-        )
-        bind("measurementConsumerId").to(measurementConsumerId.value)
-        bind("clientAccountId").to(clientAccountId.value)
-        appendClause("LIMIT 1")
-      }
-      .execute(readContext)
-      .singleOrNull()
-  }
-
   private fun buildClientAccount(struct: Struct): ClientAccount = clientAccount {
     externalClientAccountId = struct.getLong("ExternalClientAccountId")
     externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
