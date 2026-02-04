@@ -36,19 +36,19 @@ class ClientAccountReader : SpannerReader<ClientAccountReader.Result>() {
 
   override val baseSql: String =
     """
-    SELECT
-      ClientAccounts.MeasurementConsumerId,
-      ClientAccounts.ClientAccountId,
-      ClientAccounts.ExternalClientAccountId,
-      ClientAccounts.DataProviderId,
-      ClientAccounts.ClientAccountReferenceId,
-      ClientAccounts.CreateTime,
-      MeasurementConsumers.ExternalMeasurementConsumerId,
-      DataProviders.ExternalDataProviderId
-    FROM ClientAccounts
-    JOIN MeasurementConsumers USING (MeasurementConsumerId)
-    JOIN DataProviders USING (DataProviderId)
-    """
+     SELECT
+       ClientAccounts.MeasurementConsumerId,
+       ClientAccounts.ClientAccountId,
+       ClientAccounts.ExternalClientAccountId,
+       ClientAccounts.DataProviderId,
+       ClientAccounts.ClientAccountReferenceId,
+       ClientAccounts.CreateTime,
+       MeasurementConsumers.ExternalMeasurementConsumerId,
+       DataProviders.ExternalDataProviderId
+     FROM ClientAccounts
+     JOIN MeasurementConsumers USING (MeasurementConsumerId)
+     JOIN DataProviders USING (DataProviderId)
+     """
       .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
@@ -66,9 +66,9 @@ class ClientAccountReader : SpannerReader<ClientAccountReader.Result>() {
     return fillStatementBuilder {
         appendClause(
           """
-          WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId
-            AND ExternalClientAccountId = @externalClientAccountId
-          """
+           WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId
+             AND ExternalClientAccountId = @externalClientAccountId
+           """
             .trimIndent()
         )
         bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
@@ -87,9 +87,9 @@ class ClientAccountReader : SpannerReader<ClientAccountReader.Result>() {
     return fillStatementBuilder {
         appendClause(
           """
-          WHERE ExternalDataProviderId = @externalDataProviderId
-            AND ExternalClientAccountId = @externalClientAccountId
-          """
+           WHERE ExternalDataProviderId = @externalDataProviderId
+             AND ExternalClientAccountId = @externalClientAccountId
+           """
             .trimIndent()
         )
         bind("externalDataProviderId").to(externalDataProviderId.value)
@@ -108,9 +108,9 @@ class ClientAccountReader : SpannerReader<ClientAccountReader.Result>() {
     return fillStatementBuilder {
         appendClause(
           """
-          WHERE ExternalDataProviderId = @externalDataProviderId
-            AND ClientAccountReferenceId = @clientAccountReferenceId
-          """
+           WHERE ExternalDataProviderId = @externalDataProviderId
+             AND ClientAccountReferenceId = @clientAccountReferenceId
+           """
             .trimIndent()
         )
         bind("externalDataProviderId").to(externalDataProviderId.value)
