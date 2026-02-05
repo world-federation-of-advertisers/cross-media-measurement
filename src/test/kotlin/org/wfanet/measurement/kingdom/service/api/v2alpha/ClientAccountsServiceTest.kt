@@ -65,32 +65,33 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccount
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 
-private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 123L
-private const val EXTERNAL_MEASUREMENT_CONSUMER_ID_2 = 456L
-private const val EXTERNAL_DATA_PROVIDER_ID = 789L
-private const val EXTERNAL_CLIENT_ACCOUNT_ID = 111L
-private const val EXTERNAL_CLIENT_ACCOUNT_ID_2 = 222L
-
 private val MEASUREMENT_CONSUMER_NAME =
-  MeasurementConsumerKey(externalIdToApiId(EXTERNAL_MEASUREMENT_CONSUMER_ID)).toName()
+  MeasurementConsumerKey(
+      externalIdToApiId(ClientAccountsServiceTest.EXTERNAL_MEASUREMENT_CONSUMER_ID)
+    )
+    .toName()
 private val MEASUREMENT_CONSUMER_NAME_2 =
-  MeasurementConsumerKey(externalIdToApiId(EXTERNAL_MEASUREMENT_CONSUMER_ID_2)).toName()
-private val DATA_PROVIDER_NAME = makeDataProvider(EXTERNAL_DATA_PROVIDER_ID)
+  MeasurementConsumerKey(
+      externalIdToApiId(ClientAccountsServiceTest.EXTERNAL_MEASUREMENT_CONSUMER_ID_2)
+    )
+    .toName()
+private val DATA_PROVIDER_NAME =
+  makeDataProvider(ClientAccountsServiceTest.EXTERNAL_DATA_PROVIDER_ID)
 private val DATA_PROVIDER_NAME_2 = makeDataProvider(999L)
 
 private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 
 private val CLIENT_ACCOUNT_NAME =
   MeasurementConsumerClientAccountKey(
-      externalIdToApiId(EXTERNAL_MEASUREMENT_CONSUMER_ID),
-      externalIdToApiId(EXTERNAL_CLIENT_ACCOUNT_ID),
+      externalIdToApiId(ClientAccountsServiceTest.EXTERNAL_MEASUREMENT_CONSUMER_ID),
+      externalIdToApiId(ClientAccountsServiceTest.EXTERNAL_CLIENT_ACCOUNT_ID),
     )
     .toName()
 
 private val CLIENT_ACCOUNT_NAME_2 =
   MeasurementConsumerClientAccountKey(
-      externalIdToApiId(EXTERNAL_MEASUREMENT_CONSUMER_ID),
-      externalIdToApiId(EXTERNAL_CLIENT_ACCOUNT_ID_2),
+      externalIdToApiId(ClientAccountsServiceTest.EXTERNAL_MEASUREMENT_CONSUMER_ID),
+      externalIdToApiId(ClientAccountsServiceTest.EXTERNAL_CLIENT_ACCOUNT_ID_2),
     )
     .toName()
 
@@ -103,9 +104,9 @@ private val CLIENT_ACCOUNT: ClientAccount = clientAccount {
 }
 
 private val INTERNAL_CLIENT_ACCOUNT: InternalClientAccount = internalClientAccount {
-  externalClientAccountId = EXTERNAL_CLIENT_ACCOUNT_ID
-  externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
-  externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+  externalClientAccountId = ClientAccountsServiceTest.EXTERNAL_CLIENT_ACCOUNT_ID
+  externalMeasurementConsumerId = ClientAccountsServiceTest.EXTERNAL_MEASUREMENT_CONSUMER_ID
+  externalDataProviderId = ClientAccountsServiceTest.EXTERNAL_DATA_PROVIDER_ID
   clientAccountReferenceId = CLIENT_ACCOUNT_REFERENCE_ID
   createTime = timestamp { seconds = 12345 }
 }
@@ -761,5 +762,13 @@ class ClientAccountsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.message).contains("does not match parent")
+  }
+
+  companion object {
+    const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 123L
+    const val EXTERNAL_MEASUREMENT_CONSUMER_ID_2 = 456L
+    const val EXTERNAL_DATA_PROVIDER_ID = 789L
+    const val EXTERNAL_CLIENT_ACCOUNT_ID = 111L
+    const val EXTERNAL_CLIENT_ACCOUNT_ID_2 = 222L
   }
 }
