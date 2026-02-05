@@ -234,17 +234,19 @@ class SpannerClientAccountsService(
     }
 
     return listClientAccountsResponse {
-      clientAccounts.addAll(clientAccountList.take(pageSize).map { it.clientAccount })
-
-      if (clientAccountList.size > pageSize) {
-        val lastAccount = clientAccounts.last()
-        nextPageToken = listClientAccountsPageToken {
-          this.after =
-            ListClientAccountsPageTokenKt.after {
-              externalMeasurementConsumerId = lastAccount.externalMeasurementConsumerId
-              externalClientAccountId = lastAccount.externalClientAccountId
-              createTime = lastAccount.createTime
-            }
+      for ((index, result) in clientAccountList.withIndex()) {
+        if (index == pageSize) {
+          val lastAccount = clientAccounts.last()
+          nextPageToken = listClientAccountsPageToken {
+            this.after =
+              ListClientAccountsPageTokenKt.after {
+                externalMeasurementConsumerId = lastAccount.externalMeasurementConsumerId
+                externalClientAccountId = lastAccount.externalClientAccountId
+                createTime = lastAccount.createTime
+              }
+          }
+        } else {
+          clientAccounts += result.clientAccount
         }
       }
     }
