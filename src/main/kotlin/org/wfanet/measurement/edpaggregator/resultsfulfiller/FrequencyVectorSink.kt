@@ -17,6 +17,10 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.protobuf.Message
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
+import java.util.logging.Logger
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
 
 /**
@@ -31,6 +35,13 @@ class FrequencyVectorSink<T : Message>(
   private val frequencyVector: StripedByteFrequencyVector,
   private val vidIndexMap: VidIndexMap,
 ) {
+  private val zeroVidAttributes =
+    Attributes.of(FILTER_SPEC_ATTR, filterProcessor.filterSpec.toString())
+  private val zeroVidCounter =
+    Instrumentation.meter
+      .counterBuilder("edpa.results_fulfiller.zero_vids_skipped")
+      .setDescription("Count of events skipped due to zero VID")
+      .build()
 
   /**
    * Processes a batch of events and updates frequency vector for matched events.
@@ -39,6 +50,13 @@ class FrequencyVectorSink<T : Message>(
    */
   fun processBatch(batch: EventBatch<T>) {
     filterProcessor.processBatch(batch).events.forEach { event ->
+      if (event.vid == 0L) {
+        zeroVidCounter.add(1, zeroVidAttributes)
+        logger.warning(
+          "Skipping event with zero VID for filterSpec=${filterProcessor.filterSpec.toString()}"
+        )
+        return@forEach
+      }
       val index = vidIndexMap[event.vid]
       frequencyVector.increment(index)
     }
@@ -62,5 +80,11 @@ class FrequencyVectorSink<T : Message>(
    */
   fun getTotalUncappedImpressions(): Long {
     return frequencyVector.getTotalUncappedImpressions()
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(FrequencyVectorSink::class.java.name)
+    private val FILTER_SPEC_ATTR: AttributeKey<String> =
+      AttributeKey.stringKey("edpa.results_fulfiller.filter_spec")
   }
 }
