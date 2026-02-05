@@ -17,8 +17,6 @@
 package org.wfanet.measurement.reporting.service.api
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.Any.pack
-import com.google.protobuf.DynamicMessage
 import io.grpc.Status
 import io.grpc.StatusException
 import java.time.Duration
@@ -44,7 +42,6 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ListEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.copy
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testParentMetadataMessage
 import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsRequest
@@ -54,10 +51,8 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
-import org.wfanet.measurement.reporting.v2alpha.EventGroupKt
 import org.wfanet.measurement.reporting.v2alpha.eventGroup
 
-private const val METADATA_FIELD = "metadata.metadata"
 private const val MAX_PAGE_SIZE = 1000
 private val TEST_MESSAGE = testMetadataMessage { publisherId = 15 }
 private const val DATA_PROVIDER_NAME = "dataProviders/123"
@@ -283,21 +278,9 @@ class CelEnvProviderTest {
     private val REPORTING_EVENT_GROUP_DESCRIPTOR = EventGroup.getDescriptor()
 
     private fun verifyTypeRegistryAndEnv(typeRegistryAndEnv: CelEnvProvider.TypeRegistryAndEnv) {
-      val eventGroup = eventGroup {
-        metadata =
-          EventGroupKt.metadata {
-            eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-            metadata = pack(TEST_MESSAGE.copy { publisherId = 15 })
-          }
-      }
-      val eventGroup2 = eventGroup {
-        metadata =
-          EventGroupKt.metadata {
-            eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-            metadata = pack(TEST_MESSAGE.copy { publisherId = 9 })
-          }
-      }
-      val filter = "metadata.metadata.publisher_id > 10"
+      val eventGroup = eventGroup { name = "eventGroups/123" }
+      val eventGroup2 = eventGroup { name = "eventGroups/456" }
+      val filter = "name == 'eventGroups/123'"
 
       assertThat(filterEventGroups(listOf(eventGroup, eventGroup2), filter, typeRegistryAndEnv))
         .containsExactly(eventGroup)
@@ -309,37 +292,15 @@ class CelEnvProviderTest {
       typeRegistryAndEnv: CelEnvProvider.TypeRegistryAndEnv,
     ): List<EventGroup> {
       val env = typeRegistryAndEnv.env
-      val typeRegistry = typeRegistryAndEnv.typeRegistry
 
       val astAndIssues = env.compile(filter)
       val program = env.program(astAndIssues.ast)
-
-      eventGroups
-        .distinctBy { it.metadata.metadata.typeUrl }
-        .forEach {
-          val typeUrl = it.metadata.metadata.typeUrl
-          typeRegistry.getDescriptorForTypeUrl(typeUrl)
-            ?: throw IllegalStateException(
-              "${it.metadata.eventGroupMetadataDescriptor} does not contain descriptor for $typeUrl"
-            )
-        }
 
       return eventGroups.filter { eventGroup ->
         val variables: Map<String, Any> =
           mutableMapOf<String, Any>().apply {
             for (fieldDescriptor in eventGroup.descriptorForType.fields) {
               put(fieldDescriptor.name, eventGroup.getField(fieldDescriptor))
-            }
-            // TODO(projectnessie/cel-java#295): Remove when fixed.
-            if (eventGroup.hasMetadata()) {
-              val metadata: com.google.protobuf.Any = eventGroup.metadata.metadata
-              put(
-                METADATA_FIELD,
-                DynamicMessage.parseFrom(
-                  typeRegistry.getDescriptorForTypeUrl(metadata.typeUrl),
-                  metadata.value,
-                ),
-              )
             }
           }
         val result: Val = program.eval(variables).`val`
