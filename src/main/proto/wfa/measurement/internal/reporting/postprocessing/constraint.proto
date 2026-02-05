@@ -22,8 +22,8 @@ option java_outer_classname = "ConstraintProto";
 
 // Represents a collection of constraints for a quadratic programming problem.
 //
-// This message encapsulates all the linear constraints that define the feasible region
-// for the optimization problem.
+// This message encapsulates all the linear constraints that define the feasible
+// region for the optimization problem.
 message Constraints {
   // The type of a linear constraint.
   enum ConstraintType {
