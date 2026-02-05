@@ -132,6 +132,7 @@ class InvokeDataWatcherFunctionTest() {
             "PRIVATE_KEY_FILE_PATH" to SECRETS_DIR.resolve("edp7_tls.key").toString(),
             "CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString(),
             "EDPA_CONFIG_STORAGE_BUCKET" to DATA_WATCHER_CONFIG_FILE_SYSTEM_PATH,
+            "CONFIG_BLOB_KEY" to CONFIG_BLOB_KEY,
             "OTEL_METRICS_EXPORTER" to "none",
             "OTEL_TRACES_EXPORTER" to "none",
             "OTEL_LOGS_EXPORTER" to "none",
@@ -224,6 +225,7 @@ class InvokeDataWatcherFunctionTest() {
           )
         )!!
     private const val BUCKET = "test-bucket"
+    private const val CONFIG_BLOB_KEY = "data-watcher-config.textproto"
     private val serverCerts =
       SigningCerts.fromPemFiles(
         certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem"),

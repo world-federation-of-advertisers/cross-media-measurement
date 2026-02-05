@@ -40,7 +40,6 @@ import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.EventGroup
@@ -110,14 +109,17 @@ import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParam
 import org.wfanet.measurement.measurementconsumer.stats.DeterministicMethodology
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.FrequencyMethodology
 import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
 import org.wfanet.measurement.measurementconsumer.stats.ImpressionMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ImpressionMeasurementVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.ImpressionMethodology
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
 import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.ReachMethodology
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
@@ -200,8 +202,7 @@ abstract class MeasurementConsumerSimulator(
   /** A sequence of operations done in the simulator involving a reach and frequency measurement. */
   suspend fun testReachAndFrequency(
     runId: String,
-    requiredCapabilities: DataProvider.Capabilities =
-      DataProvider.Capabilities.getDefaultInstance(),
+    expectedProtocol: ProtocolConfig.Protocol.ProtocolCase,
     vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
     eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   ) {
@@ -213,7 +214,7 @@ abstract class MeasurementConsumerSimulator(
         measurementConsumer,
         runId,
         ::newReachAndFrequencyMeasurementSpec,
-        requiredCapabilities,
+        expectedProtocol,
         vidSamplingInterval = vidSamplingInterval,
         eventGroupFilter = eventGroupFilter,
       )
@@ -231,7 +232,9 @@ abstract class MeasurementConsumerSimulator(
     val expectedResult = getExpectedResult(measurementInfo)
     logger.info("Expected result: $expectedResult")
 
-    val protocol = measurementInfo.measurement.protocolConfig.protocolsList.first()
+    val protocol: ProtocolConfig.Protocol =
+      measurementInfo.measurement.protocolConfig.protocolsList.first()
+    assertThat(protocol.protocolCase).isEqualTo(expectedProtocol)
 
     val reachVariance: Double =
       computeReachVariance(
@@ -245,13 +248,6 @@ abstract class MeasurementConsumerSimulator(
       throw IllegalStateException("Expected result cannot be less than tolerance")
     }
 
-    if (requiredCapabilities.honestMajorityShareShuffleSupported) {
-      assertThat(protocol.protocolCase)
-        .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
-    } else {
-      assertThat(protocol.protocolCase)
-        .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
-    }
     assertThat(reachAndFrequencyResult)
       .reachValue()
       .isWithin(reachTolerance)
@@ -278,8 +274,7 @@ abstract class MeasurementConsumerSimulator(
    */
   suspend fun testInvalidReachAndFrequency(
     runId: String,
-    requiredCapabilities: DataProvider.Capabilities =
-      DataProvider.Capabilities.getDefaultInstance(),
+    protocol: ProtocolConfig.Protocol.ProtocolCase,
     vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
     eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   ) {
@@ -291,7 +286,7 @@ abstract class MeasurementConsumerSimulator(
           measurementConsumer,
           runId,
           ::newInvalidReachAndFrequencyMeasurementSpec,
-          requiredCapabilities,
+          protocol,
           vidSamplingInterval,
           eventGroupFilter = eventGroupFilter,
         )
@@ -339,7 +334,7 @@ abstract class MeasurementConsumerSimulator(
             measurementConsumer,
             runId,
             ::newReachAndFrequencyMeasurementSpec,
-            DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+            ProtocolConfig.Protocol.ProtocolCase.DIRECT,
             DEFAULT_VID_SAMPLING_INTERVAL,
             measurementNumber.toDouble() / numMeasurements,
             1,
@@ -426,7 +421,7 @@ abstract class MeasurementConsumerSimulator(
             measurementConsumer,
             runId,
             ::newReachMeasurementSpec,
-            DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+            ProtocolConfig.Protocol.ProtocolCase.DIRECT,
             DEFAULT_VID_SAMPLING_INTERVAL,
             measurementNumber.toDouble() / numMeasurements,
             1,
@@ -473,8 +468,7 @@ abstract class MeasurementConsumerSimulator(
 
   suspend fun executeReachOnly(
     runId: String,
-    requiredCapabilities: DataProvider.Capabilities =
-      DataProvider.Capabilities.getDefaultInstance(),
+    protocol: ProtocolConfig.Protocol.ProtocolCase,
     vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
     eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   ): ExecutionResult {
@@ -485,7 +479,7 @@ abstract class MeasurementConsumerSimulator(
         measurementConsumer,
         runId,
         ::newReachOnlyMeasurementSpec,
-        requiredCapabilities,
+        protocol,
         vidSamplingInterval = vidSamplingInterval,
         eventGroupFilter = eventGroupFilter,
       )
@@ -511,8 +505,7 @@ abstract class MeasurementConsumerSimulator(
 
   suspend fun executeReachAndFrequency(
     runId: String,
-    requiredCapabilities: DataProvider.Capabilities =
-      DataProvider.Capabilities.getDefaultInstance(),
+    protocol: ProtocolConfig.Protocol.ProtocolCase,
     vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
     eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   ): ExecutionResult {
@@ -523,7 +516,7 @@ abstract class MeasurementConsumerSimulator(
         measurementConsumer,
         runId,
         ::newReachAndFrequencyMeasurementSpec,
-        requiredCapabilities,
+        protocol,
         vidSamplingInterval = vidSamplingInterval,
         eventGroupFilter = eventGroupFilter,
       )
@@ -552,16 +545,17 @@ abstract class MeasurementConsumerSimulator(
   /** A sequence of operations done in the simulator involving a reach-only measurement. */
   suspend fun testReachOnly(
     runId: String,
-    requiredCapabilities: DataProvider.Capabilities =
-      DataProvider.Capabilities.getDefaultInstance(),
+    expectedProtocol: ProtocolConfig.Protocol.ProtocolCase =
+      ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
     vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
     eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   ) {
     logger.info { "Creating reach only Measurement..." }
-    val result =
-      executeReachOnly(runId, requiredCapabilities, vidSamplingInterval, eventGroupFilter)
+    val result = executeReachOnly(runId, expectedProtocol, vidSamplingInterval, eventGroupFilter)
 
-    val protocol = result.measurementInfo.measurement.protocolConfig.protocolsList.first()
+    val protocol: ProtocolConfig.Protocol =
+      result.measurementInfo.measurement.protocolConfig.protocolsList.first()
+    assertThat(protocol.protocolCase).isEqualTo(expectedProtocol)
 
     val reachVariance: Double =
       computeReachVariance(
@@ -575,13 +569,6 @@ abstract class MeasurementConsumerSimulator(
       throw IllegalStateException("Expected result cannot be less than tolerance")
     }
 
-    if (requiredCapabilities.honestMajorityShareShuffleSupported) {
-      assertThat(protocol.protocolCase)
-        .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
-    } else {
-      assertThat(protocol.protocolCase)
-        .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2)
-    }
     assertThat(result.actualResult)
       .reachValue()
       .isWithin(reachTolerance)
@@ -606,7 +593,7 @@ abstract class MeasurementConsumerSimulator(
         measurementConsumer,
         runId,
         ::newImpressionMeasurementSpec,
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+        ProtocolConfig.Protocol.ProtocolCase.DIRECT,
         DEFAULT_VID_SAMPLING_INTERVAL,
         eventGroupFilter = eventGroupFilter,
       )
@@ -651,7 +638,7 @@ abstract class MeasurementConsumerSimulator(
         measurementConsumer,
         runId,
         ::newDurationMeasurementSpec,
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+        ProtocolConfig.Protocol.ProtocolCase.DIRECT,
         DEFAULT_VID_SAMPLING_INTERVAL,
         eventGroupFilter = eventGroupFilter,
       )
@@ -741,7 +728,7 @@ abstract class MeasurementConsumerSimulator(
       }
 
     return VariancesImpl.computeMeasurementVariance(
-      measurementComputationInfo.methodology,
+      measurementComputationInfo.methodology as ImpressionMethodology,
       ImpressionMeasurementVarianceParams(
         impression = max(0L, result.impression.value),
         measurementParams =
@@ -766,7 +753,7 @@ abstract class MeasurementConsumerSimulator(
       buildMeasurementComputationInfo(result, protocol, result.frequency.noiseMechanism)
 
     return VariancesImpl.computeMeasurementVariance(
-        measurementComputationInfo.methodology,
+        measurementComputationInfo.methodology as FrequencyMethodology,
         FrequencyMeasurementVarianceParams(
           totalReach = max(0L, result.reach.value),
           reachMeasurementVariance = reachVariance,
@@ -799,7 +786,7 @@ abstract class MeasurementConsumerSimulator(
       buildMeasurementComputationInfo(result, protocol, result.reach.noiseMechanism)
 
     return VariancesImpl.computeMeasurementVariance(
-      measurementComputationInfo.methodology,
+      measurementComputationInfo.methodology as ReachMethodology,
       ReachMeasurementVarianceParams(
         reach = max(0L, result.reach.value),
         measurementParams =
@@ -857,7 +844,7 @@ abstract class MeasurementConsumerSimulator(
         )
       }
       ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE -> {
-        error("TrusTEE is not implemented.")
+        MeasurementComputationInfo(DeterministicMethodology, protocol.trusTee.noiseMechanism)
       }
       ProtocolConfig.Protocol.ProtocolCase.PROTOCOL_NOT_SET -> {
         error("Protocol is not set.")
@@ -880,8 +867,7 @@ abstract class MeasurementConsumerSimulator(
         nonceHashes: List<ByteString>,
         vidSamplingInterval: VidSamplingInterval,
       ) -> MeasurementSpec,
-    requiredCapabilities: DataProvider.Capabilities =
-      DataProvider.Capabilities.getDefaultInstance(),
+    expectedProtocol: ProtocolConfig.Protocol.ProtocolCase,
     vidSamplingInterval: VidSamplingInterval,
     timePercentage: Double = 1.0,
     maxDataProviders: Int = 20,
@@ -903,11 +889,17 @@ abstract class MeasurementConsumerSimulator(
         .groupBy { extractDataProviderKey(it.name) }
         .entries
         .filter {
-          val dataProvider = keyToDataProviderMap.getValue(it.key)
-          if (requiredCapabilities.honestMajorityShareShuffleSupported) {
-            dataProvider.capabilities.honestMajorityShareShuffleSupported
-          } else {
-            true
+          val dataProviderCapabilities: DataProvider.Capabilities =
+            keyToDataProviderMap.getValue(it.key).capabilities
+          when (expectedProtocol) {
+            ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
+              dataProviderCapabilities.honestMajorityShareShuffleSupported
+            ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE ->
+              dataProviderCapabilities.trusTeeSupported
+            ProtocolConfig.Protocol.ProtocolCase.DIRECT,
+            ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2,
+            ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> true
+            ProtocolConfig.Protocol.ProtocolCase.PROTOCOL_NOT_SET -> error("Protocol not set")
           }
         }
         .take(maxDataProviders)
@@ -923,6 +915,7 @@ abstract class MeasurementConsumerSimulator(
             timePercentage,
           )
         }
+
     val measurementSpec =
       newMeasurementSpec(measurementConsumer.publicKey.message, nonceHashes, vidSamplingInterval)
     return createMeasurementInfo(measurementConsumer, measurementSpec, requisitions, runId)

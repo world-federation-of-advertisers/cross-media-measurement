@@ -92,7 +92,7 @@ import org.wfanet.measurement.internal.duchy.differentialPrivacyParams
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee.ComputationDetails as TrusTeeDetails
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee.Stage
 import org.wfanet.measurement.internal.duchy.protocol.TrusTeeKt
-import org.wfanet.measurement.measurementconsumer.stats.TrusTeeMethodology
+import org.wfanet.measurement.measurementconsumer.stats.DeterministicMethodology
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
@@ -696,7 +696,7 @@ class TrusTeeMillTest {
       ReachAndFrequencyResult(
         reach = 4,
         frequency = mapOf(0L to 0.2, 1L to 0.2, 2L to 0.2, 3L to 0.4, 4L to 0.2, 5L to 0.0),
-        methodology = TrusTeeMethodology(5),
+        methodology = DeterministicMethodology,
       )
 
     private const val KEK_URI_1 = "fake-kms://kek_uri_1"

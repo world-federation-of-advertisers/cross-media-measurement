@@ -34,7 +34,7 @@ interface Variances {
 
   /** Computes variance of a reach measurement based on the methodology. */
   fun computeMeasurementVariance(
-    methodology: Methodology,
+    methodology: ReachMethodology,
     measurementVarianceParams: ReachMeasurementVarianceParams,
   ): Double
 
@@ -48,7 +48,7 @@ interface Variances {
 
   /** Computes variance of a frequency measurement based on the methodology. */
   fun computeMeasurementVariance(
-    methodology: Methodology,
+    methodology: FrequencyMethodology,
     measurementVarianceParams: FrequencyMeasurementVarianceParams,
   ): FrequencyVariances
 
@@ -62,7 +62,7 @@ interface Variances {
 
   /** Computes variance of an impression measurement based on the methodology. */
   fun computeMeasurementVariance(
-    methodology: Methodology,
+    methodology: ImpressionMethodology,
     measurementVarianceParams: ImpressionMeasurementVarianceParams,
   ): Double
 
@@ -76,7 +76,7 @@ interface Variances {
 
   /** Computes variance of a watch duration measurement based on the methodology. */
   fun computeMeasurementVariance(
-    methodology: Methodology,
+    methodology: WatchDurationMethodology,
     measurementVarianceParams: WatchDurationMeasurementVarianceParams,
   ): Double
 }
@@ -754,17 +754,12 @@ object VariancesImpl : Variances {
 
   /** Computes variance of a reach measurement based on the methodology. */
   override fun computeMeasurementVariance(
-    methodology: Methodology,
+    methodology: ReachMethodology,
     measurementVarianceParams: ReachMeasurementVarianceParams,
   ): Double {
     return when (methodology) {
       is CustomDirectScalarMethodology -> {
         methodology.variance
-      }
-      is CustomDirectFrequencyMethodology -> {
-        throw UnsupportedMethodologyUsageException(
-          "Custom direct methodology for frequency cannot be used for reach."
-        )
       }
       is DeterministicMethodology -> {
         computeDeterministicVariance(measurementVarianceParams)
@@ -786,10 +781,6 @@ object VariancesImpl : Variances {
           methodology.frequencyVectorSize,
           measurementVarianceParams,
         )
-      }
-      is TrusTeeMethodology -> {
-        // TrusTEE has only noise from EDPs without noise from MPC.
-        computeDeterministicVariance(measurementVarianceParams)
       }
     }
   }
@@ -833,15 +824,10 @@ object VariancesImpl : Variances {
 
   /** Computes variance of a frequency measurement based on the methodology. */
   override fun computeMeasurementVariance(
-    methodology: Methodology,
+    methodology: FrequencyMethodology,
     measurementVarianceParams: FrequencyMeasurementVarianceParams,
   ): FrequencyVariances {
     return when (methodology) {
-      is CustomDirectScalarMethodology -> {
-        throw UnsupportedMethodologyUsageException(
-          "Custom direct methodology for scalar cannot be used for frequency."
-        )
-      }
       is CustomDirectFrequencyMethodology -> {
         computeCustomDirectMethodologyVariance(methodology, measurementVarianceParams)
       }
@@ -865,10 +851,6 @@ object VariancesImpl : Variances {
           methodology.frequencyVectorSize,
           measurementVarianceParams,
         )
-      }
-      is TrusTeeMethodology -> {
-        // TrusTEE has only noise from EDPs without noise from MPC.
-        computeDeterministicVariance(measurementVarianceParams)
       }
     }
   }
@@ -919,44 +901,15 @@ object VariancesImpl : Variances {
 
   /** Computes variance of an impression measurement based on the methodology. */
   override fun computeMeasurementVariance(
-    methodology: Methodology,
+    methodology: ImpressionMethodology,
     measurementVarianceParams: ImpressionMeasurementVarianceParams,
   ): Double {
     return when (methodology) {
       is CustomDirectScalarMethodology -> {
         methodology.variance
       }
-      is CustomDirectFrequencyMethodology -> {
-        throw UnsupportedMethodologyUsageException(
-          "Custom direct methodology for frequency cannot be used for impression."
-        )
-      }
       is DeterministicMethodology -> {
         computeDeterministicVariance(measurementVarianceParams)
-      }
-      is LiquidLegionsSketchMethodology -> {
-        throw UnsupportedMethodologyUsageException(
-          "Methodology LIQUID_LEGIONS_SKETCH is not supported for impression.",
-          IllegalArgumentException("Invalid methodology"),
-        )
-      }
-      is LiquidLegionsV2Methodology -> {
-        throw UnsupportedMethodologyUsageException(
-          "Methodology LIQUID_LEGIONS_V2 is not supported for impression.",
-          IllegalArgumentException("Invalid methodology"),
-        )
-      }
-      is HonestMajorityShareShuffleMethodology -> {
-        throw UnsupportedMethodologyUsageException(
-          "Methodology HONEST_MAJORITY_SHARE_SHUFFLE is not supported for impression.",
-          IllegalArgumentException("Invalid methodology"),
-        )
-      }
-      is TrusTeeMethodology -> {
-        throw UnsupportedMethodologyUsageException(
-          "Methodology HONEST_MAJORITY_SHARE_SHUFFLE is not supported for impression.",
-          IllegalArgumentException("Invalid methodology"),
-        )
       }
     }
   }
@@ -989,44 +942,15 @@ object VariancesImpl : Variances {
 
   /** Computes variance of a watch duration measurement based on the methodology. */
   override fun computeMeasurementVariance(
-    methodology: Methodology,
+    methodology: WatchDurationMethodology,
     measurementVarianceParams: WatchDurationMeasurementVarianceParams,
   ): Double {
     return when (methodology) {
       is CustomDirectScalarMethodology -> {
         methodology.variance
       }
-      is CustomDirectFrequencyMethodology -> {
-        throw UnsupportedMethodologyUsageException(
-          "Custom direct methodology for frequency cannot be used for watch duration."
-        )
-      }
       is DeterministicMethodology -> {
         computeDeterministicVariance(measurementVarianceParams)
-      }
-      is LiquidLegionsSketchMethodology -> {
-        throw UnsupportedMethodologyUsageException(
-          "Methodology LIQUID_LEGIONS_SKETCH is not supported for watch duration.",
-          IllegalArgumentException("Invalid methodology"),
-        )
-      }
-      is LiquidLegionsV2Methodology -> {
-        throw UnsupportedMethodologyUsageException(
-          "Methodology LIQUID_LEGIONS_V2 is not supported for watch duration.",
-          IllegalArgumentException("Invalid methodology"),
-        )
-      }
-      is HonestMajorityShareShuffleMethodology -> {
-        throw UnsupportedMethodologyUsageException(
-          "Methodology HONEST_MAJORITY_SHARE_SHUFFLE is not supported for watch duration.",
-          IllegalArgumentException("Invalid methodology"),
-        )
-      }
-      is TrusTeeMethodology -> {
-        throw UnsupportedMethodologyUsageException(
-          "Methodology HONEST_MAJORITY_SHARE_SHUFFLE is not supported for watch duration.",
-          IllegalArgumentException("Invalid methodology"),
-        )
       }
     }
   }

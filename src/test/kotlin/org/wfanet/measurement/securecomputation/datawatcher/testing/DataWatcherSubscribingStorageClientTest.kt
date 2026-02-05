@@ -50,6 +50,6 @@ class DataWatcherSubscribingStorageClientTest :
     val dataWatcher: DataWatcher = mock {}
     subscribingStorageClient.subscribe(dataWatcher)
     subscribingStorageClient.writeBlob("some-blob-key", flowOf("some-contents".toByteStringUtf8()))
-    verify(dataWatcher, times(1)).receivePath("file:///some-bucket/some-blob-key")
+    verify(dataWatcher, times(1)).receivePath("file:///some-bucket/some-blob-key", emptyMap())
   }
 }

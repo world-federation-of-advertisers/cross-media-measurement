@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The Cross-Media Measurement Authors
+ * Copyright 2025 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,21 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.measurementconsumer.stats
+package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-/** [Exception] indicates a unsupported usage of a methodology. */
-class UnsupportedMethodologyUsageException(message: String? = null, cause: Throwable? = null) :
-  Exception(message, cause)
+/** Constants for GCP KMS URI handling. */
+object KmsConstants {
+  /**
+   * Regex pattern for parsing GCP KMS key URIs.
+   *
+   * Format: gcp-kms://projects/{project}/locations/{location}/keyRings/{keyring}/cryptoKeys/{key}
+   *
+   * Capture groups:
+   * 1. project
+   * 2. location
+   * 3. keyRing
+   * 4. keyName
+   */
+  val GCP_KMS_KEY_URI_REGEX =
+    Regex("gcp-kms://projects/([^/]+)/locations/([^/]+)/keyRings/([^/]+)/cryptoKeys/([^/]+)")
+}

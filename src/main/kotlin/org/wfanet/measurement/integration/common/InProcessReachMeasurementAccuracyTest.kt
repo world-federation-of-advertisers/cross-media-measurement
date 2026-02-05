@@ -27,11 +27,11 @@ import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
-import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
@@ -44,10 +44,10 @@ import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerDa
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator.MeasurementInfo
 import org.wfanet.measurement.measurementconsumer.stats.HonestMajorityShareShuffleMethodology
 import org.wfanet.measurement.measurementconsumer.stats.LiquidLegionsV2Methodology
-import org.wfanet.measurement.measurementconsumer.stats.Methodology
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.ReachMethodology
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl.computeMeasurementVariance
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
@@ -140,7 +140,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
   }
 
   private fun getReachVariance(
-    methodology: Methodology,
+    methodology: ReachMethodology,
     measurementInfo: MeasurementInfo,
     reach: Long,
   ): Double {
@@ -189,7 +189,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
       val executionResult =
         mcSimulator.executeReachOnly(
           round.toString(),
-          DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+          ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2,
         )
 
       if (expectedReach == -1L) {
@@ -270,7 +270,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
       val executionResult =
         mcSimulator.executeReachOnly(
           round.toString(),
-          DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+          ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
         )
       val honestMajorityShareShuffleMethodology =
         HonestMajorityShareShuffleMethodology(
@@ -365,7 +365,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
         val executionResult =
           mcSimulator.executeReachAndFrequency(
             round.toString(),
-            DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+            ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
           )
         val honestMajorityShareShuffleMethodology =
           HonestMajorityShareShuffleMethodology(

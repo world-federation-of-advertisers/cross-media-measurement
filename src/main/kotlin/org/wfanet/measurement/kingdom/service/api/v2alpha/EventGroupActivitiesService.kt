@@ -14,12 +14,18 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.Empty
+import com.google.type.Date
 import io.grpc.Status
 import io.grpc.StatusException
+import java.time.LocalDate
+import java.time.format.DateTimeParseException
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import org.wfanet.measurement.api.v2alpha.BatchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupActivitiesResponse
+import org.wfanet.measurement.api.v2alpha.DeleteEventGroupActivityRequest
 import org.wfanet.measurement.api.v2alpha.EventGroupActivity
 import org.wfanet.measurement.api.v2alpha.EventGroupActivityKey
 import org.wfanet.measurement.api.v2alpha.EventGroupActivityServiceGrpcKt.EventGroupActivityServiceCoroutineImplBase as EventGroupActivitiesCortouineImplBase
@@ -32,10 +38,13 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.internal.kingdom.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub as InternalEventGroupActivitiesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.EventGroupActivity as InternalEventGroupActivity
 import org.wfanet.measurement.internal.kingdom.UpdateEventGroupActivityRequest as InternalUpdateEventGroupActivityRequest
+import org.wfanet.measurement.internal.kingdom.batchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupActivitiesRequest as internalBatchUpdateEventGroupActivitiesRequest
+import org.wfanet.measurement.internal.kingdom.deleteEventGroupActivityRequest as internalDeleteEventGroupActivityRequest
 import org.wfanet.measurement.internal.kingdom.eventGroupActivity as internalEventGroupActivity
 import org.wfanet.measurement.internal.kingdom.updateEventGroupActivityRequest as internalUpdateEventGroupActivityRequest
 
@@ -45,6 +54,7 @@ class EventGroupActivitiesService(
 ) : EventGroupActivitiesCortouineImplBase(coroutineContext) {
 
   private enum class Permission {
+    DELETE,
     UPDATE;
 
     fun deniedStatus(name: String): Status =
@@ -116,6 +126,106 @@ class EventGroupActivitiesService(
         else -> Status.UNKNOWN
       }.toExternalStatusRuntimeException(e)
     }
+  }
+
+  override suspend fun deleteEventGroupActivity(request: DeleteEventGroupActivityRequest): Empty {
+    val eventGroupActivityKey: EventGroupActivityKey =
+      grpcRequireNotNull(EventGroupActivityKey.fromName(request.name)) {
+        "Name is either unspecified or invalid"
+      }
+
+    val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
+    val dataProviderKey = eventGroupActivityKey.parentKey.parentKey
+    if (authenticatedPrincipal.resourceKey != dataProviderKey) {
+      throw Permission.DELETE.deniedStatus(request.name).asRuntimeException()
+    }
+
+    val date =
+      try {
+        LocalDate.parse(eventGroupActivityKey.eventGroupActivityId).toProtoDate()
+      } catch (_: DateTimeParseException) {
+        throw Status.INVALID_ARGUMENT.withDescription(
+            "the Event Group Activity component of the name is not a string of a date in ISO-8601 format"
+          )
+          .asRuntimeException()
+      }
+
+    try {
+      internalEventGroupActivitiesStub.deleteEventGroupActivity(
+        internalDeleteEventGroupActivityRequest {
+          externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
+          externalEventGroupId = apiIdToExternalId(eventGroupActivityKey.eventGroupId)
+          externalEventGroupActivityId = date
+        }
+      )
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+        Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
+    }
+
+    return Empty.getDefaultInstance()
+  }
+
+  override suspend fun batchDeleteEventGroupActivities(
+    request: BatchDeleteEventGroupActivitiesRequest
+  ): Empty {
+    val parentKey: EventGroupKey =
+      grpcRequireNotNull(EventGroupKey.fromName(request.parent)) {
+        "Parent is either unspecified or invalid"
+      }
+
+    val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
+    val dataProviderKey = parentKey.parentKey
+    if (authenticatedPrincipal.resourceKey != dataProviderKey) {
+      throw Permission.DELETE.deniedStatus(request.parent).asRuntimeException()
+    }
+
+    val dates: List<Date> =
+      request.namesList.map { name ->
+        val eventGroupActivityKey: EventGroupActivityKey =
+          grpcRequireNotNull(EventGroupActivityKey.fromName(name)) {
+            "Name is either unspecified or invalid"
+          }
+
+        if (eventGroupActivityKey.parentKey != parentKey) {
+          throw Status.INVALID_ARGUMENT.withDescription(
+              "the EventGroup component of parent and child do not match"
+            )
+            .asRuntimeException()
+        }
+
+        try {
+          LocalDate.parse(eventGroupActivityKey.eventGroupActivityId).toProtoDate()
+        } catch (_: DateTimeParseException) {
+          throw Status.INVALID_ARGUMENT.withDescription(
+              "the Event Group Activity component of the name is not a string of a date in ISO-8601 format"
+            )
+            .asRuntimeException()
+        }
+      }
+
+    try {
+      internalEventGroupActivitiesStub.batchDeleteEventGroupActivities(
+        batchDeleteEventGroupActivitiesRequest {
+          externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
+          externalEventGroupId = apiIdToExternalId(parentKey.eventGroupId)
+          externalEventGroupActivityIds += dates
+        }
+      )
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+        Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
+    }
+
+    return Empty.getDefaultInstance()
   }
 }
 

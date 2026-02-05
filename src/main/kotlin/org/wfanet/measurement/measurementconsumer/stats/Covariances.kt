@@ -100,14 +100,12 @@ object Covariances {
 
     val liquidLegionsSketchParams =
       when (val methodology = weightedMeasurementVarianceParams.methodology) {
-        is CustomDirectScalarMethodology,
-        is CustomDirectFrequencyMethodology -> {
+        is CustomDirectScalarMethodology -> {
           // Custom direct methodology must guarantee independence.
           return 0.0
         }
         is DeterministicMethodology,
-        is HonestMajorityShareShuffleMethodology,
-        is TrusTeeMethodology -> {
+        is HonestMajorityShareShuffleMethodology -> {
           return computeDeterministicCovariance(
             ReachMeasurementCovarianceParams(
               reach = weightedMeasurementVarianceParams.measurementVarianceParams.reach,
@@ -135,13 +133,8 @@ object Covariances {
 
     when (val otherMethodology = otherWeightedMeasurementVarianceParams.methodology) {
       is CustomDirectScalarMethodology,
-      is CustomDirectFrequencyMethodology -> {
-        // Custom direct methodology must guarantee independence.
-        return 0.0
-      }
       is DeterministicMethodology,
-      is HonestMajorityShareShuffleMethodology,
-      is TrusTeeMethodology -> {
+      is HonestMajorityShareShuffleMethodology -> {
         return computeDeterministicCovariance(
           ReachMeasurementCovarianceParams(
             reach = weightedMeasurementVarianceParams.measurementVarianceParams.reach,

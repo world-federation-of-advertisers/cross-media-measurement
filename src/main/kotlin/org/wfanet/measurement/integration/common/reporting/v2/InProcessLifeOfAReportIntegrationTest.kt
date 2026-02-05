@@ -89,8 +89,7 @@ import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
 import org.wfanet.measurement.dataprovider.MeasurementResults
-import org.wfanet.measurement.integration.common.ALL_EDP_WITHOUT_HMSS_CAPABILITIES_DISPLAY_NAMES
-import org.wfanet.measurement.integration.common.ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES
+import org.wfanet.measurement.integration.common.ALL_EDP_DISPLAY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
@@ -637,148 +636,20 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   @Test
-  fun `report with LLv2 union reach across 2 edps has the expected result`() = runBlocking {
-    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
-    val eventGroups: List<EventGroup> = listEventGroups()
-
-    val llv2EventGroups: List<EventGroup> =
-      eventGroups.filter {
-        inProcessCmmsComponents.getDataProviderDisplayNameFromDataProviderName(
-          it.cmmsDataProvider
-        )!! in ALL_EDP_WITHOUT_HMSS_CAPABILITIES_DISPLAY_NAMES
-      }
-
-    val hmssEventGroups: List<EventGroup> =
-      eventGroups.filter {
-        inProcessCmmsComponents.getDataProviderDisplayNameFromDataProviderName(
-          it.cmmsDataProvider
-        )!! in ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES
-      }
-
-    val eventGroupEntries: List<Pair<EventGroup, String>> =
-      listOf(
-        llv2EventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
-        hmssEventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}",
-      )
-
-    val createdPrimitiveReportingSets: List<ReportingSet> =
-      createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name)
-
-    val compositeReportingSet = reportingSet {
-      displayName = "composite"
-      composite =
-        ReportingSetKt.composite {
-          expression =
-            ReportingSetKt.setExpression {
-              operation = ReportingSet.SetExpression.Operation.UNION
-              lhs =
-                ReportingSetKt.SetExpressionKt.operand {
-                  reportingSet = createdPrimitiveReportingSets[0].name
-                }
-              rhs =
-                ReportingSetKt.SetExpressionKt.operand {
-                  reportingSet = createdPrimitiveReportingSets[1].name
-                }
-            }
-        }
-    }
-
-    val createdCompositeReportingSet =
-      publicReportingSetsClient
-        .withCallCredentials(credentials)
-        .createReportingSet(
-          createReportingSetRequest {
-            parent = measurementConsumerData.name
-            reportingSet = compositeReportingSet
-            reportingSetId = "def"
-          }
-        )
-
-    val createdMetricCalculationSpec =
-      publicMetricCalculationSpecsClient
-        .withCallCredentials(credentials)
-        .createMetricCalculationSpec(
-          createMetricCalculationSpecRequest {
-            parent = measurementConsumerData.name
-            metricCalculationSpec = metricCalculationSpec {
-              displayName = "union reach"
-              metricSpecs += metricSpec {
-                reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                vidSamplingInterval = VID_SAMPLING_INTERVAL
-              }
-            }
-            metricCalculationSpecId = "fed"
-          }
-        )
-
-    val report = report {
-      reportingMetricEntries +=
-        ReportKt.reportingMetricEntry {
-          key = createdCompositeReportingSet.name
-          value =
-            ReportKt.reportingMetricCalculationSpec {
-              metricCalculationSpecs += createdMetricCalculationSpec.name
-            }
-        }
-      timeIntervals = timeIntervals { timeIntervals += EVENT_RANGE.toInterval() }
-    }
-
-    val createdReport =
-      publicReportsClient
-        .withCallCredentials(credentials)
-        .createReport(
-          createReportRequest {
-            parent = measurementConsumerData.name
-            this.report = report
-            reportId = "report"
-          }
-        )
-
-    val retrievedReport = pollForCompletedReport(createdReport.name)
-    assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
-
-    val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
-      eventGroupEntries.map { (eventGroup, filter) ->
-        buildEventGroupSpec(eventGroup, filter, EVENT_RANGE.toInterval())
-      }
-    val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
-
-    val reachResult =
-      retrievedReport.metricCalculationResultsList
-        .single()
-        .resultAttributesList
-        .single()
-        .metricResult
-        .reach
-    val actualResult =
-      MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = reachResult.value } }
-    val tolerance = computeErrorMargin(reachResult.univariateStatistics.standardDeviation)
-
-    assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
-
-    val measurements: List<Measurement> = listMeasurements()
-    assertThat(measurements).hasSize(1)
-    assertThat(measurements[0].protocolConfig.protocolsList).hasSize(1)
-    assertThat(measurements[0].protocolConfig.protocolsList[0].hasReachOnlyLiquidLegionsV2())
-      .isTrue()
-  }
-
-  @Test
   fun `report with HMSS union reach across 2 edps has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
-    val eventGroups: List<EventGroup> = listEventGroups()
-
-    val hmssEventGroups: List<EventGroup> =
-      eventGroups.filter {
+    val edpDisplayNames = ALL_EDP_DISPLAY_NAMES.take(2)
+    val eventGroups: List<EventGroup> =
+      listEventGroups().filter {
         inProcessCmmsComponents.getDataProviderDisplayNameFromDataProviderName(
           it.cmmsDataProvider
-        )!! in ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES
+        )!! in edpDisplayNames
       }
 
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
-        hmssEventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
-        hmssEventGroups[1] to "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}",
+        eventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
+        eventGroups[1] to "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}",
       )
 
     val createdPrimitiveReportingSets: List<ReportingSet> =
@@ -2962,15 +2833,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         impressionQualificationFilter {
           name = "impressionQualificationFilters/ami"
           displayName = "ami"
-          filterSpecs += impressionQualificationFilterSpec {
-            mediaType = MediaType.DISPLAY
-            filters += eventFilter {
-              terms += eventTemplateField {
-                path = "banner_ad.viewable"
-                value = EventTemplateFieldKt.fieldValue { boolValue = false }
-              }
-            }
-          }
+          filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
+          filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.VIDEO }
+          filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.OTHER }
         }
       )
   }

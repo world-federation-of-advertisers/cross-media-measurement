@@ -61,6 +61,13 @@ resource "google_project_iam_member" "trigger_run_invoker" {
   member  = "serviceAccount:${google_service_account.cloud_function_trigger_service_account.email}"
 }
 
+resource "google_secret_manager_secret_iam_member" "secret_accessor" {
+  for_each  = toset(var.secrets_to_access)
+  secret_id = each.value
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.cloud_function_service_account.email}"
+}
+
 resource "terraform_data" "deploy_gcs_cloud_function" {
 
   depends_on = [
@@ -72,6 +79,7 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
     google_storage_bucket_iam_member.cloud_function_object_creator,
     google_project_iam_member.trigger_event_receiver,
     google_project_iam_member.trigger_run_invoker,
+    google_secret_manager_secret_iam_member.secret_accessor,
   ]
 
   triggers_replace = [var.uber_jar_path]
@@ -88,6 +96,7 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
       EXTRA_ENV_VARS          = var.extra_env_vars
       SECRET_MAPPINGS         = var.secret_mappings
       UBER_JAR_DIRECTORY      = dirname(var.uber_jar_path)
+      TRIGGER_EVENT_TYPE      = var.trigger_event_type
     }
     command = <<-EOT
       #!/bin/bash
@@ -102,7 +111,7 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
         "--region=$CLOUD_REGION"
         "--run-service-account=$RUN_SERVICE_ACCOUNT"
         "--source=$UBER_JAR_DIRECTORY"
-        "--trigger-event-filters=type=google.cloud.storage.object.v1.finalized"
+        "--trigger-event-filters=type=google.cloud.storage.object.v1.$TRIGGER_EVENT_TYPE"
         "--trigger-event-filters=bucket=$TRIGGER_BUCKET"
         "--trigger-service-account=$TRIGGER_SERVICE_ACCOUNT"
         "--no-allow-unauthenticated"

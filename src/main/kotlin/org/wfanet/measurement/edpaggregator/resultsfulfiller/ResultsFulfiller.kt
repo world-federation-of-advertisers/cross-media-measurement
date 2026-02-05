@@ -159,8 +159,9 @@ class ResultsFulfiller(
       requireNotNull(requisitionsMetadata.mapNotNull { it.createTime?.toInstant() }.minOrNull()) {
         "Create time is missing from requisition metadata for group id: ${groupedRequisitions.groupId}"
       }
-    val modelLine = groupedRequisitions.modelLine
-    val modelInfo = modelLineInfoMap.getValue(modelLine)
+    val modelLineKey = groupedRequisitions.modelLine
+    val modelInfo = modelLineInfoMap.getValue(modelLineKey)
+    val modelLine = modelInfo.localAlias ?: modelLineKey
     val eventDescriptor = modelInfo.eventDescriptor
 
     val populationSpec = modelInfo.populationSpec
