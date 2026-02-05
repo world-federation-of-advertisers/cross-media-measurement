@@ -17,7 +17,6 @@
 package org.wfanet.measurement.reporting.service.api
 
 import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.Truth.assertThat
 import io.grpc.Status
 import io.grpc.StatusException
 import java.time.Duration
