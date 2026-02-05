@@ -400,7 +400,6 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
 
 suspend fun AsyncDatabaseClient.ReadContext.readModelLinesBounds(
   dataProviderResourceId: String,
-  cmmsModelLines: List<String>,
 ): List<ModelLineBoundResult> {
   val sql =
     """
@@ -413,7 +412,6 @@ suspend fun AsyncDatabaseClient.ReadContext.readModelLinesBounds(
         ImpressionMetadata
       WHERE
         DataProviderResourceId = @dataProviderResourceId
-        AND CmmsModelLine IN UNNEST(@cmmsModelLines)
       GROUP BY
         DataProviderResourceId,
         CmmsModelLine
@@ -422,7 +420,6 @@ suspend fun AsyncDatabaseClient.ReadContext.readModelLinesBounds(
   val query =
     statement(sql) {
       bind("dataProviderResourceId").to(dataProviderResourceId)
-      bind("cmmsModelLines").toStringArray(cmmsModelLines)
     }
   return executeQuery(query, Options.tag("action=readModelLinesBounds"))
     .map { row ->

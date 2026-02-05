@@ -409,15 +409,10 @@ class SpannerImpressionMetadataService(
       throw RequiredFieldNotSetException("data_provider_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    if (request.cmmsModelLineList.isEmpty()) {
-      throw RequiredFieldNotSetException("cmms_model_line")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
     val results: List<ModelLineBoundResult> =
       databaseClient
         .singleUse()
-        .readModelLinesBounds(request.dataProviderResourceId, request.cmmsModelLineList)
+        .readModelLinesBounds(request.dataProviderResourceId)
 
     return computeModelLineBoundsResponse {
       modelLineBounds.putAll(results.associate { it.cmmsModelLine to it.bound })

@@ -231,7 +231,11 @@ class DataAvailabilitySyncTest {
       batchCreateImpressionMetadata(batchCaptor.capture())
     }
     assertThat(batchCaptor.firstValue.requestsCount).isEqualTo(1)
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
+    val boundsRequestCaptor = argumentCaptor<ComputeModelLineBoundsRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      computeModelLineBounds(boundsRequestCaptor.capture())
+    }
+    assertThat(boundsRequestCaptor.firstValue.parent).isEqualTo("dataProviders/dataProvider123")
   }
 
   @Test
