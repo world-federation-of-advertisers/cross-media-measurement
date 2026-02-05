@@ -417,10 +417,7 @@ suspend fun AsyncDatabaseClient.ReadContext.readModelLinesBounds(
         CmmsModelLine
     """
       .trimIndent()
-  val query =
-    statement(sql) {
-      bind("dataProviderResourceId").to(dataProviderResourceId)
-    }
+  val query = statement(sql) { bind("dataProviderResourceId").to(dataProviderResourceId) }
   return executeQuery(query, Options.tag("action=readModelLinesBounds"))
     .map { row ->
       ModelLineBoundResult(

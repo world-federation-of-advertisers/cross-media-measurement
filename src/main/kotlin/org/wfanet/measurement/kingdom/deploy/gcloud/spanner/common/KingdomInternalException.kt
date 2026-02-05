@@ -244,7 +244,8 @@ class ModelRolloutOlderThanPreviousException(
   val externalModelSuiteId: ExternalId,
   val externalModelLineId: ExternalId,
   val previousExternalModelRolloutId: ExternalId,
-  message: String = "Rollout period start is older than that of previous ModelRollout for ModelLine",
+  message: String =
+    "Rollout period start is older than that of previous ModelRollout for ModelLine",
 ) : KingdomInternalException(ErrorCode.MODEL_ROLLOUT_OLDER_THAN_PREVIOUS, message) {
   override val context
     get() =

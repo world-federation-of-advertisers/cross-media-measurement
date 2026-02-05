@@ -338,8 +338,7 @@ class ResultsFulfiller(
           )
         val fulfillerType =
           fulfiller::class.simpleName
-            ?: fulfiller::class.java.simpleName
-            ?: fulfiller::class.java.name
+            ?: fulfiller::class.java.simpleName ?: fulfiller::class.java.name
 
         metrics.sendDuration.measureSuspending {
           withContext(Dispatchers.IO) { fulfiller.fulfillRequisition() }
@@ -545,8 +544,7 @@ class ResultsFulfiller(
         .put(
           ATTR_ERROR_TYPE_KEY,
           throwable::class.simpleName
-            ?: throwable::class.java.simpleName
-            ?: throwable::class.java.name,
+            ?: throwable::class.java.simpleName ?: throwable::class.java.name,
         )
         .put(ATTR_GROUP_ID_KEY, requisitionMetadata?.groupId ?: groupedRequisitions.groupId)
         .put(ATTR_REPORT_ID_KEY, requisitionMetadata?.report ?: UNKNOWN_REPORT_ID)

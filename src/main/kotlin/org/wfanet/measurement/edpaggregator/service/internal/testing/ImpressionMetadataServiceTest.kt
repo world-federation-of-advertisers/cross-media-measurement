@@ -1580,7 +1580,9 @@ abstract class ImpressionMetadataServiceTest {
       }
     )
 
-    val request = computeModelLineBoundsRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
+    val request = computeModelLineBoundsRequest {
+      dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+    }
     val response = service.computeModelLineBounds(request)
 
     assertThat(response)
@@ -1621,64 +1623,61 @@ abstract class ImpressionMetadataServiceTest {
     }
 
   @Test
-  fun `ComputeModelLineBounds returns all model lines for data provider`() =
-    runBlocking {
-      service.batchCreateImpressionMetadata(
-        batchCreateImpressionMetadataRequest {
-          requests += createImpressionMetadataRequest {
-            impressionMetadata =
-              IMPRESSION_METADATA.copy {
-                cmmsModelLine = MODEL_LINE_1
-                interval = interval {
-                  startTime = timestamp { seconds = 100 }
-                  endTime = timestamp { seconds = 200 }
-                }
-                clearImpressionMetadataResourceId()
-                blobUri = "blobs/1"
+  fun `ComputeModelLineBounds returns all model lines for data provider`() = runBlocking {
+    service.batchCreateImpressionMetadata(
+      batchCreateImpressionMetadataRequest {
+        requests += createImpressionMetadataRequest {
+          impressionMetadata =
+            IMPRESSION_METADATA.copy {
+              cmmsModelLine = MODEL_LINE_1
+              interval = interval {
+                startTime = timestamp { seconds = 100 }
+                endTime = timestamp { seconds = 200 }
               }
-          }
-          requests += createImpressionMetadataRequest {
-            impressionMetadata =
-              IMPRESSION_METADATA.copy {
-                cmmsModelLine = MODEL_LINE_2
-                interval = interval {
-                  startTime = timestamp { seconds = 300 }
-                  endTime = timestamp { seconds = 400 }
-                }
-                clearImpressionMetadataResourceId()
-                blobUri = "blobs/2"
-              }
-          }
+              clearImpressionMetadataResourceId()
+              blobUri = "blobs/1"
+            }
         }
+        requests += createImpressionMetadataRequest {
+          impressionMetadata =
+            IMPRESSION_METADATA.copy {
+              cmmsModelLine = MODEL_LINE_2
+              interval = interval {
+                startTime = timestamp { seconds = 300 }
+                endTime = timestamp { seconds = 400 }
+              }
+              clearImpressionMetadataResourceId()
+              blobUri = "blobs/2"
+            }
+        }
+      }
+    )
+
+    val response =
+      service.computeModelLineBounds(
+        computeModelLineBoundsRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
       )
 
-      val response =
-        service.computeModelLineBounds(
-          computeModelLineBoundsRequest {
-            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          }
-        )
-
-      assertThat(response)
-        .isEqualTo(
-          computeModelLineBoundsResponse {
-            modelLineBounds.putAll(
-              mapOf(
-                MODEL_LINE_1 to
-                  interval {
-                    startTime = timestamp { seconds = 100 }
-                    endTime = timestamp { seconds = 200 }
-                  },
-                MODEL_LINE_2 to
-                  interval {
-                    startTime = timestamp { seconds = 300 }
-                    endTime = timestamp { seconds = 400 }
-                  },
-              )
+    assertThat(response)
+      .isEqualTo(
+        computeModelLineBoundsResponse {
+          modelLineBounds.putAll(
+            mapOf(
+              MODEL_LINE_1 to
+                interval {
+                  startTime = timestamp { seconds = 100 }
+                  endTime = timestamp { seconds = 200 }
+                },
+              MODEL_LINE_2 to
+                interval {
+                  startTime = timestamp { seconds = 300 }
+                  endTime = timestamp { seconds = 400 }
+                },
             )
-          }
-        )
-    }
+          )
+        }
+      )
+  }
 
   @Test
   fun `ComputeModelLineBounds returns empty when no ImpressionMetadata exists`() = runBlocking {
@@ -1691,42 +1690,41 @@ abstract class ImpressionMetadataServiceTest {
   }
 
   @Test
-  fun `ComputeModelLineBounds returns bounds for existing model lines only`() =
-    runBlocking {
-      service.createImpressionMetadata(
-        createImpressionMetadataRequest {
-          impressionMetadata =
-            IMPRESSION_METADATA.copy {
-              cmmsModelLine = MODEL_LINE_1
-              interval = interval {
-                startTime = timestamp { seconds = 100 }
-                endTime = timestamp { seconds = 200 }
-              }
-              clearImpressionMetadataResourceId()
-              blobUri = "blobs/1"
+  fun `ComputeModelLineBounds returns bounds for existing model lines only`() = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest {
+        impressionMetadata =
+          IMPRESSION_METADATA.copy {
+            cmmsModelLine = MODEL_LINE_1
+            interval = interval {
+              startTime = timestamp { seconds = 100 }
+              endTime = timestamp { seconds = 200 }
             }
+            clearImpressionMetadataResourceId()
+            blobUri = "blobs/1"
+          }
+      }
+    )
+
+    val response =
+      service.computeModelLineBounds(
+        computeModelLineBoundsRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
+      )
+    assertThat(response)
+      .isEqualTo(
+        computeModelLineBoundsResponse {
+          modelLineBounds.putAll(
+            mapOf(
+              MODEL_LINE_1 to
+                interval {
+                  startTime = timestamp { seconds = 100 }
+                  endTime = timestamp { seconds = 200 }
+                }
+            )
+          )
         }
       )
-
-      val response =
-        service.computeModelLineBounds(
-          computeModelLineBoundsRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
-        )
-      assertThat(response)
-        .isEqualTo(
-          computeModelLineBoundsResponse {
-            modelLineBounds.putAll(
-              mapOf(
-                MODEL_LINE_1 to
-                  interval {
-                    startTime = timestamp { seconds = 100 }
-                    endTime = timestamp { seconds = 200 }
-                  }
-              )
-            )
-          }
-        )
-    }
+  }
 
   companion object {
     private const val DATA_PROVIDER_RESOURCE_ID = "data-provider-1"

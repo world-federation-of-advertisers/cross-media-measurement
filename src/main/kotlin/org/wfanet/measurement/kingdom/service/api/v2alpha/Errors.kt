@@ -638,7 +638,6 @@ fun Status.toExternalStatusRuntimeException(
       ErrorCode.MODEL_LINE_TYPE_ILLEGAL ->
         return ModelLineTypeIllegalException.fromInternal(internalApiException)
           .asStatusRuntimeException(this@toExternalStatusRuntimeException)
-
       ErrorCode.MODEL_LINE_INVALID_ARGS ->
         return ModelLineInvalidArgsException.fromInternal(internalApiException)
           .asStatusRuntimeException(this@toExternalStatusRuntimeException)

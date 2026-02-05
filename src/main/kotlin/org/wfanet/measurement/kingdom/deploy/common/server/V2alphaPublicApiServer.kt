@@ -181,10 +181,8 @@ private fun run(
       is DuchyPrincipal,
       is ModelProviderPrincipal,
       is DataProviderPrincipal -> principal.resourceKey.toName()
-
       is AccountPrincipal,
       is MeasurementConsumerPrincipal -> "measurementConsumers"
-
       null -> null
     }
   }

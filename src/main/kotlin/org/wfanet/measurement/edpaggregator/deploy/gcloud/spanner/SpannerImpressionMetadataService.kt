@@ -410,9 +410,7 @@ class SpannerImpressionMetadataService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     val results: List<ModelLineBoundResult> =
-      databaseClient
-        .singleUse()
-        .readModelLinesBounds(request.dataProviderResourceId)
+      databaseClient.singleUse().readModelLinesBounds(request.dataProviderResourceId)
 
     return computeModelLineBoundsResponse {
       modelLineBounds.putAll(results.associate { it.cmmsModelLine to it.bound })

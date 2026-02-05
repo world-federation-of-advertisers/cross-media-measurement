@@ -1381,11 +1381,7 @@ class ImpressionMetadataServiceTest {
   fun `computeModelLineBounds throws INVALID_ARGUMENT when parent is malformed`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.computeModelLineBounds(
-          computeModelLineBoundsRequest {
-            parent += "invalid-name"
-          }
-        )
+        service.computeModelLineBounds(computeModelLineBoundsRequest { parent += "invalid-name" })
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
