@@ -280,7 +280,6 @@ class InProcessReportingServer(
                 authorization,
                 celEnvCacheProvider.value,
                 measurementConsumerConfigs,
-                encryptionKeyPairStore,
               )
               .withTrustedPrincipalAuthentication(),
             MetricCalculationSpecsService(

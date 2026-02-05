@@ -16,14 +16,12 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
-import com.google.protobuf.DynamicMessage
 import com.google.protobuf.kotlin.unpack
 import io.grpc.Context
 import io.grpc.Deadline
 import io.grpc.Deadline.Ticker
 import io.grpc.Status
 import io.grpc.StatusException
-import java.security.GeneralSecurityException
 import java.time.DateTimeException
 import java.time.LocalDate
 import java.util.concurrent.TimeUnit
@@ -37,7 +35,6 @@ import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DateInterval as CmmsDateInterval
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadata
@@ -52,11 +49,9 @@ import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEven
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
-import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
-import org.wfanet.measurement.consent.client.measurementconsumer.decryptMetadata
 import org.wfanet.measurement.reporting.service.api.CelEnvProvider
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v2alpha.DateInterval
@@ -75,7 +70,6 @@ class EventGroupsService(
   private val authorization: Authorization,
   private val celEnvProvider: CelEnvProvider,
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
-  private val encryptionKeyPairStore: EncryptionKeyPairStore,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val ticker: Ticker = Deadline.getSystemTicker(),
 ) : EventGroupsCoroutineImplBase(coroutineContext) {
@@ -126,16 +120,7 @@ class EventGroupsService(
 
         val eventGroups: List<EventGroup> =
           response.eventGroupsList
-            .map {
-              val cmmsMetadata: CmmsEventGroup.Metadata? =
-                if (it.hasEncryptedMetadata()) {
-                  decryptMetadata(it, parentKey.toName())
-                } else {
-                  null
-                }
-
-              it.toEventGroup(cmmsMetadata)
-            }
+            .map { it.toEventGroup() }
             .let {
               // TODO(@SanjayVas): Stop reading deprecated field.
               if (request.hasFilter()) {
@@ -212,34 +197,11 @@ class EventGroupsService(
     }
     val program = env.program(astAndIssues.ast)
 
-    eventGroups
-      .filter { it.hasMetadata() }
-      .distinctBy { it.metadata.metadata.typeUrl }
-      .forEach {
-        val typeUrl = it.metadata.metadata.typeUrl
-        typeRegistry.getDescriptorForTypeUrl(typeUrl)
-          ?: throw Status.FAILED_PRECONDITION.withDescription(
-              "${it.metadata.eventGroupMetadataDescriptor} does not contain descriptor for $typeUrl"
-            )
-            .asRuntimeException()
-      }
-
     return eventGroups.filter { eventGroup ->
       val variables: Map<String, Any> =
         mutableMapOf<String, Any>().apply {
           for (fieldDescriptor in eventGroup.descriptorForType.fields) {
             put(fieldDescriptor.name, eventGroup.getField(fieldDescriptor))
-          }
-          // TODO(projectnessie/cel-java#295): Remove when fixed.
-          if (eventGroup.hasMetadata()) {
-            val metadata: com.google.protobuf.Any = eventGroup.metadata.metadata
-            put(
-              METADATA_FIELD,
-              DynamicMessage.parseFrom(
-                typeRegistry.getDescriptorForTypeUrl(metadata.typeUrl),
-                metadata.value,
-              ),
-            )
           }
         }
       val result: Val = program.eval(variables).`val`
@@ -256,34 +218,7 @@ class EventGroupsService(
     }
   }
 
-  private suspend fun decryptMetadata(
-    cmmsEventGroup: CmmsEventGroup,
-    principalName: String,
-  ): CmmsEventGroup.Metadata {
-    if (!cmmsEventGroup.hasMeasurementConsumerPublicKey()) {
-      throw Status.FAILED_PRECONDITION.withDescription(
-          "EventGroup ${cmmsEventGroup.name} has encrypted metadata but no encryption public key"
-        )
-        .asRuntimeException()
-    }
-    val encryptionKey: EncryptionPublicKey = cmmsEventGroup.measurementConsumerPublicKey.unpack()
-    val decryptionKeyHandle: PrivateKeyHandle =
-      encryptionKeyPairStore.getPrivateKeyHandle(principalName, encryptionKey.data)
-        ?: throw Status.FAILED_PRECONDITION.withDescription(
-            "Public key does not have corresponding private key"
-          )
-          .asRuntimeException()
-
-    return try {
-      decryptMetadata(cmmsEventGroup.encryptedMetadata, decryptionKeyHandle)
-    } catch (e: GeneralSecurityException) {
-      throw Status.FAILED_PRECONDITION.withCause(e)
-        .withDescription("Metadata cannot be decrypted")
-        .asRuntimeException()
-    }
-  }
-
-  private fun CmmsEventGroup.toEventGroup(cmmsMetadata: CmmsEventGroup.Metadata?): EventGroup {
+  private fun CmmsEventGroup.toEventGroup(): EventGroup {
     val source = this
     val cmmsEventGroupKey = requireNotNull(CmmsEventGroupKey.fromName(name))
     val measurementConsumerKey =
@@ -323,20 +258,11 @@ class EventGroupsService(
             }
           }
       }
-      if (cmmsMetadata != null) {
-        metadata =
-          EventGroupKt.metadata {
-            eventGroupMetadataDescriptor = cmmsMetadata.eventGroupMetadataDescriptor
-            metadata = cmmsMetadata.metadata
-          }
-      }
       aggregatedActivities += source.aggregatedActivitiesList.map { it.toAggregatedActivity() }
     }
   }
 
   companion object {
-    private const val METADATA_FIELD = "metadata.metadata"
-
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 1000
 

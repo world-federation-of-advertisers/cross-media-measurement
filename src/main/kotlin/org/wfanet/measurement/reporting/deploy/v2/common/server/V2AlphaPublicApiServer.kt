@@ -382,7 +382,6 @@ private object V2AlphaPublicApiServer {
             authorization,
             celEnvCacheProvider,
             measurementConsumerConfigs,
-            InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
             serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
