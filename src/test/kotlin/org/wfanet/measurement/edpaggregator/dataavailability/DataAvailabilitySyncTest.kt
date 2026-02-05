@@ -306,65 +306,67 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
-  fun `sync updates availability for existing and new model lines`() = runBlocking {
-    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+  fun `sync updates availability for existing and new model lines`() {
+    runBlocking {
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
-    val existingModelLine = "modelLineA"
-    val newModelLine = "modelLineB"
+      val existingModelLine = "modelLineA"
+      val newModelLine = "modelLineB"
 
-    seedBlobDetailsWithModelLine(
-      storageClient,
-      folderPrefix,
-      listOf(300L to 400L),
-      newModelLine,
-    )
+      seedBlobDetailsWithModelLine(
+        storageClient,
+        folderPrefix,
+        listOf(300L to 400L),
+        newModelLine,
+      )
 
-    wheneverBlocking { impressionMetadataServiceMock.computeModelLineBounds(any()) }
-      .thenAnswer { invocation ->
-        val request = invocation.getArgument<ComputeModelLineBoundsRequest>(0)
-        computeModelLineBoundsResponse {
-          modelLineBounds += modelLineBoundMapEntry {
-            key = "${request.parent}/modelLines/$existingModelLine"
-            value = interval {
-              startTime = timestamp { seconds = 100 }
-              endTime = timestamp { seconds = 200 }
+      wheneverBlocking { impressionMetadataServiceMock.computeModelLineBounds(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ComputeModelLineBoundsRequest>(0)
+          computeModelLineBoundsResponse {
+            modelLineBounds += modelLineBoundMapEntry {
+              key = "${request.parent}/modelLines/$existingModelLine"
+              value = interval {
+                startTime = timestamp { seconds = 100 }
+                endTime = timestamp { seconds = 200 }
+              }
             }
-          }
-          modelLineBounds += modelLineBoundMapEntry {
-            key = "${request.parent}/modelLines/$newModelLine"
-            value = interval {
-              startTime = timestamp { seconds = 300 }
-              endTime = timestamp { seconds = 400 }
+            modelLineBounds += modelLineBoundMapEntry {
+              key = "${request.parent}/modelLines/$newModelLine"
+              value = interval {
+                startTime = timestamp { seconds = 300 }
+                endTime = timestamp { seconds = 400 }
+              }
             }
           }
         }
+
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+        )
+
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+      val requestCaptor = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
+      verifyBlocking(dataProvidersServiceMock, times(1)) {
+        replaceDataAvailabilityIntervals(requestCaptor.capture())
       }
-
-    val dataAvailabilitySync =
-      DataAvailabilitySync(
-        "edp/edpa_edp",
-        storageClient,
-        dataProvidersStub,
-        impressionMetadataStub,
-        "dataProviders/dataProvider123",
-        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
-        modelLineMap = emptyMap(),
-      )
-
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
-
-    val requestCaptor = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
-    verifyBlocking(dataProvidersServiceMock, times(1)) {
-      replaceDataAvailabilityIntervals(requestCaptor.capture())
+      val availabilityKeys = requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key }
+      assertThat(availabilityKeys)
+        .containsExactly(
+          "dataProviders/dataProvider123/modelLines/$existingModelLine",
+          "dataProviders/dataProvider123/modelLines/$newModelLine",
+        )
     }
-    val availabilityKeys = requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key }
-    assertThat(availabilityKeys)
-      .containsExactly(
-        "dataProviders/dataProvider123/modelLines/$existingModelLine",
-        "dataProviders/dataProvider123/modelLines/$newModelLine",
-      )
   }
 
   @Test
