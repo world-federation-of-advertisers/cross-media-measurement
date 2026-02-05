@@ -123,6 +123,11 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "kms_constants",
+    srcs = ["KmsConstants.kt"],
+)
+
+kt_jvm_library(
     name = "storage_event_source",
     srcs = ["StorageEventSource.kt"],
     deps = [
@@ -130,6 +135,7 @@ kt_jvm_library(
         ":event_reader",
         ":event_source",
         ":impression_data_source_provider",
+        ":kms_constants",
         ":labeled_event",
         ":storage_event_reader",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
