@@ -19,6 +19,12 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.timestamp
 import com.google.type.interval
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.metrics.SdkMeterProvider
+import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -26,6 +32,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.*
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
 
 @RunWith(JUnit4::class)
@@ -90,6 +97,57 @@ class FrequencyVectorSinkTest {
     verify(mockFrequencyVector).increment(0)
     verify(mockFrequencyVector).increment(1)
     verify(mockFrequencyVector).increment(2)
+  }
+
+  @Test
+  fun `processBatch records zero vid telemetry`() = runBlocking {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    val metricExporter = InMemoryMetricExporter.create()
+    val metricReader = PeriodicMetricReader.create(metricExporter)
+    val openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setMeterProvider(SdkMeterProvider.builder().registerMetricReader(metricReader).build())
+        .buildAndRegisterGlobal()
+
+    try {
+      val mockFrequencyVector = mock<StripedByteFrequencyVector>()
+      val mockVidIndexMap = mock<VidIndexMap>()
+      val mockFilterProcessor = mock<FilterProcessor<TestEvent>>()
+      val filterSpec = createFilterSpec()
+
+      whenever(mockFilterProcessor.filterSpec).thenReturn(filterSpec)
+      whenever(mockVidIndexMap[123L]).thenReturn(0)
+
+      val sink = FrequencyVectorSink(mockFilterProcessor, mockFrequencyVector, mockVidIndexMap)
+
+      val events = listOf(createTestEvent(vid = 0L), createTestEvent(vid = 123L))
+      val batch = createEventBatch(events)
+      whenever(mockFilterProcessor.processBatch(batch)).thenReturn(batch)
+
+      sink.processBatch(batch)
+
+      verify(mockFrequencyVector, times(1)).increment(any())
+      verify(mockFrequencyVector).increment(0)
+
+      metricReader.forceFlush()
+      val metricByName = metricExporter.finishedMetricItems.associateBy { it.name }
+      assertThat(metricByName).containsKey("edpa.results_fulfiller.zero_vids_skipped")
+      val point =
+        metricByName
+          .getValue("edpa.results_fulfiller.zero_vids_skipped")
+          .longSumData
+          .points
+          .single()
+      assertThat(point.value).isEqualTo(1)
+      val filterSpecAttr = AttributeKey.stringKey("edpa.results_fulfiller.filter_spec")
+      assertThat(point.attributes.get(filterSpecAttr)).isEqualTo(filterSpec.toString())
+    } finally {
+      openTelemetry.close()
+      metricExporter.reset()
+      GlobalOpenTelemetry.resetForTest()
+      Instrumentation.resetForTest()
+    }
   }
 
   @Test

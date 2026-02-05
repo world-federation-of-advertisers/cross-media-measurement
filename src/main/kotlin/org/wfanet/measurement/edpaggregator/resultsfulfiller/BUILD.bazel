@@ -331,8 +331,10 @@ kt_jvm_library(
         ":filter_spec",
         ":frequency_vector",
         ":labeled_event",
+        "//imports/java/io/opentelemetry/api",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
