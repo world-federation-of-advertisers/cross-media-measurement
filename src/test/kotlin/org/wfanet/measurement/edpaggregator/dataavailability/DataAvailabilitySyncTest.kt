@@ -314,12 +314,7 @@ class DataAvailabilitySyncTest {
       val existingModelLine = "modelLineA"
       val newModelLine = "modelLineB"
 
-      seedBlobDetailsWithModelLine(
-        storageClient,
-        folderPrefix,
-        listOf(300L to 400L),
-        newModelLine,
-      )
+      seedBlobDetailsWithModelLine(storageClient, folderPrefix, listOf(300L to 400L), newModelLine)
 
       wheneverBlocking { impressionMetadataServiceMock.computeModelLineBounds(any()) }
         .thenAnswer { invocation ->

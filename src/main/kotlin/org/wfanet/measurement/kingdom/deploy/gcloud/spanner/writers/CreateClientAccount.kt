@@ -40,8 +40,7 @@ class CreateClientAccount(private val clientAccount: ClientAccount) :
       MeasurementConsumerReader.readMeasurementConsumerId(
         transactionContext,
         externalMeasurementConsumerId,
-      )
-        ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
+      ) ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
 
     val externalDataProviderId = ExternalId(clientAccount.externalDataProviderId)
     val dataProviderResult =

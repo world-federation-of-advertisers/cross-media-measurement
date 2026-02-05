@@ -63,8 +63,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
   duchyDependenciesRule:
     ProviderRule<
       (
-        String,
-        ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub,
+        String, ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub,
       ) -> InProcessDuchy.DuchyDependencies
     >,
 ) {

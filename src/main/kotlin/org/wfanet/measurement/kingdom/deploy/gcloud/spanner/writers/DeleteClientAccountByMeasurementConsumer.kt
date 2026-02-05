@@ -43,8 +43,7 @@ class DeleteClientAccountByMeasurementConsumer(
     MeasurementConsumerReader.readMeasurementConsumerId(
       transactionContext,
       externalMeasurementConsumerId,
-    )
-      ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
+    ) ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
 
     val clientAccountResult =
       ClientAccountReader()

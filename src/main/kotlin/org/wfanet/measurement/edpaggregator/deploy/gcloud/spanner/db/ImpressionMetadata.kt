@@ -399,7 +399,7 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
 }
 
 suspend fun AsyncDatabaseClient.ReadContext.readModelLinesBounds(
-  dataProviderResourceId: String,
+  dataProviderResourceId: String
 ): List<ModelLineBoundResult> {
   val sql =
     """
