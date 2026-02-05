@@ -468,7 +468,6 @@ class EventGroupsServiceTest {
   }
 
 
-  fun `listEventGroups returns only event groups that match legacy filter when filter has no metadata`() {
     val cmmsEventGroup2 =
       CMMS_EVENT_GROUP.copy { eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID + 2 }
 
@@ -779,7 +778,6 @@ class EventGroupsServiceTest {
 
   fun `listEventGroups throws RUNTIME_EXCEPTION when event group doesn't have legacy filter field`() {
     assertFailsWith<RuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking {
           service.listEventGroups(
             listEventGroupsRequest {
