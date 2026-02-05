@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/kingdom/client_account.proto";
 
@@ -34,7 +35,7 @@ service ClientAccounts {
   rpc DeleteClientAccount(DeleteClientAccountRequest) returns (ClientAccount);
 
   rpc BatchDeleteClientAccounts(BatchDeleteClientAccountsRequest)
-      returns (BatchDeleteClientAccountsResponse);
+      returns (google.protobuf.Empty);
 
   // Lists ClientAccounts ordered by `create_time` ascending.
   rpc ListClientAccounts(ListClientAccountsRequest)
@@ -76,10 +77,6 @@ message BatchDeleteClientAccountsRequest {
   // External ID of the owning `MeasurementConsumer`. Required.
   fixed64 external_measurement_consumer_id = 1;
   repeated DeleteClientAccountRequest requests = 2;
-}
-
-message BatchDeleteClientAccountsResponse {
-  repeated ClientAccount client_accounts = 1;
 }
 
 message ListClientAccountsRequest {
