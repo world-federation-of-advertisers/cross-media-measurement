@@ -19,10 +19,9 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
+import com.google.protobuf.Empty
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.BatchDeleteClientAccountsRequest
-import org.wfanet.measurement.internal.kingdom.BatchDeleteClientAccountsResponse
-import org.wfanet.measurement.internal.kingdom.batchDeleteClientAccountsResponse
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ClientAccountReader
@@ -37,18 +36,18 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * @throws [ClientAccountNotFoundException] when a ClientAccount is not found
  */
 class BatchDeleteClientAccounts(private val request: BatchDeleteClientAccountsRequest) :
-  SimpleSpannerWriter<BatchDeleteClientAccountsResponse>() {
+  SimpleSpannerWriter<Empty>() {
 
-  override suspend fun TransactionScope.runTransaction(): BatchDeleteClientAccountsResponse {
+  override suspend fun TransactionScope.runTransaction(): Empty {
     val externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
     MeasurementConsumerReader.readMeasurementConsumerId(
       transactionContext,
       externalMeasurementConsumerId,
     ) ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
 
-    val clientAccountResults =
-      request.requestsList.map { subRequest ->
-        val externalClientAccountId = ExternalId(subRequest.externalClientAccountId)
+    for (subRequest in request.requestsList) {
+      val externalClientAccountId = ExternalId(subRequest.externalClientAccountId)
+      val clientAccountResult =
         ClientAccountReader()
           .readByMeasurementConsumer(
             transactionContext,
@@ -59,19 +58,20 @@ class BatchDeleteClientAccounts(private val request: BatchDeleteClientAccountsRe
             externalMeasurementConsumerId,
             externalClientAccountId,
           )
-      }
 
-    for (result in clientAccountResults) {
       transactionContext.buffer(
         Mutation.delete(
           "ClientAccounts",
-          KeySet.singleKey(Key.of(result.measurementConsumerId.value, result.clientAccountId.value)),
+          KeySet.singleKey(
+            Key.of(
+              clientAccountResult.measurementConsumerId.value,
+              clientAccountResult.clientAccountId.value,
+            )
+          ),
         )
       )
     }
 
-    return batchDeleteClientAccountsResponse {
-      clientAccounts += clientAccountResults.map { it.clientAccount }
-    }
+    return Empty.getDefaultInstance()
   }
 }

@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import com.google.protobuf.Empty
 import io.grpc.Status
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -26,7 +27,6 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.BatchCreateClientAccountsRequest
 import org.wfanet.measurement.internal.kingdom.BatchCreateClientAccountsResponse
 import org.wfanet.measurement.internal.kingdom.BatchDeleteClientAccountsRequest
-import org.wfanet.measurement.internal.kingdom.BatchDeleteClientAccountsResponse
 import org.wfanet.measurement.internal.kingdom.ClientAccount
 import org.wfanet.measurement.internal.kingdom.ClientAccountsGrpcKt.ClientAccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.CreateClientAccountRequest
@@ -184,9 +184,7 @@ class SpannerClientAccountsService(
     }
   }
 
-  override suspend fun batchDeleteClientAccounts(
-    request: BatchDeleteClientAccountsRequest
-  ): BatchDeleteClientAccountsResponse {
+  override suspend fun batchDeleteClientAccounts(request: BatchDeleteClientAccountsRequest): Empty {
     if (request.externalMeasurementConsumerId == 0L) {
       throw RequiredFieldNotSetException("external_measurement_consumer_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -236,17 +234,19 @@ class SpannerClientAccountsService(
     }
 
     return listClientAccountsResponse {
-      clientAccounts.addAll(clientAccountList.take(pageSize).map { it.clientAccount })
-
-      if (clientAccountList.size > pageSize) {
-        val lastAccount = clientAccounts.last()
-        nextPageToken = listClientAccountsPageToken {
-          this.after =
-            ListClientAccountsPageTokenKt.after {
-              externalMeasurementConsumerId = lastAccount.externalMeasurementConsumerId
-              externalClientAccountId = lastAccount.externalClientAccountId
-              createTime = lastAccount.createTime
-            }
+      for ((index, result) in clientAccountList.withIndex()) {
+        if (index == pageSize) {
+          val lastAccount = clientAccounts.last()
+          nextPageToken = listClientAccountsPageToken {
+            this.after =
+              ListClientAccountsPageTokenKt.after {
+                externalMeasurementConsumerId = lastAccount.externalMeasurementConsumerId
+                externalClientAccountId = lastAccount.externalClientAccountId
+                createTime = lastAccount.createTime
+              }
+          }
+        } else {
+          clientAccounts += result.clientAccount
         }
       }
     }
