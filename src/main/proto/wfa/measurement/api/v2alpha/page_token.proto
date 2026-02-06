@@ -244,3 +244,15 @@ message ListPopulationsPageToken {
   }
   PreviousPageEnd last_population = 3;
 }
+
+message ListClientAccountsPageToken {
+  message ParentKey {
+    oneof external_parent_id {
+      fixed64 external_measurement_consumer_id = 1;
+      fixed64 external_data_provider_id = 2;
+    }
+  }
+  ParentKey parent_key = 1;
+  bytes internal_page_token = 2;
+  string client_account_reference_id = 3;
+}
