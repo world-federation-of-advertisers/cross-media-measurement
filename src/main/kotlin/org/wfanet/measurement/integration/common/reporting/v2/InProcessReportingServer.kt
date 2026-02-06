@@ -84,7 +84,6 @@ import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.server.AbstractInternalReportingServer.Companion.toList
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
-import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
@@ -96,7 +95,6 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.validate
-import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub as PublicMetricsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub as PublicReportsCoroutineStub
 
@@ -109,7 +107,6 @@ class InProcessReportingServer(
   private val signingPrivateKeyDir: File,
   private val measurementConsumerConfig: MeasurementConsumerConfig,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
-  private val knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor>,
   private val eventDescriptor: Descriptors.Descriptor,
   // May be empty
   private val defaultModelLineName: String,
@@ -195,22 +192,6 @@ class InProcessReportingServer(
       accessServicesFactory.create(permissionMapping, tlsClientMapping)
     }
 
-  private val celEnvCacheProvider =
-    object :
-      CloseableResource<CelEnvCacheProvider>({
-        CelEnvCacheProvider(
-          publicKingdomEventGroupMetadataDescriptorsClient.withAuthenticationKey(
-            measurementConsumerConfig.apiKey
-          ),
-          EventGroup.getDescriptor(),
-          Duration.ofSeconds(5),
-          knownEventGroupMetadataTypes,
-        )
-      }) {
-      val value: CelEnvCacheProvider
-        get() = resource
-    }
-
   private fun createPublicApiTestServerRule(): GrpcTestServerRule =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       runBlocking {
@@ -278,7 +259,6 @@ class InProcessReportingServer(
             EventGroupsService(
                 publicKingdomEventGroupsClient,
                 authorization,
-                celEnvCacheProvider.value,
                 measurementConsumerConfigs,
                 encryptionKeyPairStore,
               )
@@ -372,7 +352,6 @@ class InProcessReportingServer(
               internalReportingServerRule,
               accessServicesFactory,
               access,
-              celEnvCacheProvider,
               publicApiServer,
             )
             .apply(base, description)

@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
-import com.google.protobuf.DynamicMessage
 import com.google.protobuf.kotlin.unpack
 import io.grpc.Context
 import io.grpc.Deadline
@@ -31,8 +30,6 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.transformWhile
-import org.projectnessie.cel.common.types.Err
-import org.projectnessie.cel.common.types.ref.Val
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -57,7 +54,6 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptMetadata
-import org.wfanet.measurement.reporting.service.api.CelEnvProvider
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v2alpha.DateInterval
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
@@ -73,7 +69,6 @@ import org.wfanet.measurement.reporting.v2alpha.listEventGroupsResponse
 class EventGroupsService(
   private val cmmsEventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub,
   private val authorization: Authorization,
-  private val celEnvProvider: CelEnvProvider,
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
   private val encryptionKeyPairStore: EncryptionKeyPairStore,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
@@ -136,14 +131,6 @@ class EventGroupsService(
 
               it.toEventGroup(cmmsMetadata)
             }
-            .let {
-              // TODO(@SanjayVas): Stop reading deprecated field.
-              if (request.hasFilter()) {
-                filterEventGroups(it, request.filter)
-              } else {
-                it
-              }
-            }
 
         ResourceList(eventGroups, response.nextPageToken)
       }
@@ -181,78 +168,6 @@ class EventGroupsService(
               .asRuntimeException()
         }
       }
-    }
-  }
-
-  private suspend fun filterEventGroups(
-    eventGroups: List<EventGroup>,
-    filter: String,
-  ): List<EventGroup> {
-    if (filter.isEmpty()) {
-      return eventGroups
-    }
-
-    val typeRegistryAndEnv = celEnvProvider.getTypeRegistryAndEnv()
-    val env = typeRegistryAndEnv.env
-    val typeRegistry = typeRegistryAndEnv.typeRegistry
-
-    val astAndIssues =
-      try {
-        env.compile(filter)
-      } catch (_: NullPointerException) {
-        // NullPointerException is thrown when an operator in the filter is not a CEL operator.
-        throw Status.INVALID_ARGUMENT.withDescription("filter is not a valid CEL expression")
-          .asRuntimeException()
-      }
-    if (astAndIssues.hasIssues()) {
-      throw Status.INVALID_ARGUMENT.withDescription(
-          "filter is not a valid CEL expression: ${astAndIssues.issues}"
-        )
-        .asRuntimeException()
-    }
-    val program = env.program(astAndIssues.ast)
-
-    eventGroups
-      .filter { it.hasMetadata() }
-      .distinctBy { it.metadata.metadata.typeUrl }
-      .forEach {
-        val typeUrl = it.metadata.metadata.typeUrl
-        typeRegistry.getDescriptorForTypeUrl(typeUrl)
-          ?: throw Status.FAILED_PRECONDITION.withDescription(
-              "${it.metadata.eventGroupMetadataDescriptor} does not contain descriptor for $typeUrl"
-            )
-            .asRuntimeException()
-      }
-
-    return eventGroups.filter { eventGroup ->
-      val variables: Map<String, Any> =
-        mutableMapOf<String, Any>().apply {
-          for (fieldDescriptor in eventGroup.descriptorForType.fields) {
-            put(fieldDescriptor.name, eventGroup.getField(fieldDescriptor))
-          }
-          // TODO(projectnessie/cel-java#295): Remove when fixed.
-          if (eventGroup.hasMetadata()) {
-            val metadata: com.google.protobuf.Any = eventGroup.metadata.metadata
-            put(
-              METADATA_FIELD,
-              DynamicMessage.parseFrom(
-                typeRegistry.getDescriptorForTypeUrl(metadata.typeUrl),
-                metadata.value,
-              ),
-            )
-          }
-        }
-      val result: Val = program.eval(variables).`val`
-      if (result is Err) {
-        throw result.toRuntimeException()
-      }
-
-      if (result.value() !is Boolean) {
-        throw Status.INVALID_ARGUMENT.withDescription("filter does not evaluate to boolean")
-          .asRuntimeException()
-      }
-
-      result.booleanValue()
     }
   }
 
@@ -335,8 +250,6 @@ class EventGroupsService(
   }
 
   companion object {
-    private const val METADATA_FIELD = "metadata.metadata"
-
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 1000
 
