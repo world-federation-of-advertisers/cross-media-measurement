@@ -19,6 +19,14 @@ resource "google_storage_bucket" "bucket" {
   uniform_bucket_level_access = true
   public_access_prevention    = "enforced"
 
+  # Prevent accidental deletion of objects during the retention period
+  dynamic "retention_policy" {
+    for_each = var.retention_period_days != null ? [1] : []
+    content {
+      retention_period = var.retention_period_days * 86400  # Convert days to seconds
+    }
+  }
+
   # Delete objects based on Custom-Time (e.g., impression date)
   dynamic "lifecycle_rule" {
     for_each = var.lifecycle_rules
