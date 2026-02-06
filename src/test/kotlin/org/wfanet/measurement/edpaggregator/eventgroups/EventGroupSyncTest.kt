@@ -49,17 +49,23 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DeleteEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata as cmmsCampaignMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata as cmmsAdMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ListClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerClientAccountKey
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.clientAccount
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as cmmsEventGroupMetadata
+import org.wfanet.measurement.api.v2alpha.listClientAccountsResponse
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -198,11 +204,62 @@ class EventGroupSyncTest {
       }
   }
 
+  private val clientAccountsServiceMock: ClientAccountsCoroutineImplBase = mockService {
+    onBlocking { listClientAccounts(any<ListClientAccountsRequest>()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<ListClientAccountsRequest>(0)
+        when (request.filter.clientAccountReferenceId) {
+          "client-ref-1" ->
+            listClientAccountsResponse {
+              clientAccounts += clientAccount {
+                name =
+                  MeasurementConsumerClientAccountKey("measurement-consumer-1", "client-account-1")
+                    .toName()
+                clientAccountReferenceId = "client-ref-1"
+              }
+            }
+          "client-ref-multiple" ->
+            listClientAccountsResponse {
+              clientAccounts +=
+                listOf(
+                  clientAccount {
+                    name =
+                      MeasurementConsumerClientAccountKey(
+                          "measurement-consumer-1",
+                          "client-account-1",
+                        )
+                        .toName()
+                    clientAccountReferenceId = "client-ref-multiple"
+                  },
+                  clientAccount {
+                    name =
+                      MeasurementConsumerClientAccountKey(
+                          "measurement-consumer-2",
+                          "client-account-2",
+                        )
+                        .toName()
+                    clientAccountReferenceId = "client-ref-multiple"
+                  },
+                )
+            }
+          else -> listClientAccountsResponse {}
+        }
+      }
+  }
+
   private val eventGroupsStub: EventGroupsCoroutineStub by lazy {
     EventGroupsCoroutineStub(grpcTestServerRule.channel)
   }
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(eventGroupsServiceMock) }
+  private val clientAccountsStub: ClientAccountsCoroutineStub by lazy {
+    ClientAccountsCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(eventGroupsServiceMock)
+    addService(clientAccountsServiceMock)
+  }
 
   @Test
   fun `sync registersUnregisteredEventGroups`() {
@@ -229,6 +286,7 @@ class EventGroupSyncTest {
       EventGroupSync(
         "edp-name",
         eventGroupsStub,
+        clientAccountsStub,
         testCampaigns.asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -262,6 +320,7 @@ class EventGroupSyncTest {
       EventGroupSync(
         "edp-name",
         eventGroupsStub,
+        clientAccountsStub,
         testCampaigns.asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -307,6 +366,7 @@ class EventGroupSyncTest {
       EventGroupSync(
         "edp-name",
         eventGroupsStub,
+        clientAccountsStub,
         testCampaigns.asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -322,6 +382,7 @@ class EventGroupSyncTest {
       EventGroupSync(
         "edp-name",
         eventGroupsStub,
+        clientAccountsStub,
         CAMPAIGNS.asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -731,6 +792,7 @@ class EventGroupSyncTest {
         EventGroupSync(
           "dataProviders/test-edp-no-high-cardinality",
           eventGroupsStub,
+          clientAccountsStub,
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -769,6 +831,226 @@ class EventGroupSyncTest {
         }
       }
     }
+  }
+
+  // ClientAccount resolution tests
+
+  @Test
+  fun `sync with client_account_reference_id resolves to measurement consumer`() {
+    val eventGroupWithClientRef = eventGroup {
+      eventGroupReferenceId = "reference-id-resolved"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-resolved"
+            campaign = "campaign-resolved"
+          }
+        }
+      }
+      clientAccountReferenceId = "client-ref-1"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        listOf(eventGroupWithClientRef).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+      )
+
+    runBlocking { eventGroupSync.sync().collect() }
+
+    // Verify that ClientAccounts service was called
+    verifyBlocking(clientAccountsServiceMock, times(1)) { listClientAccounts(any()) }
+
+    // Verify that EventGroup was created with the resolved measurement consumer
+    val createCaptor = argumentCaptor<CreateEventGroupRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(createCaptor.capture()) }
+    assertThat(createCaptor.firstValue.eventGroup.measurementConsumer)
+      .isEqualTo("measurementConsumers/measurement-consumer-1")
+  }
+
+  @Test
+  fun `sync with both measurement_consumer and client_account_reference_id uses measurement_consumer`() {
+    val eventGroupWithBoth = eventGroup {
+      eventGroupReferenceId = "reference-id-both"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-both"
+            campaign = "campaign-both"
+          }
+        }
+      }
+      measurementConsumer = "measurementConsumers/direct-consumer"
+      clientAccountReferenceId = "client-ref-1"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        listOf(eventGroupWithBoth).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+      )
+
+    runBlocking { eventGroupSync.sync().collect() }
+
+    // Verify that ClientAccounts service was NOT called (direct MC takes precedence)
+    verifyBlocking(clientAccountsServiceMock, times(0)) { listClientAccounts(any()) }
+
+    // Verify that EventGroup was created with the direct measurement consumer
+    val createCaptor = argumentCaptor<CreateEventGroupRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(createCaptor.capture()) }
+    assertThat(createCaptor.firstValue.eventGroup.measurementConsumer)
+      .isEqualTo("measurementConsumers/direct-consumer")
+  }
+
+  @Test
+  fun `sync skips event group when client_account_reference_id has no match`() {
+    val eventGroupWithNoMatch = eventGroup {
+      eventGroupReferenceId = "reference-id-no-match"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-no-match"
+            campaign = "campaign-no-match"
+          }
+        }
+      }
+      clientAccountReferenceId = "client-ref-nonexistent"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        listOf(eventGroupWithNoMatch).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+      )
+
+    val result = runBlocking { eventGroupSync.sync().toList() }
+
+    // Verify that ClientAccounts service was called
+    verifyBlocking(clientAccountsServiceMock, times(1)) { listClientAccounts(any()) }
+
+    // Verify that EventGroup was NOT created
+    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+
+    // Verify no results were returned
+    assertThat(result).isEmpty()
+  }
+
+  @Test
+  fun `sync skips event group when client_account_reference_id has multiple matches`() {
+    val eventGroupWithMultiple = eventGroup {
+      eventGroupReferenceId = "reference-id-multiple"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-multiple"
+            campaign = "campaign-multiple"
+          }
+        }
+      }
+      clientAccountReferenceId = "client-ref-multiple"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        listOf(eventGroupWithMultiple).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+      )
+
+    val result = runBlocking { eventGroupSync.sync().toList() }
+
+    // Verify that ClientAccounts service was called
+    verifyBlocking(clientAccountsServiceMock, times(1)) { listClientAccounts(any()) }
+
+    // Verify that EventGroup was NOT created
+    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+
+    // Verify no results were returned
+    assertThat(result).isEmpty()
+  }
+
+  @Test
+  fun `validateEventGroup accepts client_account_reference_id only`() {
+    val eventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand"
+            campaign = "campaign"
+          }
+        }
+      }
+      clientAccountReferenceId = "client-ref"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+
+    // Should not throw an exception
+    EventGroupSync.validateEventGroup(eventGroup)
+  }
+
+  @Test
+  fun `validateEventGroup rejects event group with neither measurement_consumer nor client_account_reference_id`() {
+    val eventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand"
+            campaign = "campaign"
+          }
+        }
+      }
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+
+    val exception =
+      assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
+    assertThat(exception.message)
+      .contains("Either Measurement Consumer or Client Account Reference ID must be set")
   }
 
   companion object {
