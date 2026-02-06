@@ -56,9 +56,9 @@ service ImpressionMetadataService {
 
   // Computes the time bounds for all ModelLines for a DataProvider.
   //
-  // This method returns, for each requested ModelLine, the largest interval
-  // during which all associated ImpressionMetadata resources are in the ACTIVE
-  // state.
+  // This method returns, for each requested ModelLine, the interval spanning
+  // from the earliest start time to the latest end time across all
+  // ImpressionMetadata resources in the ACTIVE state.
   //
   // Callers are responsible for ensuring that all expected ImpressionMetadata
   // have been created before using these intervals for downstream purposes,

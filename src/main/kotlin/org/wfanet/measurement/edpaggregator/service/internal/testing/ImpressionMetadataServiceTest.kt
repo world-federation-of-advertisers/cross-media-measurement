@@ -1726,6 +1726,43 @@ abstract class ImpressionMetadataServiceTest {
       )
   }
 
+  @Test
+  fun `ComputeModelLineBounds ignores deleted impressions`() = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_2 }
+    )
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_3 }
+    )
+
+    service.deleteImpressionMetadata(
+      deleteImpressionMetadataRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        impressionMetadataResourceId = IMPRESSION_METADATA_3.impressionMetadataResourceId
+      }
+    )
+
+    val response =
+      service.computeModelLineBounds(
+        computeModelLineBoundsRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
+      )
+
+    assertThat(response)
+      .isEqualTo(
+        computeModelLineBoundsResponse {
+          modelLineBounds.putAll(
+            mapOf(
+              MODEL_LINE_2 to
+                interval {
+                  startTime = timestamp { seconds = 100 }
+                  endTime = timestamp { seconds = 200 }
+                }
+            )
+          )
+        }
+      )
+  }
+
   companion object {
     private const val DATA_PROVIDER_RESOURCE_ID = "data-provider-1"
     private const val IMPRESSION_METADATA_RESOURCE_ID = "impression-metadata-1"

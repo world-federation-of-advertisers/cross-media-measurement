@@ -412,12 +412,17 @@ suspend fun AsyncDatabaseClient.ReadContext.readModelLinesBounds(
         ImpressionMetadata
       WHERE
         DataProviderResourceId = @dataProviderResourceId
+        AND State = @state
       GROUP BY
         DataProviderResourceId,
         CmmsModelLine
     """
       .trimIndent()
-  val query = statement(sql) { bind("dataProviderResourceId").to(dataProviderResourceId) }
+  val query =
+    statement(sql) {
+      bind("dataProviderResourceId").to(dataProviderResourceId)
+      bind("state").to(State.IMPRESSION_METADATA_STATE_ACTIVE.number.toLong())
+    }
   return executeQuery(query, Options.tag("action=readModelLinesBounds"))
     .map { row ->
       ModelLineBoundResult(
