@@ -241,7 +241,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           SECRETS_DIR,
           measurementConsumerConfig,
           TRUSTED_CERTIFICATES,
-          inProcessCmmsComponents.kingdom.knownEventGroupMetadataTypes,
           TestEvent.getDescriptor(),
           defaultModelLineName = inProcessCmmsComponents.modelLineResourceName,
           verboseGrpcLogging = false,
