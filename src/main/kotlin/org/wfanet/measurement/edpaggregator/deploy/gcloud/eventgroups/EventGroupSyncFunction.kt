@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
@@ -80,6 +81,13 @@ class EventGroupSyncFunction() : HttpFunction {
               certHost = kingdomCertHost,
               shutdownTimeout = channelShutdownDuration,
             )
+          val clientAccountsClient =
+            createClientAccountsStub(
+              target = kingdomTarget,
+              eventGroupSyncConfig = eventGroupSyncConfig,
+              certHost = kingdomCertHost,
+              shutdownTimeout = channelShutdownDuration,
+            )
           val eventGroups: Flow<EventGroup> =
             Tracing.traceSuspending(
               spanName = "load_event_groups",
@@ -108,6 +116,7 @@ class EventGroupSyncFunction() : HttpFunction {
               EventGroupSync(
                   edpName = eventGroupSyncConfig.dataProvider,
                   eventGroupsStub = eventGroupsClient,
+                  clientAccountsStub = clientAccountsClient,
                   eventGroups = eventGroups,
                   throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration),
                   listEventGroupPageSize,
@@ -276,6 +285,46 @@ class EventGroupSyncFunction() : HttpFunction {
         ClientInterceptors.intercept(publicChannel, grpcTelemetry.newClientInterceptor())
 
       return EventGroupsCoroutineStub(instrumentedChannel)
+    }
+
+    /**
+     * Creates an instrumented ClientAccountsCoroutineStub for the Kingdom Public API.
+     *
+     * The stub is configured with:
+     * - Mutual TLS authentication (certificates loaded from eventGroupSyncConfig)
+     * - Graceful shutdown timeout
+     * - OpenTelemetry gRPC instrumentation for automatic span and metric creation
+     *
+     * @param target The Kingdom API target (e.g., "kingdom.example.com:443")
+     * @param eventGroupSyncConfig Configuration containing certificate file paths for mutual TLS
+     * @param certHost The expected certificate hostname (optional, for cert verification)
+     * @param shutdownTimeout Duration to wait for graceful channel shutdown
+     * @return Instrumented ClientAccountsCoroutineStub ready for use
+     */
+    private fun createClientAccountsStub(
+      target: String,
+      eventGroupSyncConfig: EventGroupSyncConfig,
+      certHost: String?,
+      shutdownTimeout: Duration,
+    ): ClientAccountsCoroutineStub {
+      val signingCerts =
+        SigningCerts.fromPemFiles(
+          certificateFile = checkNotNull(File(eventGroupSyncConfig.cmmsConnection.certFilePath)),
+          privateKeyFile =
+            checkNotNull(File(eventGroupSyncConfig.cmmsConnection.privateKeyFilePath)),
+          trustedCertCollectionFile =
+            checkNotNull(File(eventGroupSyncConfig.cmmsConnection.certCollectionFilePath)),
+        )
+
+      val publicChannel =
+        buildMutualTlsChannel(target, signingCerts, certHost).withShutdownTimeout(shutdownTimeout)
+
+      // Use official OpenTelemetry gRPC instrumentation for automatic span and metric creation
+      val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
+      val instrumentedChannel =
+        ClientInterceptors.intercept(publicChannel, grpcTelemetry.newClientInterceptor())
+
+      return ClientAccountsCoroutineStub(instrumentedChannel)
     }
   }
 }
