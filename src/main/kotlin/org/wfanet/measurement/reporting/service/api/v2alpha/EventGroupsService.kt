@@ -120,17 +120,16 @@ class EventGroupsService(
           )
 
         val eventGroups: List<EventGroup> =
-          response.eventGroupsList
-            .map {
-              val cmmsMetadata: CmmsEventGroup.Metadata? =
-                if (it.hasEncryptedMetadata()) {
-                  decryptMetadata(it, parentKey.toName())
-                } else {
-                  null
-                }
+          response.eventGroupsList.map {
+            val cmmsMetadata: CmmsEventGroup.Metadata? =
+              if (it.hasEncryptedMetadata()) {
+                decryptMetadata(it, parentKey.toName())
+              } else {
+                null
+              }
 
-              it.toEventGroup(cmmsMetadata)
-            }
+            it.toEventGroup(cmmsMetadata)
+          }
 
         ResourceList(eventGroups, response.nextPageToken)
       }
