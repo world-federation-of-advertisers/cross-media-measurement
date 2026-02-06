@@ -52,7 +52,7 @@ message Constraints {
   }
 
   // A list of constraints that must be satisfied.
-  repeated Constraint constrains = 1;
+  repeated Constraint constraints = 1;
 
   // The total number of variables involved in the optimization problem.
   // This helps in sizing the vectors and matrices for the solver.

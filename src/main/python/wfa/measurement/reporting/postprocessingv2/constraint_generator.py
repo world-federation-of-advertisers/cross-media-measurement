@@ -49,8 +49,10 @@ class LowerBoundRelationGenerator(ConstraintGenerator):
     self.data_provider_metric_set = data_provider_metric_set
 
   def get_constraints(self) -> List[Constraint]:
-    # Implementation placeholder
-    return []
+    # TODO(@ple13): Implement constraint generator.
+    raise NotImplementedError(
+      f"get_constraints for {self.__class__.__name__} not implemented yet."
+    )
 
 class CoverRelationGenerator(ConstraintGenerator):
   """Generates constraints ensuring the sum of subset reaches covering a union
@@ -60,8 +62,10 @@ class CoverRelationGenerator(ConstraintGenerator):
     self.data_provider_metric_set = data_provider_metric_set
 
   def get_constraints(self) -> List[Constraint]:
-    # Implementation placeholder
-    return []
+    # TODO(@ple13): Implement constraint generator.
+    raise NotImplementedError(
+      f"get_constraints for {self.__class__.__name__} not implemented yet."
+    )
 
 class ImpressionsSumRelationGenerator(ConstraintGenerator):
   """Generates constraints ensuring impressions of a union equal the sum of
@@ -71,8 +75,10 @@ class ImpressionsSumRelationGenerator(ConstraintGenerator):
     self.data_provider_metric_set = data_provider_metric_set
 
   def get_constraints(self) -> List[Constraint]:
-    # Implementation placeholder
-    return []
+    # TODO(@ple13): Implement constraint generator.
+    raise NotImplementedError(
+      f"get_constraints for {self.__class__.__name__} not implemented yet."
+    )
 
 class SubsetRelationGenerator(ConstraintGenerator):
   """Generates constraints ensuring subset reach/impression <= superset
@@ -82,8 +88,10 @@ class SubsetRelationGenerator(ConstraintGenerator):
     self.data_provider_metric_set = data_provider_metric_set
 
   def get_constraints(self) -> List[Constraint]:
-    # Implementation placeholder
-    return []
+    # TODO(@ple13): Implement constraint generator.
+    raise NotImplementedError(
+      f"get_constraints for {self.__class__.__name__} not implemented yet."
+    )
 
 class ReachFrequencyRelationGenerator(ConstraintGenerator):
   """Generates constraints ensuring reach equals the sum of frequencies."""
@@ -91,8 +99,10 @@ class ReachFrequencyRelationGenerator(ConstraintGenerator):
     self.data_provider_metric_set = data_provider_metric_set
 
   def get_constraints(self) -> List[Constraint]:
-    # Implementation placeholder
-    return []
+    # TODO(@ple13): Implement constraint generator.
+    raise NotImplementedError(
+      f"get_constraints for {self.__class__.__name__} not implemented yet."
+    )
 
 class ReachImpressionsRelationGenerator(ConstraintGenerator):
   """Generates constraints ensuring reach <= impressions."""
@@ -100,8 +110,10 @@ class ReachImpressionsRelationGenerator(ConstraintGenerator):
     self.data_provider_metric_set = data_provider_metric_set
 
   def get_constraints(self) -> List[Constraint]:
-    # Implementation placeholder
-    return []
+    # TODO(@ple13): Implement constraint generator.
+    raise NotImplementedError(
+      f"get_constraints for {self.__class__.__name__} not implemented yet."
+    )
 
 class FrequencyImpressionsRelationGenerator(ConstraintGenerator):
   """Generates constraints ensuring weighted sum of frequencies <= impressions."""
@@ -109,8 +121,10 @@ class FrequencyImpressionsRelationGenerator(ConstraintGenerator):
     self.data_provider_metric_set = data_provider_metric_set
 
   def get_constraints(self) -> List[Constraint]:
-    # Implementation placeholder
-    return []
+    # TODO(@ple13): Implement constraint generator.
+    raise NotImplementedError(
+      f"get_constraints for {self.__class__.__name__} not implemented yet."
+    )
 
 # --- Constraints between two comparable DataProviderMetricSetMaps --- #
 
@@ -130,8 +144,10 @@ class EqualRelationGenerator(ConstraintGenerator):
     self.parent = parent
 
   def get_constraints(self) -> List[Constraint]:
-    # Implementation placeholder
-    return []
+    # TODO(@ple13): Implement constraint generator.
+    raise NotImplementedError(
+      f"get_constraints for {self.__class__.__name__} not implemented yet."
+    )
 
 class OverlapRelationGenerator(ConstraintGenerator):
   """Generates constraints ensuring Overlap(child) <= Overlap(parent)."""
@@ -144,8 +160,10 @@ class OverlapRelationGenerator(ConstraintGenerator):
     self.parent = parent
 
   def get_constraints(self) -> List[Constraint]:
-    # Implementation placeholder
-    return []
+    # TODO(@ple13): Implement constraint generator.
+    raise NotImplementedError(
+      f"get_constraints for {self.__class__.__name__} not implemented yet."
+    )
 
 class ReachRelationGenerator(ConstraintGenerator):
   """Generates constraints ensuring child reach <= parent reach."""
@@ -158,8 +176,10 @@ class ReachRelationGenerator(ConstraintGenerator):
     self.parent = parent
 
   def get_constraints(self) -> List[Constraint]:
-    # Implementation placeholder
-    return []
+    # TODO(@ple13): Implement constraint generator.
+    raise NotImplementedError(
+      f"get_constraints for {self.__class__.__name__} not implemented yet."
+    )
 
 class ImpressionsRelationGenerator(ConstraintGenerator):
   """Generates constraints ensuring child impressions <= parent impressions."""
@@ -172,8 +192,10 @@ class ImpressionsRelationGenerator(ConstraintGenerator):
     self.parent = parent
 
   def get_constraints(self) -> List[Constraint]:
-    # Implementation placeholder
-    return []
+    # TODO(@ple13): Implement constraint generator.
+    raise NotImplementedError(
+      f"get_constraints for {self.__class__.__name__} not implemented yet."
+    )
 
 class FrequencyRelationGenerator(ConstraintGenerator):
   """Generates constraints ensuring child k+ reach <= parent k+ reach."""
@@ -186,8 +208,10 @@ class FrequencyRelationGenerator(ConstraintGenerator):
     self.parent = parent
 
   def get_constraints(self) -> List[Constraint]:
-    # Implementation placeholder
-    return []
+    # TODO(@ple13): Implement constraint generator.
+    raise NotImplementedError(
+      f"get_constraints for {self.__class__.__name__} not implemented yet."
+    )
 
 # ---------- Constraints among a list of DataProviderMetricSetMaps -- #
 
@@ -210,8 +234,10 @@ class CumulativeAndNonCumulativeConstraints(ConstraintGenerator):
     self.cumulatives = cumulatives
 
   def get_constraints(self) -> List[Constraint]:
-    # Implementation placeholder
-    return []
+    # TODO(@ple13): Implement constraint generator.
+    raise NotImplementedError(
+      f"get_constraints for {self.__class__.__name__} not implemented yet."
+    )
 
 class NonCumulativeAndWholeCampaignConstraints(ConstraintGenerator):
   """
@@ -230,5 +256,7 @@ class NonCumulativeAndWholeCampaignConstraints(ConstraintGenerator):
     self.whole_campaign = whole_campaign
 
   def get_constraints(self) -> List[Constraint]:
-    # Implementation placeholder
-    return []
+    # TODO(@ple13): Implement constraint generator.
+    raise NotImplementedError(
+      f"get_constraints for {self.__class__.__name__} not implemented yet."
+    )
