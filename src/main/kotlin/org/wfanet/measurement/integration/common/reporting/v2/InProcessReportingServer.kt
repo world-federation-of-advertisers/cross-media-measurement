@@ -50,7 +50,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as PublicKingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as PublicKingdomMeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as PublicKingdomModelLinesCoroutineStub
-import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.getRuntimePath
@@ -59,7 +58,6 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.readByteString
-import org.wfanet.measurement.common.testing.CloseableResource
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMap
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfig
