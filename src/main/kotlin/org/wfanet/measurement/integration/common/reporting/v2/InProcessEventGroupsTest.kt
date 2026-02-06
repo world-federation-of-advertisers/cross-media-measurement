@@ -187,7 +187,6 @@ abstract class InProcessEventGroupsTest(
           SECRET_FILES_PATH.toFile(),
           measurementConsumerConfig,
           TRUSTED_CERTIFICATES,
-          kingdom.knownEventGroupMetadataTypes,
           TestEvent.getDescriptor(),
           "",
           verboseGrpcLogging = false,

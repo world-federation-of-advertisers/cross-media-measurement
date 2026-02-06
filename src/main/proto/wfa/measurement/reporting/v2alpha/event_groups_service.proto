@@ -111,21 +111,11 @@ message ListEventGroupsRequest {
     DateInterval activity_contains = 8;
   }
 
-  // Filter criteria for results. Optional.
-  oneof filter_criteria {
-    // Result filter. Raw CEL expression that is applied to a message which has
-    // a field for each event group template.
-    //
-    // Deprecated in favor of [structured_filter][].
-    string filter = 4
-        [(google.api.field_behavior) = OPTIONAL, deprecated = true];
-
-    // Result filter.
-    // (-- api-linter: core::0132::request-unknown-fields=disabled
-    //     aip.dev/not-precedent: Using structured filter instead of AIP-160.
-    //     --)
-    Filter structured_filter = 5 [(google.api.field_behavior) = OPTIONAL];
-  }
+  // Result filter.
+  // (-- api-linter: core::0132::request-unknown-fields=disabled
+  //     aip.dev/not-precedent: Using structured filter instead of AIP-160.
+  //     --)
+  Filter structured_filter = 5 [(google.api.field_behavior) = OPTIONAL];
 
   // Structure for ordering results.
   message OrderBy {
