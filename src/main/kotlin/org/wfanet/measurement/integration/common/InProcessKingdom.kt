@@ -161,6 +161,9 @@ class InProcessKingdom(
           DataProvidersService(internalDataProvidersClient)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+          EventGroupActivitiesService(internalEventGroupActivitiesClient)
+            .withMetadataPrincipalIdentities()
+            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
           EventGroupsService(internalEventGroupsClient)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
