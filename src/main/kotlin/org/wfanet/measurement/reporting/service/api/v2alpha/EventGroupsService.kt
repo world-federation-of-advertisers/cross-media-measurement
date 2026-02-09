@@ -49,7 +49,6 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
-import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v2alpha.DateInterval
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupKt
@@ -65,7 +64,6 @@ class EventGroupsService(
   private val cmmsEventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub,
   private val authorization: Authorization,
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
-  private val encryptionKeyPairStore: EncryptionKeyPairStore,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val ticker: Ticker = Deadline.getSystemTicker(),
 ) : EventGroupsCoroutineImplBase(coroutineContext) {

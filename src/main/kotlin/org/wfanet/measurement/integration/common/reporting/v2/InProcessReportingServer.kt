@@ -258,7 +258,6 @@ class InProcessReportingServer(
                 publicKingdomEventGroupsClient,
                 authorization,
                 measurementConsumerConfigs,
-                encryptionKeyPairStore,
               )
               .withTrustedPrincipalAuthentication(),
             MetricCalculationSpecsService(

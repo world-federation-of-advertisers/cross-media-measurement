@@ -57,7 +57,7 @@ import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.access.v1alpha.role
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroupKt
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as PublicKingdomEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
@@ -88,7 +88,6 @@ import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
-import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
 import org.wfanet.measurement.dataprovider.MeasurementResults
 import org.wfanet.measurement.integration.common.ALL_EDP_DISPLAY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
@@ -370,13 +369,11 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   private val publicEventGroupsClient by lazy {
-    EventGroupsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+    PublicKingdomEventGroupsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
   }
 
   private val reportingPublicEventGroupsClient by lazy {
-    org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub(
-      reportingServer.publicApiChannel
-    )
+    EventGroupsCoroutineStub(reportingServer.publicApiChannel)
   }
 
   private val publicMetricCalculationSpecsClient by lazy {
