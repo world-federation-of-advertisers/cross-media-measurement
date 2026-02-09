@@ -34,6 +34,9 @@ service ClientAccounts {
 
   rpc DeleteClientAccount(DeleteClientAccountRequest) returns (ClientAccount);
 
+  rpc BatchDeleteClientAccounts(BatchDeleteClientAccountsRequest)
+      returns (google.protobuf.Empty);
+
   // Lists ClientAccounts ordered by `create_time` ascending.
   rpc ListClientAccounts(ListClientAccountsRequest)
       returns (ListClientAccountsResponse);
@@ -68,6 +71,12 @@ message DeleteClientAccountRequest {
   fixed64 external_measurement_consumer_id = 1;
   // External ID of the ClientAccount. Required.
   fixed64 external_client_account_id = 2;
+}
+
+message BatchDeleteClientAccountsRequest {
+  // External ID of the owning `MeasurementConsumer`. Required.
+  fixed64 external_measurement_consumer_id = 1;
+  repeated DeleteClientAccountRequest requests = 2;
 }
 
 message ListClientAccountsRequest {
