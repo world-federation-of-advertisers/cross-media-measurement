@@ -364,7 +364,6 @@ private object V2AlphaPublicApiServer {
             KingdomEventGroupsCoroutineStub(kingdomChannel),
             authorization,
             measurementConsumerConfigs,
-            InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
             serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
