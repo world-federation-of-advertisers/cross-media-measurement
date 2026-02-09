@@ -804,11 +804,6 @@ class EventGroupsServiceTest {
                 }
             }
         }
-      metadata =
-        EventGroupKt.metadata {
-          eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-          metadata = Any.pack(TEST_MESSAGE)
-        }
     }
 
     private val EVENT_GROUP_2 = eventGroup {
@@ -817,11 +812,6 @@ class EventGroupsServiceTest {
       cmmsDataProvider = DATA_PROVIDER_NAME
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID_2
       eventTemplates += EventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
-      metadata =
-        EventGroupKt.metadata {
-          eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-          metadata = Any.pack(TEST_MESSAGE)
-        }
     }
   }
 
