@@ -105,7 +105,6 @@ message EventGroup {
   // and be required.
   EventGroupMetadata event_group_metadata = 8;
 
-
   // View of an `EventGroup`.
   enum View {
     // The default/unset value.

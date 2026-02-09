@@ -114,8 +114,7 @@ class EventGroupsService(
             }
           )
 
-        val eventGroups: List<EventGroup> =
-          response.eventGroupsList.map { it.toEventGroup() }
+        val eventGroups: List<EventGroup> = response.eventGroupsList.map { it.toEventGroup() }
 
         ResourceList(eventGroups, response.nextPageToken)
       }
