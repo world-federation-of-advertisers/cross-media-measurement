@@ -105,19 +105,6 @@ message EventGroup {
   // and be required.
   EventGroupMetadata event_group_metadata = 8;
 
-  // Wrapper for per-EDP Event Group metadata.
-  message Metadata {
-    // The resource name of the metadata descriptor.
-    string event_group_metadata_descriptor = 1
-        [(google.api.resource_reference).type =
-             "halo.wfanet.org/EventGroupMetadataDescriptor"];
-
-    // The serialized value of the metadata message.
-    google.protobuf.Any metadata = 2;
-  }
-  // The metadata of the event group. This will eventually be deprecated in
-  // favor of [event_group_metadata][].
-  Metadata metadata = 6;
 
   // View of an `EventGroup`.
   enum View {
