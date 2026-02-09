@@ -373,7 +373,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   private val reportingPublicEventGroupsClient by lazy {
-    EventGroupsCoroutineStub(reportingServer.publicApiChannel)
+    org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub(
+      reportingServer.publicApiChannel
+    )
   }
 
   private val publicMetricCalculationSpecsClient by lazy {
