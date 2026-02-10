@@ -54,7 +54,6 @@ import org.wfanet.measurement.internal.kingdom.ClientAccount as InternalClientAc
 import org.wfanet.measurement.internal.kingdom.ClientAccountsGrpcKt.ClientAccountsCoroutineImplBase as InternalClientAccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ClientAccountsGrpcKt.ClientAccountsCoroutineStub as InternalClientAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.batchCreateClientAccountsResponse as internalBatchCreateClientAccountsResponse
-import org.wfanet.measurement.internal.kingdom.batchDeleteClientAccountsResponse as internalBatchDeleteClientAccountsResponse
 import org.wfanet.measurement.internal.kingdom.clientAccount as internalClientAccount
 import org.wfanet.measurement.internal.kingdom.createClientAccountRequest as internalCreateClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.deleteClientAccountRequest as internalDeleteClientAccountRequest
@@ -121,10 +120,7 @@ class ClientAccountsServiceTest {
       )
     onBlocking { getClientAccount(any()) }.thenReturn(INTERNAL_CLIENT_ACCOUNT)
     onBlocking { deleteClientAccount(any()) }.thenReturn(INTERNAL_CLIENT_ACCOUNT)
-    onBlocking { batchDeleteClientAccounts(any()) }
-      .thenReturn(
-        internalBatchDeleteClientAccountsResponse { clientAccounts += INTERNAL_CLIENT_ACCOUNT }
-      )
+    onBlocking { batchDeleteClientAccounts(any()) }.thenReturn(Empty.getDefaultInstance())
     onBlocking { listClientAccounts(any()) }
       .thenReturn(internalListClientAccountsResponse { clientAccounts += INTERNAL_CLIENT_ACCOUNT })
   }
