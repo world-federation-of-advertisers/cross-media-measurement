@@ -89,4 +89,18 @@ class EventGroupSyncMetrics(meter: Meter) {
       .counterBuilder("edpa.event_group.unmapped")
       .setDescription("Number of Event Groups that could not be mapped to any MeasurementConsumer")
       .build()
+
+  /**
+   * Counter for ClientAccount reference IDs not found in the account table.
+   *
+   * Incremented when a clientAccountReferenceId lookup returns no results, indicating the reference
+   * ID is not mapped in the ClientAccounts table.
+   */
+  val unmappedClientAccounts: LongCounter =
+    meter
+      .counterBuilder("edpa.event_group.unmapped_client_accounts")
+      .setDescription(
+        "Number of ClientAccount reference IDs that are not mapped in the account table"
+      )
+      .build()
 }
