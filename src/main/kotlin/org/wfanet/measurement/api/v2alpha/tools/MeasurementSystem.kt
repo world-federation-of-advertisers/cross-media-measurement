@@ -50,6 +50,7 @@ import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCor
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.ListClientAccountsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.ListModelOutagesRequestKt
 import org.wfanet.measurement.api.v2alpha.ListModelRolloutsRequestKt
@@ -81,7 +82,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt as EventGroupEntries
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
-import org.wfanet.measurement.api.v2alpha.ListClientAccountsRequestKt
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
 import org.wfanet.measurement.api.v2alpha.apiKey
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
@@ -90,10 +90,10 @@ import org.wfanet.measurement.api.v2alpha.batchDeleteClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.clientAccount
-import org.wfanet.measurement.api.v2alpha.createClientAccountRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
+import org.wfanet.measurement.api.v2alpha.createClientAccountRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
@@ -1137,22 +1137,21 @@ private class ClientAccounts {
 
     val request = batchCreateClientAccountsRequest {
       this.parent = parent
-      lines.forEach { line ->
+      lines.forEachIndexed { index, line ->
         val parts = line.split(",").map { it.trim() }
         if (parts.size != 2) {
           throw ParameterException(
             parentCommand.commandLine,
-            "Invalid line format: '$line'. Expected: dataProvider,referenceId",
+            "Invalid line format at line ${index + 1}: '$line'. Expected format: dataProvider,referenceId (found ${parts.size} parts)",
           )
         }
-        requests +=
-          createClientAccountRequest {
-            this.parent = parent
-            clientAccount = clientAccount {
-              dataProvider = parts[0]
-              clientAccountReferenceId = parts[1]
-            }
+        requests += createClientAccountRequest {
+          this.parent = parent
+          clientAccount = clientAccount {
+            dataProvider = parts[0]
+            clientAccountReferenceId = parts[1]
           }
+        }
       }
     }
 
@@ -1226,10 +1225,7 @@ private class ClientAccounts {
       if (pageToken.isNotBlank()) {
         this.pageToken = pageToken
       }
-      if (measurementConsumer != null ||
-          dataProvider != null ||
-          clientAccountReferenceId != null
-      ) {
+      if (measurementConsumer != null || dataProvider != null || clientAccountReferenceId != null) {
         filter =
           ListClientAccountsRequestKt.filter {
             if (measurementConsumer != null) {
@@ -1291,7 +1287,9 @@ private class ClientAccounts {
       this.names += names
     }
 
-    runBlocking(parentCommand.rpcDispatcher) { clientAccountsStub.batchDeleteClientAccounts(request) }
+    runBlocking(parentCommand.rpcDispatcher) {
+      clientAccountsStub.batchDeleteClientAccounts(request)
+    }
     println("Successfully deleted ${names.size} ClientAccounts")
   }
 

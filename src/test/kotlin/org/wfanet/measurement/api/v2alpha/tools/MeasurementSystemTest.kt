@@ -52,9 +52,10 @@ import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ApiKey
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
+import org.wfanet.measurement.api.v2alpha.BatchCreateClientAccountsRequest
+import org.wfanet.measurement.api.v2alpha.BatchDeleteClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
-import org.wfanet.measurement.api.v2alpha.ClientAccount
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt
 import org.wfanet.measurement.api.v2alpha.CreateClientAccountRequest
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
@@ -129,6 +130,7 @@ import org.wfanet.measurement.api.v2alpha.activateAccountRequest
 import org.wfanet.measurement.api.v2alpha.apiKey
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
 import org.wfanet.measurement.api.v2alpha.authenticateResponse
+import org.wfanet.measurement.api.v2alpha.batchCreateClientAccountsResponse
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.clientAccount
 import org.wfanet.measurement.api.v2alpha.copy
@@ -428,6 +430,15 @@ private val LIST_CLIENT_ACCOUNTS_RESPONSE = listClientAccountsResponse {
   nextPageToken = LIST_PAGE_TOKEN
 }
 
+private val BATCH_CREATE_CLIENT_ACCOUNTS_RESPONSE = batchCreateClientAccountsResponse {
+  clientAccounts += CLIENT_ACCOUNT
+  clientAccounts += clientAccount {
+    name = "$MEASUREMENT_CONSUMER_NAME/clientAccounts/2"
+    dataProvider = "dataProviders/2"
+    clientAccountReferenceId = "external-ref-456"
+  }
+}
+
 @RunWith(JUnit4::class)
 class MeasurementSystemTest {
   private val accountsServiceMock: AccountsCoroutineImplBase = mockService()
@@ -458,7 +469,10 @@ class MeasurementSystemTest {
       onBlocking { createClientAccount(any()) }.thenReturn(CLIENT_ACCOUNT)
       onBlocking { getClientAccount(any()) }.thenReturn(CLIENT_ACCOUNT)
       onBlocking { listClientAccounts(any()) }.thenReturn(LIST_CLIENT_ACCOUNTS_RESPONSE)
+      onBlocking { batchCreateClientAccounts(any()) }
+        .thenReturn(BATCH_CREATE_CLIENT_ACCOUNTS_RESPONSE)
       onBlocking { deleteClientAccount(any()) }.thenReturn(empty {})
+      onBlocking { batchDeleteClientAccounts(any()) }.thenReturn(empty {})
     }
   private val publicKeysServiceMock: PublicKeysGrpcKt.PublicKeysCoroutineImplBase = mockService()
   private val modelLinesServiceMock: ModelLinesCoroutineImplBase = mockService {
@@ -2187,12 +2201,7 @@ class MeasurementSystemTest {
   fun `client-accounts get succeeds`() {
     val args =
       commonArgs +
-        arrayOf(
-          "client-accounts",
-          "--api-key=$AUTHENTICATION_KEY",
-          "get",
-          CLIENT_ACCOUNT_NAME,
-        )
+        arrayOf("client-accounts", "--api-key=$AUTHENTICATION_KEY", "get", CLIENT_ACCOUNT_NAME)
     callCli(args)
 
     assertThat(
@@ -2275,12 +2284,7 @@ class MeasurementSystemTest {
   fun `client-accounts delete succeeds`() {
     val args =
       commonArgs +
-        arrayOf(
-          "client-accounts",
-          "--api-key=$AUTHENTICATION_KEY",
-          "delete",
-          CLIENT_ACCOUNT_NAME,
-        )
+        arrayOf("client-accounts", "--api-key=$AUTHENTICATION_KEY", "delete", CLIENT_ACCOUNT_NAME)
     callCli(args)
 
     assertThat(
@@ -2296,6 +2300,217 @@ class MeasurementSystemTest {
     }
 
     assertThat(request).isEqualTo(deleteClientAccountRequest { name = CLIENT_ACCOUNT_NAME })
+  }
+
+  @Test
+  fun `client-accounts batch-create succeeds`() {
+    val tempFile = kotlin.io.path.createTempFile("client-accounts", ".txt").toFile()
+    try {
+      tempFile.writeText(
+        """
+        dataProviders/1,ref-id-001
+        dataProviders/2,ref-id-002
+        """
+          .trimIndent()
+      )
+
+      val args =
+        commonArgs +
+          arrayOf(
+            "client-accounts",
+            "--api-key=$AUTHENTICATION_KEY",
+            "batch-create",
+            "--parent=$MEASUREMENT_CONSUMER_NAME",
+            "--requests-file=${tempFile.absolutePath}",
+          )
+      callCli(args)
+
+      assertThat(
+          headerInterceptor
+            .captured(ClientAccountsGrpcKt.batchCreateClientAccountsMethod)
+            .single()
+            .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
+        )
+        .isEqualTo(AUTHENTICATION_KEY)
+
+      val request: BatchCreateClientAccountsRequest = captureFirst {
+        runBlocking { verify(clientAccountsServiceMock).batchCreateClientAccounts(capture()) }
+      }
+
+      assertThat(request.parent).isEqualTo(MEASUREMENT_CONSUMER_NAME)
+      assertThat(request.requestsCount).isEqualTo(2)
+      assertThat(request.requestsList[0])
+        .isEqualTo(
+          createClientAccountRequest {
+            parent = MEASUREMENT_CONSUMER_NAME
+            clientAccount = clientAccount {
+              dataProvider = "dataProviders/1"
+              clientAccountReferenceId = "ref-id-001"
+            }
+          }
+        )
+      assertThat(request.requestsList[1])
+        .isEqualTo(
+          createClientAccountRequest {
+            parent = MEASUREMENT_CONSUMER_NAME
+            clientAccount = clientAccount {
+              dataProvider = "dataProviders/2"
+              clientAccountReferenceId = "ref-id-002"
+            }
+          }
+        )
+    } finally {
+      tempFile.delete()
+    }
+  }
+
+  @Test
+  fun `client-accounts batch-create fails when batch size exceeds limit`() {
+    val tempFile = kotlin.io.path.createTempFile("client-accounts", ".txt").toFile()
+    try {
+      // Create a file with 1001 lines (exceeds the 1000 limit)
+      val lines = (1..1001).map { "dataProviders/$it,ref-id-$it" }
+      tempFile.writeText(lines.joinToString("\n"))
+
+      val args =
+        commonArgs +
+          arrayOf(
+            "client-accounts",
+            "--api-key=$AUTHENTICATION_KEY",
+            "batch-create",
+            "--parent=$MEASUREMENT_CONSUMER_NAME",
+            "--requests-file=${tempFile.absolutePath}",
+          )
+
+      val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
+      assertThat(capturedOutput).status().isNotEqualTo(0)
+      assertThat(capturedOutput.err).contains("Batch size cannot exceed 1000")
+      assertThat(capturedOutput.err).contains("found 1001")
+    } finally {
+      tempFile.delete()
+    }
+  }
+
+  @Test
+  fun `client-accounts batch-create fails with invalid file format`() {
+    val tempFile = kotlin.io.path.createTempFile("client-accounts", ".txt").toFile()
+    try {
+      tempFile.writeText(
+        """
+        dataProviders/1,ref-id-001
+        dataProviders/2
+        dataProviders/3,ref-id-003
+        """
+          .trimIndent()
+      )
+
+      val args =
+        commonArgs +
+          arrayOf(
+            "client-accounts",
+            "--api-key=$AUTHENTICATION_KEY",
+            "batch-create",
+            "--parent=$MEASUREMENT_CONSUMER_NAME",
+            "--requests-file=${tempFile.absolutePath}",
+          )
+
+      val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
+      assertThat(capturedOutput).status().isNotEqualTo(0)
+      assertThat(capturedOutput.err).contains("Invalid line format at line 2")
+      assertThat(capturedOutput.err).contains("Expected format: dataProvider,referenceId")
+    } finally {
+      tempFile.delete()
+    }
+  }
+
+  @Test
+  fun `client-accounts batch-create ignores blank lines`() {
+    val tempFile = kotlin.io.path.createTempFile("client-accounts", ".txt").toFile()
+    try {
+      tempFile.writeText(
+        """
+        dataProviders/1,ref-id-001
+
+        dataProviders/2,ref-id-002
+        
+        """
+          .trimIndent()
+      )
+
+      val args =
+        commonArgs +
+          arrayOf(
+            "client-accounts",
+            "--api-key=$AUTHENTICATION_KEY",
+            "batch-create",
+            "--parent=$MEASUREMENT_CONSUMER_NAME",
+            "--requests-file=${tempFile.absolutePath}",
+          )
+      callCli(args)
+
+      val request: BatchCreateClientAccountsRequest = captureFirst {
+        runBlocking { verify(clientAccountsServiceMock).batchCreateClientAccounts(capture()) }
+      }
+
+      // Should only have 2 requests, blank lines should be ignored
+      assertThat(request.requestsCount).isEqualTo(2)
+    } finally {
+      tempFile.delete()
+    }
+  }
+
+  @Test
+  fun `client-accounts batch-delete succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "batch-delete",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--names",
+          "$MEASUREMENT_CONSUMER_NAME/clientAccounts/1,$MEASUREMENT_CONSUMER_NAME/clientAccounts/2",
+        )
+    callCli(args)
+
+    assertThat(
+        headerInterceptor
+          .captured(ClientAccountsGrpcKt.batchDeleteClientAccountsMethod)
+          .single()
+          .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
+      )
+      .isEqualTo(AUTHENTICATION_KEY)
+
+    val request: BatchDeleteClientAccountsRequest = captureFirst {
+      runBlocking { verify(clientAccountsServiceMock).batchDeleteClientAccounts(capture()) }
+    }
+
+    assertThat(request.parent).isEqualTo(MEASUREMENT_CONSUMER_NAME)
+    assertThat(request.namesList)
+      .containsExactly(
+        "$MEASUREMENT_CONSUMER_NAME/clientAccounts/1",
+        "$MEASUREMENT_CONSUMER_NAME/clientAccounts/2",
+      )
+  }
+
+  @Test
+  fun `client-accounts batch-delete fails when batch size exceeds limit`() {
+    val names = (1..1001).map { "$MEASUREMENT_CONSUMER_NAME/clientAccounts/$it" }
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "batch-delete",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--names",
+          names.joinToString(","),
+        )
+
+    val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput.err).contains("Batch size cannot exceed 1000")
+    assertThat(capturedOutput.err).contains("found 1001")
   }
 
   companion object {
