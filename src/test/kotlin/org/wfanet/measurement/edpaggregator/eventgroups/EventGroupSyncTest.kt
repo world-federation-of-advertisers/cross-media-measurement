@@ -1063,7 +1063,7 @@ class EventGroupSyncTest {
 
       assertThat(unmappedMetric).isNotNull()
       assertThat(unmappedMetric!!.description)
-        .isEqualTo("Number of Event Groups that could not be mapped to a Measurement Consumer")
+        .isEqualTo("Number of Event Groups that could not be mapped to any MeasurementConsumer")
       assertThat(unmappedMetric.longSumData.points.sumOf { it.value }).isEqualTo(1)
 
       // Verify sync failure is also recorded
