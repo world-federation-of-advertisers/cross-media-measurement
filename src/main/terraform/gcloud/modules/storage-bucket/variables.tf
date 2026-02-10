@@ -44,3 +44,15 @@ variable "lifecycle_rules" {
   }))
   default = []
 }
+
+variable "retention_period_days" {
+  description = <<-EOT
+    Number of days to retain objects before they can be deleted or overwritten.
+    This prevents accidental deletion of objects. Set to match lifecycle rule
+    retention_days to ensure objects cannot be manually deleted before automatic cleanup.
+    Set to null to disable retention policy.
+  EOT
+  type     = number
+  default  = null
+  nullable = true
+}

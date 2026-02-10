@@ -1334,11 +1334,7 @@ class ImpressionMetadataServiceTest {
       }
     )
 
-    val request = computeModelLineBoundsRequest {
-      parent = DATA_PROVIDER_KEY.toName()
-      modelLines += MODEL_LINE_1
-      modelLines += MODEL_LINE_2
-    }
+    val request = computeModelLineBoundsRequest { parent = DATA_PROVIDER_KEY.toName() }
     val response = service.computeModelLineBounds(request)
 
     assertThat(response)
@@ -1368,7 +1364,7 @@ class ImpressionMetadataServiceTest {
   fun `computeModelLineBounds throws INVALID_ARGUMENT when parent is missing`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.computeModelLineBounds(computeModelLineBoundsRequest { modelLines += MODEL_LINE_1 })
+        service.computeModelLineBounds(computeModelLineBoundsRequest {})
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
@@ -1385,12 +1381,7 @@ class ImpressionMetadataServiceTest {
   fun `computeModelLineBounds throws INVALID_ARGUMENT when parent is malformed`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.computeModelLineBounds(
-          computeModelLineBoundsRequest {
-            parent += "invalid-name"
-            modelLines += MODEL_LINE_1
-          }
-        )
+        service.computeModelLineBounds(computeModelLineBoundsRequest { parent += "invalid-name" })
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
@@ -1404,46 +1395,62 @@ class ImpressionMetadataServiceTest {
   }
 
   @Test
-  fun `computeModelLineBounds throws INVALID_ARGUMENT when modelLines is missing`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.computeModelLineBounds(
-          computeModelLineBoundsRequest { parent = DATA_PROVIDER_KEY.toName() }
-        )
+  fun `computeModelLineBounds returns all model lines when modelLines is missing`() = runBlocking {
+    service.batchCreateImpressionMetadata(
+      batchCreateImpressionMetadataRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        requests += createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          impressionMetadata =
+            IMPRESSION_METADATA.copy {
+              modelLine = MODEL_LINE_1
+              interval = interval {
+                startTime = timestamp { seconds = 100 }
+                endTime = timestamp { seconds = 200 }
+              }
+            }
+        }
+        requests += createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          impressionMetadata =
+            IMPRESSION_METADATA.copy {
+              modelLine = MODEL_LINE_2
+              blobUri = "blob-2"
+              interval = interval {
+                startTime = timestamp { seconds = 300 }
+                endTime = timestamp { seconds = 400 }
+              }
+            }
+        }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    )
+
+    val response =
+      service.computeModelLineBounds(
+        computeModelLineBoundsRequest { parent = DATA_PROVIDER_KEY.toName() }
+      )
+
+    assertThat(response)
+      .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "model_lines"
+        computeModelLineBoundsResponse {
+          modelLineBounds += modelLineBoundMapEntry {
+            key = MODEL_LINE_1
+            value = interval {
+              startTime = timestamp { seconds = 100 }
+              endTime = timestamp { seconds = 200 }
+            }
+          }
+          modelLineBounds += modelLineBoundMapEntry {
+            key = MODEL_LINE_2
+            value = interval {
+              startTime = timestamp { seconds = 300 }
+              endTime = timestamp { seconds = 400 }
+            }
+          }
         }
       )
   }
-
-  @Test
-  fun `computeModelLineBounds throws INVALID_ARGUMENT when modelLines have malformed names`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.computeModelLineBounds(
-            computeModelLineBoundsRequest {
-              parent = DATA_PROVIDER_KEY.toName()
-              modelLines += "invalid-name"
-            }
-          )
-        }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "model_lines.0"
-          }
-        )
-    }
 
   private suspend fun createImpressionMetadata(
     vararg impressionMetadata: ImpressionMetadata

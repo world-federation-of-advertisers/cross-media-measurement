@@ -24,7 +24,6 @@ import com.google.type.interval
 import io.grpc.Deadline
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import java.lang.IllegalStateException
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Duration
