@@ -54,6 +54,9 @@ import org.wfanet.measurement.api.v2alpha.ApiKey
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
+import org.wfanet.measurement.api.v2alpha.ClientAccount
+import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt
+import org.wfanet.measurement.api.v2alpha.CreateClientAccountRequest
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelLineRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelOutageRequest
@@ -62,16 +65,19 @@ import org.wfanet.measurement.api.v2alpha.CreateModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelShardRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
+import org.wfanet.measurement.api.v2alpha.DeleteClientAccountRequest
 import org.wfanet.measurement.api.v2alpha.DeleteModelOutageRequest
 import org.wfanet.measurement.api.v2alpha.DeleteModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.DeleteModelShardRequest
 import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.GetClientAccountRequest
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.GetModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.GetModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.ListClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt.filter
@@ -124,9 +130,11 @@ import org.wfanet.measurement.api.v2alpha.apiKey
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
 import org.wfanet.measurement.api.v2alpha.authenticateResponse
 import org.wfanet.measurement.api.v2alpha.certificate
+import org.wfanet.measurement.api.v2alpha.clientAccount
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
+import org.wfanet.measurement.api.v2alpha.createClientAccountRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.createModelOutageRequest
@@ -134,11 +142,15 @@ import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.createModelShardRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.dateInterval
+import org.wfanet.measurement.api.v2alpha.deleteClientAccountRequest
 import org.wfanet.measurement.api.v2alpha.deleteModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.getClientAccountRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.listClientAccountsRequest
+import org.wfanet.measurement.api.v2alpha.listClientAccountsResponse
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
@@ -397,6 +409,25 @@ private val API_KEY = apiKey {
   authenticationKey = AUTHENTICATION_KEY
 }
 
+private const val CLIENT_ACCOUNT_NAME = "$MEASUREMENT_CONSUMER_NAME/clientAccounts/1"
+private const val CLIENT_ACCOUNT_REFERENCE_ID = "external-ref-123"
+
+private val CLIENT_ACCOUNT = clientAccount {
+  name = CLIENT_ACCOUNT_NAME
+  dataProvider = DATA_PROVIDER_NAME
+  clientAccountReferenceId = CLIENT_ACCOUNT_REFERENCE_ID
+}
+
+private val LIST_CLIENT_ACCOUNTS_RESPONSE = listClientAccountsResponse {
+  clientAccounts += CLIENT_ACCOUNT
+  clientAccounts += clientAccount {
+    name = "$MEASUREMENT_CONSUMER_NAME/clientAccounts/2"
+    dataProvider = "dataProviders/2"
+    clientAccountReferenceId = "external-ref-456"
+  }
+  nextPageToken = LIST_PAGE_TOKEN
+}
+
 @RunWith(JUnit4::class)
 class MeasurementSystemTest {
   private val accountsServiceMock: AccountsCoroutineImplBase = mockService()
@@ -421,6 +452,13 @@ class MeasurementSystemTest {
   private val certificatesServiceMock: CertificatesGrpcKt.CertificatesCoroutineImplBase =
     mockService {
       onBlocking { getCertificate(any()) }.thenReturn(AGGREGATOR_CERTIFICATE)
+    }
+  private val clientAccountsServiceMock: ClientAccountsGrpcKt.ClientAccountsCoroutineImplBase =
+    mockService {
+      onBlocking { createClientAccount(any()) }.thenReturn(CLIENT_ACCOUNT)
+      onBlocking { getClientAccount(any()) }.thenReturn(CLIENT_ACCOUNT)
+      onBlocking { listClientAccounts(any()) }.thenReturn(LIST_CLIENT_ACCOUNTS_RESPONSE)
+      onBlocking { deleteClientAccount(any()) }.thenReturn(empty {})
     }
   private val publicKeysServiceMock: PublicKeysGrpcKt.PublicKeysCoroutineImplBase = mockService()
   private val modelLinesServiceMock: ModelLinesCoroutineImplBase = mockService {
@@ -470,6 +508,7 @@ class MeasurementSystemTest {
       ServerInterceptors.intercept(apiKeysMock, headerInterceptor),
       dataProvidersServiceMock.bindService(),
       ServerInterceptors.intercept(certificatesServiceMock, headerInterceptor),
+      ServerInterceptors.intercept(clientAccountsServiceMock, headerInterceptor),
       ServerInterceptors.intercept(publicKeysServiceMock, headerInterceptor),
       ServerInterceptors.intercept(modelOutagesServiceMock, headerInterceptor),
       ServerInterceptors.intercept(modelShardsServiceMock, headerInterceptor),
@@ -2104,6 +2143,159 @@ class MeasurementSystemTest {
           pageToken = ""
         }
       )
+  }
+
+  @Test
+  fun `client-accounts create succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--client-account-reference-id=$CLIENT_ACCOUNT_REFERENCE_ID",
+        )
+    callCli(args)
+
+    assertThat(
+        headerInterceptor
+          .captured(ClientAccountsGrpcKt.createClientAccountMethod)
+          .single()
+          .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
+      )
+      .isEqualTo(AUTHENTICATION_KEY)
+
+    val request: CreateClientAccountRequest = captureFirst {
+      runBlocking { verify(clientAccountsServiceMock).createClientAccount(capture()) }
+    }
+
+    assertThat(request)
+      .isEqualTo(
+        createClientAccountRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          clientAccount = clientAccount {
+            dataProvider = DATA_PROVIDER_NAME
+            clientAccountReferenceId = CLIENT_ACCOUNT_REFERENCE_ID
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `client-accounts get succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "get",
+          CLIENT_ACCOUNT_NAME,
+        )
+    callCli(args)
+
+    assertThat(
+        headerInterceptor
+          .captured(ClientAccountsGrpcKt.getClientAccountMethod)
+          .single()
+          .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
+      )
+      .isEqualTo(AUTHENTICATION_KEY)
+
+    val request: GetClientAccountRequest = captureFirst {
+      runBlocking { verify(clientAccountsServiceMock).getClientAccount(capture()) }
+    }
+
+    assertThat(request).isEqualTo(getClientAccountRequest { name = CLIENT_ACCOUNT_NAME })
+  }
+
+  @Test
+  fun `client-accounts list succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "list",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--page-size=$LIST_PAGE_SIZE",
+          "--page-token=$LIST_PAGE_TOKEN",
+        )
+    callCli(args)
+
+    assertThat(
+        headerInterceptor
+          .captured(ClientAccountsGrpcKt.listClientAccountsMethod)
+          .single()
+          .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
+      )
+      .isEqualTo(AUTHENTICATION_KEY)
+
+    val request: ListClientAccountsRequest = captureFirst {
+      runBlocking { verify(clientAccountsServiceMock).listClientAccounts(capture()) }
+    }
+
+    assertThat(request)
+      .isEqualTo(
+        listClientAccountsRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          pageSize = LIST_PAGE_SIZE
+          pageToken = LIST_PAGE_TOKEN
+        }
+      )
+  }
+
+  @Test
+  fun `client-accounts list succeeds omitting optional params`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "list",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+        )
+    callCli(args)
+
+    val request: ListClientAccountsRequest = captureFirst {
+      runBlocking { verify(clientAccountsServiceMock).listClientAccounts(capture()) }
+    }
+
+    assertThat(request)
+      .isEqualTo(
+        listClientAccountsRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          pageSize = 0
+        }
+      )
+  }
+
+  @Test
+  fun `client-accounts delete succeeds`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "delete",
+          CLIENT_ACCOUNT_NAME,
+        )
+    callCli(args)
+
+    assertThat(
+        headerInterceptor
+          .captured(ClientAccountsGrpcKt.deleteClientAccountMethod)
+          .single()
+          .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
+      )
+      .isEqualTo(AUTHENTICATION_KEY)
+
+    val request: DeleteClientAccountRequest = captureFirst {
+      runBlocking { verify(clientAccountsServiceMock).deleteClientAccount(capture()) }
+    }
+
+    assertThat(request).isEqualTo(deleteClientAccountRequest { name = CLIENT_ACCOUNT_NAME })
   }
 
   companion object {

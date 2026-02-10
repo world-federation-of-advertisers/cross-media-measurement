@@ -45,6 +45,8 @@ import org.wfanet.measurement.api.v2alpha.ApiKey
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ClientAccount
+import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
@@ -79,11 +81,16 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt as EventGroupEntries
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
+import org.wfanet.measurement.api.v2alpha.ListClientAccountsRequestKt
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
 import org.wfanet.measurement.api.v2alpha.apiKey
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
+import org.wfanet.measurement.api.v2alpha.batchCreateClientAccountsRequest
+import org.wfanet.measurement.api.v2alpha.batchDeleteClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.certificate
+import org.wfanet.measurement.api.v2alpha.clientAccount
+import org.wfanet.measurement.api.v2alpha.createClientAccountRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
@@ -96,15 +103,18 @@ import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.createModelShardRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.dateInterval
+import org.wfanet.measurement.api.v2alpha.deleteClientAccountRequest
 import org.wfanet.measurement.api.v2alpha.deleteModelOutageRequest
 import org.wfanet.measurement.api.v2alpha.deleteModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.deleteModelShardRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
+import org.wfanet.measurement.api.v2alpha.getClientAccountRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.listClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.listModelOutagesRequest
@@ -178,6 +188,7 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = JavaDuration.ofSeconds(30)
       CommandLine.HelpCommand::class,
       Accounts::class,
       Certificates::class,
+      ClientAccounts::class,
       PublicKeys::class,
       MeasurementConsumers::class,
       Measurements::class,
@@ -1042,6 +1053,252 @@ private class ApiKeys {
         apiKeysClient.withIdToken(idToken).createApiKey(request)
       }
     println(response)
+  }
+}
+
+@Command(name = "client-accounts", subcommands = [CommandLine.HelpCommand::class])
+private class ClientAccounts {
+  @ParentCommand
+  lateinit var parentCommand: MeasurementSystem
+    private set
+
+  @Option(
+    names = ["--api-key"],
+    paramLabel = "<apiKey>",
+    description = ["API authentication key"],
+    required = true,
+  )
+  lateinit var apiAuthenticationKey: String
+
+  val clientAccountsStub: ClientAccountsCoroutineStub by lazy {
+    ClientAccountsCoroutineStub(parentCommand.kingdomChannel)
+      .withAuthenticationKey(apiAuthenticationKey)
+  }
+
+  @Command(description = ["Creates a ClientAccount"])
+  fun create(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent MeasurementConsumer"],
+      required = true,
+    )
+    parent: String,
+    @Option(
+      names = ["--data-provider"],
+      description = ["API resource name of the associated DataProvider"],
+      required = true,
+    )
+    dataProvider: String,
+    @Option(
+      names = ["--client-account-reference-id"],
+      description = ["External reference ID (max 36 chars)"],
+      required = true,
+    )
+    clientAccountReferenceId: String,
+  ) {
+    val request = createClientAccountRequest {
+      this.parent = parent
+      clientAccount = clientAccount {
+        this.dataProvider = dataProvider
+        this.clientAccountReferenceId = clientAccountReferenceId
+      }
+    }
+    val response: ClientAccount =
+      runBlocking(parentCommand.rpcDispatcher) { clientAccountsStub.createClientAccount(request) }
+    println("ClientAccount created:")
+    printClientAccount(response)
+  }
+
+  @Command(description = ["Batch creates ClientAccounts"])
+  fun batchCreate(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent MeasurementConsumer"],
+      required = true,
+    )
+    parent: String,
+    @Option(
+      names = ["--requests-file"],
+      description =
+        [
+          "Path to file containing ClientAccount creation data (one per line: dataProvider,referenceId)"
+        ],
+      required = true,
+    )
+    requestsFile: File,
+  ) {
+    val lines = requestsFile.readLines().filter { it.isNotBlank() }
+    if (lines.size > 1000) {
+      throw ParameterException(
+        parentCommand.commandLine,
+        "Batch size cannot exceed 1000 (found ${lines.size})",
+      )
+    }
+
+    val request = batchCreateClientAccountsRequest {
+      this.parent = parent
+      lines.forEach { line ->
+        val parts = line.split(",").map { it.trim() }
+        if (parts.size != 2) {
+          throw ParameterException(
+            parentCommand.commandLine,
+            "Invalid line format: '$line'. Expected: dataProvider,referenceId",
+          )
+        }
+        requests +=
+          createClientAccountRequest {
+            this.parent = parent
+            clientAccount = clientAccount {
+              dataProvider = parts[0]
+              clientAccountReferenceId = parts[1]
+            }
+          }
+      }
+    }
+
+    val response =
+      runBlocking(parentCommand.rpcDispatcher) {
+        clientAccountsStub.batchCreateClientAccounts(request)
+      }
+
+    println("Created ${response.clientAccountsCount} ClientAccounts:")
+    response.clientAccountsList.forEach { printClientAccount(it) }
+  }
+
+  @Command(description = ["Gets a ClientAccount"])
+  fun get(
+    @Parameters(index = "0", description = ["API resource name of the ClientAccount"]) name: String
+  ) {
+    val request = getClientAccountRequest { this.name = name }
+    val response: ClientAccount =
+      runBlocking(parentCommand.rpcDispatcher) { clientAccountsStub.getClientAccount(request) }
+    printClientAccount(response)
+  }
+
+  @Command(description = ["Lists ClientAccounts"])
+  fun list(
+    @Option(
+      names = ["--parent"],
+      description =
+        ["API resource name of the parent (MeasurementConsumer or DataProvider resource)"],
+      required = true,
+    )
+    parent: String,
+    @Option(
+      names = ["--page-size"],
+      description = ["The maximum number of ClientAccounts to return"],
+      required = false,
+      defaultValue = "0",
+    )
+    pageSize: Int,
+    @Option(
+      names = ["--page-token"],
+      description =
+        [
+          "A page token, received from a previous ListClientAccountsRequest call. Provide this to retrieve the subsequent page"
+        ],
+      required = false,
+      defaultValue = "",
+    )
+    pageToken: String,
+    @Option(
+      names = ["--measurement-consumer"],
+      description = ["Filter by MeasurementConsumer resource name"],
+      required = false,
+    )
+    measurementConsumer: String?,
+    @Option(
+      names = ["--data-provider"],
+      description = ["Filter by DataProvider resource name"],
+      required = false,
+    )
+    dataProvider: String?,
+    @Option(
+      names = ["--client-account-reference-id"],
+      description = ["Filter by client account reference ID"],
+      required = false,
+    )
+    clientAccountReferenceId: String?,
+  ) {
+    val request = listClientAccountsRequest {
+      this.parent = parent
+      this.pageSize = pageSize
+      if (pageToken.isNotBlank()) {
+        this.pageToken = pageToken
+      }
+      if (measurementConsumer != null ||
+          dataProvider != null ||
+          clientAccountReferenceId != null
+      ) {
+        filter =
+          ListClientAccountsRequestKt.filter {
+            if (measurementConsumer != null) {
+              this.measurementConsumer = measurementConsumer
+            }
+            if (dataProvider != null) {
+              this.dataProvider = dataProvider
+            }
+            if (clientAccountReferenceId != null) {
+              this.clientAccountReferenceId = clientAccountReferenceId
+            }
+          }
+      }
+    }
+
+    val response =
+      runBlocking(parentCommand.rpcDispatcher) { clientAccountsStub.listClientAccounts(request) }
+
+    println("Found ${response.clientAccountsCount} ClientAccounts:")
+    response.clientAccountsList.forEach { printClientAccount(it) }
+    if (response.nextPageToken.isNotBlank()) {
+      println("Next page token: ${response.nextPageToken}")
+    }
+  }
+
+  @Command(description = ["Deletes a ClientAccount"])
+  fun delete(
+    @Parameters(index = "0", description = ["API resource name of the ClientAccount"]) name: String
+  ) {
+    val request = deleteClientAccountRequest { this.name = name }
+    runBlocking(parentCommand.rpcDispatcher) { clientAccountsStub.deleteClientAccount(request) }
+    println("ClientAccount deleted: $name")
+  }
+
+  @Command(description = ["Batch deletes ClientAccounts"])
+  fun batchDelete(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent MeasurementConsumer"],
+      required = true,
+    )
+    parent: String,
+    @Option(
+      names = ["--names"],
+      description = ["List of ClientAccount resource names to delete"],
+      required = true,
+    )
+    names: List<String>,
+  ) {
+    if (names.size > 1000) {
+      throw ParameterException(
+        parentCommand.commandLine,
+        "Batch size cannot exceed 1000 (found ${names.size})",
+      )
+    }
+
+    val request = batchDeleteClientAccountsRequest {
+      this.parent = parent
+      this.names += names
+    }
+
+    runBlocking(parentCommand.rpcDispatcher) { clientAccountsStub.batchDeleteClientAccounts(request) }
+    println("Successfully deleted ${names.size} ClientAccounts")
+  }
+
+  private fun printClientAccount(clientAccount: ClientAccount) {
+    println("NAME - ${clientAccount.name}")
+    println("DATA PROVIDER - ${clientAccount.dataProvider}")
+    println("CLIENT ACCOUNT REFERENCE ID - ${clientAccount.clientAccountReferenceId}")
   }
 }
 
