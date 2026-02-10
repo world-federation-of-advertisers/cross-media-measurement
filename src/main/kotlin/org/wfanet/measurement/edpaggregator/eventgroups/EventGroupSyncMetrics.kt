@@ -76,4 +76,17 @@ class EventGroupSyncMetrics(meter: Meter) {
       .setDescription("Time to complete Event Group sync operation")
       .setUnit("s")
       .build()
+
+  /**
+   * Counter for unmapped Event Groups.
+   *
+   * Incremented when an event group cannot be resolved to any MeasurementConsumer. This can occur
+   * when the direct measurementConsumer field is invalid and/or the clientAccountReferenceId lookup
+   * returns no results.
+   */
+  val unmappedEventGroups: LongCounter =
+    meter
+      .counterBuilder("edpa.event_group.unmapped")
+      .setDescription("Number of Event Groups that could not be mapped to any MeasurementConsumer")
+      .build()
 }

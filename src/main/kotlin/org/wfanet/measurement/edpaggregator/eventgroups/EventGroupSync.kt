@@ -37,6 +37,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.ListClientAccountsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListClientAccountsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerClientAccountKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
@@ -92,15 +93,24 @@ class EventGroupSync(
   /**
    * Cache for ClientAccount lookups to avoid repeated API calls within a sync batch.
    *
-   * Key: client_account_reference_id Value: resolved MeasurementConsumer resource name (e.g.,
-   * "measurementConsumers/{id}"), or null if resolution failed
+   * Key: client_account_reference_id Value: list of resolved MeasurementConsumerKeys. A single
+   * client account can map to multiple Measurement Consumers. Empty list if resolution failed.
    */
-  private val clientAccountCache = mutableMapOf<String, String?>()
+  private val clientAccountCache = mutableMapOf<String, List<MeasurementConsumerKey>>()
 
   /** Creates metric attributes with data provider name. */
   private fun metricAttributes() =
     Attributes.of(AttributeKey.stringKey("data_provider_name"), edpName)
 
+  /**
+   * Synchronizes EventGroups with the CMMS Public API by creating, updating, or deleting as needed.
+   *
+   * For EventGroups with `client_account_reference_id`, resolves all associated
+   * MeasurementConsumers and creates separate EventGroup resources for each.
+   *
+   * @return Flow of [MappedEventGroup] for each successfully synced EventGroup. Failed syncs are
+   *   skipped and logged.
+   */
   suspend fun sync(): Flow<MappedEventGroup> = flow {
     withSpan(
       tracer,
@@ -124,9 +134,38 @@ class EventGroupSync(
       val resolvedEventGroupKeys = mutableSetOf<EventGroupKey>()
 
       for (eventGroup in edpEventGroupsList) {
-        val syncResult = syncEventGroupItem(eventGroup, cmmsEventGroups, resolvedEventGroupKeys)
-        if (syncResult != null) {
-          emit(syncResult)
+        try {
+          validateEventGroup(eventGroup)
+        } catch (e: Exception) {
+          logger.log(Level.SEVERE, e) {
+            "Skipping Event Group ${eventGroup.eventGroupReferenceId}: " + "Validation failed"
+          }
+          metrics.syncFailure.add(1, metricAttributes())
+          continue
+        }
+
+        val measurementConsumerKeys = resolveMeasurementConsumers(eventGroup)
+        if (measurementConsumerKeys.isEmpty()) {
+          logger.warning(
+            "Skipping Event Group ${eventGroup.eventGroupReferenceId}: " +
+              "Unable to resolve MeasurementConsumer"
+          )
+          metrics.syncFailure.add(1, metricAttributes())
+          continue
+        }
+
+        // Process event group for each measurement consumer
+        for (measurementConsumerKey in measurementConsumerKeys) {
+          val syncResult =
+            syncEventGroupItem(
+              eventGroup,
+              measurementConsumerKey.toName(),
+              cmmsEventGroups,
+              resolvedEventGroupKeys,
+            )
+          if (syncResult != null) {
+            emit(syncResult)
+          }
         }
       }
 
@@ -139,9 +178,10 @@ class EventGroupSync(
   }
 
   /**
-   * Synchronizes a single event group entry.
+   * Synchronizes a single event group entry for a specific measurement consumer.
    *
    * @param eventGroup The event group to be synchronized.
+   * @param measurementConsumer The measurement consumer resource name for this event group.
    * @param syncedEventGroups A map keyed by [EventGroupKey], containing already-synced event groups
    *   as values. Used to detect duplicates or previously processed items.
    * @param resolvedEventGroupKeys A mutable set to track successfully resolved EventGroup keys.
@@ -151,6 +191,7 @@ class EventGroupSync(
    */
   private suspend fun syncEventGroupItem(
     eventGroup: EventGroup,
+    measurementConsumer: String,
     syncedEventGroups: Map<EventGroupKey, CmmsEventGroup>,
     resolvedEventGroupKeys: MutableSet<EventGroupKey>,
   ): MappedEventGroup? {
@@ -173,19 +214,6 @@ class EventGroupSync(
 
         // Record sync attempt
         metrics.syncAttempts.add(1, metricAttributes())
-
-        validateEventGroup(eventGroup)
-
-        // Resolve the measurement consumer
-        val measurementConsumer = resolveMeasurementConsumer(eventGroup)
-        if (measurementConsumer == null) {
-          logger.warning(
-            "Skipping Event Group ${eventGroup.eventGroupReferenceId}: " +
-              "Unable to resolve MeasurementConsumer"
-          )
-          metrics.syncFailure.add(1, metricAttributes())
-          return@withSpan null
-        }
 
         val eventGroupKey = EventGroupKey(eventGroup.eventGroupReferenceId, measurementConsumer)
 
@@ -231,81 +259,105 @@ class EventGroupSync(
   }
 
   /**
-   * Resolves the MeasurementConsumer resource name for an EventGroup.
+   * Resolves the MeasurementConsumerKeys for an EventGroup.
    *
    * Resolution logic:
-   * 1. If measurementConsumer is set directly, use it
-   * 2. If clientAccountReferenceId is set, lookup via ClientAccountsService (with caching)
-   * 3. If neither is set or lookup fails, return null
+   * 1. Collects direct measurementConsumer if set (EDP's mapping)
+   * 2. Also looks up clientAccountReferenceId if set (operator's mapping)
+   * 3. Returns the union of both, supporting dual mapping capability
+   * 4. Returns empty list if neither is set or both fail
    *
    * Uses an in-memory cache to avoid repeated API calls for the same client_account_reference_id
-   * within a sync batch.
+   * within a sync batch. A single client account can map to multiple Measurement Consumers.
    *
-   * @param eventGroup The event group to resolve the measurement consumer for
-   * @return The MeasurementConsumer resource name, or null if resolution fails
+   * @param eventGroup The event group to resolve the measurement consumers for
+   * @return List of MeasurementConsumerKeys from both direct and lookup sources, empty if both fail
    */
-  private suspend fun resolveMeasurementConsumer(eventGroup: EventGroup): String? {
-    // Direct measurement consumer takes precedence
+  private suspend fun resolveMeasurementConsumers(
+    eventGroup: EventGroup
+  ): List<MeasurementConsumerKey> {
+    val measurementConsumerKeys = mutableListOf<MeasurementConsumerKey>()
+
+    // Collect direct measurement consumer (EDP's mapping)
     if (eventGroup.measurementConsumer.isNotBlank()) {
-      return eventGroup.measurementConsumer
+      val key = MeasurementConsumerKey.fromName(eventGroup.measurementConsumer)
+      if (key != null) {
+        measurementConsumerKeys.add(key)
+      }
     }
 
-    // Try to resolve from client_account_reference_id
+    // Also collect from client_account_reference_id lookup (operator's mapping)
     if (eventGroup.clientAccountReferenceId.isNotEmpty()) {
       val refId = eventGroup.clientAccountReferenceId
 
-      if (clientAccountCache.containsKey(refId)) {
-        return clientAccountCache[refId]
+      val lookedUpKeys =
+        if (clientAccountCache.containsKey(refId)) {
+          clientAccountCache[refId]!!
+        } else {
+          // Not in cache - lookup via API
+          val response: ListClientAccountsResponse? =
+            try {
+              throttler.onReady {
+                clientAccountsStub.listClientAccounts(
+                  listClientAccountsRequest {
+                    parent = edpName
+                    filter = ListClientAccountsRequestKt.filter { clientAccountReferenceId = refId }
+                  }
+                )
+              }
+            } catch (e: StatusException) {
+              logger.log(Level.SEVERE, e) {
+                "Error looking up ClientAccount for reference ID $refId"
+              }
+              null
+            }
+
+          val resolvedKeys: List<MeasurementConsumerKey> =
+            when {
+              response == null -> {
+                logger.warning("Failed to lookup ClientAccount for reference ID: $refId")
+                emptyList()
+              }
+              response.clientAccountsCount == 0 -> {
+                logger.info("No ClientAccount found for reference ID: $refId")
+                emptyList()
+              }
+              else -> {
+                // Extract MeasurementConsumerKeys from all ClientAccounts
+                // Format: measurementConsumers/{mc}/clientAccounts/{ca}
+                response.clientAccountsList.map { clientAccount ->
+                  val key =
+                    checkNotNull(MeasurementConsumerClientAccountKey.fromName(clientAccount.name)) {
+                      "Invalid ClientAccount resource name: ${clientAccount.name}"
+                    }
+                  MeasurementConsumerKey(key.measurementConsumerId)
+                }
+              }
+            }
+
+          clientAccountCache[refId] = resolvedKeys
+          resolvedKeys
+        }
+
+      if (lookedUpKeys.size > 1) {
+        logger.info(
+          "ClientAccount reference ID $refId maps to ${lookedUpKeys.size} " +
+            "Measurement Consumers: ${lookedUpKeys.map { it.toName() }}"
+        )
       }
 
-      // Not in cache - lookup via API
-      val response: ListClientAccountsResponse =
-        try {
-          throttler.onReady {
-            clientAccountsStub.listClientAccounts(
-              listClientAccountsRequest {
-                parent = edpName
-                filter = ListClientAccountsRequestKt.filter { clientAccountReferenceId = refId }
-              }
-            )
-          }
-        } catch (e: StatusException) {
-          logger.log(Level.SEVERE, e) { "Error looking up ClientAccount for reference ID $refId" }
-          clientAccountCache[refId] = null
-          return null
-        }
-
-      val resolvedMeasurementConsumer =
-        when (response.clientAccountsCount) {
-          0 -> {
-            logger.warning("No ClientAccount found for reference ID: $refId")
-            null
-          }
-          1 -> {
-            // Extract MeasurementConsumer from ClientAccount.name
-            // Format: measurementConsumers/{mc}/clientAccounts/{ca}
-            val clientAccount = response.clientAccountsList.first()
-            val key =
-              checkNotNull(MeasurementConsumerClientAccountKey.fromName(clientAccount.name)) {
-                "Invalid ClientAccount resource name: ${clientAccount.name}"
-              }
-            "measurementConsumers/${key.measurementConsumerId}"
-          }
-          else -> {
-            logger.severe("Multiple ClientAccounts found for reference ID: $refId")
-            null
-          }
-        }
-
-      clientAccountCache[refId] = resolvedMeasurementConsumer
-      return resolvedMeasurementConsumer
+      measurementConsumerKeys.addAll(lookedUpKeys)
     }
 
-    logger.warning(
-      "EventGroup ${eventGroup.eventGroupReferenceId} has neither measurementConsumer " +
-        "nor clientAccountReferenceId"
-    )
-    return null
+    if (measurementConsumerKeys.isEmpty()) {
+      metrics.unmappedEventGroups.add(1, metricAttributes())
+      logger.warning(
+        "EventGroup ${eventGroup.eventGroupReferenceId} has neither measurementConsumer " +
+          "nor clientAccountReferenceId, or both failed to resolve"
+      )
+    }
+
+    return measurementConsumerKeys.distinct()
   }
 
   /*
@@ -432,7 +484,7 @@ class EventGroupSync(
         "Event Group Reference Id must be set"
       }
       val hasClientAccountRef = eventGroup.clientAccountReferenceId.isNotEmpty()
-      check(eventGroup.measurementConsumer.isNotEmpty() || hasClientAccountRef) {
+      check(eventGroup.measurementConsumer.isNotBlank() || hasClientAccountRef) {
         "Either Measurement Consumer or Client Account Reference ID must be set"
       }
     }

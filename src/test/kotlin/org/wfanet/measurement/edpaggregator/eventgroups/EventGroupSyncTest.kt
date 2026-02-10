@@ -273,7 +273,7 @@ class EventGroupSyncTest {
           }
         }
       }
-      measurementConsumer = "measurement-consumer-2"
+      measurementConsumer = "measurementConsumers/measurement-consumer-2"
       dataAvailabilityInterval = interval {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
@@ -307,7 +307,7 @@ class EventGroupSyncTest {
           }
         }
       }
-      measurementConsumer = "measurement-consumer-2"
+      measurementConsumer = "measurementConsumers/measurement-consumer-2"
       dataAvailabilityInterval = interval {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
@@ -353,7 +353,7 @@ class EventGroupSyncTest {
           }
         }
       }
-      measurementConsumer = "measurement-consumer-1"
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
       dataAvailabilityInterval = interval {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
@@ -398,6 +398,7 @@ class EventGroupSyncTest {
         EventGroupSync(
           "edp-name",
           eventGroupsStub,
+          clientAccountsStub,
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -519,6 +520,7 @@ class EventGroupSyncTest {
         EventGroupSync(
           "dataProviders/test-edp-123",
           eventGroupsStub,
+          clientAccountsStub,
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -550,6 +552,7 @@ class EventGroupSyncTest {
         EventGroupSync(
           "dataProviders/test-edp-456",
           eventGroupsStub,
+          clientAccountsStub,
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -577,6 +580,7 @@ class EventGroupSyncTest {
         EventGroupSync(
           "dataProviders/test-edp-789",
           eventGroupsStub,
+          clientAccountsStub,
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -604,7 +608,7 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `does not record success metrics on validation failure`() {
+  fun `records only failure metrics when validation fails early`() {
     runBlocking {
       val invalidEventGroup = eventGroup {
         eventGroupReferenceId = "invalid-ref-id"
@@ -620,6 +624,7 @@ class EventGroupSyncTest {
         EventGroupSync(
           "dataProviders/test-edp-error",
           eventGroupsStub,
+          clientAccountsStub,
           listOf(invalidEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -631,16 +636,17 @@ class EventGroupSyncTest {
       val syncSuccessMetric = metrics.find { it.name == "edpa.event_group.sync_success" }
       val syncFailureMetric = metrics.find { it.name == "edpa.event_group.sync_failure" }
 
-      // Attempt should be recorded
-      assertThat(syncAttemptsMetric).isNotNull()
-      assertThat(syncAttemptsMetric!!.longSumData.points.sumOf { it.value }).isEqualTo(1)
+      // No attempt should be recorded (validation happens before syncEventGroupItem)
+      if (syncAttemptsMetric != null) {
+        assertThat(syncAttemptsMetric.longSumData.points).isEmpty()
+      }
 
       // Failure should be recorded
       assertThat(syncFailureMetric).isNotNull()
       assertThat(syncFailureMetric!!.description).isEqualTo("Number of failed Event Group syncs")
       assertThat(syncFailureMetric.longSumData.points.sumOf { it.value }).isEqualTo(1)
 
-      // But no success metrics should be recorded (validation failed)
+      // No success metrics should be recorded (validation failed)
       if (syncSuccessMetric != null) {
         assertThat(syncSuccessMetric.longSumData.points).isEmpty()
       }
@@ -654,6 +660,7 @@ class EventGroupSyncTest {
         EventGroupSync(
           "dataProviders/test-edp-123",
           eventGroupsStub,
+          clientAccountsStub,
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -681,6 +688,7 @@ class EventGroupSyncTest {
         EventGroupSync(
           "dataProviders/test-edp-456",
           eventGroupsStub,
+          clientAccountsStub,
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -712,7 +720,7 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `sets ERROR status on Item span when event group sync fails`() {
+  fun `does not create Item span when validation fails early`() {
     runBlocking {
       val invalidEventGroup = eventGroup {
         eventGroupReferenceId = "invalid-ref-id"
@@ -728,6 +736,7 @@ class EventGroupSyncTest {
         EventGroupSync(
           "dataProviders/test-edp-error",
           eventGroupsStub,
+          clientAccountsStub,
           listOf(invalidEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -737,17 +746,12 @@ class EventGroupSyncTest {
       val spans = getSpans()
       val itemSpans = spans.filter { it.name == "EventGroupSync.Item" }
 
-      assertThat(itemSpans).hasSize(1)
+      // No Item span should be created (validation happens before syncEventGroupItem)
+      assertThat(itemSpans).isEmpty()
 
-      val itemSpan = itemSpans.first()
-      assertThat(itemSpan.status.statusCode).isEqualTo(StatusCode.ERROR)
-      assertThat(itemSpan.attributes.get(AttributeKey.stringKey("event_group_reference_id")))
-        .isEqualTo("invalid-ref-id")
-
-      // Should have recorded an exception event
-      assertThat(itemSpan.events).isNotEmpty()
-      val exceptionEvents = itemSpan.events.filter { it.name == "exception" }
-      assertThat(exceptionEvents).isNotEmpty()
+      // But the main EventGroupSync span should exist
+      val syncSpans = spans.filter { it.name == "EventGroupSync" }
+      assertThat(syncSpans).hasSize(1)
     }
   }
 
@@ -768,6 +772,7 @@ class EventGroupSyncTest {
         EventGroupSync(
           "dataProviders/test-edp-parent-ok",
           eventGroupsStub,
+          clientAccountsStub,
           listOf(invalidEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -878,7 +883,7 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `sync with both measurement_consumer and client_account_reference_id uses measurement_consumer`() {
+  fun `sync with both measurement_consumer and client_account_reference_id uses both`() {
     val eventGroupWithBoth = eventGroup {
       eventGroupReferenceId = "reference-id-both"
       this.eventGroupMetadata = eventGroupMetadata {
@@ -908,16 +913,24 @@ class EventGroupSyncTest {
         100,
       )
 
-    runBlocking { eventGroupSync.sync().collect() }
+    val result = runBlocking { eventGroupSync.sync().toList() }
 
-    // Verify that ClientAccounts service was NOT called (direct MC takes precedence)
-    verifyBlocking(clientAccountsServiceMock, times(0)) { listClientAccounts(any()) }
+    // Verify that ClientAccounts service WAS called (both mappings are used)
+    verifyBlocking(clientAccountsServiceMock, times(1)) { listClientAccounts(any()) }
 
-    // Verify that EventGroup was created with the direct measurement consumer
+    // Verify that EventGroups were created for BOTH the direct MC and the looked-up MC
     val createCaptor = argumentCaptor<CreateEventGroupRequest>()
-    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(createCaptor.capture()) }
-    assertThat(createCaptor.firstValue.eventGroup.measurementConsumer)
-      .isEqualTo("measurementConsumers/direct-consumer")
+    verifyBlocking(eventGroupsServiceMock, times(2)) { createEventGroup(createCaptor.capture()) }
+
+    val measurementConsumers = createCaptor.allValues.map { it.eventGroup.measurementConsumer }
+    assertThat(measurementConsumers)
+      .containsExactly(
+        "measurementConsumers/direct-consumer",
+        "measurementConsumers/measurement-consumer-1",
+      )
+
+    // Verify two results were returned
+    assertThat(result).hasSize(2)
   }
 
   @Test
@@ -963,7 +976,7 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `sync skips event group when client_account_reference_id has multiple matches`() {
+  fun `sync creates event groups for all measurement consumers when client_account_reference_id has multiple matches`() {
     val eventGroupWithMultiple = eventGroup {
       eventGroupReferenceId = "reference-id-multiple"
       this.eventGroupMetadata = eventGroupMetadata {
@@ -997,11 +1010,70 @@ class EventGroupSyncTest {
     // Verify that ClientAccounts service was called
     verifyBlocking(clientAccountsServiceMock, times(1)) { listClientAccounts(any()) }
 
-    // Verify that EventGroup was NOT created
-    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+    // Verify that EventGroups were created for BOTH measurement consumers
+    val createCaptor = argumentCaptor<CreateEventGroupRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(2)) { createEventGroup(createCaptor.capture()) }
 
-    // Verify no results were returned
-    assertThat(result).isEmpty()
+    val measurementConsumers = createCaptor.allValues.map { it.eventGroup.measurementConsumer }
+    assertThat(measurementConsumers)
+      .containsExactly(
+        "measurementConsumers/measurement-consumer-1",
+        "measurementConsumers/measurement-consumer-2",
+      )
+
+    // Verify two results were returned (one for each measurement consumer)
+    assertThat(result).hasSize(2)
+  }
+
+  @Test
+  fun `records unmapped metric when event group cannot be resolved`() {
+    runBlocking {
+      val unmappableEventGroup = eventGroup {
+        eventGroupReferenceId = "reference-id-unmapped"
+        this.eventGroupMetadata = eventGroupMetadata {
+          this.adMetadata = adMetadata {
+            this.campaignMetadata = campaignMetadata {
+              brand = "brand-unmapped"
+              campaign = "campaign-unmapped"
+            }
+          }
+        }
+        clientAccountReferenceId = "client-ref-nonexistent"
+        dataAvailabilityInterval = interval {
+          startTime = timestamp { seconds = 200 }
+          endTime = timestamp { seconds = 300 }
+        }
+        mediaTypes += listOf(MediaType.valueOf("OTHER"))
+      }
+
+      val eventGroupSync =
+        EventGroupSync(
+          "edp-name",
+          eventGroupsStub,
+          clientAccountsStub,
+          listOf(unmappableEventGroup).asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+        )
+
+      eventGroupSync.sync().collect()
+
+      val metrics = getMetrics()
+      val unmappedMetric = metrics.find { it.name == "edpa.event_group.unmapped" }
+
+      assertThat(unmappedMetric).isNotNull()
+      assertThat(unmappedMetric!!.description)
+        .isEqualTo("Number of Event Groups that could not be mapped to a Measurement Consumer")
+      assertThat(unmappedMetric.longSumData.points.sumOf { it.value }).isEqualTo(1)
+
+      // Verify sync failure is also recorded
+      val syncFailureMetric = metrics.find { it.name == "edpa.event_group.sync_failure" }
+      assertThat(syncFailureMetric).isNotNull()
+      assertThat(syncFailureMetric!!.longSumData.points.sumOf { it.value }).isEqualTo(1)
+
+      // Verify no EventGroup was created
+      verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+    }
   }
 
   @Test
