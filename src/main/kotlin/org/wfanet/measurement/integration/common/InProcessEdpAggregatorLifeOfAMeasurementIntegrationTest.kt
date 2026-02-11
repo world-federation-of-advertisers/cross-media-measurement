@@ -93,6 +93,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     mapOf(
       "edpa-eg-reference-id-1" to syntheticEventGroupSpec,
       "edpa-eg-reference-id-2" to syntheticEventGroupSpec,
+      "edpa-eg-reference-id-3" to syntheticEventGroupSpec,
     )
 
   @get:Rule
@@ -129,6 +130,11 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
             trusTeeSupported = false
           },
         "edp2" to
+          DataProviderKt.capabilities {
+            honestMajorityShareShuffleSupported = true
+            trusTeeSupported = true
+          },
+        "edp3" to
           DataProviderKt.capabilities {
             honestMajorityShareShuffleSupported = false
             trusTeeSupported = true
