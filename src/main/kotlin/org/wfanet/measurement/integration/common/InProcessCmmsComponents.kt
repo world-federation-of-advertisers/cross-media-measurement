@@ -64,9 +64,9 @@ import org.wfanet.measurement.config.DuchyCertConfig
 import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
-import org.wfanet.measurement.kingdom.deploy.common.TrusTeeProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.TrusTeeProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
