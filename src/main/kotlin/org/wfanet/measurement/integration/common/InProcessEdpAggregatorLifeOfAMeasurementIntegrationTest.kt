@@ -27,6 +27,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
@@ -121,7 +122,16 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       kingdomChannel,
       measurementConsumerData,
       edpDisplayNameToResourceMap,
-      listOf("edp1", "edp2"),
+      mapOf(
+        "edp1" to DataProviderKt.capabilities {
+          honestMajorityShareShuffleSupported = true
+          trusTeeSupported = true
+        },
+        "edp2" to DataProviderKt.capabilities {
+          honestMajorityShareShuffleSupported = true
+          trusTeeSupported = true
+        },
+      ),
       duchyMap,
     )
     initMcSimulator()
