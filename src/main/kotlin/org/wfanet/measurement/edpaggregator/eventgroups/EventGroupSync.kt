@@ -144,17 +144,7 @@ class EventGroupSync(
           continue
         }
 
-        val measurementConsumerKeys =
-          try {
-            resolveMeasurementConsumers(eventGroup)
-          } catch (e: Exception) {
-            logger.log(Level.SEVERE, e) {
-              "Skipping Event Group ${eventGroup.eventGroupReferenceId}: " +
-                "Failed to resolve MeasurementConsumer"
-            }
-            metrics.syncFailure.add(1, metricAttributes())
-            continue
-          }
+        val measurementConsumerKeys = resolveMeasurementConsumers(eventGroup)
 
         if (measurementConsumerKeys.isEmpty()) {
           logger.warning(
@@ -341,18 +331,16 @@ class EventGroupSync(
           if (resolvedKeys.isEmpty()) {
             metrics.unmappedClientAccounts.add(1, metricAttributes())
             logger.info("No MeasurementConsumers found for reference ID: $refId")
+          } else if (resolvedKeys.size > 1) {
+            logger.info(
+              "ClientAccount reference ID $refId maps to ${resolvedKeys.size} " +
+                "Measurement Consumers: ${resolvedKeys.map { it.toName() }}"
+            )
           }
 
           clientAccountCache[refId] = resolvedKeys
           resolvedKeys
         }
-
-      if (lookedUpKeys.size > 1) {
-        logger.info(
-          "ClientAccount reference ID $refId maps to ${lookedUpKeys.size} " +
-            "Measurement Consumers: ${lookedUpKeys.map { it.toName() }}"
-        )
-      }
 
       measurementConsumerKeys.addAll(lookedUpKeys)
     }
