@@ -2357,9 +2357,8 @@ class MeasurementSystemTest {
   @Test
   fun `client-accounts batch-create fails when batch size exceeds limit`() {
     // Create 1001 argument pairs (exceeds the 1000 limit)
-    val argPairs = (1..1001).flatMap { 
-      listOf("--data-provider=dataProviders/$it", "--reference-id=ref-id-$it")
-    }
+    val argPairs =
+      (1..1001).flatMap { listOf("--data-provider=dataProviders/$it", "--reference-id=ref-id-$it") }
 
     val args =
       commonArgs +
