@@ -54,11 +54,11 @@ service ImpressionMetadataService {
   rpc BatchDeleteImpressionMetadata(BatchDeleteImpressionMetadataRequest)
       returns (BatchDeleteImpressionMetadataResponse) {}
 
-  // Computes the time bounds for the given ModelLines.
+  // Computes the time bounds for all ModelLines for a DataProvider.
   //
-  // This method returns, for each requested ModelLine, the largest interval
-  // during which all associated ImpressionMetadata resources are in the ACTIVE
-  // state.
+  // This method returns, for each requested ModelLine, the interval spanning
+  // from the earliest start time to the latest end time across all
+  // ImpressionMetadata resources in the ACTIVE state.
   //
   // Callers are responsible for ensuring that all expected ImpressionMetadata
   // have been created before using these intervals for downstream purposes,
@@ -246,12 +246,9 @@ message ComputeModelLineBoundsRequest {
       child_type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
     }
   ];
-  // The model line resource names to get time bounds for.
-  // Format: `dataProviders/{data_provider}/modelLines/{model_line}`
-  repeated string model_lines = 2 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
-  ];
+
+  reserved 2;
+  reserved "model_lines";
 }
 
 // Response message for the `ComputeModelLineBounds` method.

@@ -51,7 +51,7 @@ import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
-import org.wfanet.measurement.api.v2alpha.EventGroupActivityServiceGrpc as CmmsEventGroupActivitiesGrpc
+import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpc as CmmsEventGroupActivitiesGrpc
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt as CmmsEventGroupMetadataKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpc as CmmsEventGroupsGrpc
@@ -215,7 +215,7 @@ abstract class InProcessEventGroupsTest(
     )
 
   private val cmmsEventGroupActivitiesStub:
-    CmmsEventGroupActivitiesGrpc.EventGroupActivityServiceBlockingStub by lazy {
+    CmmsEventGroupActivitiesGrpc.EventGroupActivitiesBlockingStub by lazy {
     CmmsEventGroupActivitiesGrpc.newBlockingStub(kingdom.publicApiChannel)
   }
   private val cmmsEventGroupsStub: CmmsEventGroupsGrpc.EventGroupsBlockingStub by lazy {
