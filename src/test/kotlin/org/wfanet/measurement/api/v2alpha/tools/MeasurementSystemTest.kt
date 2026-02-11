@@ -2304,159 +2304,98 @@ class MeasurementSystemTest {
 
   @Test
   fun `client-accounts batch-create succeeds`() {
-    val tempFile = kotlin.io.path.createTempFile("client-accounts", ".txt").toFile()
-    try {
-      tempFile.writeText(
-        """
-        dataProviders/1,ref-id-001
-        dataProviders/2,ref-id-002
-        """
-          .trimIndent()
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "batch-create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=dataProviders/1",
+          "--reference-id=ref-id-001",
+          "--data-provider=dataProviders/2",
+          "--reference-id=ref-id-002",
+        )
+    callCli(args)
+
+    assertThat(
+        headerInterceptor
+          .captured(ClientAccountsGrpcKt.batchCreateClientAccountsMethod)
+          .single()
+          .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
       )
+      .isEqualTo(AUTHENTICATION_KEY)
 
-      val args =
-        commonArgs +
-          arrayOf(
-            "client-accounts",
-            "--api-key=$AUTHENTICATION_KEY",
-            "batch-create",
-            "--parent=$MEASUREMENT_CONSUMER_NAME",
-            "--requests-file=${tempFile.absolutePath}",
-          )
-      callCli(args)
-
-      assertThat(
-          headerInterceptor
-            .captured(ClientAccountsGrpcKt.batchCreateClientAccountsMethod)
-            .single()
-            .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
-        )
-        .isEqualTo(AUTHENTICATION_KEY)
-
-      val request: BatchCreateClientAccountsRequest = captureFirst {
-        runBlocking { verify(clientAccountsServiceMock).batchCreateClientAccounts(capture()) }
-      }
-
-      assertThat(request.parent).isEqualTo(MEASUREMENT_CONSUMER_NAME)
-      assertThat(request.requestsCount).isEqualTo(2)
-      assertThat(request.requestsList[0])
-        .isEqualTo(
-          createClientAccountRequest {
-            parent = MEASUREMENT_CONSUMER_NAME
-            clientAccount = clientAccount {
-              dataProvider = "dataProviders/1"
-              clientAccountReferenceId = "ref-id-001"
-            }
-          }
-        )
-      assertThat(request.requestsList[1])
-        .isEqualTo(
-          createClientAccountRequest {
-            parent = MEASUREMENT_CONSUMER_NAME
-            clientAccount = clientAccount {
-              dataProvider = "dataProviders/2"
-              clientAccountReferenceId = "ref-id-002"
-            }
-          }
-        )
-    } finally {
-      tempFile.delete()
+    val request: BatchCreateClientAccountsRequest = captureFirst {
+      runBlocking { verify(clientAccountsServiceMock).batchCreateClientAccounts(capture()) }
     }
+
+    assertThat(request.parent).isEqualTo(MEASUREMENT_CONSUMER_NAME)
+    assertThat(request.requestsCount).isEqualTo(2)
+    assertThat(request.requestsList[0])
+      .isEqualTo(
+        createClientAccountRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          clientAccount = clientAccount {
+            dataProvider = "dataProviders/1"
+            clientAccountReferenceId = "ref-id-001"
+          }
+        }
+      )
+    assertThat(request.requestsList[1])
+      .isEqualTo(
+        createClientAccountRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          clientAccount = clientAccount {
+            dataProvider = "dataProviders/2"
+            clientAccountReferenceId = "ref-id-002"
+          }
+        }
+      )
   }
 
   @Test
   fun `client-accounts batch-create fails when batch size exceeds limit`() {
-    val tempFile = kotlin.io.path.createTempFile("client-accounts", ".txt").toFile()
-    try {
-      // Create a file with 1001 lines (exceeds the 1000 limit)
-      val lines = (1..1001).map { "dataProviders/$it,ref-id-$it" }
-      tempFile.writeText(lines.joinToString("\n"))
-
-      val args =
-        commonArgs +
-          arrayOf(
-            "client-accounts",
-            "--api-key=$AUTHENTICATION_KEY",
-            "batch-create",
-            "--parent=$MEASUREMENT_CONSUMER_NAME",
-            "--requests-file=${tempFile.absolutePath}",
-          )
-
-      val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
-      assertThat(capturedOutput).status().isNotEqualTo(0)
-      assertThat(capturedOutput.err).contains("Batch size cannot exceed 1000")
-      assertThat(capturedOutput.err).contains("found 1001")
-    } finally {
-      tempFile.delete()
+    // Create 1001 argument pairs (exceeds the 1000 limit)
+    val argPairs = (1..1001).flatMap { 
+      listOf("--data-provider=dataProviders/$it", "--reference-id=ref-id-$it")
     }
+
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "batch-create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+        ) +
+        argPairs
+
+    val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput.err).contains("Batch size cannot exceed 1000")
+    assertThat(capturedOutput.err).contains("found 1001")
   }
 
   @Test
-  fun `client-accounts batch-create fails with invalid file format`() {
-    val tempFile = kotlin.io.path.createTempFile("client-accounts", ".txt").toFile()
-    try {
-      tempFile.writeText(
-        """
-        dataProviders/1,ref-id-001
-        dataProviders/2
-        dataProviders/3,ref-id-003
-        """
-          .trimIndent()
-      )
+  fun `client-accounts batch-create fails with incomplete argument group`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "batch-create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=dataProviders/1",
+          "--reference-id=ref-id-001",
+          "--data-provider=dataProviders/2",
+          // Missing --reference-id for the second group
+        )
 
-      val args =
-        commonArgs +
-          arrayOf(
-            "client-accounts",
-            "--api-key=$AUTHENTICATION_KEY",
-            "batch-create",
-            "--parent=$MEASUREMENT_CONSUMER_NAME",
-            "--requests-file=${tempFile.absolutePath}",
-          )
-
-      val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
-      assertThat(capturedOutput).status().isNotEqualTo(0)
-      assertThat(capturedOutput.err).contains("Invalid line format at line 2")
-      assertThat(capturedOutput.err).contains("Expected format: dataProvider,referenceId")
-    } finally {
-      tempFile.delete()
-    }
-  }
-
-  @Test
-  fun `client-accounts batch-create ignores blank lines`() {
-    val tempFile = kotlin.io.path.createTempFile("client-accounts", ".txt").toFile()
-    try {
-      tempFile.writeText(
-        """
-        dataProviders/1,ref-id-001
-
-        dataProviders/2,ref-id-002
-        
-        """
-          .trimIndent()
-      )
-
-      val args =
-        commonArgs +
-          arrayOf(
-            "client-accounts",
-            "--api-key=$AUTHENTICATION_KEY",
-            "batch-create",
-            "--parent=$MEASUREMENT_CONSUMER_NAME",
-            "--requests-file=${tempFile.absolutePath}",
-          )
-      callCli(args)
-
-      val request: BatchCreateClientAccountsRequest = captureFirst {
-        runBlocking { verify(clientAccountsServiceMock).batchCreateClientAccounts(capture()) }
-      }
-
-      // Should only have 2 requests, blank lines should be ignored
-      assertThat(request.requestsCount).isEqualTo(2)
-    } finally {
-      tempFile.delete()
-    }
+    val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    // Picocli will report that required option is missing
+    assertThat(capturedOutput.err).containsMatch("(?i)(missing|required).*reference-id")
   }
 
   @Test

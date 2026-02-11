@@ -1109,6 +1109,22 @@ private class ClientAccounts {
     printClientAccount(response)
   }
 
+  class ClientAccountInput {
+    @Option(
+      names = ["--data-provider"],
+      description = ["API resource name of the Data Provider"],
+      required = true,
+    )
+    lateinit var dataProvider: String
+
+    @Option(
+      names = ["--reference-id"],
+      description = ["Reference ID for the ClientAccount"],
+      required = true,
+    )
+    lateinit var referenceId: String
+  }
+
   @Command(description = ["Batch creates ClientAccounts"])
   fun batchCreate(
     @Option(
@@ -1117,39 +1133,28 @@ private class ClientAccounts {
       required = true,
     )
     parent: String,
-    @Option(
-      names = ["--requests-file"],
-      description =
-        [
-          "Path to file containing ClientAccount creation data (one per line: dataProvider,referenceId)"
-        ],
-      required = true,
+    @ArgGroup(
+      exclusive = false,
+      multiplicity = "1..*",
+      heading = "ClientAccount creation requests (can be repeated)\n",
     )
-    requestsFile: File,
+    clientAccounts: List<ClientAccountInput>,
   ) {
-    val lines = requestsFile.readLines().filter { it.isNotBlank() }
-    if (lines.size > 1000) {
+    if (clientAccounts.size > 1000) {
       throw ParameterException(
         parentCommand.commandLine,
-        "Batch size cannot exceed 1000 (found ${lines.size})",
+        "Batch size cannot exceed 1000 (found ${clientAccounts.size})",
       )
     }
 
     val request = batchCreateClientAccountsRequest {
       this.parent = parent
-      lines.forEachIndexed { index, line ->
-        val parts = line.split(",").map { it.trim() }
-        if (parts.size != 2) {
-          throw ParameterException(
-            parentCommand.commandLine,
-            "Invalid line format at line ${index + 1}: '$line'. Expected format: dataProvider,referenceId (found ${parts.size} parts)",
-          )
-        }
+      clientAccounts.forEach { input ->
         requests += createClientAccountRequest {
           this.parent = parent
           clientAccount = clientAccount {
-            dataProvider = parts[0]
-            clientAccountReferenceId = parts[1]
+            dataProvider = input.dataProvider
+            clientAccountReferenceId = input.referenceId
           }
         }
       }
