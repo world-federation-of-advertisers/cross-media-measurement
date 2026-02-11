@@ -249,6 +249,27 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       )
     }
 
+
+  @Test
+  fun `create a TrusTee reach-only measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Use frontend simulator to create a TrusTee reach-only measurement and verify its result.
+      mcSimulator.testReachOnly(
+        "1234",
+        ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
+      )
+    }
+
+  @Test
+  fun `create a TrusTee RF measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Use frontend simulator to create a TrusTee reach and frequency measurement and verify its result.
+      mcSimulator.testReachAndFrequency(
+        "1234",
+        ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
+      )
+    }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val modelLineName =
