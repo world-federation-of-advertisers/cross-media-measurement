@@ -47,6 +47,7 @@ import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -106,7 +107,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           IllegalArgumentException("Missing required header: $DATA_WATHCER_PATH_HEADER")
         }
 
-      val storageClient: StorageClient = createStorageClient(dataAvailabilitySyncConfig)
+      val storageClient: BlobMetadataStorageClient = createStorageClient(dataAvailabilitySyncConfig)
 
       val grpcChannels = getOrCreateSharedChannels(dataAvailabilitySyncConfig)
 
@@ -137,6 +138,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           dataAvailabilitySyncConfig.dataProvider,
           globalThrottler,
           impressionMetadataBatchSize = impressionMetadataBatchSize,
+          modelLineMap =
+            dataAvailabilitySyncConfig.modelLineMapMap.mapValues { it.value.modelLinesList },
         )
 
       Tracing.withW3CTraceContext(request) {
@@ -151,18 +154,21 @@ class DataAvailabilitySyncFunction() : HttpFunction {
   }
 
   /**
-   * Creates a [StorageClient] based on the current environment and the provided data provider
-   * configuration.
+   * Creates a [BlobMetadataStorageClient] based on the current environment and the provided data
+   * provider configuration.
    *
    * @param dataProviderConfig The configuration object for a `DataProvider`.
-   * @return A [StorageClient] instance, either for local file system access or GCS access.
+   * @return A [BlobMetadataStorageClient] instance, either for local file system access or GCS
+   *   access.
    */
   // @TODO(@marcopremier): This function should be reused across Cloud Functions.
   private fun createStorageClient(
     dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
-  ): StorageClient {
+  ): BlobMetadataStorageClient {
     return if (!fileSystemPath.isNullOrEmpty()) {
-      FileSystemStorageClient(File(EnvVars.checkIsPath("DATA_AVAILABILITY_FILE_SYSTEM_PATH")))
+      NoOpBlobMetadataStorageClient(
+        FileSystemStorageClient(File(EnvVars.checkIsPath("DATA_AVAILABILITY_FILE_SYSTEM_PATH")))
+      )
     } else {
       val gcsConfig = dataAvailabilitySyncConfig.dataAvailabilityStorage.gcs
       GcsStorageClient(
@@ -176,6 +182,23 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           .service,
         gcsConfig.bucketName,
       )
+    }
+  }
+
+  /**
+   * A [BlobMetadataStorageClient] wrapper for [FileSystemStorageClient] used only in testing.
+   *
+   * Since [FileSystemStorageClient] doesn't support blob metadata, this provides a no-op
+   * implementation of [updateBlobMetadata].
+   */
+  private class NoOpBlobMetadataStorageClient(private val delegate: StorageClient) :
+    BlobMetadataStorageClient, StorageClient by delegate {
+    override suspend fun updateBlobMetadata(
+      blobKey: String,
+      customCreateTime: java.time.Instant?,
+      metadata: Map<String, String>,
+    ) {
+      // No-op for FileSystemStorageClient testing
     }
   }
 

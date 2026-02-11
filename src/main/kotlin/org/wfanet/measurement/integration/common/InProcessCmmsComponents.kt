@@ -152,8 +152,6 @@ class InProcessCmmsComponents(
         trustedCertificates = TRUSTED_CERTIFICATES,
         eventGroupOptions = eventGroupOptions,
         eventQuery = eventQuery,
-        honestMajorityShareShuffleSupported =
-          (displayName in ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES),
       )
     }
   }

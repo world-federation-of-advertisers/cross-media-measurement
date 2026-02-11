@@ -1344,6 +1344,43 @@ abstract class ImpressionMetadataServiceTest {
   }
 
   @Test
+  fun `listImpressionMetadata filters by blobUriPrefix`(): Unit = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+    )
+    val created =
+      service
+        .batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            requests += createImpressionMetadataRequest {
+              impressionMetadata = IMPRESSION_METADATA_2
+            }
+            requests += createImpressionMetadataRequest {
+              impressionMetadata = IMPRESSION_METADATA_3
+            }
+            requests += createImpressionMetadataRequest {
+              impressionMetadata = IMPRESSION_METADATA_4
+            }
+          }
+        )
+        .impressionMetadataList
+
+    // "uri-" prefix should match uri-1, uri-2, uri-3 but not "path/to/blob"
+    val expected = created.filter { it.blobUri.startsWith("uri-") }
+
+    val response =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          filter = ListImpressionMetadataRequestKt.filter { blobUriPrefix = "uri-" }
+        }
+      )
+
+    assertThat(response)
+      .isEqualTo(listImpressionMetadataResponse { impressionMetadata += expected })
+  }
+
+  @Test
   fun `listImpressionMetadata without state filter returns both active and deleted ImpressionMetadata`() =
     runBlocking {
       val (created1, created2) =
@@ -1545,8 +1582,6 @@ abstract class ImpressionMetadataServiceTest {
 
     val request = computeModelLineBoundsRequest {
       dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-      cmmsModelLine += MODEL_LINE_1
-      cmmsModelLine += MODEL_LINE_2
     }
     val response = service.computeModelLineBounds(request)
 
@@ -1580,7 +1615,6 @@ abstract class ImpressionMetadataServiceTest {
           service.computeModelLineBounds(
             computeModelLineBoundsRequest {
               // dataProviderResourceId not set
-              cmmsModelLine += MODEL_LINE_1
             }
           )
         }
@@ -1589,47 +1623,10 @@ abstract class ImpressionMetadataServiceTest {
     }
 
   @Test
-  fun `ComputeModelLineBounds throws INVALID_ARGUMENT if cmmsModelLine not set`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.computeModelLineBounds(
-          computeModelLineBoundsRequest {
-            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-            // cmmsModelLine not set
-          }
-        )
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  }
-
-  @Test
-  fun `ComputeModelLineBounds returns empty for non-existent model lines`() = runBlocking {
-    service.createImpressionMetadata(
-      createImpressionMetadataRequest {
-        impressionMetadata =
-          IMPRESSION_METADATA.copy {
-            cmmsModelLine = MODEL_LINE_1
-            clearImpressionMetadataResourceId()
-            blobUri = "blobs/1"
-          }
-      }
-    )
-
-    val request = computeModelLineBoundsRequest {
-      dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-      cmmsModelLine += "non-existent-model-line"
-    }
-    val response = service.computeModelLineBounds(request)
-
-    assertThat(response).isEqualTo(ComputeModelLineBoundsResponse.getDefaultInstance())
-  }
-
-  @Test
-  fun `ComputeModelLineBounds returns partial for mix of existing and non-existent`() =
-    runBlocking {
-      service.createImpressionMetadata(
-        createImpressionMetadataRequest {
+  fun `ComputeModelLineBounds returns all model lines for data provider`() = runBlocking {
+    service.batchCreateImpressionMetadata(
+      batchCreateImpressionMetadataRequest {
+        requests += createImpressionMetadataRequest {
           impressionMetadata =
             IMPRESSION_METADATA.copy {
               cmmsModelLine = MODEL_LINE_1
@@ -1641,29 +1638,130 @@ abstract class ImpressionMetadataServiceTest {
               blobUri = "blobs/1"
             }
         }
+        requests += createImpressionMetadataRequest {
+          impressionMetadata =
+            IMPRESSION_METADATA.copy {
+              cmmsModelLine = MODEL_LINE_2
+              interval = interval {
+                startTime = timestamp { seconds = 300 }
+                endTime = timestamp { seconds = 400 }
+              }
+              clearImpressionMetadataResourceId()
+              blobUri = "blobs/2"
+            }
+        }
+      }
+    )
+
+    val response =
+      service.computeModelLineBounds(
+        computeModelLineBoundsRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
       )
 
-      val request = computeModelLineBoundsRequest {
-        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-        cmmsModelLine += MODEL_LINE_1
-        cmmsModelLine += "non-existent-model-line"
-      }
-      val response = service.computeModelLineBounds(request)
-      assertThat(response)
-        .isEqualTo(
-          computeModelLineBoundsResponse {
-            modelLineBounds.putAll(
-              mapOf(
-                MODEL_LINE_1 to
-                  interval {
-                    startTime = timestamp { seconds = 100 }
-                    endTime = timestamp { seconds = 200 }
-                  }
-              )
+    assertThat(response)
+      .isEqualTo(
+        computeModelLineBoundsResponse {
+          modelLineBounds.putAll(
+            mapOf(
+              MODEL_LINE_1 to
+                interval {
+                  startTime = timestamp { seconds = 100 }
+                  endTime = timestamp { seconds = 200 }
+                },
+              MODEL_LINE_2 to
+                interval {
+                  startTime = timestamp { seconds = 300 }
+                  endTime = timestamp { seconds = 400 }
+                },
             )
+          )
+        }
+      )
+  }
+
+  @Test
+  fun `ComputeModelLineBounds returns empty when no ImpressionMetadata exists`() = runBlocking {
+    val response =
+      service.computeModelLineBounds(
+        computeModelLineBoundsRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
+      )
+
+    assertThat(response).isEqualTo(ComputeModelLineBoundsResponse.getDefaultInstance())
+  }
+
+  @Test
+  fun `ComputeModelLineBounds returns bounds for existing model lines only`() = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest {
+        impressionMetadata =
+          IMPRESSION_METADATA.copy {
+            cmmsModelLine = MODEL_LINE_1
+            interval = interval {
+              startTime = timestamp { seconds = 100 }
+              endTime = timestamp { seconds = 200 }
+            }
+            clearImpressionMetadataResourceId()
+            blobUri = "blobs/1"
           }
-        )
-    }
+      }
+    )
+
+    val response =
+      service.computeModelLineBounds(
+        computeModelLineBoundsRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
+      )
+    assertThat(response)
+      .isEqualTo(
+        computeModelLineBoundsResponse {
+          modelLineBounds.putAll(
+            mapOf(
+              MODEL_LINE_1 to
+                interval {
+                  startTime = timestamp { seconds = 100 }
+                  endTime = timestamp { seconds = 200 }
+                }
+            )
+          )
+        }
+      )
+  }
+
+  @Test
+  fun `ComputeModelLineBounds ignores deleted impressions`() = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_2 }
+    )
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_3 }
+    )
+
+    service.deleteImpressionMetadata(
+      deleteImpressionMetadataRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        impressionMetadataResourceId = IMPRESSION_METADATA_3.impressionMetadataResourceId
+      }
+    )
+
+    val response =
+      service.computeModelLineBounds(
+        computeModelLineBoundsRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
+      )
+
+    assertThat(response)
+      .isEqualTo(
+        computeModelLineBoundsResponse {
+          modelLineBounds.putAll(
+            mapOf(
+              MODEL_LINE_2 to
+                interval {
+                  startTime = timestamp { seconds = 100 }
+                  endTime = timestamp { seconds = 200 }
+                }
+            )
+          )
+        }
+      )
+  }
 
   companion object {
     private const val DATA_PROVIDER_RESOURCE_ID = "data-provider-1"

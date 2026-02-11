@@ -36,6 +36,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGro
 /** Result of processing a single EventReader. */
 data class EventReaderResult(val batchCount: Int, val eventCount: Int)
 
+/** Project ID and location extracted from a GCP KMS KEK URI. */
+data class KmsKeyLocation(val projectId: String, val location: String)
+
 /** Component for tracking progress during event processing. */
 class ProgressTracker(private val totalEventReaders: Int) : AutoCloseable {
   private var processedReaders = 0L
@@ -109,6 +112,9 @@ class StorageEventSource(
   private val batchSize: Int,
 ) : EventSource<Message> {
 
+  /** Cache for unique impression data sources to avoid duplicate API calls. */
+  private var cachedImpressionDataSources: List<ImpressionDataSource>? = null
+
   /**
    * Generates batches of events by reading from storage in parallel.
    *
@@ -159,10 +165,12 @@ class StorageEventSource(
     }
   }
 
-  /**
-   * Collects all impression data sources and deduplicates by blob URI.
-   */
+  /** Collects all impression data sources and deduplicates by blob URI. */
   private suspend fun getUniqueImpressionDataSources(): List<ImpressionDataSource> {
+    cachedImpressionDataSources?.let {
+      return it
+    }
+
     val allSources =
       eventGroupDetailsList.flatMap { details ->
         logger.info("EventGroup details: $details")
@@ -175,8 +183,11 @@ class StorageEventSource(
           )
         }
       }
-    return allSources.distinctBy { it.blobDetails.blobUri }
+    val result = allSources.distinctBy { it.blobDetails.blobUri }
+    cachedImpressionDataSources = result
+    return result
   }
+
   private suspend fun createEventReaders(): List<StorageEventReader> {
     logger.info("Creating event readers... ")
     val uniqueSources = getUniqueImpressionDataSources()
@@ -220,16 +231,21 @@ class StorageEventSource(
     return EventReaderResult(batchCount, eventCount)
   }
 
-
   /**
-   * Gets the KEK URI from the impression data sources.
+   * Gets the KEK URI from the impression data sources for TrusTee protocol encryption.
    *
-   * Returns the KEK URI from the most recent data source (sorted by interval end time in
-   * descending order). All data sources for the same EDP must use KEK URIs with the same
-   * project ID and location.
+   * The TrusTee protocol encrypts output data using a Key Encryption Key (KEK) from GCP KMS. We
+   * obtain the KEK URI from the impression metadata because the EDP's impression data was encrypted
+   * using a KEK on their keyring, and the TrusTee output should use a key on the same keyring
+   * (either the same key or a remapped key via kekUriToKeyNameMap). This ensures consistent key
+   * management and access control within the EDP's GCP KMS keyring.
    *
-   * Returns null if no data sources are available, in which case a non-encrypted empty sketch
-   * will be fulfilled.
+   * Returns the KEK URI from the most recent data source (sorted by interval end time in descending
+   * order). All data sources for the same EDP must use KEK URIs with the same project ID and
+   * location; having different project IDs for the same EDP is currently not supported.
+   *
+   * Returns null if no data sources are available, in which case a non-encrypted empty sketch will
+   * be fulfilled.
    *
    * @throws IllegalArgumentException if KEK URIs have different project IDs or locations
    */
@@ -249,7 +265,8 @@ class StorageEventSource(
   /**
    * Validates that all KEK URIs have the same project ID and location.
    *
-   * KEK URI format: gcp-kms://projects/{PROJECT_ID}/locations/{LOCATION}/keyRings/{KEY_RING}/cryptoKeys/{KEY_NAME}
+   * KEK URI format:
+   * gcp-kms://projects/{PROJECT_ID}/locations/{LOCATION}/keyRings/{KEY_RING}/cryptoKeys/{KEY_NAME}
    */
   private fun validateKekUrisConsistency(kekUris: List<String>) {
     if (kekUris.size <= 1) return
@@ -267,15 +284,23 @@ class StorageEventSource(
   /**
    * Extracts the project ID and location from a KEK URI.
    *
-   * @return Pair of (projectId, location)
+   * For GCP KMS URIs (gcp-kms://projects/{PROJECT}/locations/{LOCATION}/...), returns the actual
+   * project ID and location. For non-GCP URIs (e.g., fake-kms:// used in tests), returns empty
+   * strings which allows consistency checking to still work (all non-GCP URIs are considered to
+   * have the same "empty" project/location).
+   *
+   * @return KmsKeyLocation with projectId and location, or empty strings for non-GCP URIs
    */
-  private fun extractProjectAndLocation(kekUri: String): Pair<String, String> {
-    val regex = Regex("gcp-kms://projects/([^/]+)/locations/([^/]+)/keyRings/[^/]+/cryptoKeys/[^/]+")
+  private fun extractProjectAndLocation(kekUri: String): KmsKeyLocation {
+    // For fake-kms:// URIs (used in tests), skip project/location extraction
+    if (kekUri.startsWith("fake-kms://")) {
+      return KmsKeyLocation("", "")
+    }
+    val regex = KmsConstants.GCP_KMS_KEY_URI_REGEX
     val matchResult = regex.matchEntire(kekUri)
-    requireNotNull(matchResult) { "Invalid KEK URI format: $kekUri" }
-    return Pair(matchResult.groupValues[1], matchResult.groupValues[2])
+    requireNotNull(matchResult) { "Invalid GCP KMS KEK URI format: $kekUri" }
+    return KmsKeyLocation(matchResult.groupValues[1], matchResult.groupValues[2])
   }
-
 
   companion object {
     private val logger = Logger.getLogger(StorageEventSource::class.java.name)

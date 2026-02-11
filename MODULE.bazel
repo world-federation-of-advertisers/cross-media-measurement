@@ -39,7 +39,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.133.0",
+    version = "0.135.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -49,7 +49,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    version = "0.88.0",
+    version = "0.89.0",
     repo_name = "wfa_measurement_proto",
 )
 bazel_dep(

@@ -44,11 +44,11 @@ import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.After
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.toList
 import org.junit.Before
 import org.junit.ClassRule
 import org.junit.Rule
@@ -76,6 +76,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.DuchyEntry
+import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
@@ -84,7 +85,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.events
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.eventGroup
@@ -124,7 +124,6 @@ import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.SingleRequisitionGrouper
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.TrusTeeConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
@@ -191,6 +190,7 @@ class ResultsFulfillerAppTest {
         }
     }
   }
+
   private class FakeRequisitionFulfillmentService : RequisitionFulfillmentCoroutineImplBase() {
     data class FulfillRequisitionInvocation(val requests: List<FulfillRequisitionRequest>)
 
@@ -207,7 +207,6 @@ class ResultsFulfillerAppTest {
   }
 
   private val requisitionFulfillmentMock = FakeRequisitionFulfillmentService()
-
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -507,7 +506,7 @@ class ResultsFulfillerAppTest {
             mapOf("some-duchy" to grpcTestServerRule.channel),
           ),
           kmsClients,
-          emptyMap(), // trusTeeConfigs
+          mapOf(EDP_NAME to TrusTeeConfig(kmsClient, "test-wip", "test-sa@example.com")),
           getStorageConfig(tmpPath),
           getStorageConfig(tmpPath),
           getStorageConfig(tmpPath),
@@ -771,7 +770,7 @@ class ResultsFulfillerAppTest {
           mapOf("some-duchy" to grpcTestServerRule.channel),
         ),
         kmsClients,
-        emptyMap(), // trusTeeConfigs
+        mapOf(EDP_NAME to TrusTeeConfig(kmsClient, "test-wip", "test-sa@example.com")),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
@@ -1188,7 +1187,10 @@ class ResultsFulfillerAppTest {
           mapOf("some-duchy" to grpcTestServerRule.channel),
         ),
         kmsClients,
-        emptyMap(), // trusTeeConfigs
+        mapOf(
+          EDP_NAME to
+            TrusTeeConfig(kmsClients.getValue(EDP_NAME), "test-wip", "test-sa@example.com")
+        ),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
@@ -1200,7 +1202,6 @@ class ResultsFulfillerAppTest {
 
     verifyBlocking(requisitionsServiceMock, times(0)) { fulfillDirectRequisition(any()) }
   }
-
 
   @Test
   fun `runWork processes TrusTee requisition successfully`() = runBlocking {
@@ -1318,13 +1319,15 @@ class ResultsFulfillerAppTest {
         }
       )
 
-    val trusTeeConfigs = mapOf(
-      EDP_NAME to TrusTeeConfig(
-        kmsClient = kmsClient,
-        workloadIdentityProvider = "test-wip",
-        impersonatedServiceAccount = "test-sa@example.com",
+    val trusTeeConfigs =
+      mapOf(
+        EDP_NAME to
+          TrusTeeConfig(
+            kmsClient = kmsClient,
+            workloadIdentityProvider = "test-wip",
+            impersonatedServiceAccount = "test-sa@example.com",
+          )
       )
-    )
 
     val app =
       ResultsFulfillerApp(
@@ -1357,6 +1360,154 @@ class ResultsFulfillerAppTest {
     assertThat(fulfilledRequests[0].header.name).isEqualTo(TRUSTEE_REQUISITION.name)
     assertThat(fulfilledRequests[0].header.hasTrusTee()).isTrue()
   }
+
+  @Test
+  fun `runWork fails when TrusTeeConfig is missing for EDP with impressions`() = runBlocking {
+    val subscriber =
+      Subscriber(
+        projectId = PROJECT_ID,
+        googlePubSubClient = emulatorClient,
+        maxMessages = 1,
+        pullIntervalMillis = 100,
+        ackDeadlineExtensionIntervalSeconds = 60,
+        ackDeadlineExtensionSeconds = 600,
+        blockingContext = Dispatchers.IO,
+      )
+    val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
+    val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
+
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some blob uri"
+            blobTypeUrl = "some-b1lob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
+        }
+      )
+
+    val testWorkItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    val workItemParams =
+      createWorkItemParams(
+        ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
+        kAnonymityParams = null,
+      )
+    val workItem = createWorkItem(workItemParams)
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { completeWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { failWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+    }
+    workItemsServiceMock.stub { onBlocking { failWorkItem(any()) } doReturn workItem }
+
+    val tmpPath = Files.createTempDirectory(null).toFile()
+
+    // Create requisitions storage client
+    Files.createDirectories(tmpPath.resolve(REQUISITIONS_BUCKET).toPath())
+    val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
+
+    val requisitionValidator =
+      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+    val groupedRequisitions =
+      SingleRequisitionGrouper(
+          requisitionsClient = requisitionsStub,
+          eventGroupsClient = eventGroupsStub,
+          requisitionValidator = requisitionValidator,
+          throttler = throttler,
+        )
+        .groupRequisitions(listOf(TRUSTEE_REQUISITION))
+    // Add requisitions to storage
+    requisitionsStorageClient.writeBlob(
+      REQUISITIONS_BLOB_KEY,
+      Any.pack(groupedRequisitions.single()).toByteString(),
+    )
+
+    val kmsClients = getKmsClientMap()
+    val kmsClient = kmsClients.getValue(EDP_NAME)
+
+    val serializedEncryptionKey = getSerializedEncryptionKey(kmsClient)
+    val mesosRecordIoStorageClient =
+      getImpressionStorageClient(tmpPath, kmsClient, serializedEncryptionKey)
+
+    val impressions =
+      List(100) {
+        LABELED_IMPRESSION.copy {
+          vid = (it % 80 + 1).toLong()
+          eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          event = TEST_EVENT.pack()
+        }
+      }
+
+    val impressionsFlow = flow {
+      impressions.forEach { impression -> emit(impression.toByteString()) }
+    }
+
+    // Write impressions to storage
+    mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
+
+    writeImpressionMetadata(tmpPath, serializedEncryptionKey)
+
+    val start = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC)
+    val end = FIRST_EVENT_DATE.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            state = ImpressionMetadata.State.ACTIVE
+            blobUri = "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
+            interval = interval {
+              startTime = timestamp {
+                seconds = start.epochSecond
+                nanos = start.nano
+              }
+              endTime = timestamp {
+                seconds = end.epochSecond
+                nanos = end.nano
+              }
+            }
+          }
+        }
+      )
+
+    // Intentionally pass empty trusTeeConfigs to trigger failure
+    val trusTeeConfigs = emptyMap<String, TrusTeeConfig>()
+
+    val app =
+      ResultsFulfillerApp(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = subscriber,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+        requisitionMetadataStub,
+        impressionMetadataStub,
+        TestRequisitionStubFactory(
+          grpcTestServerRule.channel,
+          mapOf(DUCHY_NAME to grpcTestServerRule.channel),
+        ),
+        kmsClients,
+        trusTeeConfigs,
+        getStorageConfig(tmpPath),
+        getStorageConfig(tmpPath),
+        getStorageConfig(tmpPath),
+        mapOf("some-model-line" to MODEL_LINE_INFO),
+        metrics = ResultsFulfillerMetrics.create(),
+      )
+
+    // Should fail because TrusTeeConfig is missing but kekUri is present (impressions exist)
+    val exception =
+      assertFailsWith<IllegalArgumentException> { app.runWork(Any.pack(workItemParams)) }
+    assertThat(exception.message).contains("trusTeeConfig is null")
+  }
+
   private suspend fun writeImpressionMetadata(tmpPath: File, serializedEncryptionKey: ByteString) {
     // Create the impressions metadata store
     Files.createDirectories(tmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).toPath())
@@ -1622,7 +1773,6 @@ class ResultsFulfillerAppTest {
       dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
     }
 
-
     private const val DUCHY_NAME = "some-duchy"
     private const val DUCHY_CERTIFICATE_NAME = "duchies/some-duchy/certificates/cert1"
 
@@ -1705,6 +1855,7 @@ class ResultsFulfillerAppTest {
         eventDescriptor = TestEvent.getDescriptor(),
         populationSpec = POPULATION_SPEC,
         vidIndexMap = InMemoryVidIndexMap.build(POPULATION_SPEC),
+        localAlias = null,
       )
   }
 }

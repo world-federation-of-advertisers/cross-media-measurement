@@ -206,6 +206,19 @@ class ResultsFulfillerApp(
         trusTeeConfig = trusTeeConfig,
         kekUriToKeyNameMap = fulfillerParams.trusteeParams.kekUriToKeyNameMap,
       )
+    val modelLineInfoMapWithAliases =
+      if (fulfillerParams.modelLineMapMap.isEmpty()) {
+        modelLineInfoMap
+      } else {
+        modelLineInfoMap.mapValues { (modelLine, modelLineInfo) ->
+          val mappedValue = fulfillerParams.modelLineMapMap[modelLine]
+          if (mappedValue == null || mappedValue == modelLineInfo.localAlias) {
+            modelLineInfo
+          } else {
+            modelLineInfo.copy(localAlias = mappedValue)
+          }
+        }
+      }
 
     ResultsFulfiller(
         dataProvider = fulfillerParams.dataProvider,
@@ -213,7 +226,7 @@ class ResultsFulfillerApp(
         requisitionsStub = requisitionsStub,
         privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
         groupedRequisitions = groupedRequisitions,
-        modelLineInfoMap = modelLineInfoMap,
+        modelLineInfoMap = modelLineInfoMapWithAliases,
         pipelineConfiguration = pipelineConfiguration,
         impressionDataSourceProvider = impressionsDataSourceProvider,
         impressionsStorageConfig = impressionsStorageConfig,

@@ -26,9 +26,9 @@ import org.wfanet.measurement.api.v2alpha.BatchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupActivitiesResponse
 import org.wfanet.measurement.api.v2alpha.DeleteEventGroupActivityRequest
+import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineImplBase as EventGroupActivitiesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupActivity
 import org.wfanet.measurement.api.v2alpha.EventGroupActivityKey
-import org.wfanet.measurement.api.v2alpha.EventGroupActivityServiceGrpcKt.EventGroupActivityServiceCoroutineImplBase as EventGroupActivitiesCortouineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupActivitiesResponse
@@ -51,7 +51,7 @@ import org.wfanet.measurement.internal.kingdom.updateEventGroupActivityRequest a
 class EventGroupActivitiesService(
   private val internalEventGroupActivitiesStub: InternalEventGroupActivitiesCoroutineStub,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
-) : EventGroupActivitiesCortouineImplBase(coroutineContext) {
+) : EventGroupActivitiesCoroutineImplBase(coroutineContext) {
 
   private enum class Permission {
     DELETE,

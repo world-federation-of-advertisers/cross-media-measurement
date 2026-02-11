@@ -38,7 +38,7 @@ class DataWatcherFunctionTracingTest {
     val traceParent = "00-$expectedTraceId-00f067aa0ba902b7-01"
     val recordedTraceIds = mutableListOf<String>()
 
-    val pathReceiver: suspend (String) -> Unit = { _ ->
+    val pathReceiver: suspend (String, Map<String, String>) -> Unit = { _, _ ->
       recordedTraceIds += Span.current().spanContext.traceId
     }
 

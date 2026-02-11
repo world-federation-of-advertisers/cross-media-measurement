@@ -23,3 +23,36 @@ variable "location" {
   type        = string
   nullable    = false
 }
+
+variable "lifecycle_rules" {
+  description = <<-EOT
+    Lifecycle rule configurations. Each entry targets a specific prefix.
+    
+    Each entry contains:
+    - name: Identifier for the rule (used for documentation/clarity)
+    - prefix: Object prefix to match (e.g., "edp/edp7/")
+    - retention_days: Days to retain objects after Custom-Time (e.g., impression date)
+    - enable_fallback: Whether to enable fallback rule based on upload date (default: true)
+    - fallback_retention_days: Days to retain objects after upload (default: 10 years)
+  EOT
+  type = list(object({
+    name                    = string
+    prefix                  = string
+    retention_days          = number
+    enable_fallback         = optional(bool, true)
+    fallback_retention_days = optional(number, 3650)  # Default: 10 years
+  }))
+  default = []
+}
+
+variable "retention_period_days" {
+  description = <<-EOT
+    Number of days to retain objects before they can be deleted or overwritten.
+    This prevents accidental deletion of objects. Set to match lifecycle rule
+    retention_days to ensure objects cannot be manually deleted before automatic cleanup.
+    Set to null to disable retention policy.
+  EOT
+  type     = number
+  default  = null
+  nullable = true
+}

@@ -26,14 +26,13 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.DataProvider
-import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -93,7 +92,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     mapOf(
       "edpa-eg-reference-id-1" to syntheticEventGroupSpec,
       "edpa-eg-reference-id-2" to syntheticEventGroupSpec,
-      "edpa-eg-reference-id-3" to syntheticEventGroupSpec,
     )
 
   @get:Rule
@@ -119,17 +117,11 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     val kingdomChannel = inProcessCmmsComponents.kingdom.publicApiChannel
     val duchyMap =
       inProcessCmmsComponents.duchies.map { it.externalDuchyId to it.publicApiChannel }.toMap()
-    val edpCapabilities = mapOf(
-      "edp1" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
-      "edp2" to DataProviderKt.capabilities { },
-      "edp3" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
-      "edp4" to DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false; trusTeeSupported = true },
-    )
     inProcessEdpAggregatorComponents.startDaemons(
       kingdomChannel,
       measurementConsumerData,
       edpDisplayNameToResourceMap,
-      edpCapabilities,
+      listOf("edp1", "edp2"),
       duchyMap,
     )
     initMcSimulator()
@@ -231,7 +223,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
       mcSimulator.testReachOnly(
         "1234",
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+        ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
       )
     }
 
@@ -241,36 +233,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
       mcSimulator.testReachAndFrequency(
         "1234",
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
-      )
-    }
-
-  @Test
-  fun `create a TrusTee reach-only measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a TrusTee reach measurement and verify its result.
-      // TrusTee is enabled in tests and Kingdom selects TrusTee protocol
-      mcSimulator.testReachOnly(
-        "1234",
-        DataProviderKt.capabilities {
-          honestMajorityShareShuffleSupported = false
-          trusTeeSupported = true
-        },
-      )
-    }
-
-  @Test
-  fun `create a TrusTee RF measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a TrusTee reach and frequency measurement and verify its
-      // result.
-      // TrusTee is enabled in tests and Kingdom selects TrusTee protocol
-      mcSimulator.testReachAndFrequency(
-        "1234",
-        DataProviderKt.capabilities {
-          honestMajorityShareShuffleSupported = false
-          trusTeeSupported = true
-        },
+        ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
       )
     }
 
@@ -339,6 +302,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
             populationSpec = populationSpec,
             vidIndexMap = InMemoryVidIndexMap.build(populationSpec),
             eventDescriptor = TestEvent.getDescriptor(),
+            localAlias = null,
           )
       )
 

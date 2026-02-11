@@ -65,3 +65,20 @@ variable "uber_jar_path" {
   type        = string
   nullable    = false
 }
+
+variable "secrets_to_access" {
+  description = "List of secret IDs that the Cloud Function service account should have access to."
+  type        = list(string)
+  default     = []
+}
+
+variable "trigger_event_type" {
+  description = "The GCS event type that triggers the Cloud Function. Valid values are 'finalized' (object created/updated) or 'deleted' (object deleted)."
+  type        = string
+  nullable    = false
+
+  validation {
+    condition     = contains(["finalized", "deleted"], var.trigger_event_type)
+    error_message = "trigger_event_type must be either 'finalized' or 'deleted'."
+  }
+}

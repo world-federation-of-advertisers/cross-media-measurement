@@ -173,12 +173,18 @@ class StorageEventSourceTest {
   private fun createImpressionMetadataList(
     dates: List<LocalDate>,
     eventGroupRef: String,
+    bucket: String,
+    modelLine: String,
   ): List<ImpressionMetadata> {
     return dates.map { date ->
       impressionMetadata {
         state = ImpressionMetadata.State.ACTIVE
         blobUri =
-          "file:///meta-bucket/ds/$date/model-line/test-model-line/event-group-reference-id/$eventGroupRef/metadata"
+          "file:///$bucket/ds/$date/model-line/$modelLine/event-group-reference-id/$eventGroupRef/metadata"
+        interval = interval {
+          startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+          endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+        }
       }
     }
   }
@@ -417,7 +423,8 @@ class StorageEventSourceTest {
 
       val dates =
         listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2), LocalDate.of(2025, 1, 3))
-      val impressionMetadataList = createImpressionMetadataList(dates, eventGroupRef)
+      val impressionMetadataList =
+        createImpressionMetadataList(dates, eventGroupRef, "meta-bucket", modelLine)
 
       whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
         .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
@@ -507,7 +514,8 @@ class StorageEventSourceTest {
     }
 
     val dates = listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2), LocalDate.of(2025, 1, 3))
-    val impressionMetadataList = createImpressionMetadataList(dates, eventGroupRef)
+    val impressionMetadataList =
+      createImpressionMetadataList(dates, eventGroupRef, "meta-bucket", modelLine)
 
     whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
       .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
@@ -569,7 +577,8 @@ class StorageEventSourceTest {
     val metadataFs = FileSystemStorageClient(metadataBucketDir)
 
     val dates = listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2), LocalDate.of(2025, 1, 3))
-    val impressionMetadataList = createImpressionMetadataList(dates, eventGroupRef)
+    val impressionMetadataList =
+      createImpressionMetadataList(dates, eventGroupRef, "meta-bucket", modelLine)
 
     whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
       .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
@@ -626,7 +635,9 @@ class StorageEventSourceTest {
     val groups = listOf("group-1", "group-2")
 
     val impressionMetadataList =
-      groups.flatMap { group -> createImpressionMetadataList(dates, group) }
+      groups.flatMap { group ->
+        createImpressionMetadataList(dates, group, "meta-bucket", modelLine)
+      }
 
     whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
       .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
@@ -696,7 +707,8 @@ class StorageEventSourceTest {
 
     val dates = start.datesUntil(end.plusDays(1)).toList()
 
-    val impressionMetadataList = createImpressionMetadataList(dates, eventGroupRef)
+    val impressionMetadataList =
+      createImpressionMetadataList(dates, eventGroupRef, "meta-bucket", modelLine)
 
     whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
       .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
@@ -738,6 +750,163 @@ class StorageEventSourceTest {
 
     assertThat(batches).hasSize(90) // Jan 1 - Mar 31 = 90 days = 90 batches
     assertThat(batches.all { it.events.size == 5 }).isTrue() // Each batch has 5 events
+  }
+
+  /** Helper function to write metadata with a specific KEK URI for validation testing. */
+  private suspend fun writeMetadataWithKekUri(
+    metadataTmpPath: File,
+    date: LocalDate,
+    eventGroupRef: String,
+    kekUri: String,
+    modelLine: String,
+  ) {
+    val metadataBucketDir = File(metadataTmpPath, "meta-bucket")
+    metadataBucketDir.mkdirs()
+    val metadataFs = FileSystemStorageClient(metadataBucketDir)
+
+    val key = "ds/$date/model-line/$modelLine/event-group-reference-id/$eventGroupRef/metadata"
+    val blobDetailsBytes =
+      blobDetails {
+          blobUri = "file:///impressions/$date/$eventGroupRef"
+          encryptedDek = encryptedDek {
+            this.kekUri = kekUri
+            typeUrl = "type.googleapis.com/google.crypto.tink.Keyset"
+            protobufFormat = EncryptedDek.ProtobufFormat.BINARY
+            ciphertext = ByteString.copyFromUtf8("fake-ciphertext")
+          }
+          eventGroupReferenceId = eventGroupRef
+          this.modelLine = modelLine
+          interval = interval {
+            startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+            endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+          }
+        }
+        .toByteString()
+    metadataFs.writeBlob(key, blobDetailsBytes)
+  }
+
+  @Test
+  fun `getKekUri fails when blobs have different GCP project IDs`(): Unit = runBlocking {
+    val metadataTmpPath = tmp.root
+    val eventGroupRef = "event-group-1"
+
+    // Create two KEK URIs with different GCP project IDs
+    val kekUri1 = "gcp-kms://projects/project-a/locations/us-east1/keyRings/ring/cryptoKeys/key"
+    val kekUri2 = "gcp-kms://projects/project-b/locations/us-east1/keyRings/ring/cryptoKeys/key"
+
+    val dates = listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2))
+    val impressionMetadataList =
+      createImpressionMetadataList(dates, eventGroupRef, "meta-bucket", modelLine)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    // Create metadata with different project IDs for each date
+    writeMetadataWithKekUri(metadataTmpPath, dates[0], eventGroupRef, kekUri1, modelLine)
+    writeMetadataWithKekUri(metadataTmpPath, dates[1], eventGroupRef, kekUri2, modelLine)
+
+    val eventGroupDetails =
+      createEventGroupDetails(
+        eventGroupRef,
+        LocalDate.of(2025, 1, 1),
+        LocalDate.of(2025, 1, 3),
+        ZoneId.of("UTC"),
+      )
+
+    val impressionService = createImpressionDataSourceProvider(metadataTmpPath)
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = impressionService,
+        eventGroupDetailsList = listOf(eventGroupDetails),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    // getKekUri should fail because blobs have different project IDs
+    val exception = assertFailsWith<IllegalArgumentException> { eventSource.getKekUri() }
+    assertThat(exception.message)
+      .contains("All KEK URIs must have the same project ID and location")
+  }
+
+  @Test
+  fun `getKekUri returns null when no impression data sources available`(): Unit = runBlocking {
+    // Return empty impression metadata list - no data sources available
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(ListImpressionMetadataResponse.getDefaultInstance())
+
+    val eventGroupDetails =
+      createEventGroupDetails(
+        "event-group-1",
+        LocalDate.of(2025, 1, 1),
+        LocalDate.of(2025, 1, 3),
+        ZoneId.of("UTC"),
+      )
+
+    val impressionService = createImpressionDataSourceProvider(tmp.root)
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = impressionService,
+        eventGroupDetailsList = listOf(eventGroupDetails),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    // getKekUri should return null when no data sources are available
+    assertThat(eventSource.getKekUri()).isNull()
+  }
+
+  @Test
+  fun `getKekUri returns KEK URI from most recent data source`(): Unit = runBlocking {
+    val metadataTmpPath = tmp.root
+    val eventGroupRef = "event-group-1"
+
+    // Create KEK URIs with same project ID and location
+    val kekUri1 = "gcp-kms://projects/my-project/locations/us-east1/keyRings/ring/cryptoKeys/key1"
+    val kekUri2 = "gcp-kms://projects/my-project/locations/us-east1/keyRings/ring/cryptoKeys/key2"
+
+    val dates = listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2))
+    val impressionMetadataList =
+      createImpressionMetadataList(dates, eventGroupRef, "meta-bucket", modelLine)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    // Create metadata with same project ID for each date
+    writeMetadataWithKekUri(metadataTmpPath, dates[0], eventGroupRef, kekUri1, modelLine)
+    writeMetadataWithKekUri(metadataTmpPath, dates[1], eventGroupRef, kekUri2, modelLine)
+
+    val eventGroupDetails =
+      createEventGroupDetails(
+        eventGroupRef,
+        LocalDate.of(2025, 1, 1),
+        LocalDate.of(2025, 1, 3),
+        ZoneId.of("UTC"),
+      )
+
+    val impressionService = createImpressionDataSourceProvider(metadataTmpPath)
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = impressionService,
+        eventGroupDetailsList = listOf(eventGroupDetails),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    // getKekUri should return the KEK URI from the most recent data source (sorted by interval end
+    // time)
+    val result = eventSource.getKekUri()
+    assertThat(result).isNotNull()
+    assertThat(result)
+      .isEqualTo("gcp-kms://projects/my-project/locations/us-east1/keyRings/ring/cryptoKeys/key2")
   }
 
   companion object {

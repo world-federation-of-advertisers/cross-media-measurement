@@ -148,7 +148,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
@@ -301,12 +303,13 @@ class ResultsFulfillerTest {
   private fun createImpressionMetadataList(
     dates: List<LocalDate>,
     eventGroupRef: String,
+    modelLine: String = "some-model-line",
   ): List<ImpressionMetadata> {
     return dates.map { date ->
       impressionMetadata {
         state = ImpressionMetadata.State.ACTIVE
         blobUri =
-          "file:///$IMPRESSIONS_METADATA_BUCKET/ds/$date/model-line/some-model-line/event-group-reference-id/$eventGroupRef/metadata"
+          "file:///$IMPRESSIONS_METADATA_BUCKET/ds/$date/model-line/$modelLine/event-group-reference-id/$eventGroupRef/metadata"
       }
     }
   }
@@ -445,6 +448,108 @@ class ResultsFulfillerTest {
       startProcessingRequisitionMetadata(any())
     }
     verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
+  }
+
+  @Test
+  fun `runWork uses mapped model line when provided`() = runBlocking {
+    val mappedModelLine = "mapped-model-line"
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+    val impressions =
+      List(130) {
+        LABELED_IMPRESSION.copy {
+          vid = it.toLong() + 1
+          eventTime = TIME_RANGE.start.toProtoTime()
+        }
+      }
+
+    val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
+
+    val impressionMetadataList =
+      createImpressionMetadataList(dates, EVENT_GROUP_NAME, mappedModelLine)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some-prefix"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
+        }
+      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+
+    // Set up KMS
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    createData(
+      kmsClient,
+      kekUri,
+      impressionsTmpPath,
+      metadataTmpPath,
+      requisitionsTmpPath,
+      impressions,
+      listOf(DIRECT_RNF_REQUISITION),
+      modelLine = mappedModelLine,
+    )
+    val impressionsMetadataService =
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = "dataProviders/123",
+        impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+      )
+
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        kAnonymityParams = null,
+        overrideImpressionMaxFrequencyPerUser = null,
+      )
+
+    // Load grouped requisitions from storage
+    val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+
+    val resultsFulfiller =
+      ResultsFulfiller(
+        dataProvider = EDP_NAME,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionMetadataStub = requisitionMetadataStub,
+        requisitionsStub = requisitionsStub,
+        groupedRequisitions = groupedRequisitions,
+        modelLineInfoMap =
+          mapOf("some-model-line" to MODEL_LINE_INFO.copy(localAlias = mappedModelLine)),
+        pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+        impressionDataSourceProvider = impressionsMetadataService,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
+      )
+
+    resultsFulfiller.fulfillRequisitions()
+
+    val request: ListImpressionMetadataRequest =
+      verifyAndCapture(
+        impressionMetadataServiceMock,
+        ImpressionMetadataServiceCoroutineImplBase::listImpressionMetadata,
+      )
+    assertThat(request.filter.modelLine).isEqualTo(mappedModelLine)
   }
 
   @Test
@@ -661,8 +766,8 @@ class ResultsFulfillerTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-          ),
-        kekUriToKeyNameMap = emptyMap(),
+            ),
+          kekUriToKeyNameMap = emptyMap(),
         )
 
       // Load grouped requisitions from storage
@@ -802,8 +907,8 @@ class ResultsFulfillerTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-          ),
-        kekUriToKeyNameMap = emptyMap(),
+            ),
+          kekUriToKeyNameMap = emptyMap(),
         )
 
       // Load grouped requisitions from storage
@@ -931,8 +1036,8 @@ class ResultsFulfillerTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-          ),
-        kekUriToKeyNameMap = emptyMap(),
+            ),
+          kekUriToKeyNameMap = emptyMap(),
         )
 
       // Load grouped requisitions from storage
@@ -1476,8 +1581,8 @@ class ResultsFulfillerTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-          ),
-        kekUriToKeyNameMap = emptyMap(),
+            ),
+          kekUriToKeyNameMap = emptyMap(),
         )
 
       // Load grouped requisitions from storage
@@ -1599,8 +1704,8 @@ class ResultsFulfillerTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-          ),
-        kekUriToKeyNameMap = emptyMap(),
+            ),
+          kekUriToKeyNameMap = emptyMap(),
         )
 
       // Load grouped requisitions from storage
@@ -2061,73 +2166,123 @@ class ResultsFulfillerTest {
   }
 
   @Test
-  fun `remapKekUri correctly remaps key name with valid kekUriToKeyNameMap`() = runBlocking {
-    val kmsClient = FakeKmsClient()
-    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "original-key"
-    val mappedKeyName = "remapped-key"
-    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+  fun `runWork fulfills TrusTee requisition with unencrypted empty frequency vector when no impression data sources available`() =
+    runBlocking {
+      val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+      val metadataTmpPath = Files.createTempDirectory(null).toFile()
+      val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
 
-    // Map a GCP KMS-style URI to test the remapping logic
-    val gcpKekUri = "gcp-kms://projects/test-project/locations/us-east1/keyRings/test-ring/cryptoKeys/original-key"
-    val kekUriToKeyNameMap = mapOf(gcpKekUri to mappedKeyName)
+      // Empty impressions - no data sources available
+      val impressions = emptyList<LabeledImpression>()
 
-    val fulfillerSelector =
-      DefaultFulfillerSelector(
-        requisitionsStub = requisitionsStub,
-        requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
-        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
-        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
-        noiserSelector = ContinuousGaussianNoiseSelector(),
-        kAnonymityParams = null,
-        overrideImpressionMaxFrequencyPerUser = null,
-        trusTeeConfig =
-          TrusTeeConfig(
-            kmsClient = kmsClient,
-            workloadIdentityProvider = "test-wip",
-            impersonatedServiceAccount = "test-sa@example.com",
-          ),
-        kekUriToKeyNameMap = kekUriToKeyNameMap,
+      // Return empty impression metadata list - no data sources
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse {})
+      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+        .thenReturn(
+          listRequisitionMetadataResponse {
+            requisitionMetadata += requisitionMetadata {
+              state = RequisitionMetadata.State.STORED
+              cmmsCreateTime = timestamp { seconds = 12345 }
+              cmmsRequisition = REQUISITION_NAME
+              blobUri = "some-prefix"
+              blobTypeUrl = "some-blob-type-url"
+              groupId = "an-existing-group-id"
+              report = "report-name"
+            }
+          }
+        )
+      whenever(requisitionsServiceMock.getRequisition(any()))
+        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+
+      // Set up KMS
+      val kmsClient = FakeKmsClient()
+      val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+      val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+      kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+      createData(
+        kmsClient,
+        kekUri,
+        impressionsTmpPath,
+        metadataTmpPath,
+        requisitionsTmpPath,
+        impressions,
+        listOf(TRUSTEE_REQUISITION),
       )
 
-    // Verify the fulfillerSelector is created successfully with valid kekUriToKeyNameMap
-    assertThat(fulfillerSelector).isNotNull()
-  }
+      val impressionsMetadataService =
+        ImpressionDataSourceProvider(
+          impressionMetadataStub = impressionMetadataStub,
+          dataProvider = "dataProviders/123",
+          impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+        )
 
-  @Test
-  fun `DefaultFulfillerSelector throws exception with invalid key name in kekUriToKeyNameMap`() = runBlocking {
-    val kmsClient = FakeKmsClient()
-    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "original-key"
-    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+      // TrusTeeConfig is provided but kekUri will be null (no data sources from empty impression
+      // metadata)
+      val fulfillerSelector =
+        DefaultFulfillerSelector(
+          requisitionsStub = requisitionsStub,
+          requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
+          dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+          dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+          noiserSelector = ContinuousGaussianNoiseSelector(),
+          kAnonymityParams = null,
+          overrideImpressionMaxFrequencyPerUser = null,
+          trusTeeConfig =
+            TrusTeeConfig(
+              kmsClient = kmsClient,
+              workloadIdentityProvider = "test-wip",
+              impersonatedServiceAccount = "test-sa@example.com",
+            ),
+          kekUriToKeyNameMap = emptyMap(),
+        )
 
-    // Map a GCP KMS-style URI with an invalid key name (contains slashes)
-    val gcpKekUri = "gcp-kms://projects/test-project/locations/us-east1/keyRings/test-ring/cryptoKeys/original-key"
-    val invalidKeyName = "invalid/key/name" // Contains slashes which are not allowed
-    val kekUriToKeyNameMap = mapOf(gcpKekUri to invalidKeyName)
+      // Load grouped requisitions from storage
+      val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+      val resultsFulfiller =
+        ResultsFulfiller(
+          dataProvider = EDP_NAME,
+          privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+          requisitionMetadataStub = requisitionMetadataStub,
+          requisitionsStub = requisitionsStub,
+          groupedRequisitions = groupedRequisitions,
+          modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+          pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+          impressionDataSourceProvider = impressionsMetadataService,
+          impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+          kmsClient = kmsClient,
+          fulfillerSelector = fulfillerSelector,
+          metrics = metrics,
+        )
 
-    // Validation happens at construction time
-    val exception = assertFailsWith<IllegalArgumentException> {
-      DefaultFulfillerSelector(
-        requisitionsStub = requisitionsStub,
-        requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
-        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
-        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
-        noiserSelector = ContinuousGaussianNoiseSelector(),
-        kAnonymityParams = null,
-        overrideImpressionMaxFrequencyPerUser = null,
-        trusTeeConfig =
-          TrusTeeConfig(
-            kmsClient = kmsClient,
-            workloadIdentityProvider = "test-wip",
-            impersonatedServiceAccount = "test-sa@example.com",
-          ),
-        kekUriToKeyNameMap = kekUriToKeyNameMap,
-      )
+      resultsFulfiller.fulfillRequisitions()
+
+      val fulfilledRequisitions =
+        requisitionFulfillmentMock.fullfillRequisitionInvocations.single().requests
+      assertThat(fulfilledRequisitions).hasSize(2)
+
+      // Verify the header
+      val header = fulfilledRequisitions[0].header
+      assertThat(header.name).isEqualTo(TRUSTEE_REQUISITION.name)
+      assertThat(header.nonce).isEqualTo(REQUISITION_SPEC.nonce)
+      assertThat(header.hasTrusTee()).isTrue()
+
+      // Verify unencrypted empty frequency vector
+      val trusTeeHeader = header.trusTee
+      assertThat(trusTeeHeader.dataFormat)
+        .isEqualTo(FulfillRequisitionRequest.Header.TrusTee.DataFormat.FREQUENCY_VECTOR)
+      assertThat(trusTeeHeader.hasEnvelopeEncryption()).isFalse()
+
+      // Verify body contains empty frequency vector (all zeros) matching population size
+      val body = fulfilledRequisitions[1].bodyChunk.data
+      assertThat(body.size()).isEqualTo(1000) // POPULATION_SPEC VID range
+      assertThat(body.toByteArray().all { it == 0.toByte() }).isTrue()
+
+      verifyBlocking(requisitionMetadataServiceMock, times(1)) {
+        startProcessingRequisitionMetadata(any())
+      }
+      verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
     }
-    assertThat(exception.message).contains("Invalid key name format")
-    assertThat(exception.message).contains(invalidKeyName)
-  }
 
   private suspend fun createData(
     kmsClient: KmsClient,
@@ -2137,6 +2292,7 @@ class ResultsFulfillerTest {
     requisitionsTmpPath: File,
     allImpressions: List<LabeledImpression>,
     requisitions: List<Requisition>,
+    modelLine: String = "some-model-line",
   ) {
     // Create requisitions storage client
     Files.createDirectories(requisitionsTmpPath.resolve(REQUISITIONS_BUCKET).toPath())
@@ -2204,7 +2360,7 @@ class ResultsFulfillerTest {
 
     for (date in dates) {
       val impressionMetadataBlobKey =
-        "ds/$date/model-line/some-model-line/event-group-reference-id/$EVENT_GROUP_NAME/metadata"
+        "ds/$date/model-line/$modelLine/event-group-reference-id/$EVENT_GROUP_NAME/metadata"
       val impressionsMetadataFileUri =
         "file:///$IMPRESSIONS_METADATA_BUCKET/$impressionMetadataBlobKey"
 
@@ -2319,6 +2475,82 @@ class ResultsFulfillerTest {
         ?: throw Exception("Requisitions blob not found")
     return Any.parseFrom(requisitionBytes)
       .unpack(org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions::class.java)
+  }
+
+  @Test
+  fun `TrusTeeConfig buildEncryptionParams remaps KEK URI when found in map`() {
+    val kmsClient = FakeKmsClient()
+    val trusTeeConfig =
+      TrusTeeConfig(
+        kmsClient = kmsClient,
+        workloadIdentityProvider = "test-wip",
+        impersonatedServiceAccount = "test-sa@example.com",
+      )
+
+    val inputKekUri =
+      "gcp-kms://projects/my-project/locations/us-east1/keyRings/my-ring/cryptoKeys/input-key"
+    val kekUriToKeyNameMap = mapOf(inputKekUri to "output-key")
+
+    val params = trusTeeConfig.buildEncryptionParams(inputKekUri, kekUriToKeyNameMap)
+
+    assertThat(params.kmsKekUri)
+      .isEqualTo(
+        "gcp-kms://projects/my-project/locations/us-east1/keyRings/my-ring/cryptoKeys/output-key"
+      )
+  }
+
+  @Test
+  fun `TrusTeeConfig buildEncryptionParams uses original URI when not in map`() {
+    val kmsClient = FakeKmsClient()
+    val trusTeeConfig =
+      TrusTeeConfig(
+        kmsClient = kmsClient,
+        workloadIdentityProvider = "test-wip",
+        impersonatedServiceAccount = "test-sa@example.com",
+      )
+
+    val inputKekUri =
+      "gcp-kms://projects/my-project/locations/us-east1/keyRings/my-ring/cryptoKeys/original-key"
+    val kekUriToKeyNameMap = mapOf("other-uri" to "other-key")
+
+    val params = trusTeeConfig.buildEncryptionParams(inputKekUri, kekUriToKeyNameMap)
+
+    assertThat(params.kmsKekUri).isEqualTo(inputKekUri)
+  }
+
+  @Test
+  fun `DefaultFulfillerSelector rejects invalid key name with special characters`() {
+    assertFailsWith<IllegalArgumentException> {
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = emptyMap(),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = NoNoiserSelector(),
+        kAnonymityParams = null,
+        overrideImpressionMaxFrequencyPerUser = null,
+        kekUriToKeyNameMap = mapOf("uri" to "invalid/key/name"),
+      )
+    }
+  }
+
+  @Test
+  fun `DefaultFulfillerSelector rejects key name exceeding 63 characters`() {
+    // GCP Cloud KMS key names must be 1-63 characters: [a-zA-Z0-9_-]{1,63}
+    val longKeyName = "a".repeat(64)
+
+    assertFailsWith<IllegalArgumentException> {
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = emptyMap(),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = NoNoiserSelector(),
+        kAnonymityParams = null,
+        overrideImpressionMaxFrequencyPerUser = null,
+        kekUriToKeyNameMap = mapOf("uri" to longKeyName),
+      )
+    }
   }
 
   init {
@@ -2671,6 +2903,7 @@ class ResultsFulfillerTest {
         eventDescriptor = TestEvent.getDescriptor(),
         populationSpec = POPULATION_SPEC,
         vidIndexMap = InMemoryVidIndexMap.build(POPULATION_SPEC),
+        localAlias = null,
       )
   }
 }

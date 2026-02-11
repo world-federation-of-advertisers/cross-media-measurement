@@ -18,11 +18,14 @@ package org.wfanet.measurement.integration.common.reporting.v2
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.type.Date
 import com.google.type.copy
+import com.google.type.date
 import com.google.type.interval
 import java.security.cert.X509Certificate
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import kotlin.collections.map
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -48,22 +51,29 @@ import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpc as CmmsEventGroupActivitiesGrpc
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt as CmmsEventGroupMetadataKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpc as CmmsEventGroupsGrpc
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
+import org.wfanet.measurement.api.v2alpha.batchDeleteEventGroupActivitiesRequest
+import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.deleteEventGroupActivityRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
+import org.wfanet.measurement.api.v2alpha.eventGroupActivity
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as cmmsEventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.updateEventGroupActivityRequest
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.TrustedPrincipalCallCredentials
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.keyPair
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.principalKeyPairs
@@ -81,11 +91,14 @@ import org.wfanet.measurement.kingdom.deploy.common.service.DataServices as King
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services as ReportingInternalServices
+import org.wfanet.measurement.reporting.v2alpha.EventGroup
+import org.wfanet.measurement.reporting.v2alpha.EventGroupKt
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpc
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.reporting.v2alpha.MediaType
+import org.wfanet.measurement.reporting.v2alpha.dateInterval
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 
 @RunWith(JUnit4::class)
@@ -201,6 +214,10 @@ abstract class InProcessEventGroupsTest(
       reportingRule,
     )
 
+  private val cmmsEventGroupActivitiesStub:
+    CmmsEventGroupActivitiesGrpc.EventGroupActivitiesBlockingStub by lazy {
+    CmmsEventGroupActivitiesGrpc.newBlockingStub(kingdom.publicApiChannel)
+  }
   private val cmmsEventGroupsStub: CmmsEventGroupsGrpc.EventGroupsBlockingStub by lazy {
     CmmsEventGroupsGrpc.newBlockingStub(kingdom.publicApiChannel)
   }
@@ -261,7 +278,7 @@ abstract class InProcessEventGroupsTest(
   }
 
   @Test
-  fun `listEventGroups returns filtered EventGroups in order`() {
+  fun `listEventGroups returns filtered EventGroups in order`() = runBlocking {
     val now = Instant.now()
     val cmmsEventGroups: List<CmmsEventGroup> = populateTestEventGroups(now)
 
@@ -303,12 +320,202 @@ abstract class InProcessEventGroupsTest(
                 ))
           }
           .sortedByDescending { it.dataAvailabilityInterval.startTime.toInstant() }
-          .map {
-            val cmmsEventGroupKey = CmmsEventGroupKey.fromName(it.name)!!
-            "${reportingRule.measurementConsumerName}/eventGroups/${cmmsEventGroupKey.eventGroupId}"
-          }
+          .map { toReportingEventGroupName(it.name) }
       )
       .inOrder()
+  }
+
+  @Test
+  fun `listEventGroups with BASIC view returns filtered EventGroups without aggregated activity`():
+    Unit = runBlocking {
+    val now = Instant.now()
+    val (eventGroupWithSameInterval, eventGroupWithContainingInterval, _, _) =
+      populateTestEventGroups(now)
+
+    val response: ListEventGroupsResponse =
+      eventGroupsStub
+        .withCallCredentials(callCredentials)
+        .listEventGroups(
+          listEventGroupsRequest {
+            parent = reportingRule.measurementConsumerName
+            view = EventGroup.View.BASIC
+            structuredFilter =
+              ListEventGroupsRequestKt.filter {
+                activityContains = dateInterval {
+                  startDate = DATE_1
+                  endDate = DATE_3
+                }
+              }
+          }
+        )
+
+    assertThat(response.eventGroupsList.map { it.name })
+      .containsExactlyElementsIn(
+        listOf(eventGroupWithSameInterval, eventGroupWithContainingInterval).map {
+          toReportingEventGroupName(it.name)
+        }
+      )
+    assertThat(response.eventGroupsList.flatMap { it.aggregatedActivitiesList }).isEmpty()
+  }
+
+  @Test
+  fun `listEventGroups with BASIC view returns filtered updated EventGroups after activity deletion`():
+    Unit = runBlocking {
+    val now = Instant.now()
+    val (eventGroupWithSameInterval, eventGroupWithContainingInterval, _, _) =
+      populateTestEventGroups(now)
+
+    val dataProvider1Credentials = TrustedPrincipalCallCredentials(reportingRule.dataProvider1Name)
+    cmmsEventGroupActivitiesStub
+      .withCallCredentials(dataProvider1Credentials)
+      .deleteEventGroupActivity(
+        deleteEventGroupActivityRequest {
+          name = "${eventGroupWithSameInterval.name}/eventGroupActivities/${DATE_1.toLocalDate()}"
+        }
+      )
+
+    val response: ListEventGroupsResponse =
+      eventGroupsStub
+        .withCallCredentials(callCredentials)
+        .listEventGroups(
+          listEventGroupsRequest {
+            parent = reportingRule.measurementConsumerName
+            view = EventGroup.View.BASIC
+            structuredFilter =
+              ListEventGroupsRequestKt.filter {
+                activityContains = dateInterval {
+                  startDate = DATE_1
+                  endDate = DATE_3
+                }
+              }
+          }
+        )
+
+    assertThat(response.eventGroupsList.map { it.name })
+      .containsExactlyElementsIn(
+        listOf(eventGroupWithContainingInterval).map { toReportingEventGroupName(it.name) }
+      )
+    assertThat(response.eventGroupsList[0].aggregatedActivitiesList).isEmpty()
+  }
+
+  @Test
+  fun `listEventGroups with WITH_SUMMARY view returns filtered EventGroups with updated aggregated activity`():
+    Unit = runBlocking {
+    val now = Instant.now()
+    val (eventGroupWithSameInterval, eventGroupWithContainingInterval, _, _) =
+      populateTestEventGroups(now)
+
+    val dataProvider1Credentials = TrustedPrincipalCallCredentials(reportingRule.dataProvider1Name)
+    cmmsEventGroupActivitiesStub
+      .withCallCredentials(dataProvider1Credentials)
+      .deleteEventGroupActivity(
+        deleteEventGroupActivityRequest {
+          name = "${eventGroupWithSameInterval.name}/eventGroupActivities/${DATE_1.toLocalDate()}"
+        }
+      )
+
+    val response: ListEventGroupsResponse =
+      eventGroupsStub
+        .withCallCredentials(callCredentials)
+        .listEventGroups(
+          listEventGroupsRequest {
+            parent = reportingRule.measurementConsumerName
+            view = EventGroup.View.WITH_ACTIVITY_SUMMARY
+            structuredFilter =
+              ListEventGroupsRequestKt.filter {
+                activityContains = dateInterval {
+                  startDate = DATE_1
+                  endDate = DATE_3
+                }
+              }
+          }
+        )
+
+    assertThat(response.eventGroupsList.map { it.name })
+      .containsExactlyElementsIn(
+        listOf(eventGroupWithContainingInterval).map { toReportingEventGroupName(it.name) }
+      )
+
+    assertThat(response.eventGroupsList.map { it.aggregatedActivitiesList })
+      .containsExactlyElementsIn(
+        listOf(
+          listOf(
+            EventGroupKt.aggregatedActivity {
+              interval = dateInterval {
+                startDate = DATE_0
+                endDate = DATE_4
+              }
+            }
+          )
+        )
+      )
+  }
+
+  @Test
+  fun `listEventGroups with WITH_SUMMARY view returns filtered EventGroups with updated aggregated activity after activity deletion`():
+    Unit = runBlocking {
+    val now = Instant.now()
+    val (eventGroupWithSameInterval, eventGroupWithContainingInterval, _, _) =
+      populateTestEventGroups(now)
+
+    val dataProvider2Credentials = TrustedPrincipalCallCredentials(reportingRule.dataProvider2Name)
+    cmmsEventGroupActivitiesStub
+      .withCallCredentials(dataProvider2Credentials)
+      .batchDeleteEventGroupActivities(
+        batchDeleteEventGroupActivitiesRequest {
+          parent = eventGroupWithContainingInterval.name
+          names +=
+            "${eventGroupWithContainingInterval.name}/eventGroupActivities/${DATE_0.toLocalDate()}"
+          names +=
+            "${eventGroupWithContainingInterval.name}/eventGroupActivities/${DATE_4.toLocalDate()}"
+        }
+      )
+
+    val response: ListEventGroupsResponse =
+      eventGroupsStub
+        .withCallCredentials(callCredentials)
+        .listEventGroups(
+          listEventGroupsRequest {
+            parent = reportingRule.measurementConsumerName
+            view = EventGroup.View.WITH_ACTIVITY_SUMMARY
+            structuredFilter =
+              ListEventGroupsRequestKt.filter {
+                activityContains = dateInterval {
+                  startDate = DATE_1
+                  endDate = DATE_3
+                }
+              }
+          }
+        )
+
+    assertThat(response.eventGroupsList.map { it.name })
+      .containsExactlyElementsIn(
+        listOf(eventGroupWithSameInterval, eventGroupWithContainingInterval).map {
+          toReportingEventGroupName(it.name)
+        }
+      )
+
+    assertThat(response.eventGroupsList.map { it.aggregatedActivitiesList })
+      .containsExactlyElementsIn(
+        listOf(
+          listOf(
+            EventGroupKt.aggregatedActivity {
+              interval = dateInterval {
+                startDate = DATE_1
+                endDate = DATE_3
+              }
+            }
+          ),
+          listOf(
+            EventGroupKt.aggregatedActivity {
+              interval = dateInterval {
+                startDate = DATE_1
+                endDate = DATE_3
+              }
+            }
+          ),
+        )
+      )
   }
 
   private fun populateTestEventGroups(now: Instant): List<CmmsEventGroup> {
@@ -342,6 +549,8 @@ abstract class InProcessEventGroupsTest(
           }
         )
 
+    createActivities(eventGroup1.name, listOf(DATE_1, DATE_2, DATE_3), dataProvider1Credentials)
+
     val eventGroup2 =
       cmmsEventGroupsStub
         .withCallCredentials(dataProvider2Credentials)
@@ -360,6 +569,11 @@ abstract class InProcessEventGroupsTest(
               }
           }
         )
+    createActivities(
+      eventGroup2.name,
+      listOf(DATE_0, DATE_1, DATE_2, DATE_3, DATE_4),
+      dataProvider2Credentials,
+    )
 
     val eventGroup3 =
       cmmsEventGroupsStub
@@ -385,6 +599,7 @@ abstract class InProcessEventGroupsTest(
               }
           }
         )
+    createActivities(eventGroup3.name, listOf(DATE_1, DATE_2), dataProvider1Credentials)
 
     val eventGroup4 =
       cmmsEventGroupsStub
@@ -413,8 +628,38 @@ abstract class InProcessEventGroupsTest(
               }
           }
         )
+    createActivities(eventGroup4.name, listOf(DATE_2, DATE_3), dataProvider1Credentials)
 
     return listOf(eventGroup1, eventGroup2, eventGroup3, eventGroup4)
+  }
+
+  private fun createActivities(
+    eventGroupName: String,
+    dates: List<Date>,
+    credentials: TrustedPrincipalCallCredentials,
+  ) {
+    cmmsEventGroupActivitiesStub
+      .withCallCredentials(credentials)
+      .batchUpdateEventGroupActivities(
+        batchUpdateEventGroupActivitiesRequest {
+          parent = eventGroupName
+          requests +=
+            dates.map { date ->
+              updateEventGroupActivityRequest {
+                eventGroupActivity = eventGroupActivity {
+                  name = "$eventGroupName/eventGroupActivities/${date.toLocalDate()}"
+                  this.date = date
+                }
+                allowMissing = true
+              }
+            }
+        }
+      )
+  }
+
+  private fun toReportingEventGroupName(cmmsEventGroupName: String): String {
+    val cmmsEventGroupKey = CmmsEventGroupKey.fromName(cmmsEventGroupName)!!
+    return "${reportingRule.measurementConsumerName}/eventGroups/${cmmsEventGroupKey.eventGroupId}"
   }
 
   companion object {
@@ -426,6 +671,32 @@ abstract class InProcessEventGroupsTest(
     private val EDP2_ENTITY_CONTENT = createEntityContent("edp2")
     private val TRUSTED_CERTIFICATES: Map<ByteString, X509Certificate> =
       loadTestCertCollection("all_root_certs.pem").associateBy { it.subjectKeyIdentifier!! }
+
+    private val DATE_0 = date {
+      year = 2022
+      month = 12
+      day = 31
+    }
+    private val DATE_1 = date {
+      year = 2023
+      month = 1
+      day = 1
+    }
+    private val DATE_2 = date {
+      year = 2023
+      month = 1
+      day = 2
+    }
+    private val DATE_3 = date {
+      year = 2023
+      month = 1
+      day = 3
+    }
+    private val DATE_4 = date {
+      year = 2023
+      month = 1
+      day = 4
+    }
 
     init {
       DuchyIds.setForTest(emptyList())

@@ -349,6 +349,10 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
       )
     }
 
+    if (filter.blobUriPrefix.isNotEmpty()) {
+      conjuncts.add("STARTS_WITH(BlobUri, @blobUriPrefix)")
+    }
+
     if (after != null) {
       conjuncts.add("ImpressionMetadataResourceId > @afterImpressionMetadataResourceId")
     }
@@ -380,6 +384,10 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
         bind("intervalOverlapsEndTime").to(filter.intervalOverlaps.endTime.toGcloudTimestamp())
       }
 
+      if (filter.blobUriPrefix.isNotEmpty()) {
+        bind("blobUriPrefix").to(filter.blobUriPrefix)
+      }
+
       if (after != null) {
         bind("afterImpressionMetadataResourceId").to(after.impressionMetadataResourceId)
       }
@@ -391,8 +399,7 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
 }
 
 suspend fun AsyncDatabaseClient.ReadContext.readModelLinesBounds(
-  dataProviderResourceId: String,
-  cmmsModelLines: List<String>,
+  dataProviderResourceId: String
 ): List<ModelLineBoundResult> {
   val sql =
     """
@@ -405,7 +412,7 @@ suspend fun AsyncDatabaseClient.ReadContext.readModelLinesBounds(
         ImpressionMetadata
       WHERE
         DataProviderResourceId = @dataProviderResourceId
-        AND CmmsModelLine IN UNNEST(@cmmsModelLines)
+        AND State = @state
       GROUP BY
         DataProviderResourceId,
         CmmsModelLine
@@ -414,7 +421,7 @@ suspend fun AsyncDatabaseClient.ReadContext.readModelLinesBounds(
   val query =
     statement(sql) {
       bind("dataProviderResourceId").to(dataProviderResourceId)
-      bind("cmmsModelLines").toStringArray(cmmsModelLines)
+      bind("state").to(State.IMPRESSION_METADATA_STATE_ACTIVE.number.toLong())
     }
   return executeQuery(query, Options.tag("action=readModelLinesBounds"))
     .map { row ->

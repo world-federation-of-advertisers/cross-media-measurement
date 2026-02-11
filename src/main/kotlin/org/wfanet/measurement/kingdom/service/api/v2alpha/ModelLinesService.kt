@@ -348,6 +348,8 @@ class ModelLinesService(
             ErrorCode.EXCHANGE_NOT_FOUND,
             ErrorCode.MODEL_SHARD_INVALID_ARGS,
             ErrorCode.POPULATION_NOT_FOUND,
+            ErrorCode.CLIENT_ACCOUNT_NOT_FOUND,
+            ErrorCode.CLIENT_ACCOUNT_ALREADY_EXISTS,
             ErrorCode.UNRECOGNIZED,
             null -> Status.INTERNAL.withCause(e).asRuntimeException()
           }

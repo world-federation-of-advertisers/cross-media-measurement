@@ -538,14 +538,14 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.14.0/MODULE.bazel": "1bfc0048abf7c87aba25d041caaf8f96e0252848d79de6b442cd56ace3189f2e",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.14.0/source.json": "abc2a96da0f5af0a85672811998798a55a8dce68083a470cfd341c68e06d2262",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.129.0/MODULE.bazel": "2bf570f12d4cd8b5d743bc3d619b7bd554f7f18d8179114c33a30f39abb7e447",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.133.0/MODULE.bazel": "6844862d1025b95c5b72036c5a746e10c7063599cae0fe50e9295d3f497a32ae",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.133.0/source.json": "96fbf7033ff2a2aeca833e3c62292c5b63ff9617eb6c3d658e638d0079a81bd4",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.135.0/MODULE.bazel": "16ca78b9e4ece97c888ba4aff47161da95a1d30e8cbf5f84014b03e6e0558f11",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.135.0/source.json": "feb16c32485a55cf4d3956708c8032e01f00b21fbe8966b561f5f0f2b0c0764e",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.23.0/MODULE.bazel": "5fde5a3f897ec6a39300666bc745cb309b4c12e74ce4fcddef6429e5e4a627a2",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.23.0/source.json": "3798af185e6c71cabea6550303035ea4ad325a6d53854ab056ee6c93acf03b89",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/crc32c/1.1.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.87.0/MODULE.bazel": "c678b3f46885c8dea8e0de6215dc3b935ff93d632eec5d603e0690ce61571398",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.88.0/MODULE.bazel": "5f9c9987a1befdfee9ee7b295e7d57bbfbb5fc4a9bf4903fa90d853c4196f43f",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.88.0/source.json": "c763499d68dacd8995edcdfda5c333dc68dedb7f4c02a58d44363b65ea760ae6",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.89.0/MODULE.bazel": "7ce4d2aa2c3f9f2b8cc7e9ee0dff3f92561641e5e9cb07216f17b30e246e217a",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.89.0/source.json": "c6efff2f5096b6283f7fd44d1773b97bd53f1cdfb140dab73d595d91c6394a7d",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/curl/8.4.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/curl/8.7.1/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/curl/8.8.0.bcr.3/MODULE.bazel": "not found",
@@ -1685,7 +1685,7 @@
     "@@cross-media-measurement-api~//build:non_module_deps.bzl%non_module_deps": {
       "general": {
         "bzlTransitiveDigest": "tARYNwoTv9sVEd2saAAd0hgtPkV9rwO2ltHTb2278qs=",
-        "usagesDigest": "DfzvVSrfHOPK8nwnAhSgT2FH82d1P904DxStPMzMs+8=",
+        "usagesDigest": "9UnwVEd0ex3tQwAOLmobDPxOsXdyjSrzzLnD2sG06aU=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -2353,7 +2353,7 @@
     "@@rules_oci~//oci:extensions.bzl%oci": {
       "general": {
         "bzlTransitiveDigest": "yyTvBSVukHEf+iGms4+jq+/Zy1xLOGnxYiCLJFatSUE=",
-        "usagesDigest": "EdbS7IH4yhkfKNqoLCEkVaYjM0ZF6R7lqrLQnmqdm8A=",
+        "usagesDigest": "yb06gCwdoSuZaAhsD2cUKrTfkJA256DzmFUMjb157Pk=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},

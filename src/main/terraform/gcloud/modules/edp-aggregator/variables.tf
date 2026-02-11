@@ -176,6 +176,14 @@ variable "data_watcher_config" {
   })
 }
 
+variable "data_watcher_delete_config" {
+  description = "An object containing the local path of the data watcher delete config file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+}
+
 variable "requisition_fetcher_config" {
   description = "An object containing the local path of the requisition fetcher config file and its destination path in Cloud Storage."
   type = object({
@@ -226,6 +234,18 @@ variable "data_watcher_trigger_service_account_name" {
   nullable    = false
 }
 
+variable "data_watcher_delete_service_account_name" {
+  description = "Name of the DataWatcherDelete service account."
+  type        = string
+  nullable    = false
+}
+
+variable "data_watcher_delete_trigger_service_account_name" {
+  description = "The name of the service account used to trigger the DataWatcherDelete Cloud Function."
+  type        = string
+  nullable    = false
+}
+
 variable "terraform_service_account" {
   description = "Service account used by terraform that needs to attach the MIG service account to the VM."
   type        = string
@@ -250,6 +270,12 @@ variable "data_availability_sync_service_account_name" {
   nullable    = false
 }
 
+variable "data_availability_cleanup_service_account_name" {
+  description = "Name of the DataAvailabilityCleanup service account."
+  type        = string
+  nullable    = false
+}
+
 variable "event_group_sync_function_name" {
   description = "Name of the EventGroupSync cloud function."
   type        = string
@@ -258,6 +284,12 @@ variable "event_group_sync_function_name" {
 
 variable "data_availability_sync_function_name" {
   description = "Name of the DataAvailabilitySync cloud function."
+  type        = string
+  nullable    = false
+}
+
+variable "data_availability_cleanup_function_name" {
+  description = "Name of the DataAvailabilityCleanup cloud function."
   type        = string
   nullable    = false
 }
@@ -373,3 +405,4 @@ variable "edp_aggregator_api_server_ip_address" {
   nullable    = true
   default     = null
 }
+

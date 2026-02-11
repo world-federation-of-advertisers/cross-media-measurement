@@ -10,6 +10,7 @@ kt_jvm_library(
     name = "writers",
     srcs = glob(["*.kt"]),
     deps = KINGDOM_INTERNAL_ENTITY_PROTOS + [
+        "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:duchy_ids",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:hmss_protocol_config",

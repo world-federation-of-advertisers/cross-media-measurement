@@ -35,7 +35,9 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
@@ -44,6 +46,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadat
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
+import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
@@ -81,19 +84,31 @@ import org.wfanet.measurement.storage.StorageClient
  * @property dataProviderName The resource name of the data provider, used as a parent identifier in
  *   gRPC requests.
  * @property throttler A throttling utility to regulate request flow to external services.
+ * @property impressionMetadataBatchSize Maximum number of impression metadata records per batch
+ *   request.
+ * @property modelLineMap Mapping from a source model line to additional model lines that should
+ *   receive the same availability interval updates.
+ * @property metrics Metrics recorder for telemetry.
  */
 class DataAvailabilitySync(
   private val edpImpressionPath: String,
-  private val storageClient: StorageClient,
+  private val storageClient: BlobMetadataStorageClient,
   private val dataProvidersStub: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   private val impressionMetadataServiceStub:
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub,
   private val dataProviderName: String,
   private val throttler: Throttler,
   private val impressionMetadataBatchSize: Int,
+  private val modelLineMap: Map<String, List<String>>,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
 ) {
   private val validImpressionPathRegex: Regex = Regex("^$edpImpressionPath/[^/]+(/.*)?$")
+
+  /** Holds an [ImpressionMetadata] along with its associated impressions blob key. */
+  private data class ImpressionMetadataWithBlobKey(
+    val impressionMetadata: ImpressionMetadata,
+    val impressionsBlobKey: String,
+  )
 
   init {
     require(!edpImpressionPath.startsWith("/")) { "edpImpressionPath cannot start with a slash" }
@@ -133,7 +148,7 @@ class DataAvailabilitySync(
         storageClient.listBlobs(doneBlobFolderPath)
 
       // 1. Retrieve blob details from storage and build a map and validate them
-      val impressionMetadataMap: Map<String, List<ImpressionMetadata>> =
+      val impressionMetadataMap: Map<String, List<ImpressionMetadataWithBlobKey>> =
         createModelLineToImpressionMetadataMap(impressionMetadataBlobs, doneBlobUri)
 
       if (impressionMetadataMap.isEmpty()) {
@@ -147,29 +162,36 @@ class DataAvailabilitySync(
       val totalRecords = impressionMetadataMap.values.sumOf { it.size }
 
       // 2. Save ImpressionMetadata using ImpressionMetadataStorage
-      impressionMetadataMap.values.forEach { saveImpressionMetadata(it) }
+      impressionMetadataMap.values.forEach { metadataWithBlobKeys ->
+        saveImpressionMetadata(metadataWithBlobKeys)
+      }
 
-      // 3. Retrieve model line bound from ImpressionMetadataStorage for all model line
-      // found in the storage folder and update kingdom availability
-      // Collect all model lines
-      val modelLines = impressionMetadataMap.keys.toList()
-
+      // 3. Retrieve model line bound from ImpressionMetadataStorage for all model lines
       val modelLineBounds: ComputeModelLineBoundsResponse =
         impressionMetadataServiceStub.computeModelLineBounds(
-          computeModelLineBoundsRequest {
-            parent = dataProviderName
-            this.modelLines += modelLines
-          }
+          computeModelLineBoundsRequest { parent = dataProviderName }
         )
 
       // Build availability entries from the response
       val availabilityEntries =
-        modelLineBounds.modelLineBoundsList.map { bound ->
-          dataAvailabilityMapEntry {
-            key = bound.key
-            value = interval {
-              startTime = bound.value.startTime
-              endTime = bound.value.endTime
+        modelLineBounds.modelLineBoundsList.flatMap { bound ->
+          val availabilityInterval = interval {
+            startTime = bound.value.startTime
+            endTime = bound.value.endTime
+          }
+          val mappedModelLines = modelLineMap[bound.key]
+          if (mappedModelLines != null) {
+            logger.info(
+              "Model line mapping found: ${bound.key} -> ${mappedModelLines.joinToString(", ")}"
+            )
+          } else {
+            logger.info("No model line mapping found for: ${bound.key}")
+          }
+          val modelLines = mappedModelLines ?: listOf(bound.key)
+          modelLines.map { modelLine ->
+            dataAvailabilityMapEntry {
+              key = modelLine
+              value = availabilityInterval
             }
           }
         }
@@ -232,22 +254,49 @@ class DataAvailabilitySync(
     )
   }
 
-  private suspend fun saveImpressionMetadata(impressionMetadataList: List<ImpressionMetadata>) {
+  private suspend fun saveImpressionMetadata(
+    impressionMetadataList: List<ImpressionMetadataWithBlobKey>
+  ) {
     try {
       impressionMetadataList.chunked(impressionMetadataBatchSize).forEach { chunk ->
+        // Build a map from metadata blob URI to impressions blob key for later lookup
+        val impressionsBlobKeyByMetadataUri =
+          chunk.associate { it.impressionMetadata.blobUri to it.impressionsBlobKey }
+
         val batchRequest: BatchCreateImpressionMetadataRequest =
           batchCreateImpressionMetadataRequest {
             parent = dataProviderName
-            chunk.forEach { metadata ->
+            chunk.forEach { metadataWithBlobKey ->
               requests += createImpressionMetadataRequest {
                 parent = dataProviderName
-                impressionMetadata = metadata
-                requestId = uuidV4FromPath(metadata.blobUri)
+                impressionMetadata = metadataWithBlobKey.impressionMetadata
+                requestId = uuidV4FromPath(metadataWithBlobKey.impressionMetadata.blobUri)
               }
             }
           }
-        throttler.onReady {
-          impressionMetadataServiceStub.batchCreateImpressionMetadata(batchRequest)
+        val response: BatchCreateImpressionMetadataResponse =
+          throttler.onReady {
+            impressionMetadataServiceStub.batchCreateImpressionMetadata(batchRequest)
+          }
+
+        // Set GCS object metadata for lifecycle management and cleanup
+        for (createdMetadata in response.impressionMetadataList) {
+          val metadataBlobUri = SelectedStorageClient.parseBlobUri(createdMetadata.blobUri)
+          val customCreateTime = createdMetadata.interval.startTime.toInstant()
+
+          // Update blob details with Custom-Time and resource ID
+          storageClient.updateBlobMetadata(
+            blobKey = metadataBlobUri.key,
+            customCreateTime = customCreateTime,
+            metadata = mapOf(IMPRESSION_METADATA_RESOURCE_ID_KEY to createdMetadata.name),
+          )
+
+          // Also update the impressions blob with Custom-Time (no resource ID needed)
+          val impressionsBlobKey = impressionsBlobKeyByMetadataUri.getValue(createdMetadata.blobUri)
+          storageClient.updateBlobMetadata(
+            blobKey = impressionsBlobKey,
+            customCreateTime = customCreateTime,
+          )
         }
       }
     } catch (e: StatusException) {
@@ -276,20 +325,20 @@ class DataAvailabilitySync(
    * - Constructs an [ImpressionMetadata] object using:
    *     - `blobUri` set to the URI built from [bucket] and the blob's key
    *     - `eventGroupReferenceId`, `modelLine`, and `interval` from the parsed `BlobDetails`
-   * - Adds the [ImpressionMetadata] to a list in a map keyed by `modelLine`.
+   * - Adds the [ImpressionMetadataWithBlobKey] to a list in a map keyed by `modelLine`.
    *
    * @param impressionMetadataBlobs the flow of [StorageClient.Blob] objects to read and parse.
    * @param doneBlobUri the blob uri.
    * @return a map where each key is a `modelLine` string and each value is the list of
-   *   [ImpressionMetadata] objects associated with that model line.
+   *   [ImpressionMetadataWithBlobKey] objects associated with that model line.
    * @throws InvalidProtocolBufferException if a blob cannot be parsed as either binary or JSON
    *   `BlobDetails`.
    */
   private suspend fun createModelLineToImpressionMetadataMap(
     impressionMetadataBlobs: Flow<StorageClient.Blob>,
     doneBlobUri: BlobUri,
-  ): Map<String, List<ImpressionMetadata>> {
-    val impressionMetadataMap = mutableMapOf<String, MutableList<ImpressionMetadata>>()
+  ): Map<String, List<ImpressionMetadataWithBlobKey>> {
+    val impressionMetadataMap = mutableMapOf<String, MutableList<ImpressionMetadataWithBlobKey>>()
     impressionMetadataBlobs
       .filter { impressionMetadataBlob ->
         val fileName = impressionMetadataBlob.blobKey.substringAfterLast("/").lowercase()
@@ -341,7 +390,12 @@ class DataAvailabilitySync(
           }
           impressionMetadataMap
             .getOrPut(blobDetails.modelLine) { mutableListOf() }
-            .add(impressionMetadata)
+            .add(
+              ImpressionMetadataWithBlobKey(
+                impressionMetadata = impressionMetadata,
+                impressionsBlobKey = impressionBlobUri.key,
+              )
+            )
         }
       }
     return impressionMetadataMap
@@ -389,5 +443,11 @@ class DataAvailabilitySync(
     private const val JSON_FILE_SUFFIX = ".json"
     private const val BLOB_TYPE_URL =
       "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
+
+    /**
+     * GCS custom metadata key for storing ImpressionMetadata resource name. Will appear as
+     * x-goog-meta-impression-metadata-resource-id in GCS.
+     */
+    const val IMPRESSION_METADATA_RESOURCE_ID_KEY = "impression-metadata-resource-id"
   }
 }

@@ -15,6 +15,7 @@ LIBS = [
     "account",
     "api_key",
     "certificate",
+    "client_account",
     "computation_participant",
     "crypto",
     "data_provider_capabilities",
@@ -77,6 +78,7 @@ SERVICES = [
     "accounts",
     "api_keys",
     "certificates",
+    "client_accounts",
     "computation_participants",
     "data_providers",
     "event_group_metadata_descriptors",
@@ -129,6 +131,26 @@ proto_library(
     deps = [
         ":api_key_proto",
         ":measurement_consumer_proto",
+    ],
+)
+
+proto_library(
+    name = "client_account_proto",
+    srcs = ["client_account.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "client_accounts_service_proto",
+    srcs = ["client_accounts_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":client_account_proto",
+        "@com_google_protobuf//:empty_proto",
+        "@com_google_protobuf//:timestamp_proto",
     ],
 )
 
