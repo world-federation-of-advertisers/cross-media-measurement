@@ -10,6 +10,12 @@ package(default_visibility = ["//visibility:public"])
 IMPORT_PREFIX = "/src/main/proto"
 
 proto_library(
+    name = "constraint_proto",
+    srcs = ["constraint.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+proto_library(
     name = "report_summary_proto",
     srcs = ["report_summary.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -67,6 +73,11 @@ kt_jvm_proto_library(
 kt_jvm_proto_library(
     name = "report_post_processor_log_kt_jvm_proto",
     deps = [":report_post_processor_log_proto"],
+)
+
+py_proto_library(
+    name = "constraint_py_pb2",
+    deps = [":constraint_proto"],
 )
 
 py_proto_library(
