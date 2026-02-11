@@ -126,11 +126,11 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         "edp1" to
           DataProviderKt.capabilities {
             honestMajorityShareShuffleSupported = true
-            trusTeeSupported = true
+            trusTeeSupported = false
           },
         "edp2" to
           DataProviderKt.capabilities {
-            honestMajorityShareShuffleSupported = true
+            honestMajorityShareShuffleSupported = false
             trusTeeSupported = true
           },
       ),
