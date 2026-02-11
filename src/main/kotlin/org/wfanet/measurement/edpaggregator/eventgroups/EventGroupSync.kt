@@ -146,27 +146,17 @@ class EventGroupSync(
 
         val measurementConsumerKeys = resolveMeasurementConsumers(eventGroup)
 
-        if (measurementConsumerKeys.isEmpty()) {
-          logger.warning(
-            "Skipping Event Group ${eventGroup.eventGroupReferenceId}: " +
-              "Unable to resolve MeasurementConsumer"
-          )
-          metrics.syncFailure.add(1, metricAttributes())
-          continue
-        }
-
         // Process event group for each measurement consumer
         for (measurementConsumerKey in measurementConsumerKeys) {
-          val syncResult =
-            syncEventGroupItem(
-              eventGroup,
-              measurementConsumerKey.toName(),
-              cmmsEventGroups,
-              resolvedEventGroupKeys,
+          val eventGroupWithConsumer =
+            eventGroup.copy { measurementConsumer = measurementConsumerKey.toName() }
+          resolvedEventGroupKeys.add(
+            EventGroupKey(
+              eventGroupWithConsumer.eventGroupReferenceId,
+              eventGroupWithConsumer.measurementConsumer,
             )
-          if (syncResult != null) {
-            emit(syncResult)
-          }
+          )
+          syncEventGroupItem(eventGroupWithConsumer, cmmsEventGroups)?.let { emit(it) }
         }
       }
 
@@ -179,22 +169,17 @@ class EventGroupSync(
   }
 
   /**
-   * Synchronizes a single event group entry for a specific measurement consumer.
+   * Synchronizes a single event group entry.
    *
    * @param eventGroup The event group to be synchronized.
-   * @param measurementConsumer The measurement consumer resource name for this event group.
    * @param syncedEventGroups A map keyed by [EventGroupKey], containing already-synced event groups
    *   as values. Used to detect duplicates or previously processed items.
-   * @param resolvedEventGroupKeys A mutable set to track successfully resolved EventGroup keys.
-   *   This is used to determine which EventGroups should NOT be deleted.
    * @return A [MappedEventGroup] if the sync succeeds; `null` if the sync fails or the item is
    *   skipped.
    */
   private suspend fun syncEventGroupItem(
     eventGroup: EventGroup,
-    measurementConsumer: String,
     syncedEventGroups: Map<EventGroupKey, CmmsEventGroup>,
-    resolvedEventGroupKeys: MutableSet<EventGroupKey>,
   ): MappedEventGroup? {
     val eventGroupRefId = eventGroup.eventGroupReferenceId
 
@@ -216,22 +201,20 @@ class EventGroupSync(
         // Record sync attempt
         metrics.syncAttempts.add(1, metricAttributes())
 
-        val eventGroupKey = EventGroupKey(eventGroup.eventGroupReferenceId, measurementConsumer)
-
-        resolvedEventGroupKeys.add(eventGroupKey)
+        val eventGroupKey =
+          EventGroupKey(eventGroup.eventGroupReferenceId, eventGroup.measurementConsumer)
 
         val syncedEventGroup: CmmsEventGroup =
           if (eventGroupKey in syncedEventGroups) {
             val existingEventGroup: CmmsEventGroup = syncedEventGroups.getValue(eventGroupKey)
-            val updatedEventGroup: CmmsEventGroup =
-              updateEventGroup(existingEventGroup, eventGroup, measurementConsumer)
+            val updatedEventGroup: CmmsEventGroup = updateEventGroup(existingEventGroup, eventGroup)
             if (updatedEventGroup != existingEventGroup) {
               updateCmmsEventGroup(updatedEventGroup)
             } else {
               existingEventGroup
             }
           } else {
-            createCmmsEventGroup(edpName, eventGroup, measurementConsumer)
+            createCmmsEventGroup(edpName, eventGroup)
           }
 
         // Record sync success and latency
@@ -271,7 +254,7 @@ class EventGroupSync(
    * within a sync batch.
    *
    * @param eventGroup The event group to resolve the measurement consumers for
-   * @return List of MeasurementConsumerKeys from both direct and lookup sources, or empty list when
+   * @return Set of MeasurementConsumerKeys from both direct and lookup sources, or empty set when
    *   unable to resolve
    * @throws StatusException if ClientAccount lookup API call fails
    * @throws IllegalArgumentException if measurementConsumer field has invalid resource name
@@ -279,8 +262,8 @@ class EventGroupSync(
    */
   private suspend fun resolveMeasurementConsumers(
     eventGroup: EventGroup
-  ): List<MeasurementConsumerKey> {
-    val measurementConsumerKeys = mutableListOf<MeasurementConsumerKey>()
+  ): Set<MeasurementConsumerKey> {
+    val measurementConsumerKeys = mutableSetOf<MeasurementConsumerKey>()
 
     // Collect direct measurement consumer (EDP's mapping)
     if (eventGroup.measurementConsumer.isNotBlank()) {
@@ -331,7 +314,7 @@ class EventGroupSync(
           if (resolvedKeys.isEmpty()) {
             metrics.unmappedClientAccounts.add(1, metricAttributes())
             logger.info("No MeasurementConsumers found for reference ID: $refId")
-          } else if (resolvedKeys.size > 1) {
+          } else {
             logger.info(
               "ClientAccount reference ID $refId maps to ${resolvedKeys.size} " +
                 "Measurement Consumers: ${resolvedKeys.map { it.toName() }}"
@@ -353,7 +336,7 @@ class EventGroupSync(
       )
     }
 
-    return measurementConsumerKeys.distinct()
+    return measurementConsumerKeys
   }
 
   /*
@@ -379,13 +362,12 @@ class EventGroupSync(
   private suspend fun createCmmsEventGroup(
     edpName: String,
     eventGroup: EventGroup,
-    measurementConsumer: String,
   ): CmmsEventGroup {
     val request = createEventGroupRequest {
       parent = edpName
-      requestId = "${eventGroup.eventGroupReferenceId}-${measurementConsumer}"
+      requestId = "${eventGroup.eventGroupReferenceId}-${eventGroup.measurementConsumer}"
       this.eventGroup = cmmsEventGroup {
-        this.measurementConsumer = measurementConsumer
+        measurementConsumer = eventGroup.measurementConsumer
         eventGroupReferenceId = eventGroup.eventGroupReferenceId
         this.eventGroupMetadata = cmmsEventGroupMetadata {
           this.adMetadata =
@@ -411,10 +393,9 @@ class EventGroupSync(
   private fun updateEventGroup(
     existingEventGroup: CmmsEventGroup,
     eventGroup: EventGroup,
-    measurementConsumer: String,
   ): CmmsEventGroup {
     return existingEventGroup.copy {
-      this.measurementConsumer = measurementConsumer
+      measurementConsumer = eventGroup.measurementConsumer
       eventGroupReferenceId = eventGroup.eventGroupReferenceId
       this.eventGroupMetadata = cmmsEventGroupMetadata {
         this.adMetadata =
