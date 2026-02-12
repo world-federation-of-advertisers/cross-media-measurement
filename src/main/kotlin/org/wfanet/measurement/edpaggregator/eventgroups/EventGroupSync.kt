@@ -140,7 +140,7 @@ class EventGroupSync(
           logger.log(Level.SEVERE, e) {
             "Skipping Event Group ${eventGroup.eventGroupReferenceId}: " + "Validation failed"
           }
-          metrics.syncFailure.add(1, metricAttributes())
+          metrics.invalidEventGroupFailure.add(1, metricAttributes())
           continue
         }
 
@@ -149,7 +149,7 @@ class EventGroupSync(
         // Process event group for each measurement consumer
         for (measurementConsumerKey in measurementConsumerKeys) {
           val eventGroupWithConsumer =
-            eventGroup.copy { measurementConsumer = measurementConsumerKey.toName() }
+            eventGroup.toBuilder().setMeasurementConsumer(measurementConsumerKey.toName()).build()
           resolvedEventGroupKeys.add(
             EventGroupKey(
               eventGroupWithConsumer.eventGroupReferenceId,

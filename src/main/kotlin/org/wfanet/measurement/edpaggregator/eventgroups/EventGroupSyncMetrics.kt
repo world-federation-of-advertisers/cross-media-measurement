@@ -55,13 +55,24 @@ class EventGroupSyncMetrics(meter: Meter) {
   /**
    * Counter for failed Event Group syncs.
    *
-   * Incremented when an event group sync fails due to validation errors, API errors, or other
-   * exceptions.
+   * Incremented when an event group sync fails due to API errors or other exceptions during sync
+   * processing.
    */
   val syncFailure: LongCounter =
     meter
       .counterBuilder("edpa.event_group.sync_failure")
       .setDescription("Number of failed Event Group syncs")
+      .build()
+
+  /**
+   * Counter for invalid Event Groups that fail validation.
+   *
+   * Incremented when an event group fails validation checks before sync processing begins.
+   */
+  val invalidEventGroupFailure: LongCounter =
+    meter
+      .counterBuilder("edpa.event_group.invalid_event_group_failure")
+      .setDescription("Number of Event Groups that failed validation")
       .build()
 
   /**

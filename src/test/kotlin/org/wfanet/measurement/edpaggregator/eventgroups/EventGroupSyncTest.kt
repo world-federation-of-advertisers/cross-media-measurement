@@ -634,17 +634,19 @@ class EventGroupSyncTest {
       val metrics = getMetrics()
       val syncAttemptsMetric = metrics.find { it.name == "edpa.event_group.sync_attempts" }
       val syncSuccessMetric = metrics.find { it.name == "edpa.event_group.sync_success" }
-      val syncFailureMetric = metrics.find { it.name == "edpa.event_group.sync_failure" }
+      val invalidEventGroupFailureMetric =
+        metrics.find { it.name == "edpa.event_group.invalid_event_group_failure" }
 
       // No attempt should be recorded (validation happens before syncEventGroupItem)
       if (syncAttemptsMetric != null) {
         assertThat(syncAttemptsMetric.longSumData.points).isEmpty()
       }
 
-      // Failure should be recorded
-      assertThat(syncFailureMetric).isNotNull()
-      assertThat(syncFailureMetric!!.description).isEqualTo("Number of failed Event Group syncs")
-      assertThat(syncFailureMetric.longSumData.points.sumOf { it.value }).isEqualTo(1)
+      // Invalid event group failure should be recorded
+      assertThat(invalidEventGroupFailureMetric).isNotNull()
+      assertThat(invalidEventGroupFailureMetric!!.description)
+        .isEqualTo("Number of Event Groups that failed validation")
+      assertThat(invalidEventGroupFailureMetric.longSumData.points.sumOf { it.value }).isEqualTo(1)
 
       // No success metrics should be recorded (validation failed)
       if (syncSuccessMetric != null) {
@@ -1066,14 +1068,139 @@ class EventGroupSyncTest {
         .isEqualTo("Number of Event Groups that could not be mapped to any MeasurementConsumer")
       assertThat(unmappedMetric.longSumData.points.sumOf { it.value }).isEqualTo(1)
 
-      // Verify sync failure is also recorded
-      val syncFailureMetric = metrics.find { it.name == "edpa.event_group.sync_failure" }
-      assertThat(syncFailureMetric).isNotNull()
-      assertThat(syncFailureMetric!!.longSumData.points.sumOf { it.value }).isEqualTo(1)
-
       // Verify no EventGroup was created
       verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
     }
+  }
+
+  @Test
+  fun `deletes event groups when account linkage is removed and fewer MCs are mapped`() {
+    // Setup: clientAccountsServiceMock for "client-ref-multiple" returns only MC-1,
+    // but the remote has event groups for both MC-1 and MC-2.
+    // This simulates a scenario where the account linkage to MC-2 was deleted.
+    val clientAccountsMock: ClientAccountsCoroutineImplBase = mockService {
+      onBlocking { listClientAccounts(any<ListClientAccountsRequest>()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ListClientAccountsRequest>(0)
+          when (request.filter.clientAccountReferenceId) {
+            "client-ref-reduced" ->
+              listClientAccountsResponse {
+                clientAccounts += clientAccount {
+                  name =
+                    MeasurementConsumerClientAccountKey(
+                        "measurement-consumer-1",
+                        "client-account-1",
+                      )
+                      .toName()
+                  clientAccountReferenceId = "client-ref-reduced"
+                }
+              }
+            else -> listClientAccountsResponse {}
+          }
+        }
+    }
+
+    val eventGroupsMock: EventGroupsCoroutineImplBase = mockService {
+      onBlocking { updateEventGroup(any<UpdateEventGroupRequest>()) }
+        .thenAnswer { invocation -> invocation.getArgument<UpdateEventGroupRequest>(0).eventGroup }
+      onBlocking { createEventGroup(any<CreateEventGroupRequest>()) }
+        .thenAnswer { invocation -> invocation.getArgument<CreateEventGroupRequest>(0).eventGroup }
+      onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
+        .thenAnswer {
+          listEventGroupsResponse {
+            eventGroups +=
+              listOf(
+                cmmsEventGroup {
+                  name = "dataProviders/data-provider-1/eventGroups/resource-id-100"
+                  measurementConsumer = "measurementConsumers/measurement-consumer-1"
+                  eventGroupReferenceId = "reference-id-reduced"
+                  mediaTypes += listOf(CmmsMediaType.valueOf("OTHER"))
+                  eventGroupMetadata = cmmsEventGroupMetadata {
+                    this.adMetadata = cmmsAdMetadata {
+                      this.campaignMetadata = cmmsCampaignMetadata {
+                        brandName = "brand-reduced"
+                        campaignName = "campaign-reduced"
+                      }
+                    }
+                  }
+                  dataAvailabilityInterval = interval {
+                    startTime = timestamp { seconds = 200 }
+                    endTime = timestamp { seconds = 300 }
+                  }
+                },
+                // Event group for MC-2 (linkage deleted, should be removed)
+                cmmsEventGroup {
+                  name = "dataProviders/data-provider-1/eventGroups/resource-id-101"
+                  measurementConsumer = "measurementConsumers/measurement-consumer-2"
+                  eventGroupReferenceId = "reference-id-reduced"
+                  mediaTypes += listOf(CmmsMediaType.valueOf("OTHER"))
+                  eventGroupMetadata = cmmsEventGroupMetadata {
+                    this.adMetadata = cmmsAdMetadata {
+                      this.campaignMetadata = cmmsCampaignMetadata {
+                        brandName = "brand-reduced"
+                        campaignName = "campaign-reduced"
+                      }
+                    }
+                  }
+                  dataAvailabilityInterval = interval {
+                    startTime = timestamp { seconds = 200 }
+                    endTime = timestamp { seconds = 300 }
+                  }
+                },
+              )
+          }
+        }
+    }
+
+    val testRule = GrpcTestServerRule {
+      addService(eventGroupsMock)
+      addService(clientAccountsMock)
+    }
+
+    val statement =
+      object : org.junit.runners.model.Statement() {
+        override fun evaluate() {
+          val eventGroupWithReducedMapping = eventGroup {
+            eventGroupReferenceId = "reference-id-reduced"
+            this.eventGroupMetadata = eventGroupMetadata {
+              this.adMetadata = adMetadata {
+                this.campaignMetadata = campaignMetadata {
+                  brand = "brand-reduced"
+                  campaign = "campaign-reduced"
+                }
+              }
+            }
+            clientAccountReferenceId = "client-ref-reduced"
+            dataAvailabilityInterval = interval {
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
+            }
+            mediaTypes += listOf(MediaType.valueOf("OTHER"))
+          }
+
+          val eventGroupSync =
+            EventGroupSync(
+              "edp-name",
+              EventGroupsCoroutineStub(testRule.channel),
+              ClientAccountsCoroutineStub(testRule.channel),
+              listOf(eventGroupWithReducedMapping).asFlow(),
+              MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+              100,
+            )
+
+          runBlocking { eventGroupSync.sync().collect() }
+
+          verifyBlocking(eventGroupsMock, times(0)) { updateEventGroup(any()) }
+
+          // Verify that the event group for MC-2 was deleted (account linkage removed)
+          val deleteCaptor = argumentCaptor<DeleteEventGroupRequest>()
+          verifyBlocking(eventGroupsMock, times(1)) { deleteEventGroup(deleteCaptor.capture()) }
+          assertThat(deleteCaptor.firstValue.name)
+            .isEqualTo("dataProviders/data-provider-1/eventGroups/resource-id-101")
+        }
+      }
+
+    testRule.apply(statement, org.junit.runner.Description.EMPTY).evaluate()
   }
 
   @Test
