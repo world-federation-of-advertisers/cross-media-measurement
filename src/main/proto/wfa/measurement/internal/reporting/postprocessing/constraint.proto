@@ -1,0 +1,60 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.postprocessing;
+
+option java_package = "org.wfanet.measurement.internal.reporting.postprocessing";
+option java_multiple_files = true;
+option java_outer_classname = "ConstraintProto";
+
+// Represents a collection of constraints for a quadratic programming problem.
+//
+// This message encapsulates all the linear constraints that define the feasible
+// region for the optimization problem.
+message Constraints {
+  // The type of a linear constraint.
+  enum ConstraintType {
+    // Default value, should not be used.
+    CONSTRAINT_TYPE_UNSPECIFIED = 0;
+    // Represents an equality constraint: <a, x> = b, where 'a' is the vector of
+    // coefficients, 'x' is the vector of variables, and 'b' is the constant.
+    CONSTRAINT_TYPE_EQUAL = 1;
+    // Represents an inequality constraint: <a, x> >= b, where 'a' is the vector
+    // of coefficients, 'x' is the vector of variables, and 'b' is the constant.
+    CONSTRAINT_TYPE_GREATER_THAN_OR_EQUAL = 2;
+  }
+
+  // Represents a single linear constraint.
+  message Constraint {
+    // The type of the constraint.
+    ConstraintType type = 1;
+
+    // A map representing the coefficients of the variables in the constraint.
+    // The key is the index of the variable, and the value is its coefficient.
+    // The coefficient of all other indices is zero.
+    map<int32, int32> coefficients = 2;
+
+    // The constant term 'b' on the right-hand side of the constraint.
+    int32 constant = 3;
+  }
+
+  // A list of constraints that must be satisfied.
+  repeated Constraint constraints = 1;
+
+  // The total number of variables involved in the optimization problem.
+  // This helps in sizing the vectors and matrices for the solver.
+  int32 num_variables = 2;
+}

@@ -277,6 +277,7 @@ class ResultsFulfillerAppRunner : Runnable {
     private set
 
   private lateinit var kmsClientsMap: MutableMap<String, KmsClient>
+  private lateinit var trusTeeConfigMap: MutableMap<String, TrusTeeConfig>
 
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)
@@ -369,6 +370,7 @@ class ResultsFulfillerAppRunner : Runnable {
         workItemAttemptsClient = workItemAttemptsClient,
         requisitionStubFactory = requisitionStubFactory,
         kmsClients = kmsClientsMap,
+        trusTeeConfigs = trusTeeConfigMap,
         getImpressionsMetadataStorageConfig = getImpressionsStorageConfig,
         getImpressionsStorageConfig = getImpressionsStorageConfig,
         getRequisitionsStorageConfig = getImpressionsStorageConfig,
@@ -382,6 +384,7 @@ class ResultsFulfillerAppRunner : Runnable {
   fun createKmsClients() {
 
     kmsClientsMap = mutableMapOf()
+    trusTeeConfigMap = mutableMapOf()
 
     edpsConfig.eventDataProviderConfigList.forEach { edpConfig ->
       val kmsConfig =
@@ -397,6 +400,14 @@ class ResultsFulfillerAppRunner : Runnable {
       val kmsClient = GCloudKmsClientFactory().getKmsClient(kmsConfig)
 
       kmsClientsMap[edpConfig.dataProvider] = kmsClient
+
+      // Build TrusTeeConfig for this EDP using KMS config from edpConfig
+      trusTeeConfigMap[edpConfig.dataProvider] =
+        TrusTeeConfig(
+          kmsClient = kmsClient,
+          workloadIdentityProvider = edpConfig.kmsConfig.kmsAudience,
+          impersonatedServiceAccount = edpConfig.kmsConfig.serviceAccount,
+        )
     }
   }
 

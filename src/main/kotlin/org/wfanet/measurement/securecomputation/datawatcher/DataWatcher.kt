@@ -59,14 +59,24 @@ class DataWatcher(
   private val metrics =
     DataWatcherMetrics(meter = meter, sinkTypeKey = ATTR_SINK_TYPE_KEY, queueKey = ATTR_QUEUE_KEY)
 
-  suspend fun receivePath(path: String) {
+  /**
+   * Receives a path for evaluation against configured watched paths.
+   *
+   * @param path the blob path to evaluate
+   * @param objectMetadata custom metadata from the GCS object, use empty map if none
+   */
+  suspend fun receivePath(path: String, objectMetadata: Map<String, String>) {
     logger.log(Level.INFO, "Received data path for evaluation: path=$path")
     for (config in dataWatcherConfigs) {
-      processPathForConfig(config, path)
+      processPathForConfig(config, path, objectMetadata)
     }
   }
 
-  private suspend fun processPathForConfig(config: WatchedPath, path: String) {
+  private suspend fun processPathForConfig(
+    config: WatchedPath,
+    path: String,
+    objectMetadata: Map<String, String>,
+  ) {
     val regex = config.sourcePathRegex.toRegex()
     if (!regex.matches(path)) {
       logger.log(
@@ -82,7 +92,8 @@ class DataWatcher(
     try {
       when (config.sinkConfigCase) {
         WatchedPath.SinkConfigCase.CONTROL_PLANE_QUEUE_SINK -> sendToControlPlane(config, path)
-        WatchedPath.SinkConfigCase.HTTP_ENDPOINT_SINK -> sendToHttpEndpoint(config, path)
+        WatchedPath.SinkConfigCase.HTTP_ENDPOINT_SINK ->
+          sendToHttpEndpoint(config, path, objectMetadata)
         WatchedPath.SinkConfigCase.SINKCONFIG_NOT_SET ->
           error("${config.identifier}: Invalid sink config: ${config.sinkConfigCase}")
       }
@@ -117,19 +128,32 @@ class DataWatcher(
     onQueueWrite(config, path, queueConfig.queue, workItemId)
   }
 
-  private fun sendToHttpEndpoint(config: WatchedPath, path: String) {
-
+  private fun sendToHttpEndpoint(
+    config: WatchedPath,
+    path: String,
+    objectMetadata: Map<String, String>,
+  ) {
     val idToken: IdToken =
       idTokenProvider.idTokenWithAudience(config.httpEndpointSink.endpointUri, emptyList())
     val jwt = idToken.tokenValue
 
     val httpEndpointConfig = config.httpEndpointSink
     val client = HttpClient.newHttpClient()
-    val request =
+    val requestBuilder =
       HttpRequest.newBuilder()
         .uri(URI.create(httpEndpointConfig.endpointUri))
         .header("Authorization", "Bearer $jwt")
         .header(DATA_WATCHER_PATH_HEADER, path)
+
+    if (IMPRESSION_METADATA_RESOURCE_ID_KEY in objectMetadata) {
+      requestBuilder.header(
+        IMPRESSION_METADATA_RESOURCE_ID_HEADER,
+        objectMetadata.getValue(IMPRESSION_METADATA_RESOURCE_ID_KEY),
+      )
+    }
+
+    val request =
+      requestBuilder
         .POST(HttpRequest.BodyPublishers.ofString(httpEndpointConfig.appParams.toJson()))
         .build()
     val response = client.send(request, BodyHandlers.ofString())
@@ -231,6 +255,10 @@ class DataWatcher(
   companion object {
     private val logger: Logger = Logger.getLogger(DataWatcher::class.java.name)
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
+    private const val IMPRESSION_METADATA_RESOURCE_ID_HEADER: String =
+      "X-Impression-Metadata-Resource-Id"
+    private const val IMPRESSION_METADATA_RESOURCE_ID_KEY: String =
+      "impression-metadata-resource-id"
 
     private val ATTR_SINK_TYPE_KEY = AttributeKey.stringKey("edpa.data_watcher.sink_type")
     private val ATTR_WORK_ITEM_ID_KEY = AttributeKey.stringKey("edpa.data_watcher.work_item_id")

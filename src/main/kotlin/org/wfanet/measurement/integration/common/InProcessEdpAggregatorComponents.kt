@@ -219,6 +219,9 @@ class InProcessEdpAggregatorComponents(
       getImpressionsMetadataStorageConfig = getStorageConfig,
       getImpressionsStorageConfig = getStorageConfig,
       getRequisitionsStorageConfig = getStorageConfig,
+      trusTeeConfigs =
+        emptyMap(), // TODO(world-federation-of-advertisers/cross-media-measurement#3394): Test
+      // TrusTee protocol in integration tests.
       modelLineInfoMap = modelLineInfoMap,
       metrics = ResultsFulfillerMetrics.create(),
     )

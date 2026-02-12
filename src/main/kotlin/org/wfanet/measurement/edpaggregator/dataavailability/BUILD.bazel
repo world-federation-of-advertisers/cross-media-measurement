@@ -9,6 +9,8 @@ package(default_visibility = [
 kt_jvm_library(
     name = "data_availability_sync",
     srcs = [
+        "DataAvailabilityCleanup.kt",
+        "DataAvailabilityCleanupMetrics.kt",
         "DataAvailabilitySync.kt",
         "DataAvailabilitySyncMetrics.kt",
     ],

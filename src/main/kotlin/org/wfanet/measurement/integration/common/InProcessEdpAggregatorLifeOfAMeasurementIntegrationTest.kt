@@ -29,13 +29,13 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -254,7 +254,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
       mcSimulator.testReachOnly(
         "1234",
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+        ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
       )
     }
 
@@ -264,7 +264,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
       mcSimulator.testReachAndFrequency(
         "1234",
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+        ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
       )
     }
 

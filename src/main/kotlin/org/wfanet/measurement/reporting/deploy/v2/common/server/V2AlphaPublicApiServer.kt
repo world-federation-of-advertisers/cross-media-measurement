@@ -90,6 +90,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDescriptorsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ImpressionQualificationFilterKey
+import org.wfanet.measurement.reporting.service.api.v2alpha.ImpressionQualificationFiltersService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ModelLinesService
@@ -383,6 +384,11 @@ private object V2AlphaPublicApiServer {
             measurementConsumerConfigs,
             InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
             serviceDispatcher,
+          )
+          .withInterceptor(principalAuthInterceptor),
+        ImpressionQualificationFiltersService(
+            InternalImpressionQualificationFiltersCoroutineStub(channel),
+            authorization,
           )
           .withInterceptor(principalAuthInterceptor),
         metricsService.withInterceptor(principalAuthInterceptor),
