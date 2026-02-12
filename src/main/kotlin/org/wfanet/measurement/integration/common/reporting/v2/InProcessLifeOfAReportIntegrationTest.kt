@@ -2882,7 +2882,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   private suspend fun listEventGroups(): List<EventGroup> {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
 
-    return reportingPublicEventGroupsClient
+    return publicEventGroupsClient
       .withCallCredentials(credentials)
       .listEventGroups(
         listEventGroupsRequest {
@@ -3009,13 +3009,12 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     filter: String,
     collectionInterval: Interval,
   ): EventQuery.EventGroupSpec {
-    val cmmsEventGroup =
-      cmmsEventGroup {
-        name = eventGroup.cmmsEventGroup
-        eventGroupReferenceId = eventGroup.eventGroupReferenceId
-        eventTemplates +=
-          eventGroup.eventTemplatesList.map { CmmsEventGroupKt.eventTemplate { type = it.type } }
-      }
+    val cmmsEventGroup = cmmsEventGroup {
+      name = eventGroup.cmmsEventGroup
+      eventGroupReferenceId = eventGroup.eventGroupReferenceId
+      eventTemplates +=
+        eventGroup.eventTemplatesList.map { CmmsEventGroupKt.eventTemplate { type = it.type } }
+    }
 
     val eventFilter = RequisitionSpecKt.eventFilter { expression = filter }
 
