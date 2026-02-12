@@ -228,6 +228,8 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/duchy/mill/liquidlegionsv2:reach_frequency_liquid_legions_v2_mill",
         "//src/main/kotlin/org/wfanet/measurement/duchy/mill/liquidlegionsv2:reach_only_liquid_legions_v2_mill",
         "//src/main/kotlin/org/wfanet/measurement/duchy/mill/shareshuffle:honest_majority_share_shuffle_mill",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee:trus_tee_mill",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/processor:trus_tee_processor_impl",
         "//src/main/kotlin/org/wfanet/measurement/duchy/storage:tink_key_store",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/io/grpc:core",
