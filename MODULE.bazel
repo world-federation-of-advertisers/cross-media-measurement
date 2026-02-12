@@ -39,7 +39,6 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.135.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -283,6 +282,9 @@ maven.install(
         "org.apache.commons:commons-numbers-core",
         "org.apache.commons:commons-numbers-gamma",
         "org.apache.commons:commons-math3:3.6.1",
+
+        # Avoid https://github.com/FasterXML/jackson-databind/issues/3637 from testcontainers.
+        "com.fasterxml.jackson.core:jackson-annotations:2.20",
     ],
     boms = [
         "com.squareup.okhttp3:okhttp-bom:4.12.0",
@@ -438,4 +440,13 @@ http_archive(
 single_version_override(
     module_name = "boringssl",
     version = BORINGSSL_VERSION,
+)
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#373): Use version.
+archive_override(
+    module_name = "common-jvm",
+    strip_prefix = "common-jvm-3eaf3b568319c2e86109b49650df7132bee7a8df",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/common-jvm/archive/3eaf3b568319c2e86109b49650df7132bee7a8df.tar.gz",
+    ],
 )
