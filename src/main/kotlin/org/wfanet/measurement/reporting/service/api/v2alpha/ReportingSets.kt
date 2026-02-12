@@ -181,7 +181,7 @@ object ReportingSets {
    *
    * This performs set expression compilation as-needed for composite ReportingSets.
    */
-  suspend fun buildInternalCreateReportingSetRequest(
+  fun buildInternalCreateReportingSetRequest(
     request: CreateReportingSetRequest,
     parentKey: CmmsMeasurementConsumerKey,
     campaignGroupKey: ReportingSetKey?,
@@ -222,7 +222,7 @@ object ReportingSets {
   }
 
   /** Compiles [InternalReportingSet.WeightedSubsetUnion]s for a composite [ReportingSet]. */
-  private suspend fun compileWeightedSubsetUnions(
+  private fun compileWeightedSubsetUnions(
     filter: String,
     setExpression: ReportingSet.SetExpression,
     cmmsMeasurementConsumerId: String,
