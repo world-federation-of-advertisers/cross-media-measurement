@@ -179,6 +179,7 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha/testing:authentication",
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha/testing:principal_matcher",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc/testing:status_exception_subject",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
