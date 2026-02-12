@@ -144,12 +144,13 @@ class EventGroupSync(
           continue
         }
 
-        val measurementConsumerKeys = resolveMeasurementConsumers(eventGroup)
+        val measurementConsumerKeys: Set<MeasurementConsumerKey> =
+          resolveMeasurementConsumers(eventGroup)
 
         // Process event group for each measurement consumer
         for (measurementConsumerKey in measurementConsumerKeys) {
           val eventGroupWithConsumer =
-            eventGroup.toBuilder().setMeasurementConsumer(measurementConsumerKey.toName()).build()
+            eventGroup.copy { measurementConsumer = measurementConsumerKey.toName() }
           resolvedEventGroupKeys.add(
             EventGroupKey(
               eventGroupWithConsumer.eventGroupReferenceId,
@@ -266,7 +267,7 @@ class EventGroupSync(
     val measurementConsumerKeys = mutableSetOf<MeasurementConsumerKey>()
 
     // Collect direct measurement consumer (EDP's mapping)
-    if (eventGroup.measurementConsumer.isNotBlank()) {
+    if (eventGroup.measurementConsumer.isNotEmpty()) {
       val key =
         requireNotNull(MeasurementConsumerKey.fromName(eventGroup.measurementConsumer)) {
           "Invalid measurementConsumer resource name: ${eventGroup.measurementConsumer}"
@@ -279,25 +280,16 @@ class EventGroupSync(
       val refId = eventGroup.clientAccountReferenceId
 
       val lookedUpKeys =
-        if (clientAccountCache.containsKey(refId)) {
-          clientAccountCache[refId]!!
-        } else {
+        clientAccountCache.getOrPut(refId) {
           // Not in cache - lookup via API
           val response: ListClientAccountsResponse =
-            try {
-              throttler.onReady {
-                clientAccountsStub.listClientAccounts(
-                  listClientAccountsRequest {
-                    parent = edpName
-                    filter = ListClientAccountsRequestKt.filter { clientAccountReferenceId = refId }
-                  }
-                )
-              }
-            } catch (e: StatusException) {
-              logger.log(Level.SEVERE, e) {
-                "Error looking up ClientAccount for reference ID $refId"
-              }
-              throw e
+            throttler.onReady {
+              clientAccountsStub.listClientAccounts(
+                listClientAccountsRequest {
+                  parent = edpName
+                  filter = ListClientAccountsRequestKt.filter { clientAccountReferenceId = refId }
+                }
+              )
             }
 
           val resolvedKeys: List<MeasurementConsumerKey> =
@@ -321,7 +313,6 @@ class EventGroupSync(
             )
           }
 
-          clientAccountCache[refId] = resolvedKeys
           resolvedKeys
         }
 
