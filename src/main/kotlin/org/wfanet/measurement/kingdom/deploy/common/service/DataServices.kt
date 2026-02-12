@@ -22,6 +22,7 @@ import kotlin.reflect.full.declaredMemberProperties
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ClientAccountsGrpcKt.ClientAccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineImplBase
@@ -67,6 +68,7 @@ data class KingdomDataServices(
   val accountsService: AccountsCoroutineImplBase,
   val apiKeysService: ApiKeysGrpcKt.ApiKeysCoroutineImplBase,
   val certificatesService: CertificatesCoroutineImplBase,
+  val clientAccountsService: ClientAccountsCoroutineImplBase,
   val dataProvidersService: DataProvidersCoroutineImplBase,
   val modelProvidersService: ModelProvidersCoroutineImplBase,
   val eventGroupMetadataDescriptorsService: EventGroupMetadataDescriptorsCoroutineImplBase,

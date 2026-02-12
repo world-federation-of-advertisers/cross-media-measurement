@@ -31,6 +31,7 @@ import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineStu
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as InternalComputationParticipantsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
+import org.wfanet.measurement.internal.kingdom.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub as InternalEventGroupActivitiesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as InternalEventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub as InternalEventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub as InternalExchangeStepAttemptsCoroutineStub
@@ -53,6 +54,7 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.AccountsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ApiKeysService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.CertificatesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.DataProvidersService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.EventGroupActivitiesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.EventGroupMetadataDescriptorsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptsService
@@ -110,6 +112,9 @@ class InProcessKingdom(
   private val internalEventGroupsClient by lazy {
     InternalEventGroupsCoroutineStub(internalApiChannel)
   }
+  private val internalEventGroupActivitiesClient by lazy {
+    InternalEventGroupActivitiesCoroutineStub(internalApiChannel)
+  }
   private val internalEventGroupMetadataDescriptorsClient by lazy {
     InternalEventGroupMetadataDescriptorsCoroutineStub(internalApiChannel)
   }
@@ -156,7 +161,13 @@ class InProcessKingdom(
           DataProvidersService(internalDataProvidersClient)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+          EventGroupActivitiesService(internalEventGroupActivitiesClient)
+            .withMetadataPrincipalIdentities()
+            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
           EventGroupsService(internalEventGroupsClient)
+            .withMetadataPrincipalIdentities()
+            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+          EventGroupActivitiesService(internalEventGroupActivitiesClient)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
           EventGroupMetadataDescriptorsService(internalEventGroupMetadataDescriptorsClient)
@@ -168,6 +179,7 @@ class InProcessKingdom(
               MEASUREMENT_NOISE_MECHANISMS,
               reachOnlyLlV2Enabled = true,
               hmssEnabled = true,
+              trusTeeEnabled = false,
             )
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),

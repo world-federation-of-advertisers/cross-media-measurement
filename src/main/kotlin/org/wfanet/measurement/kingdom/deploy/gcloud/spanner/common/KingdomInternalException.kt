@@ -170,7 +170,6 @@ private constructor(
   val activeRange: OpenEndRange<Instant>,
   override val context: Map<String, String>,
 ) : KingdomInternalException(ErrorCode.MODEL_LINE_NOT_ACTIVE, buildMessage(context)) {
-
   constructor(
     externalModelLineKey: ModelLineKey,
     activeRange: OpenEndRange<Instant>,
@@ -491,7 +490,7 @@ class ComputationParticipantETagMismatchException(
   val requestETag: String,
   val actualETag: String,
   message: String =
-    "ComputationParticipant etag mismatch. Expected ${requestETag}, actual ${actualETag}",
+    "ComputationParticipant etag mismatch. Expected $requestETag, actual $actualETag",
 ) : KingdomInternalException(ErrorCode.COMPUTATION_PARTICIPANT_ETAG_MISMATCH, message) {
   override val context
     get() = mapOf("actual_etag" to actualETag, "request_etag" to requestETag)
@@ -876,5 +875,45 @@ class PopulationNotFoundException(
       mapOf(
         "external_data_provider_id" to externalDataProviderId.value.toString(),
         "external_population_id" to externalPopulationId.value.toString(),
+      )
+}
+
+class ClientAccountNotFoundException(
+  val externalMeasurementConsumerId: ExternalId,
+  val externalClientAccountId: ExternalId,
+  provideDescription: () -> String = { "ClientAccount not found" },
+) : KingdomInternalException(ErrorCode.CLIENT_ACCOUNT_NOT_FOUND, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_measurement_consumer_id" to externalMeasurementConsumerId.value.toString(),
+        "external_client_account_id" to externalClientAccountId.value.toString(),
+      )
+}
+
+class ClientAccountNotFoundByDataProviderException(
+  val externalDataProviderId: ExternalId,
+  val externalClientAccountId: ExternalId,
+  provideDescription: () -> String = { "ClientAccount not found" },
+) : KingdomInternalException(ErrorCode.CLIENT_ACCOUNT_NOT_FOUND, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_data_provider_id" to externalDataProviderId.value.toString(),
+        "external_client_account_id" to externalClientAccountId.value.toString(),
+      )
+}
+
+class ClientAccountAlreadyExistsException(
+  val externalDataProviderId: ExternalId,
+  val clientAccountReferenceId: String,
+  cause: Throwable? = null,
+  provideDescription: () -> String = { "ClientAccount already exists" },
+) : KingdomInternalException(ErrorCode.CLIENT_ACCOUNT_ALREADY_EXISTS, provideDescription(), cause) {
+  override val context
+    get() =
+      mapOf(
+        "external_data_provider_id" to externalDataProviderId.value.toString(),
+        "client_account_reference_id" to clientAccountReferenceId,
       )
 }

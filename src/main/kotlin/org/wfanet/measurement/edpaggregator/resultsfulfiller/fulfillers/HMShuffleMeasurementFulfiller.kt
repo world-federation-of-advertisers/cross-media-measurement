@@ -31,9 +31,8 @@ import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.Requisiti
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.KAnonymityParams
-import org.wfanet.measurement.computation.ReachAndFrequencyComputations
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.KAnonymizer
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.FulfillRequisitionRequestBuilder
 
@@ -108,7 +107,7 @@ class HMShuffleMeasurementFulfiller(
         SecretShareGeneratorAdapter::generateSecretShares,
     ): HMShuffleMeasurementFulfiller {
       val kAnonymizedFrequencyVector =
-        kAnonymize(
+        KAnonymizer.kAnonymizeFrequencyVector(
           measurementSpec,
           populationSpec,
           frequencyVectorBuilder,
@@ -125,44 +124,6 @@ class HMShuffleMeasurementFulfiller(
         requisitionsStub,
         generateSecretShares,
       )
-    }
-
-    /**
-     * Returns an empty FrequencyVector if k-anonymity threshold is not met for reach. It does not
-     * k-anonymize individual frequencies that do not meet a threshold.
-     */
-    private fun kAnonymize(
-      measurementSpec: MeasurementSpec,
-      populationSpec: PopulationSpec,
-      frequencyVectorBuilder: FrequencyVectorBuilder,
-      kAnonymityParams: KAnonymityParams,
-      maxPopulation: Int?,
-    ): FrequencyVector {
-      val frequencyData = frequencyVectorBuilder.frequencyDataArray
-      val histogram: LongArray =
-        HistogramComputations.buildHistogram(
-          frequencyVector = frequencyData,
-          maxFrequency = kAnonymityParams.reachMaxFrequencyPerUser,
-        )
-      val reachValue =
-        ReachAndFrequencyComputations.computeReach(
-          rawHistogram = histogram,
-          vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width,
-          vectorSize = maxPopulation,
-          dpParams = null,
-          kAnonymityParams = kAnonymityParams,
-        )
-      return if (reachValue == 0L) {
-        FrequencyVectorBuilder(
-            measurementSpec = measurementSpec,
-            populationSpec = populationSpec,
-            strict = false,
-            overrideImpressionMaxFrequencyPerUser = null,
-          )
-          .build()
-      } else {
-        frequencyVectorBuilder.build()
-      }
     }
   }
 }
