@@ -68,6 +68,15 @@ object TrusTeeStarter {
     val globalId: String = systemComputation.key.computationId
     val role = protocolSetupConfig.role
 
+    // TrusTEE only uses the aggregator role. Non-aggregator duchies should skip computation
+    // creation.
+    if (role != RoleInComputation.AGGREGATOR) {
+      logger.log(Level.INFO) {
+        "[id=$globalId] Skipping TrusTEE computation creation for non-aggregator role: $role"
+      }
+      return
+    }
+
     val apiVersion = Version.fromString(systemComputation.publicApiVersion)
     require(apiVersion == Version.V2_ALPHA) { "Unsupported API version $apiVersion" }
     val measurementSpec = MeasurementSpec.parseFrom(systemComputation.measurementSpec)
@@ -78,7 +87,6 @@ object TrusTeeStarter {
       trusTee =
         TrusTeeKt.computationDetails {
           this.role = role
-          require(role == RoleInComputation.AGGREGATOR) { "Invalid role for TrusTEE: role" }
           type = measurementSpec.toTrusTeeType()
           parameters = systemComputation.toTrusTeeParameters(measurementSpec)
         }

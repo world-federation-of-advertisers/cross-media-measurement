@@ -22,6 +22,7 @@ import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.ClassRule
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -254,6 +255,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
       )
     }
+  @Ignore("TrusTeeMill not configured in InProcessDuchy")
 
 
   @Test
@@ -265,6 +267,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
       )
     }
+  @Ignore("TrusTeeMill not configured in InProcessDuchy")
 
   @Test
   fun `create a TrusTee RF measurement and check the result is equal to the expected result`() =
