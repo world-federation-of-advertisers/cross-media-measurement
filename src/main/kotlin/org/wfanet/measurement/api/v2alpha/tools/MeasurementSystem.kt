@@ -1149,12 +1149,12 @@ private class ClientAccounts {
 
     val request = batchCreateClientAccountsRequest {
       this.parent = parent
-      clientAccounts.forEach { input ->
+      for (accountInput in clientAccounts) {
         requests += createClientAccountRequest {
           this.parent = parent
           clientAccount = clientAccount {
-            dataProvider = input.dataProvider
-            clientAccountReferenceId = input.referenceId
+            dataProvider = accountInput.dataProvider
+            clientAccountReferenceId = accountInput.referenceId
           }
         }
       }
