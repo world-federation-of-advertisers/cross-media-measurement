@@ -14,6 +14,9 @@
 
 package org.wfanet.measurement.integration.common
 
+import com.google.crypto.tink.Aead
+import com.google.crypto.tink.KeyTemplates
+import com.google.crypto.tink.KeysetHandle
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.logging.Logger
@@ -39,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
@@ -72,12 +76,21 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     )
   }
 
+  private val sharedKmsClient: FakeKmsClient by lazy {
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    val kmsClient = FakeKmsClient()
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    kmsClient
+  }
+
   @get:Rule
   val inProcessCmmsComponents =
     InProcessCmmsComponents(
       kingdomDataServicesRule,
       duchyDependenciesRule,
       useEdpSimulators = false,
+      trusTeeKmsClient = sharedKmsClient,
     )
 
   @JvmField
@@ -92,6 +105,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     mapOf(
       "edpa-eg-reference-id-1" to syntheticEventGroupSpec,
       "edpa-eg-reference-id-2" to syntheticEventGroupSpec,
+      "edpa-eg-reference-id-3" to syntheticEventGroupSpec,
     )
 
   @get:Rule
@@ -103,6 +117,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       syntheticEventGroupMap = syntheticEventGroupMap,
       syntheticPopulationSpec = syntheticPopulationSpec,
       modelLineInfoMap = modelLineInfoMap,
+      externalKmsClient = sharedKmsClient,
     )
 
   @Before
@@ -121,7 +136,23 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       kingdomChannel,
       measurementConsumerData,
       edpDisplayNameToResourceMap,
-      listOf("edp1", "edp2"),
+      mapOf(
+        "edp1" to
+          DataProviderKt.capabilities {
+            honestMajorityShareShuffleSupported = true
+            trusTeeSupported = false
+          },
+        "edp2" to
+          DataProviderKt.capabilities {
+            honestMajorityShareShuffleSupported = true
+            trusTeeSupported = true
+          },
+        "edp3" to
+          DataProviderKt.capabilities {
+            honestMajorityShareShuffleSupported = false
+            trusTeeSupported = true
+          },
+      ),
       duchyMap,
     )
     initMcSimulator()
@@ -234,6 +265,26 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       mcSimulator.testReachAndFrequency(
         "1234",
         ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+      )
+    }
+
+  @Test
+  fun `create a TrusTee reach-only measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Use frontend simulator to create a TrusTee reach-only measurement and verify its result.
+      mcSimulator.testReachOnly(
+        "1234",
+        ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
+      )
+    }
+
+  @Test
+  fun `create a TrusTee RF measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Use frontend simulator to create a TrusTee reach and frequency measurement and verify its result.
+      mcSimulator.testReachAndFrequency(
+        "1234",
+        ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
       )
     }
 

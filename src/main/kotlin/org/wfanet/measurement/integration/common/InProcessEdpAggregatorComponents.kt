@@ -51,8 +51,8 @@ import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -84,6 +84,7 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValid
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerApp
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerMetrics
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.TrusTeeConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -121,6 +122,7 @@ class InProcessEdpAggregatorComponents(
   private val syntheticPopulationSpec: SyntheticPopulationSpec,
   private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec>,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
+  externalKmsClient: FakeKmsClient? = null,
 ) : TestRule {
 
   private val storageClient: StorageClient = FileSystemStorageClient(storagePath.toFile())
@@ -171,10 +173,14 @@ class InProcessEdpAggregatorComponents(
   private val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
 
   private val kmsClient by lazy {
-    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-    val kmsClient = FakeKmsClient()
-    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
-    kmsClient
+    if (externalKmsClient != null) {
+      externalKmsClient
+    } else {
+      val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+      val kmsClient = FakeKmsClient()
+      kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+      kmsClient
+    }
   }
 
   private lateinit var kmsClients: Map<String, KmsClient>
@@ -200,6 +206,14 @@ class InProcessEdpAggregatorComponents(
         WorkItemAttemptsCoroutineStub(secureComputationPublicApi.publicApiChannel),
       queueSubscriber = subscriber,
       kmsClients = kmsClients.toMutableMap(),
+      trusTeeConfigs =
+        kmsClients.mapValues { (_, kmsClient) ->
+          TrusTeeConfig(
+            kmsClient = kmsClient,
+            workloadIdentityProvider = "test-wip",
+            impersonatedServiceAccount = "test-sa@example.com",
+          )
+        },
       requisitionMetadataStub = requisitionMetadataClient,
       impressionMetadataStub = impressionMetadataClient,
       requisitionStubFactory = requisitionStubFactory,
@@ -240,13 +254,13 @@ class InProcessEdpAggregatorComponents(
     kingdomChannel: Channel,
     measurementConsumerData: MeasurementConsumerData,
     edpDisplayNameToResourceMap: Map<String, Resource>,
-    edpAggregatorShortNames: List<String>,
+    edpCapabilities: Map<String, DataProvider.Capabilities>,
     duchyMap: Map<String, Channel>,
   ) = runBlocking {
     publicApiChannel = kingdomChannel
     duchyChannelMap = duchyMap
     edpResourceNameMap =
-      edpAggregatorShortNames.associateWith { edpAggregatorShortName ->
+      edpCapabilities.keys.associateWith { edpAggregatorShortName ->
         edpDisplayNameToResourceMap.getValue(edpAggregatorShortName).name
       }
     edpResourceNameMap.toList().forEach { (edpAggregatorShortName, edpResourceName) ->
@@ -255,7 +269,7 @@ class InProcessEdpAggregatorComponents(
       dataProvidersStub.replaceDataProviderCapabilities(
         replaceDataProviderCapabilitiesRequest {
           name = edpResourceName
-          capabilities = DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true }
+          capabilities = edpCapabilities.getValue(edpAggregatorShortName)
         }
       )
     }
