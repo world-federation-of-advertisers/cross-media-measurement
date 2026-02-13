@@ -37,6 +37,7 @@ message EventGroup {
     singular: "eventGroup"
     plural: "eventGroups"
   };
+  reserved 6;
 
   // Resource name.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];

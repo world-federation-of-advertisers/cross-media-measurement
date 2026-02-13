@@ -52,6 +52,7 @@ message ListEventGroupsRequest {
       child_type: "reporting.halo-cmm.org/EventGroup"
     }
   ];
+  reserved 4;
 
   // The maximum number of `EventGroup`s to return. The service may return fewer
   // than this value. If unspecified, at most 50 `EventGroup`s will be
