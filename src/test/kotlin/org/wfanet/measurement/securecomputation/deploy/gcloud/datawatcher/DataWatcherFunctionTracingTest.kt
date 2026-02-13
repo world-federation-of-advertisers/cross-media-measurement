@@ -33,6 +33,36 @@ import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 class DataWatcherFunctionTracingTest {
 
   @Test
+  fun `handles CloudEvent with unknown fields like customTime`() {
+    var receivedPath: String? = null
+
+    val pathReceiver: suspend (String, Map<String, String>) -> Unit = { path, _ ->
+      receivedPath = path
+    }
+
+    val cloudEventData =
+      """
+      {
+        "bucket": "test-bucket",
+        "name": "path/to/blob",
+        "size": "1",
+        "customTime": "2026-02-11T10:00:00.000Z"
+      }
+      """
+        .trimIndent()
+
+    val cloudEvent =
+      TestCloudEvent(
+        dataBytes = cloudEventData.toByteArray(Charsets.UTF_8),
+        extensions = emptyMap(),
+      )
+
+    DataWatcherFunction(pathReceiver).accept(cloudEvent)
+
+    assertThat(receivedPath).isEqualTo("gs://test-bucket/path/to/blob")
+  }
+
+  @Test
   fun `propagates traceparent from CloudEvent to DataWatcher work`() {
     val expectedTraceId = "4bf92f3577b34da6a3ce929d0e0e4736"
     val traceParent = "00-$expectedTraceId-00f067aa0ba902b7-01"
