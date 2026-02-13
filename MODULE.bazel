@@ -220,24 +220,6 @@ maven.artifact(
     ],
     group = "org.apache.beam",
 )
-maven.artifact(
-    testonly = True,
-    artifact = "docker-java-api",
-    group = "com.github.docker-java",
-    version = "3.4.1",
-)
-maven.artifact(
-    testonly = True,
-    artifact = "docker-java-transport",
-    group = "com.github.docker-java",
-    version = "3.4.1",
-)
-maven.artifact(
-    testonly = True,
-    artifact = "docker-java-transport-zerodep",
-    group = "com.github.docker-java",
-    version = "3.4.1",
-)
 maven.install(
     artifacts = [
         "com.google.crypto.tink:tink-awskms:1.11.0",
