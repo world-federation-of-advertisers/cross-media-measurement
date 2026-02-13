@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# DO_NOT_SUBMIT: These changes are for local runs only.
+
 variable "cluster_location" {
   description = "Location of Kubernetes clusters. Defaults to provider zone."
   type        = string
@@ -200,22 +202,22 @@ variable "data_availability_secret_mapping" {
 
 variable "data_watcher_uber_jar_path" {
   description = "Path to DataWatcher uber jar."
-  type = string
+  type        = string
 }
 
 variable "requisition_fetcher_uber_jar_path" {
   description = "Path to RequisitionFetcher uber jar."
-  type = string
+  type        = string
 }
 
 variable "event_group_uber_jar_path" {
   description = "Path to EventGroupSync uber jar."
-  type = string
+  type        = string
 }
 
 variable "data_availability_uber_jar_path" {
   description = "Path to DataAvailability uber jar."
-  type = string
+  type        = string
 }
 
 variable "data_watcher_delete_env_var" {
@@ -241,73 +243,73 @@ variable "data_availability_cleanup_secret_mapping" {
 
 variable "data_availability_cleanup_uber_jar_path" {
   description = "Path to DataAvailabilityCleanup uber jar."
-  type = string
+  type        = string
 }
 
 
 variable "results_fulfiller_event_proto_descriptor_path" {
   description = "Serialized FileDescriptorSet path for EventTemplate metadata types."
-  type = string
+  type        = string
 }
 
 variable "results_fulfiller_event_proto_descriptor_blob_uri" {
   description = "GCS blob uri of the FileDescriptorSet containing the event message descriptor."
-  type = string
+  type        = string
 }
 
 variable "results_fulfiller_event_template_type_name" {
   description = "Fully qualified name of the event template proto message"
-  type = string
+  type        = string
 }
 
 variable "results_fulfiller_population_spec_blob_uri" {
   description = "GCS blob uri of the Results Fulfiller population spec."
-  type = string
+  type        = string
 }
 
 variable "edpa_model_line_map" {
   description = "Mapping of available model line for the Results Fulfiller"
-  type = string
+  type        = string
 }
 
 variable "duchy_worker1_id" {
   description = "ID of duchy worker 1."
-  type = string
+  type        = string
 }
 
 variable "duchy_worker1_target" {
   description = "Target of duchy worker 1."
-  type = string
+  type        = string
 }
 
 variable "duchy_worker2_id" {
   description = "ID of duchy worker 2."
-  type = string
+  type        = string
 }
 
 variable "duchy_worker2_target" {
   description = "Target of duchy worker 2."
-  type = string
+  type        = string
 }
 
 variable "results_fulfiller_trusted_root_ca_collection_file_path" {
   description = "Trusted root CA used by the Results Fulfiller."
-  type = string
+  type        = string
 }
 
 variable "duchy_aggregator_computations_service_target" {
   description = "Target of aggregator computations service."
-  type = string
+  type        = string
 }
 
 variable "kingdom_system_api_target" {
   description = "Target of the kingdom system api"
-  type = string
+  type        = string
 }
 
 variable "duchy_aggregator_cert_id" {
   description = "Aggregator's certificate id"
-  type = string
+  type        = string
 }
 
 variable "edp_simulator_names" {
