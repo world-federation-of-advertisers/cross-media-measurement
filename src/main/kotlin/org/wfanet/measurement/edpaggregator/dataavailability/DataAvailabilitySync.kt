@@ -166,17 +166,10 @@ class DataAvailabilitySync(
         saveImpressionMetadata(metadataWithBlobKeys)
       }
 
-      // 3. Retrieve model line bound from ImpressionMetadataStorage for all model line
-      // found in the storage folder and update kingdom availability
-      // Collect all model lines
-      val modelLines = impressionMetadataMap.keys.toList()
-
+      // 3. Retrieve model line bound from ImpressionMetadataStorage for all model lines
       val modelLineBounds: ComputeModelLineBoundsResponse =
         impressionMetadataServiceStub.computeModelLineBounds(
-          computeModelLineBoundsRequest {
-            parent = dataProviderName
-            this.modelLines += modelLines
-          }
+          computeModelLineBoundsRequest { parent = dataProviderName }
         )
 
       // Build availability entries from the response

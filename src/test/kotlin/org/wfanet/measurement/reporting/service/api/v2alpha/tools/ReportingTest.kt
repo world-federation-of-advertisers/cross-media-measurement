@@ -190,7 +190,6 @@ class ReportingTest {
         "--parent=$MEASUREMENT_CONSUMER_NAME",
         "--cmms-event-group=$CMMS_EVENT_GROUP_NAME_1",
         "--cmms-event-group=$CMMS_EVENT_GROUP_NAME_2",
-        "--filter=person.age_group == 1",
         "--display-name=reporting-set",
         "--id=$REPORTING_SET_ID",
       )
@@ -205,7 +204,6 @@ class ReportingTest {
         createReportingSetRequest {
           parent = MEASUREMENT_CONSUMER_NAME
           reportingSet = reportingSet {
-            filter = "person.age_group == 1"
             displayName = "reporting-set"
             primitive =
               ReportingSetKt.primitive {
@@ -243,7 +241,6 @@ class ReportingTest {
         "create",
         "--parent=$MEASUREMENT_CONSUMER_NAME",
         "--set-expression=$setExpression",
-        "--filter=person.age_group == 1",
         "--display-name=reporting-set",
         "--id=$REPORTING_SET_ID",
       )
@@ -258,7 +255,6 @@ class ReportingTest {
         createReportingSetRequest {
           parent = MEASUREMENT_CONSUMER_NAME
           reportingSet = reportingSet {
-            filter = "person.age_group == 1"
             displayName = "reporting-set"
             composite =
               ReportingSetKt.composite {
@@ -302,7 +298,6 @@ class ReportingTest {
         "--cmms-event-group=$CMMS_EVENT_GROUP_NAME_1",
         "--cmms-event-group=$CMMS_EVENT_GROUP_NAME_2",
         "--set-expression=$setExpression",
-        "--filter=person.age_group == 1",
         "--display-name=reporting-set",
         "--id=$REPORTING_SET_ID",
       )
@@ -323,7 +318,6 @@ class ReportingTest {
         "reporting-sets",
         "create",
         "--parent=$MEASUREMENT_CONSUMER_NAME",
-        "--filter=person.age_group == 1",
         "--display-name=reporting-set",
         "--id=$REPORTING_SET_ID",
       )
@@ -860,6 +854,7 @@ class ReportingTest {
         "event-groups",
         "list",
         "--parent=$MEASUREMENT_CONSUMER_NAME",
+        "--filter=event_group_reference_id == 'abc'",
       )
     val output = callCli(args)
 
@@ -867,6 +862,7 @@ class ReportingTest {
       .isEqualTo(
         listEventGroupsRequest {
           parent = MEASUREMENT_CONSUMER_NAME
+          filter = "event_group_reference_id == 'abc'"
           pageSize = 1000
         }
       )

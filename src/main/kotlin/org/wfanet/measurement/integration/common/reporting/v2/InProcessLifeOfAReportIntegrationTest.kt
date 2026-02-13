@@ -69,7 +69,6 @@ import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
-import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
 import org.wfanet.measurement.api.withAuthenticationKey
@@ -87,6 +86,7 @@ import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
+import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
 import org.wfanet.measurement.dataprovider.MeasurementResults
 import org.wfanet.measurement.integration.common.ALL_EDP_DISPLAY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
@@ -240,6 +240,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           SECRETS_DIR,
           measurementConsumerConfig,
           TRUSTED_CERTIFICATES,
+          inProcessCmmsComponents.kingdom.knownEventGroupMetadataTypes,
           TestEvent.getDescriptor(),
           defaultModelLineName = inProcessCmmsComponents.modelLineResourceName,
           verboseGrpcLogging = false,
@@ -3008,11 +3009,16 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     filter: String,
     collectionInterval: Interval,
   ): EventQuery.EventGroupSpec {
+    val cmmsMetadata =
+      CmmsEventGroupKt.metadata {
+        eventGroupMetadataDescriptor = eventGroup.metadata.eventGroupMetadataDescriptor
+        metadata = eventGroup.metadata.metadata
+      }
+    val encryptedCmmsMetadata =
+      encryptMetadata(cmmsMetadata, InProcessCmmsComponents.MC_ENTITY_CONTENT.encryptionPublicKey)
     val cmmsEventGroup = cmmsEventGroup {
       name = eventGroup.cmmsEventGroup
-      eventGroupReferenceId = eventGroup.eventGroupReferenceId
-      eventTemplates +=
-        eventGroup.eventTemplatesList.map { CmmsEventGroupKt.eventTemplate { type = it.type } }
+      encryptedMetadata = encryptedCmmsMetadata
     }
 
     val eventFilter = RequisitionSpecKt.eventFilter { expression = filter }

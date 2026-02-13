@@ -16,11 +16,14 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.protobuf.DynamicMessage
+import com.google.protobuf.kotlin.unpack
 import io.grpc.Context
 import io.grpc.Deadline
 import io.grpc.Deadline.Ticker
 import io.grpc.Status
 import io.grpc.StatusException
+import java.security.GeneralSecurityException
 import java.time.DateTimeException
 import java.time.LocalDate
 import java.util.concurrent.TimeUnit
@@ -28,10 +31,13 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.transformWhile
+import org.projectnessie.cel.common.types.Err
+import org.projectnessie.cel.common.types.ref.Val
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DateInterval as CmmsDateInterval
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadata
@@ -46,9 +52,13 @@ import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEven
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
+import org.wfanet.measurement.consent.client.measurementconsumer.decryptMetadata
+import org.wfanet.measurement.reporting.service.api.CelEnvProvider
+import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v2alpha.DateInterval
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupKt

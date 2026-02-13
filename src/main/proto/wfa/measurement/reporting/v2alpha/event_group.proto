@@ -101,8 +101,7 @@ message EventGroup {
       AdMetadata ad_metadata = 1;
     }
   }
-  // Metadata for this [EventGroup][]. This will eventually replace [metadata][]
-  // and be required.
+  // Metadata for this [EventGroup][].
   EventGroupMetadata event_group_metadata = 8;
 
   // View of an `EventGroup`.

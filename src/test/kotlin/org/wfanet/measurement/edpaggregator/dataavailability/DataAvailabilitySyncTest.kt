@@ -231,7 +231,11 @@ class DataAvailabilitySyncTest {
       batchCreateImpressionMetadata(batchCaptor.capture())
     }
     assertThat(batchCaptor.firstValue.requestsCount).isEqualTo(1)
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
+    val boundsRequestCaptor = argumentCaptor<ComputeModelLineBoundsRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      computeModelLineBounds(boundsRequestCaptor.capture())
+    }
+    assertThat(boundsRequestCaptor.firstValue.parent).isEqualTo("dataProviders/dataProvider123")
   }
 
   @Test
@@ -298,6 +302,65 @@ class DataAvailabilitySyncTest {
       }
       val availabilityKeys = requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key }
       assertThat(availabilityKeys).containsExactlyElementsIn(mappedLines)
+    }
+  }
+
+  @Test
+  fun `sync updates availability for existing and new model lines`() {
+    runBlocking {
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+      val existingModelLine = "modelLineA"
+      val newModelLine = "modelLineB"
+
+      seedBlobDetailsWithModelLine(storageClient, folderPrefix, listOf(300L to 400L), newModelLine)
+
+      wheneverBlocking { impressionMetadataServiceMock.computeModelLineBounds(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ComputeModelLineBoundsRequest>(0)
+          computeModelLineBoundsResponse {
+            modelLineBounds += modelLineBoundMapEntry {
+              key = "${request.parent}/modelLines/$existingModelLine"
+              value = interval {
+                startTime = timestamp { seconds = 100 }
+                endTime = timestamp { seconds = 200 }
+              }
+            }
+            modelLineBounds += modelLineBoundMapEntry {
+              key = "${request.parent}/modelLines/$newModelLine"
+              value = interval {
+                startTime = timestamp { seconds = 300 }
+                endTime = timestamp { seconds = 400 }
+              }
+            }
+          }
+        }
+
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+        )
+
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+      val requestCaptor = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
+      verifyBlocking(dataProvidersServiceMock, times(1)) {
+        replaceDataAvailabilityIntervals(requestCaptor.capture())
+      }
+      val availabilityKeys = requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key }
+      assertThat(availabilityKeys)
+        .containsExactly(
+          "dataProviders/dataProvider123/modelLines/$existingModelLine",
+          "dataProviders/dataProvider123/modelLines/$newModelLine",
+        )
     }
   }
 
@@ -962,6 +1025,55 @@ class DataAvailabilitySyncTest {
     }
 
     return written
+  }
+
+  private suspend fun seedBlobDetailsWithModelLine(
+    storageClient: StorageClient,
+    prefix: String,
+    intervals: List<Pair<Long?, Long?>>,
+    modelLine: String,
+    encoding: BlobEncoding = BlobEncoding.PROTO,
+    createImpressionFile: Boolean = true,
+  ) {
+    require(prefix.isEmpty() || prefix.endsWith("/")) { "prefix should end with '/'" }
+
+    intervals.forEachIndexed { index, (startSeconds, endSeconds) ->
+      val blobUri = "$bucket/${prefix}some_blob_uri_$index"
+      val objectKey = "${prefix}some_blob_uri_$index"
+      val details = blobDetails {
+        this.blobUri = blobUri
+        eventGroupReferenceId = "event${index + 1}"
+        this.modelLine = modelLine
+        interval = interval {
+          if (startSeconds != null) {
+            startTime = timestamp {
+              seconds = startSeconds
+              nanos = 0
+            }
+          }
+          if (endSeconds != null) {
+            endTime = timestamp {
+              seconds = endSeconds
+              nanos = 0
+            }
+          }
+        }
+      }
+
+      val filename =
+        when (encoding) {
+          BlobEncoding.PROTO -> "metadata-$index.binpb"
+          BlobEncoding.JSON -> "metadata-$index.json"
+          BlobEncoding.EMPTY -> "metadata-$index"
+        }
+      val key = "$prefix$filename"
+
+      val bytes = details.serialize(encoding)
+      storageClient.writeBlob(key, bytes)
+      if (createImpressionFile) {
+        storageClient.writeBlob(objectKey, emptyFlow())
+      }
+    }
   }
 
   private fun BlobDetails.serialize(encoding: BlobEncoding): ByteString =

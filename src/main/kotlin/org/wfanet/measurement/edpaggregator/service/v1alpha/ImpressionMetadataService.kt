@@ -491,23 +491,11 @@ class ImpressionMetadataService(
         ?: throw InvalidFieldValueException("parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
-    if (request.modelLinesList.isEmpty()) {
-      throw RequiredFieldNotSetException("model_lines")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
-    request.modelLinesList.forEachIndexed { index, modelLine ->
-      ModelLineKey.fromName(modelLine)
-        ?: throw InvalidFieldValueException("model_lines.$index")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
     val internalResponse: InternalComputeModelLineBoundsResponse =
       try {
         internalImpressionMetadataStub.computeModelLineBounds(
           internalComputeModelLineBoundsRequest {
             dataProviderResourceId = dataProviderKey.dataProviderId
-            cmmsModelLine += request.modelLinesList
           }
         )
       } catch (e: StatusException) {
