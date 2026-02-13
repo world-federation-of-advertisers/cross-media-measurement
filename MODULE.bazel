@@ -39,7 +39,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.135.0",
+    version = "0.136.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -283,6 +283,9 @@ maven.install(
         "org.apache.commons:commons-numbers-core",
         "org.apache.commons:commons-numbers-gamma",
         "org.apache.commons:commons-math3:3.6.1",
+
+        # Avoid https://github.com/FasterXML/jackson-databind/issues/3637 from testcontainers.
+        "com.fasterxml.jackson.core:jackson-annotations:2.20",
     ],
     boms = [
         "com.squareup.okhttp3:okhttp-bom:4.12.0",
