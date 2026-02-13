@@ -40,6 +40,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerClientAccountKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.deleteEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
