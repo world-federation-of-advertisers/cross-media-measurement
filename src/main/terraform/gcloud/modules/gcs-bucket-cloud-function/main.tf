@@ -50,13 +50,13 @@ resource "google_storage_bucket_iam_member" "cloud_function_object_creator" {
 }
 
 resource "google_project_iam_member" "trigger_event_receiver" {
-  project = data.google_project.project.project_id
+  project = data.google_project.project.id
   role    = "roles/eventarc.eventReceiver"
   member  = "serviceAccount:${google_service_account.cloud_function_trigger_service_account.email}"
 }
 
 resource "google_project_iam_member" "trigger_run_invoker" {
-  project = data.google_project.project.project_id
+  project = data.google_project.project.id
   role    = "roles/run.invoker"
   member  = "serviceAccount:${google_service_account.cloud_function_trigger_service_account.email}"
 }

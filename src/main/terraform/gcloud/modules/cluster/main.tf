@@ -14,12 +14,16 @@
 
 data "google_project" "project" {}
 
+locals {
+  google_project_id = trimprefix(data.google_project.project.id, "projects/")
+}
+
 resource "google_container_cluster" "cluster" {
   name     = var.name
   location = var.location
 
   workload_identity_config {
-    workload_pool = "${data.google_project.project.project_id}.svc.id.goog"
+    workload_pool = "${local.google_project_id}.svc.id.goog"
   }
 
   database_encryption {
