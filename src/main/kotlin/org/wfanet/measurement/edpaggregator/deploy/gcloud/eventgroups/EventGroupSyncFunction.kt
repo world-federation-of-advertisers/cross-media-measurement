@@ -20,6 +20,7 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.protobuf.util.JsonFormat
+import io.grpc.Channel
 import io.grpc.ClientInterceptors
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.BufferedReader
@@ -33,6 +34,7 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
@@ -73,13 +75,15 @@ class EventGroupSyncFunction() : HttpFunction {
           spanName = "event_group_sync_function",
           attributes = mapOf("data_provider_name" to eventGroupSyncConfig.dataProvider),
         ) {
-          val eventGroupsClient =
-            createEventGroupsStub(
+          val kingdomChannel =
+            createKingdomPublicApiChannel(
               target = kingdomTarget,
               eventGroupSyncConfig = eventGroupSyncConfig,
               certHost = kingdomCertHost,
               shutdownTimeout = channelShutdownDuration,
             )
+          val eventGroupsClient = EventGroupsCoroutineStub(kingdomChannel)
+          val clientAccountsClient = ClientAccountsCoroutineStub(kingdomChannel)
           val eventGroups: Flow<EventGroup> =
             Tracing.traceSuspending(
               spanName = "load_event_groups",
@@ -108,6 +112,7 @@ class EventGroupSyncFunction() : HttpFunction {
               EventGroupSync(
                   edpName = eventGroupSyncConfig.dataProvider,
                   eventGroupsStub = eventGroupsClient,
+                  clientAccountsStub = clientAccountsClient,
                   eventGroups = eventGroups,
                   throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration),
                   listEventGroupPageSize,
@@ -239,25 +244,28 @@ class EventGroupSyncFunction() : HttpFunction {
     }
 
     /**
-     * Creates an instrumented EventGroupsCoroutineStub for the Kingdom Public API.
+     * Creates an instrumented gRPC channel for the Kingdom Public API.
      *
-     * The stub is configured with:
+     * The channel is configured with:
      * - Mutual TLS authentication (certificates loaded from eventGroupSyncConfig)
      * - Graceful shutdown timeout
      * - OpenTelemetry gRPC instrumentation for automatic span and metric creation
+     *
+     * This channel should be shared across all stubs for the same target to avoid creating
+     * expensive duplicate connections.
      *
      * @param target The Kingdom API target (e.g., "kingdom.example.com:443")
      * @param eventGroupSyncConfig Configuration containing certificate file paths for mutual TLS
      * @param certHost The expected certificate hostname (optional, for cert verification)
      * @param shutdownTimeout Duration to wait for graceful channel shutdown
-     * @return Instrumented EventGroupsCoroutineStub ready for use
+     * @return Instrumented Channel ready for use with multiple stubs
      */
-    private fun createEventGroupsStub(
+    private fun createKingdomPublicApiChannel(
       target: String,
       eventGroupSyncConfig: EventGroupSyncConfig,
       certHost: String?,
       shutdownTimeout: Duration,
-    ): EventGroupsCoroutineStub {
+    ): Channel {
       val signingCerts =
         SigningCerts.fromPemFiles(
           certificateFile = checkNotNull(File(eventGroupSyncConfig.cmmsConnection.certFilePath)),
@@ -272,10 +280,7 @@ class EventGroupSyncFunction() : HttpFunction {
 
       // Use official OpenTelemetry gRPC instrumentation for automatic span and metric creation
       val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
-      val instrumentedChannel =
-        ClientInterceptors.intercept(publicChannel, grpcTelemetry.newClientInterceptor())
-
-      return EventGroupsCoroutineStub(instrumentedChannel)
+      return ClientInterceptors.intercept(publicChannel, grpcTelemetry.newClientInterceptor())
     }
   }
 }
