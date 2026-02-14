@@ -25,7 +25,7 @@ import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey as CmmsMeasurementConsumerKey
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
@@ -35,11 +35,11 @@ import org.wfanet.measurement.internal.reporting.ErrorCode
 import org.wfanet.measurement.internal.reporting.v2.CreateReportingSetRequest as InternalCreateReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest as internalCreateReportingSetRequest
+import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.reporting.service.api.CampaignGroupInvalidException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
+import org.wfanet.measurement.reporting.service.api.ReportingSetNotFoundException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
-import org.wfanet.measurement.reporting.service.api.ServiceException
 import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 import org.wfanet.measurement.reporting.v2alpha.CreateReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.GetReportingSetRequest
@@ -63,43 +63,53 @@ class ReportingSetsService(
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : ReportingSetsCoroutineImplBase(coroutineContext) {
   override suspend fun createReportingSet(request: CreateReportingSetRequest): ReportingSet {
-    val parentKey =
-      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
-        "Parent is either unspecified or invalid."
+    val parsedRequest: ParsedCreateReportingSetRequest =
+      try {
+        validate(request)
+      } catch (e: InvalidFieldValueException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      } catch (e: RequiredFieldNotSetException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      } catch (e: CampaignGroupInvalidException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
-    grpcRequire(request.hasReportingSet()) { "ReportingSet is not specified." }
-    grpcRequire(request.reportingSetId.matches(RESOURCE_ID_REGEX)) {
-      "Reporting set ID is invalid."
-    }
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
     val requiredPermissions: Set<String> =
       when (request.reportingSet.valueCase) {
         ReportingSet.ValueCase.PRIMITIVE -> {
-          validateEventGroups(request.reportingSet.primitive)
           setOf(Permission.CREATE_PRIMITIVE)
         }
         ReportingSet.ValueCase.COMPOSITE -> {
-          validateSetExpression(parentKey, request.reportingSet.composite.expression)
           setOf(Permission.CREATE_COMPOSITE)
         }
         ReportingSet.ValueCase.VALUE_NOT_SET ->
-          throw Status.INVALID_ARGUMENT.withDescription("reporting_set.value not set")
-            .asRuntimeException()
+          error("reporting_set not specified") // Already validated.
       }
     authorization.check(request.parent, requiredPermissions)
 
-    val internalCreateReportingSetRequest: InternalCreateReportingSetRequest =
+    val referencedReportingSets =
       try {
-        request.toInternal()
-      } catch (e: ServiceException) {
-        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        ReportingSets.getReferencedReportingSets(
+          internalReportingSetsStub,
+          parsedRequest.referencedReportingSetKeys,
+        )
+      } catch (e: ReportingSetNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      } catch (e: InternalReportingSetsException) {
+        throw Status.INTERNAL.withDescription(e.message).withCause(e).asRuntimeException()
       }
 
+    val internalRequest: InternalCreateReportingSetRequest =
+      ReportingSets.buildInternalCreateReportingSetRequest(
+        request,
+        parsedRequest.parentKey,
+        parsedRequest.campaignGroupKey,
+        referencedReportingSets,
+      )
+
     return try {
-      internalReportingSetsStub
-        .createReportingSet(internalCreateReportingSetRequest)
-        .toReportingSet()
+      internalReportingSetsStub.createReportingSet(internalRequest).toReportingSet()
     } catch (e: StatusException) {
       throw when (ReportingInternalException.getErrorCode(e)) {
         ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND ->
@@ -133,80 +143,145 @@ class ReportingSetsService(
     }
   }
 
+  private data class ParsedCreateReportingSetRequest(
+    val request: CreateReportingSetRequest,
+    val parentKey: CmmsMeasurementConsumerKey,
+    val campaignGroupKey: ReportingSetKey?,
+    val referencedReportingSetKeys: Set<ReportingSetKey>,
+  )
+
   /**
-   * Validates EventGroups in request [primitive].
+   * Validates [request].
    *
-   * @throws io.grpc.StatusRuntimeException
+   * @throws InvalidFieldValueException
+   * @throws RequiredFieldNotSetException
+   * @throws CampaignGroupInvalidException
    */
-  private fun validateEventGroups(primitive: ReportingSet.Primitive) {
-    if (primitive.cmmsEventGroupsList.isEmpty()) {
-      throw Status.INVALID_ARGUMENT.withDescription("cmms_event_groups is not set")
-        .asRuntimeException()
+  private fun validate(request: CreateReportingSetRequest): ParsedCreateReportingSetRequest {
+    val parentKey =
+      CmmsMeasurementConsumerKey.fromName(request.parent)
+        ?: throw InvalidFieldValueException("parent")
+    if (!request.hasReportingSet()) {
+      throw RequiredFieldNotSetException("reporting_set")
     }
-    for (eventGroupName in primitive.cmmsEventGroupsList) {
-      if (CmmsEventGroupKey.fromName(eventGroupName) == null) {
-        throw Status.INVALID_ARGUMENT.withDescription(
-            "$eventGroupName is not a valid EventGroup resource name"
+    if (!request.reportingSetId.matches(RESOURCE_ID_REGEX)) {
+      throw InvalidFieldValueException("reporting_set_id")
+    }
+
+    val referencedReportingSetKeys: Set<ReportingSetKey> =
+      when (request.reportingSet.valueCase) {
+        ReportingSet.ValueCase.PRIMITIVE -> {
+          if (request.reportingSet.primitive.cmmsEventGroupsList.isEmpty()) {
+            throw RequiredFieldNotSetException("reporting_set.primitive.cmms_event_groups")
+          }
+          request.reportingSet.primitive.cmmsEventGroupsList.forEachIndexed {
+            index,
+            cmmsEventGroupName ->
+            if (CmmsEventGroupKey.fromName(cmmsEventGroupName) == null) {
+              throw InvalidFieldValueException("reporting_set.primitive.cmms_event_groups[$index]")
+            }
+          }
+          emptySet()
+        }
+        ReportingSet.ValueCase.COMPOSITE -> {
+          validateSetExpression(
+            parentKey,
+            request.reportingSet.composite.expression,
+            "reporting_set.composite.expression",
           )
-          .asRuntimeException()
+        }
+        ReportingSet.ValueCase.VALUE_NOT_SET ->
+          throw RequiredFieldNotSetException("reporting_set.value")
+      }
+
+    val campaignGroupKey: ReportingSetKey? =
+      if (request.reportingSet.campaignGroup.isEmpty()) {
+        null
+      } else {
+        ReportingSetKey.fromName(request.reportingSet.campaignGroup)
+          ?: throw InvalidFieldValueException("reporting_set.campaign_group")
+      }
+    if (campaignGroupKey != null) {
+      if (campaignGroupKey.parentKey != parentKey) {
+        throw InvalidFieldValueException("reporting_set.campaign_group") { fieldPath ->
+          "$fieldPath belongs to a different MeasurementConsumer"
+        }
+      }
+      if (
+        campaignGroupKey.reportingSetId == request.reportingSetId &&
+          !request.reportingSet.hasPrimitive()
+      ) {
+        throw CampaignGroupInvalidException(request.reportingSet.campaignGroup)
       }
     }
+
+    return ParsedCreateReportingSetRequest(
+      request,
+      parentKey,
+      campaignGroupKey,
+      referencedReportingSetKeys,
+    )
   }
 
   /**
    * Validates a request [setExpression].
    *
-   * @throws io.grpc.StatusRuntimeException
+   * @return the set of keys of the referenced ReportingSets
+   * @throws RequiredFieldNotSetException
+   * @throws InvalidFieldValueException
    */
   private fun validateSetExpression(
-    parentKey: MeasurementConsumerKey,
+    parentKey: CmmsMeasurementConsumerKey,
     setExpression: ReportingSet.SetExpression,
-  ) {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
+    fieldPath: String,
+  ): Set<ReportingSetKey> {
     when (setExpression.operation) {
       ReportingSet.SetExpression.Operation.UNION,
       ReportingSet.SetExpression.Operation.DIFFERENCE,
       ReportingSet.SetExpression.Operation.INTERSECTION -> {}
-      ReportingSet.SetExpression.Operation.OPERATION_UNSPECIFIED,
+      ReportingSet.SetExpression.Operation.OPERATION_UNSPECIFIED ->
+        throw RequiredFieldNotSetException("$fieldPath.operation")
       ReportingSet.SetExpression.Operation.UNRECOGNIZED ->
-        throw Status.INVALID_ARGUMENT.withDescription("operation not set or invalid")
-          .asRuntimeException()
+        throw InvalidFieldValueException("$fieldPath.operation")
     }
 
-    validateOperand(parentKey, setExpression.lhs)
-    if (setExpression.hasRhs()) {
-      validateOperand(parentKey, setExpression.rhs)
+    return buildSet {
+      addAll(validateOperand(parentKey, setExpression.lhs, "$fieldPath.lhs"))
+      if (setExpression.hasRhs()) {
+        addAll(validateOperand(parentKey, setExpression.rhs, "$fieldPath.rhs"))
+      }
     }
   }
 
   /**
    * Validates a request [operand].
    *
-   * @throws io.grpc.StatusRuntimeException
+   * @return the set of keys of the referenced ReportingSets
+   * @throws InvalidFieldValueException
+   * @throws RequiredFieldNotSetException
    */
   private fun validateOperand(
-    parentKey: MeasurementConsumerKey,
+    parentKey: CmmsMeasurementConsumerKey,
     operand: ReportingSet.SetExpression.Operand,
-  ) {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
-    when (operand.operandCase) {
+    fieldPath: String,
+  ): Set<ReportingSetKey> {
+    return when (operand.operandCase) {
       ReportingSet.SetExpression.Operand.OperandCase.REPORTING_SET -> {
         val reportingSetKey =
           ReportingSetKey.fromName(operand.reportingSet)
-            ?: throw Status.INVALID_ARGUMENT.withDescription(
-                "${operand.reportingSet} is not a valid ReportingSet resource name"
-              )
-              .asRuntimeException()
+            ?: throw InvalidFieldValueException("$fieldPath.reporting_set")
         if (reportingSetKey.parentKey != parentKey) {
-          throw Status.INVALID_ARGUMENT.withDescription("ReportingSet has incorrect parent")
-            .asRuntimeException()
+          throw InvalidFieldValueException("$fieldPath.reporting_set") { invalidFieldPath ->
+            "$invalidFieldPath does not belong to the same MeasurementConsumer"
+          }
         }
+        setOf(reportingSetKey)
       }
       ReportingSet.SetExpression.Operand.OperandCase.EXPRESSION -> {
-        validateSetExpression(parentKey, operand.expression)
+        validateSetExpression(parentKey, operand.expression, "$fieldPath.expression")
       }
       ReportingSet.SetExpression.Operand.OperandCase.OPERAND_NOT_SET ->
-        throw Status.INVALID_ARGUMENT.withDescription("operand not set").asRuntimeException()
+        throw RequiredFieldNotSetException("$fieldPath.operand")
     }
   }
 
@@ -219,10 +294,11 @@ class ReportingSetsService(
 
     val internalResponse =
       try {
-        getInternalReportingSet(
-          reportingSetKey.toName(),
-          reportingSetKey.cmmsMeasurementConsumerId,
-          internalReportingSetsStub,
+        internalReportingSetsStub.batchGetReportingSets(
+          batchGetReportingSetsRequest {
+            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+            externalReportingSetIds += reportingSetKey.reportingSetId
+          }
         )
       } catch (e: StatusException) {
         throw when (e.status.code) {
@@ -233,13 +309,13 @@ class ReportingSetsService(
           .asRuntimeException()
       }
 
-    return internalResponse.toReportingSet()
+    return internalResponse.reportingSetsList.single().toReportingSet()
   }
 
   override suspend fun listReportingSets(
     request: ListReportingSetsRequest
   ): ListReportingSetsResponse {
-    grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+    grpcRequireNotNull(CmmsMeasurementConsumerKey.fromName(request.parent)) {
       "Parent is either unspecified or invalid."
     }
     val listReportingSetsPageToken = request.toListReportingSetsPageToken()
@@ -274,31 +350,6 @@ class ReportingSetsService(
     }
   }
 
-  /**
-   * Converts a [CreateReportingSetRequest] to an [InternalCreateReportingSetRequest].
-   *
-   * @throws InvalidFieldValueException
-   * @throws RequiredFieldNotSetException
-   * @throws CampaignGroupInvalidException
-   */
-  private suspend fun CreateReportingSetRequest.toInternal(): InternalCreateReportingSetRequest {
-    val source = this
-    val cmmsMeasurementConsumerId =
-      checkNotNull(MeasurementConsumerKey.fromName(source.parent)).measurementConsumerId
-
-    val internalReportingSet =
-      source.reportingSet.toInternal(
-        source.reportingSetId,
-        cmmsMeasurementConsumerId,
-        internalReportingSetsStub,
-      )
-
-    return internalCreateReportingSetRequest {
-      this.reportingSet = internalReportingSet
-      this.externalReportingSetId = source.reportingSetId
-    }
-  }
-
   object Permission {
     private const val TYPE = "reporting.reportingSets"
     const val CREATE_PRIMITIVE = "$TYPE.createPrimitive"
@@ -317,8 +368,8 @@ private fun ListReportingSetsRequest.toListReportingSetsPageToken(): ListReporti
   grpcRequire(pageSize >= 0) { "Page size cannot be less than 0" }
 
   val source = this
-  val parentKey: MeasurementConsumerKey =
-    grpcRequireNotNull(MeasurementConsumerKey.fromName(parent)) {
+  val parentKey =
+    grpcRequireNotNull(CmmsMeasurementConsumerKey.fromName(parent)) {
       "Parent is either unspecified or invalid."
     }
 
