@@ -24,6 +24,7 @@ import com.google.protobuf.duration
 import com.google.protobuf.empty
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.Durations
+import com.google.protobuf.util.JsonFormat
 import com.google.protobuf.value
 import com.google.type.date
 import com.google.type.interval
@@ -38,11 +39,14 @@ import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.api.ApiKeyConstants
@@ -130,6 +134,7 @@ import org.wfanet.measurement.api.v2alpha.activateAccountRequest
 import org.wfanet.measurement.api.v2alpha.apiKey
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
 import org.wfanet.measurement.api.v2alpha.authenticateResponse
+import org.wfanet.measurement.api.v2alpha.batchCreateClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.batchCreateClientAccountsResponse
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.clientAccount
@@ -215,6 +220,12 @@ import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
 import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signResult
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup as EdpaEventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata as edpaCampaignMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata as edpaAdMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as edpaMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup as edpaEventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroups as edpaEventGroups
 
 private val SECRETS_DIR: File =
   getRuntimePath(
@@ -441,6 +452,8 @@ private val BATCH_CREATE_CLIENT_ACCOUNTS_RESPONSE = batchCreateClientAccountsRes
 
 @RunWith(JUnit4::class)
 class MeasurementSystemTest {
+  @get:Rule val tempFolder = TemporaryFolder()
+
   private val accountsServiceMock: AccountsCoroutineImplBase = mockService()
   private val headerInterceptor = HeaderCapturingInterceptor()
 
@@ -2195,6 +2208,574 @@ class MeasurementSystemTest {
           }
         }
       )
+  }
+
+  @Test
+  fun `client-accounts create with brand and json file succeeds`() {
+    val eventGroupsJson =
+      """
+      {
+        "eventGroups": [
+          {
+            "eventGroupReferenceId": "eg-1",
+            "clientAccountReferenceId": "account-1",
+            "eventGroupMetadata": {
+              "adMetadata": {
+                "campaignMetadata": {
+                  "brand": "TestBrand",
+                  "campaign": "Campaign1"
+                }
+              }
+            }
+          },
+          {
+            "eventGroupReferenceId": "eg-2",
+            "clientAccountReferenceId": "account-2",
+            "eventGroupMetadata": {
+              "adMetadata": {
+                "campaignMetadata": {
+                  "brand": "TestBrand",
+                  "campaign": "Campaign2"
+                }
+              }
+            }
+          },
+          {
+            "eventGroupReferenceId": "eg-3",
+            "clientAccountReferenceId": "account-3",
+            "eventGroupMetadata": {
+              "adMetadata": {
+                "campaignMetadata": {
+                  "brand": "OtherBrand",
+                  "campaign": "Campaign3"
+                }
+              }
+            }
+          }
+        ]
+      }
+      """
+        .trimIndent()
+
+    val jsonFile = tempFolder.newFile("event_groups.json")
+    jsonFile.writeText(eventGroupsJson)
+
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--brand=TestBrand",
+          "--event-groups-file=${jsonFile.absolutePath}",
+        )
+    callCli(args)
+
+    runBlocking { verify(clientAccountsServiceMock, times(1)).batchCreateClientAccounts(any()) }
+  }
+
+  @Test
+  fun `client-accounts create with brand and proto file succeeds`() {
+    val eventGroup1 = edpaEventGroup {
+      eventGroupReferenceId = "eg-1"
+      clientAccountReferenceId = "proto-account-1"
+      eventGroupMetadata = edpaMetadata {
+        adMetadata = edpaAdMetadata {
+          campaignMetadata = edpaCampaignMetadata {
+            brand = "ProtoBrand"
+            campaign = "ProtoCampaign1"
+          }
+        }
+      }
+    }
+    val eventGroup2 = edpaEventGroup {
+      eventGroupReferenceId = "eg-2"
+      clientAccountReferenceId = "proto-account-2"
+      eventGroupMetadata = edpaMetadata {
+        adMetadata = edpaAdMetadata {
+          campaignMetadata = edpaCampaignMetadata {
+            brand = "ProtoBrand"
+            campaign = "ProtoCampaign2"
+          }
+        }
+      }
+    }
+
+    val eventGroupsProto = edpaEventGroups {
+      eventGroups += eventGroup1
+      eventGroups += eventGroup2
+    }
+
+    val binpbFile = tempFolder.newFile("event_groups.binpb")
+    binpbFile.writeBytes(eventGroupsProto.toByteArray())
+
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--brand=ProtoBrand",
+          "--event-groups-file=${binpbFile.absolutePath}",
+        )
+    callCli(args)
+
+    runBlocking { verify(clientAccountsServiceMock, times(1)).batchCreateClientAccounts(any()) }
+  }
+
+  @Test
+  fun `client-accounts create with brand but no matching brand prints message`() {
+    val eventGroupsJson =
+      """
+      {
+        "eventGroups": [
+          {
+            "eventGroupReferenceId": "eg-1",
+            "clientAccountReferenceId": "account-1",
+            "eventGroupMetadata": {
+              "adMetadata": {
+                "campaignMetadata": {
+                  "brand": "OtherBrand",
+                  "campaign": "Campaign1"
+                }
+              }
+            }
+          }
+        ]
+      }
+      """
+        .trimIndent()
+
+    val jsonFile = tempFolder.newFile("no_match_event_groups.json")
+    jsonFile.writeText(eventGroupsJson)
+
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--brand=NonExistentBrand",
+          "--event-groups-file=${jsonFile.absolutePath}",
+        )
+    val output = callCli(args)
+
+    assertThat(output).contains("No event groups found with brand 'NonExistentBrand'")
+    runBlocking { verify(clientAccountsServiceMock, times(0)).batchCreateClientAccounts(any()) }
+  }
+
+  @Test
+  fun `client-accounts create with brand deduplicates reference ids`() {
+    val eventGroupsJson =
+      """
+      {
+        "eventGroups": [
+          {
+            "eventGroupReferenceId": "eg-1",
+            "clientAccountReferenceId": "same-account",
+            "eventGroupMetadata": {
+              "adMetadata": {
+                "campaignMetadata": {
+                  "brand": "DedupeTestBrand",
+                  "campaign": "Campaign1"
+                }
+              }
+            }
+          },
+          {
+            "eventGroupReferenceId": "eg-2",
+            "clientAccountReferenceId": "same-account",
+            "eventGroupMetadata": {
+              "adMetadata": {
+                "campaignMetadata": {
+                  "brand": "DedupeTestBrand",
+                  "campaign": "Campaign2"
+                }
+              }
+            }
+          }
+        ]
+      }
+      """
+        .trimIndent()
+
+    val jsonFile = tempFolder.newFile("dedupe_event_groups.json")
+    jsonFile.writeText(eventGroupsJson)
+
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--brand=DedupeTestBrand",
+          "--event-groups-file=${jsonFile.absolutePath}",
+        )
+    val output = callCli(args)
+
+    assertThat(output).contains("Found 1 unique client account reference IDs")
+    runBlocking { verify(clientAccountsServiceMock, times(1)).batchCreateClientAccounts(any()) }
+  }
+
+  @Test
+  fun `client-accounts create with brand skips event groups without client account reference id`() {
+    val eventGroupsJson =
+      """
+      {
+        "eventGroups": [
+          {
+            "eventGroupReferenceId": "eg-1",
+            "clientAccountReferenceId": "account-with-ref",
+            "eventGroupMetadata": {
+              "adMetadata": {
+                "campaignMetadata": {
+                  "brand": "RefIdTestBrand",
+                  "campaign": "Campaign1"
+                }
+              }
+            }
+          },
+          {
+            "eventGroupReferenceId": "eg-2",
+            "eventGroupMetadata": {
+              "adMetadata": {
+                "campaignMetadata": {
+                  "brand": "RefIdTestBrand",
+                  "campaign": "Campaign2"
+                }
+              }
+            }
+          }
+        ]
+      }
+      """
+        .trimIndent()
+
+    val jsonFile = tempFolder.newFile("ref_id_test_event_groups.json")
+    jsonFile.writeText(eventGroupsJson)
+
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--brand=RefIdTestBrand",
+          "--event-groups-file=${jsonFile.absolutePath}",
+        )
+    val output = callCli(args)
+
+    assertThat(output).contains("Found 1 unique client account reference IDs")
+    runBlocking { verify(clientAccountsServiceMock, times(1)).batchCreateClientAccounts(any()) }
+  }
+
+  @Test
+  fun `client-accounts create with brand verifies correct requests are made`() {
+    val eventGroupsJson =
+      """
+      {
+        "eventGroups": [
+          {
+            "eventGroupReferenceId": "eg-1",
+            "clientAccountReferenceId": "verify-account-1",
+            "eventGroupMetadata": {
+              "adMetadata": {
+                "campaignMetadata": {
+                  "brand": "VerifyBrand",
+                  "campaign": "Campaign1"
+                }
+              }
+            }
+          }
+        ]
+      }
+      """
+        .trimIndent()
+
+    val jsonFile = tempFolder.newFile("verify_event_groups.json")
+    jsonFile.writeText(eventGroupsJson)
+
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--brand=VerifyBrand",
+          "--event-groups-file=${jsonFile.absolutePath}",
+        )
+    callCli(args)
+
+    val request: BatchCreateClientAccountsRequest = captureFirst {
+      runBlocking { verify(clientAccountsServiceMock).batchCreateClientAccounts(capture()) }
+    }
+
+    assertThat(request)
+      .isEqualTo(
+        batchCreateClientAccountsRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          requests += createClientAccountRequest {
+            parent = MEASUREMENT_CONSUMER_NAME
+            clientAccount = clientAccount {
+              dataProvider = DATA_PROVIDER_NAME
+              clientAccountReferenceId = "verify-account-1"
+            }
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `client-accounts create with brand deduplicates and filters by brand correctly`() {
+    val eventGroupsJson =
+      """
+      {
+        "eventGroups": [
+          {
+            "eventGroupReferenceId": "eg-1",
+            "clientAccountReferenceId": "account-1",
+            "eventGroupMetadata": {
+              "adMetadata": {
+                "campaignMetadata": {
+                  "brand": "brandA",
+                  "campaign": "Campaign1"
+                }
+              }
+            }
+          },
+          {
+            "eventGroupReferenceId": "eg-2",
+            "clientAccountReferenceId": "account-1",
+            "eventGroupMetadata": {
+              "adMetadata": {
+                "campaignMetadata": {
+                  "brand": "brandA",
+                  "campaign": "Campaign2"
+                }
+              }
+            }
+          },
+          {
+            "eventGroupReferenceId": "eg-3",
+            "clientAccountReferenceId": "account-2",
+            "eventGroupMetadata": {
+              "adMetadata": {
+                "campaignMetadata": {
+                  "brand": "brandA",
+                  "campaign": "Campaign3"
+                }
+              }
+            }
+          },
+          {
+            "eventGroupReferenceId": "eg-4",
+            "clientAccountReferenceId": "other-account",
+            "eventGroupMetadata": {
+              "adMetadata": {
+                "campaignMetadata": {
+                  "brand": "brandB",
+                  "campaign": "Campaign4"
+                }
+              }
+            }
+          }
+        ]
+      }
+      """
+        .trimIndent()
+
+    val jsonFile = tempFolder.newFile("dedupe_filter_event_groups.json")
+    jsonFile.writeText(eventGroupsJson)
+
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--brand=brandA",
+          "--event-groups-file=${jsonFile.absolutePath}",
+        )
+    val output = callCli(args)
+
+    assertThat(output).contains("Found 2 unique client account reference IDs")
+
+    val request: BatchCreateClientAccountsRequest = captureFirst {
+      runBlocking { verify(clientAccountsServiceMock).batchCreateClientAccounts(capture()) }
+    }
+
+    assertThat(request.requestsCount).isEqualTo(2)
+    assertThat(request.parent).isEqualTo(MEASUREMENT_CONSUMER_NAME)
+
+    val referenceIds = request.requestsList.map { it.clientAccount.clientAccountReferenceId }.toSet()
+    assertThat(referenceIds).containsExactly("account-1", "account-2")
+  }
+
+  @Test
+  fun `client-accounts create with brand skips event groups without proper metadata`() {
+    val eventGroupsJson =
+      """
+      {
+        "eventGroups": [
+          {
+            "eventGroupReferenceId": "eg-1",
+            "clientAccountReferenceId": "account-with-metadata",
+            "eventGroupMetadata": {
+              "adMetadata": {
+                "campaignMetadata": {
+                  "brand": "MetadataTestBrand",
+                  "campaign": "Campaign1"
+                }
+              }
+            }
+          },
+          {
+            "eventGroupReferenceId": "eg-2",
+            "clientAccountReferenceId": "account-no-campaign-metadata"
+          },
+          {
+            "eventGroupReferenceId": "eg-3",
+            "clientAccountReferenceId": "account-no-ad-metadata",
+            "eventGroupMetadata": {}
+          }
+        ]
+      }
+      """
+        .trimIndent()
+
+    val jsonFile = tempFolder.newFile("metadata_test_event_groups.json")
+    jsonFile.writeText(eventGroupsJson)
+
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--brand=MetadataTestBrand",
+          "--event-groups-file=${jsonFile.absolutePath}",
+        )
+    val output = callCli(args)
+
+    assertThat(output).contains("Found 1 unique client account reference IDs")
+    runBlocking { verify(clientAccountsServiceMock, times(1)).batchCreateClientAccounts(any()) }
+  }
+
+  @Test
+  fun `client-accounts create with empty proto file finds no event groups`() {
+    val emptyEventGroups = edpaEventGroups {}
+    val emptyBinpbFile = tempFolder.newFile("empty_event_groups.binpb")
+    emptyBinpbFile.writeBytes(emptyEventGroups.toByteArray())
+
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--brand=AnyBrand",
+          "--event-groups-file=${emptyBinpbFile.absolutePath}",
+        )
+    val output = callCli(args)
+
+    assertThat(output).contains("No event groups found with brand 'AnyBrand'")
+    runBlocking { verify(clientAccountsServiceMock, times(0)).batchCreateClientAccounts(any()) }
+  }
+
+  @Test
+  fun `client-accounts create fails when brand specified without event-groups-file`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--brand=TestBrand",
+        )
+
+    val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput.err)
+      .contains("--event-groups-file is required when --brand is specified")
+  }
+
+  @Test
+  fun `client-accounts create fails when neither brand nor client-account-reference-id specified`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
+        )
+
+    val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput.err)
+      .contains("--client-account-reference-id is required when --brand is not specified")
+  }
+
+  @Test
+  fun `client-accounts create fails when event-groups-file does not exist`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--brand=TestBrand",
+          "--event-groups-file=/nonexistent/path/event_groups.json",
+        )
+
+    val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput.err).contains("Event groups file not found")
+  }
+
+  @Test
+  fun `client-accounts create fails when event-groups-file has unsupported format`() {
+    val unsupportedFile = tempFolder.newFile("event_groups.txt")
+    unsupportedFile.writeText("some text content")
+
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--brand=TestBrand",
+          "--event-groups-file=${unsupportedFile.absolutePath}",
+        )
+
+    val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput.err).contains("Unsupported file format")
   }
 
   @Test

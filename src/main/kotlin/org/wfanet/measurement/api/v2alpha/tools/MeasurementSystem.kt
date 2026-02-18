@@ -25,6 +25,7 @@ import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.any
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.kotlin.unpack
+import com.google.protobuf.util.JsonFormat
 import com.google.type.interval
 import io.grpc.ManagedChannel
 import java.io.File
@@ -167,6 +168,8 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup as EdpaEventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroups as EdpaEventGroups
 import picocli.CommandLine
 import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Command
@@ -1091,9 +1094,53 @@ private class ClientAccounts {
     dataProvider: String,
     @Option(
       names = ["--client-account-reference-id"],
-      description = ["External reference ID (max 36 chars)"],
-      required = true,
+      description = ["External reference ID (max 36 chars). Required unless --brand is specified."],
+      required = false,
     )
+    clientAccountReferenceId: String?,
+    @Option(
+      names = ["--brand"],
+      description =
+        [
+          "Brand name to filter event groups. When specified, --event-groups-file is required " +
+            "and --client-account-reference-id is ignored."
+        ],
+      required = false,
+    )
+    brand: String?,
+    @Option(
+      names = ["--event-groups-file"],
+      description =
+        [
+          "Path to event groups file (.binpb for proto or .json for JSON format). " +
+            "Required when --brand is specified."
+        ],
+      required = false,
+    )
+    eventGroupsFile: File?,
+  ) {
+    if (brand != null) {
+      if (eventGroupsFile == null) {
+        throw ParameterException(
+          parentCommand.commandLine,
+          "--event-groups-file is required when --brand is specified",
+        )
+      }
+      createFromBrand(parent, dataProvider, brand, eventGroupsFile)
+    } else {
+      if (clientAccountReferenceId == null) {
+        throw ParameterException(
+          parentCommand.commandLine,
+          "--client-account-reference-id is required when --brand is not specified",
+        )
+      }
+      createSingleClientAccount(parent, dataProvider, clientAccountReferenceId)
+    }
+  }
+
+  private fun createSingleClientAccount(
+    parent: String,
+    dataProvider: String,
     clientAccountReferenceId: String,
   ) {
     val request = createClientAccountRequest {
@@ -1107,6 +1154,102 @@ private class ClientAccounts {
       runBlocking(parentCommand.rpcDispatcher) { clientAccountsStub.createClientAccount(request) }
     println("ClientAccount created:")
     printClientAccount(response)
+  }
+
+  private fun createFromBrand(
+    parent: String,
+    dataProvider: String,
+    brand: String,
+    eventGroupsFile: File,
+  ) {
+    val eventGroups = parseEventGroupsFile(eventGroupsFile)
+    val referenceIds = extractReferenceIdsByBrand(eventGroups, brand)
+
+    if (referenceIds.isEmpty()) {
+      println("No event groups found with brand '$brand' that have client_account_reference_id set")
+      return
+    }
+
+    println("Found ${referenceIds.size} unique client account reference IDs for brand '$brand'")
+
+    val createdAccounts = mutableListOf<ClientAccount>()
+    val failedBatches = mutableListOf<Pair<Int, String>>()
+
+    val batches = referenceIds.chunked(MAX_BATCH_SIZE)
+    for ((batchIndex, batch) in batches.withIndex()) {
+      try {
+        val request = batchCreateClientAccountsRequest {
+          this.parent = parent
+          for (referenceId in batch) {
+            requests += createClientAccountRequest {
+              this.parent = parent
+              clientAccount = clientAccount {
+                this.dataProvider = dataProvider
+                clientAccountReferenceId = referenceId
+              }
+            }
+          }
+        }
+        val response =
+          runBlocking(parentCommand.rpcDispatcher) {
+            clientAccountsStub.batchCreateClientAccounts(request)
+          }
+        createdAccounts.addAll(response.clientAccountsList)
+      } catch (e: Exception) {
+        failedBatches.add(batchIndex to e.message.orEmpty())
+      }
+    }
+
+    println("\nSuccessfully created ${createdAccounts.size} ClientAccounts:")
+    createdAccounts.forEach { printClientAccount(it) }
+
+    if (failedBatches.isNotEmpty()) {
+      println("\nFailed to create ${failedBatches.size} batch(es):")
+      failedBatches.forEach { (batchIdx, error) ->
+        println("  Batch $batchIdx: $error")
+      }
+    }
+  }
+
+  companion object {
+    private const val MAX_BATCH_SIZE = 1000
+  }
+
+  private fun parseEventGroupsFile(file: File): List<EdpaEventGroup> {
+    require(file.exists()) { "Event groups file not found: ${file.absolutePath}" }
+
+    return when {
+      file.name.endsWith(".binpb") -> parseProtoFormat(file)
+      file.name.endsWith(".json") -> parseJsonFormat(file)
+      else -> error("Unsupported file format. Use .binpb or .json: ${file.name}")
+    }
+  }
+
+  private fun parseProtoFormat(file: File): List<EdpaEventGroup> {
+    return EdpaEventGroups.parseFrom(file.readBytes()).eventGroupsList
+  }
+
+  private fun parseJsonFormat(file: File): List<EdpaEventGroup> {
+    val parser = JsonFormat.parser()
+    val eventGroupsBuilder = EdpaEventGroups.newBuilder()
+    parser.merge(file.readText(Charsets.UTF_8), eventGroupsBuilder)
+    return eventGroupsBuilder.build().eventGroupsList
+  }
+
+  private fun extractReferenceIdsByBrand(
+    eventGroups: List<EdpaEventGroup>,
+    brand: String,
+  ): Set<String> {
+    return eventGroups
+      .filter { eventGroup ->
+        eventGroup.hasEventGroupMetadata() &&
+          eventGroup.eventGroupMetadata.hasAdMetadata() &&
+          eventGroup.eventGroupMetadata.adMetadata.hasCampaignMetadata() &&
+          eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.brand.equals(brand, ignoreCase = true)
+      }
+      .map { it.clientAccountReferenceId }
+      .filter { it.isNotEmpty() }
+      .toSet()
   }
 
   class ClientAccountInput {
@@ -1125,7 +1268,7 @@ private class ClientAccounts {
     lateinit var referenceId: String
   }
 
-  @Command(description = ["Batch creates ClientAccounts"])
+  @Command(name = "batch-create", description = ["Batch creates ClientAccounts"])
   fun batchCreate(
     @Option(
       names = ["--parent"],
@@ -1140,10 +1283,10 @@ private class ClientAccounts {
     )
     clientAccounts: List<ClientAccountInput>,
   ) {
-    if (clientAccounts.size > 1000) {
+    if (clientAccounts.size > MAX_BATCH_SIZE) {
       throw ParameterException(
         parentCommand.commandLine,
-        "Batch size cannot exceed 1000 (found ${clientAccounts.size})",
+        "Batch size cannot exceed $MAX_BATCH_SIZE (found ${clientAccounts.size})",
       )
     }
 
@@ -1265,7 +1408,7 @@ private class ClientAccounts {
     println("ClientAccount deleted: $name")
   }
 
-  @Command(description = ["Batch deletes ClientAccounts"])
+  @Command(name = "batch-delete", description = ["Batch deletes ClientAccounts"])
   fun batchDelete(
     @Option(
       names = ["--parent"],
@@ -1275,8 +1418,9 @@ private class ClientAccounts {
     parent: String,
     @Option(
       names = ["--names"],
-      description = ["List of ClientAccount resource names to delete"],
+      description = ["List of ClientAccount resource names to delete (comma-separated)"],
       required = true,
+      split = ",",
     )
     names: List<String>,
   ) {
