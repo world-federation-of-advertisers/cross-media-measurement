@@ -231,7 +231,7 @@ class InProcessCmmsComponents(
         apiKeysClient = publicApiKeysClient,
         measurementConsumersClient = publicMeasurementConsumersClient,
         runId = "12345",
-        requiredDuchies = listOf("worker1", "worker2"),
+        requiredDuchies = emptyList(),
       )
     // Create the MC.
     val (measurementConsumer, apiKey) =
