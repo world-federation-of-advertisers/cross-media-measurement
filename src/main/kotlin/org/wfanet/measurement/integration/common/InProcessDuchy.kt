@@ -102,7 +102,9 @@ class InProcessDuchy(
   val duchyDependenciesRule:
     ProviderRule<(String, SystemComputationLogEntriesCoroutineStub) -> DuchyDependencies>,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
-  private val trusTeeKmsClient: KmsClient? = null,
+  private val trusTeeKmsClient: KmsClient? =
+    null, // TODO(@dawn-wang22): Remove default and make this a required param after all callers
+  // provide a KmsClient.
   val verboseGrpcLogging: Boolean = true,
   daemonContext: CoroutineContext = Dispatchers.Default,
 ) : TestRule {
@@ -278,7 +280,8 @@ class InProcessDuchy(
             millId = "$externalDuchyId liquidLegionsV2 Mill",
             duchyId = externalDuchyId,
             signingKey = signingKey,
-            consentSignalCert = Certificate(duchyCertMap[externalDuchyId]!!, consentSignal509Cert),
+            consentSignalCert =
+              Certificate(duchyCertMap.getValue(externalDuchyId), consentSignal509Cert),
             trustedCertificates = trustedCertificates,
             dataClients = computationDataClients,
             systemComputationParticipantsClient = systemComputationParticipantsClient,
@@ -295,7 +298,8 @@ class InProcessDuchy(
             millId = "$externalDuchyId liquidLegionsV2 Mill",
             duchyId = externalDuchyId,
             signingKey = signingKey,
-            consentSignalCert = Certificate(duchyCertMap[externalDuchyId]!!, consentSignal509Cert),
+            consentSignalCert =
+              Certificate(duchyCertMap.getValue(externalDuchyId), consentSignal509Cert),
             trustedCertificates = trustedCertificates,
             dataClients = computationDataClients,
             systemComputationParticipantsClient = systemComputationParticipantsClient,
@@ -312,7 +316,8 @@ class InProcessDuchy(
             millId = "$externalDuchyId honestMajorityShareShuffle Mill",
             duchyId = externalDuchyId,
             signingKey = signingKey,
-            consentSignalCert = Certificate(duchyCertMap[externalDuchyId]!!, consentSignal509Cert),
+            consentSignalCert =
+              Certificate(duchyCertMap.getValue(externalDuchyId), consentSignal509Cert),
             trustedCertificates = trustedCertificates,
             dataClients = computationDataClients,
             systemComputationParticipantsClient = systemComputationParticipantsClient,
@@ -338,13 +343,13 @@ class InProcessDuchy(
               duchyId = externalDuchyId,
               signingKey = signingKey,
               consentSignalCert =
-                Certificate(duchyCertMap[externalDuchyId]!!, consentSignal509Cert),
+                Certificate(duchyCertMap.getValue(externalDuchyId), consentSignal509Cert),
               dataClients = computationDataClients,
               systemComputationParticipantsClient = systemComputationParticipantsClient,
               systemComputationsClient = systemComputationsClient,
               systemComputationLogEntriesClient = systemComputationLogEntriesClient,
               computationStatsClient = computationStatsClient,
-              workLockDuration = Duration.ofSeconds(1),
+              workLockDuration = Duration.ofMinutes(5),
               trusTeeProcessorFactory = TrusTeeProcessorImpl,
               kmsClientFactory = kmsClientFactory,
               attestationTokenPath = Paths.get("/dev/null"),
