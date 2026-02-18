@@ -45,17 +45,20 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DeleteEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata as cmmsCampaignMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata as cmmsAdMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ListClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as cmmsEventGroupMetadata
+import org.wfanet.measurement.api.v2alpha.listClientAccountsResponse
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
@@ -156,7 +159,16 @@ class EventGroupSyncFunctionTest() {
       }
   }
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(eventGroupsServiceMock) }
+  private val clientAccountsServiceMock: ClientAccountsCoroutineImplBase = mockService {
+    onBlocking { listClientAccounts(any<ListClientAccountsRequest>()) }
+      .thenReturn(listClientAccountsResponse {})
+  }
+
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(eventGroupsServiceMock)
+    addService(clientAccountsServiceMock)
+  }
 
   @get:Rule val tempFolder = TemporaryFolder()
 
@@ -211,7 +223,7 @@ class EventGroupSyncFunctionTest() {
           }
         }
       }
-      measurementConsumer = "measurement-consumer-2"
+      measurementConsumer = "measurementConsumers/measurement-consumer-2"
       dataAvailabilityInterval = interval {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
@@ -302,7 +314,7 @@ class EventGroupSyncFunctionTest() {
                 "startTime": "1970-01-01T00:03:20Z",
                 "endTime": "1970-01-01T00:05:00Z"
               },
-              "measurementConsumer": "measurement-consumer-2",
+              "measurementConsumer": "measurementConsumers/measurement-consumer-2",
               "mediaTypes": ["OTHER"]
             },
             {
@@ -319,7 +331,7 @@ class EventGroupSyncFunctionTest() {
                 "startTime": "1970-01-01T00:03:20Z",
                 "endTime": "1970-01-01T00:05:00Z"
               },
-              "measurementConsumer": "measurement-consumer-2",
+              "measurementConsumer": "measurementConsumers/measurement-consumer-2",
               "mediaTypes": ["OTHER"]
             }
            ]
@@ -405,7 +417,7 @@ class EventGroupSyncFunctionTest() {
                 "startTime": "1970-01-01T00:03:20Z",
                 "endTime": "1970-01-01T00:05:00Z"
               },
-              "measurementConsumer": "measurement-consumer-2",
+              "measurementConsumer": "measurementConsumers/measurement-consumer-2",
               "mediaTypes": ["OTHER"]
             },
             {
@@ -422,7 +434,7 @@ class EventGroupSyncFunctionTest() {
                 "startTime": "1970-01-01T00:03:20Z",
                 "endTime": "1970-01-01T00:05:00Z"
               },
-              "measurementConsumer": "measurement-consumer-2",
+              "measurementConsumer": "measurementConsumers/measurement-consumer-2",
               "mediaTypes": ["OTHER"]
             }
            ]
@@ -486,7 +498,7 @@ class EventGroupSyncFunctionTest() {
           }
         }
       }
-      measurementConsumer = "measurement-consumer-2"
+      measurementConsumer = "measurementConsumers/measurement-consumer-2"
       dataAvailabilityInterval = interval {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
@@ -611,6 +623,7 @@ class EventGroupSyncFunctionTest() {
         },
         eventGroup {
           eventGroupReferenceId = "reference-id-2"
+          measurementConsumer = "measurementConsumers/measurement-consumer-2"
           this.eventGroupMetadata = eventGroupMetadata {
             this.adMetadata = adMetadata {
               this.campaignMetadata = campaignMetadata {
@@ -619,7 +632,6 @@ class EventGroupSyncFunctionTest() {
               }
             }
           }
-          measurementConsumer = "measurementConsumers/measurement-consumer-2"
           dataAvailabilityInterval = interval {
             startTime = timestamp { seconds = 200 }
             endTime = timestamp { seconds = 300 }
@@ -628,6 +640,7 @@ class EventGroupSyncFunctionTest() {
         },
         eventGroup {
           eventGroupReferenceId = "reference-id-3"
+          measurementConsumer = "measurementConsumers/measurement-consumer-2"
           this.eventGroupMetadata = eventGroupMetadata {
             this.adMetadata = adMetadata {
               this.campaignMetadata = campaignMetadata {
@@ -636,7 +649,6 @@ class EventGroupSyncFunctionTest() {
               }
             }
           }
-          measurementConsumer = "measurementConsumers/measurement-consumer-2"
           dataAvailabilityInterval = interval {
             startTime = timestamp { seconds = 200 }
             endTime = timestamp { seconds = 300 }

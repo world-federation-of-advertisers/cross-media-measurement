@@ -51,6 +51,7 @@ import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.DataProvider
+import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -307,6 +308,8 @@ class InProcessEdpAggregatorComponents(
 
       val eventGroupsClient: EventGroupsCoroutineStub =
         EventGroupsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
+      val clientAccountsClient: ClientAccountsCoroutineStub =
+        ClientAccountsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
       val edpPrivateKey = getDataProviderPrivateEncryptionKey(edpAggregatorShortName)
 
       val requisitionsValidator = RequisitionsValidator(edpPrivateKey)
@@ -341,7 +344,14 @@ class InProcessEdpAggregatorComponents(
       }
       val eventGroups = buildEventGroups(measurementConsumerData)
       eventGroupSync =
-        EventGroupSync(edpResourceName, eventGroupsClient, eventGroups.asFlow(), throttler, 500)
+        EventGroupSync(
+          edpResourceName,
+          eventGroupsClient,
+          clientAccountsClient,
+          eventGroups.asFlow(),
+          throttler,
+          listEventGroupPageSize = 500,
+        )
       val mappedEventGroups: List<MappedEventGroup> = runBlocking { eventGroupSync.sync().toList() }
       logger.info("Received mappedEventGroups: $mappedEventGroups")
       runBlocking { writeImpressionData(mappedEventGroups, edpAggregatorShortName) }

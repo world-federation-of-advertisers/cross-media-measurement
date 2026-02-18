@@ -55,13 +55,24 @@ class EventGroupSyncMetrics(meter: Meter) {
   /**
    * Counter for failed Event Group syncs.
    *
-   * Incremented when an event group sync fails due to validation errors, API errors, or other
-   * exceptions.
+   * Incremented when an event group sync fails due to API errors or other exceptions during sync
+   * processing.
    */
   val syncFailure: LongCounter =
     meter
       .counterBuilder("edpa.event_group.sync_failure")
       .setDescription("Number of failed Event Group syncs")
+      .build()
+
+  /**
+   * Counter for invalid Event Groups that fail validation.
+   *
+   * Incremented when an event group fails validation checks before sync processing begins.
+   */
+  val invalidEventGroupFailure: LongCounter =
+    meter
+      .counterBuilder("edpa.event_group.invalid_event_group_failure")
+      .setDescription("Number of Event Groups that failed validation")
       .build()
 
   /**
@@ -75,5 +86,32 @@ class EventGroupSyncMetrics(meter: Meter) {
       .histogramBuilder("edpa.event_group.sync_latency")
       .setDescription("Time to complete Event Group sync operation")
       .setUnit("s")
+      .build()
+
+  /**
+   * Counter for unmapped Event Groups.
+   *
+   * Incremented when an event group cannot be resolved to any MeasurementConsumer. This can occur
+   * when the direct measurementConsumer field is invalid and/or the clientAccountReferenceId lookup
+   * returns no results.
+   */
+  val unmappedEventGroups: LongCounter =
+    meter
+      .counterBuilder("edpa.event_group.unmapped")
+      .setDescription("Number of Event Groups that could not be mapped to any MeasurementConsumer")
+      .build()
+
+  /**
+   * Counter for ClientAccount reference IDs not found in the account table.
+   *
+   * Incremented when a clientAccountReferenceId lookup returns no results, indicating the reference
+   * ID is not mapped in the ClientAccounts table.
+   */
+  val unmappedClientAccounts: LongCounter =
+    meter
+      .counterBuilder("edpa.event_group.unmapped_client_accounts")
+      .setDescription(
+        "Number of ClientAccount reference IDs that are not mapped in the account table"
+      )
       .build()
 }
