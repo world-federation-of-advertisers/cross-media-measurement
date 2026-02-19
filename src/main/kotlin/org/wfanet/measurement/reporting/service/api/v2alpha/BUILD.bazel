@@ -173,9 +173,6 @@ kt_jvm_library(
 kt_jvm_library(
     name = "set_expression_compiler",
     srcs = ["SetExpressionCompiler.kt"],
-    deps = [
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-    ],
 )
 
 kt_jvm_library(

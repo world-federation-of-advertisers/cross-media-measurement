@@ -181,7 +181,7 @@ object ReportingSets {
    *
    * This performs set expression compilation as-needed for composite ReportingSets.
    */
-  suspend fun buildInternalCreateReportingSetRequest(
+  fun buildInternalCreateReportingSetRequest(
     request: CreateReportingSetRequest,
     parentKey: CmmsMeasurementConsumerKey,
     campaignGroupKey: ReportingSetKey?,
@@ -222,7 +222,7 @@ object ReportingSets {
   }
 
   /** Compiles [InternalReportingSet.WeightedSubsetUnion]s for a composite [ReportingSet]. */
-  private suspend fun compileWeightedSubsetUnions(
+  private fun compileWeightedSubsetUnions(
     filter: String,
     setExpression: ReportingSet.SetExpression,
     cmmsMeasurementConsumerId: String,
@@ -235,7 +235,7 @@ object ReportingSets {
       initialFiltersStack += filter
     }
 
-    val setOperationExpression: SetOperationExpression =
+    val setOperationExpression: SetExpressionCompiler.SetOperationExpression =
       buildSetOperationExpression(
         setExpression,
         initialFiltersStack,
@@ -251,7 +251,7 @@ object ReportingSets {
       error("The reporting set ID in the set operation expression should be indexed uniquely.")
     }
 
-    val weightedSubsetUnions: List<WeightedSubsetUnion> =
+    val weightedSubsetUnions: List<SetExpressionCompiler.WeightedSubsetUnion> =
       setExpressionCompiler.compileSetExpression(
         setOperationExpression,
         idToPrimitiveReportingSetBasis.size,
@@ -262,9 +262,12 @@ object ReportingSets {
     }
   }
 
-  /** Builds an [InternalReportingSet.WeightedSubsetUnion] from a [WeightedSubsetUnion]. */
+  /**
+   * Builds an [InternalReportingSet.WeightedSubsetUnion] from a
+   * [SetExpressionCompiler.WeightedSubsetUnion].
+   */
   private fun buildInternalWeightedSubsetUnion(
-    weightedSubsetUnion: WeightedSubsetUnion,
+    weightedSubsetUnion: SetExpressionCompiler.WeightedSubsetUnion,
     idToPrimitiveReportingSetBasis: Map<Int, PrimitiveReportingSetBasis>,
   ): InternalReportingSet.WeightedSubsetUnion {
     return InternalReportingSetKt.weightedSubsetUnion {
@@ -281,14 +284,17 @@ object ReportingSets {
     }
   }
 
-  /** Builds a [SetOperationExpression] by expanding the given [ReportingSet.SetExpression]. */
+  /**
+   * Builds a [SetExpressionCompiler.SetOperationExpression] by expanding the given
+   * [ReportingSet.SetExpression].
+   */
   private fun buildSetOperationExpression(
     expression: ReportingSet.SetExpression,
     filters: MutableList<String>,
     primitiveReportingSetBasesMap: MutableMap<PrimitiveReportingSetBasis, Int>,
     cmmsMeasurementConsumerId: String,
     internalReportingSetsByName: Map<String, InternalReportingSet>,
-  ): SetOperationExpression {
+  ): SetExpressionCompiler.SetOperationExpression {
     val lhs =
       buildSetOperationExpressionOperand(
         expression.lhs,
@@ -311,21 +317,21 @@ object ReportingSets {
         null
       }
 
-    return SetOperationExpression(
+    return SetExpressionCompiler.SetOperationExpression(
       setOperator = expression.operation.toSetOperator(),
       lhs = lhs,
       rhs = rhs,
     )
   }
 
-  /** Builds an [Operand] from a [ReportingSet.SetExpression.Operand]. */
+  /** Builds a [SetExpressionCompiler.Operand] from a [ReportingSet.SetExpression.Operand]. */
   private fun buildSetOperationExpressionOperand(
     operand: ReportingSet.SetExpression.Operand,
     filters: MutableList<String>,
     primitiveReportingSetBasesMap: MutableMap<PrimitiveReportingSetBasis, Int>,
     cmmsMeasurementConsumerId: String,
     internalReportingSetsByName: Map<String, InternalReportingSet>,
-  ): Operand {
+  ): SetExpressionCompiler.Operand {
     return when (operand.operandCase) {
       ReportingSet.SetExpression.Operand.OperandCase.REPORTING_SET -> {
         val internalReportingSet: InternalReportingSet =
@@ -349,7 +355,9 @@ object ReportingSets {
             }
 
             // Return the leaf reporting set
-            ReportingSet(primitiveReportingSetBasesMap.getValue(primitiveReportingSetBasis))
+            SetExpressionCompiler.ReportingSet(
+              primitiveReportingSetBasesMap.getValue(primitiveReportingSetBasis)
+            )
           }
           InternalReportingSet.ValueCase.COMPOSITE -> {
             // Add the reporting set's filter to the stack.
@@ -445,12 +453,12 @@ object ReportingSets {
     }
   }
 
-  /** Converts a [ReportingSet.SetExpression.Operation] to an [Operator]. */
-  private fun ReportingSet.SetExpression.Operation.toSetOperator(): Operator {
+  /** Converts a [ReportingSet.SetExpression.Operation] to a [SetExpressionCompiler.Operator]. */
+  private fun ReportingSet.SetExpression.Operation.toSetOperator(): SetExpressionCompiler.Operator {
     return when (this) {
-      ReportingSet.SetExpression.Operation.UNION -> Operator.UNION
-      ReportingSet.SetExpression.Operation.DIFFERENCE -> Operator.DIFFERENCE
-      ReportingSet.SetExpression.Operation.INTERSECTION -> Operator.INTERSECT
+      ReportingSet.SetExpression.Operation.UNION -> SetExpressionCompiler.Operator.UNION
+      ReportingSet.SetExpression.Operation.DIFFERENCE -> SetExpressionCompiler.Operator.DIFFERENCE
+      ReportingSet.SetExpression.Operation.INTERSECTION -> SetExpressionCompiler.Operator.INTERSECT
       ReportingSet.SetExpression.Operation.OPERATION_UNSPECIFIED -> error("Operation unspecified")
       ReportingSet.SetExpression.Operation.UNRECOGNIZED -> error("Operation unrecognized")
     }

@@ -17,46 +17,56 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertThrows
+import kotlin.test.assertFailsWith
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 
 // Reporting set IDs and names
-private val REPORTING_SETS = (0..2).map { ReportingSet(it) }
+private val REPORTING_SETS = (0..2).map { SetExpressionCompiler.ReportingSet(it) }
 
 private val EXPECTED_REPORTING_SETS_LIST_ALL_UNION = REPORTING_SETS.sortedBy { it.id }
 
 private val SET_EXPRESSION =
-  SetOperationExpression(
-    setOperator = Operator.UNION,
+  SetExpressionCompiler.SetOperationExpression(
+    setOperator = SetExpressionCompiler.Operator.UNION,
     lhs = REPORTING_SETS[0],
     rhs = REPORTING_SETS[1],
   )
 private val SET_EXPRESSION_ALL_UNION =
-  SetOperationExpression(
-    setOperator = Operator.UNION,
+  SetExpressionCompiler.SetOperationExpression(
+    setOperator = SetExpressionCompiler.Operator.UNION,
     lhs = SET_EXPRESSION,
     rhs = REPORTING_SETS[2],
   )
 // SetExpression = A + B + C - B
 
 private val SET_EXPRESSION_ALL_UNION_BUT_ONE =
-  SetOperationExpression(
-    setOperator = Operator.DIFFERENCE,
+  SetExpressionCompiler.SetOperationExpression(
+    setOperator = SetExpressionCompiler.Operator.DIFFERENCE,
     lhs = SET_EXPRESSION_ALL_UNION,
     rhs = EXPECTED_REPORTING_SETS_LIST_ALL_UNION[1],
   )
 
 private val EXPECTED_RESULT_FOR_ALL_UNION_SET_EXPRESSION =
-  listOf(WeightedSubsetUnion(EXPECTED_REPORTING_SETS_LIST_ALL_UNION.map { it.id }, coefficient = 1))
+  listOf(
+    SetExpressionCompiler.WeightedSubsetUnion(
+      EXPECTED_REPORTING_SETS_LIST_ALL_UNION.map { it.id },
+      coefficient = 1,
+    )
+  )
 
 private val EXPECTED_RESULT_FOR_ALL_UNION_BUT_ONE_SET_EXPRESSION =
   listOf(
-    WeightedSubsetUnion(EXPECTED_REPORTING_SETS_LIST_ALL_UNION.map { it.id }, coefficient = 1),
-    WeightedSubsetUnion(listOf(EXPECTED_REPORTING_SETS_LIST_ALL_UNION[1].id), coefficient = -1),
+    SetExpressionCompiler.WeightedSubsetUnion(
+      EXPECTED_REPORTING_SETS_LIST_ALL_UNION.map { it.id },
+      coefficient = 1,
+    ),
+    SetExpressionCompiler.WeightedSubsetUnion(
+      listOf(EXPECTED_REPORTING_SETS_LIST_ALL_UNION[1].id),
+      coefficient = -1,
+    ),
   )
 
 @RunWith(JUnit4::class)
@@ -70,22 +80,36 @@ class SetExpressionCompilerTest {
 
   @Test
   fun `compileSetExpression returns a list of weightedSubsetUnions for union all`() {
-    val resultAllUnion = runBlocking {
+    val resultAllUnion =
       reportResultCompiler.compileSetExpression(SET_EXPRESSION_ALL_UNION, REPORTING_SETS.size)
-    }
     assertThat(resultAllUnion)
       .containsExactlyElementsIn(EXPECTED_RESULT_FOR_ALL_UNION_SET_EXPRESSION)
   }
 
   @Test
   fun `compileSetExpression returns a list of weightedSubsetUnions for union all but one`() {
-    val resultAllUnionButOne = runBlocking {
+    val resultAllUnionButOne =
       reportResultCompiler.compileSetExpression(
         SET_EXPRESSION_ALL_UNION_BUT_ONE,
         REPORTING_SETS.size,
       )
-    }
     assertThat(resultAllUnionButOne)
+      .containsExactlyElementsIn(EXPECTED_RESULT_FOR_ALL_UNION_BUT_ONE_SET_EXPRESSION)
+  }
+
+  @Test
+  fun `compileSetExpression returns consistent results over multiple calls`() {
+    assertThat(
+        reportResultCompiler.compileSetExpression(SET_EXPRESSION_ALL_UNION, REPORTING_SETS.size)
+      )
+      .containsExactlyElementsIn(EXPECTED_RESULT_FOR_ALL_UNION_SET_EXPRESSION)
+
+    assertThat(
+        reportResultCompiler.compileSetExpression(
+          SET_EXPRESSION_ALL_UNION_BUT_ONE,
+          REPORTING_SETS.size,
+        )
+      )
       .containsExactlyElementsIn(EXPECTED_RESULT_FOR_ALL_UNION_BUT_ONE_SET_EXPRESSION)
   }
 
@@ -94,13 +118,11 @@ class SetExpressionCompilerTest {
     val setOperationWithSetOperatorTypeNotSet =
       SET_EXPRESSION_ALL_UNION.copy(rhs = REPORTING_SETS[2].copy(id = REPORTING_SETS.size))
 
-    assertThrows(IllegalArgumentException::class.java) {
-      runBlocking {
-        reportResultCompiler.compileSetExpression(
-          setOperationWithSetOperatorTypeNotSet,
-          REPORTING_SETS.size,
-        )
-      }
+    assertFailsWith<IllegalArgumentException> {
+      reportResultCompiler.compileSetExpression(
+        setOperationWithSetOperatorTypeNotSet,
+        REPORTING_SETS.size,
+      )
     }
   }
 }
