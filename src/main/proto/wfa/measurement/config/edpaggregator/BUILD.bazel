@@ -108,3 +108,20 @@ kt_jvm_proto_library(
     name = "data_availability_sync_configs_kt_jvm_proto",
     deps = [":data_availability_sync_configs_proto"],
 )
+
+proto_library(
+    name = "vid_labeling_dispatcher_config_proto",
+    srcs = ["vid_labeling_dispatcher_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":storage_params_proto",
+        ":transport_layer_security_params_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:any_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "vid_labeling_dispatcher_config_kt_jvm_proto",
+    deps = [":vid_labeling_dispatcher_config_proto"],
+)
