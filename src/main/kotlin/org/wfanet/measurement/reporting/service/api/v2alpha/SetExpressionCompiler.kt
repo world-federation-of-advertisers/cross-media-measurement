@@ -16,9 +16,9 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentMap
 import kotlin.math.pow
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 
 /**
  * A primitive region of a Venn diagram is the intersection of a set of reporting sets, and it is
@@ -42,28 +42,10 @@ private typealias PrimitiveRegion = ULong
  */
 private typealias UnionSet = ULong
 
-private typealias NumberReportingSets = Int
+private typealias ReportingSetCount = Int
 
 /** A mapping from a [UnionSet] to its coefficient in the Venn diagram region decomposition. */
 private typealias UnionSetCoefficientMap = Map<UnionSet, Int>
-
-/**
- * A mapping for cardinality computation from a [PrimitiveRegion] to its decomposition in terms of
- * union-sets represented by [UnionSetCoefficientMap]. Take a case of 3 reporting sets (rs0, rs1,
- * rs2) as an example. A primitive region with its value equal to 3 (b'011') means rs0 INTERSECT rs1
- * INTERSECT COMPLEMENT(rs2). The decomposition of the cardinality of the region =
- * PrimitiveRegionToUnionSetCoefficientMap\[region\] = {4: -1, 5: 1, 6: 1, 7: -1}, i.e. |union-set5|
- * + |union-set6| - |union-set4| - |union-set7|.
- */
-private typealias PrimitiveRegionToUnionSetCoefficientMap =
-  MutableMap<PrimitiveRegion, UnionSetCoefficientMap>
-
-/**
- * A memory cache that stores the Venn diagram region cardinality decompositions for different
- * numbers of reporting sets.
- */
-private typealias PrimitiveRegionCache =
-  MutableMap<NumberReportingSets, PrimitiveRegionToUnionSetCoefficientMap>
 
 /**
  * A list of sets of primitive regions, where the index of the list represents the reporting set ID,
@@ -74,32 +56,45 @@ private typealias PrimitiveRegionCache =
  */
 private typealias VennDiagramDecomposition = List<Set<PrimitiveRegion>>
 
-/**
- * A memory cache that stores the decompositions of Venn Diagrams given different number of
- * reporting sets.
- */
-private typealias VennDiagramDecompositionCache =
-  MutableMap<NumberReportingSets, VennDiagramDecomposition>
-
-enum class Operator {
-  UNION,
-  INTERSECT,
-  DIFFERENCE,
-}
-
-interface Operand
-
-data class ReportingSet(val id: Int) : Operand
-
-data class SetOperationExpression(val setOperator: Operator, val lhs: Operand, val rhs: Operand?) :
-  Operand
-
-data class WeightedSubsetUnion(val reportingSetIds: List<Int>, val coefficient: Int)
-
 class SetExpressionCompiler {
+  enum class Operator {
+    UNION,
+    INTERSECT,
+    DIFFERENCE,
+  }
 
-  private val primitiveRegionCache: PrimitiveRegionCache = mutableMapOf()
-  private val vennDiagramDecompositionCache: VennDiagramDecompositionCache = mutableMapOf()
+  sealed interface Operand
+
+  data class ReportingSet(val id: Int) : Operand
+
+  data class SetOperationExpression(
+    val setOperator: Operator,
+    val lhs: Operand,
+    val rhs: Operand?,
+  ) : Operand
+
+  data class WeightedSubsetUnion(val reportingSetIds: List<Int>, val coefficient: Int)
+
+  private data class PrimitiveRegionKey(val reportingSetCount: Int, val region: PrimitiveRegion)
+
+  /**
+   * A mapping for cardinality computation from a [PrimitiveRegionKey] to its decomposition in terms
+   * of union-sets represented by [UnionSetCoefficientMap]. Take a case of 3 reporting sets (rs0,
+   * rs1, rs2) as an example. A primitive region with its value equal to 3 (b'011') means rs0
+   * INTERSECT rs1 INTERSECT COMPLEMENT(rs2). The decomposition of the cardinality of the region =
+   * PrimitiveRegionToUnionSetCoefficientMap\[region\] = {4: -1, 5: 1, 6: 1, 7: -1}, i.e.
+   * |union-set5|
+   * + |union-set6| - |union-set4| - |union-set7|.
+   */
+  private val primitiveRegionCache: ConcurrentMap<PrimitiveRegionKey, UnionSetCoefficientMap> =
+    ConcurrentHashMap()
+  /**
+   * A memory cache that stores the decompositions of Venn Diagrams given different number of
+   * reporting sets.
+   */
+  private val vennDiagramDecompositionCache:
+    ConcurrentMap<ReportingSetCount, VennDiagramDecomposition> =
+    ConcurrentHashMap()
 
   /**
    * Compiles a set expression to a list of [WeightedSubsetUnion]s which will be used for the
@@ -112,34 +107,34 @@ class SetExpressionCompiler {
    *
    * @param [setOperationExpression] is a binary tree structure representing the expression of
    *   binary set operations. The reporting set IDs in [setOperationExpression] should be indexed
-   *   from 0 to [numReportingSets] - 1.
-   * @param [numReportingSets] total number of reporting sets used in [setOperationExpression].
+   *   from 0 to [reportingSetCount] - 1.
+   * @param [reportingSetCount] total number of reporting sets used in [setOperationExpression].
    */
-  suspend fun compileSetExpression(
+  fun compileSetExpression(
     setOperationExpression: SetOperationExpression,
-    numReportingSets: Int,
+    reportingSetCount: Int,
   ): List<WeightedSubsetUnion> {
     // Step 1 - Gets the primitive regions that form the set expression
     val primitiveRegions =
-      setOperationExpressionToPrimitiveRegions(numReportingSets, setOperationExpression)
+      setOperationExpressionToPrimitiveRegions(reportingSetCount, setOperationExpression)
 
     // Step 2 - Converts a set of primitive regions to a map of union-set to its coefficients for
     // cardinality computation.
     val unionSetCoefficientMap =
-      convertPrimitiveRegionsToUnionSetCoefficientMap(numReportingSets, primitiveRegions)
+      convertPrimitiveRegionsToUnionSetCoefficientMap(reportingSetCount, primitiveRegions)
 
-    return convertUnionSetToWeightedSubsetUnions(unionSetCoefficientMap, numReportingSets)
+    return convertUnionSetToWeightedSubsetUnions(unionSetCoefficientMap, reportingSetCount)
   }
 
   /** Converts a [UnionSetCoefficientMap] to [WeightedSubsetUnion]s. */
   private fun convertUnionSetToWeightedSubsetUnions(
     unionSetCoefficientMap: UnionSetCoefficientMap,
-    numReportingSets: Int,
+    reportingSetCount: Int,
   ): List<WeightedSubsetUnion> {
     return unionSetCoefficientMap.map { (unionSet, coefficient) ->
       // Find the reporting sets in the union-set.
       val reportingSetNames =
-        (0 until numReportingSets).mapNotNull { bitPosition ->
+        (0 until reportingSetCount).mapNotNull { bitPosition ->
           if (isBitSet(unionSet, bitPosition)) bitPosition else null
         }
 
@@ -151,57 +146,48 @@ class SetExpressionCompiler {
    * Converts a set of primitive regions to a map of union-set to its coefficients for cardinality
    * computation
    */
-  private suspend fun convertPrimitiveRegionsToUnionSetCoefficientMap(
-    numReportingSets: Int,
+  private fun convertPrimitiveRegionsToUnionSetCoefficientMap(
+    reportingSetCount: Int,
     primitiveRegions: Set<PrimitiveRegion>,
   ): UnionSetCoefficientMap {
-
-    val primitiveRegionsToUnionSetCoefficients: PrimitiveRegionToUnionSetCoefficientMap =
-      mutableMapOf()
-
-    coroutineScope {
-      for (region in primitiveRegions) {
-        // Reuse previous computation if available
-        if (
-          reusePreviousComputation(numReportingSets, region, primitiveRegionsToUnionSetCoefficients)
-        ) {
-          continue
-        }
-
-        launch {
-          convertSinglePrimitiveRegionToUnionSetCoefficientMap(
-            numReportingSets,
-            region,
-            primitiveRegionsToUnionSetCoefficients,
-          )
+    val primitiveRegionsToUnionSetCoefficients: Map<PrimitiveRegion, UnionSetCoefficientMap> =
+      buildMap {
+        for (region in primitiveRegions) {
+          val primitiveRegionKey = PrimitiveRegionKey(reportingSetCount, region)
+          val unionSetCoefficientMap =
+            primitiveRegionCache.compute(primitiveRegionKey) { _, previousValue ->
+              previousValue
+                ?: convertSinglePrimitiveRegionToUnionSetCoefficientMap(reportingSetCount, region)
+            }
+          if (unionSetCoefficientMap != null) {
+            put(region, unionSetCoefficientMap)
+          }
         }
       }
-    }
-
-    // Updates the memory cache with new computation result.
-    primitiveRegionCache.getOrPut(numReportingSets, ::mutableMapOf) +=
-      primitiveRegionsToUnionSetCoefficients
 
     return aggregateCoefficientsByUnionSets(primitiveRegionsToUnionSetCoefficients)
   }
 
   /** Aggregates the coefficients by union-sets. */
   private fun aggregateCoefficientsByUnionSets(
-    primitiveRegionsToUnionSetCoefficients: PrimitiveRegionToUnionSetCoefficientMap
+    primitiveRegionsToUnionSetCoefficients: Map<PrimitiveRegion, UnionSetCoefficientMap>
   ): UnionSetCoefficientMap {
-    val aggregatedResult = mutableMapOf<UnionSet, Int>()
-    for ((_, unionSetCoefficients) in primitiveRegionsToUnionSetCoefficients) {
-      for ((unionSet, coefficient) in unionSetCoefficients) {
-        aggregatedResult[unionSet] = aggregatedResult.getOrDefault(unionSet, 0) + coefficient
+    return buildMap {
+        for ((_, unionSetCoefficients) in primitiveRegionsToUnionSetCoefficients) {
+          for ((unionSet, coefficient) in unionSetCoefficients) {
+            val aggregateCoefficient = getOrDefault(unionSet, 0) + coefficient
 
-        // Remove the entry if its coefficient is zero.
-        if (aggregatedResult[unionSet] == 0) {
-          aggregatedResult.remove(unionSet)
+            // Remove the entry if its coefficient is zero.
+            if (aggregateCoefficient == 0) {
+              remove(unionSet)
+            } else {
+              put(unionSet, aggregateCoefficient)
+            }
+          }
         }
       }
-    }
-    // Sort the aggregatedResult to make sure the result is consistent every time.
-    return aggregatedResult.toSortedMap().toMap()
+      .toSortedMap() // Sort the aggregatedResult to make sure the result is consistent every time.
+      .toMap()
   }
 
   /**
@@ -217,17 +203,19 @@ class SetExpressionCompiler {
    *     B     -1         0       1
    *   A U B    1         1      -1
    * ```
+   *
+   * @return the converted map of union-set to its coefficients, or `null` if there are no
+   *   coefficients
    */
   private fun convertSinglePrimitiveRegionToUnionSetCoefficientMap(
-    numReportingSets: Int,
+    reportingSetCount: Int,
     region: PrimitiveRegion,
-    primitiveRegionsToUnionSetCoefficients: PrimitiveRegionToUnionSetCoefficientMap,
-  ) {
+  ): UnionSetCoefficientMap? {
     // For a given region, we first find which bit positions are set and which are not.
     val setBitPositions = mutableListOf<Int>()
     val unsetBitPositions = mutableListOf<Int>()
 
-    for (bitPosition in 0 until numReportingSets) {
+    for (bitPosition in 0 until reportingSetCount) {
       if (isBitSet(region, bitPosition)) {
         setBitPositions.add(bitPosition)
       } else {
@@ -236,15 +224,15 @@ class SetExpressionCompiler {
     }
     val primitiveRegionWeight = setBitPositions.size
 
-    // Always starts from -1 unless the primitive region = (2^numReportingSets - 1) = b'11...1'.
-    val baseSign = if (primitiveRegionWeight != numReportingSets) -1 else 1
+    // Always starts from -1 unless the primitive region = (2^reportingSetCount - 1) = b'11...1'.
+    val baseSign = if (primitiveRegionWeight != reportingSetCount) -1 else 1
     var count = 0
 
     val unionSetCoefficients = mutableMapOf<UnionSet, Int>()
 
-    for (size in 1..numReportingSets) {
+    for (size in 1..reportingSetCount) {
       // Skips it if the union-only set is too light
-      if (size + primitiveRegionWeight < numReportingSets) {
+      if (size + primitiveRegionWeight < reportingSetCount) {
         continue
       }
 
@@ -256,26 +244,11 @@ class SetExpressionCompiler {
       unionSetCoefficients += composingUnionSets.associateWith { sign }
     }
 
-    if (unionSetCoefficients.isNotEmpty()) {
-      primitiveRegionsToUnionSetCoefficients[region] = unionSetCoefficients.toMap()
+    return if (unionSetCoefficients.isEmpty()) {
+      null
+    } else {
+      unionSetCoefficients.toMap()
     }
-  }
-
-  /** Reuses previous result in the memory cache if there is any. */
-  private fun reusePreviousComputation(
-    numReportingSets: Int,
-    region: PrimitiveRegion,
-    primitiveRegionsToUnionSetCoefficients: PrimitiveRegionToUnionSetCoefficientMap,
-  ): Boolean {
-    // If the compiler has already run the case where the number of reporting sets equal to
-    // `numReportingSets`.
-    primitiveRegionCache[numReportingSets]?.also { cachedPrimitiveRegionsToUnionSetCoefficients ->
-      // If the compiler has calculated this region before.
-      cachedPrimitiveRegionsToUnionSetCoefficients[region]?.also { cachedUnionSetCoefficientMap ->
-        primitiveRegionsToUnionSetCoefficients[region] = cachedUnionSetCoefficientMap
-      }
-    }
-    return primitiveRegionsToUnionSetCoefficients.containsKey(region)
   }
 
   /**
@@ -325,10 +298,10 @@ class SetExpressionCompiler {
 
   /** Gets the set of the primitive regions that form the set from the set operation expression. */
   private fun setOperationExpressionToPrimitiveRegions(
-    numReportingSets: Int,
+    reportingSetCount: Int,
     setOperationExpression: SetOperationExpression,
   ): Set<PrimitiveRegion> {
-    val allPrimitiveRegionSetsList = buildAllPrimitiveRegions(numReportingSets)
+    val allPrimitiveRegionSetsList = buildAllPrimitiveRegions(reportingSetCount)
     return setOperationExpression.decompose(allPrimitiveRegionSetsList)
   }
 
@@ -340,73 +313,70 @@ class SetExpressionCompiler {
    * allPrimitiveRegionSetsList\[reportingSetId\] = setOf(1(=b’001’), 3(=b’011’), 5(=b’101’),
    * 7(=b’111’)).
    */
-  private fun buildAllPrimitiveRegions(numReportingSets: Int): VennDiagramDecomposition {
-    if (vennDiagramDecompositionCache.contains(numReportingSets)) {
-      return vennDiagramDecompositionCache.getValue(numReportingSets)
-    }
+  private fun buildAllPrimitiveRegions(reportingSetCount: Int): VennDiagramDecomposition {
+    return vennDiagramDecompositionCache.computeIfAbsent(reportingSetCount) {
+      val numPrimitiveRegions =
+        2.0.pow(reportingSetCount).toPrimitiveRegion() - 1.toPrimitiveRegion()
+      val allPrimitiveRegionSetsList: List<MutableSet<PrimitiveRegion>> =
+        List(reportingSetCount) { mutableSetOf() }
 
-    val numPrimitiveRegions = 2.0.pow(numReportingSets).toPrimitiveRegion() - 1.toPrimitiveRegion()
-    val allPrimitiveRegionSetsList: List<MutableSet<PrimitiveRegion>> =
-      List(numReportingSets) { mutableSetOf() }
-
-    // A region is in the set of reportingSet when its bit at bit position == reportingSetId is set.
-    for (region in 1.toPrimitiveRegion()..numPrimitiveRegions) {
-      for (reportingSetId in 0 until numReportingSets) {
-        if (isBitSet(region, reportingSetId)) {
-          allPrimitiveRegionSetsList[reportingSetId].add(region)
+      // A region is in the set of reportingSet when its bit at bit position == reportingSetId is
+      // set.
+      for (region in 1.toPrimitiveRegion()..numPrimitiveRegions) {
+        for (reportingSetId in 0 until reportingSetCount) {
+          if (isBitSet(region, reportingSetId)) {
+            allPrimitiveRegionSetsList[reportingSetId].add(region)
+          }
         }
       }
+
+      allPrimitiveRegionSetsList
     }
-
-    vennDiagramDecompositionCache[numReportingSets] = allPrimitiveRegionSetsList
-
-    return allPrimitiveRegionSetsList
   }
-}
 
-/**
- * Decomposes the set operation expression to a set of primitive regions by calculating the set
- * expression between each two operands.
- */
-private fun SetOperationExpression.decompose(
-  allPrimitiveRegionSetsList: List<Set<PrimitiveRegion>>
-): Set<PrimitiveRegion> {
-  val source = this
-  val lhsPrimitiveRegions = source.lhs.decompose(allPrimitiveRegionSetsList)
-  val rhsPrimitiveRegions = source.rhs.decompose(allPrimitiveRegionSetsList)
-  return calculateBinarySetExpression(lhsPrimitiveRegions, rhsPrimitiveRegions, source.setOperator)
-}
-
-/** Decomposes the operand to a set of primitive regions. */
-private fun Operand?.decompose(
-  allPrimitiveRegionSetsList: List<Set<PrimitiveRegion>>
-): Set<PrimitiveRegion> {
-  return when (val operand = this) {
-    is SetOperationExpression -> {
-      operand.decompose(allPrimitiveRegionSetsList)
+  /** Calculates the binary set expression. */
+  private fun calculateBinarySetExpression(
+    lhs: Set<PrimitiveRegion>,
+    rhs: Set<PrimitiveRegion>,
+    operator: Operator,
+  ): Set<PrimitiveRegion> {
+    return when (operator) {
+      Operator.UNION -> lhs union rhs
+      Operator.INTERSECT -> lhs intersect rhs
+      Operator.DIFFERENCE -> lhs subtract rhs
     }
-    is ReportingSet -> {
-      if (operand.id >= allPrimitiveRegionSetsList.size) {
-        throw IllegalArgumentException(
-          "ReportingSet's ID must be less than the number of total reporting sets."
-        )
+  }
+
+  /**
+   * Decomposes the set operation expression to a set of primitive regions by calculating the set
+   * expression between each two operands.
+   */
+  private fun SetOperationExpression.decompose(
+    allPrimitiveRegionSetsList: List<Set<PrimitiveRegion>>
+  ): Set<PrimitiveRegion> {
+    val lhsPrimitiveRegions = lhs.decompose(allPrimitiveRegionSetsList)
+    val rhsPrimitiveRegions = rhs.decompose(allPrimitiveRegionSetsList)
+    return calculateBinarySetExpression(lhsPrimitiveRegions, rhsPrimitiveRegions, setOperator)
+  }
+
+  /** Decomposes the operand to a set of primitive regions. */
+  private fun Operand?.decompose(
+    allPrimitiveRegionSetsList: List<Set<PrimitiveRegion>>
+  ): Set<PrimitiveRegion> {
+    return when (val operand = this) {
+      is SetOperationExpression -> {
+        operand.decompose(allPrimitiveRegionSetsList)
       }
-      allPrimitiveRegionSetsList[operand.id]
+      is ReportingSet -> {
+        if (operand.id >= allPrimitiveRegionSetsList.size) {
+          throw IllegalArgumentException(
+            "ReportingSet's ID must be less than the number of total reporting sets."
+          )
+        }
+        allPrimitiveRegionSetsList[operand.id]
+      }
+      else -> setOf()
     }
-    else -> setOf()
-  }
-}
-
-/** Calculates the binary set expression. */
-private fun calculateBinarySetExpression(
-  lhs: Set<PrimitiveRegion>,
-  rhs: Set<PrimitiveRegion>,
-  operator: Operator,
-): Set<PrimitiveRegion> {
-  return when (operator) {
-    Operator.UNION -> lhs union rhs
-    Operator.INTERSECT -> lhs intersect rhs
-    Operator.DIFFERENCE -> lhs subtract rhs
   }
 }
 
