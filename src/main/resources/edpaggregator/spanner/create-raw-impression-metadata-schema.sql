@@ -15,7 +15,7 @@
 -- limitations under the License.
 
 -- changeset jojijacob:6 dbms:cloudspanner
--- comment: Create RawImpressionBatchFile table to track raw impression files grouped into batches for VID labeling.
+-- comment: Create RawImpressionMetadata table to track raw impression files grouped into batches for VID labeling.
 
 -- Set protobuf FileDescriptorSet as a base64 string.
 SET PROTO_DESCRIPTORS =
@@ -30,15 +30,15 @@ ALTER PROTO BUNDLE INSERT (
 
 -- Tracks raw impression files grouped into batches for VID labeling.
 -- Hierarchy: DataProvider -> Upload -> Batch -> File
-CREATE TABLE RawImpressionBatchFile (
+CREATE TABLE RawImpressionMetadata (
   -- The globally unique resource ID of the DataProvider that owns this file.
   DataProviderResourceId STRING(63) NOT NULL,
   -- Identifier for the upload session that produced this file.
   UploadId STRING(63) NOT NULL,
   -- Zero-based index of the batch within the upload.
   BatchIndex INT64 NOT NULL,
-  -- Zero-based index of the file within the batch.
-  FileIndex INT64 NOT NULL,
+  -- The date this upload covers.
+  UploadDate DATE NOT NULL,
   -- The URI of the raw impressions blob.
   BlobUri STRING(MAX) NOT NULL,
   -- The processing state of the batch containing this file.
@@ -49,11 +49,16 @@ CREATE TABLE RawImpressionBatchFile (
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
   -- The time this record was last updated in this database.
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
-) PRIMARY KEY (DataProviderResourceId, UploadId, BatchIndex, FileIndex);
+) PRIMARY KEY (DataProviderResourceId, UploadId, BatchIndex);
 
 -- Enforces uniqueness of BlobUri per DataProvider and enables idempotency
 -- checks before inserting a new file record.
-CREATE UNIQUE INDEX RawImpressionBatchFileByBlobUri
-  ON RawImpressionBatchFile(DataProviderResourceId, BlobUri);
+CREATE UNIQUE INDEX RawImpressionMetadataByBlobUri
+  ON RawImpressionMetadata(DataProviderResourceId, BlobUri);
+
+-- Supports: "Find the ACTIVE upload for a specific date"
+-- Query: WHERE DataProviderResourceId = @dp AND UploadDate = @date AND State = 'ACTIVE'
+CREATE INDEX RawImpressionMetadataByUploadDateAndState
+  ON RawImpressionMetadata(DataProviderResourceId, UploadDate, State);
 
 RUN BATCH;

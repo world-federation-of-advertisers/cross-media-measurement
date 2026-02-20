@@ -29,5 +29,5 @@ databaseChangeLog:
       file: add-blob-uri-prefix-index.sql
       relativeToChangeLogFile: true
   - include:
-      file: create-raw-impression-batch-file-schema.sql
+      file: create-raw-impression-metadata-schema.sql
       relativeToChangeLogFile: true
