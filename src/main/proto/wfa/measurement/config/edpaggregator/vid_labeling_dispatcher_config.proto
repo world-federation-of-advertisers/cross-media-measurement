@@ -30,17 +30,14 @@ message VidLabelingDispatcherConfig {
   string data_provider = 1
       [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 
-  TransportLayerSecurityParams impression_metadata_storage_connection = 2;
+  TransportLayerSecurityParams raw_impression_metadata_storage_connection = 2;
 
   // Storage configuration for accessing raw impressions (GCS bucket info).
   StorageParams raw_impressions_storage = 3;
 
-  // The Control Plane queue name for VID Labeler TEE apps.
-  string queue = 4;
-
   // Template for VidLabelerParams (app_params passed to WorkItem).
-  google.protobuf.Any vid_labeler_params_template = 5;
+  google.protobuf.Any vid_labeler_params_template = 4;
 
   // Maximum batch size in GB. Optional.
-  fixed64 batch_max_size = 6;
+  fixed64 batch_max_size = 5;
 }
