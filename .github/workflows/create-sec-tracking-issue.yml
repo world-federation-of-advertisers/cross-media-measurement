@@ -1,0 +1,117 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Create tracking issue for code scanning alerts
+
+on:
+  # DO_NOT_SUBMIT: remove pr event (for testing)
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      scanned-ref:
+        description: "Scanned ref. Defaults to latest nightly build"
+        type: string
+        required: false
+      rule-id:
+        description: "CVE or other rule id as used in code scanning alerts"
+        type: string
+        # DO_NOT_SUBMIT: add required: true
+
+permissions:
+  contents: read
+
+jobs:
+  create-tracking-issue:
+    name: Create tracking issue
+    runs-on: ubuntu-22.04
+    permissions:
+      security-events: read    
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CODE_SCANNING_JSON_FILE: "code-scanning-alerts.json"
+    steps:
+
+      - id: compute-ref-to-use
+        name: Compute ref to use
+        env:
+          SUPPLIED_REF: ${{ inputs.scanned-ref }}
+        run: |
+          set -euo pipefail
+
+          declare ref
+          if [[ -n "${SUPPLIED_REF}" ]]; then
+            ref="${SUPPLIED_REF}"
+          else
+            ref=$(gh api graphql -f query='
+              query {
+                repository(owner:"world-federation-of-advertisers", name:"cross-media-measurement") {
+                  refs(refPrefix:"refs/tags/nightly/", last:1, orderBy:{field:TAG_COMMIT_DATE, direction:ASC}) {
+                    nodes { 
+                      name
+                      prefix
+                    }
+                  }
+                }
+              }' --jq '.data.repository.refs.nodes[0] | "\(.prefix)\(.name)"')
+          fi
+          echo "ref=${ref}" >> "$GITHUB_OUTPUT"
+
+      - name: Download code scanning alerts
+        env:
+          REF: ${{ steps.compute-ref-to-use.outputs.ref }}
+        run: |
+          set -euo pipefail
+
+          for severity in critical high; do
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/world-federation-of-advertisers/cross-media-measurement/code-scanning/alerts" \
+              --method GET \
+              --paginate \
+              --raw-field ref="${REF}" \
+              --raw-field tool_name="Trivy" \
+              --raw-field per_page="100" \
+              --raw-field severity="${severity}" >> "${CODE_SCANNING_JSON_FILE}"
+          done
+          cat "${CODE_SCANNING_JSON_FILE}"
+
+      - name: Create tracking issue
+        env:
+          # DO_NOT_SUBMIT: remove hardcoded rule
+          RULE_ID: "CVE-2026-0861"
+          #RULE_ID: ${{ inputs.rule-id }}
+        run: |
+          set -euo pipefail
+
+          ids=$(cat ${CODE_SCANNING_JSON_FILE} | jq '.[] | [.number, .rule.id] | @csv' -rc | grep "${RULE_ID}" | cut -d "," -f1)
+
+          # compute title
+          first_id=$(echo "${ids}" | head -n1)
+          rule_description=$(cat "${CODE_SCANNING_JSON_FILE}" | jq --arg TARGET_ID "${first_id}" '.[] | select(.number == ($TARGET_ID | tonumber)) | .rule.description' -rc)
+          title="Fix code scanning alert - ${RULE_ID} - ${rule_description}"
+
+          body=$(cat <<EOF
+          Vulnerability: [${RULE_ID}](https://nvd.nist.gov/vuln/detail/${RULE_ID})
+
+          Tracking issue for:
+          $(for id in ${ids}; do
+              echo "- https://github.com/world-federation-of-advertisers/cross-media-measurement/security/code-scanning/${id}"
+            done)
+          EOF
+          )
+
+          echo "${title}"
+          echo 
+          echo "${body}"
