@@ -471,13 +471,24 @@ class ReportingSetsServiceTest {
       reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
       reportingSetId = "reporting-set-id"
     }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+        }
+      )
   }
 
   @Test
@@ -486,13 +497,24 @@ class ReportingSetsServiceTest {
       parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
       reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
     }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "reporting_set_id"
+        }
+      )
   }
 
   @Test
@@ -502,13 +524,24 @@ class ReportingSetsServiceTest {
       reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
       reportingSetId = "1s"
     }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "reporting_set_id"
+        }
+      )
   }
 
   @Test
@@ -518,13 +551,24 @@ class ReportingSetsServiceTest {
       reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
       reportingSetId = "s".repeat(100)
     }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "reporting_set_id"
+        }
+      )
   }
 
   @Test
@@ -534,13 +578,24 @@ class ReportingSetsServiceTest {
       reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
       reportingSetId = "contain_invalid_char"
     }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "reporting_set_id"
+        }
+      )
   }
 
   @Test
@@ -549,13 +604,24 @@ class ReportingSetsServiceTest {
       parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
       reportingSetId = "reporting-set-id"
     }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "reporting_set"
+        }
+      )
   }
 
   @Test
@@ -569,13 +635,24 @@ class ReportingSetsServiceTest {
         }
       reportingSetId = "reporting-set-id"
     }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "reporting_set.value"
+        }
+      )
   }
 
   @Test
@@ -589,13 +666,24 @@ class ReportingSetsServiceTest {
         }
       reportingSetId = "reporting-set-id"
     }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "reporting_set.composite.expression"
+        }
+      )
   }
 
   @Test
@@ -609,13 +697,24 @@ class ReportingSetsServiceTest {
         }
       reportingSetId = "reporting-set-id"
     }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "reporting_set.composite.expression.operation"
+        }
+      )
   }
 
   @Test
@@ -629,13 +728,24 @@ class ReportingSetsServiceTest {
         }
       reportingSetId = "reporting-set-id"
     }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "reporting_set.composite.expression.lhs"
+        }
+      )
   }
 
   @Test
@@ -659,12 +769,14 @@ class ReportingSetsServiceTest {
         }
       reportingSetId = "reporting-set-id"
     }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
+
     assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception)
       .errorInfo()
@@ -704,17 +816,29 @@ class ReportingSetsServiceTest {
         }
       reportingSetId = "reporting-set-id"
     }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] =
+            "reporting_set.composite.expression.lhs.reporting_set"
+        }
+      )
   }
 
   @Test
-  fun `createReportingSet throws FAILED_PRECONDITION when child ReportingSet cannot be found`() =
+  fun `createReportingSet throws FAILED_PRECONDITION when referenced ReportingSet cannot be found`() =
     runBlocking {
       permissionsServiceMock.stub {
         onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doReturn
@@ -733,10 +857,12 @@ class ReportingSetsServiceTest {
         reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
         reportingSetId = "reporting-set-id"
       }
+
       val exception =
         assertFailsWith<StatusRuntimeException> {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createReportingSet(request) }
         }
+
       assertThat(exception).status().code().isEqualTo(Status.Code.FAILED_PRECONDITION)
       assertThat(exception)
         .errorInfo()
@@ -755,7 +881,7 @@ class ReportingSetsServiceTest {
     }
 
   @Test
-  fun `createReportingSet throws FAILED_PRECONDITION when child reporting cannot be found during creation`() =
+  fun `createReportingSet throws FAILED_PRECONDITION when referenced ReportingSet cannot be found during internal Create`() =
     runBlocking {
       val cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().toName()
       permissionsServiceMock.stub {
@@ -767,20 +893,27 @@ class ReportingSetsServiceTest {
           ReportingSetNotFoundException(cmmsMeasurementConsumerId, "absent")
             .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         )
-
       val request = createReportingSetRequest {
         parent = cmmsMeasurementConsumerId
-        reportingSet =
-          ROOT_COMPOSITE_REPORTING_SET.copy {
-            name = "$cmmsMeasurementConsumerId/reportingSets/absent"
-          }
+        reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
         reportingSetId = "reporting-set-id"
       }
+
       val exception =
         assertFailsWith<StatusRuntimeException> {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createReportingSet(request) }
         }
-      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+
+      assertThat(exception)
+        .errorInfo()
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REPORTING_SET_NOT_FOUND.name
+            metadata[Errors.Metadata.REPORTING_SET.key] =
+              ReportingSetKey(cmmsMeasurementConsumerId, "absent").toName()
+          }
+        )
     }
 
   @Test
@@ -794,13 +927,24 @@ class ReportingSetsServiceTest {
         }
       reportingSetId = "reporting-set-id"
     }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "reporting_set.primitive.cmms_event_groups"
+        }
+      )
   }
 
   @Test
@@ -815,12 +959,14 @@ class ReportingSetsServiceTest {
         }
       reportingSetId = "reporting-set-id"
     }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.createReportingSet(request) }
         }
       }
+
     assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception)
       .errorInfo()
@@ -897,8 +1043,15 @@ class ReportingSetsServiceTest {
       onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doReturn
         checkPermissionsResponse { permissions += PermissionName.GET }
     }
+    val internalReportingSet = INTERNAL_PRIMITIVE_REPORTING_SETS.first()
     whenever(internalReportingSetsMock.batchGetReportingSets(any()))
-      .thenThrow(Status.NOT_FOUND.asRuntimeException())
+      .thenThrow(
+        ReportingSetNotFoundException(
+            internalReportingSet.cmmsMeasurementConsumerId,
+            internalReportingSet.externalReportingSetId,
+          )
+          .asStatusRuntimeException(Status.Code.NOT_FOUND)
+      )
     val request = getReportingSetRequest { name = PRIMITIVE_REPORTING_SETS.first().name }
 
     val exception =
@@ -908,7 +1061,16 @@ class ReportingSetsServiceTest {
         }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).status().code().isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REPORTING_SET_NOT_FOUND.name
+          metadata[Errors.Metadata.REPORTING_SET.key] = request.name
+        }
+      )
   }
 
   @Test
@@ -944,7 +1106,17 @@ class ReportingSetsServiceTest {
           runBlocking { service.getReportingSet(GetReportingSetRequest.getDefaultInstance()) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "name"
+        }
+      )
   }
 
   @Test
@@ -1241,14 +1413,24 @@ class ReportingSetsServiceTest {
       parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
       pageSize = -1
     }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           runBlocking { service.listReportingSets(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Page size cannot be less than 0")
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
+        }
+      )
   }
 
   @Test
@@ -1259,7 +1441,17 @@ class ReportingSetsServiceTest {
           runBlocking { service.listReportingSets(ListReportingSetsRequest.getDefaultInstance()) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+        }
+      )
   }
 
   @Test
@@ -1285,7 +1477,17 @@ class ReportingSetsServiceTest {
           runBlocking { service.listReportingSets(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.ARGUMENT_CHANGED_IN_REQUEST_FOR_NEXT_PAGE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+        }
+      )
   }
 
   object PermissionName {
