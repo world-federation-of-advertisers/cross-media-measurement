@@ -16,55 +16,56 @@ data "google_client_config" "default" {}
 data "google_project" "project" {}
 
 locals {
+  google_project_id = trimprefix(data.google_project.project.id, "projects/")
 
   # IP addresses for private.googleapis.com (Private Google Access default VIPs)
   # Reference: https://cloud.google.com/vpc/docs/configure-private-google-access#ip-addr-defaults
-  private_googleapis_ipv4 = ["199.36.153.8","199.36.153.9","199.36.153.10","199.36.153.11"]
+  private_googleapis_ipv4 = ["199.36.153.8", "199.36.153.9", "199.36.153.10", "199.36.153.11"]
 
   common_secrets_to_access = [
     {
-      secret_id  = var.edpa_tee_app_tls_key.secret_id
-      version    = "latest"
+      secret_id = var.edpa_tee_app_tls_key.secret_id
+      version   = "latest"
     },
     {
-      secret_id  = var.edpa_tee_app_tls_pem.secret_id
-      version    = "latest"
+      secret_id = var.edpa_tee_app_tls_pem.secret_id
+      version   = "latest"
     },
     {
-      secret_id  = var.secure_computation_root_ca.secret_id
-      version    = "latest"
+      secret_id = var.secure_computation_root_ca.secret_id
+      version   = "latest"
     },
     {
-      secret_id  = var.trusted_root_ca_collection.secret_id
-      version    = "latest"
+      secret_id = var.trusted_root_ca_collection.secret_id
+      version   = "latest"
     },
     {
-      secret_id  = var.metadata_storage_root_ca.secret_id
-      version    = "latest"
+      secret_id = var.metadata_storage_root_ca.secret_id
+      version   = "latest"
     },
   ]
 
   edp_secrets_to_access = flatten([
     for edp_name, certs in var.edps_certs : [
       {
-        secret_id  = certs.cert_der.secret_id
-        version    = "latest"
+        secret_id = certs.cert_der.secret_id
+        version   = "latest"
       },
       {
-        secret_id  = certs.private_der.secret_id
-        version    = "latest"
+        secret_id = certs.private_der.secret_id
+        version   = "latest"
       },
       {
-        secret_id  = certs.enc_private.secret_id
-        version    = "latest"
+        secret_id = certs.enc_private.secret_id
+        version   = "latest"
       },
       {
-        secret_id  = certs.tls_key.secret_id
-        version    = "latest"
+        secret_id = certs.tls_key.secret_id
+        version   = "latest"
       },
       {
-        secret_id  = certs.tls_pem.secret_id
-        version    = "latest"
+        secret_id = certs.tls_pem.secret_id
+        version   = "latest"
       },
     ]
   ])
@@ -81,17 +82,17 @@ locals {
   ]...)
 
   all_secrets = merge(
-    { edpa_tee_app_tls_key                          = var.edpa_tee_app_tls_key },
-    { edpa_tee_app_tls_pem                          = var.edpa_tee_app_tls_pem },
-    { data_watcher_tls_key                          = var.data_watcher_tls_key },
-    { data_watcher_tls_pem                          = var.data_watcher_tls_pem },
-    { data_availability_tls_key                     = var.data_availability_tls_key },
-    { data_availability_tls_pem                     = var.data_availability_tls_pem },
-    { requisition_fetcher_tls_pem                   = var.requisition_fetcher_tls_pem },
-    { requisition_fetcher_tls_key                   = var.requisition_fetcher_tls_key },
-    { secure_computation_root_ca                    = var.secure_computation_root_ca },
-    { metadata_storage_root_ca                      = var.metadata_storage_root_ca },
-    { trusted_root_ca_collection                    = var.trusted_root_ca_collection },
+    { edpa_tee_app_tls_key = var.edpa_tee_app_tls_key },
+    { edpa_tee_app_tls_pem = var.edpa_tee_app_tls_pem },
+    { data_watcher_tls_key = var.data_watcher_tls_key },
+    { data_watcher_tls_pem = var.data_watcher_tls_pem },
+    { data_availability_tls_key = var.data_availability_tls_key },
+    { data_availability_tls_pem = var.data_availability_tls_pem },
+    { requisition_fetcher_tls_pem = var.requisition_fetcher_tls_pem },
+    { requisition_fetcher_tls_key = var.requisition_fetcher_tls_key },
+    { secure_computation_root_ca = var.secure_computation_root_ca },
+    { metadata_storage_root_ca = var.metadata_storage_root_ca },
+    { trusted_root_ca_collection = var.trusted_root_ca_collection },
     local.edps_secrets
   )
 
@@ -155,13 +156,13 @@ locals {
     "tee-env-OTEL_TRACES_EXPORTER"                  = "google_cloud_trace",
     "tee-env-OTEL_LOGS_EXPORTER"                    = "logging",
     "tee-env-OTEL_SERVICE_NAME"                     = "edpa.results_fulfiller",
-    "tee-env-OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID" = data.google_project.project.project_id
+    "tee-env-OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID" = local.google_project_id
     "tee-env-OTEL_METRIC_EXPORT_INTERVAL"           = "60000"
   }
 }
 
 module "edp_aggregator_bucket" {
-  source   = "../storage-bucket"
+  source = "../storage-bucket"
 
   name     = var.edp_aggregator_bucket_name
   location = var.edp_aggregator_buckets_location
@@ -171,18 +172,18 @@ module "edp_aggregator_bucket" {
     {
       name           = "edp7"
       prefix         = "edp/edp7/"
-      retention_days = 3650  # 10 years
+      retention_days = 3650 # 10 years
     },
     {
       name           = "edp_meta"
       prefix         = "edp/edp_meta/"
-      retention_days = 3650  # 10 years
+      retention_days = 3650 # 10 years
     },
   ]
 }
 
 module "config_files_bucket" {
-  source   = "../storage-bucket"
+  source = "../storage-bucket"
 
   name     = var.config_files_bucket_name
   location = var.edp_aggregator_buckets_location
@@ -225,134 +226,134 @@ resource "google_storage_bucket_object" "upload_results_fulfiller_population_spe
 }
 
 resource "google_project_iam_member" "eventarc_service_agent" {
-  project = data.google_project.project.project_id
+  project = data.google_project.project.id
   role    = "roles/eventarc.serviceAgent"
   member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-eventarc.iam.gserviceaccount.com"
 }
 
 resource "google_project_iam_member" "storage_service_agent" {
-  project = data.google_project.project.project_id
+  project = data.google_project.project.id
   role    = "roles/pubsub.publisher"
   member  = "serviceAccount:service-${data.google_project.project.number}@gs-project-accounts.iam.gserviceaccount.com"
 }
 
 module "secrets" {
-  source            = "../secret"
-  for_each          = local.all_secrets
-  secret_id         = each.value.secret_id
-  secret_path       = each.value.secret_local_path
-  is_binary_format  = each.value.is_binary_format
+  source           = "../secret"
+  for_each         = local.all_secrets
+  secret_id        = each.value.secret_id
+  secret_path      = each.value.secret_local_path
+  is_binary_format = each.value.is_binary_format
 }
 
 module "data_watcher_cloud_function" {
-  source    = "../gcs-bucket-cloud-function"
+  source = "../gcs-bucket-cloud-function"
 
   depends_on = [module.secrets]
 
-  cloud_function_service_account_name           = var.data_watcher_service_account_name
-  cloud_function_trigger_service_account_name   = var.data_watcher_trigger_service_account_name
-  trigger_bucket_name                           = module.edp_aggregator_bucket.storage_bucket.name
-  terraform_service_account                     = var.terraform_service_account
-  function_name                                 = var.cloud_function_configs.data_watcher.function_name
-  entry_point                                   = var.cloud_function_configs.data_watcher.entry_point
-  extra_env_vars                                = var.cloud_function_configs.data_watcher.extra_env_vars
-  secret_mappings                               = var.cloud_function_configs.data_watcher.secret_mappings
-  uber_jar_path                                 = var.cloud_function_configs.data_watcher.uber_jar_path
-  secrets_to_access                             = [for key in local.data_watcher_secrets_access : local.all_secrets[key].secret_id]
-  trigger_event_type                            = "finalized"
+  cloud_function_service_account_name         = var.data_watcher_service_account_name
+  cloud_function_trigger_service_account_name = var.data_watcher_trigger_service_account_name
+  trigger_bucket_name                         = module.edp_aggregator_bucket.storage_bucket.name
+  terraform_service_account                   = var.terraform_service_account
+  function_name                               = var.cloud_function_configs.data_watcher.function_name
+  entry_point                                 = var.cloud_function_configs.data_watcher.entry_point
+  extra_env_vars                              = var.cloud_function_configs.data_watcher.extra_env_vars
+  secret_mappings                             = var.cloud_function_configs.data_watcher.secret_mappings
+  uber_jar_path                               = var.cloud_function_configs.data_watcher.uber_jar_path
+  secrets_to_access                           = [for key in local.data_watcher_secrets_access : local.all_secrets[key].secret_id]
+  trigger_event_type                          = "finalized"
 }
 
 module "data_watcher_delete_cloud_function" {
-  source    = "../gcs-bucket-cloud-function"
+  source = "../gcs-bucket-cloud-function"
 
   depends_on = [module.secrets]
 
-  cloud_function_service_account_name           = var.data_watcher_delete_service_account_name
-  cloud_function_trigger_service_account_name   = var.data_watcher_delete_trigger_service_account_name
-  trigger_bucket_name                           = module.edp_aggregator_bucket.storage_bucket.name
-  terraform_service_account                     = var.terraform_service_account
-  function_name                                 = var.cloud_function_configs.data_watcher_delete.function_name
-  entry_point                                   = var.cloud_function_configs.data_watcher_delete.entry_point
-  extra_env_vars                                = var.cloud_function_configs.data_watcher_delete.extra_env_vars
-  secret_mappings                               = var.cloud_function_configs.data_watcher_delete.secret_mappings
-  uber_jar_path                                 = var.cloud_function_configs.data_watcher_delete.uber_jar_path
-  secrets_to_access                             = [for key in local.data_watcher_delete_secrets_access : local.all_secrets[key].secret_id]
-  trigger_event_type                            = "deleted"
+  cloud_function_service_account_name         = var.data_watcher_delete_service_account_name
+  cloud_function_trigger_service_account_name = var.data_watcher_delete_trigger_service_account_name
+  trigger_bucket_name                         = module.edp_aggregator_bucket.storage_bucket.name
+  terraform_service_account                   = var.terraform_service_account
+  function_name                               = var.cloud_function_configs.data_watcher_delete.function_name
+  entry_point                                 = var.cloud_function_configs.data_watcher_delete.entry_point
+  extra_env_vars                              = var.cloud_function_configs.data_watcher_delete.extra_env_vars
+  secret_mappings                             = var.cloud_function_configs.data_watcher_delete.secret_mappings
+  uber_jar_path                               = var.cloud_function_configs.data_watcher_delete.uber_jar_path
+  secrets_to_access                           = [for key in local.data_watcher_delete_secrets_access : local.all_secrets[key].secret_id]
+  trigger_event_type                          = "deleted"
 }
 
 module "requisition_fetcher_cloud_function" {
-  source    = "../http-cloud-function"
+  source = "../http-cloud-function"
 
   depends_on = [module.secrets]
 
-  http_cloud_function_service_account_name  = var.requisition_fetcher_service_account_name
-  terraform_service_account                 = var.terraform_service_account
-  function_name                             = var.cloud_function_configs.requisition_fetcher.function_name
-  entry_point                               = var.cloud_function_configs.requisition_fetcher.entry_point
-  extra_env_vars                            = var.cloud_function_configs.requisition_fetcher.extra_env_vars
-  secret_mappings                           = var.cloud_function_configs.requisition_fetcher.secret_mappings
-  uber_jar_path                             = var.cloud_function_configs.requisition_fetcher.uber_jar_path
-  secrets_to_access                         = [for key in local.requisition_fetcher_secrets_access : local.all_secrets[key].secret_id]
+  http_cloud_function_service_account_name = var.requisition_fetcher_service_account_name
+  terraform_service_account                = var.terraform_service_account
+  function_name                            = var.cloud_function_configs.requisition_fetcher.function_name
+  entry_point                              = var.cloud_function_configs.requisition_fetcher.entry_point
+  extra_env_vars                           = var.cloud_function_configs.requisition_fetcher.extra_env_vars
+  secret_mappings                          = var.cloud_function_configs.requisition_fetcher.secret_mappings
+  uber_jar_path                            = var.cloud_function_configs.requisition_fetcher.uber_jar_path
+  secrets_to_access                        = [for key in local.requisition_fetcher_secrets_access : local.all_secrets[key].secret_id]
 }
 
 module "requisition_fetcher_cloud_scheduler" {
-  source                        = "../cloud-scheduler"
-  terraform_service_account     = var.terraform_service_account
-  scheduler_config              = var.requisition_fetcher_scheduler_config
-  depends_on                    = [module.requisition_fetcher_cloud_function]
+  source                    = "../cloud-scheduler"
+  terraform_service_account = var.terraform_service_account
+  scheduler_config          = var.requisition_fetcher_scheduler_config
+  depends_on                = [module.requisition_fetcher_cloud_function]
 }
 
 module "event_group_sync_cloud_function" {
-  source    = "../http-cloud-function"
+  source = "../http-cloud-function"
 
   depends_on = [module.secrets]
 
-  http_cloud_function_service_account_name  = var.event_group_sync_service_account_name
-  terraform_service_account                 = var.terraform_service_account
-  function_name                             = var.cloud_function_configs.event_group_sync.function_name
-  entry_point                               = var.cloud_function_configs.event_group_sync.entry_point
-  extra_env_vars                            = var.cloud_function_configs.event_group_sync.extra_env_vars
-  secret_mappings                           = var.cloud_function_configs.event_group_sync.secret_mappings
-  uber_jar_path                             = var.cloud_function_configs.event_group_sync.uber_jar_path
-  secrets_to_access                         = [for key in local.event_group_sync_secrets_access : local.all_secrets[key].secret_id]
+  http_cloud_function_service_account_name = var.event_group_sync_service_account_name
+  terraform_service_account                = var.terraform_service_account
+  function_name                            = var.cloud_function_configs.event_group_sync.function_name
+  entry_point                              = var.cloud_function_configs.event_group_sync.entry_point
+  extra_env_vars                           = var.cloud_function_configs.event_group_sync.extra_env_vars
+  secret_mappings                          = var.cloud_function_configs.event_group_sync.secret_mappings
+  uber_jar_path                            = var.cloud_function_configs.event_group_sync.uber_jar_path
+  secrets_to_access                        = [for key in local.event_group_sync_secrets_access : local.all_secrets[key].secret_id]
 }
 
 module "data_availability_sync_cloud_function" {
-  source    = "../http-cloud-function"
+  source = "../http-cloud-function"
 
   depends_on = [module.secrets]
 
-  http_cloud_function_service_account_name  = var.data_availability_sync_service_account_name
-  terraform_service_account                 = var.terraform_service_account
-  function_name                             = var.cloud_function_configs.data_availability_sync.function_name
-  entry_point                               = var.cloud_function_configs.data_availability_sync.entry_point
-  extra_env_vars                            = var.cloud_function_configs.data_availability_sync.extra_env_vars
-  secret_mappings                           = var.cloud_function_configs.data_availability_sync.secret_mappings
-  uber_jar_path                             = var.cloud_function_configs.data_availability_sync.uber_jar_path
-  secrets_to_access                         = [for key in local.data_availability_sync_secrets_access : local.all_secrets[key].secret_id]
+  http_cloud_function_service_account_name = var.data_availability_sync_service_account_name
+  terraform_service_account                = var.terraform_service_account
+  function_name                            = var.cloud_function_configs.data_availability_sync.function_name
+  entry_point                              = var.cloud_function_configs.data_availability_sync.entry_point
+  extra_env_vars                           = var.cloud_function_configs.data_availability_sync.extra_env_vars
+  secret_mappings                          = var.cloud_function_configs.data_availability_sync.secret_mappings
+  uber_jar_path                            = var.cloud_function_configs.data_availability_sync.uber_jar_path
+  secrets_to_access                        = [for key in local.data_availability_sync_secrets_access : local.all_secrets[key].secret_id]
 }
 
 module "data_availability_cleanup_cloud_function" {
-  source    = "../http-cloud-function"
+  source = "../http-cloud-function"
 
   depends_on = [module.secrets]
 
-  http_cloud_function_service_account_name  = var.data_availability_cleanup_service_account_name
-  terraform_service_account                 = var.terraform_service_account
-  function_name                             = var.cloud_function_configs.data_availability_cleanup.function_name
-  entry_point                               = var.cloud_function_configs.data_availability_cleanup.entry_point
-  extra_env_vars                            = var.cloud_function_configs.data_availability_cleanup.extra_env_vars
-  secret_mappings                           = var.cloud_function_configs.data_availability_cleanup.secret_mappings
-  uber_jar_path                             = var.cloud_function_configs.data_availability_cleanup.uber_jar_path
-  secrets_to_access                         = [for key in local.data_availability_cleanup_secrets_access : local.all_secrets[key].secret_id]
+  http_cloud_function_service_account_name = var.data_availability_cleanup_service_account_name
+  terraform_service_account                = var.terraform_service_account
+  function_name                            = var.cloud_function_configs.data_availability_cleanup.function_name
+  entry_point                              = var.cloud_function_configs.data_availability_cleanup.entry_point
+  extra_env_vars                           = var.cloud_function_configs.data_availability_cleanup.extra_env_vars
+  secret_mappings                          = var.cloud_function_configs.data_availability_cleanup.secret_mappings
+  uber_jar_path                            = var.cloud_function_configs.data_availability_cleanup.uber_jar_path
+  secrets_to_access                        = [for key in local.data_availability_cleanup_secrets_access : local.all_secrets[key].secret_id]
 }
 
 module "result_fulfiller_queue" {
-  source   = "../pubsub"
+  source = "../pubsub"
 
-  topic_name              = var.requisition_fulfiller_config.queue.topic_name
-  subscription_name       = var.requisition_fulfiller_config.queue.subscription_name
-  ack_deadline_seconds    = var.requisition_fulfiller_config.queue.ack_deadline_seconds
+  topic_name           = var.requisition_fulfiller_config.queue.topic_name
+  subscription_name    = var.requisition_fulfiller_config.queue.subscription_name
+  ack_deadline_seconds = var.requisition_fulfiller_config.queue.ack_deadline_seconds
 }
 
 resource "google_pubsub_topic_iam_member" "publisher" {
@@ -362,7 +363,7 @@ resource "google_pubsub_topic_iam_member" "publisher" {
 }
 
 module "result_fulfiller_tee_app" {
-  source   = "../mig"
+  source = "../mig"
 
   depends_on = [module.secrets]
 
@@ -385,8 +386,8 @@ module "result_fulfiller_tee_app" {
   config_storage_bucket         = module.config_files_bucket.storage_bucket.name
   subnetwork_name               = google_compute_subnetwork.private_subnetwork.name
   # TODO(world-federation-of-advertisers/cross-media-measurement#2924): Rename `results_fulfiller` into `results-fulfiller`
-  tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller"
-  extra_metadata                = local.otel_metadata
+  tee_signed_image_repo = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller"
+  extra_metadata        = local.otel_metadata
 }
 
 resource "google_storage_bucket_iam_member" "result_fulfiller_storage_viewer" {
@@ -403,16 +404,16 @@ resource "google_storage_bucket_iam_member" "result_fulfiller_storage_creator" {
 
 resource "google_storage_bucket_iam_member" "data_availability_storage_object_user" {
   depends_on = [module.data_availability_sync_cloud_function]
-  bucket = module.edp_aggregator_bucket.storage_bucket.name
-  role   = "roles/storage.objectUser"
-  member = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
+  bucket     = module.edp_aggregator_bucket.storage_bucket.name
+  role       = "roles/storage.objectUser"
+  member     = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
 }
 
 resource "google_storage_bucket_iam_member" "data_availability_cleanup_storage_viewer" {
   depends_on = [module.data_availability_cleanup_cloud_function]
-  bucket = module.edp_aggregator_bucket.storage_bucket.name
-  role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${module.data_availability_cleanup_cloud_function.cloud_function_service_account.email}"
+  bucket     = module.edp_aggregator_bucket.storage_bucket.name
+  role       = "roles/storage.objectViewer"
+  member     = "serviceAccount:${module.data_availability_cleanup_cloud_function.cloud_function_service_account.email}"
 }
 
 resource "google_storage_bucket_iam_binding" "aggregator_storage_admin" {
@@ -450,16 +451,16 @@ resource "google_storage_bucket_iam_member" "results_fulfiller_config_storage_vi
 
 resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
   depends_on = [module.event_group_sync_cloud_function]
-  service  = var.event_group_sync_function_name
-  role     = "roles/run.invoker"
-  member   = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
+  service    = var.event_group_sync_function_name
+  role       = "roles/run.invoker"
+  member     = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
 }
 
 resource "google_cloud_run_service_iam_member" "data_availability_sync_invoker" {
   depends_on = [module.data_availability_sync_cloud_function]
-  service  = var.data_availability_sync_function_name
-  role     = "roles/run.invoker"
-  member   = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
+  service    = var.data_availability_sync_function_name
+  role       = "roles/run.invoker"
+  member     = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
 }
 
 resource "google_cloud_run_service_iam_member" "data_availability_cleanup_invoker" {
@@ -518,7 +519,7 @@ resource "google_dns_managed_zone" "private_gcs" {
 
   private_visibility_config {
     networks {
-      network_url = "projects/${data.google_project.project.project_id}/global/networks/default"
+      network_url = "${data.google_project.project.id}/global/networks/default"
     }
   }
 }
@@ -551,7 +552,7 @@ module "edp_aggregator_internal" {
 }
 
 resource "google_project_iam_member" "edp_aggregator_internal_metric_writer" {
-  project = data.google_project.project.name
+  project = data.google_project.project.id
   role    = "roles/monitoring.metricWriter"
   member  = module.edp_aggregator_internal.iam_service_account.member
 }
@@ -580,21 +581,21 @@ resource "google_compute_address" "edp_aggregator_api_server" {
 
 resource "google_project_iam_member" "telemetry_log_writer" {
   for_each = local.service_accounts
-  project  = data.google_project.project.project_id
+  project  = data.google_project.project.id
   role     = "roles/logging.logWriter"
   member   = "serviceAccount:${each.value}"
 }
 
 resource "google_project_iam_member" "telemetry_metric_writer" {
   for_each = local.service_accounts
-  project  = data.google_project.project.project_id
+  project  = data.google_project.project.id
   role     = "roles/monitoring.metricWriter"
   member   = "serviceAccount:${each.value}"
 }
 
 resource "google_project_iam_member" "telemetry_trace_agent" {
   for_each = local.service_accounts
-  project  = data.google_project.project.project_id
+  project  = data.google_project.project.id
   role     = "roles/cloudtrace.agent"
   member   = "serviceAccount:${each.value}"
 }
