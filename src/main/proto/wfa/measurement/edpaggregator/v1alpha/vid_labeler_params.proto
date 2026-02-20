@@ -18,6 +18,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
@@ -44,17 +45,6 @@ message VidLabelerParams {
 
   // The storage used by the tee app
   StorageParams storage_params = 2 [(google.api.field_behavior) = REQUIRED];
-
-  // Message representing the details needed to connect to the VID repository
-  message TransportLayerSecurityParams {
-    // The resource key of the client certificate
-    string client_cert_resource_path = 1
-        [(google.api.field_behavior) = REQUIRED];
-
-    // The resource key of the client private key
-    string client_private_key_resource_path = 2
-        [(google.api.field_behavior) = REQUIRED];
-  }
 
   // The connection to the VID repository API
   TransportLayerSecurityParams vid_repo_connection = 3
