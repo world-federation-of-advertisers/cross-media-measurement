@@ -143,6 +143,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRespon
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
@@ -1599,11 +1600,10 @@ class ResultsFulfillerAppTest {
               ResultsFulfillerParamsKt.storageParams {
                 labeledImpressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
               }
-            this.cmmsConnection =
-              ResultsFulfillerParamsKt.transportLayerSecurityParams {
-                clientCertResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.pem").toString()
-                clientPrivateKeyResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.key").toString()
-              }
+            this.cmmsConnection = transportLayerSecurityParams {
+              clientCertResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.pem").toString()
+              clientPrivateKeyResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.key").toString()
+            }
             this.consentParams =
               ResultsFulfillerParamsKt.consentParams {
                 resultCsCertDerResourcePath =

@@ -15,12 +15,10 @@
 data "google_project" "project" {}
 
 resource "google_pubsub_topic" "topic" {
-  project = data.google_project.project.name
-  name    = var.topic_name
+  name = var.topic_name
 }
 
 resource "google_pubsub_topic" "dead_letter_topic" {
-  project = data.google_project.project.name
   name = "${var.topic_name}-dlq"
 }
 
@@ -41,8 +39,8 @@ resource "google_pubsub_subscription" "subscription" {
 }
 
 resource "google_pubsub_topic_iam_member" "dead_letter_writer" {
-  topic = google_pubsub_topic.dead_letter_topic.name
-  role  = "roles/pubsub.publisher"
+  topic  = google_pubsub_topic.dead_letter_topic.name
+  role   = "roles/pubsub.publisher"
   member = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 }
 
