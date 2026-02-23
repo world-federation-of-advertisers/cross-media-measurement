@@ -32,6 +32,12 @@ defaultNetworkPolicies: {
 					port:     80
 				}]
 			}
+			nodeLocalDns: {
+				to: [{
+					namespaceSelector: matchLabels: "kubernetes.io/metadata.name": "kube-system"
+					podSelector: matchLabels: "k8s-app":                           "node-local-dns"
+				}]
+			}
 		}
 
 		_ingresses: {
