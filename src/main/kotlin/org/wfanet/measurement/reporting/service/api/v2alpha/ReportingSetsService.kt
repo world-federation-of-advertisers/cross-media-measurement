@@ -29,15 +29,16 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey as CmmsMeasurem
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
-import org.wfanet.measurement.common.grpc.grpcRequire
-import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.internal.reporting.ErrorCode
 import org.wfanet.measurement.internal.reporting.v2.CreateReportingSetRequest as InternalCreateReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
+import org.wfanet.measurement.reporting.service.api.ArgumentChangedInRequestForNextPageException
 import org.wfanet.measurement.reporting.service.api.CampaignGroupInvalidException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
+import org.wfanet.measurement.reporting.service.api.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.reporting.service.api.ReportingSetAlreadyExistsException
 import org.wfanet.measurement.reporting.service.api.ReportingSetNotFoundException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
@@ -113,11 +114,14 @@ class ReportingSetsService(
     } catch (e: StatusException) {
       throw when (ReportingInternalException.getErrorCode(e)) {
         ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND ->
-          Status.NOT_FOUND.withCause(e).asRuntimeException()
+          throw MeasurementConsumerNotFoundException(request.parent, e)
+            .asStatusRuntimeException(Status.Code.NOT_FOUND)
         ErrorCode.REPORTING_SET_ALREADY_EXISTS ->
-          Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
+          throw ReportingSetAlreadyExistsException(e)
+            .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
         ErrorCode.REPORTING_SET_NOT_FOUND ->
-          Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
+          throw ReportingSetNotFoundException.fromLegacyInternal(e)
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         ErrorCode.CAMPAIGN_GROUP_INVALID ->
           CampaignGroupInvalidException(request.reportingSet.campaignGroup, e)
             .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
@@ -158,11 +162,17 @@ class ReportingSetsService(
    * @throws CampaignGroupInvalidException
    */
   private fun validate(request: CreateReportingSetRequest): ParsedCreateReportingSetRequest {
+    if (request.parent.isEmpty()) {
+      throw RequiredFieldNotSetException("parent")
+    }
     val parentKey =
       CmmsMeasurementConsumerKey.fromName(request.parent)
         ?: throw InvalidFieldValueException("parent")
     if (!request.hasReportingSet()) {
       throw RequiredFieldNotSetException("reporting_set")
+    }
+    if (request.reportingSetId.isEmpty()) {
+      throw RequiredFieldNotSetException("reporting_set_id")
     }
     if (!request.reportingSetId.matches(RESOURCE_ID_REGEX)) {
       throw InvalidFieldValueException("reporting_set_id")
@@ -184,6 +194,9 @@ class ReportingSetsService(
           emptySet()
         }
         ReportingSet.ValueCase.COMPOSITE -> {
+          if (!request.reportingSet.composite.hasExpression()) {
+            throw RequiredFieldNotSetException("reporting_set.composite.expression")
+          }
           validateSetExpression(
             parentKey,
             request.reportingSet.composite.expression,
@@ -245,6 +258,10 @@ class ReportingSetsService(
         throw InvalidFieldValueException("$fieldPath.operation")
     }
 
+    if (!setExpression.hasLhs()) {
+      throw RequiredFieldNotSetException("$fieldPath.lhs")
+    }
+
     return buildSet {
       addAll(validateOperand(parentKey, setExpression.lhs, "$fieldPath.lhs"))
       if (setExpression.hasRhs()) {
@@ -286,6 +303,10 @@ class ReportingSetsService(
   }
 
   override suspend fun getReportingSet(request: GetReportingSetRequest): ReportingSet {
+    if (request.name.isEmpty()) {
+      throw RequiredFieldNotSetException("name")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val reportingSetKey =
       ReportingSetKey.fromName(request.name)
         ?: throw InvalidFieldValueException("name")
@@ -302,12 +323,32 @@ class ReportingSetsService(
           }
         )
       } catch (e: StatusException) {
-        throw when (e.status.code) {
-            Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("${request.name} not found")
-            else -> Status.INTERNAL
-          }
-          .withCause(e)
-          .asRuntimeException()
+        throw when (ReportingInternalException.getErrorCode(e)) {
+          ErrorCode.REPORTING_SET_NOT_FOUND ->
+            throw ReportingSetNotFoundException.fromLegacyInternal(e)
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          ErrorCode.UNKNOWN_ERROR,
+          ErrorCode.REPORTING_SET_ALREADY_EXISTS,
+          ErrorCode.MEASUREMENT_ALREADY_EXISTS,
+          ErrorCode.MEASUREMENT_NOT_FOUND,
+          ErrorCode.MEASUREMENT_CALCULATION_TIME_INTERVAL_NOT_FOUND,
+          ErrorCode.REPORT_NOT_FOUND,
+          ErrorCode.MEASUREMENT_STATE_INVALID,
+          ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
+          ErrorCode.MEASUREMENT_CONSUMER_ALREADY_EXISTS,
+          ErrorCode.METRIC_ALREADY_EXISTS,
+          ErrorCode.REPORT_ALREADY_EXISTS,
+          ErrorCode.REPORT_SCHEDULE_ALREADY_EXISTS,
+          ErrorCode.REPORT_SCHEDULE_NOT_FOUND,
+          ErrorCode.REPORT_SCHEDULE_STATE_INVALID,
+          ErrorCode.REPORT_SCHEDULE_ITERATION_NOT_FOUND,
+          ErrorCode.REPORT_SCHEDULE_ITERATION_STATE_INVALID,
+          ErrorCode.METRIC_CALCULATION_SPEC_NOT_FOUND,
+          ErrorCode.METRIC_CALCULATION_SPEC_ALREADY_EXISTS,
+          ErrorCode.CAMPAIGN_GROUP_INVALID,
+          ErrorCode.UNRECOGNIZED,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
       }
 
     return internalResponse.reportingSetsList.single().toReportingSet()
@@ -316,17 +357,33 @@ class ReportingSetsService(
   override suspend fun listReportingSets(
     request: ListReportingSetsRequest
   ): ListReportingSetsResponse {
-    grpcRequireNotNull(CmmsMeasurementConsumerKey.fromName(request.parent)) {
-      "Parent is either unspecified or invalid."
+    if (request.parent.isEmpty()) {
+      throw RequiredFieldNotSetException("parent")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    val listReportingSetsPageToken = request.toListReportingSetsPageToken()
+    val parentKey =
+      CmmsMeasurementConsumerKey.fromName(request.parent)
+        ?: throw InvalidFieldValueException("parent")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    val listReportingSetsPageToken: ListReportingSetsPageToken =
+      try {
+        request.toListReportingSetsPageToken(parentKey)
+      } catch (e: InvalidFieldValueException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      } catch (e: ArgumentChangedInRequestForNextPageException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
 
     authorization.check(request.parent, Permission.LIST)
 
     val results: List<InternalReportingSet> =
-      internalReportingSetsStub
-        .streamReportingSets(listReportingSetsPageToken.toStreamReportingSetsRequest())
-        .toList()
+      try {
+        internalReportingSetsStub
+          .streamReportingSets(listReportingSetsPageToken.toStreamReportingSetsRequest())
+          .toList()
+      } catch (e: StatusException) {
+        throw Status.INTERNAL.withCause(e).asRuntimeException()
+      }
 
     if (results.isEmpty()) {
       return ListReportingSetsResponse.getDefaultInstance()
@@ -364,20 +421,26 @@ class ReportingSetsService(
   }
 }
 
-/** Converts a public [ListReportingSetsRequest] to a [ListReportingSetsPageToken]. */
-private fun ListReportingSetsRequest.toListReportingSetsPageToken(): ListReportingSetsPageToken {
-  grpcRequire(pageSize >= 0) { "Page size cannot be less than 0" }
+/**
+ * Converts a public [ListReportingSetsRequest] to a [ListReportingSetsPageToken].
+ *
+ * @throws InvalidFieldValueException
+ * @throws ArgumentChangedInRequestForNextPageException
+ */
+private fun ListReportingSetsRequest.toListReportingSetsPageToken(
+  parentKey: CmmsMeasurementConsumerKey
+): ListReportingSetsPageToken {
+  if (pageSize < 0) {
+    throw InvalidFieldValueException("page_size") { fieldPath ->
+      "$fieldPath cannot be less than 0"
+    }
+  }
 
   val source = this
-  val parentKey =
-    grpcRequireNotNull(CmmsMeasurementConsumerKey.fromName(parent)) {
-      "Parent is either unspecified or invalid."
-    }
-
-  return if (source.pageToken.isNotBlank()) {
+  return if (source.pageToken.isNotEmpty()) {
     ListReportingSetsPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
-      grpcRequire(this.cmmsMeasurementConsumerId == parentKey.measurementConsumerId) {
-        "Arguments must be kept the same when using a page token"
+      if (this.cmmsMeasurementConsumerId != parentKey.measurementConsumerId) {
+        throw ArgumentChangedInRequestForNextPageException("parent")
       }
 
       if (
