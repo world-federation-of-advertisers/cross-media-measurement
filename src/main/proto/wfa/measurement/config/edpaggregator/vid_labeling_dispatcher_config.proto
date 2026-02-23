@@ -17,9 +17,9 @@ syntax = "proto3";
 package wfa.measurement.config.edpaggregator;
 
 import "google/api/resource.proto";
-import "google/protobuf/any.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
 import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
+import "wfa/measurement/edpaggregator/v1alpha/vid_labeler_params.proto";
 
 option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
@@ -36,7 +36,7 @@ message VidLabelingDispatcherConfig {
   StorageParams raw_impressions_storage = 3;
 
   // Template for VidLabelerParams (app_params passed to WorkItem).
-  google.protobuf.Any vid_labeler_params_template = 4;
+  wfa.measurement.edpaggregator.v1alpha.VidLabelerParams vid_labeler_params_template = 4;
 
   // Maximum batch size in GB. Optional.
   fixed64 batch_max_size = 5;
