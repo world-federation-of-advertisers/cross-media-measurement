@@ -230,6 +230,9 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
     set("IntervalStartTime").to(impressionMetadata.interval.startTime.toGcloudTimestamp())
     set("IntervalEndTime").to(impressionMetadata.interval.endTime.toGcloudTimestamp())
     set("State").to(impressionMetadata.state)
+    if (impressionMetadata.inputBlobUri.isNotEmpty()) {
+      set("InputBlobUri").to(impressionMetadata.inputBlobUri)
+    }
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
@@ -453,6 +456,7 @@ private object ImpressionMetadataEntity {
       State,
       CreateTime,
       UpdateTime,
+      InputBlobUri,
     FROM
       ImpressionMetadata
     """
@@ -476,6 +480,9 @@ private object ImpressionMetadataEntity {
         createTime = struct.getTimestamp("CreateTime").toProto()
         updateTime = struct.getTimestamp("UpdateTime").toProto()
         etag = ETags.computeETag(updateTime.toInstant())
+        if (!struct.isNull("InputBlobUri")) {
+          inputBlobUri = struct.getString("InputBlobUri")
+        }
       },
       struct.getLong("ImpressionMetadataId"),
     )
