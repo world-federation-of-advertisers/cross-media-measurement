@@ -45,4 +45,8 @@ message ImpressionMetadata {
 
   // The etag of ImpressionMetadata
   string etag = 11;
+
+  // The URI of the source raw impression blob that was used to generate this
+  // VID-labeled impression.
+  string input_blob_uri = 12;
 }
