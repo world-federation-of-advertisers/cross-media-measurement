@@ -23,7 +23,7 @@ module "kingdom_internal" {
 }
 
 resource "google_project_iam_member" "kingdom_internal_metric_writer" {
-  project = data.google_project.project.name
+  project = data.google_project.project.id
   role    = "roles/monitoring.metricWriter"
   member  = module.kingdom_internal.iam_service_account.member
 }
@@ -401,7 +401,7 @@ resource "google_bigquery_dataset_iam_member" "bigquery_writer" {
 }
 
 resource "google_project_iam_member" "bigquery_job_user" {
-  project = data.google_project.project.project_id
+  project = data.google_project.project.id
   role    = "roles/bigquery.jobUser"
   member  = module.kingdom_operational_metrics.iam_service_account.member
 }
@@ -411,5 +411,4 @@ resource "google_monitoring_dashboard" "dashboards" {
   for_each = toset(var.dashboard_json_files)
 
   dashboard_json = file("${path.module}/${each.value}")
-  project        = data.google_project.project.project_id
 }
