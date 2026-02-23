@@ -102,9 +102,7 @@ class InProcessDuchy(
   val duchyDependenciesRule:
     ProviderRule<(String, SystemComputationLogEntriesCoroutineStub) -> DuchyDependencies>,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
-  private val trusTeeKmsClient: KmsClient? =
-    null, // TODO(@dawn-wang22): Remove default and make this a required param after all callers
-  // provide a KmsClient.
+  private val trusTeeKmsClient: KmsClient,
   val verboseGrpcLogging: Boolean = true,
   daemonContext: CoroutineContext = Dispatchers.Default,
 ) : TestRule {
@@ -331,14 +329,13 @@ class InProcessDuchy(
             workLockDuration = Duration.ofSeconds(1),
             privateKeyStore = privateKeyStore,
           )
+        val kmsClientFactory =
+          object : KmsClientFactory<GCloudWifCredentials> {
+            override fun getKmsClient(config: GCloudWifCredentials): KmsClient =
+              trusTeeKmsClient
+          }
         val trusTeeMill =
-          if (trusTeeKmsClient != null) {
-            val kmsClientFactory =
-              object : KmsClientFactory<GCloudWifCredentials> {
-                override fun getKmsClient(config: GCloudWifCredentials): KmsClient =
-                  trusTeeKmsClient
-              }
-            TrusTeeMill(
+          TrusTeeMill(
               millId = "$externalDuchyId trusTeeMill",
               duchyId = externalDuchyId,
               signingKey = signingKey,
@@ -354,15 +351,12 @@ class InProcessDuchy(
               kmsClientFactory = kmsClientFactory,
               attestationTokenPath = Paths.get("/dev/null"),
             )
-          } else {
-            null
-          }
         val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1))
         throttler.loopOnReady {
           reachFrequencyLiquidLegionsV2Mill.claimAndProcessWork()
           reachOnlyLiquidLegionsV2Mill.claimAndProcessWork()
           honestMajorityShareShuffleMill.claimAndProcessWork()
-          trusTeeMill?.claimAndProcessWork()
+          trusTeeMill.claimAndProcessWork()
         }
       }
   }

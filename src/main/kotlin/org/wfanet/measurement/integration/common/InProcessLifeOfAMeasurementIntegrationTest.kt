@@ -49,6 +49,7 @@ import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
@@ -70,7 +71,12 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
 
   @get:Rule
   val inProcessCmmsComponents =
-    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule, useEdpSimulators = true)
+    InProcessCmmsComponents(
+      kingdomDataServicesRule,
+      duchyDependenciesRule,
+      useEdpSimulators = true,
+      trusTeeKmsClient = FakeKmsClient(),
+    )
 
   private lateinit var mcSimulator: EventQueryMeasurementConsumerSimulator
 

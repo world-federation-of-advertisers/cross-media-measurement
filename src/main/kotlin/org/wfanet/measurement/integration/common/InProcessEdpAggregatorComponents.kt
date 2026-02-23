@@ -122,7 +122,7 @@ class InProcessEdpAggregatorComponents(
   private val syntheticPopulationSpec: SyntheticPopulationSpec,
   private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec>,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
-  externalKmsClient: FakeKmsClient? = null,
+  private val externalKmsClient: FakeKmsClient,
 ) : TestRule {
 
   private val storageClient: StorageClient = FileSystemStorageClient(storagePath.toFile())
@@ -172,16 +172,8 @@ class InProcessEdpAggregatorComponents(
 
   private val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
 
-  private val kmsClient by lazy {
-    if (externalKmsClient != null) {
-      externalKmsClient
-    } else {
-      val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-      val kmsClient = FakeKmsClient()
-      kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
-      kmsClient
-    }
-  }
+  private val kmsClient: FakeKmsClient
+    get() = externalKmsClient
 
   private lateinit var kmsClients: Map<String, KmsClient>
 
