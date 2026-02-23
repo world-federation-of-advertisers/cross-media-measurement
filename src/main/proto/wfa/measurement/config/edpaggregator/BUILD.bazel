@@ -116,8 +116,8 @@ proto_library(
     deps = [
         ":storage_params_proto",
         ":transport_layer_security_params_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeler_params_proto",
         "@com_google_googleapis//google/api:resource_proto",
-        "@com_google_protobuf//:any_proto",
     ],
 )
 
