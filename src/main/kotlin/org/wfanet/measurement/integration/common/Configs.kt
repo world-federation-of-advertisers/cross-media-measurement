@@ -235,12 +235,11 @@ fun getResultsFulfillerParams(
       ResultsFulfillerParamsKt.storageParams {
         this.labeledImpressionsBlobDetailsUriPrefix = labeledImpressionBlobUriPrefix
       }
-    this.cmmsConnection =
-      transportLayerSecurityParams {
-        clientCertResourcePath = SECRET_FILES_PATH.resolve("${edpDisplayName}_tls.pem").toString()
-        clientPrivateKeyResourcePath =
-          SECRET_FILES_PATH.resolve("${edpDisplayName}_tls.key").toString()
-      }
+    this.cmmsConnection = transportLayerSecurityParams {
+      clientCertResourcePath = SECRET_FILES_PATH.resolve("${edpDisplayName}_tls.pem").toString()
+      clientPrivateKeyResourcePath =
+        SECRET_FILES_PATH.resolve("${edpDisplayName}_tls.key").toString()
+    }
     this.consentParams =
       ResultsFulfillerParamsKt.consentParams {
         resultCsCertDerResourcePath =

@@ -26,8 +26,7 @@ option java_outer_classname = "TransportLayerSecurityParamsProto";
 // to an mTLS-secured API.
 message TransportLayerSecurityParams {
   // The resource key of the client certificate
-  string client_cert_resource_path = 1
-      [(google.api.field_behavior) = REQUIRED];
+  string client_cert_resource_path = 1 [(google.api.field_behavior) = REQUIRED];
 
   // The resource key of the client private key
   string client_private_key_resource_path = 2
