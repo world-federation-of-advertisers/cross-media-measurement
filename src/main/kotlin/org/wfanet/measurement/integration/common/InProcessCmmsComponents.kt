@@ -87,7 +87,7 @@ class InProcessCmmsComponents(
   private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
     SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL,
   private val useEdpSimulators: Boolean,
-  private val trusTeeKmsClient: KmsClient? = null,
+  private val trusTeeKmsClient: KmsClient,
 ) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value

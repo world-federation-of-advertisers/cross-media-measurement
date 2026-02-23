@@ -36,6 +36,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
@@ -76,6 +77,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
       SYNTHETIC_POPULATION_SPEC,
       SYNTHETIC_EVENT_GROUP_SPECS,
       useEdpSimulators = true,
+      trusTeeKmsClient = FakeKmsClient(),
     )
 
   private lateinit var mcSimulator: EventQueryMeasurementConsumerSimulator

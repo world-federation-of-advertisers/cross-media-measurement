@@ -46,6 +46,7 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.kingdom.batch.MeasurementSystemProber
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
@@ -59,7 +60,12 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
 
   @get:Rule
   val inProcessCmmsComponents =
-    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule, useEdpSimulators = true)
+    InProcessCmmsComponents(
+      kingdomDataServicesRule,
+      duchyDependenciesRule,
+      useEdpSimulators = true,
+      trusTeeKmsClient = FakeKmsClient(),
+    )
 
   private val publicMeasurementsClient by lazy {
     MeasurementsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
