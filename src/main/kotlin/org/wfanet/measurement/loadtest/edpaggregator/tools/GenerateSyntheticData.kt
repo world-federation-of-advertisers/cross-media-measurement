@@ -148,7 +148,8 @@ class GenerateSyntheticData : Runnable {
 
   @Option(
     names = ["--aws-role-arn"],
-    description = ["AWS IAM role ARN for STS AssumeRoleWithWebIdentity. Required when --kms-type=AWS."],
+    description =
+      ["AWS IAM role ARN for STS AssumeRoleWithWebIdentity. Required when --kms-type=AWS."],
     required = false,
     defaultValue = "",
   )
