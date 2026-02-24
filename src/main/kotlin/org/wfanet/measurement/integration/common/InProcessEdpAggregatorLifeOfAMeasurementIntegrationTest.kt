@@ -29,8 +29,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
@@ -42,8 +42,8 @@ import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
+import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
@@ -273,20 +273,15 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   fun `create a TrusTee reach-only measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a TrusTee reach-only measurement and verify its result.
-      mcSimulator.testReachOnly(
-        "1234",
-        ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
-      )
+      mcSimulator.testReachOnly("1234", ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE)
     }
 
   @Test
   fun `create a TrusTee RF measurement and check the result is equal to the expected result`() =
     runBlocking {
-      // Use frontend simulator to create a TrusTee reach and frequency measurement and verify its result.
-      mcSimulator.testReachAndFrequency(
-        "1234",
-        ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
-      )
+      // Use frontend simulator to create a TrusTee reach and frequency measurement and verify its
+      // result.
+      mcSimulator.testReachAndFrequency("1234", ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE)
     }
 
   companion object {
