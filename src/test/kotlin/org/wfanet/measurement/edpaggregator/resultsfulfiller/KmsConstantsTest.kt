@@ -65,7 +65,8 @@ class KmsConstantsTest {
 
   @Test
   fun `AWS_KMS_KEY_URI_REGEX matches URI with UUID key ID`() {
-    val uri = "aws-kms://arn:aws:kms:eu-west-2:999888777666:key/12345678-1234-1234-1234-123456789012"
+    val uri =
+      "aws-kms://arn:aws:kms:eu-west-2:999888777666:key/12345678-1234-1234-1234-123456789012"
     val match = KmsConstants.AWS_KMS_KEY_URI_REGEX.matchEntire(uri)
 
     assertThat(match).isNotNull()
