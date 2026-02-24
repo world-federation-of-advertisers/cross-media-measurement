@@ -441,6 +441,8 @@ private val LIST_CLIENT_ACCOUNTS_RESPONSE = listClientAccountsResponse {
   nextPageToken = LIST_PAGE_TOKEN
 }
 
+private val EMPTY_LIST_CLIENT_ACCOUNTS_RESPONSE = listClientAccountsResponse {}
+
 private val BATCH_CREATE_CLIENT_ACCOUNTS_RESPONSE = batchCreateClientAccountsResponse {
   clientAccounts += CLIENT_ACCOUNT
   clientAccounts += clientAccount {
@@ -481,7 +483,7 @@ class MeasurementSystemTest {
     mockService {
       onBlocking { createClientAccount(any()) }.thenReturn(CLIENT_ACCOUNT)
       onBlocking { getClientAccount(any()) }.thenReturn(CLIENT_ACCOUNT)
-      onBlocking { listClientAccounts(any()) }.thenReturn(LIST_CLIENT_ACCOUNTS_RESPONSE)
+      onBlocking { listClientAccounts(any()) }.thenReturn(EMPTY_LIST_CLIENT_ACCOUNTS_RESPONSE)
       onBlocking { batchCreateClientAccounts(any()) }
         .thenReturn(BATCH_CREATE_CLIENT_ACCOUNTS_RESPONSE)
       onBlocking { deleteClientAccount(any()) }.thenReturn(empty {})
@@ -2269,7 +2271,7 @@ class MeasurementSystemTest {
           "--parent=$MEASUREMENT_CONSUMER_NAME",
           "--data-provider=$DATA_PROVIDER_NAME",
           "--brand=TestBrand",
-          "--event-groups-file=${jsonFile.absolutePath}",
+          "--event-groups-blob-uri=file://${jsonFile.absolutePath}",
         )
     callCli(args)
 
@@ -2320,7 +2322,7 @@ class MeasurementSystemTest {
           "--parent=$MEASUREMENT_CONSUMER_NAME",
           "--data-provider=$DATA_PROVIDER_NAME",
           "--brand=ProtoBrand",
-          "--event-groups-file=${binpbFile.absolutePath}",
+          "--event-groups-blob-uri=file://${binpbFile.absolutePath}",
         )
     callCli(args)
 
@@ -2362,7 +2364,7 @@ class MeasurementSystemTest {
           "--parent=$MEASUREMENT_CONSUMER_NAME",
           "--data-provider=$DATA_PROVIDER_NAME",
           "--brand=NonExistentBrand",
-          "--event-groups-file=${jsonFile.absolutePath}",
+          "--event-groups-blob-uri=file://${jsonFile.absolutePath}",
         )
     val output = callCli(args)
 
@@ -2417,7 +2419,7 @@ class MeasurementSystemTest {
           "--parent=$MEASUREMENT_CONSUMER_NAME",
           "--data-provider=$DATA_PROVIDER_NAME",
           "--brand=DedupeTestBrand",
-          "--event-groups-file=${jsonFile.absolutePath}",
+          "--event-groups-blob-uri=file://${jsonFile.absolutePath}",
         )
     val output = callCli(args)
 
@@ -2471,7 +2473,7 @@ class MeasurementSystemTest {
           "--parent=$MEASUREMENT_CONSUMER_NAME",
           "--data-provider=$DATA_PROVIDER_NAME",
           "--brand=RefIdTestBrand",
-          "--event-groups-file=${jsonFile.absolutePath}",
+          "--event-groups-blob-uri=file://${jsonFile.absolutePath}",
         )
     val output = callCli(args)
 
@@ -2514,7 +2516,7 @@ class MeasurementSystemTest {
           "--parent=$MEASUREMENT_CONSUMER_NAME",
           "--data-provider=$DATA_PROVIDER_NAME",
           "--brand=VerifyBrand",
-          "--event-groups-file=${jsonFile.absolutePath}",
+          "--event-groups-blob-uri=file://${jsonFile.absolutePath}",
         )
     callCli(args)
 
@@ -2608,7 +2610,7 @@ class MeasurementSystemTest {
           "--parent=$MEASUREMENT_CONSUMER_NAME",
           "--data-provider=$DATA_PROVIDER_NAME",
           "--brand=brandA",
-          "--event-groups-file=${jsonFile.absolutePath}",
+          "--event-groups-blob-uri=file://${jsonFile.absolutePath}",
         )
     val output = callCli(args)
 
@@ -2669,7 +2671,7 @@ class MeasurementSystemTest {
           "--parent=$MEASUREMENT_CONSUMER_NAME",
           "--data-provider=$DATA_PROVIDER_NAME",
           "--brand=MetadataTestBrand",
-          "--event-groups-file=${jsonFile.absolutePath}",
+          "--event-groups-blob-uri=file://${jsonFile.absolutePath}",
         )
     val output = callCli(args)
 
@@ -2692,7 +2694,7 @@ class MeasurementSystemTest {
           "--parent=$MEASUREMENT_CONSUMER_NAME",
           "--data-provider=$DATA_PROVIDER_NAME",
           "--brand=AnyBrand",
-          "--event-groups-file=${emptyBinpbFile.absolutePath}",
+          "--event-groups-blob-uri=file://${emptyBinpbFile.absolutePath}",
         )
     val output = callCli(args)
 
@@ -2701,7 +2703,7 @@ class MeasurementSystemTest {
   }
 
   @Test
-  fun `client-accounts create fails when brand specified without event-groups-file`() {
+  fun `client-accounts create fails when brand specified without event-groups-blob-uri`() {
     val args =
       commonArgs +
         arrayOf(
@@ -2716,7 +2718,7 @@ class MeasurementSystemTest {
     val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
     assertThat(capturedOutput).status().isNotEqualTo(0)
     assertThat(capturedOutput.err)
-      .contains("--event-groups-file is required when --brand is specified")
+      .contains("--event-groups-blob-uri is required when --brand is specified")
   }
 
   @Test
@@ -2738,7 +2740,7 @@ class MeasurementSystemTest {
   }
 
   @Test
-  fun `client-accounts create fails when event-groups-file does not exist`() {
+  fun `client-accounts create fails when blob uri path does not exist`() {
     val args =
       commonArgs +
         arrayOf(
@@ -2748,16 +2750,16 @@ class MeasurementSystemTest {
           "--parent=$MEASUREMENT_CONSUMER_NAME",
           "--data-provider=$DATA_PROVIDER_NAME",
           "--brand=TestBrand",
-          "--event-groups-file=/nonexistent/path/event_groups.json",
+          "--event-groups-blob-uri=file:///nonexistent/path/event_groups.json",
         )
 
     val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
     assertThat(capturedOutput).status().isNotEqualTo(0)
-    assertThat(capturedOutput.err).contains("Event groups file not found")
+    assertThat(capturedOutput.err).contains("is not a directory")
   }
 
   @Test
-  fun `client-accounts create fails when event-groups-file has unsupported format`() {
+  fun `client-accounts create fails when blob uri has unsupported format`() {
     val unsupportedFile = tempFolder.newFile("event_groups.txt")
     unsupportedFile.writeText("some text content")
 
@@ -2770,12 +2772,380 @@ class MeasurementSystemTest {
           "--parent=$MEASUREMENT_CONSUMER_NAME",
           "--data-provider=$DATA_PROVIDER_NAME",
           "--brand=TestBrand",
-          "--event-groups-file=${unsupportedFile.absolutePath}",
+          "--event-groups-blob-uri=file://${unsupportedFile.absolutePath}",
         )
 
     val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
     assertThat(capturedOutput).status().isNotEqualTo(0)
     assertThat(capturedOutput.err).contains("Unsupported file format")
+  }
+
+  @Test
+  fun `client-accounts create fails when both brand and client-account-reference-id specified`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--brand=TestBrand",
+          "--client-account-reference-id=some-ref",
+          "--event-groups-blob-uri=file:///some/path.json",
+        )
+
+    val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput.err)
+      .contains("--brand and --client-account-reference-id cannot be used together")
+  }
+
+  @Test
+  fun `client-accounts create with brand skips already-existing client accounts`() {
+    val eventGroupsJson =
+      """
+      {
+        "eventGroups": [
+          {
+            "eventGroupReferenceId": "eg-1",
+            "clientAccountReferenceId": "existing-account",
+            "eventGroupMetadata": {
+              "adMetadata": {
+                "campaignMetadata": {
+                  "brand": "TestBrand",
+                  "campaign": "Campaign1"
+                }
+              }
+            }
+          },
+          {
+            "eventGroupReferenceId": "eg-2",
+            "clientAccountReferenceId": "new-account",
+            "eventGroupMetadata": {
+              "adMetadata": {
+                "campaignMetadata": {
+                  "brand": "TestBrand",
+                  "campaign": "Campaign2"
+                }
+              }
+            }
+          }
+        ]
+      }
+      """
+        .trimIndent()
+
+    val jsonFile = tempFolder.newFile("skip_existing_event_groups.json")
+    jsonFile.writeText(eventGroupsJson)
+
+    clientAccountsServiceMock.stub {
+      onBlocking { listClientAccounts(any()) }
+        .thenReturn(
+          listClientAccountsResponse {
+            clientAccounts += clientAccount {
+              name = "$MEASUREMENT_CONSUMER_NAME/clientAccounts/existing"
+              dataProvider = DATA_PROVIDER_NAME
+              clientAccountReferenceId = "existing-account"
+            }
+          }
+        )
+    }
+
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--brand=TestBrand",
+          "--event-groups-blob-uri=file://${jsonFile.absolutePath}",
+        )
+    val output = callCli(args)
+
+    assertThat(output).contains("Skipping 1 already-existing client accounts")
+
+    val request: BatchCreateClientAccountsRequest = captureFirst {
+      runBlocking { verify(clientAccountsServiceMock).batchCreateClientAccounts(capture()) }
+    }
+    assertThat(request.requestsCount).isEqualTo(1)
+    assertThat(request.requestsList[0].clientAccount.clientAccountReferenceId)
+      .isEqualTo("new-account")
+  }
+
+  @Test
+  fun `client-accounts create with brand when all accounts already exist`() {
+    val eventGroupsJson =
+      """
+      {
+        "eventGroups": [
+          {
+            "eventGroupReferenceId": "eg-1",
+            "clientAccountReferenceId": "existing-account",
+            "eventGroupMetadata": {
+              "adMetadata": {
+                "campaignMetadata": {
+                  "brand": "TestBrand",
+                  "campaign": "Campaign1"
+                }
+              }
+            }
+          }
+        ]
+      }
+      """
+        .trimIndent()
+
+    val jsonFile = tempFolder.newFile("all_existing_event_groups.json")
+    jsonFile.writeText(eventGroupsJson)
+
+    clientAccountsServiceMock.stub {
+      onBlocking { listClientAccounts(any()) }
+        .thenReturn(
+          listClientAccountsResponse {
+            clientAccounts += clientAccount {
+              name = "$MEASUREMENT_CONSUMER_NAME/clientAccounts/existing"
+              dataProvider = DATA_PROVIDER_NAME
+              clientAccountReferenceId = "existing-account"
+            }
+          }
+        )
+    }
+
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--brand=TestBrand",
+          "--event-groups-blob-uri=file://${jsonFile.absolutePath}",
+        )
+    val output = callCli(args)
+
+    assertThat(output).contains("All client accounts already exist. Nothing to create.")
+    runBlocking { verify(clientAccountsServiceMock, times(0)).batchCreateClientAccounts(any()) }
+  }
+
+  @Test
+  fun `client-accounts batch-create skips already-existing client accounts`() {
+    clientAccountsServiceMock.stub {
+      onBlocking { listClientAccounts(any()) }
+        .thenReturn(
+          listClientAccountsResponse {
+            clientAccounts += clientAccount {
+              name = "$MEASUREMENT_CONSUMER_NAME/clientAccounts/existing"
+              dataProvider = "dataProviders/1"
+              clientAccountReferenceId = "ref-id-001"
+            }
+          }
+        )
+    }
+
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "batch-create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=dataProviders/1",
+          "--reference-id=ref-id-001",
+          "--data-provider=dataProviders/1",
+          "--reference-id=ref-id-002",
+        )
+    val output = callCli(args)
+
+    assertThat(output).contains("Skipping 1 already-existing client accounts")
+
+    val request: BatchCreateClientAccountsRequest = captureFirst {
+      runBlocking { verify(clientAccountsServiceMock).batchCreateClientAccounts(capture()) }
+    }
+    assertThat(request.requestsCount).isEqualTo(1)
+    assertThat(request.requestsList[0].clientAccount.clientAccountReferenceId)
+      .isEqualTo("ref-id-002")
+  }
+
+  @Test
+  fun `client-accounts delete by brand succeeds`() {
+    val eventGroupsJson =
+      """
+      {
+        "eventGroups": [
+          {
+            "eventGroupReferenceId": "eg-1",
+            "clientAccountReferenceId": "account-to-delete",
+            "eventGroupMetadata": {
+              "adMetadata": {
+                "campaignMetadata": {
+                  "brand": "DeleteBrand",
+                  "campaign": "Campaign1"
+                }
+              }
+            }
+          }
+        ]
+      }
+      """
+        .trimIndent()
+
+    val jsonFile = tempFolder.newFile("delete_brand_event_groups.json")
+    jsonFile.writeText(eventGroupsJson)
+
+    clientAccountsServiceMock.stub {
+      onBlocking { listClientAccounts(any()) }
+        .thenReturn(
+          listClientAccountsResponse {
+            clientAccounts += clientAccount {
+              name = "$MEASUREMENT_CONSUMER_NAME/clientAccounts/to-delete"
+              dataProvider = DATA_PROVIDER_NAME
+              clientAccountReferenceId = "account-to-delete"
+            }
+          }
+        )
+    }
+
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "delete",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--brand=DeleteBrand",
+          "--event-groups-blob-uri=file://${jsonFile.absolutePath}",
+        )
+    val output = callCli(args)
+
+    assertThat(output).contains("Deleting 1 client accounts for brand 'DeleteBrand'")
+    assertThat(output).contains("Successfully deleted 1 ClientAccounts")
+
+    val request: BatchDeleteClientAccountsRequest = captureFirst {
+      runBlocking { verify(clientAccountsServiceMock).batchDeleteClientAccounts(capture()) }
+    }
+    assertThat(request.parent).isEqualTo(MEASUREMENT_CONSUMER_NAME)
+    assertThat(request.namesList)
+      .containsExactly("$MEASUREMENT_CONSUMER_NAME/clientAccounts/to-delete")
+  }
+
+  @Test
+  fun `client-accounts delete by brand with no matching accounts`() {
+    val eventGroupsJson =
+      """
+      {
+        "eventGroups": [
+          {
+            "eventGroupReferenceId": "eg-1",
+            "clientAccountReferenceId": "non-existing-account",
+            "eventGroupMetadata": {
+              "adMetadata": {
+                "campaignMetadata": {
+                  "brand": "DeleteBrand",
+                  "campaign": "Campaign1"
+                }
+              }
+            }
+          }
+        ]
+      }
+      """
+        .trimIndent()
+
+    val jsonFile = tempFolder.newFile("delete_brand_no_match_event_groups.json")
+    jsonFile.writeText(eventGroupsJson)
+
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "delete",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--brand=DeleteBrand",
+          "--event-groups-blob-uri=file://${jsonFile.absolutePath}",
+        )
+    val output = callCli(args)
+
+    assertThat(output).contains("No existing client accounts found matching brand 'DeleteBrand'")
+    runBlocking { verify(clientAccountsServiceMock, times(0)).batchDeleteClientAccounts(any()) }
+  }
+
+  @Test
+  fun `client-accounts delete by brand fails when parent not specified`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "delete",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--brand=TestBrand",
+          "--event-groups-blob-uri=file:///some/path.json",
+        )
+
+    val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput.err).contains("--parent is required when --brand is specified")
+  }
+
+  @Test
+  fun `client-accounts delete by brand fails when data-provider not specified`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "delete",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--brand=TestBrand",
+          "--event-groups-blob-uri=file:///some/path.json",
+        )
+
+    val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput.err)
+      .contains("--data-provider is required when --brand is specified")
+  }
+
+  @Test
+  fun `client-accounts delete by brand fails when event-groups-blob-uri not specified`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "delete",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--brand=TestBrand",
+        )
+
+    val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput.err)
+      .contains("--event-groups-blob-uri is required when --brand is specified")
+  }
+
+  @Test
+  fun `client-accounts delete fails when neither name nor brand specified`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "delete",
+        )
+
+    val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput.err)
+      .contains("ClientAccount resource name is required when --brand is not specified")
   }
 
   @Test
