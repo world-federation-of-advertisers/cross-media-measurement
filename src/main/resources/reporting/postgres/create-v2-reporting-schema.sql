@@ -23,10 +23,9 @@
 --       ├── ReportingSets
 --       │   ├── ReportingSetEventGroups
 --       │   ├── PrimitiveReportingSetBases
---       │   │   └── PrimitiveReportingSetBasisFilters
 --       │   ├── SetExpressions
 --       │   └── WeightedSubsetUnions
---       │       └── WeightedSubsetUnionPrimitiveReportingSetBases
+--       │       └── WeightedSubsetUnionPrimitiveReportingSets
 --       ├── Metrics
 --       │   └── MetricMeasurements
 --       ├── Measurements
@@ -63,18 +62,13 @@ CREATE TABLE EventGroups (
 -- * ReportingSets rows which have NULL SetExpressionId are referred to as
 --   "primitive", and those that have a non-NULL SetExpressionId are referred to
 --   as "complex".
+-- * Only Primitive ReportingSets rows can set Filter field.
 -- * Each row in the ReportingSets table is a vertex of a directed graph, where
 --   the SetExpressions table describes the edges.
 -- * Primitive ReportingSets rows are leaf vertices, i.e. they have no outgoing
 --   edges.
 -- * A WeightedSubsetUnions row indicates the ReportingSets row vertex that is
---   the start of a graph path.
--- * A PrimitiveReportingSetBases row is the result of a graph path with a
---   primitive ReportingSets row vertex that is the end of a graph path. Note
---   that the path may have zero edges, in which case the WeightedSubsetUnions
---   row and the PrimitiveReportingSetBases row indicate the same vertex.
--- * The PrimitiveReportingSetBasisFilters table contains the collection of
---   filters formed by visiting each vertex on the graph path.
+--   the end of a graph path.
 CREATE TABLE ReportingSets (
   MeasurementConsumerId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
@@ -82,11 +76,12 @@ CREATE TABLE ReportingSets (
   ExternalReportingSetId varchar(63) NOT NULL,
 
   DisplayName text,
-  Filter text,
 
   -- If not NULL then the ReportingSet is a composite one, and will therefore
   -- have no corresponding rows in ReportingSetEventGroups.
   SetExpressionId bigint,
+  -- Only Primitive ReportingSets rows can set Filter field.
+  Filter text,
 
   PRIMARY KEY(MeasurementConsumerId, ReportingSetId),
   UNIQUE (MeasurementConsumerId, ExternalReportingSetId),
@@ -111,9 +106,8 @@ CREATE TABLE ReportingSetEventGroups(
 );
 
 -- changeset riemanli:create-weighted-subset-unions-table dbms:postgresql
--- A WeightedSubsetUnion is a weighted subset union of
--- PrimitiveReportingSetBases. That is, one WeightedSubsetUnion has at least
--- one PrimitiveReportingSetBasis.
+-- A WeightedSubsetUnion is a weighted subset union of PrimitiveReportingSets.
+-- That is, one WeightedSubsetUnion has at least one PrimitiveReportingSet.
 CREATE TABLE WeightedSubsetUnions (
   MeasurementConsumerId bigint NOT NULL,
   -- ReportingSets and WeightedSubsetUnions are one-to-many. A reporting set can
@@ -135,39 +129,27 @@ CREATE TABLE PrimitiveReportingSetBases (
   PrimitiveReportingSetBasisId bigint NOT NULL,
   PrimitiveReportingSetId bigint NOT NULL,
 
+  Filter text,
+
   PRIMARY KEY(MeasurementConsumerId, PrimitiveReportingSetBasisId),
   FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
     ON DELETE CASCADE
 );
 
--- changeset riemanli:create-weighted-subset-union-primitive-reporting-set-bases-table dbms:postgresql
-CREATE TABLE WeightedSubsetUnionPrimitiveReportingSetBases (
+-- changeset riemanli:create-weighted-subset-union-primitive-reporting-sets-table dbms:postgresql
+CREATE TABLE WeightedSubsetUnionPrimitiveReportingSets (
   MeasurementConsumerId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
   WeightedSubsetUnionId bigint NOT NULL,
-  PrimitiveReportingSetBasisId bigint NOT NULL,
+  PrimitiveReportingSetId bigint NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, ReportingSetId, WeightedSubsetUnionId, PrimitiveReportingSetBasisId),
+  PRIMARY KEY(MeasurementConsumerId, ReportingSetId, WeightedSubsetUnionId, PrimitiveReportingSetId),
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId, WeightedSubsetUnionId)
     REFERENCES WeightedSubsetUnions(MeasurementConsumerId, ReportingSetId, WeightedSubsetUnionId)
     ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetBasisId)
-    REFERENCES PrimitiveReportingSetBases(MeasurementConsumerId, PrimitiveReportingSetBasisId)
-    ON DELETE CASCADE
-);
-
--- changeset riemanli:create-primitive-reporting-set-basis-filters-table dbms:postgresql
-CREATE TABLE PrimitiveReportingSetBasisFilters (
-  MeasurementConsumerId bigint NOT NULL,
-  PrimitiveReportingSetBasisId bigint NOT NULL,
-  PrimitiveReportingSetBasisFilterId bigint NOT NULL,
-
-  Filter text NOT NULL,
-
-  PRIMARY KEY(MeasurementConsumerId, PrimitiveReportingSetBasisId, PrimitiveReportingSetBasisFilterId),
-  FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetBasisId)
-    REFERENCES PrimitiveReportingSetBases(MeasurementConsumerId, PrimitiveReportingSetBasisId)
+  FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
+    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId)
     ON DELETE CASCADE
 );
 
