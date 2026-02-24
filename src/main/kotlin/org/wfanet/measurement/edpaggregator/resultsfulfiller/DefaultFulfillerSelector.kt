@@ -75,20 +75,26 @@ data class TrusTeeConfig(
   /**
    * Remaps the input KEK URI using the provided map.
    *
-   * If the kekUri is found in the map, constructs a new KEK URI by replacing the key name component
-   * with the mapped key name (keeping the same keyring). If not found, returns the original kekUri
-   * unchanged.
+   * If the kekUri is found in the map, constructs a new KEK URI by replacing the key name/ID
+   * component with the mapped value (keeping the same keyring/account). Supports both GCP and AWS
+   * KMS URI formats. If not found, returns the original kekUri unchanged.
    */
   private fun remapKekUri(kekUri: String, kekUriToKeyNameMap: Map<String, String>): String {
     val mappedKeyName = kekUriToKeyNameMap[kekUri] ?: return kekUri
 
-    // KEK URI format:
-    // gcp-kms://projects/{project}/locations/{location}/keyRings/{keyring}/cryptoKeys/{key}
-    val regex = KmsConstants.GCP_KMS_KEY_URI_REGEX
-    val matchResult = regex.matchEntire(kekUri) ?: return kekUri
+    val gcpMatch = KmsConstants.GCP_KMS_KEY_URI_REGEX.matchEntire(kekUri)
+    if (gcpMatch != null) {
+      val (project, location, keyRing) = gcpMatch.destructured
+      return "gcp-kms://projects/$project/locations/$location/keyRings/$keyRing/cryptoKeys/$mappedKeyName"
+    }
 
-    val (project, location, keyRing) = matchResult.destructured
-    return "gcp-kms://projects/$project/locations/$location/keyRings/$keyRing/cryptoKeys/$mappedKeyName"
+    val awsMatch = KmsConstants.AWS_KMS_KEY_URI_REGEX.matchEntire(kekUri)
+    if (awsMatch != null) {
+      val (region, account) = awsMatch.destructured
+      return "aws-kms://arn:aws:kms:$region:$account:key/$mappedKeyName"
+    }
+
+    return kekUri
   }
 }
 

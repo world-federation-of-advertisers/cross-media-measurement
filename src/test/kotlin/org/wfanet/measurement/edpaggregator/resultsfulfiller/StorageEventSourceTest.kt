@@ -828,7 +828,7 @@ class StorageEventSourceTest {
     // getKekUri should fail because blobs have different project IDs
     val exception = assertFailsWith<IllegalArgumentException> { eventSource.getKekUri() }
     assertThat(exception.message)
-      .contains("All KEK URIs must have the same project ID and location")
+      .contains("All KEK URIs must have the same project/account and location/region")
   }
 
   @Test
@@ -907,6 +907,178 @@ class StorageEventSourceTest {
     assertThat(result).isNotNull()
     assertThat(result)
       .isEqualTo("gcp-kms://projects/my-project/locations/us-east1/keyRings/ring/cryptoKeys/key2")
+  }
+
+  @Test
+  fun `getKekUri fails when AWS blobs have different account IDs`(): Unit = runBlocking {
+    val metadataTmpPath = tmp.root
+    val eventGroupRef = "event-group-1"
+
+    val kekUri1 = "aws-kms://arn:aws:kms:us-east-1:111111111111:key/key-1"
+    val kekUri2 = "aws-kms://arn:aws:kms:us-east-1:222222222222:key/key-2"
+
+    val dates = listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2))
+    val impressionMetadataList =
+      createImpressionMetadataList(dates, eventGroupRef, "meta-bucket", modelLine)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    writeMetadataWithKekUri(metadataTmpPath, dates[0], eventGroupRef, kekUri1, modelLine)
+    writeMetadataWithKekUri(metadataTmpPath, dates[1], eventGroupRef, kekUri2, modelLine)
+
+    val eventGroupDetails =
+      createEventGroupDetails(
+        eventGroupRef,
+        LocalDate.of(2025, 1, 1),
+        LocalDate.of(2025, 1, 3),
+        ZoneId.of("UTC"),
+      )
+
+    val impressionService = createImpressionDataSourceProvider(metadataTmpPath)
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = impressionService,
+        eventGroupDetailsList = listOf(eventGroupDetails),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    val exception = assertFailsWith<IllegalArgumentException> { eventSource.getKekUri() }
+    assertThat(exception.message)
+      .contains("All KEK URIs must have the same project/account and location/region")
+  }
+
+  @Test
+  fun `getKekUri fails when AWS blobs have different regions`(): Unit = runBlocking {
+    val metadataTmpPath = tmp.root
+    val eventGroupRef = "event-group-1"
+
+    val kekUri1 = "aws-kms://arn:aws:kms:us-east-1:123456789012:key/key-1"
+    val kekUri2 = "aws-kms://arn:aws:kms:eu-west-2:123456789012:key/key-2"
+
+    val dates = listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2))
+    val impressionMetadataList =
+      createImpressionMetadataList(dates, eventGroupRef, "meta-bucket", modelLine)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    writeMetadataWithKekUri(metadataTmpPath, dates[0], eventGroupRef, kekUri1, modelLine)
+    writeMetadataWithKekUri(metadataTmpPath, dates[1], eventGroupRef, kekUri2, modelLine)
+
+    val eventGroupDetails =
+      createEventGroupDetails(
+        eventGroupRef,
+        LocalDate.of(2025, 1, 1),
+        LocalDate.of(2025, 1, 3),
+        ZoneId.of("UTC"),
+      )
+
+    val impressionService = createImpressionDataSourceProvider(metadataTmpPath)
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = impressionService,
+        eventGroupDetailsList = listOf(eventGroupDetails),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    val exception = assertFailsWith<IllegalArgumentException> { eventSource.getKekUri() }
+    assertThat(exception.message)
+      .contains("All KEK URIs must have the same project/account and location/region")
+  }
+
+  @Test
+  fun `getKekUri succeeds when AWS blobs have same account and region`(): Unit = runBlocking {
+    val metadataTmpPath = tmp.root
+    val eventGroupRef = "event-group-1"
+
+    val kekUri1 = "aws-kms://arn:aws:kms:us-east-1:123456789012:key/key-1"
+    val kekUri2 = "aws-kms://arn:aws:kms:us-east-1:123456789012:key/key-2"
+
+    val dates = listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2))
+    val impressionMetadataList =
+      createImpressionMetadataList(dates, eventGroupRef, "meta-bucket", modelLine)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    writeMetadataWithKekUri(metadataTmpPath, dates[0], eventGroupRef, kekUri1, modelLine)
+    writeMetadataWithKekUri(metadataTmpPath, dates[1], eventGroupRef, kekUri2, modelLine)
+
+    val eventGroupDetails =
+      createEventGroupDetails(
+        eventGroupRef,
+        LocalDate.of(2025, 1, 1),
+        LocalDate.of(2025, 1, 3),
+        ZoneId.of("UTC"),
+      )
+
+    val impressionService = createImpressionDataSourceProvider(metadataTmpPath)
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = impressionService,
+        eventGroupDetailsList = listOf(eventGroupDetails),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    val result = eventSource.getKekUri()
+    assertThat(result).isNotNull()
+    assertThat(result).isEqualTo(kekUri2)
+  }
+
+  @Test
+  fun `getKekUri fails when mixing GCP and AWS KMS URIs`(): Unit = runBlocking {
+    val metadataTmpPath = tmp.root
+    val eventGroupRef = "event-group-1"
+
+    val gcpUri = "gcp-kms://projects/my-project/locations/us-east1/keyRings/ring/cryptoKeys/key"
+    val awsUri = "aws-kms://arn:aws:kms:us-east-1:123456789012:key/my-key"
+
+    val dates = listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2))
+    val impressionMetadataList =
+      createImpressionMetadataList(dates, eventGroupRef, "meta-bucket", modelLine)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    writeMetadataWithKekUri(metadataTmpPath, dates[0], eventGroupRef, gcpUri, modelLine)
+    writeMetadataWithKekUri(metadataTmpPath, dates[1], eventGroupRef, awsUri, modelLine)
+
+    val eventGroupDetails =
+      createEventGroupDetails(
+        eventGroupRef,
+        LocalDate.of(2025, 1, 1),
+        LocalDate.of(2025, 1, 3),
+        ZoneId.of("UTC"),
+      )
+
+    val impressionService = createImpressionDataSourceProvider(metadataTmpPath)
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = impressionService,
+        eventGroupDetailsList = listOf(eventGroupDetails),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    val exception = assertFailsWith<IllegalArgumentException> { eventSource.getKekUri() }
+    assertThat(exception.message)
+      .contains("All KEK URIs must have the same project/account and location/region")
   }
 
   companion object {

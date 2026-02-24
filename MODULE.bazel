@@ -42,6 +42,12 @@ bazel_dep(
     version = "0.136.0",
     repo_name = "wfa_common_jvm",
 )
+git_override(
+    module_name = "common-jvm",
+    commit = "e16fe6ca5897e4ce117d9e6c669b515c27a1a426",
+    remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
+)
+
 bazel_dep(
     name = "common-cpp",
     version = "0.14.0",

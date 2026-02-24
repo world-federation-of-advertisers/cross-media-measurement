@@ -37,15 +37,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.aws.kms.AwsKmsClientFactory
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.crypto.tink.AwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResultsFulfillerConfigAsByteArray
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfigs
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerMetrics.Companion.measured
@@ -382,26 +385,41 @@ class ResultsFulfillerAppRunner : Runnable {
   }
 
   fun createKmsClients() {
-
     kmsClientsMap = mutableMapOf()
     trusTeeConfigMap = mutableMapOf()
 
     edpsConfig.eventDataProviderConfigList.forEach { edpConfig ->
-      val kmsConfig =
-        GCloudWifCredentials(
-          audience = edpConfig.kmsConfig.kmsAudience,
-          subjectTokenType = SUBJECT_TOKEN_TYPE,
-          tokenUrl = TOKEN_URL,
-          credentialSourceFilePath = CREDENTIAL_SOURCE_FILE_PATH,
-          serviceAccountImpersonationUrl =
-            EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(edpConfig.kmsConfig.serviceAccount),
-        )
-
-      val kmsClient = GCloudKmsClientFactory().getKmsClient(kmsConfig)
+      val kmsClient =
+        when (edpConfig.kmsConfig.kmsType) {
+          EventDataProviderConfig.KmsConfig.KmsType.AWS -> {
+            val awsConfig =
+              AwsWifCredentials(
+                roleArn = edpConfig.kmsConfig.awsRoleArn,
+                webIdentityTokenFilePath =
+                  edpConfig.kmsConfig.awsWebIdentityTokenFilePath.ifEmpty {
+                    CREDENTIAL_SOURCE_FILE_PATH
+                  },
+                roleSessionName = edpConfig.kmsConfig.awsRoleSessionName,
+                region = edpConfig.kmsConfig.awsRegion,
+              )
+            AwsKmsClientFactory().getKmsClient(awsConfig)
+          }
+          else -> {
+            val gcpConfig =
+              GCloudWifCredentials(
+                audience = edpConfig.kmsConfig.kmsAudience,
+                subjectTokenType = SUBJECT_TOKEN_TYPE,
+                tokenUrl = TOKEN_URL,
+                credentialSourceFilePath = CREDENTIAL_SOURCE_FILE_PATH,
+                serviceAccountImpersonationUrl =
+                  EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(edpConfig.kmsConfig.serviceAccount),
+              )
+            GCloudKmsClientFactory().getKmsClient(gcpConfig)
+          }
+        }
 
       kmsClientsMap[edpConfig.dataProvider] = kmsClient
 
-      // Build TrusTeeConfig for this EDP using KMS config from edpConfig
       trusTeeConfigMap[edpConfig.dataProvider] =
         TrusTeeConfig(
           kmsClient = kmsClient,

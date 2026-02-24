@@ -234,20 +234,19 @@ class StorageEventSource(
   /**
    * Gets the KEK URI from the impression data sources for TrusTee protocol encryption.
    *
-   * The TrusTee protocol encrypts output data using a Key Encryption Key (KEK) from GCP KMS. We
-   * obtain the KEK URI from the impression metadata because the EDP's impression data was encrypted
-   * using a KEK on their keyring, and the TrusTee output should use a key on the same keyring
-   * (either the same key or a remapped key via kekUriToKeyNameMap). This ensures consistent key
-   * management and access control within the EDP's GCP KMS keyring.
+   * The TrusTee protocol encrypts output data using a Key Encryption Key (KEK) from KMS. We obtain
+   * the KEK URI from the impression metadata because the EDP's impression data was encrypted using
+   * a KEK on their keyring, and the TrusTee output should use a key on the same keyring (either the
+   * same key or a remapped key via kekUriToKeyNameMap). Supports both GCP KMS and AWS KMS URIs.
    *
    * Returns the KEK URI from the most recent data source (sorted by interval end time in descending
-   * order). All data sources for the same EDP must use KEK URIs with the same project ID and
-   * location; having different project IDs for the same EDP is currently not supported.
+   * order). All data sources for the same EDP must use KEK URIs with the same project/account and
+   * location/region; mixing different projects or accounts for the same EDP is not supported.
    *
    * Returns null if no data sources are available, in which case a non-encrypted empty sketch will
    * be fulfilled.
    *
-   * @throws IllegalArgumentException if KEK URIs have different project IDs or locations
+   * @throws IllegalArgumentException if KEK URIs have different project/account or location/region
    */
   suspend fun getKekUri(): String? {
     val uniqueSources = getUniqueImpressionDataSources()
@@ -263,10 +262,11 @@ class StorageEventSource(
   }
 
   /**
-   * Validates that all KEK URIs have the same project ID and location.
+   * Validates that all KEK URIs have the same project/account and location/region.
    *
-   * KEK URI format:
-   * gcp-kms://projects/{PROJECT_ID}/locations/{LOCATION}/keyRings/{KEY_RING}/cryptoKeys/{KEY_NAME}
+   * Supported URI formats:
+   * - GCP: gcp-kms://projects/{PROJECT}/locations/{LOCATION}/keyRings/{RING}/cryptoKeys/{KEY}
+   * - AWS: aws-kms://arn:aws:kms:{REGION}:{ACCOUNT}:key/{KEY_ID}
    */
   private fun validateKekUrisConsistency(kekUris: List<String>) {
     if (kekUris.size <= 1) return
@@ -275,31 +275,36 @@ class StorageEventSource(
     for (kekUri in kekUris.drop(1)) {
       val projectAndLocation = extractProjectAndLocation(kekUri)
       require(projectAndLocation == firstProjectAndLocation) {
-        "All KEK URIs must have the same project ID and location. " +
+        "All KEK URIs must have the same project/account and location/region. " +
           "Expected: $firstProjectAndLocation, Found: $projectAndLocation in URI: $kekUri"
       }
     }
   }
 
   /**
-   * Extracts the project ID and location from a KEK URI.
+   * Extracts the project/account and location/region from a KEK URI.
    *
-   * For GCP KMS URIs (gcp-kms://projects/{PROJECT}/locations/{LOCATION}/...), returns the actual
-   * project ID and location. For non-GCP URIs (e.g., fake-kms:// used in tests), returns empty
-   * strings which allows consistency checking to still work (all non-GCP URIs are considered to
-   * have the same "empty" project/location).
+   * For GCP KMS URIs, returns project ID and location. For AWS KMS URIs, returns account ID and
+   * region. For test URIs (fake-kms://), returns empty strings so consistency checking still works.
    *
-   * @return KmsKeyLocation with projectId and location, or empty strings for non-GCP URIs
+   * @return KmsKeyLocation with projectId and location
    */
   private fun extractProjectAndLocation(kekUri: String): KmsKeyLocation {
-    // For fake-kms:// URIs (used in tests), skip project/location extraction
     if (kekUri.startsWith("fake-kms://")) {
       return KmsKeyLocation("", "")
     }
-    val regex = KmsConstants.GCP_KMS_KEY_URI_REGEX
-    val matchResult = regex.matchEntire(kekUri)
-    requireNotNull(matchResult) { "Invalid GCP KMS KEK URI format: $kekUri" }
-    return KmsKeyLocation(matchResult.groupValues[1], matchResult.groupValues[2])
+
+    val gcpMatch = KmsConstants.GCP_KMS_KEY_URI_REGEX.matchEntire(kekUri)
+    if (gcpMatch != null) {
+      return KmsKeyLocation(gcpMatch.groupValues[1], gcpMatch.groupValues[2])
+    }
+
+    val awsMatch = KmsConstants.AWS_KMS_KEY_URI_REGEX.matchEntire(kekUri)
+    if (awsMatch != null) {
+      return KmsKeyLocation(awsMatch.groupValues[2], awsMatch.groupValues[1])
+    }
+
+    throw IllegalArgumentException("Unsupported KMS KEK URI format: $kekUri")
   }
 
   companion object {

@@ -26,10 +26,28 @@ option java_outer_classname = "EventDataProviderConfigsProto";
 message EventDataProviderConfig {
   // Kms config
   message KmsConfig {
-    // Kms credential audience as workload identity pool provider.
+    enum KmsType {
+      KMS_TYPE_UNSPECIFIED = 0;
+      GCP = 1;
+      AWS = 2;
+    }
+
+    // GCP: WIF credential audience as workload identity pool provider.
     string kms_audience = 1;
-    // Edp service account with KMS access.
+    // GCP: EDP service account with KMS access.
     string service_account = 2;
+
+    // Type of KMS provider. Defaults to GCP for backward compatibility.
+    KmsType kms_type = 3;
+
+    // AWS: IAM role ARN for STS AssumeRoleWithWebIdentity.
+    string aws_role_arn = 4;
+    // AWS: Web identity token file path.
+    string aws_web_identity_token_file_path = 5;
+    // AWS: STS role session name.
+    string aws_role_session_name = 6;
+    // AWS: Region for STS and KMS.
+    string aws_region = 7;
   }
 
   // Tls Config
