@@ -80,7 +80,6 @@ import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
-import org.wfanet.measurement.integration.common.ThrowingKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
@@ -97,6 +96,7 @@ import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
+import org.wfanet.measurement.integration.common.ThrowingKmsClient
 import org.wfanet.measurement.internal.reporting.v2.ListImpressionQualificationFiltersPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listImpressionQualificationFiltersPageToken
