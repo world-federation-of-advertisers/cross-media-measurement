@@ -28,4 +28,6 @@ enum RawImpressionState {
   RAW_IMPRESSION_STATE_ACTIVE = 1;
   // The record has been soft-deleted and will not be used.
   RAW_IMPRESSION_STATE_DELETED = 2;
+  // The impression could not be processed due to an unrecoverable error.
+  RAW_IMPRESSION_STATE_INVALID = 3;
 }
