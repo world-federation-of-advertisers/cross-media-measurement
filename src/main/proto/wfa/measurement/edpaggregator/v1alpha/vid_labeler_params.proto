@@ -56,7 +56,7 @@ message VidLabelerParams {
 
   // ===== Dispatcher / cloud function fields =====
 
-  // Cloud TLS connection params for the impression metadata storage.
+  // Cloud TLS connection params.
   wfa.measurement.config.edpaggregator.TransportLayerSecurityParams
       cloud_transport_layer_security_params = 2
       [(google.api.field_behavior) = REQUIRED];
@@ -66,7 +66,7 @@ message VidLabelerParams {
 
   // ===== TEE app fields =====
 
-  // TEE TLS connection params for the VID repository API.
+  // TEE TLS connection params.
   wfa.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
       tee_transport_layer_security_params = 4
       [(google.api.field_behavior) = OPTIONAL];
