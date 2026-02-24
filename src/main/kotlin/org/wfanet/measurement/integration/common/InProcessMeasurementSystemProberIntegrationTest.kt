@@ -43,7 +43,6 @@ import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
-import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -64,7 +63,7 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
       kingdomDataServicesRule,
       duchyDependenciesRule,
       useEdpSimulators = true,
-      trusTeeKmsClient = FakeKmsClient(),
+      trusTeeKmsClient = ThrowingKmsClient,
     )
 
   private val publicMeasurementsClient by lazy {
