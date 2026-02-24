@@ -1,0 +1,77 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.v2;
+
+import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
+
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
+option java_multiple_files = true;
+
+// Proto representation of the internal PlanningModel entity type.
+message PlanningModel {
+  // `MeasurementConsumer` ID from the CMMS public API.
+  string cmms_measurement_consumer_id = 1;
+  string external_planning_model_id = 2;
+  repeated string external_reporting_set_ids = 3;
+  PlanningModelSpec planning_model_spec = 4;
+  google.type.Interval time_interval = 5;
+
+  enum State {
+    // Default value. This value is unused.
+    STATE_UNSPECIFIED = 0;
+    CREATED = 1;
+    IDENTIFIED_TRAINING_DATA = 2;
+    WAITING_FOR_TRAINING_DATA = 3;
+    WAITING_FOR_TRAINING = 4;
+    // The planning model is successfully trained.
+    //
+    // A training process is successful when the planning model satisfies the
+    // target accuracy level. A planning model's accuracy performance is
+    // quantified as x%-y% -- Given a hypothetical impression allocation, the
+    // model's prediction has less than y% uncertainty with x% of certainty
+    // if the hypothetical impression allocation was used.
+    SUCCEEDED = 5;
+    FAILED = 6;
+  }
+  State state = 6;
+
+  google.protobuf.Timestamp create_time = 7;
+
+  message Details {
+    string filter = 1;
+  }
+  Details details = 8;
+
+  // Owner of work lock.
+  string lock_owner = 9;
+
+  // Time when the work lock for this PlanningModel expires.
+  //
+  // If this is not specified or is in the future, the PlanningModel is not
+  // eligible to be claimed.
+  google.protobuf.Timestamp lock_expiration_time = 10;
+
+  // The number of the current attempt.
+  int32 attempt = 11;
+
+  // Version of the last update to this planning model. The version is used to
+  // stop write contention from multiple processes. This version is
+  // monotonically increasing and is checked against the current value before
+  // any writes, and will change with every write.
+  int64 version = 12;
+}
