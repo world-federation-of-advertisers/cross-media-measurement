@@ -80,9 +80,9 @@ import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
+import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.testing.ProviderRule
-import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toInterval
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.keyPair

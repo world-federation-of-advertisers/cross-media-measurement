@@ -331,26 +331,25 @@ class InProcessDuchy(
           )
         val kmsClientFactory =
           object : KmsClientFactory<GCloudWifCredentials> {
-            override fun getKmsClient(config: GCloudWifCredentials): KmsClient =
-              trusTeeKmsClient
+            override fun getKmsClient(config: GCloudWifCredentials): KmsClient = trusTeeKmsClient
           }
         val trusTeeMill =
           TrusTeeMill(
-              millId = "$externalDuchyId trusTeeMill",
-              duchyId = externalDuchyId,
-              signingKey = signingKey,
-              consentSignalCert =
-                Certificate(duchyCertMap.getValue(externalDuchyId), consentSignal509Cert),
-              dataClients = computationDataClients,
-              systemComputationParticipantsClient = systemComputationParticipantsClient,
-              systemComputationsClient = systemComputationsClient,
-              systemComputationLogEntriesClient = systemComputationLogEntriesClient,
-              computationStatsClient = computationStatsClient,
-              workLockDuration = Duration.ofMinutes(5),
-              trusTeeProcessorFactory = TrusTeeProcessorImpl,
-              kmsClientFactory = kmsClientFactory,
-              attestationTokenPath = Paths.get("/dev/null"),
-            )
+            millId = "$externalDuchyId trusTeeMill",
+            duchyId = externalDuchyId,
+            signingKey = signingKey,
+            consentSignalCert =
+              Certificate(duchyCertMap.getValue(externalDuchyId), consentSignal509Cert),
+            dataClients = computationDataClients,
+            systemComputationParticipantsClient = systemComputationParticipantsClient,
+            systemComputationsClient = systemComputationsClient,
+            systemComputationLogEntriesClient = systemComputationLogEntriesClient,
+            computationStatsClient = computationStatsClient,
+            workLockDuration = Duration.ofMinutes(5),
+            trusTeeProcessorFactory = TrusTeeProcessorImpl,
+            kmsClientFactory = kmsClientFactory,
+            attestationTokenPath = Paths.get("/dev/null"),
+          )
         val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1))
         throttler.loopOnReady {
           reachFrequencyLiquidLegionsV2Mill.claimAndProcessWork()
