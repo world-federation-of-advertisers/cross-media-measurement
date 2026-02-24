@@ -339,7 +339,7 @@ class InProcessEdpAggregatorComponents(
           clientAccountsClient,
           eventGroups.asFlow(),
           throttler,
-          500,
+          listEventGroupPageSize = 500,
         )
       val mappedEventGroups: List<MappedEventGroup> = runBlocking { eventGroupSync.sync().toList() }
       logger.info("Received mappedEventGroups: $mappedEventGroups")

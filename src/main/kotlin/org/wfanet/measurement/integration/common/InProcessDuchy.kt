@@ -17,10 +17,12 @@ package org.wfanet.measurement.integration.common
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.KmsClient
 import com.google.protobuf.ByteString
 import io.grpc.Channel
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.testing.GrpcCleanupRule
+import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
@@ -43,6 +45,8 @@ import org.wfanet.measurement.api.v2alpha.testing.withMetadataPrincipalIdentitie
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
+import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -64,6 +68,8 @@ import org.wfanet.measurement.duchy.mill.liquidlegionsv2.crypto.JniLiquidLegions
 import org.wfanet.measurement.duchy.mill.liquidlegionsv2.crypto.JniReachOnlyLiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.mill.shareshuffle.HonestMajorityShareShuffleMill
 import org.wfanet.measurement.duchy.mill.shareshuffle.crypto.JniHonestMajorityShareShuffleCryptor
+import org.wfanet.measurement.duchy.mill.trustee.TrusTeeMill
+import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeProcessorImpl
 import org.wfanet.measurement.duchy.service.api.v2alpha.RequisitionFulfillmentService
 import org.wfanet.measurement.duchy.service.internal.computationcontrol.AsyncComputationControlService
 import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlService
@@ -96,6 +102,9 @@ class InProcessDuchy(
   val duchyDependenciesRule:
     ProviderRule<(String, SystemComputationLogEntriesCoroutineStub) -> DuchyDependencies>,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
+  private val trusTeeKmsClient: KmsClient? =
+    null, // TODO(@dawn-wang22): Remove default and make this a required param after all callers
+  // provide a KmsClient.
   val verboseGrpcLogging: Boolean = true,
   daemonContext: CoroutineContext = Dispatchers.Default,
 ) : TestRule {
@@ -271,7 +280,8 @@ class InProcessDuchy(
             millId = "$externalDuchyId liquidLegionsV2 Mill",
             duchyId = externalDuchyId,
             signingKey = signingKey,
-            consentSignalCert = Certificate(duchyCertMap[externalDuchyId]!!, consentSignal509Cert),
+            consentSignalCert =
+              Certificate(duchyCertMap.getValue(externalDuchyId), consentSignal509Cert),
             trustedCertificates = trustedCertificates,
             dataClients = computationDataClients,
             systemComputationParticipantsClient = systemComputationParticipantsClient,
@@ -288,7 +298,8 @@ class InProcessDuchy(
             millId = "$externalDuchyId liquidLegionsV2 Mill",
             duchyId = externalDuchyId,
             signingKey = signingKey,
-            consentSignalCert = Certificate(duchyCertMap[externalDuchyId]!!, consentSignal509Cert),
+            consentSignalCert =
+              Certificate(duchyCertMap.getValue(externalDuchyId), consentSignal509Cert),
             trustedCertificates = trustedCertificates,
             dataClients = computationDataClients,
             systemComputationParticipantsClient = systemComputationParticipantsClient,
@@ -305,7 +316,8 @@ class InProcessDuchy(
             millId = "$externalDuchyId honestMajorityShareShuffle Mill",
             duchyId = externalDuchyId,
             signingKey = signingKey,
-            consentSignalCert = Certificate(duchyCertMap[externalDuchyId]!!, consentSignal509Cert),
+            consentSignalCert =
+              Certificate(duchyCertMap.getValue(externalDuchyId), consentSignal509Cert),
             trustedCertificates = trustedCertificates,
             dataClients = computationDataClients,
             systemComputationParticipantsClient = systemComputationParticipantsClient,
@@ -319,11 +331,38 @@ class InProcessDuchy(
             workLockDuration = Duration.ofSeconds(1),
             privateKeyStore = privateKeyStore,
           )
+        val trusTeeMill =
+          if (trusTeeKmsClient != null) {
+            val kmsClientFactory =
+              object : KmsClientFactory<GCloudWifCredentials> {
+                override fun getKmsClient(config: GCloudWifCredentials): KmsClient =
+                  trusTeeKmsClient
+              }
+            TrusTeeMill(
+              millId = "$externalDuchyId trusTeeMill",
+              duchyId = externalDuchyId,
+              signingKey = signingKey,
+              consentSignalCert =
+                Certificate(duchyCertMap.getValue(externalDuchyId), consentSignal509Cert),
+              dataClients = computationDataClients,
+              systemComputationParticipantsClient = systemComputationParticipantsClient,
+              systemComputationsClient = systemComputationsClient,
+              systemComputationLogEntriesClient = systemComputationLogEntriesClient,
+              computationStatsClient = computationStatsClient,
+              workLockDuration = Duration.ofMinutes(5),
+              trusTeeProcessorFactory = TrusTeeProcessorImpl,
+              kmsClientFactory = kmsClientFactory,
+              attestationTokenPath = Paths.get("/dev/null"),
+            )
+          } else {
+            null
+          }
         val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1))
         throttler.loopOnReady {
           reachFrequencyLiquidLegionsV2Mill.claimAndProcessWork()
           reachOnlyLiquidLegionsV2Mill.claimAndProcessWork()
           honestMajorityShareShuffleMill.claimAndProcessWork()
+          trusTeeMill?.claimAndProcessWork()
         }
       }
   }
