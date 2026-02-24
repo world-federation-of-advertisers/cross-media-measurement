@@ -46,7 +46,8 @@ message ImpressionMetadata {
   // The etag of ImpressionMetadata
   string etag = 11;
 
-  // The URI of the source raw impression blob that was used to generate this
-  // VID-labeled impression.
+  // The URI of the source input impression blob that was used to generate the
+  // blob_uri. For example, for a vid labeled output, the input is the
+  // impression data needed to generate a vid labeled impression. Optional.
   string input_blob_uri = 12;
 }
