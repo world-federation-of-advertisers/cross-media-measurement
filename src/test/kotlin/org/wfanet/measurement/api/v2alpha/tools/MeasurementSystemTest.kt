@@ -24,7 +24,6 @@ import com.google.protobuf.duration
 import com.google.protobuf.empty
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.Durations
-import com.google.protobuf.util.JsonFormat
 import com.google.protobuf.value
 import com.google.type.date
 import com.google.type.interval
@@ -61,7 +60,6 @@ import org.wfanet.measurement.api.v2alpha.BatchDeleteClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt
-import org.wfanet.measurement.api.v2alpha.CreateClientAccountRequest
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelLineRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelOutageRequest
@@ -220,7 +218,6 @@ import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
 import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signResult
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup as EdpaEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata as edpaCampaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata as edpaAdMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as edpaMetadata
@@ -2626,7 +2623,8 @@ class MeasurementSystemTest {
     assertThat(request.requestsCount).isEqualTo(2)
     assertThat(request.parent).isEqualTo(MEASUREMENT_CONSUMER_NAME)
 
-    val referenceIds = request.requestsList.map { it.clientAccount.clientAccountReferenceId }.toSet()
+    val referenceIds =
+      request.requestsList.map { it.clientAccount.clientAccountReferenceId }.toSet()
     assertThat(referenceIds).containsExactly("account-1", "account-2")
   }
 
@@ -3111,8 +3109,7 @@ class MeasurementSystemTest {
 
     val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
     assertThat(capturedOutput).status().isNotEqualTo(0)
-    assertThat(capturedOutput.err)
-      .contains("--data-provider is required when --brand is specified")
+    assertThat(capturedOutput.err).contains("--data-provider is required when --brand is specified")
   }
 
   @Test
@@ -3136,13 +3133,7 @@ class MeasurementSystemTest {
 
   @Test
   fun `client-accounts delete fails when neither name nor reference-id nor brand specified`() {
-    val args =
-      commonArgs +
-        arrayOf(
-          "client-accounts",
-          "--api-key=$AUTHENTICATION_KEY",
-          "delete",
-        )
+    val args = commonArgs + arrayOf("client-accounts", "--api-key=$AUTHENTICATION_KEY", "delete")
 
     val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
     assertThat(capturedOutput).status().isNotEqualTo(0)

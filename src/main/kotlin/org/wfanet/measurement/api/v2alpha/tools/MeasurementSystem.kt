@@ -157,6 +157,7 @@ import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.PrivateJwkHandle
 import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
@@ -168,7 +169,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
-import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup as EdpaEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroups as EdpaEventGroups
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -1164,7 +1164,8 @@ private class ClientAccounts {
     }
 
     val existingAccountReferenceIds = getExistingAccountReferenceIds(parent, dataProvider)
-    val newAccountReferenceIds = clientAccountReferenceIds.filter { it !in existingAccountReferenceIds }
+    val newAccountReferenceIds =
+      clientAccountReferenceIds.filter { it !in existingAccountReferenceIds }
 
     val skippedCount = clientAccountReferenceIds.size - newAccountReferenceIds.size
     if (skippedCount > 0) {
@@ -1211,7 +1212,9 @@ private class ClientAccounts {
       return
     }
 
-    println("Found ${allAccountReferenceIds.size} unique client account reference IDs for brand '$brand'")
+    println(
+      "Found ${allAccountReferenceIds.size} unique client account reference IDs for brand '$brand'"
+    )
 
     val existingAccountReferenceIds = getExistingAccountReferenceIds(parent, dataProvider)
     val newAccountReferenceIds = allAccountReferenceIds - existingAccountReferenceIds
@@ -1258,9 +1261,7 @@ private class ClientAccounts {
 
     if (failedBatches.isNotEmpty()) {
       println("\nFailed to create ${failedBatches.size} batch(es):")
-      failedBatches.forEach { (batchIdx, error) ->
-        println("  Batch $batchIdx: $error")
-      }
+      failedBatches.forEach { (batchIdx, error) -> println("  Batch $batchIdx: $error") }
     }
   }
 
@@ -1283,8 +1284,7 @@ private class ClientAccounts {
         if (pageToken.isNotBlank()) {
           this.pageToken = pageToken
         }
-        filter =
-          ListClientAccountsRequestKt.filter { this.dataProvider = dataProvider }
+        filter = ListClientAccountsRequestKt.filter { this.dataProvider = dataProvider }
       }
       val response =
         runBlocking(parentCommand.rpcDispatcher) { clientAccountsStub.listClientAccounts(request) }
@@ -1329,7 +1329,10 @@ private class ClientAccounts {
         eventGroup.hasEventGroupMetadata() &&
           eventGroup.eventGroupMetadata.hasAdMetadata() &&
           eventGroup.eventGroupMetadata.adMetadata.hasCampaignMetadata() &&
-          eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.brand.equals(brand, ignoreCase = true)
+          eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.brand.equals(
+            brand,
+            ignoreCase = true,
+          )
       }
       .map { it.clientAccountReferenceId }
       .filter { it.isNotEmpty() }
@@ -1596,7 +1599,9 @@ private class ClientAccounts {
       return
     }
 
-    println("Found ${brandReferenceIds.size} unique client account reference IDs for brand '$brand'")
+    println(
+      "Found ${brandReferenceIds.size} unique client account reference IDs for brand '$brand'"
+    )
 
     val existingAccounts = listAllClientAccounts(parent, dataProvider)
     val accountsToDelete =
@@ -1632,11 +1637,10 @@ private class ClientAccounts {
 
     if (failedBatches.isNotEmpty()) {
       println("\nFailed to delete ${failedBatches.size} batch(es):")
-      failedBatches.forEach { (batchIdx, error) ->
-        println("  Batch $batchIdx: $error")
-      }
+      failedBatches.forEach { (batchIdx, error) -> println("  Batch $batchIdx: $error") }
     }
   }
+
   private fun printClientAccount(clientAccount: ClientAccount) {
     println("NAME - ${clientAccount.name}")
     println("DATA PROVIDER - ${clientAccount.dataProvider}")
