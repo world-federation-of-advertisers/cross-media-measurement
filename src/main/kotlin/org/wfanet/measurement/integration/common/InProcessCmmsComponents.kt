@@ -231,8 +231,7 @@ class InProcessCmmsComponents(
         apiKeysClient = publicApiKeysClient,
         measurementConsumersClient = publicMeasurementConsumersClient,
         runId = "12345",
-        // Required duchies are only validated in the LLv2 protocol.
-        requiredDuchies = emptyList(),
+        requiredDuchies = listOf("worker1", "worker2"),
       )
     // Create the MC.
     val (measurementConsumer, apiKey) =
