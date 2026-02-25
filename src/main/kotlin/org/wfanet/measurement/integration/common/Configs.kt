@@ -46,6 +46,7 @@ import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.TransportLayerSecurityParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
@@ -236,9 +237,12 @@ fun getResultsFulfillerParams(
         this.labeledImpressionsBlobDetailsUriPrefix = labeledImpressionBlobUriPrefix
       }
     this.cmmsConnection = transportLayerSecurityParams {
-      clientCertResourcePath = SECRET_FILES_PATH.resolve("${edpDisplayName}_tls.pem").toString()
-      clientPrivateKeyResourcePath =
-        SECRET_FILES_PATH.resolve("${edpDisplayName}_tls.key").toString()
+      teeParams = TransportLayerSecurityParamsKt.teeParams {
+        clientCertResourcePath =
+          SECRET_FILES_PATH.resolve("${edpDisplayName}_tls.pem").toString()
+        clientPrivateKeyResourcePath =
+          SECRET_FILES_PATH.resolve("${edpDisplayName}_tls.key").toString()
+      }
     }
     this.consentParams =
       ResultsFulfillerParamsKt.consentParams {

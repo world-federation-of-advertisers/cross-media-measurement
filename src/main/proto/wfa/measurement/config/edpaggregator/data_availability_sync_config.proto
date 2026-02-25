@@ -19,7 +19,7 @@ package wfa.measurement.config.edpaggregator;
 import "google/api/resource.proto";
 import "google/api/field_behavior.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
-import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
+import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
@@ -36,11 +36,13 @@ message DataAvailabilitySyncConfig {
   StorageParams data_availability_storage = 2;
 
   // How the DataAvailabilitySync connects to the CMMS Public API
-  TransportLayerSecurityParams cmms_connection = 3;
+  wfa.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
+      cmms_connection = 3;
 
   // How the DataAvailabilitySync connects to the ImpressionMetadataStorage
   // Public API
-  TransportLayerSecurityParams impression_metadata_storage_connection = 4;
+  wfa.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
+      impression_metadata_storage_connection = 4;
 
   // Path where an edp uploads their impressions. Optional. Will be required in
   // a future release.

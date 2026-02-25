@@ -41,7 +41,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
-import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
@@ -260,9 +260,10 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     ): ManagedChannel {
       val signingCerts =
         SigningCerts.fromPemFiles(
-          certificateFile = checkNotNull(File(connecionParams.certFilePath)),
-          privateKeyFile = checkNotNull(File(connecionParams.privateKeyFilePath)),
-          trustedCertCollectionFile = checkNotNull(File(connecionParams.certCollectionFilePath)),
+          certificateFile = checkNotNull(File(connecionParams.cloudParams.certFilePath)),
+          privateKeyFile = checkNotNull(File(connecionParams.cloudParams.privateKeyFilePath)),
+          trustedCertCollectionFile =
+            checkNotNull(File(connecionParams.cloudParams.certCollectionFilePath)),
         )
       val publicChannel =
         buildMutualTlsChannel(target, signingCerts, hostName)

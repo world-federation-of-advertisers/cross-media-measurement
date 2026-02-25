@@ -69,7 +69,8 @@ import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemStorage
 import org.wfanet.measurement.config.edpaggregator.eventGroupSyncConfig
 import org.wfanet.measurement.config.edpaggregator.storageParams
-import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.v1alpha.TransportLayerSecurityParamsKt.cloudParams
+import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
@@ -236,9 +237,11 @@ class EventGroupSyncFunctionTest() {
       eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.binpb"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
       this.cmmsConnection = transportLayerSecurityParams {
-        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        cloudParams = cloudParams {
+          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        }
       }
       eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
       eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
@@ -344,9 +347,11 @@ class EventGroupSyncFunctionTest() {
       eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.json"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
       this.cmmsConnection = transportLayerSecurityParams {
-        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        cloudParams = cloudParams {
+          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        }
       }
       eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
       eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
@@ -447,9 +452,11 @@ class EventGroupSyncFunctionTest() {
       eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.json"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
       this.cmmsConnection = transportLayerSecurityParams {
-        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        cloudParams = cloudParams {
+          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        }
       }
       eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
       eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
@@ -511,9 +518,11 @@ class EventGroupSyncFunctionTest() {
       eventGroupsBlobUri = "file:///some/path/that/does/not/exist"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
       this.cmmsConnection = transportLayerSecurityParams {
-        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        cloudParams = cloudParams {
+          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        }
       }
       eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
       eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }

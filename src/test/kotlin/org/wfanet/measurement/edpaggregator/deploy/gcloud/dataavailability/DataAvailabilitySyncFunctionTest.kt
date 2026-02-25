@@ -62,7 +62,8 @@ import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigKt.
 import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemStorage
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.storageParams
-import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.v1alpha.TransportLayerSecurityParamsKt.cloudParams
+import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
@@ -317,15 +318,19 @@ class DataAvailabilitySyncFunctionTest {
     dataAvailabilitySyncConfig {
       dataProvider = "dataProviders/edp123"
       cmmsConnection = transportLayerSecurityParams {
-        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        cloudParams = cloudParams {
+          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        }
       }
       impressionMetadataStorageConnection = transportLayerSecurityParams {
-        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-        // TODO(@marcopremier): Replace with ImpressionMetadata cert when available
-        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        cloudParams = cloudParams {
+          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+          // TODO(@marcopremier): Replace with ImpressionMetadata cert when available
+          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        }
       }
       dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
       edpImpressionPath = "edp/edp_name"

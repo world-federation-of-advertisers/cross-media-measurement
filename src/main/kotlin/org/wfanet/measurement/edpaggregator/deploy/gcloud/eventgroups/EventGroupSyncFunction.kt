@@ -268,11 +268,11 @@ class EventGroupSyncFunction() : HttpFunction {
     ): Channel {
       val signingCerts =
         SigningCerts.fromPemFiles(
-          certificateFile = checkNotNull(File(eventGroupSyncConfig.cmmsConnection.certFilePath)),
+          certificateFile = checkNotNull(File(eventGroupSyncConfig.cmmsConnection.cloudParams.certFilePath)),
           privateKeyFile =
-            checkNotNull(File(eventGroupSyncConfig.cmmsConnection.privateKeyFilePath)),
+            checkNotNull(File(eventGroupSyncConfig.cmmsConnection.cloudParams.privateKeyFilePath)),
           trustedCertCollectionFile =
-            checkNotNull(File(eventGroupSyncConfig.cmmsConnection.certCollectionFilePath)),
+            checkNotNull(File(eventGroupSyncConfig.cmmsConnection.cloudParams.certCollectionFilePath)),
         )
 
       val publicChannel =

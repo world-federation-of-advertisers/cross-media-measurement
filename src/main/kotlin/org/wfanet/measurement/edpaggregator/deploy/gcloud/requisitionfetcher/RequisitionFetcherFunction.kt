@@ -46,7 +46,7 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.config.edpaggregator.DataProviderRequisitionConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
-import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
@@ -334,10 +334,12 @@ class RequisitionFetcherFunction : HttpFunction {
       transportLayerSecurityParams: TransportLayerSecurityParams
     ): SigningCerts {
       return SigningCerts.fromPemFiles(
-        certificateFile = checkNotNull(File(transportLayerSecurityParams.certFilePath)),
-        privateKeyFile = checkNotNull(File(transportLayerSecurityParams.privateKeyFilePath)),
+        certificateFile =
+          checkNotNull(File(transportLayerSecurityParams.cloudParams.certFilePath)),
+        privateKeyFile =
+          checkNotNull(File(transportLayerSecurityParams.cloudParams.privateKeyFilePath)),
         trustedCertCollectionFile =
-          checkNotNull(File(transportLayerSecurityParams.certCollectionFilePath)),
+          checkNotNull(File(transportLayerSecurityParams.cloudParams.certCollectionFilePath)),
       )
     }
 
@@ -367,7 +369,7 @@ class RequisitionFetcherFunction : HttpFunction {
         "Missing 'cmms_connection' for data provider: ${dataProviderConfig.dataProvider}."
       }
 
-      val tls = dataProviderConfig.cmmsConnection
+      val tls = dataProviderConfig.cmmsConnection.cloudParams
       require(tls.certFilePath.isNotBlank()) {
         "Missing 'cert_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
       }

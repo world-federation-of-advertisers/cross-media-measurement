@@ -22,13 +22,31 @@ option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "TransportLayerSecurityParamsProto";
 
-// TLS client credential resource paths used by a TEE application to connect
-// to an mTLS-secured API.
+// Unified TLS client credentials for connecting to an mTLS-secured API.
+// Populate cloud_params for cloud function contexts (filesystem-mounted certs)
+// or tee_params for TEE application contexts (resource key paths).
 message TransportLayerSecurityParams {
-  // The resource key of the client certificate
-  string client_cert_resource_path = 1 [(google.api.field_behavior) = REQUIRED];
+  // TLS params for cloud functions using filesystem-mounted certificates.
+  message CloudParams {
+    // The path on the filesystem where the cert is mounted
+    optional string cert_file_path = 1;
+    // The path on the filesystem where the private key is mounted
+    optional string private_key_file_path = 2;
+    // The path on the filesystem where the cert collection is mounted
+    optional string cert_collection_file_path = 3;
+  }
 
-  // The resource key of the client private key
-  string client_private_key_resource_path = 2
-      [(google.api.field_behavior) = REQUIRED];
+  // TLS params for TEE applications using resource key paths.
+  message TeeParams {
+    // The resource key of the client certificate
+    optional string client_cert_resource_path = 1;
+    // The resource key of the client private key
+    optional string client_private_key_resource_path = 2;
+  }
+
+  // Populated for cloud function contexts.
+  CloudParams cloud_params = 1 [(google.api.field_behavior) = OPTIONAL];
+
+  // Populated for TEE application contexts.
+  TeeParams tee_params = 2 [(google.api.field_behavior) = OPTIONAL];
 }
