@@ -1080,7 +1080,7 @@ private class ClientAccounts {
       .withAuthenticationKey(apiAuthenticationKey)
   }
 
-  @Command(description = ["Creates a ClientAccount"])
+  @Command(description = ["Creates ClientAccount(s)"])
   fun create(
     @Option(
       names = ["--parent"],
@@ -1096,10 +1096,14 @@ private class ClientAccounts {
     dataProvider: String,
     @Option(
       names = ["--client-account-reference-id"],
-      description = ["External reference ID (max 36 chars). Required unless --brand is specified."],
+      description =
+        [
+          "External reference ID (max 36 chars). Can be specified multiple times for batch creation. " +
+            "Required unless --brand is specified."
+        ],
       required = false,
     )
-    clientAccountReferenceId: String?,
+    clientAccountReferenceIds: List<String>?,
     @Option(
       names = ["--brand"],
       description =
@@ -1121,7 +1125,7 @@ private class ClientAccounts {
     )
     eventGroupsBlobUri: String?,
   ) {
-    if (brand != null && clientAccountReferenceId != null) {
+    if (brand != null && !clientAccountReferenceIds.isNullOrEmpty()) {
       throw ParameterException(
         parentCommand.commandLine,
         "--brand and --client-account-reference-id cannot be used together",
@@ -1137,32 +1141,60 @@ private class ClientAccounts {
       }
       createFromBrand(parent, dataProvider, brand, eventGroupsBlobUri)
     } else {
-      if (clientAccountReferenceId == null) {
+      if (clientAccountReferenceIds.isNullOrEmpty()) {
         throw ParameterException(
           parentCommand.commandLine,
           "--client-account-reference-id is required when --brand is not specified",
         )
       }
-      createSingleClientAccount(parent, dataProvider, clientAccountReferenceId)
+      createClientAccounts(parent, dataProvider, clientAccountReferenceIds)
     }
   }
 
-  private fun createSingleClientAccount(
+  private fun createClientAccounts(
     parent: String,
     dataProvider: String,
-    clientAccountReferenceId: String,
+    clientAccountReferenceIds: List<String>,
   ) {
-    val request = createClientAccountRequest {
+    if (clientAccountReferenceIds.size > MAX_BATCH_SIZE) {
+      throw ParameterException(
+        parentCommand.commandLine,
+        "Batch size cannot exceed $MAX_BATCH_SIZE (found ${clientAccountReferenceIds.size})",
+      )
+    }
+
+    val existingAccountReferenceIds = getExistingAccountReferenceIds(parent, dataProvider)
+    val newAccountReferenceIds = clientAccountReferenceIds.filter { it !in existingAccountReferenceIds }
+
+    val skippedCount = clientAccountReferenceIds.size - newAccountReferenceIds.size
+    if (skippedCount > 0) {
+      println("Skipping $skippedCount already-existing client accounts")
+    }
+    if (newAccountReferenceIds.isEmpty()) {
+      println("All client accounts already exist. Nothing to create.")
+      return
+    }
+
+    val request = batchCreateClientAccountsRequest {
       this.parent = parent
-      clientAccount = clientAccount {
-        this.dataProvider = dataProvider
-        this.clientAccountReferenceId = clientAccountReferenceId
+      for (referenceId in newAccountReferenceIds) {
+        requests += createClientAccountRequest {
+          this.parent = parent
+          clientAccount = clientAccount {
+            this.dataProvider = dataProvider
+            clientAccountReferenceId = referenceId
+          }
+        }
       }
     }
-    val response: ClientAccount =
-      runBlocking(parentCommand.rpcDispatcher) { clientAccountsStub.createClientAccount(request) }
-    println("ClientAccount created:")
-    printClientAccount(response)
+
+    val response =
+      runBlocking(parentCommand.rpcDispatcher) {
+        clientAccountsStub.batchCreateClientAccounts(request)
+      }
+
+    println("Created ${response.clientAccountsCount} ClientAccount(s):")
+    response.clientAccountsList.forEach { printClientAccount(it) }
   }
 
   private fun createFromBrand(
@@ -1304,85 +1336,6 @@ private class ClientAccounts {
       .toSet()
   }
 
-  class ClientAccountInput {
-    @Option(
-      names = ["--data-provider"],
-      description = ["API resource name of the Data Provider"],
-      required = true,
-    )
-    lateinit var dataProvider: String
-
-    @Option(
-      names = ["--reference-id"],
-      description = ["Reference ID for the ClientAccount"],
-      required = true,
-    )
-    lateinit var referenceId: String
-  }
-
-  @Command(name = "batch-create", description = ["Batch creates ClientAccounts"])
-  fun batchCreate(
-    @Option(
-      names = ["--parent"],
-      description = ["API resource name of the parent MeasurementConsumer"],
-      required = true,
-    )
-    parent: String,
-    @ArgGroup(
-      exclusive = false,
-      multiplicity = "1..*",
-      heading = "ClientAccount creation requests (can be repeated)\n",
-    )
-    clientAccounts: List<ClientAccountInput>,
-  ) {
-    if (clientAccounts.size > MAX_BATCH_SIZE) {
-      throw ParameterException(
-        parentCommand.commandLine,
-        "Batch size cannot exceed $MAX_BATCH_SIZE (found ${clientAccounts.size})",
-      )
-    }
-
-    val existingAccountReferenceIdsByDataProvider = mutableMapOf<String, Set<String>>()
-    val newAccounts =
-      clientAccounts.filter { input ->
-        val existingAccountReferenceIds =
-          existingAccountReferenceIdsByDataProvider.getOrPut(input.dataProvider) {
-            getExistingAccountReferenceIds(parent, input.dataProvider)
-          }
-        input.referenceId !in existingAccountReferenceIds
-      }
-
-    val skippedCount = clientAccounts.size - newAccounts.size
-    if (skippedCount > 0) {
-      println("Skipping $skippedCount already-existing client accounts")
-    }
-    if (newAccounts.isEmpty()) {
-      println("All client accounts already exist. Nothing to create.")
-      return
-    }
-
-    val request = batchCreateClientAccountsRequest {
-      this.parent = parent
-      for (accountInput in newAccounts) {
-        requests += createClientAccountRequest {
-          this.parent = parent
-          clientAccount = clientAccount {
-            dataProvider = accountInput.dataProvider
-            clientAccountReferenceId = accountInput.referenceId
-          }
-        }
-      }
-    }
-
-    val response =
-      runBlocking(parentCommand.rpcDispatcher) {
-        clientAccountsStub.batchCreateClientAccounts(request)
-      }
-
-    println("Created ${response.clientAccountsCount} ClientAccounts:")
-    response.clientAccountsList.forEach { printClientAccount(it) }
-  }
-
   @Command(description = ["Gets a ClientAccount"])
   fun get(
     @Parameters(index = "0", description = ["API resource name of the ClientAccount"]) name: String
@@ -1470,34 +1423,56 @@ private class ClientAccounts {
     }
   }
 
-  @Command(description = ["Deletes a ClientAccount or all ClientAccounts for a brand"])
+  @Command(description = ["Deletes ClientAccount(s)"])
   fun delete(
     @Parameters(
       index = "0",
-      description = ["API resource name of the ClientAccount. Not used when --brand is specified."],
+      description =
+        [
+          "API resource name of the ClientAccount. " +
+            "Not used when --client-account-reference-id or --brand is specified."
+        ],
       arity = "0..1",
     )
     name: String?,
     @Option(
       names = ["--parent"],
       description =
-        ["API resource name of the parent MeasurementConsumer. Required when --brand is specified."],
+        [
+          "API resource name of the parent MeasurementConsumer. " +
+            "Required when --client-account-reference-id or --brand is specified."
+        ],
       required = false,
     )
     parent: String?,
     @Option(
       names = ["--data-provider"],
       description =
-        ["API resource name of the associated DataProvider. Required when --brand is specified."],
+        [
+          "API resource name of the associated DataProvider. " +
+            "Required when --client-account-reference-id or --brand is specified."
+        ],
       required = false,
     )
     dataProvider: String?,
+    @Option(
+      names = ["--client-account-reference-id"],
+      description =
+        [
+          "External reference ID of the ClientAccount to delete. Can be specified multiple times " +
+            "for batch deletion. When specified, --parent and --data-provider are required. " +
+            "Cannot be used together with --brand."
+        ],
+      required = false,
+    )
+    clientAccountReferenceIds: List<String>?,
     @Option(
       names = ["--brand"],
       description =
         [
           "Brand name whose client accounts should be deleted. When specified, --parent, " +
-            "--data-provider, and --event-groups-blob-uri are required."
+            "--data-provider, and --event-groups-blob-uri are required. " +
+            "Cannot be used together with --client-account-reference-id."
         ],
       required = false,
     )
@@ -1513,6 +1488,13 @@ private class ClientAccounts {
     )
     eventGroupsBlobUri: String?,
   ) {
+    if (brand != null && !clientAccountReferenceIds.isNullOrEmpty()) {
+      throw ParameterException(
+        parentCommand.commandLine,
+        "--brand and --client-account-reference-id cannot be used together",
+      )
+    }
+
     if (brand != null) {
       if (parent == null) {
         throw ParameterException(
@@ -1533,17 +1515,71 @@ private class ClientAccounts {
         )
       }
       deleteByBrand(parent, dataProvider, brand, eventGroupsBlobUri)
+    } else if (!clientAccountReferenceIds.isNullOrEmpty()) {
+      if (parent == null) {
+        throw ParameterException(
+          parentCommand.commandLine,
+          "--parent is required when --client-account-reference-id is specified",
+        )
+      }
+      if (dataProvider == null) {
+        throw ParameterException(
+          parentCommand.commandLine,
+          "--data-provider is required when --client-account-reference-id is specified",
+        )
+      }
+      deleteClientAccounts(parent, dataProvider, clientAccountReferenceIds)
     } else {
       if (name == null) {
         throw ParameterException(
           parentCommand.commandLine,
-          "ClientAccount resource name is required when --brand is not specified",
+          "ClientAccount resource name is required when --client-account-reference-id and --brand are not specified",
         )
       }
       val request = deleteClientAccountRequest { this.name = name }
       runBlocking(parentCommand.rpcDispatcher) { clientAccountsStub.deleteClientAccount(request) }
       println("ClientAccount deleted: $name")
     }
+  }
+
+  private fun deleteClientAccounts(
+    parent: String,
+    dataProvider: String,
+    clientAccountReferenceIds: List<String>,
+  ) {
+    if (clientAccountReferenceIds.size > MAX_BATCH_SIZE) {
+      throw ParameterException(
+        parentCommand.commandLine,
+        "Batch size cannot exceed $MAX_BATCH_SIZE (found ${clientAccountReferenceIds.size})",
+      )
+    }
+
+    val existingAccounts = listAllClientAccounts(parent, dataProvider)
+    val existingAccountsByReferenceId = existingAccounts.associateBy { it.clientAccountReferenceId }
+
+    val accountsToDelete =
+      clientAccountReferenceIds.mapNotNull { refId -> existingAccountsByReferenceId[refId] }
+
+    val notFoundCount = clientAccountReferenceIds.size - accountsToDelete.size
+    if (notFoundCount > 0) {
+      println("Skipping $notFoundCount client accounts that were not found")
+    }
+    if (accountsToDelete.isEmpty()) {
+      println("No matching client accounts found. Nothing to delete.")
+      return
+    }
+
+    val request = batchDeleteClientAccountsRequest {
+      this.parent = parent
+      this.names += accountsToDelete.map { it.name }
+    }
+
+    runBlocking(parentCommand.rpcDispatcher) {
+      clientAccountsStub.batchDeleteClientAccounts(request)
+    }
+
+    println("Deleted ${accountsToDelete.size} ClientAccount(s):")
+    accountsToDelete.forEach { printClientAccount(it) }
   }
 
   private fun deleteByBrand(
@@ -1601,41 +1637,6 @@ private class ClientAccounts {
       }
     }
   }
-
-  @Command(name = "batch-delete", description = ["Batch deletes ClientAccounts"])
-  fun batchDelete(
-    @Option(
-      names = ["--parent"],
-      description = ["API resource name of the parent MeasurementConsumer"],
-      required = true,
-    )
-    parent: String,
-    @Option(
-      names = ["--names"],
-      description = ["List of ClientAccount resource names to delete (comma-separated)"],
-      required = true,
-      split = ",",
-    )
-    names: List<String>,
-  ) {
-    if (names.size > 1000) {
-      throw ParameterException(
-        parentCommand.commandLine,
-        "Batch size cannot exceed 1000 (found ${names.size})",
-      )
-    }
-
-    val request = batchDeleteClientAccountsRequest {
-      this.parent = parent
-      this.names += names
-    }
-
-    runBlocking(parentCommand.rpcDispatcher) {
-      clientAccountsStub.batchDeleteClientAccounts(request)
-    }
-    println("Successfully deleted ${names.size} ClientAccounts")
-  }
-
   private fun printClientAccount(clientAccount: ClientAccount) {
     println("NAME - ${clientAccount.name}")
     println("DATA PROVIDER - ${clientAccount.dataProvider}")

@@ -2190,23 +2190,26 @@ class MeasurementSystemTest {
 
     assertThat(
         headerInterceptor
-          .captured(ClientAccountsGrpcKt.createClientAccountMethod)
+          .captured(ClientAccountsGrpcKt.batchCreateClientAccountsMethod)
           .single()
           .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
       )
       .isEqualTo(AUTHENTICATION_KEY)
 
-    val request: CreateClientAccountRequest = captureFirst {
-      runBlocking { verify(clientAccountsServiceMock).createClientAccount(capture()) }
+    val request: BatchCreateClientAccountsRequest = captureFirst {
+      runBlocking { verify(clientAccountsServiceMock).batchCreateClientAccounts(capture()) }
     }
 
     assertThat(request)
       .isEqualTo(
-        createClientAccountRequest {
+        batchCreateClientAccountsRequest {
           parent = MEASUREMENT_CONSUMER_NAME
-          clientAccount = clientAccount {
-            dataProvider = DATA_PROVIDER_NAME
-            clientAccountReferenceId = CLIENT_ACCOUNT_REFERENCE_ID
+          requests += createClientAccountRequest {
+            parent = MEASUREMENT_CONSUMER_NAME
+            clientAccount = clientAccount {
+              dataProvider = DATA_PROVIDER_NAME
+              clientAccountReferenceId = CLIENT_ACCOUNT_REFERENCE_ID
+            }
           }
         }
       )
@@ -2932,14 +2935,14 @@ class MeasurementSystemTest {
   }
 
   @Test
-  fun `client-accounts batch-create skips already-existing client accounts`() {
+  fun `client-accounts create with multiple reference ids skips already-existing client accounts`() {
     clientAccountsServiceMock.stub {
       onBlocking { listClientAccounts(any()) }
         .thenReturn(
           listClientAccountsResponse {
             clientAccounts += clientAccount {
               name = "$MEASUREMENT_CONSUMER_NAME/clientAccounts/existing"
-              dataProvider = "dataProviders/1"
+              dataProvider = DATA_PROVIDER_NAME
               clientAccountReferenceId = "ref-id-001"
             }
           }
@@ -2951,12 +2954,11 @@ class MeasurementSystemTest {
         arrayOf(
           "client-accounts",
           "--api-key=$AUTHENTICATION_KEY",
-          "batch-create",
+          "create",
           "--parent=$MEASUREMENT_CONSUMER_NAME",
-          "--data-provider=dataProviders/1",
-          "--reference-id=ref-id-001",
-          "--data-provider=dataProviders/1",
-          "--reference-id=ref-id-002",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--client-account-reference-id=ref-id-001",
+          "--client-account-reference-id=ref-id-002",
         )
     val output = callCli(args)
 
@@ -3133,7 +3135,7 @@ class MeasurementSystemTest {
   }
 
   @Test
-  fun `client-accounts delete fails when neither name nor brand specified`() {
+  fun `client-accounts delete fails when neither name nor reference-id nor brand specified`() {
     val args =
       commonArgs +
         arrayOf(
@@ -3145,7 +3147,9 @@ class MeasurementSystemTest {
     val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
     assertThat(capturedOutput).status().isNotEqualTo(0)
     assertThat(capturedOutput.err)
-      .contains("ClientAccount resource name is required when --brand is not specified")
+      .contains(
+        "ClientAccount resource name is required when --client-account-reference-id and --brand are not specified"
+      )
   }
 
   @Test
@@ -3254,18 +3258,17 @@ class MeasurementSystemTest {
   }
 
   @Test
-  fun `client-accounts batch-create succeeds`() {
+  fun `client-accounts create with multiple reference ids succeeds`() {
     val args =
       commonArgs +
         arrayOf(
           "client-accounts",
           "--api-key=$AUTHENTICATION_KEY",
-          "batch-create",
+          "create",
           "--parent=$MEASUREMENT_CONSUMER_NAME",
-          "--data-provider=dataProviders/1",
-          "--reference-id=ref-id-001",
-          "--data-provider=dataProviders/2",
-          "--reference-id=ref-id-002",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--client-account-reference-id=ref-id-001",
+          "--client-account-reference-id=ref-id-002",
         )
     callCli(args)
 
@@ -3288,7 +3291,7 @@ class MeasurementSystemTest {
         createClientAccountRequest {
           parent = MEASUREMENT_CONSUMER_NAME
           clientAccount = clientAccount {
-            dataProvider = "dataProviders/1"
+            dataProvider = DATA_PROVIDER_NAME
             clientAccountReferenceId = "ref-id-001"
           }
         }
@@ -3298,7 +3301,7 @@ class MeasurementSystemTest {
         createClientAccountRequest {
           parent = MEASUREMENT_CONSUMER_NAME
           clientAccount = clientAccount {
-            dataProvider = "dataProviders/2"
+            dataProvider = DATA_PROVIDER_NAME
             clientAccountReferenceId = "ref-id-002"
           }
         }
@@ -3306,20 +3309,20 @@ class MeasurementSystemTest {
   }
 
   @Test
-  fun `client-accounts batch-create fails when batch size exceeds limit`() {
-    // Create 1001 argument pairs (exceeds the 1000 limit)
-    val argPairs =
-      (1..1001).flatMap { listOf("--data-provider=dataProviders/$it", "--reference-id=ref-id-$it") }
+  fun `client-accounts create fails when batch size exceeds limit`() {
+    // Create 1001 reference IDs (exceeds the 1000 limit)
+    val referenceIdArgs = (1..1001).map { "--client-account-reference-id=ref-id-$it" }
 
     val args =
       commonArgs +
         arrayOf(
           "client-accounts",
           "--api-key=$AUTHENTICATION_KEY",
-          "batch-create",
+          "create",
           "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
         ) +
-        argPairs
+        referenceIdArgs
 
     val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
     assertThat(capturedOutput).status().isNotEqualTo(0)
@@ -3328,37 +3331,35 @@ class MeasurementSystemTest {
   }
 
   @Test
-  fun `client-accounts batch-create fails with incomplete argument group`() {
-    val args =
-      commonArgs +
-        arrayOf(
-          "client-accounts",
-          "--api-key=$AUTHENTICATION_KEY",
-          "batch-create",
-          "--parent=$MEASUREMENT_CONSUMER_NAME",
-          "--data-provider=dataProviders/1",
-          "--reference-id=ref-id-001",
-          "--data-provider=dataProviders/2",
-          // Missing --reference-id for the second group
+  fun `client-accounts delete with multiple reference ids succeeds`() {
+    clientAccountsServiceMock.stub {
+      onBlocking { listClientAccounts(any()) }
+        .thenReturn(
+          listClientAccountsResponse {
+            clientAccounts += clientAccount {
+              name = "$MEASUREMENT_CONSUMER_NAME/clientAccounts/1"
+              dataProvider = DATA_PROVIDER_NAME
+              clientAccountReferenceId = "ref-id-001"
+            }
+            clientAccounts += clientAccount {
+              name = "$MEASUREMENT_CONSUMER_NAME/clientAccounts/2"
+              dataProvider = DATA_PROVIDER_NAME
+              clientAccountReferenceId = "ref-id-002"
+            }
+          }
         )
+    }
 
-    val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
-    assertThat(capturedOutput).status().isNotEqualTo(0)
-    // Picocli will report that required option is missing
-    assertThat(capturedOutput.err).containsMatch("(?i)(missing|required).*reference-id")
-  }
-
-  @Test
-  fun `client-accounts batch-delete succeeds`() {
     val args =
       commonArgs +
         arrayOf(
           "client-accounts",
           "--api-key=$AUTHENTICATION_KEY",
-          "batch-delete",
+          "delete",
           "--parent=$MEASUREMENT_CONSUMER_NAME",
-          "--names",
-          "$MEASUREMENT_CONSUMER_NAME/clientAccounts/1,$MEASUREMENT_CONSUMER_NAME/clientAccounts/2",
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--client-account-reference-id=ref-id-001",
+          "--client-account-reference-id=ref-id-002",
         )
     callCli(args)
 
@@ -3383,18 +3384,55 @@ class MeasurementSystemTest {
   }
 
   @Test
-  fun `client-accounts batch-delete fails when batch size exceeds limit`() {
-    val names = (1..1001).map { "$MEASUREMENT_CONSUMER_NAME/clientAccounts/$it" }
+  fun `client-accounts delete with multiple reference ids skips not found accounts`() {
+    clientAccountsServiceMock.stub {
+      onBlocking { listClientAccounts(any()) }
+        .thenReturn(
+          listClientAccountsResponse {
+            clientAccounts += clientAccount {
+              name = "$MEASUREMENT_CONSUMER_NAME/clientAccounts/1"
+              dataProvider = DATA_PROVIDER_NAME
+              clientAccountReferenceId = "ref-id-001"
+            }
+          }
+        )
+    }
+
     val args =
       commonArgs +
         arrayOf(
           "client-accounts",
           "--api-key=$AUTHENTICATION_KEY",
-          "batch-delete",
+          "delete",
           "--parent=$MEASUREMENT_CONSUMER_NAME",
-          "--names",
-          names.joinToString(","),
+          "--data-provider=$DATA_PROVIDER_NAME",
+          "--client-account-reference-id=ref-id-001",
+          "--client-account-reference-id=ref-id-not-found",
         )
+    val output = callCli(args)
+
+    assertThat(output).contains("Skipping 1 client accounts that were not found")
+
+    val request: BatchDeleteClientAccountsRequest = captureFirst {
+      runBlocking { verify(clientAccountsServiceMock).batchDeleteClientAccounts(capture()) }
+    }
+    assertThat(request.namesList).containsExactly("$MEASUREMENT_CONSUMER_NAME/clientAccounts/1")
+  }
+
+  @Test
+  fun `client-accounts delete with reference ids fails when batch size exceeds limit`() {
+    val referenceIdArgs = (1..1001).map { "--client-account-reference-id=ref-id-$it" }
+
+    val args =
+      commonArgs +
+        arrayOf(
+          "client-accounts",
+          "--api-key=$AUTHENTICATION_KEY",
+          "delete",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--data-provider=$DATA_PROVIDER_NAME",
+        ) +
+        referenceIdArgs
 
     val capturedOutput = CommandLineTesting.capturingOutput(args, MeasurementSystem::main)
     assertThat(capturedOutput).status().isNotEqualTo(0)
