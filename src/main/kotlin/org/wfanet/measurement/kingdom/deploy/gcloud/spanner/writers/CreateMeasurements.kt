@@ -177,11 +177,21 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         ProtocolConfig.ProtocolCase.DIRECT,
         ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol.")
       }
-    val requiredDuchyIds: Set<String> =
-      requiredExternalDuchyIds +
-        createMeasurementRequest.measurement.dataProvidersMap.keys.flatMap {
-          dataProvideReaderResultsMap.getValue(it).dataProvider.requiredExternalDuchyIdsList
-        }
+    val dataProviderRequiredDuchyIds: Set<String> =
+      if (
+        createMeasurementRequest.measurement.details.protocolConfig.protocolCase ==
+          ProtocolConfig.ProtocolCase.TRUS_TEE
+      ) {
+        // TrusTee is a single-duchy protocol, so data provider required duchies do not apply.
+        emptySet()
+      } else {
+        createMeasurementRequest.measurement.dataProvidersMap.keys
+          .flatMap {
+            dataProvideReaderResultsMap.getValue(it).dataProvider.requiredExternalDuchyIdsList
+          }
+          .toSet()
+      }
+    val requiredDuchyIds: Set<String> = requiredExternalDuchyIds + dataProviderRequiredDuchyIds
     val now = Clock.systemUTC().instant()
     val requiredDuchyEntries = DuchyIds.entries.filter { it.externalDuchyId in requiredDuchyIds }
     requiredDuchyEntries.forEach {
