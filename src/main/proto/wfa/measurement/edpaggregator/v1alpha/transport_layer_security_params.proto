@@ -29,19 +29,19 @@ message TransportLayerSecurityParams {
   // TLS params for cloud functions using filesystem-mounted certificates.
   message CloudParams {
     // The path on the filesystem where the cert is mounted
-    optional string cert_file_path = 1;
+    string cert_file_path = 1 [(google.api.field_behavior) = REQUIRED];
     // The path on the filesystem where the private key is mounted
-    optional string private_key_file_path = 2;
+    string private_key_file_path = 2 [(google.api.field_behavior) = REQUIRED];
     // The path on the filesystem where the cert collection is mounted
-    optional string cert_collection_file_path = 3;
+    string cert_collection_file_path = 3 [(google.api.field_behavior) = REQUIRED];
   }
 
   // TLS params for TEE applications using resource key paths.
   message TeeParams {
     // The resource key of the client certificate
-    optional string client_cert_resource_path = 1;
+    string client_cert_resource_path = 1 [(google.api.field_behavior) = REQUIRED];
     // The resource key of the client private key
-    optional string client_private_key_resource_path = 2;
+    string client_private_key_resource_path = 2 [(google.api.field_behavior) = REQUIRED];
   }
 
   // Populated for cloud function contexts.
