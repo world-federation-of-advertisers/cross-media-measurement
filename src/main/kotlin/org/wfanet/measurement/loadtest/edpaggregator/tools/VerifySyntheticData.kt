@@ -27,13 +27,16 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.aws.kms.AwsKmsClientFactory
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.tink.AwsWifCredentials
+import org.wfanet.measurement.common.crypto.tink.GcpToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.gcloud.kms.GcpToAwsKmsClientFactory
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 
@@ -77,65 +80,179 @@ class VerifySyntheticData : Runnable {
   lateinit var impressionMetadataBasePath: String
     private set
 
-  @Option(
-    names = ["--aws-role-arn"],
-    description = ["AWS IAM role ARN. Required when --kms-type=AWS."],
-    required = false,
-    defaultValue = "",
-  )
-  lateinit var awsRoleArn: String
-    private set
+  @CommandLine.ArgGroup(exclusive = false, heading = "AWS flags (used with --kms-type=AWS)%n")
+  var awsFlags: AwsFlags = AwsFlags()
 
-  @Option(
-    names = ["--aws-web-identity-token-file"],
-    description = ["AWS web identity token file path. Required when --kms-type=AWS."],
-    required = false,
-    defaultValue = "",
+  @CommandLine.ArgGroup(
+    exclusive = false,
+    heading = "GCP-to-AWS flags (used with --kms-type=GCP_TO_AWS)%n",
   )
-  lateinit var awsWebIdentityTokenFile: String
-    private set
+  var gcpToAwsFlags: GcpToAwsFlags = GcpToAwsFlags()
 
-  @Option(
-    names = ["--aws-role-session-name"],
-    description = ["AWS STS role session name."],
-    required = false,
-    defaultValue = "verify-synthetic-data",
-  )
-  lateinit var awsRoleSessionName: String
-    private set
+  class AwsFlags {
+    @Option(
+      names = ["--aws-role-arn"],
+      description = ["AWS IAM role ARN for STS AssumeRoleWithWebIdentity."],
+      required = false,
+      defaultValue = "",
+    )
+    var awsRoleArn: String = ""
 
-  @Option(
-    names = ["--aws-region"],
-    description = ["AWS region. Required when --kms-type=AWS."],
-    required = false,
-    defaultValue = "",
-  )
-  lateinit var awsRegion: String
-    private set
+    @Option(
+      names = ["--aws-web-identity-token-file"],
+      description = ["Path to the web identity token file."],
+      required = false,
+      defaultValue = "",
+    )
+    var awsWebIdentityTokenFile: String = ""
+
+    @Option(
+      names = ["--aws-role-session-name"],
+      description = ["AWS STS role session name."],
+      required = false,
+      defaultValue = "verify-synthetic-data",
+    )
+    var awsRoleSessionName: String = "verify-synthetic-data"
+
+    @Option(
+      names = ["--aws-region"],
+      description = ["AWS region for STS and KMS."],
+      required = false,
+      defaultValue = "",
+    )
+    var awsRegion: String = ""
+  }
+
+  class GcpToAwsFlags {
+    @Option(
+      names = ["--gcp-to-aws-role-arn"],
+      description = ["AWS IAM role ARN to assume via GCP identity."],
+      required = false,
+      defaultValue = "",
+    )
+    var roleArn: String = ""
+
+    @Option(
+      names = ["--gcp-to-aws-role-session-name"],
+      description = ["AWS role session name for GCP-to-AWS flow."],
+      required = false,
+      defaultValue = "verify-synthetic-data",
+    )
+    var roleSessionName: String = "verify-synthetic-data"
+
+    @Option(
+      names = ["--gcp-to-aws-region"],
+      description = ["AWS region for GCP-to-AWS flow."],
+      required = false,
+      defaultValue = "",
+    )
+    var region: String = ""
+
+    @Option(
+      names = ["--gcp-audience"],
+      description = ["GCP audience for WIF token exchange (Confidential Space workload pool)."],
+      required = false,
+      defaultValue = "",
+    )
+    var gcpAudience: String = ""
+
+    @Option(
+      names = ["--gcp-subject-token-type"],
+      description = ["GCP subject token type."],
+      required = false,
+      defaultValue = "urn:ietf:params:oauth:token-type:jwt",
+    )
+    var subjectTokenType: String = "urn:ietf:params:oauth:token-type:jwt"
+
+    @Option(
+      names = ["--gcp-token-url"],
+      description = ["GCP STS token endpoint URL."],
+      required = false,
+      defaultValue = "https://sts.googleapis.com/v1/token",
+    )
+    var tokenUrl: String = "https://sts.googleapis.com/v1/token"
+
+    @Option(
+      names = ["--gcp-credential-source-file"],
+      description = ["Path to the GCP credential source file (e.g., attestation token)."],
+      required = false,
+      defaultValue = "/run/container_launcher/attestation_verifier_claims_token",
+    )
+    var credentialSourceFilePath: String =
+      "/run/container_launcher/attestation_verifier_claims_token"
+
+    @Option(
+      names = ["--gcp-service-account-impersonation-url"],
+      description = ["URL to impersonate a GCP service account for ID token generation."],
+      required = false,
+      defaultValue = "",
+    )
+    var serviceAccountImpersonationUrl: String = ""
+
+    @Option(
+      names = ["--aws-audience"],
+      description = ["OIDC audience for the ID token presented to AWS IAM."],
+      required = false,
+      defaultValue = "",
+    )
+    var awsAudience: String = ""
+  }
 
   override fun run() {
     val kmsClient: KmsClient =
       when (kmsType) {
-        KmsType.FAKE -> {
-          FakeKmsClient()
-        }
-        KmsType.GCP -> {
-          GcpKmsClient().withDefaultCredentials()
-        }
+        KmsType.FAKE -> FakeKmsClient()
+        KmsType.GCP -> GcpKmsClient().withDefaultCredentials()
         KmsType.AWS -> {
-          require(awsRoleArn.isNotEmpty()) { "--aws-role-arn is required when --kms-type=AWS" }
-          require(awsWebIdentityTokenFile.isNotEmpty()) {
+          require(awsFlags.awsRoleArn.isNotEmpty()) {
+            "--aws-role-arn is required when --kms-type=AWS"
+          }
+          require(awsFlags.awsWebIdentityTokenFile.isNotEmpty()) {
             "--aws-web-identity-token-file is required when --kms-type=AWS"
           }
-          require(awsRegion.isNotEmpty()) { "--aws-region is required when --kms-type=AWS" }
-          val awsConfig =
-            AwsWifCredentials(
-              roleArn = awsRoleArn,
-              webIdentityTokenFilePath = awsWebIdentityTokenFile,
-              roleSessionName = awsRoleSessionName,
-              region = awsRegion,
+          require(awsFlags.awsRegion.isNotEmpty()) {
+            "--aws-region is required when --kms-type=AWS"
+          }
+          AwsKmsClientFactory()
+            .getKmsClient(
+              AwsWifCredentials(
+                roleArn = awsFlags.awsRoleArn,
+                webIdentityTokenFilePath = awsFlags.awsWebIdentityTokenFile,
+                roleSessionName = awsFlags.awsRoleSessionName,
+                region = awsFlags.awsRegion,
+              )
             )
-          AwsKmsClientFactory().getKmsClient(awsConfig)
+        }
+        KmsType.GCP_TO_AWS -> {
+          require(gcpToAwsFlags.roleArn.isNotEmpty()) {
+            "--gcp-to-aws-role-arn is required when --kms-type=GCP_TO_AWS"
+          }
+          require(gcpToAwsFlags.region.isNotEmpty()) {
+            "--gcp-to-aws-region is required when --kms-type=GCP_TO_AWS"
+          }
+          require(gcpToAwsFlags.gcpAudience.isNotEmpty()) {
+            "--gcp-audience is required when --kms-type=GCP_TO_AWS"
+          }
+          require(gcpToAwsFlags.serviceAccountImpersonationUrl.isNotEmpty()) {
+            "--gcp-service-account-impersonation-url is required when --kms-type=GCP_TO_AWS"
+          }
+          require(gcpToAwsFlags.awsAudience.isNotEmpty()) {
+            "--aws-audience is required when --kms-type=GCP_TO_AWS"
+          }
+          GcpToAwsKmsClientFactory()
+            .getKmsClient(
+              GcpToAwsWifCredentials(
+                gcpAudience = gcpToAwsFlags.gcpAudience,
+                subjectTokenType = gcpToAwsFlags.subjectTokenType,
+                tokenUrl = gcpToAwsFlags.tokenUrl,
+                credentialSourceFilePath = gcpToAwsFlags.credentialSourceFilePath,
+                serviceAccountImpersonationUrl = gcpToAwsFlags.serviceAccountImpersonationUrl,
+                roleArn = gcpToAwsFlags.roleArn,
+                roleSessionName = gcpToAwsFlags.roleSessionName,
+                region = gcpToAwsFlags.region,
+                awsAudience = gcpToAwsFlags.awsAudience,
+              )
+            )
         }
       }
 
@@ -158,14 +275,12 @@ class VerifySyntheticData : Runnable {
 
     for (dateDir in dateDirs) {
       val date = dateDir.name
-      // Find metadata.binpb files recursively
       val metadataFiles = dateDir.walkTopDown().filter { it.name == "metadata.binpb" }.toList()
 
       for (metadataFile in metadataFiles) {
         try {
           logger.info("\n=== Processing date: $date ===")
 
-          // Read metadata
           val relativePath = metadataFile.relativeTo(storagePath.resolve(outputBucket)).path
           logger.info("Reading metadata from: $relativePath")
 
@@ -190,19 +305,16 @@ class VerifySyntheticData : Runnable {
             "  Interval: ${blobDetails.interval.startTime} - ${blobDetails.interval.endTime}"
           )
 
-          // Get encrypted DEK
           val encryptedDek = blobDetails.encryptedDek
           check(encryptedDek.kekUri == kekUri) {
             "KEK URI mismatch: expected $kekUri, got ${encryptedDek.kekUri}"
           }
 
-          // Read and decrypt impressions
           val impressionsBlobUri = blobDetails.blobUri
           val selectedStorageClient = SelectedStorageClient(impressionsBlobUri, storagePath)
           val decryptionClient =
             selectedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, encryptedDek.ciphertext)
 
-          // Parse the blob key from the URI
           val impressionsBlobKey =
             impressionsBlobUri.removePrefix("file:///").removePrefix("$outputBucket/")
 
@@ -215,14 +327,12 @@ class VerifySyntheticData : Runnable {
           val records = runBlocking { impressionsBlob.read().toList() }
           logger.info("  Decrypted ${records.size} impression records")
 
-          // Parse and validate each record
           for ((index, record) in records.withIndex()) {
             val impression = LabeledImpression.parseFrom(record)
             check(impression.vid > 0) { "Invalid VID: ${impression.vid}" }
             check(impression.hasEvent()) { "Missing event in impression $index" }
             check(impression.hasEventTime()) { "Missing event time in impression $index" }
 
-            // Try to unpack the event
             val testEvent = impression.event.unpack(TestEvent::class.java)
             check(testEvent != null) { "Failed to unpack TestEvent from impression $index" }
 

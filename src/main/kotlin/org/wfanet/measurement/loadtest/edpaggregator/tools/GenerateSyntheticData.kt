@@ -46,6 +46,7 @@ enum class KmsType {
   FAKE,
   GCP,
   AWS,
+  GCP_TO_AWS,
 }
 
 @Command(
@@ -229,6 +230,11 @@ class GenerateSyntheticData : Runnable {
               region = awsRegion,
             )
           AwsKmsClientFactory().getKmsClient(awsConfig)
+        }
+        KmsType.GCP_TO_AWS -> {
+          throw UnsupportedOperationException(
+            "GCP_TO_AWS is not yet supported in GenerateSyntheticData. Use VerifySyntheticData."
+          )
         }
       }
     }
