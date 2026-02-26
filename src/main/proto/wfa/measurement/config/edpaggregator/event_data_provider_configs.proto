@@ -42,12 +42,12 @@ message EventDataProviderConfig {
 
     // AWS: IAM role ARN for STS AssumeRoleWithWebIdentity.
     string aws_role_arn = 4;
-    // AWS: Web identity token file path.
-    string aws_web_identity_token_file_path = 5;
     // AWS: STS role session name.
-    string aws_role_session_name = 6;
+    string aws_role_session_name = 5;
     // AWS: Region for STS and KMS.
-    string aws_region = 7;
+    string aws_region = 6;
+    // AWS: OIDC audience for the ID token presented to AWS IAM.
+    string aws_audience = 7;
   }
 
   // Tls Config

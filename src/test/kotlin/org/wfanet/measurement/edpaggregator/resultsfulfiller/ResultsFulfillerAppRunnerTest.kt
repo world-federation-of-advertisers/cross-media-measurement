@@ -95,16 +95,16 @@ class ResultsFulfillerAppRunnerTest {
       EventDataProviderConfig.KmsConfig.newBuilder()
         .setKmsType(EventDataProviderConfig.KmsConfig.KmsType.AWS)
         .setAwsRoleArn("arn:aws:iam::123456789012:role/my-role")
-        .setAwsWebIdentityTokenFilePath("/var/run/token")
         .setAwsRoleSessionName("my-session")
         .setAwsRegion("us-east-1")
+        .setAwsAudience("sts.amazonaws.com")
         .build()
 
     assertThat(config.kmsType).isEqualTo(EventDataProviderConfig.KmsConfig.KmsType.AWS)
     assertThat(config.awsRoleArn).isEqualTo("arn:aws:iam::123456789012:role/my-role")
-    assertThat(config.awsWebIdentityTokenFilePath).isEqualTo("/var/run/token")
     assertThat(config.awsRoleSessionName).isEqualTo("my-session")
     assertThat(config.awsRegion).isEqualTo("us-east-1")
+    assertThat(config.awsAudience).isEqualTo("sts.amazonaws.com")
   }
 
   @Test
@@ -130,9 +130,9 @@ class ResultsFulfillerAppRunnerTest {
         .build()
 
     assertThat(config.awsRoleArn).isEmpty()
-    assertThat(config.awsWebIdentityTokenFilePath).isEmpty()
     assertThat(config.awsRoleSessionName).isEmpty()
     assertThat(config.awsRegion).isEmpty()
+    assertThat(config.awsAudience).isEmpty()
   }
 
   @Test

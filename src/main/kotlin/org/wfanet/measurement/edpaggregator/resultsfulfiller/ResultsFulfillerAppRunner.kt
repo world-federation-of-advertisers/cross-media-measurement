@@ -37,13 +37,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.aws.kms.AwsKmsClientFactory
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.common.crypto.tink.AwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
+import org.wfanet.measurement.common.crypto.tink.GcpToAwsWifCredentials
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResultsFulfillerConfigAsByteArray
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -58,6 +57,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.ParallelInMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
+import org.wfanet.measurement.gcloud.kms.GcpToAwsKmsClientFactory
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -392,17 +392,20 @@ class ResultsFulfillerAppRunner : Runnable {
       val kmsClient =
         when (edpConfig.kmsConfig.kmsType) {
           EventDataProviderConfig.KmsConfig.KmsType.AWS -> {
-            val awsConfig =
-              AwsWifCredentials(
+            val gcpToAwsConfig =
+              GcpToAwsWifCredentials(
+                gcpAudience = edpConfig.kmsConfig.kmsAudience,
+                subjectTokenType = SUBJECT_TOKEN_TYPE,
+                tokenUrl = TOKEN_URL,
+                credentialSourceFilePath = CREDENTIAL_SOURCE_FILE_PATH,
+                serviceAccountImpersonationUrl =
+                  EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(edpConfig.kmsConfig.serviceAccount),
                 roleArn = edpConfig.kmsConfig.awsRoleArn,
-                webIdentityTokenFilePath =
-                  edpConfig.kmsConfig.awsWebIdentityTokenFilePath.ifEmpty {
-                    CREDENTIAL_SOURCE_FILE_PATH
-                  },
                 roleSessionName = edpConfig.kmsConfig.awsRoleSessionName,
                 region = edpConfig.kmsConfig.awsRegion,
+                awsAudience = edpConfig.kmsConfig.awsAudience,
               )
-            AwsKmsClientFactory().getKmsClient(awsConfig)
+            GcpToAwsKmsClientFactory().getKmsClient(gcpToAwsConfig)
           }
           else -> {
             val gcpConfig =
