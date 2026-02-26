@@ -161,37 +161,30 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
   ): Measurement {
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
 
-    val requiredExternalDuchyIds =
+    val dataProviderRequiredDuchyIds: Set<String> =
+      createMeasurementRequest.measurement.dataProvidersMap.keys
+        .flatMap {
+          dataProvideReaderResultsMap.getValue(it).dataProvider.requiredExternalDuchyIdsList
+        }
+        .toSet()
+    val requiredDuchyIds: Set<String> =
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
       when (createMeasurementRequest.measurement.details.protocolConfig.protocolCase) {
-        ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2 -> Llv2ProtocolConfig.requiredExternalDuchyIds
+        ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2 ->
+          Llv2ProtocolConfig.requiredExternalDuchyIds + dataProviderRequiredDuchyIds
         ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
-          RoLlv2ProtocolConfig.requiredExternalDuchyIds
+          RoLlv2ProtocolConfig.requiredExternalDuchyIds + dataProviderRequiredDuchyIds
         ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
           setOf(
             HmssProtocolConfig.firstNonAggregatorDuchyId,
             HmssProtocolConfig.secondNonAggregatorDuchyId,
             HmssProtocolConfig.aggregatorDuchyId,
-          )
+          ) + dataProviderRequiredDuchyIds
+        // TrusTee is a single-duchy protocol, so data provider required duchies do not apply.
         ProtocolConfig.ProtocolCase.TRUS_TEE -> setOf(TrusTeeProtocolConfig.duchyId)
         ProtocolConfig.ProtocolCase.DIRECT,
         ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol.")
       }
-    val dataProviderRequiredDuchyIds: Set<String> =
-      if (
-        createMeasurementRequest.measurement.details.protocolConfig.protocolCase ==
-          ProtocolConfig.ProtocolCase.TRUS_TEE
-      ) {
-        // TrusTee is a single-duchy protocol, so data provider required duchies do not apply.
-        emptySet()
-      } else {
-        createMeasurementRequest.measurement.dataProvidersMap.keys
-          .flatMap {
-            dataProvideReaderResultsMap.getValue(it).dataProvider.requiredExternalDuchyIdsList
-          }
-          .toSet()
-      }
-    val requiredDuchyIds: Set<String> = requiredExternalDuchyIds + dataProviderRequiredDuchyIds
     val now = Clock.systemUTC().instant()
     val requiredDuchyEntries = DuchyIds.entries.filter { it.externalDuchyId in requiredDuchyIds }
     requiredDuchyEntries.forEach {
