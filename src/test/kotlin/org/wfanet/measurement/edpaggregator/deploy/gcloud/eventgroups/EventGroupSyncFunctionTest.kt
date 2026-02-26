@@ -69,14 +69,14 @@ import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemStorage
 import org.wfanet.measurement.config.edpaggregator.eventGroupSyncConfig
 import org.wfanet.measurement.config.edpaggregator.storageParams
-import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParamsKt.fileSystemParams
-import org.wfanet.measurement.edpaggregator.v1alpha.unifiedTransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
+import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParamsKt.fileSystemParams
+import org.wfanet.measurement.edpaggregator.v1alpha.unifiedTransportLayerSecurityParams
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient

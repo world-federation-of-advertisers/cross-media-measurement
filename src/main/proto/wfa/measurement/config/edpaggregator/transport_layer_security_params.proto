@@ -20,9 +20,10 @@ option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
 option java_outer_classname = "TransportLayerSecurityParamsProto";
 
-// Deprecated: Use wfa.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams instead.
-// The details to connect via an MTLS Channel from an EDP Aggregator Cloud
-// Function
+// Deprecated: Use
+// wfa.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
+// instead. The details to connect via an MTLS Channel from an EDP Aggregator
+// Cloud Function
 message TransportLayerSecurityParams {
   option deprecated = true;
 

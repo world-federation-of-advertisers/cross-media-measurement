@@ -83,13 +83,13 @@ class RequisitionStubFactoryImpl(
   private fun loadSigningCerts(connection: UnifiedTransportLayerSecurityParams): SigningCerts {
     return SigningCerts.fromPemFiles(
       certificateFile =
-        checkNotNull(
-          getRuntimePath(Paths.get(connection.resourceParams.clientCertResourcePath))
-        ).toFile(),
+        checkNotNull(getRuntimePath(Paths.get(connection.resourceParams.clientCertResourcePath)))
+          .toFile(),
       privateKeyFile =
         checkNotNull(
-          getRuntimePath(Paths.get(connection.resourceParams.clientPrivateKeyResourcePath))
-        ).toFile(),
+            getRuntimePath(Paths.get(connection.resourceParams.clientPrivateKeyResourcePath))
+          )
+          .toFile(),
       trustedCertCollectionFile = trustedCertCollection,
     )
   }
@@ -98,13 +98,9 @@ class RequisitionStubFactoryImpl(
   private fun loadSigningCerts(connection: LegacyTlsParams): SigningCerts {
     return SigningCerts.fromPemFiles(
       certificateFile =
-        checkNotNull(
-          getRuntimePath(Paths.get(connection.clientCertResourcePath))
-        ).toFile(),
+        checkNotNull(getRuntimePath(Paths.get(connection.clientCertResourcePath))).toFile(),
       privateKeyFile =
-        checkNotNull(
-          getRuntimePath(Paths.get(connection.clientPrivateKeyResourcePath))
-        ).toFile(),
+        checkNotNull(getRuntimePath(Paths.get(connection.clientPrivateKeyResourcePath))).toFile(),
       trustedCertCollectionFile = trustedCertCollection,
     )
   }

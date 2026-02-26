@@ -45,12 +45,12 @@ import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams as LegacyTlsParams
-import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroups
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
 import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient

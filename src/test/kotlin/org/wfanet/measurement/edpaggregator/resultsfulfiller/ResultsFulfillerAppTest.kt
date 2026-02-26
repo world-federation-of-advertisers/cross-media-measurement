@@ -135,6 +135,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
@@ -143,8 +144,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRespon
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams as LegacyTlsParams
-import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.unifiedTransportLayerSecurityParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
@@ -1748,7 +1747,8 @@ class ResultsFulfillerAppTest {
               resourceParams =
                 UnifiedTransportLayerSecurityParamsKt.resourceParams {
                   clientCertResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.pem").toString()
-                  clientPrivateKeyResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.key").toString()
+                  clientPrivateKeyResourcePath =
+                    SECRET_FILES_PATH.resolve("edp1_tls.key").toString()
                 }
             }
             this.consentParams =
@@ -1778,9 +1778,8 @@ class ResultsFulfillerAppTest {
     }
   }
 
-
   private fun createLegacyWorkItemParams(
-    noiseType: ResultsFulfillerParams.NoiseParams.NoiseType,
+    noiseType: ResultsFulfillerParams.NoiseParams.NoiseType
   ): WorkItemParams {
     return workItemParams {
       appParams =
@@ -1791,11 +1790,10 @@ class ResultsFulfillerAppTest {
                 labeledImpressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
               }
             @Suppress("DEPRECATION")
-            this.cmmsConnection =
-              transportLayerSecurityParams {
-                clientCertResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.pem").toString()
-                clientPrivateKeyResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.key").toString()
-              }
+            this.cmmsConnection = transportLayerSecurityParams {
+              clientCertResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.pem").toString()
+              clientPrivateKeyResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.key").toString()
+            }
             this.consentParams =
               ResultsFulfillerParamsKt.consentParams {
                 resultCsCertDerResourcePath =

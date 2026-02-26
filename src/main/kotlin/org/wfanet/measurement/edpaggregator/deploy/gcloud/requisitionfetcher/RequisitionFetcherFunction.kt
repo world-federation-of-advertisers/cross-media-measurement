@@ -47,7 +47,6 @@ import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.config.edpaggregator.DataProviderRequisitionConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams as LegacyTlsParams
-import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
@@ -55,6 +54,7 @@ import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.trace
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.withW3CTraceContext
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -170,7 +170,11 @@ class RequisitionFetcherFunction : HttpFunction {
     // Create instrumented gRPC channels with mutual TLS and OpenTelemetry tracing
     val instrumentedCmmsChannel =
       if (dataProviderConfig.hasCmmsConnectionParams()) {
-        createInstrumentedChannel(dataProviderConfig.cmmsConnectionParams, kingdomTarget, kingdomCertHost)
+        createInstrumentedChannel(
+          dataProviderConfig.cmmsConnectionParams,
+          kingdomTarget,
+          kingdomCertHost,
+        )
       } else {
         @Suppress("DEPRECATION")
         createInstrumentedChannel(dataProviderConfig.cmmsConnection, kingdomTarget, kingdomCertHost)
@@ -422,8 +426,7 @@ class RequisitionFetcherFunction : HttpFunction {
           "Missing 'cert_collection_file_path' in cmms_connection_params for data provider: ${dataProviderConfig.dataProvider}."
         }
       } else {
-        @Suppress("DEPRECATION")
-        val tls = dataProviderConfig.cmmsConnection
+        @Suppress("DEPRECATION") val tls = dataProviderConfig.cmmsConnection
         require(tls.certFilePath.isNotBlank()) {
           "Missing 'cert_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
         }

@@ -33,20 +33,23 @@ message UnifiedTransportLayerSecurityParams {
     // The path on the filesystem where the private key is mounted
     string private_key_file_path = 2 [(google.api.field_behavior) = REQUIRED];
     // The path on the filesystem where the cert collection is mounted
-    string cert_collection_file_path = 3 [(google.api.field_behavior) = REQUIRED];
+    string cert_collection_file_path = 3
+        [(google.api.field_behavior) = REQUIRED];
   }
 
   // TLS params for TEE applications using resource key paths.
   message ResourceParams {
     // The resource key of the client certificate
-    string client_cert_resource_path = 1 [(google.api.field_behavior) = REQUIRED];
+    string client_cert_resource_path = 1
+        [(google.api.field_behavior) = REQUIRED];
     // The resource key of the client private key
     string client_private_key_resource_path = 2
         [(google.api.field_behavior) = REQUIRED];
   }
 
   // Populated for cloud function contexts.
-  FileSystemParams file_system_params = 1 [(google.api.field_behavior) = OPTIONAL];
+  FileSystemParams file_system_params = 1
+      [(google.api.field_behavior) = OPTIONAL];
 
   // Populated for TEE application contexts.
   ResourceParams resource_params = 2 [(google.api.field_behavior) = OPTIONAL];

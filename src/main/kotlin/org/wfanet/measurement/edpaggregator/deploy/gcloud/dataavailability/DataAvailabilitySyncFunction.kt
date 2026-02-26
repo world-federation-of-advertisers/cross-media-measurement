@@ -43,21 +43,17 @@ import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams as LegacyTlsParams
-import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
-private data class ChannelKey(
-  val tls: Message,
-  val target: String,
-  val hostName: String?,
-)
+private data class ChannelKey(val tls: Message, val target: String, val hostName: String?)
 
 data class GrpcChannels(
   val cmmsChannel: ManagedChannel,
@@ -336,9 +332,17 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           )
           when (impressionConnection) {
             is UnifiedTransportLayerSecurityParams ->
-              createPublicChannel(impressionConnection, impressionMetadataTarget, impressionMetadataCertHost)
+              createPublicChannel(
+                impressionConnection,
+                impressionMetadataTarget,
+                impressionMetadataCertHost,
+              )
             is LegacyTlsParams ->
-              createPublicChannel(impressionConnection, impressionMetadataTarget, impressionMetadataCertHost)
+              createPublicChannel(
+                impressionConnection,
+                impressionMetadataTarget,
+                impressionMetadataCertHost,
+              )
             else -> error("Unexpected TLS params type: ${impressionConnection::class}")
           }
         }

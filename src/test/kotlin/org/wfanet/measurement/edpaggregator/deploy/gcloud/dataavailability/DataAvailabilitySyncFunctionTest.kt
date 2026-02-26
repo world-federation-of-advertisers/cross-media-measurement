@@ -62,15 +62,15 @@ import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigKt.
 import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemStorage
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.storageParams
-import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParamsKt.fileSystemParams
-import org.wfanet.measurement.edpaggregator.v1alpha.unifiedTransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParamsKt.fileSystemParams
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.unifiedTransportLayerSecurityParams
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
