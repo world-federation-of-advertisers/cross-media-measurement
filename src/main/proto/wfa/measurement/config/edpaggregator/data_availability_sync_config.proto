@@ -17,7 +17,6 @@ syntax = "proto3";
 package wfa.measurement.config.edpaggregator;
 
 import "google/api/resource.proto";
-import "google/api/field_behavior.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
 import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
 import "wfa/measurement/edpaggregator/v1alpha/unified_transport_layer_security_params.proto";
