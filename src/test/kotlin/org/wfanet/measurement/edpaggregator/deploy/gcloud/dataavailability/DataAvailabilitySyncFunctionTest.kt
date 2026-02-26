@@ -62,8 +62,8 @@ import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigKt.
 import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemStorage
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.storageParams
-import org.wfanet.measurement.edpaggregator.v1alpha.TransportLayerSecurityParamsKt.fileSystemParams
-import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParamsKt.fileSystemParams
+import org.wfanet.measurement.edpaggregator.v1alpha.unifiedTransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
@@ -317,14 +317,14 @@ class DataAvailabilitySyncFunctionTest {
   private fun fileSystemDataAvailabilitySyncConfig(): DataAvailabilitySyncConfig =
     dataAvailabilitySyncConfig {
       dataProvider = "dataProviders/edp123"
-      cmmsConnectionParams = transportLayerSecurityParams {
+      cmmsConnectionParams = unifiedTransportLayerSecurityParams {
         fileSystemParams = fileSystemParams {
           certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
           privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
           certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
         }
       }
-      impressionMetadataStorageConnectionParams = transportLayerSecurityParams {
+      impressionMetadataStorageConnectionParams = unifiedTransportLayerSecurityParams {
         fileSystemParams = fileSystemParams {
           certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
           privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()

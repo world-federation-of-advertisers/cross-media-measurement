@@ -19,7 +19,7 @@ package wfa.measurement.config.edpaggregator;
 import "google/api/resource.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
 import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
-import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
+import "wfa/measurement/edpaggregator/v1alpha/unified_transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
@@ -43,6 +43,6 @@ message EventGroupSyncConfig {
   // Where the event group map is stored
   StorageParams event_group_map_storage = 6;
   // How the EDP connects to the CMMS Public API
-  wfa.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
+  wfa.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
       cmms_connection_params = 7;
 }

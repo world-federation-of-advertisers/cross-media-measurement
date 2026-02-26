@@ -45,6 +45,7 @@ import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams as LegacyTlsParams
+import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroups
@@ -273,7 +274,7 @@ class EventGroupSyncFunction() : HttpFunction {
      */
     private fun createKingdomPublicApiChannel(
       target: String,
-      cmmsConnection: org.wfanet.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams,
+      cmmsConnection: UnifiedTransportLayerSecurityParams,
       certHost: String?,
       shutdownTimeout: Duration,
     ): Channel {

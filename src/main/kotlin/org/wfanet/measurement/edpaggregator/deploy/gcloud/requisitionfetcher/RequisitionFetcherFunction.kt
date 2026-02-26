@@ -47,7 +47,7 @@ import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.config.edpaggregator.DataProviderRequisitionConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams as LegacyTlsParams
-import org.wfanet.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
@@ -273,7 +273,7 @@ class RequisitionFetcherFunction : HttpFunction {
    * @return An instrumented gRPC channel ready for use with stubs.
    */
   private fun createInstrumentedChannel(
-    tlsParams: TransportLayerSecurityParams,
+    tlsParams: UnifiedTransportLayerSecurityParams,
     target: String,
     certHost: String?,
   ): io.grpc.Channel {
@@ -359,7 +359,7 @@ class RequisitionFetcherFunction : HttpFunction {
      *   configuration.
      */
     private fun loadSigningCerts(
-      transportLayerSecurityParams: TransportLayerSecurityParams
+      transportLayerSecurityParams: UnifiedTransportLayerSecurityParams
     ): SigningCerts {
       return SigningCerts.fromPemFiles(
         certificateFile =

@@ -18,7 +18,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
-import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
+import "wfa/measurement/edpaggregator/v1alpha/unified_transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
@@ -47,7 +47,7 @@ message VidLabelerParams {
   StorageParams storage_params = 2 [(google.api.field_behavior) = REQUIRED];
 
   // The connection to the VID repository API
-  TransportLayerSecurityParams vid_repo_connection = 3
+  UnifiedTransportLayerSecurityParams vid_repo_connection = 3
       [(google.api.field_behavior) = REQUIRED];
 
   // Message representing the configuration for a model line

@@ -20,7 +20,7 @@ import "google/api/resource.proto";
 import "google/api/field_behavior.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
 import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
-import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
+import "wfa/measurement/edpaggregator/v1alpha/unified_transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
@@ -62,12 +62,12 @@ message DataAvailabilitySyncConfig {
   map<string, ModelLineList> model_line_map = 6;
 
   // How the DataAvailabilitySync connects to the CMMS Public API
-  wfa.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
+  wfa.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
       cmms_connection_params = 7;
 
   // How the DataAvailabilitySync connects to the ImpressionMetadataStorage
   // Public API
-  wfa.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
+  wfa.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
       impression_metadata_storage_connection_params = 8;
 
   // List of model lines to use for a single mapping entry.

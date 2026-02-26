@@ -43,7 +43,7 @@ import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams as LegacyTlsParams
-import org.wfanet.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
@@ -256,7 +256,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
      */
     // @TODO(@marcopremier): This function should be reused across Cloud Functions.
     fun createPublicChannel(
-      connecionParams: TransportLayerSecurityParams,
+      connecionParams: UnifiedTransportLayerSecurityParams,
       target: String,
       hostName: String?,
     ): ManagedChannel {
@@ -321,7 +321,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         channelCache.computeIfAbsent(cmmsChannelKey) {
           logger.info("Creating new CMMS channel for TLS params: $cmmsChannelKey")
           when (cmmsConnection) {
-            is TransportLayerSecurityParams ->
+            is UnifiedTransportLayerSecurityParams ->
               createPublicChannel(cmmsConnection, kingdomTarget, kingdomCertHost)
             is LegacyTlsParams ->
               createPublicChannel(cmmsConnection, kingdomTarget, kingdomCertHost)
@@ -335,7 +335,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
             "Creating new ImpressionMetadata channel for TLS params: $impressionsChannelKey"
           )
           when (impressionConnection) {
-            is TransportLayerSecurityParams ->
+            is UnifiedTransportLayerSecurityParams ->
               createPublicChannel(impressionConnection, impressionMetadataTarget, impressionMetadataCertHost)
             is LegacyTlsParams ->
               createPublicChannel(impressionConnection, impressionMetadataTarget, impressionMetadataCertHost)

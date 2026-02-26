@@ -28,6 +28,8 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams as LegacyTlsParams
+import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
 
 class DuchyInfo(val target: String, val certHost: String?)
 
@@ -44,22 +46,7 @@ class RequisitionStubFactoryImpl(
     fulfillerParams: ResultsFulfillerParams
   ): RequisitionsCoroutineStub {
     val publicChannel = run {
-      val signingCerts =
-        SigningCerts.fromPemFiles(
-          certificateFile =
-            checkNotNull(
-                getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.resourceParams.clientCertResourcePath))
-              )
-              .toFile(),
-          privateKeyFile =
-            checkNotNull(
-                getRuntimePath(
-                  Paths.get(fulfillerParams.cmmsConnection.resourceParams.clientPrivateKeyResourcePath)
-                )
-              )
-              .toFile(),
-          trustedCertCollectionFile = trustedCertCollection,
-        )
+      val signingCerts = loadSigningCerts(fulfillerParams)
       val channel =
         buildMutualTlsChannel(cmmsTarget, signingCerts, cmmsCertHost)
           .withShutdownTimeout(channelShutdownTimeout)
@@ -74,22 +61,7 @@ class RequisitionStubFactoryImpl(
     return duchies
       .map { (duchyResourceName: String, duchyInfo: DuchyInfo) ->
         val publicChannel = run {
-          val signingCerts =
-            SigningCerts.fromPemFiles(
-              certificateFile =
-                checkNotNull(
-                    getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.resourceParams.clientCertResourcePath))
-                  )
-                  .toFile(),
-              privateKeyFile =
-                checkNotNull(
-                    getRuntimePath(
-                      Paths.get(fulfillerParams.cmmsConnection.resourceParams.clientPrivateKeyResourcePath)
-                    )
-                  )
-                  .toFile(),
-              trustedCertCollectionFile = trustedCertCollection,
-            )
+          val signingCerts = loadSigningCerts(fulfillerParams)
           val channel =
             buildMutualTlsChannel(duchyInfo.target, signingCerts, duchyInfo.certHost)
               .withShutdownTimeout(channelShutdownTimeout)
@@ -98,5 +70,42 @@ class RequisitionStubFactoryImpl(
         duchyResourceName to RequisitionFulfillmentCoroutineStub(publicChannel)
       }
       .toMap()
+  }
+
+  private fun loadSigningCerts(fulfillerParams: ResultsFulfillerParams): SigningCerts {
+    return if (fulfillerParams.hasCmmsConnectionParams()) {
+      loadSigningCerts(fulfillerParams.cmmsConnectionParams)
+    } else {
+      @Suppress("DEPRECATION") loadSigningCerts(fulfillerParams.cmmsConnection)
+    }
+  }
+
+  private fun loadSigningCerts(connection: UnifiedTransportLayerSecurityParams): SigningCerts {
+    return SigningCerts.fromPemFiles(
+      certificateFile =
+        checkNotNull(
+          getRuntimePath(Paths.get(connection.resourceParams.clientCertResourcePath))
+        ).toFile(),
+      privateKeyFile =
+        checkNotNull(
+          getRuntimePath(Paths.get(connection.resourceParams.clientPrivateKeyResourcePath))
+        ).toFile(),
+      trustedCertCollectionFile = trustedCertCollection,
+    )
+  }
+
+  @Suppress("DEPRECATION")
+  private fun loadSigningCerts(connection: LegacyTlsParams): SigningCerts {
+    return SigningCerts.fromPemFiles(
+      certificateFile =
+        checkNotNull(
+          getRuntimePath(Paths.get(connection.clientCertResourcePath))
+        ).toFile(),
+      privateKeyFile =
+        checkNotNull(
+          getRuntimePath(Paths.get(connection.clientPrivateKeyResourcePath))
+        ).toFile(),
+      trustedCertCollectionFile = trustedCertCollection,
+    )
   }
 }
