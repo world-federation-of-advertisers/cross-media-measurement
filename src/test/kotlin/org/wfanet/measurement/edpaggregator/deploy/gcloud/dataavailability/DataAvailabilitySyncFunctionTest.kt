@@ -317,14 +317,14 @@ class DataAvailabilitySyncFunctionTest {
   private fun fileSystemDataAvailabilitySyncConfig(): DataAvailabilitySyncConfig =
     dataAvailabilitySyncConfig {
       dataProvider = "dataProviders/edp123"
-      cmmsConnection = transportLayerSecurityParams {
+      cmmsConnectionParams = transportLayerSecurityParams {
         cloudParams = cloudParams {
           certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
           privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
           certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
         }
       }
-      impressionMetadataStorageConnection = transportLayerSecurityParams {
+      impressionMetadataStorageConnectionParams = transportLayerSecurityParams {
         cloudParams = cloudParams {
           certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
           privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()

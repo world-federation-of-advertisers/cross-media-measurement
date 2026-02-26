@@ -21,6 +21,7 @@ import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/struct.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
+import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
 import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.config.edpaggregator";
@@ -36,14 +37,21 @@ message DataProviderRequisitionConfig {
   StorageParams requisition_storage = 2;
   // Storage path prefix
   string storage_path_prefix = 3;
-  // How the EDP connects to the CMMS Public API
-  wfa.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
-      cmms_connection = 4;
+  // Deprecated: Use cmms_connection_params instead.
+  TransportLayerSecurityParams cmms_connection = 4 [deprecated = true];
   // The path to the EDP private key to group requisitions
   string edp_private_key_path = 5;
+  // Deprecated: Use requisition_metadata_storage_connection_params instead.
+  TransportLayerSecurityParams requisition_metadata_storage_connection = 6
+      [deprecated = true];
+
+  // How the EDP connects to the CMMS Public API
+  wfa.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
+      cmms_connection_params = 7;
+
   // How the EDP connects to the Requisition Metadata Storage Public API
   wfa.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
-      requisition_metadata_storage_connection = 6;
+      requisition_metadata_storage_connection_params = 8;
 }
 
 // The Requisition Fetcher configuration

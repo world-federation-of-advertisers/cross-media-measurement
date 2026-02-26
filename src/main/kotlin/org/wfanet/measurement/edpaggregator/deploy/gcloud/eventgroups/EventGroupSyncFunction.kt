@@ -44,6 +44,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
+import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams as LegacyTlsParams
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroups
@@ -76,12 +77,22 @@ class EventGroupSyncFunction() : HttpFunction {
           attributes = mapOf("data_provider_name" to eventGroupSyncConfig.dataProvider),
         ) {
           val kingdomChannel =
-            createKingdomPublicApiChannel(
-              target = kingdomTarget,
-              eventGroupSyncConfig = eventGroupSyncConfig,
-              certHost = kingdomCertHost,
-              shutdownTimeout = channelShutdownDuration,
-            )
+            if (eventGroupSyncConfig.hasCmmsConnectionParams()) {
+              createKingdomPublicApiChannel(
+                target = kingdomTarget,
+                cmmsConnection = eventGroupSyncConfig.cmmsConnectionParams,
+                certHost = kingdomCertHost,
+                shutdownTimeout = channelShutdownDuration,
+              )
+            } else {
+              @Suppress("DEPRECATION")
+              createKingdomPublicApiChannel(
+                target = kingdomTarget,
+                cmmsConnection = eventGroupSyncConfig.cmmsConnection,
+                certHost = kingdomCertHost,
+                shutdownTimeout = channelShutdownDuration,
+              )
+            }
           val eventGroupsClient = EventGroupsCoroutineStub(kingdomChannel)
           val clientAccountsClient = ClientAccountsCoroutineStub(kingdomChannel)
           val eventGroups: Flow<EventGroup> =
@@ -262,23 +273,38 @@ class EventGroupSyncFunction() : HttpFunction {
      */
     private fun createKingdomPublicApiChannel(
       target: String,
-      eventGroupSyncConfig: EventGroupSyncConfig,
+      cmmsConnection: org.wfanet.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams,
       certHost: String?,
       shutdownTimeout: Duration,
     ): Channel {
       val signingCerts =
         SigningCerts.fromPemFiles(
-          certificateFile = checkNotNull(File(eventGroupSyncConfig.cmmsConnection.cloudParams.certFilePath)),
-          privateKeyFile =
-            checkNotNull(File(eventGroupSyncConfig.cmmsConnection.cloudParams.privateKeyFilePath)),
+          certificateFile = checkNotNull(File(cmmsConnection.cloudParams.certFilePath)),
+          privateKeyFile = checkNotNull(File(cmmsConnection.cloudParams.privateKeyFilePath)),
           trustedCertCollectionFile =
-            checkNotNull(File(eventGroupSyncConfig.cmmsConnection.cloudParams.certCollectionFilePath)),
+            checkNotNull(File(cmmsConnection.cloudParams.certCollectionFilePath)),
         )
-
       val publicChannel =
         buildMutualTlsChannel(target, signingCerts, certHost).withShutdownTimeout(shutdownTimeout)
+      val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
+      return ClientInterceptors.intercept(publicChannel, grpcTelemetry.newClientInterceptor())
+    }
 
-      // Use official OpenTelemetry gRPC instrumentation for automatic span and metric creation
+    @Suppress("DEPRECATION")
+    private fun createKingdomPublicApiChannel(
+      target: String,
+      cmmsConnection: LegacyTlsParams,
+      certHost: String?,
+      shutdownTimeout: Duration,
+    ): Channel {
+      val signingCerts =
+        SigningCerts.fromPemFiles(
+          certificateFile = checkNotNull(File(cmmsConnection.certFilePath)),
+          privateKeyFile = checkNotNull(File(cmmsConnection.privateKeyFilePath)),
+          trustedCertCollectionFile = checkNotNull(File(cmmsConnection.certCollectionFilePath)),
+        )
+      val publicChannel =
+        buildMutualTlsChannel(target, signingCerts, certHost).withShutdownTimeout(shutdownTimeout)
       val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
       return ClientInterceptors.intercept(publicChannel, grpcTelemetry.newClientInterceptor())
     }

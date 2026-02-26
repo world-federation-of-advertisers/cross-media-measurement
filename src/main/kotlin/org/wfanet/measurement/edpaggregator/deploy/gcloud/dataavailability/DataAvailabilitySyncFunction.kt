@@ -20,6 +20,7 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
+import com.google.protobuf.Message
 import com.google.protobuf.util.JsonFormat
 import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
@@ -41,6 +42,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
+import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams as LegacyTlsParams
 import org.wfanet.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
@@ -52,7 +54,7 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 private data class ChannelKey(
-  val tls: TransportLayerSecurityParams,
+  val tls: Message,
   val target: String,
   val hostName: String?,
 )
@@ -265,11 +267,24 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           trustedCertCollectionFile =
             checkNotNull(File(connecionParams.cloudParams.certCollectionFilePath)),
         )
-      val publicChannel =
-        buildMutualTlsChannel(target, signingCerts, hostName)
-          .withShutdownTimeout(channelShutdownDuration)
+      return buildMutualTlsChannel(target, signingCerts, hostName)
+        .withShutdownTimeout(channelShutdownDuration)
+    }
 
-      return publicChannel
+    @Suppress("DEPRECATION")
+    fun createPublicChannel(
+      connecionParams: LegacyTlsParams,
+      target: String,
+      hostName: String?,
+    ): ManagedChannel {
+      val signingCerts =
+        SigningCerts.fromPemFiles(
+          certificateFile = checkNotNull(File(connecionParams.certFilePath)),
+          privateKeyFile = checkNotNull(File(connecionParams.privateKeyFilePath)),
+          trustedCertCollectionFile = checkNotNull(File(connecionParams.certCollectionFilePath)),
+        )
+      return buildMutualTlsChannel(target, signingCerts, hostName)
+        .withShutdownTimeout(channelShutdownDuration)
     }
 
     /**
@@ -281,26 +296,37 @@ class DataAvailabilitySyncFunction() : HttpFunction {
      *
      * @return A pair of [ManagedChannel] instances for (CMMS, ImpressionMetadata).
      */
+    @Suppress("DEPRECATION")
     fun getOrCreateSharedChannels(
       dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
     ): GrpcChannels {
-      val cmmsChannelKey =
-        ChannelKey(dataAvailabilitySyncConfig.cmmsConnection, kingdomTarget, kingdomCertHost)
+      val cmmsConnection: Message =
+        if (dataAvailabilitySyncConfig.hasCmmsConnectionParams()) {
+          dataAvailabilitySyncConfig.cmmsConnectionParams
+        } else {
+          @Suppress("DEPRECATION") dataAvailabilitySyncConfig.cmmsConnection
+        }
+      val impressionConnection: Message =
+        if (dataAvailabilitySyncConfig.hasImpressionMetadataStorageConnectionParams()) {
+          dataAvailabilitySyncConfig.impressionMetadataStorageConnectionParams
+        } else {
+          @Suppress("DEPRECATION") dataAvailabilitySyncConfig.impressionMetadataStorageConnection
+        }
+
+      val cmmsChannelKey = ChannelKey(cmmsConnection, kingdomTarget, kingdomCertHost)
       val impressionsChannelKey =
-        ChannelKey(
-          dataAvailabilitySyncConfig.impressionMetadataStorageConnection,
-          impressionMetadataTarget,
-          impressionMetadataCertHost,
-        )
+        ChannelKey(impressionConnection, impressionMetadataTarget, impressionMetadataCertHost)
 
       val cmmsChannel =
         channelCache.computeIfAbsent(cmmsChannelKey) {
           logger.info("Creating new CMMS channel for TLS params: $cmmsChannelKey")
-          createPublicChannel(
-            dataAvailabilitySyncConfig.cmmsConnection,
-            kingdomTarget,
-            kingdomCertHost,
-          )
+          when (cmmsConnection) {
+            is TransportLayerSecurityParams ->
+              createPublicChannel(cmmsConnection, kingdomTarget, kingdomCertHost)
+            is LegacyTlsParams ->
+              createPublicChannel(cmmsConnection, kingdomTarget, kingdomCertHost)
+            else -> error("Unexpected TLS params type: ${cmmsConnection::class}")
+          }
         }
 
       val impressionChannel =
@@ -308,11 +334,13 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           logger.info(
             "Creating new ImpressionMetadata channel for TLS params: $impressionsChannelKey"
           )
-          createPublicChannel(
-            dataAvailabilitySyncConfig.impressionMetadataStorageConnection,
-            impressionMetadataTarget,
-            impressionMetadataCertHost,
-          )
+          when (impressionConnection) {
+            is TransportLayerSecurityParams ->
+              createPublicChannel(impressionConnection, impressionMetadataTarget, impressionMetadataCertHost)
+            is LegacyTlsParams ->
+              createPublicChannel(impressionConnection, impressionMetadataTarget, impressionMetadataCertHost)
+            else -> error("Unexpected TLS params type: ${impressionConnection::class}")
+          }
         }
 
       return GrpcChannels(cmmsChannel = cmmsChannel, impressionMetadataChannel = impressionChannel)

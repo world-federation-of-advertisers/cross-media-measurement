@@ -19,6 +19,7 @@ package wfa.measurement.config.edpaggregator;
 import "google/api/resource.proto";
 import "google/api/field_behavior.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
+import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
 import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.config.edpaggregator";
@@ -35,14 +36,12 @@ message DataAvailabilitySyncConfig {
   // Where the impressions are stored
   StorageParams data_availability_storage = 2;
 
-  // How the DataAvailabilitySync connects to the CMMS Public API
-  wfa.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
-      cmms_connection = 3;
+  // Deprecated: Use cmms_connection_params instead.
+  TransportLayerSecurityParams cmms_connection = 3 [deprecated = true];
 
-  // How the DataAvailabilitySync connects to the ImpressionMetadataStorage
-  // Public API
-  wfa.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
-      impression_metadata_storage_connection = 4;
+  // Deprecated: Use impression_metadata_storage_connection_params instead.
+  TransportLayerSecurityParams impression_metadata_storage_connection = 4
+      [deprecated = true];
 
   // Path where an edp uploads their impressions. Optional. Will be required in
   // a future release.
@@ -61,6 +60,15 @@ message DataAvailabilitySyncConfig {
   // model line, or when a deleted external model line should point at a
   // replacement model line that the kingdom recognizes.
   map<string, ModelLineList> model_line_map = 6;
+
+  // How the DataAvailabilitySync connects to the CMMS Public API
+  wfa.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
+      cmms_connection_params = 7;
+
+  // How the DataAvailabilitySync connects to the ImpressionMetadataStorage
+  // Public API
+  wfa.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
+      impression_metadata_storage_connection_params = 8;
 
   // List of model lines to use for a single mapping entry.
   message ModelLineList {

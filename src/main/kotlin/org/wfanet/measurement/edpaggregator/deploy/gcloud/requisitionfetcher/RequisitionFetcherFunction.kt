@@ -46,6 +46,7 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.config.edpaggregator.DataProviderRequisitionConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
+import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams as LegacyTlsParams
 import org.wfanet.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
@@ -168,13 +169,27 @@ class RequisitionFetcherFunction : HttpFunction {
     val requisitionBlobPrefix = createRequisitionBlobPrefix(dataProviderConfig)
     // Create instrumented gRPC channels with mutual TLS and OpenTelemetry tracing
     val instrumentedCmmsChannel =
-      createInstrumentedChannel(dataProviderConfig.cmmsConnection, kingdomTarget, kingdomCertHost)
+      if (dataProviderConfig.hasCmmsConnectionParams()) {
+        createInstrumentedChannel(dataProviderConfig.cmmsConnectionParams, kingdomTarget, kingdomCertHost)
+      } else {
+        @Suppress("DEPRECATION")
+        createInstrumentedChannel(dataProviderConfig.cmmsConnection, kingdomTarget, kingdomCertHost)
+      }
     val instrumentedMetadataChannel =
-      createInstrumentedChannel(
-        dataProviderConfig.requisitionMetadataStorageConnection,
-        metadataStorageTarget,
-        metadataStorageCertHost,
-      )
+      if (dataProviderConfig.hasRequisitionMetadataStorageConnectionParams()) {
+        createInstrumentedChannel(
+          dataProviderConfig.requisitionMetadataStorageConnectionParams,
+          metadataStorageTarget,
+          metadataStorageCertHost,
+        )
+      } else {
+        @Suppress("DEPRECATION")
+        createInstrumentedChannel(
+          dataProviderConfig.requisitionMetadataStorageConnection,
+          metadataStorageTarget,
+          metadataStorageCertHost,
+        )
+      }
 
     val requisitionsStub = RequisitionsCoroutineStub(instrumentedCmmsChannel)
     val requisitionMetadataStub =
@@ -269,6 +284,19 @@ class RequisitionFetcherFunction : HttpFunction {
     return ClientInterceptors.intercept(channel, grpcTelemetry.newClientInterceptor())
   }
 
+  @Suppress("DEPRECATION")
+  private fun createInstrumentedChannel(
+    tlsParams: LegacyTlsParams,
+    target: String,
+    certHost: String?,
+  ): io.grpc.Channel {
+    val signingCerts = loadSigningCerts(tlsParams)
+    val channel =
+      buildMutualTlsChannel(target, signingCerts, certHost)
+        .withShutdownTimeout(channelShutdownDuration)
+    return ClientInterceptors.intercept(channel, grpcTelemetry.newClientInterceptor())
+  }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val ATTR_DATA_PROVIDER_KEY = AttributeKey.stringKey("data_provider_name")
@@ -343,6 +371,16 @@ class RequisitionFetcherFunction : HttpFunction {
       )
     }
 
+    @Suppress("DEPRECATION")
+    private fun loadSigningCerts(transportLayerSecurityParams: LegacyTlsParams): SigningCerts {
+      return SigningCerts.fromPemFiles(
+        certificateFile = checkNotNull(File(transportLayerSecurityParams.certFilePath)),
+        privateKeyFile = checkNotNull(File(transportLayerSecurityParams.privateKeyFilePath)),
+        trustedCertCollectionFile =
+          checkNotNull(File(transportLayerSecurityParams.certCollectionFilePath)),
+      )
+    }
+
     fun validateConfig(dataProviderConfig: DataProviderRequisitionConfig) {
       require(dataProviderConfig.dataProvider.isNotBlank()) { "Missing 'data_provider' in config." }
 
@@ -365,19 +403,36 @@ class RequisitionFetcherFunction : HttpFunction {
         "Missing 'edp_private_key_path' for data provider: ${dataProviderConfig.dataProvider}."
       }
 
-      require(dataProviderConfig.hasCmmsConnection()) {
-        "Missing 'cmms_connection' for data provider: ${dataProviderConfig.dataProvider}."
+      @Suppress("DEPRECATION")
+      val hasCmmsConnection =
+        dataProviderConfig.hasCmmsConnectionParams() || dataProviderConfig.hasCmmsConnection()
+      require(hasCmmsConnection) {
+        "Missing 'cmms_connection_params' for data provider: ${dataProviderConfig.dataProvider}."
       }
 
-      val tls = dataProviderConfig.cmmsConnection.cloudParams
-      require(tls.certFilePath.isNotBlank()) {
-        "Missing 'cert_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
-      }
-      require(tls.privateKeyFilePath.isNotBlank()) {
-        "Missing 'private_key_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
-      }
-      require(tls.certCollectionFilePath.isNotBlank()) {
-        "Missing 'cert_collection_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
+      if (dataProviderConfig.hasCmmsConnectionParams()) {
+        val tls = dataProviderConfig.cmmsConnectionParams.cloudParams
+        require(tls.certFilePath.isNotBlank()) {
+          "Missing 'cert_file_path' in cmms_connection_params for data provider: ${dataProviderConfig.dataProvider}."
+        }
+        require(tls.privateKeyFilePath.isNotBlank()) {
+          "Missing 'private_key_file_path' in cmms_connection_params for data provider: ${dataProviderConfig.dataProvider}."
+        }
+        require(tls.certCollectionFilePath.isNotBlank()) {
+          "Missing 'cert_collection_file_path' in cmms_connection_params for data provider: ${dataProviderConfig.dataProvider}."
+        }
+      } else {
+        @Suppress("DEPRECATION")
+        val tls = dataProviderConfig.cmmsConnection
+        require(tls.certFilePath.isNotBlank()) {
+          "Missing 'cert_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
+        }
+        require(tls.privateKeyFilePath.isNotBlank()) {
+          "Missing 'private_key_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
+        }
+        require(tls.certCollectionFilePath.isNotBlank()) {
+          "Missing 'cert_collection_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
+        }
       }
     }
   }
