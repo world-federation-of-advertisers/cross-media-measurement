@@ -262,10 +262,10 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     ): ManagedChannel {
       val signingCerts =
         SigningCerts.fromPemFiles(
-          certificateFile = checkNotNull(File(connecionParams.cloudParams.certFilePath)),
-          privateKeyFile = checkNotNull(File(connecionParams.cloudParams.privateKeyFilePath)),
+          certificateFile = checkNotNull(File(connecionParams.fileSystemParams.certFilePath)),
+          privateKeyFile = checkNotNull(File(connecionParams.fileSystemParams.privateKeyFilePath)),
           trustedCertCollectionFile =
-            checkNotNull(File(connecionParams.cloudParams.certCollectionFilePath)),
+            checkNotNull(File(connecionParams.fileSystemParams.certCollectionFilePath)),
         )
       return buildMutualTlsChannel(target, signingCerts, hostName)
         .withShutdownTimeout(channelShutdownDuration)

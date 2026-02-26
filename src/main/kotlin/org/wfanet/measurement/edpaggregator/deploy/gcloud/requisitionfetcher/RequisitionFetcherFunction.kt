@@ -363,11 +363,11 @@ class RequisitionFetcherFunction : HttpFunction {
     ): SigningCerts {
       return SigningCerts.fromPemFiles(
         certificateFile =
-          checkNotNull(File(transportLayerSecurityParams.cloudParams.certFilePath)),
+          checkNotNull(File(transportLayerSecurityParams.fileSystemParams.certFilePath)),
         privateKeyFile =
-          checkNotNull(File(transportLayerSecurityParams.cloudParams.privateKeyFilePath)),
+          checkNotNull(File(transportLayerSecurityParams.fileSystemParams.privateKeyFilePath)),
         trustedCertCollectionFile =
-          checkNotNull(File(transportLayerSecurityParams.cloudParams.certCollectionFilePath)),
+          checkNotNull(File(transportLayerSecurityParams.fileSystemParams.certCollectionFilePath)),
       )
     }
 
@@ -411,7 +411,7 @@ class RequisitionFetcherFunction : HttpFunction {
       }
 
       if (dataProviderConfig.hasCmmsConnectionParams()) {
-        val tls = dataProviderConfig.cmmsConnectionParams.cloudParams
+        val tls = dataProviderConfig.cmmsConnectionParams.fileSystemParams
         require(tls.certFilePath.isNotBlank()) {
           "Missing 'cert_file_path' in cmms_connection_params for data provider: ${dataProviderConfig.dataProvider}."
         }

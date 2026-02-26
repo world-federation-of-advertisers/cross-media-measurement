@@ -48,13 +48,13 @@ class RequisitionStubFactoryImpl(
         SigningCerts.fromPemFiles(
           certificateFile =
             checkNotNull(
-                getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.teeParams.clientCertResourcePath))
+                getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.resourceParams.clientCertResourcePath))
               )
               .toFile(),
           privateKeyFile =
             checkNotNull(
                 getRuntimePath(
-                  Paths.get(fulfillerParams.cmmsConnection.teeParams.clientPrivateKeyResourcePath)
+                  Paths.get(fulfillerParams.cmmsConnection.resourceParams.clientPrivateKeyResourcePath)
                 )
               )
               .toFile(),
@@ -78,13 +78,13 @@ class RequisitionStubFactoryImpl(
             SigningCerts.fromPemFiles(
               certificateFile =
                 checkNotNull(
-                    getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.teeParams.clientCertResourcePath))
+                    getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.resourceParams.clientCertResourcePath))
                   )
                   .toFile(),
               privateKeyFile =
                 checkNotNull(
                     getRuntimePath(
-                      Paths.get(fulfillerParams.cmmsConnection.teeParams.clientPrivateKeyResourcePath)
+                      Paths.get(fulfillerParams.cmmsConnection.resourceParams.clientPrivateKeyResourcePath)
                     )
                   )
                   .toFile(),

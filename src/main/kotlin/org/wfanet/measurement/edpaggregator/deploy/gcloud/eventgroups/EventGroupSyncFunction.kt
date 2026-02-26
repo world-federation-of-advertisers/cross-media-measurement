@@ -279,10 +279,10 @@ class EventGroupSyncFunction() : HttpFunction {
     ): Channel {
       val signingCerts =
         SigningCerts.fromPemFiles(
-          certificateFile = checkNotNull(File(cmmsConnection.cloudParams.certFilePath)),
-          privateKeyFile = checkNotNull(File(cmmsConnection.cloudParams.privateKeyFilePath)),
+          certificateFile = checkNotNull(File(cmmsConnection.fileSystemParams.certFilePath)),
+          privateKeyFile = checkNotNull(File(cmmsConnection.fileSystemParams.privateKeyFilePath)),
           trustedCertCollectionFile =
-            checkNotNull(File(cmmsConnection.cloudParams.certCollectionFilePath)),
+            checkNotNull(File(cmmsConnection.fileSystemParams.certCollectionFilePath)),
         )
       val publicChannel =
         buildMutualTlsChannel(target, signingCerts, certHost).withShutdownTimeout(shutdownTimeout)

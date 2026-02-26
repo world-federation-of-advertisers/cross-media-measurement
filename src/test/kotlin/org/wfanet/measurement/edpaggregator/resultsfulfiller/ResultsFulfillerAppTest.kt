@@ -1602,8 +1602,8 @@ class ResultsFulfillerAppTest {
                 labeledImpressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
               }
             this.cmmsConnection = transportLayerSecurityParams {
-              teeParams =
-                TransportLayerSecurityParamsKt.teeParams {
+              resourceParams =
+                TransportLayerSecurityParamsKt.resourceParams {
                   clientCertResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.pem").toString()
                   clientPrivateKeyResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.key").toString()
                 }

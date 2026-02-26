@@ -23,11 +23,11 @@ option java_multiple_files = true;
 option java_outer_classname = "TransportLayerSecurityParamsProto";
 
 // Unified TLS client credentials for connecting to an mTLS-secured API.
-// Populate cloud_params for cloud function contexts (filesystem-mounted certs)
-// or tee_params for TEE application contexts (resource key paths).
+// Populate file_system_params for cloud function contexts (filesystem-mounted
+// certs) or resource_params for TEE application contexts (resource key paths).
 message TransportLayerSecurityParams {
   // TLS params for cloud functions using filesystem-mounted certificates.
-  message CloudParams {
+  message FileSystemParams {
     // The path on the filesystem where the cert is mounted
     string cert_file_path = 1 [(google.api.field_behavior) = REQUIRED];
     // The path on the filesystem where the private key is mounted
@@ -37,7 +37,7 @@ message TransportLayerSecurityParams {
   }
 
   // TLS params for TEE applications using resource key paths.
-  message TeeParams {
+  message ResourceParams {
     // The resource key of the client certificate
     string client_cert_resource_path = 1 [(google.api.field_behavior) = REQUIRED];
     // The resource key of the client private key
@@ -45,8 +45,8 @@ message TransportLayerSecurityParams {
   }
 
   // Populated for cloud function contexts.
-  CloudParams cloud_params = 1 [(google.api.field_behavior) = OPTIONAL];
+  FileSystemParams file_system_params = 1 [(google.api.field_behavior) = OPTIONAL];
 
   // Populated for TEE application contexts.
-  TeeParams tee_params = 2 [(google.api.field_behavior) = OPTIONAL];
+  ResourceParams resource_params = 2 [(google.api.field_behavior) = OPTIONAL];
 }
