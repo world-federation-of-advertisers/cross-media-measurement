@@ -161,6 +161,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
   ): Measurement {
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
 
+    // Data provider required duchies only apply to the LLv2 protocol.
     val dataProviderRequiredDuchyIds: Set<String> =
       createMeasurementRequest.measurement.dataProvidersMap.keys
         .flatMap {
@@ -179,8 +180,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
             HmssProtocolConfig.firstNonAggregatorDuchyId,
             HmssProtocolConfig.secondNonAggregatorDuchyId,
             HmssProtocolConfig.aggregatorDuchyId,
-          ) + dataProviderRequiredDuchyIds
-        // TrusTee is a single-duchy protocol, so data provider required duchies do not apply.
+          )
         ProtocolConfig.ProtocolCase.TRUS_TEE -> setOf(TrusTeeProtocolConfig.duchyId)
         ProtocolConfig.ProtocolCase.DIRECT,
         ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol.")
