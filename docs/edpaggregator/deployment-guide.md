@@ -1262,7 +1262,7 @@ gcloud iam workload-identity-pools providers create-oidc <provider_name> \
 
 For example, using an ECDSA P256 SHA256 key:
 
-```text
+```shell
 gcloud iam workload-identity-pools providers create-oidc <provider_name> \
   --location="global" \
   --workload-identity-pool="<name configured when deploying EDP resources>" \
