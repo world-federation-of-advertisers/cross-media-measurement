@@ -9,8 +9,10 @@ The self-serve flow allows operators to map advertiser accounts (Client Account 
 ### Flow Summary
 
 1. EDPs upload event groups with `client_account_reference_id` field
-2. Market Operator creates a Measurement Consumer for the advertiser
-3. Operator uses CLI to link Client Accounts to the Measurement Consumer
+2. Market Operator creates a `MeasurementConsumer` resource for the advertiser
+3. Operator creates `ClientAccount` resources under the `MeasurementConsumer` via
+   the `ClientAccounts.BatchCreateClientAccounts` API (the CLI provides a
+   convenient wrapper for this)
 4. Trigger EventGroupSync to register event groups to the Kingdom
 
 ## Prerequisites
