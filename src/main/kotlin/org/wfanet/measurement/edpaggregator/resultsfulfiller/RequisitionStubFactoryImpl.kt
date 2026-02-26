@@ -28,7 +28,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams as LegacyTlsParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.TransportLayerSecurityParams as LegacyTlsParams
 import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
 
 class DuchyInfo(val target: String, val certHost: String?)

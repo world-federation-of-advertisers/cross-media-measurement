@@ -144,7 +144,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRespon
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.unifiedTransportLayerSecurityParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -1790,7 +1789,7 @@ class ResultsFulfillerAppTest {
                 labeledImpressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
               }
             @Suppress("DEPRECATION")
-            this.cmmsConnection = transportLayerSecurityParams {
+            this.cmmsConnection = ResultsFulfillerParamsKt.transportLayerSecurityParams {
               clientCertResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.pem").toString()
               clientPrivateKeyResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.key").toString()
             }

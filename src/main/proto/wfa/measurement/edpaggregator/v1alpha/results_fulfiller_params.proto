@@ -24,7 +24,6 @@ package wfa.measurement.edpaggregator.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
-import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
 import "wfa/measurement/edpaggregator/v1alpha/unified_transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -77,6 +76,20 @@ message ResultsFulfillerParams {
 
   // Information necessary for EDP Consent signaling
   ConsentParams consent_params = 3 [(google.api.field_behavior) = REQUIRED];
+
+  // Deprecated: Use UnifiedTransportLayerSecurityParams instead.
+  // TLS client credential resource paths used by a TEE application to connect
+  // to an mTLS-secured API.
+  message TransportLayerSecurityParams {
+    option deprecated = true;
+
+    // The resource key of the client certificate
+    string client_cert_resource_path = 1 [(google.api.field_behavior) = REQUIRED];
+
+    // The resource key of the client private key
+    string client_private_key_resource_path = 2
+        [(google.api.field_behavior) = REQUIRED];
+  }
 
   // Deprecated: Use cmms_connection_params instead.
   TransportLayerSecurityParams cmms_connection = 4 [deprecated = true];
