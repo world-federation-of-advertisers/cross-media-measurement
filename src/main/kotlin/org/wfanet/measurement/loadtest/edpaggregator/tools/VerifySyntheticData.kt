@@ -29,7 +29,6 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.tink.AwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
-import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
@@ -51,11 +50,7 @@ class VerifySyntheticData : Runnable {
   lateinit var kmsType: KmsType
     private set
 
-  @Option(
-    names = ["--kek-uri"],
-    description = ["The KMS kek uri."],
-    required = true,
-  )
+  @Option(names = ["--kek-uri"], description = ["The KMS kek uri."], required = true)
   lateinit var kekUri: String
     private set
 
@@ -119,28 +114,30 @@ class VerifySyntheticData : Runnable {
     private set
 
   override fun run() {
-    val kmsClient: KmsClient = when (kmsType) {
-      KmsType.FAKE -> {
-        FakeKmsClient()
-      }
-      KmsType.GCP -> {
-        GcpKmsClient().withDefaultCredentials()
-      }
-      KmsType.AWS -> {
-        require(awsRoleArn.isNotEmpty()) { "--aws-role-arn is required when --kms-type=AWS" }
-        require(awsWebIdentityTokenFile.isNotEmpty()) {
-          "--aws-web-identity-token-file is required when --kms-type=AWS"
+    val kmsClient: KmsClient =
+      when (kmsType) {
+        KmsType.FAKE -> {
+          FakeKmsClient()
         }
-        require(awsRegion.isNotEmpty()) { "--aws-region is required when --kms-type=AWS" }
-        val awsConfig = AwsWifCredentials(
-          roleArn = awsRoleArn,
-          webIdentityTokenFilePath = awsWebIdentityTokenFile,
-          roleSessionName = awsRoleSessionName,
-          region = awsRegion,
-        )
-        AwsKmsClientFactory().getKmsClient(awsConfig)
+        KmsType.GCP -> {
+          GcpKmsClient().withDefaultCredentials()
+        }
+        KmsType.AWS -> {
+          require(awsRoleArn.isNotEmpty()) { "--aws-role-arn is required when --kms-type=AWS" }
+          require(awsWebIdentityTokenFile.isNotEmpty()) {
+            "--aws-web-identity-token-file is required when --kms-type=AWS"
+          }
+          require(awsRegion.isNotEmpty()) { "--aws-region is required when --kms-type=AWS" }
+          val awsConfig =
+            AwsWifCredentials(
+              roleArn = awsRoleArn,
+              webIdentityTokenFilePath = awsWebIdentityTokenFile,
+              roleSessionName = awsRoleSessionName,
+              region = awsRegion,
+            )
+          AwsKmsClientFactory().getKmsClient(awsConfig)
+        }
       }
-    }
 
     val rootStorageClient = FileSystemStorageClient(storagePath)
     val bucketDir = storagePath.resolve(outputBucket).resolve(impressionMetadataBasePath)
@@ -178,9 +175,10 @@ class VerifySyntheticData : Runnable {
           check(metadataBlob != null) { "Metadata blob not found: $outputBucket/$relativePath" }
 
           val blobDetailsBytes = runBlocking { metadataBlob.read().toList() }
-          val blobDetails = BlobDetails.parseFrom(
-            blobDetailsBytes.fold(ByteString.EMPTY) { acc, bs -> acc.concat(bs) }
-          )
+          val blobDetails =
+            BlobDetails.parseFrom(
+              blobDetailsBytes.fold(ByteString.EMPTY) { acc, bs -> acc.concat(bs) }
+            )
 
           logger.info("  Blob URI: ${blobDetails.blobUri}")
           logger.info("  KEK URI: ${blobDetails.encryptedDek.kekUri}")
@@ -188,7 +186,9 @@ class VerifySyntheticData : Runnable {
           logger.info("  DEK format: ${blobDetails.encryptedDek.protobufFormat}")
           logger.info("  Event group ref ID: ${blobDetails.eventGroupReferenceId}")
           logger.info("  Model line: ${blobDetails.modelLine}")
-          logger.info("  Interval: ${blobDetails.interval.startTime} - ${blobDetails.interval.endTime}")
+          logger.info(
+            "  Interval: ${blobDetails.interval.startTime} - ${blobDetails.interval.endTime}"
+          )
 
           // Get encrypted DEK
           val encryptedDek = blobDetails.encryptedDek
@@ -199,23 +199,17 @@ class VerifySyntheticData : Runnable {
           // Read and decrypt impressions
           val impressionsBlobUri = blobDetails.blobUri
           val selectedStorageClient = SelectedStorageClient(impressionsBlobUri, storagePath)
-          val decryptionClient = selectedStorageClient.withEnvelopeEncryption(
-            kmsClient,
-            kekUri,
-            encryptedDek.ciphertext,
-          )
+          val decryptionClient =
+            selectedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, encryptedDek.ciphertext)
 
           // Parse the blob key from the URI
-          val impressionsBlobKey = impressionsBlobUri
-            .removePrefix("file:///")
-            .removePrefix("$outputBucket/")
+          val impressionsBlobKey =
+            impressionsBlobUri.removePrefix("file:///").removePrefix("$outputBucket/")
 
           logger.info("  Decrypting impressions from blob key: $impressionsBlobKey")
 
           val mesosClient = MesosRecordIoStorageClient(decryptionClient)
-          val impressionsBlob = runBlocking {
-            mesosClient.getBlob(impressionsBlobKey)
-          }
+          val impressionsBlob = runBlocking { mesosClient.getBlob(impressionsBlobKey) }
           check(impressionsBlob != null) { "Impressions blob not found: $impressionsBlobKey" }
 
           val records = runBlocking { impressionsBlob.read().toList() }
@@ -233,14 +227,15 @@ class VerifySyntheticData : Runnable {
             check(testEvent != null) { "Failed to unpack TestEvent from impression $index" }
 
             if (index < 3) {
-              logger.info("  Record[$index]: vid=${impression.vid}, eventTime=${impression.eventTime}")
+              logger.info(
+                "  Record[$index]: vid=${impression.vid}, eventTime=${impression.eventTime}"
+              )
             }
           }
 
           totalImpressions += records.size
           totalDays++
           logger.info("  PASS: $date - ${records.size} impressions verified")
-
         } catch (e: Exception) {
           errors++
           logger.severe("  FAIL: $date - ${e.message}")
