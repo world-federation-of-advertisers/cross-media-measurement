@@ -52,7 +52,6 @@ import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.DeleteEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata as cmmsCampaignMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata as cmmsAdMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
@@ -296,7 +295,7 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `delete event group`() {
+  fun `sync does not delete event groups missing from input`() {
     val newCampaign = eventGroup {
       eventGroupReferenceId = "reference-id-4"
       this.eventGroupMetadata = eventGroupMetadata {
@@ -329,16 +328,7 @@ class EventGroupSyncTest {
     val createCaptor = argumentCaptor<CreateEventGroupRequest>()
     verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(createCaptor.capture()) }
     assertThat(createCaptor.firstValue.eventGroup.eventGroupReferenceId).isEqualTo("reference-id-4")
-    val deleteCaptor = argumentCaptor<DeleteEventGroupRequest>()
-    verifyBlocking(eventGroupsServiceMock, times(4)) { deleteEventGroup(deleteCaptor.capture()) }
-    val deleteRequests = deleteCaptor.allValues
-    assertThat(deleteRequests.map { it.name })
-      .containsExactly(
-        "dataProviders/data-provider-1/eventGroups/resource-id-1",
-        "dataProviders/data-provider-2/eventGroups/resource-id-2",
-        "dataProviders/data-provider-3/eventGroups/resource-id-3",
-        "dataProviders/data-provider-3/eventGroups/resource-id-4",
-      )
+    verifyBlocking(eventGroupsServiceMock, times(0)) { deleteEventGroup(any()) }
   }
 
   @Test
@@ -1074,10 +1064,7 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `deletes event groups when account linkage is removed and fewer MCs are mapped`() {
-    // Setup: clientAccountsServiceMock for "client-ref-multiple" returns only MC-1,
-    // but the remote has event groups for both MC-1 and MC-2.
-    // This simulates a scenario where the account linkage to MC-2 was deleted.
+  fun `does not delete event groups when account linkage is removed and fewer MCs are mapped`() {
     val clientAccountsMock: ClientAccountsCoroutineImplBase = mockService {
       onBlocking { listClientAccounts(any<ListClientAccountsRequest>()) }
         .thenAnswer { invocation ->
@@ -1128,7 +1115,6 @@ class EventGroupSyncTest {
                     endTime = timestamp { seconds = 300 }
                   }
                 },
-                // Event group for MC-2 (linkage deleted, should be removed)
                 cmmsEventGroup {
                   name = "dataProviders/data-provider-1/eventGroups/resource-id-101"
                   measurementConsumer = "measurementConsumers/measurement-consumer-2"
@@ -1191,12 +1177,7 @@ class EventGroupSyncTest {
           runBlocking { eventGroupSync.sync().collect() }
 
           verifyBlocking(eventGroupsMock, times(0)) { updateEventGroup(any()) }
-
-          // Verify that the event group for MC-2 was deleted (account linkage removed)
-          val deleteCaptor = argumentCaptor<DeleteEventGroupRequest>()
-          verifyBlocking(eventGroupsMock, times(1)) { deleteEventGroup(deleteCaptor.capture()) }
-          assertThat(deleteCaptor.firstValue.name)
-            .isEqualTo("dataProviders/data-provider-1/eventGroups/resource-id-101")
+          verifyBlocking(eventGroupsMock, times(0)) { deleteEventGroup(any()) }
         }
       }
 

@@ -41,7 +41,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.deleteEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as cmmsEventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.listClientAccountsRequest
@@ -75,10 +74,11 @@ data class EventGroupKey(val eventGroupReferenceId: String, val measurementConsu
  * Syncs event groups with the CMMS Public API.
  * 1. **Creates** any EventGroups that exist in the input flow but not in CMMS.
  * 2. **Updates** existing EventGroups in CMMS if their data has changed.
- * 3. **Deletes** EventGroups that exist in CMMS but are no longer present
- *    in the input [eventGroups] flow.
- * 4. **Returns** a flow of [MappedEventGroup], one element for each successfully
+ * 3. **Returns** a flow of [MappedEventGroup], one element for each successfully
  *    created or updated EventGroup.
+ *
+ * EventGroups that exist in CMMS but are no longer present in the input flow are left as-is
+ * (never deleted).
  */
 class EventGroupSync(
   private val edpName: String,
@@ -131,9 +131,6 @@ class EventGroupSync(
 
       val edpEventGroupsList = eventGroups.toList()
 
-      // Track keys of successfully resolved EventGroups to prevent deletion
-      val resolvedEventGroupKeys = mutableSetOf<EventGroupKey>()
-
       for (eventGroup in edpEventGroupsList) {
         try {
           validateEventGroup(eventGroup)
@@ -152,20 +149,8 @@ class EventGroupSync(
         for (measurementConsumerKey in measurementConsumerKeys) {
           val eventGroupWithConsumer =
             eventGroup.copy { measurementConsumer = measurementConsumerKey.toName() }
-          resolvedEventGroupKeys.add(
-            EventGroupKey(
-              eventGroupWithConsumer.eventGroupReferenceId,
-              eventGroupWithConsumer.measurementConsumer,
-            )
-          )
           syncEventGroupItem(eventGroupWithConsumer, cmmsEventGroups)?.let { emit(it) }
         }
-      }
-
-      val keysToDelete = cmmsEventGroups.keys - resolvedEventGroupKeys
-      for (key in keysToDelete) {
-        val eventGroup = cmmsEventGroups.getValue(key)
-        deleteCmmsEventGroup(eventGroup)
       }
     }
   }
@@ -338,14 +323,6 @@ class EventGroupSync(
     return throttler.onReady {
       eventGroupsStub.updateEventGroup(updateEventGroupRequest { this.eventGroup = eventGroup })
     }
-  }
-
-  /*
-   * Deletes an EventGroup from CMMS.
-   */
-  private suspend fun deleteCmmsEventGroup(eventGroup: CmmsEventGroup) {
-    val request = deleteEventGroupRequest { name = eventGroup.name }
-    throttler.onReady { eventGroupsStub.deleteEventGroup(request) }
   }
 
   /*
