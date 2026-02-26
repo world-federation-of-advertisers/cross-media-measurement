@@ -28,7 +28,8 @@ class GenerateSyntheticDataTest {
 
   @Test
   fun `KmsType enum contains FAKE, GCP, and AWS`() {
-    assertThat(KmsType.values().toList()).containsExactly(KmsType.FAKE, KmsType.GCP, KmsType.AWS)
+    assertThat(KmsType.values().toList())
+      .containsExactly(KmsType.FAKE, KmsType.GCP, KmsType.AWS, KmsType.GCP_TO_AWS)
   }
 
   @Test

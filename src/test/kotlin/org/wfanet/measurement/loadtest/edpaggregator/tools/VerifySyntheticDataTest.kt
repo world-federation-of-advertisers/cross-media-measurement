@@ -70,10 +70,39 @@ class VerifySyntheticDataTest {
         "edp/edp-test",
       )
 
-    assertThat(cmd.awsRoleArn).isEmpty()
-    assertThat(cmd.awsWebIdentityTokenFile).isEmpty()
-    assertThat(cmd.awsRoleSessionName).isEqualTo("verify-synthetic-data")
-    assertThat(cmd.awsRegion).isEmpty()
+    assertThat(cmd.awsFlags.awsRoleArn).isEmpty()
+    assertThat(cmd.awsFlags.awsWebIdentityTokenFile).isEmpty()
+    assertThat(cmd.awsFlags.awsRoleSessionName).isEqualTo("verify-synthetic-data")
+    assertThat(cmd.awsFlags.awsRegion).isEmpty()
+  }
+
+  @Test
+  fun `picocli uses correct GcpToAws default values`() {
+    val cmd = VerifySyntheticData()
+    CommandLine(cmd)
+      .parseArgs(
+        "--kms-type",
+        "FAKE",
+        "--kek-uri",
+        "fake-kms://key1",
+        "--local-storage-path",
+        "/tmp/storage",
+        "--output-bucket",
+        "test-bucket",
+        "--impression-metadata-base-path",
+        "edp/edp-test",
+      )
+
+    assertThat(cmd.gcpToAwsFlags.roleArn).isEmpty()
+    assertThat(cmd.gcpToAwsFlags.roleSessionName).isEqualTo("verify-synthetic-data")
+    assertThat(cmd.gcpToAwsFlags.region).isEmpty()
+    assertThat(cmd.gcpToAwsFlags.gcpAudience).isEmpty()
+    assertThat(cmd.gcpToAwsFlags.subjectTokenType).isEqualTo("urn:ietf:params:oauth:token-type:jwt")
+    assertThat(cmd.gcpToAwsFlags.tokenUrl).isEqualTo("https://sts.googleapis.com/v1/token")
+    assertThat(cmd.gcpToAwsFlags.credentialSourceFilePath)
+      .isEqualTo("/run/container_launcher/attestation_verifier_claims_token")
+    assertThat(cmd.gcpToAwsFlags.serviceAccountImpersonationUrl).isEmpty()
+    assertThat(cmd.gcpToAwsFlags.awsAudience).isEmpty()
   }
 
   @Test
@@ -102,10 +131,10 @@ class VerifySyntheticDataTest {
       )
 
     assertThat(cmd.kmsType).isEqualTo(KmsType.AWS)
-    assertThat(cmd.awsRoleArn).isEqualTo("arn:aws:iam::123456789012:role/test-role")
-    assertThat(cmd.awsWebIdentityTokenFile).isEqualTo("/var/run/secrets/token")
-    assertThat(cmd.awsRoleSessionName).isEqualTo("my-session")
-    assertThat(cmd.awsRegion).isEqualTo("us-west-2")
+    assertThat(cmd.awsFlags.awsRoleArn).isEqualTo("arn:aws:iam::123456789012:role/test-role")
+    assertThat(cmd.awsFlags.awsWebIdentityTokenFile).isEqualTo("/var/run/secrets/token")
+    assertThat(cmd.awsFlags.awsRoleSessionName).isEqualTo("my-session")
+    assertThat(cmd.awsFlags.awsRegion).isEqualTo("us-west-2")
   }
 
   @Test
@@ -128,6 +157,51 @@ class VerifySyntheticDataTest {
     assertThat(cmd.kmsType).isEqualTo(KmsType.GCP)
     assertThat(cmd.kekUri)
       .isEqualTo("gcp-kms://projects/p1/locations/l1/keyRings/kr1/cryptoKeys/ck1")
+  }
+
+  @Test
+  fun `picocli parses GCP_TO_AWS flags correctly`() {
+    val cmd = VerifySyntheticData()
+    CommandLine(cmd)
+      .parseArgs(
+        "--kms-type",
+        "GCP_TO_AWS",
+        "--kek-uri",
+        "aws-kms://arn:aws:kms:us-east-1:123456789012:key/abc-123",
+        "--local-storage-path",
+        "/tmp/storage",
+        "--output-bucket",
+        "test-bucket",
+        "--impression-metadata-base-path",
+        "edp/edp-test",
+        "--gcp-to-aws-role-arn",
+        "arn:aws:iam::123456789012:role/gcp-to-aws-role",
+        "--gcp-to-aws-role-session-name",
+        "my-gcp-to-aws-session",
+        "--gcp-to-aws-region",
+        "eu-west-1",
+        "--gcp-audience",
+        "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/p",
+        "--gcp-service-account-impersonation-url",
+        "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/sa@proj.iam.gserviceaccount.com:generateAccessToken",
+        "--aws-audience",
+        "sts.amazonaws.com",
+      )
+
+    assertThat(cmd.kmsType).isEqualTo(KmsType.GCP_TO_AWS)
+    assertThat(cmd.gcpToAwsFlags.roleArn)
+      .isEqualTo("arn:aws:iam::123456789012:role/gcp-to-aws-role")
+    assertThat(cmd.gcpToAwsFlags.roleSessionName).isEqualTo("my-gcp-to-aws-session")
+    assertThat(cmd.gcpToAwsFlags.region).isEqualTo("eu-west-1")
+    assertThat(cmd.gcpToAwsFlags.gcpAudience)
+      .isEqualTo(
+        "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/p"
+      )
+    assertThat(cmd.gcpToAwsFlags.serviceAccountImpersonationUrl)
+      .isEqualTo(
+        "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/sa@proj.iam.gserviceaccount.com:generateAccessToken"
+      )
+    assertThat(cmd.gcpToAwsFlags.awsAudience).isEqualTo("sts.amazonaws.com")
   }
 
   @Test
@@ -200,5 +274,111 @@ class VerifySyntheticDataTest {
 
     val exception = assertFailsWith<IllegalArgumentException> { cmd.run() }
     assertThat(exception).hasMessageThat().contains("--aws-region")
+  }
+
+  @Test
+  fun `run fails when GCP_TO_AWS is missing role arn`() {
+    val cmd = VerifySyntheticData()
+    val storageDir = tempFolder.newFolder("storage")
+    CommandLine(cmd)
+      .parseArgs(
+        "--kms-type",
+        "GCP_TO_AWS",
+        "--kek-uri",
+        "aws-kms://arn:aws:kms:us-east-1:123456789012:key/abc-123",
+        "--local-storage-path",
+        storageDir.absolutePath,
+        "--output-bucket",
+        "test-bucket",
+        "--impression-metadata-base-path",
+        "edp/edp-test",
+      )
+
+    val exception = assertFailsWith<IllegalArgumentException> { cmd.run() }
+    assertThat(exception).hasMessageThat().contains("--gcp-to-aws-role-arn")
+  }
+
+  @Test
+  fun `run fails when GCP_TO_AWS is missing gcp audience`() {
+    val cmd = VerifySyntheticData()
+    val storageDir = tempFolder.newFolder("storage")
+    CommandLine(cmd)
+      .parseArgs(
+        "--kms-type",
+        "GCP_TO_AWS",
+        "--kek-uri",
+        "aws-kms://arn:aws:kms:us-east-1:123456789012:key/abc-123",
+        "--local-storage-path",
+        storageDir.absolutePath,
+        "--output-bucket",
+        "test-bucket",
+        "--impression-metadata-base-path",
+        "edp/edp-test",
+        "--gcp-to-aws-role-arn",
+        "arn:aws:iam::123456789012:role/test-role",
+        "--gcp-to-aws-region",
+        "us-east-1",
+      )
+
+    val exception = assertFailsWith<IllegalArgumentException> { cmd.run() }
+    assertThat(exception).hasMessageThat().contains("--gcp-audience")
+  }
+
+  @Test
+  fun `run fails when GCP_TO_AWS is missing service account impersonation url`() {
+    val cmd = VerifySyntheticData()
+    val storageDir = tempFolder.newFolder("storage")
+    CommandLine(cmd)
+      .parseArgs(
+        "--kms-type",
+        "GCP_TO_AWS",
+        "--kek-uri",
+        "aws-kms://arn:aws:kms:us-east-1:123456789012:key/abc-123",
+        "--local-storage-path",
+        storageDir.absolutePath,
+        "--output-bucket",
+        "test-bucket",
+        "--impression-metadata-base-path",
+        "edp/edp-test",
+        "--gcp-to-aws-role-arn",
+        "arn:aws:iam::123456789012:role/test-role",
+        "--gcp-to-aws-region",
+        "us-east-1",
+        "--gcp-audience",
+        "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/p",
+      )
+
+    val exception = assertFailsWith<IllegalArgumentException> { cmd.run() }
+    assertThat(exception).hasMessageThat().contains("--gcp-service-account-impersonation-url")
+  }
+
+  @Test
+  fun `run fails when GCP_TO_AWS is missing aws audience`() {
+    val cmd = VerifySyntheticData()
+    val storageDir = tempFolder.newFolder("storage")
+    CommandLine(cmd)
+      .parseArgs(
+        "--kms-type",
+        "GCP_TO_AWS",
+        "--kek-uri",
+        "aws-kms://arn:aws:kms:us-east-1:123456789012:key/abc-123",
+        "--local-storage-path",
+        storageDir.absolutePath,
+        "--output-bucket",
+        "test-bucket",
+        "--impression-metadata-base-path",
+        "edp/edp-test",
+        "--gcp-to-aws-role-arn",
+        "arn:aws:iam::123456789012:role/test-role",
+        "--gcp-to-aws-region",
+        "us-east-1",
+        "--gcp-audience",
+        "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/p",
+        "--gcp-service-account-impersonation-url",
+        "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/sa@proj.iam.gserviceaccount.com:generateAccessToken",
+      )
+
+    val exception = assertFailsWith<IllegalArgumentException> { cmd.run() }
+    assertThat(exception).hasMessageThat().contains("--aws-audience")
   }
 }
