@@ -430,9 +430,10 @@ class RequisitionFetcherFunction : HttpFunction {
           "Missing 'cert_collection_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
         }
       } else {
-        require(false) {
-          "Missing 'unified_cmms_connection' and 'cmms_connection' for data provider: ${dataProviderConfig.dataProvider}. At least one must be present."
-        }
+        throw IllegalArgumentException(
+          "Missing 'unified_cmms_connection' and 'cmms_connection' for data provider:" +
+            " ${dataProviderConfig.dataProvider}. At least one must be present."
+        )
       }
     }
   }
