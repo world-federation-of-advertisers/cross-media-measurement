@@ -42,14 +42,14 @@ CREATE TABLE RawImpressionMetadata (
   -- Zero-based index identifying the batch within the upload.
   -- Corresponds to {batch} in the resource pattern.
   BatchIndex INT64 NOT NULL,
-  -- Internal DB key for this file, unique per DataProvider.
+  -- Internal DB key for this file, unique per batch.
   FileId INT64 NOT NULL,
   -- External API resource ID of this file.
   -- Corresponds to {file} in the resource pattern.
   -- Indexed via RawImpressionMetadataByFileResourceId for resource-ID-based lookups.
   FileResourceId STRING(63) NOT NULL,
-  -- The date this upload covers. Has a 1:1 relationship with UploadId/UploadResourceId
-  -- and is used for partitioning and soft delete functionality.
+  -- The date this upload covers. Used for date-based queries across multiple upload
+  -- sessions, as well as for partitioning and soft delete functionality.
   UploadDate DATE NOT NULL,
   -- The URI of the raw impressions blob. Used for actual blob lookups.
   BlobUri STRING(MAX) NOT NULL,
@@ -67,10 +67,10 @@ CREATE TABLE RawImpressionMetadata (
 CREATE INDEX RawImpressionMetadataByUploadResourceId
   ON RawImpressionMetadata(DataProviderResourceId, UploadResourceId);
 
--- Enforces uniqueness of FileResourceId per DataProvider and supports
+-- Enforces uniqueness of FileResourceId per batch and supports
 -- looking up a file row by its external resource ID.
 CREATE UNIQUE INDEX RawImpressionMetadataByFileResourceId
-  ON RawImpressionMetadata(DataProviderResourceId, FileResourceId);
+  ON RawImpressionMetadata(DataProviderResourceId, UploadId, BatchIndex, FileResourceId);
 
 -- Enforces uniqueness of BlobUri per DataProvider and enables idempotency
 -- checks before inserting a new file record.
