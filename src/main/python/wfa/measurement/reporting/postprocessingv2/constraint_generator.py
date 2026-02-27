@@ -257,7 +257,7 @@ class CoverRelationGenerator(ConstraintGenerator):
     return constraints
 
 
-class ImpressionsRelationGenerator(ConstraintGenerator):
+class ImpressionsSumRelationGenerator(ConstraintGenerator):
   """Generates constraints based on impression sums."""
 
   def __init__(
@@ -481,3 +481,159 @@ class FrequencyImpressionsRelationGenerator(ConstraintGenerator):
         )
       )
     return constraints
+
+# --- Constraints between two comparable DataProviderMetricSetMaps --- #
+
+class EqualRelationGenerator(ConstraintGenerator):
+  """Generates constraints ensuring child and parent contain identical
+  measurements where applicable.
+
+  E.g. Last cumulative week is the same as whole_campaign, first cumulative week
+  is the same as first non-cumulative week, etc.
+  """
+  def __init__(
+    self,
+    num_metric_sets: int,
+    max_frequency: int,
+    child: DataProviderMetricSetMap,
+    parent: DataProviderMetricSetMap
+  ):
+    super().__init__(num_metric_sets, max_frequency)
+    self.child = child
+    self.parent = parent
+
+  def get_constraints(self) -> list[Constraint]:
+    # TODO(@ple13): Implement constraint generator.
+    raise NotImplementedError(
+      f"get_constraints for {self.__class__.__name__} not implemented yet."
+    )
+
+class OverlapRelationGenerator(ConstraintGenerator):
+  """Generates constraints ensuring Overlap(child) <= Overlap(parent)."""
+  def __init__(
+    self,
+    num_metric_sets: int,
+    max_frequency: int,
+    child: DataProviderMetricSetMap,
+    parent: DataProviderMetricSetMap
+  ):
+    super().__init__(num_metric_sets, max_frequency)
+    self.child = child
+    self.parent = parent
+
+  def get_constraints(self) -> list[Constraint]:
+    # TODO(@ple13): Implement constraint generator.
+    raise NotImplementedError(
+      f"get_constraints for {self.__class__.__name__} not implemented yet."
+    )
+
+class ReachRelationGenerator(ConstraintGenerator):
+  """Generates constraints ensuring child reach <= parent reach."""
+  def __init__(
+    self,
+    num_metric_sets: int,
+    max_frequency: int,
+    child: DataProviderMetricSetMap,
+    parent: DataProviderMetricSetMap
+  ):
+    super().__init__(num_metric_sets, max_frequency)
+    self.child = child
+    self.parent = parent
+
+  def get_constraints(self) -> list[Constraint]:
+    # TODO(@ple13): Implement constraint generator.
+    raise NotImplementedError(
+      f"get_constraints for {self.__class__.__name__} not implemented yet."
+    )
+
+class ImpressionsRelationGenerator(ConstraintGenerator):
+  """Generates constraints ensuring child impressions <= parent impressions."""
+  def __init__(
+    self,
+    num_metric_sets: int,
+    max_frequency: int,
+    child: DataProviderMetricSetMap,
+    parent: DataProviderMetricSetMap
+  ):
+    super().__init__(num_metric_sets, max_frequency)
+    self.child = child
+    self.parent = parent
+
+  def get_constraints(self) -> list[Constraint]:
+    # TODO(@ple13): Implement constraint generator.
+    raise NotImplementedError(
+      f"get_constraints for {self.__class__.__name__} not implemented yet."
+    )
+
+class FrequencyRelationGenerator(ConstraintGenerator):
+  """Generates constraints ensuring child k+ reach <= parent k+ reach."""
+  def __init__(
+    self,
+    num_metric_sets: int,
+    max_frequency: int,
+    child: DataProviderMetricSetMap,
+    parent: DataProviderMetricSetMap
+  ):
+    super().__init__(num_metric_sets, max_frequency)
+    self.child = child
+    self.parent = parent
+
+  def get_constraints(self) -> list[Constraint]:
+    # TODO(@ple13): Implement constraint generator.
+    raise NotImplementedError(
+      f"get_constraints for {self.__class__.__name__} not implemented yet."
+    )
+
+# ---------- Constraints among a list of DataProviderMetricSetMaps -- #
+
+class CumulativeAndNonCumulativeConstraints(ConstraintGenerator):
+  """
+  Generates constraints relating cumulative and non-cumulative measurements.
+  For week i:
+    - Each non-cumulative reach at week i <= cumulative reach at week i.
+    - Sum of non-cumulative reaches of the first i weeks >= cumulative reach at
+      week i.
+    - Sum of non-cumulative impressions of the first i weeks = cumulative
+      impressions at week i.
+  """
+  def __init__(
+    self,
+    num_metric_sets: int,
+    max_frequency: int,
+    non_cumulatives: list[DataProviderMetricSetMap],
+    cumulatives: list[DataProviderMetricSetMap],
+  ):
+    super().__init__(num_metric_sets, max_frequency)
+    self.non_cumulatives = non_cumulatives
+    self.cumulatives = cumulatives
+
+  def get_constraints(self) -> list[Constraint]:
+    # TODO(@ple13): Implement constraint generator.
+    raise NotImplementedError(
+      f"get_constraints for {self.__class__.__name__} not implemented yet."
+    )
+
+class NonCumulativeAndWholeCampaignConstraints(ConstraintGenerator):
+  """
+  Generates constraints relating whole whole_campaign and non-cumulative
+  measurements.
+    - Each non-cumulative reach <= whole_campaign reach.
+    - Sum of non-cumulative reaches >= whole_campaign reach reach.
+    - Sum of non-cumulative impressions = whole_campaign impressions.
+  """
+  def __init__(
+    self,
+    num_metric_sets: int,
+    max_frequency: int,
+    non_cumulatives: list[DataProviderMetricSetMap],
+    whole_campaign: DataProviderMetricSetMap,
+  ):
+    super().__init__(num_metric_sets, max_frequency)
+    self.non_cumulatives = non_cumulatives
+    self.whole_campaign = whole_campaign
+
+  def get_constraints(self) -> list[Constraint]:
+    # TODO(@ple13): Implement constraint generator.
+    raise NotImplementedError(
+      f"get_constraints for {self.__class__.__name__} not implemented yet."
+    )

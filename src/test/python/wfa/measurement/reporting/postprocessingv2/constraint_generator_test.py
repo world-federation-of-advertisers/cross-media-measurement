@@ -23,7 +23,7 @@ from src.main.python.wfa.measurement.reporting.postprocessingv2.report import (
 from src.main.python.wfa.measurement.reporting.postprocessingv2.constraint_generator import (
   LowerBoundRelationGenerator,
   CoverRelationGenerator,
-  ImpressionsRelationGenerator,
+  ImpressionsSumRelationGenerator,
   SubsetRelationGenerator,
   ReachFrequencyRelationGenerator,
   ReachImpressionsRelationGenerator,
@@ -375,7 +375,7 @@ class ConstraintGeneratorTest(unittest.TestCase):
         frozenset(["B"]): metric_set_b,
       }
     )
-    generator = ImpressionsRelationGenerator(3, 1, data_provider_map)
+    generator = ImpressionsSumRelationGenerator(3, 1, data_provider_map)
     constraints = generator.get_constraints()
 
     expected_constraints = [
@@ -401,7 +401,7 @@ class ConstraintGeneratorTest(unittest.TestCase):
         frozenset(["A"]): metric_set_a,
       }
     )
-    generator = ImpressionsRelationGenerator(2, 1, data_provider_map)
+    generator = ImpressionsSumRelationGenerator(2, 1, data_provider_map)
 
     self.assertEqual(len(generator.get_constraints()), 0)
 
