@@ -41,8 +41,8 @@ import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
-import org.wfanet.measurement.common.crypto.tink.GcpToAwsWifCredentials
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResultsFulfillerConfigAsByteArray
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -57,7 +57,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.ParallelInMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
-import org.wfanet.measurement.gcloud.kms.GcpToAwsKmsClientFactory
+import org.wfanet.measurement.gcloud.kms.GCloudToAwsKmsClientFactory
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -392,9 +392,9 @@ class ResultsFulfillerAppRunner : Runnable {
       val kmsClient =
         when (edpConfig.kmsConfig.kmsType) {
           EventDataProviderConfig.KmsConfig.KmsType.AWS -> {
-            val gcpToAwsConfig =
-              GcpToAwsWifCredentials(
-                gcpAudience = edpConfig.kmsConfig.kmsAudience,
+            val gcloudToAwsConfig =
+              GCloudToAwsWifCredentials(
+                gcloudAudience = edpConfig.kmsConfig.kmsAudience,
                 subjectTokenType = SUBJECT_TOKEN_TYPE,
                 tokenUrl = TOKEN_URL,
                 credentialSourceFilePath = CREDENTIAL_SOURCE_FILE_PATH,
@@ -405,7 +405,7 @@ class ResultsFulfillerAppRunner : Runnable {
                 region = edpConfig.kmsConfig.awsRegion,
                 awsAudience = edpConfig.kmsConfig.awsAudience,
               )
-            GcpToAwsKmsClientFactory().getKmsClient(gcpToAwsConfig)
+            GCloudToAwsKmsClientFactory().getKmsClient(gcloudToAwsConfig)
           }
           else -> {
             val gcpConfig =

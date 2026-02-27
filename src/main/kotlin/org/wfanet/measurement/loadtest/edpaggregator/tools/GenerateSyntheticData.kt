@@ -32,7 +32,7 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.aws.kms.AwsKmsClientFactory
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.crypto.tink.AwsWifCredentials
+import org.wfanet.measurement.common.crypto.tink.AwsWebIdentityCredentials
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
@@ -222,7 +222,7 @@ class GenerateSyntheticData : Runnable {
           }
           require(awsRegion.isNotEmpty()) { "--aws-region is required when --kms-type=AWS" }
           val awsConfig =
-            AwsWifCredentials(
+            AwsWebIdentityCredentials(
               roleArn = awsRoleArn,
               webIdentityTokenFilePath = awsWebIdentityTokenFile,
               roleSessionName = awsRoleSessionName,
