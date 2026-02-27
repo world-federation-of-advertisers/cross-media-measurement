@@ -270,11 +270,19 @@ class EventGroupSyncFunction() : HttpFunction {
         if (eventGroupSyncConfig.hasUnifiedCmmsConnection()) {
           SigningCerts.fromPemFiles(
             certificateFile =
-              checkNotNull(File(eventGroupSyncConfig.unifiedCmmsConnection.fileSystemParams.certFilePath)),
+              checkNotNull(
+                File(eventGroupSyncConfig.unifiedCmmsConnection.fileSystemParams.certFilePath)
+              ),
             privateKeyFile =
-              checkNotNull(File(eventGroupSyncConfig.unifiedCmmsConnection.fileSystemParams.privateKeyFilePath)),
+              checkNotNull(
+                File(eventGroupSyncConfig.unifiedCmmsConnection.fileSystemParams.privateKeyFilePath)
+              ),
             trustedCertCollectionFile =
-              checkNotNull(File(eventGroupSyncConfig.unifiedCmmsConnection.fileSystemParams.certCollectionFilePath)),
+              checkNotNull(
+                File(
+                  eventGroupSyncConfig.unifiedCmmsConnection.fileSystemParams.certCollectionFilePath
+                )
+              ),
           )
         } else {
           @Suppress("DEPRECATION")

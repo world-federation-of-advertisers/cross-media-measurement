@@ -67,9 +67,9 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemStorage
-import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
 import org.wfanet.measurement.config.edpaggregator.eventGroupSyncConfig
 import org.wfanet.measurement.config.edpaggregator.storageParams
+import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
@@ -576,7 +576,6 @@ class EventGroupSyncFunctionTest() {
       )
   }
 
-
   @Test
   fun `sync registersUnregisteredEventGroups with unified cmms connection params`() {
     val newCampaign = eventGroup {
@@ -943,7 +942,6 @@ class EventGroupSyncFunctionTest() {
         )
       )
   }
-
 
   companion object {
     private val SECRETS_DIR: Path =

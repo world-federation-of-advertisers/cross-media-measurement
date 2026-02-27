@@ -76,7 +76,9 @@ class RequisitionStubFactoryImpl(
         certificateFile =
           checkNotNull(
               getRuntimePath(
-                Paths.get(fulfillerParams.unifiedCmmsConnection.resourceParams.clientCertResourcePath)
+                Paths.get(
+                  fulfillerParams.unifiedCmmsConnection.resourceParams.clientCertResourcePath
+                )
               )
             )
             .toFile(),

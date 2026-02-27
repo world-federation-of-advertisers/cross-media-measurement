@@ -1748,10 +1748,11 @@ class ResultsFulfillerAppTest {
                 labeledImpressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
               }
             @Suppress("DEPRECATION")
-            this.cmmsConnection = ResultsFulfillerParamsKt.transportLayerSecurityParams {
-              clientCertResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.pem").toString()
-              clientPrivateKeyResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.key").toString()
-            }
+            this.cmmsConnection =
+              ResultsFulfillerParamsKt.transportLayerSecurityParams {
+                clientCertResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.pem").toString()
+                clientPrivateKeyResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.key").toString()
+              }
             this.consentParams =
               ResultsFulfillerParamsKt.consentParams {
                 resultCsCertDerResourcePath =
