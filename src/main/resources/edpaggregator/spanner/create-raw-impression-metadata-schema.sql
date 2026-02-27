@@ -70,7 +70,7 @@ CREATE INDEX RawImpressionMetadataByUploadResourceId
 -- Enforces uniqueness of FileResourceId per batch and supports
 -- looking up a file row by its external resource ID.
 CREATE UNIQUE INDEX RawImpressionMetadataByFileResourceId
-  ON RawImpressionMetadata(DataProviderResourceId, UploadId, BatchIndex, FileResourceId);
+  ON RawImpressionMetadata(DataProviderResourceId, UploadResourceId, BatchIndex, FileResourceId);
 
 -- Enforces uniqueness of BlobUri per DataProvider and enables idempotency
 -- checks before inserting a new file record.
