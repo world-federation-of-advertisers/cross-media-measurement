@@ -38,17 +38,14 @@ message DataProviderRequisitionConfig {
   TransportLayerSecurityParams cmms_connection = 4 [deprecated = true];
   // The path to the EDP private key to group requisitions
   string edp_private_key_path = 5;
-  // Deprecated: Use unified_requisition_metadata_storage_connection instead.
-  TransportLayerSecurityParams requisition_metadata_storage_connection = 6
-      [deprecated = true];
 
   // How the EDP connects to the CMMS Public API
   wfa.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
-      unified_cmms_connection = 7;
+      unified_cmms_connection = 6;
 
   // How the EDP connects to the Requisition Metadata Storage Public API
   wfa.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
-      unified_requisition_metadata_storage_connection = 8;
+      unified_requisition_metadata_storage_connection = 7;
 }
 
 // The Requisition Fetcher configuration
