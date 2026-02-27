@@ -13,61 +13,68 @@
 # limitations under the License.
 
 from collections.abc import MutableMapping
-rom dataclasses import dataclass
+from dataclasses import dataclass
+
 
 @dataclass
 class Metric:
-  value: float
-  sigma: float
-  name: str
+    value: float
+    sigma: float
+    name: str
+    index: int = -1
+
 
 @dataclass
-class MetrictSet:
-  reach: Metric
-  k_reach: list[Metric]
-  impression: Metric
+class MetricSet:
+    reach: Metric
+    k_reach: dict[int, Metric]
+    impression: Metric
+
 
 class DataProviderMetricSetMap(MutableMapping):
-  def __init__(self, *args, **kwargs):
-    self.data = dict(*args, **kwargs)
 
-  def __getitem__(self, key):
-    return self.data[key]
+    def __init__(self, *args, **kwargs):
+        self.data = dict(*args, **kwargs)
 
-  def __setitem__(self, key, value):
-    self.data[key] = value
+    def __getitem__(self, key):
+        return self.data[key]
 
-  def __delitem__(self, key):
-    del self.data[key]
+    def __setitem__(self, key, value):
+        self.data[key] = value
 
-  def __iter__(self):
-    return iter(self.data)
+    def __delitem__(self, key):
+        del self.data[key]
 
-  def __len__(self):
-    return len(self.data)
+    def __iter__(self):
+        return iter(self.data)
+
+    def __len__(self):
+        return len(self.data)
 
 
 @dataclass
 class Report:
-  weekly_cumulatives: list[DataProviderMetricSetMap]
-  weekly_non_cumulatives: list[DataProviderMetricSetMap]
-  whole_campaign: DataProviderMetricSetMap
+    weekly_cumulatives: list[DataProviderMetricSetMap]
+    weekly_non_cumulatives: list[DataProviderMetricSetMap]
+    whole_campaign: DataProviderMetricSetMap
+
 
 class FilterReportMap(MutableMapping):
-  def __init__(self, *args, **kwargs):
-    self.data = dict(*args, **kwargs)
 
-  def __getitem__(self, key):
-    return self.data[key]
+    def __init__(self, *args, **kwargs):
+        self.data = dict(*args, **kwargs)
 
-  def __setitem__(self, key, value):
-    self.data[key] = value
+    def __getitem__(self, key):
+        return self.data[key]
 
-  def __delitem__(self, key):
-    del self.data[key]
+    def __setitem__(self, key, value):
+        self.data[key] = value
 
-  def __iter__(self):
-    return iter(self.data)
+    def __delitem__(self, key):
+        del self.data[key]
 
-  def __len__(self):
-    return len(self.data)
+    def __iter__(self):
+        return iter(self.data)
+
+    def __len__(self):
+        return len(self.data)

@@ -1,19 +1,27 @@
+load("@pip//:requirements.bzl", "requirement")
 load("@rules_python//python:defs.bzl", "py_library")
 
 package(default_visibility = ["//visibility:public"])
 
 py_library(
     name = "report",
-    srcs = ["report.py"],
-    imports = ["../"],
+    srcs = [
+        "__init__.py",
+        "report.py",
+    ],
+    deps = [
+        requirement("protobuf"),
+    ],
 )
 
 py_library(
     name = "constraint_generator",
-    srcs = ["constraint_generator.py"],
-    imports = ["../"],
+    srcs = [
+        "constraint_generator.py",
+    ],
     deps = [
         ":report",
         "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:constraint_py_pb2",
+        requirement("protobuf"),
     ],
 )
