@@ -297,14 +297,14 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
     ): GrpcChannels {
       val cmmsConnection: Message =
-        if (dataAvailabilitySyncConfig.hasCmmsConnectionParams()) {
-          dataAvailabilitySyncConfig.cmmsConnectionParams
+        if (dataAvailabilitySyncConfig.hasUnifiedCmmsConnection()) {
+          dataAvailabilitySyncConfig.unifiedCmmsConnection
         } else {
           @Suppress("DEPRECATION") dataAvailabilitySyncConfig.cmmsConnection
         }
       val impressionConnection: Message =
-        if (dataAvailabilitySyncConfig.hasImpressionMetadataStorageConnectionParams()) {
-          dataAvailabilitySyncConfig.impressionMetadataStorageConnectionParams
+        if (dataAvailabilitySyncConfig.hasUnifiedImpressionMetadataStorageConnection()) {
+          dataAvailabilitySyncConfig.unifiedImpressionMetadataStorageConnection
         } else {
           @Suppress("DEPRECATION") dataAvailabilitySyncConfig.impressionMetadataStorageConnection
         }

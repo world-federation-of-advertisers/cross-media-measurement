@@ -236,7 +236,7 @@ fun getResultsFulfillerParams(
       ResultsFulfillerParamsKt.storageParams {
         this.labeledImpressionsBlobDetailsUriPrefix = labeledImpressionBlobUriPrefix
       }
-    this.cmmsConnectionParams = unifiedTransportLayerSecurityParams {
+    this.unifiedCmmsConnection = unifiedTransportLayerSecurityParams {
       resourceParams =
         UnifiedTransportLayerSecurityParamsKt.resourceParams {
           clientCertResourcePath = SECRET_FILES_PATH.resolve("${edpDisplayName}_tls.pem").toString()

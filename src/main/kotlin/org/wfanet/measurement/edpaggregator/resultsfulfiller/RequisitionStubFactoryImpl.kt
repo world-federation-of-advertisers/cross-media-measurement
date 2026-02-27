@@ -73,8 +73,8 @@ class RequisitionStubFactoryImpl(
   }
 
   private fun loadSigningCerts(fulfillerParams: ResultsFulfillerParams): SigningCerts {
-    return if (fulfillerParams.hasCmmsConnectionParams()) {
-      loadSigningCerts(fulfillerParams.cmmsConnectionParams)
+    return if (fulfillerParams.hasUnifiedCmmsConnection()) {
+      loadSigningCerts(fulfillerParams.unifiedCmmsConnection)
     } else {
       @Suppress("DEPRECATION") loadSigningCerts(fulfillerParams.cmmsConnection)
     }

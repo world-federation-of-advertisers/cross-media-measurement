@@ -35,10 +35,10 @@ message DataAvailabilitySyncConfig {
   // Where the impressions are stored
   StorageParams data_availability_storage = 2;
 
-  // Deprecated: Use cmms_connection_params instead.
+  // Deprecated: Use unified_cmms_connection instead.
   TransportLayerSecurityParams cmms_connection = 3 [deprecated = true];
 
-  // Deprecated: Use impression_metadata_storage_connection_params instead.
+  // Deprecated: Use unified_impression_metadata_storage_connection instead.
   TransportLayerSecurityParams impression_metadata_storage_connection = 4
       [deprecated = true];
 
@@ -62,12 +62,12 @@ message DataAvailabilitySyncConfig {
 
   // How the DataAvailabilitySync connects to the CMMS Public API
   wfa.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
-      cmms_connection_params = 7;
+      unified_cmms_connection = 7;
 
   // How the DataAvailabilitySync connects to the ImpressionMetadataStorage
   // Public API
   wfa.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
-      impression_metadata_storage_connection_params = 8;
+      unified_impression_metadata_storage_connection = 8;
 
   // List of model lines to use for a single mapping entry.
   message ModelLineList {

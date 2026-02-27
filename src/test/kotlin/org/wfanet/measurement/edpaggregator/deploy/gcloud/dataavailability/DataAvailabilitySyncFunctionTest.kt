@@ -338,14 +338,14 @@ class DataAvailabilitySyncFunctionTest {
   private fun fileSystemUnifiedDataAvailabilitySyncConfig(): DataAvailabilitySyncConfig =
     dataAvailabilitySyncConfig {
       dataProvider = "dataProviders/edp123"
-      cmmsConnectionParams = unifiedTransportLayerSecurityParams {
+      unifiedCmmsConnection = unifiedTransportLayerSecurityParams {
         fileSystemParams = fileSystemParams {
           certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
           privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
           certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
         }
       }
-      impressionMetadataStorageConnectionParams = unifiedTransportLayerSecurityParams {
+      unifiedImpressionMetadataStorageConnection = unifiedTransportLayerSecurityParams {
         fileSystemParams = fileSystemParams {
           certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
           privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()

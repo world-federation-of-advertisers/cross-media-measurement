@@ -91,7 +91,7 @@ message ResultsFulfillerParams {
         [(google.api.field_behavior) = REQUIRED];
   }
 
-  // Deprecated: Use cmms_connection_params instead.
+  // Deprecated: Use unified_cmms_connection instead.
   TransportLayerSecurityParams cmms_connection = 4 [deprecated = true];
 
   // The parameters for noise that is applied to the result.
@@ -166,6 +166,6 @@ message ResultsFulfillerParams {
   TrusTeeParams trustee_params = 9;
 
   // The connection to the Cmms API
-  UnifiedTransportLayerSecurityParams cmms_connection_params = 10
+  UnifiedTransportLayerSecurityParams unified_cmms_connection = 10
       [(google.api.field_behavior) = REQUIRED];
 }

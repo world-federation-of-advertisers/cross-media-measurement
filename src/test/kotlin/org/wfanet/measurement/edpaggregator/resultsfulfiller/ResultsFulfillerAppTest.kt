@@ -1791,7 +1791,7 @@ class ResultsFulfillerAppTest {
               ResultsFulfillerParamsKt.storageParams {
                 labeledImpressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
               }
-            this.cmmsConnectionParams = unifiedTransportLayerSecurityParams {
+            this.unifiedCmmsConnection = unifiedTransportLayerSecurityParams {
               resourceParams =
                 UnifiedTransportLayerSecurityParamsKt.resourceParams {
                   clientCertResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.pem").toString()

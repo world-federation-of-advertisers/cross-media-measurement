@@ -601,7 +601,7 @@ class EventGroupSyncFunctionTest() {
       dataProvider = "some-data-provider"
       eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.binpb"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
-      this.cmmsConnectionParams = unifiedTransportLayerSecurityParams {
+      this.unifiedCmmsConnection = unifiedTransportLayerSecurityParams {
         fileSystemParams = fileSystemParams {
           certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
           privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
@@ -711,7 +711,7 @@ class EventGroupSyncFunctionTest() {
       dataProvider = "some-data-provider"
       eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.json"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
-      this.cmmsConnectionParams = unifiedTransportLayerSecurityParams {
+      this.unifiedCmmsConnection = unifiedTransportLayerSecurityParams {
         fileSystemParams = fileSystemParams {
           certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
           privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
@@ -816,7 +816,7 @@ class EventGroupSyncFunctionTest() {
       dataProvider = "some-data-provider"
       eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.json"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
-      this.cmmsConnectionParams = unifiedTransportLayerSecurityParams {
+      this.unifiedCmmsConnection = unifiedTransportLayerSecurityParams {
         fileSystemParams = fileSystemParams {
           certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
           privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
@@ -882,7 +882,7 @@ class EventGroupSyncFunctionTest() {
       dataProvider = "some-data-provider"
       eventGroupsBlobUri = "file:///some/path/that/does/not/exist"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
-      this.cmmsConnectionParams = unifiedTransportLayerSecurityParams {
+      this.unifiedCmmsConnection = unifiedTransportLayerSecurityParams {
         fileSystemParams = fileSystemParams {
           certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
           privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
