@@ -26,13 +26,13 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.aws.kms.AwsKmsClientFactory
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.crypto.tink.AwsWifCredentials
-import org.wfanet.measurement.common.crypto.tink.GcpToAwsWifCredentials
+import org.wfanet.measurement.common.crypto.tink.AwsWebIdentityCredentials
+import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.gcloud.kms.GcpToAwsKmsClientFactory
+import org.wfanet.measurement.gcloud.kms.GCloudToAwsKmsClientFactory
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -215,7 +215,7 @@ class VerifySyntheticData : Runnable {
           }
           AwsKmsClientFactory()
             .getKmsClient(
-              AwsWifCredentials(
+              AwsWebIdentityCredentials(
                 roleArn = awsFlags.awsRoleArn,
                 webIdentityTokenFilePath = awsFlags.awsWebIdentityTokenFile,
                 roleSessionName = awsFlags.awsRoleSessionName,
@@ -239,10 +239,10 @@ class VerifySyntheticData : Runnable {
           require(gcpToAwsFlags.awsAudience.isNotEmpty()) {
             "--aws-audience is required when --kms-type=GCP_TO_AWS"
           }
-          GcpToAwsKmsClientFactory()
+          GCloudToAwsKmsClientFactory()
             .getKmsClient(
-              GcpToAwsWifCredentials(
-                gcpAudience = gcpToAwsFlags.gcpAudience,
+              GCloudToAwsWifCredentials(
+                gcloudAudience = gcpToAwsFlags.gcpAudience,
                 subjectTokenType = gcpToAwsFlags.subjectTokenType,
                 tokenUrl = gcpToAwsFlags.tokenUrl,
                 credentialSourceFilePath = gcpToAwsFlags.credentialSourceFilePath,

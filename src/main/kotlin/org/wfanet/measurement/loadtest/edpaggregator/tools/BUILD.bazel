@@ -57,7 +57,7 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/kms:gcp_to_aws_kms_client_factory",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/kms:gcloud_to_aws_kms_client_factory",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
