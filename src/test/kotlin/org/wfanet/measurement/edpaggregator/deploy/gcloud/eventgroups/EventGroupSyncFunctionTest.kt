@@ -67,6 +67,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemStorage
+import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
 import org.wfanet.measurement.config.edpaggregator.eventGroupSyncConfig
 import org.wfanet.measurement.config.edpaggregator.storageParams
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
@@ -545,6 +546,348 @@ class EventGroupSyncFunctionTest() {
     }
 
     // In practice, the DataWatcher makes this HTTP call
+    val client = HttpClient.newHttpClient()
+    val getRequest =
+      HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .header("X-DataWatcher-Path", "file:///some/path/campaigns-blob-uri.binpb")
+        .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
+        .build()
+    val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
+    logger.info("Response status: ${getResponse.statusCode()}")
+    logger.info("Response body: ${getResponse.body()}")
+
+    assertThat(getResponse.statusCode()).isEqualTo(200)
+
+    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(any()) }
+    val mappedData = runBlocking {
+      MesosRecordIoStorageClient(storageClient)
+        .getBlob("some/other/path/event-groups-map-uri")!!
+        .read()
+        .map { MappedEventGroup.parseFrom(it) }
+        .toList()
+        .map { it.eventGroupReferenceId to it.eventGroupResource }
+    }
+    assertThat(mappedData)
+      .isEqualTo(
+        listOf(
+          "reference-id-1" to "dataProviders/data-provider-1/eventGroups/reference-id-1",
+          "reference-id-2" to "dataProviders/data-provider-2/eventGroups/reference-id-2",
+          "reference-id-3" to "dataProviders/data-provider-3/eventGroups/reference-id-3",
+          "reference-id-4" to "resource-name-for-reference-id-4",
+        )
+      )
+  }
+
+  @Test
+  @Suppress("DEPRECATION")
+  fun `sync registersUnregisteredEventGroups with legacy cmms connection`() {
+    val newCampaign = eventGroup {
+      eventGroupReferenceId = "reference-id-4"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-2"
+            campaign = "campaign-2"
+          }
+        }
+      }
+      measurementConsumer = "measurementConsumers/measurement-consumer-2"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.OTHER)
+    }
+    val testCampaigns = CAMPAIGNS + newCampaign
+    val config = eventGroupSyncConfig {
+      dataProvider = "some-data-provider"
+      eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.binpb"
+      eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
+      this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
+      eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
+    }
+    File("${tempFolder.root}/some/path").mkdirs()
+    File("${tempFolder.root}/some/other/path").mkdirs()
+    val port = runBlocking { startFunction() }
+
+    val url = "http://localhost:$port"
+    logger.info("Testing Cloud Function at: $url")
+
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+    runBlocking {
+      MesosRecordIoStorageClient(storageClient)
+        .writeBlob(
+          "some/path/campaigns-blob-uri.binpb",
+          testCampaigns.map { it.toByteString() }.asFlow(),
+        )
+    }
+
+    val client = HttpClient.newHttpClient()
+    val getRequest =
+      HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
+        .build()
+    val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
+    logger.info("Response status: ${getResponse.statusCode()}")
+    logger.info("Response body: ${getResponse.body()}")
+
+    assertThat(getResponse.statusCode()).isEqualTo(200)
+
+    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(any()) }
+    val mappedData = runBlocking {
+      MesosRecordIoStorageClient(storageClient)
+        .getBlob("some/other/path/event-groups-map-uri")!!
+        .read()
+        .map { MappedEventGroup.parseFrom(it) }
+        .toList()
+        .map { it.eventGroupReferenceId to it.eventGroupResource }
+    }
+    assertThat(mappedData)
+      .isEqualTo(
+        listOf(
+          "reference-id-1" to "dataProviders/data-provider-1/eventGroups/reference-id-1",
+          "reference-id-2" to "dataProviders/data-provider-2/eventGroups/reference-id-2",
+          "reference-id-3" to "dataProviders/data-provider-3/eventGroups/reference-id-3",
+          "reference-id-4" to "resource-name-for-reference-id-4",
+        )
+      )
+  }
+
+  @Test
+  @Suppress("DEPRECATION")
+  fun `sync registersUnregisteredEventGroups using JSON format with legacy cmms connection`() {
+    val newCampaign =
+      """
+        {
+          "eventGroups": [
+            {
+              "eventGroupReferenceId": "reference-id-4",
+              "eventGroupMetadata": {
+                "adMetadata": {
+                  "campaignMetadata": {
+                    "brand": "brand-2",
+                    "campaign": "campaign-2"
+                  }
+                }
+              },
+              "dataAvailabilityInterval": {
+                "startTime": "1970-01-01T00:03:20Z",
+                "endTime": "1970-01-01T00:05:00Z"
+              },
+              "measurementConsumer": "measurementConsumers/measurement-consumer-2",
+              "mediaTypes": ["OTHER"]
+            },
+            {
+              "eventGroupReferenceId": "reference-id-5",
+              "eventGroupMetadata": {
+                "adMetadata": {
+                  "campaignMetadata": {
+                    "brand": "brand-2",
+                    "campaign": "campaign-3"
+                  }
+                }
+              },
+              "dataAvailabilityInterval": {
+                "startTime": "1970-01-01T00:03:20Z",
+                "endTime": "1970-01-01T00:05:00Z"
+              },
+              "measurementConsumer": "measurementConsumers/measurement-consumer-2",
+              "mediaTypes": ["OTHER"]
+            }
+           ]
+          }
+    """
+        .trimIndent()
+
+    val config = eventGroupSyncConfig {
+      dataProvider = "some-data-provider"
+      eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.json"
+      eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
+      this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
+      eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
+    }
+    File("${tempFolder.root}/some/path").mkdirs()
+    File("${tempFolder.root}/some/other/path").mkdirs()
+    val port = runBlocking { startFunction() }
+
+    val url = "http://localhost:$port"
+    logger.info("Testing Cloud Function at: $url")
+
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+    runBlocking {
+      storageClient.writeBlob(
+        "some/path/campaigns-blob-uri.json",
+        flowOf(ByteString.copyFromUtf8(newCampaign)),
+      )
+    }
+
+    val client = HttpClient.newHttpClient()
+    val getRequest =
+      HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
+        .build()
+    val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
+    logger.info("Response status: ${getResponse.statusCode()}")
+    logger.info("Response body: ${getResponse.body()}")
+
+    assertThat(getResponse.statusCode()).isEqualTo(200)
+    verifyBlocking(eventGroupsServiceMock, times(2)) { createEventGroup(any()) }
+    val mappedData = runBlocking {
+      MesosRecordIoStorageClient(storageClient)
+        .getBlob("some/other/path/event-groups-map-uri")!!
+        .read()
+        .map { MappedEventGroup.parseFrom(it) }
+        .toList()
+        .map { it.eventGroupReferenceId to it.eventGroupResource }
+    }
+    assertThat(mappedData)
+      .isEqualTo(
+        listOf(
+          "reference-id-4" to "resource-name-for-reference-id-4",
+          "reference-id-5" to "resource-name-for-reference-id-5",
+        )
+      )
+  }
+
+  @Test
+  @Suppress("DEPRECATION")
+  fun `sync registersUnregisteredEventGroups using JSON format throws for invalid json with legacy cmms connection`() {
+    val newCampaign =
+      """
+        {
+          "events": [
+            {
+              "eventGroupReferenceId": "reference-id-4",
+              "eventGroupMetadata": {
+                "adMetadata": {
+                  "campaignMetadata": {
+                    "brand": "brand-2",
+                    "campaign": "campaign-2"
+                  }
+                }
+              },
+              "dataAvailabilityInterval": {
+                "startTime": "1970-01-01T00:03:20Z",
+                "endTime": "1970-01-01T00:05:00Z"
+              },
+              "measurementConsumer": "measurementConsumers/measurement-consumer-2",
+              "mediaTypes": ["OTHER"]
+            }
+           ]
+          }
+    """
+        .trimIndent()
+
+    val config = eventGroupSyncConfig {
+      dataProvider = "some-data-provider"
+      eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.json"
+      eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
+      this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
+      eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
+    }
+    File("${tempFolder.root}/some/path").mkdirs()
+    File("${tempFolder.root}/some/other/path").mkdirs()
+    val port = runBlocking { startFunction() }
+
+    val url = "http://localhost:$port"
+    logger.info("Testing Cloud Function at: $url")
+
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+    runBlocking {
+      storageClient.writeBlob(
+        "some/path/campaigns-blob-uri.json",
+        flowOf(ByteString.copyFromUtf8(newCampaign)),
+      )
+    }
+
+    val client = HttpClient.newHttpClient()
+    val getRequest =
+      HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .header("X-DataWatcher-Path", "")
+        .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
+        .build()
+    val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
+    logger.info("Response status: ${getResponse.statusCode()}")
+    logger.info("Response body: ${getResponse.body()}")
+
+    assertThat(getResponse.statusCode()).isEqualTo(500)
+    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+  }
+
+  @Test
+  @Suppress("DEPRECATION")
+  fun `sync registersUnregisteredEventGroups with path from data watcher with legacy cmms connection`() {
+    val newCampaign = eventGroup {
+      eventGroupReferenceId = "reference-id-4"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-2"
+            campaign = "campaign-2"
+          }
+        }
+      }
+      measurementConsumer = "measurementConsumers/measurement-consumer-2"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.OTHER)
+    }
+    val testCampaigns = CAMPAIGNS + newCampaign
+    val config = eventGroupSyncConfig {
+      dataProvider = "some-data-provider"
+      eventGroupsBlobUri = "file:///some/path/that/does/not/exist"
+      eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
+      this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
+      eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
+    }
+    File("${tempFolder.root}/some/path").mkdirs()
+    File("${tempFolder.root}/some/other/path").mkdirs()
+    val port = runBlocking { startFunction() }
+
+    val url = "http://localhost:$port"
+    logger.info("Testing Cloud Function at: $url")
+
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+    runBlocking {
+      MesosRecordIoStorageClient(storageClient)
+        .writeBlob(
+          "some/path/campaigns-blob-uri.binpb",
+          testCampaigns.map { it.toByteString() }.asFlow(),
+        )
+    }
+
     val client = HttpClient.newHttpClient()
     val getRequest =
       HttpRequest.newBuilder()
