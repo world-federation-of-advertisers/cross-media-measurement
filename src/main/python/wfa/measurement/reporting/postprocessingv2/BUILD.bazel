@@ -5,20 +5,12 @@ package(default_visibility = ["//visibility:public"])
 
 py_library(
     name = "report",
-    srcs = [
-        "__init__.py",
-        "report.py",
-    ],
-    deps = [
-        requirement("protobuf"),
-    ],
+    srcs = ["report.py"],
 )
 
 py_library(
     name = "constraint_generator",
-    srcs = [
-        "constraint_generator.py",
-    ],
+    srcs = ["constraint_generator.py"],
     deps = [
         ":report",
         "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:constraint_py_pb2",

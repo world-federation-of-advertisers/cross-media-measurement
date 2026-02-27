@@ -15,7 +15,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from itertools import combinations
-from typing import Dict, List, Set, Tuple
 
 from src.main.python.wfa.measurement.reporting.postprocessingv2.report import (
   DataProviderMetricSetMap,
@@ -135,7 +134,7 @@ class ConstraintGenerator(ABC):
       self._validate_metric_set(metric_set)
 
   @abstractmethod
-  def get_constraints(self) -> List[Constraint]:
+  def get_constraints(self) -> list[Constraint]:
     """Generates constraints."""
 
 
@@ -152,7 +151,7 @@ class LowerBoundRelationGenerator(ConstraintGenerator):
     self._validate_data_provider_metric_set_map(data_provider_metric_set)
     self.data_provider_metric_set = data_provider_metric_set
 
-  def get_constraints(self) -> List[Constraint]:
+  def get_constraints(self) -> list[Constraint]:
     constraints = []
     for metric_set in self.data_provider_metric_set.values():
       indices = []
@@ -187,7 +186,7 @@ class UnnoisedRelationGenerator(ConstraintGenerator):
     self._validate_data_provider_metric_set_map(data_provider_metric_set)
     self.data_provider_metric_set = data_provider_metric_set
 
-  def get_constraints(self) -> List[Constraint]:
+  def get_constraints(self) -> list[Constraint]:
     constraints = []
     for metric_set in self.data_provider_metric_set.values():
       metrics = []
@@ -225,7 +224,7 @@ class CoverRelationGenerator(ConstraintGenerator):
     self.data_provider_metric_set = data_provider_metric_set
     self.cover_relationships = cover_relationships
 
-  def get_constraints(self) -> List[Constraint]:
+  def get_constraints(self) -> list[Constraint]:
     constraints = []
     for relationship in self.cover_relationships:
       target_metric_set = self.data_provider_metric_set.get(
@@ -271,7 +270,7 @@ class ImpressionsRelationGenerator(ConstraintGenerator):
     self._validate_data_provider_metric_set_map(data_provider_metric_set)
     self.data_provider_metric_set = data_provider_metric_set
 
-  def get_constraints(self) -> List[Constraint]:
+  def get_constraints(self) -> list[Constraint]:
     constraints = []
     edp_combinations = [
       edp_combination
@@ -327,7 +326,7 @@ class SubsetRelationGenerator(ConstraintGenerator):
     self._validate_data_provider_metric_set_map(data_provider_metric_set)
     self.data_provider_metric_set = data_provider_metric_set
 
-  def get_constraints(self) -> List[Constraint]:
+  def get_constraints(self) -> list[Constraint]:
     constraints = []
     edp_combinations = list(self.data_provider_metric_set.keys())
     for set1, set2 in combinations(edp_combinations, 2):
@@ -399,7 +398,7 @@ class ReachFrequencyRelationGenerator(ConstraintGenerator):
     self._validate_data_provider_metric_set_map(data_provider_metric_set)
     self.data_provider_metric_set = data_provider_metric_set
 
-  def get_constraints(self) -> List[Constraint]:
+  def get_constraints(self) -> list[Constraint]:
     constraints = []
     for metric_set in self.data_provider_metric_set.values():
       if not metric_set.reach or not metric_set.k_reach:
@@ -432,7 +431,7 @@ class ReachImpressionsRelationGenerator(ConstraintGenerator):
     self._validate_data_provider_metric_set_map(data_provider_metric_set)
     self.data_provider_metric_set = data_provider_metric_set
 
-  def get_constraints(self) -> List[Constraint]:
+  def get_constraints(self) -> list[Constraint]:
     constraints = []
     for metric_set in self.data_provider_metric_set.values():
       if not metric_set.reach or not metric_set.impression:
@@ -464,7 +463,7 @@ class FrequencyImpressionsRelationGenerator(ConstraintGenerator):
     self._validate_data_provider_metric_set_map(data_provider_metric_set)
     self.data_provider_metric_set = data_provider_metric_set
 
-  def get_constraints(self) -> List[Constraint]:
+  def get_constraints(self) -> list[Constraint]:
     constraints = []
     for metric_set in self.data_provider_metric_set.values():
       if not metric_set.k_reach or not metric_set.impression:
