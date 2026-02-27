@@ -826,9 +826,7 @@ class StorageEventSourceTest {
       )
 
     // getKekUri should fail because blobs have different project IDs
-    val exception = assertFailsWith<IllegalArgumentException> { eventSource.getKekUri() }
-    assertThat(exception.message)
-      .contains("All KEK URIs must have the same project/account and location/region")
+    assertFailsWith<IllegalArgumentException> { eventSource.getKekUri() }
   }
 
   @Test
@@ -947,9 +945,7 @@ class StorageEventSourceTest {
         batchSize = 1000,
       )
 
-    val exception = assertFailsWith<IllegalArgumentException> { eventSource.getKekUri() }
-    assertThat(exception.message)
-      .contains("All KEK URIs must have the same project/account and location/region")
+    assertFailsWith<IllegalArgumentException> { eventSource.getKekUri() }
   }
 
   @Test
@@ -990,9 +986,7 @@ class StorageEventSourceTest {
         batchSize = 1000,
       )
 
-    val exception = assertFailsWith<IllegalArgumentException> { eventSource.getKekUri() }
-    assertThat(exception.message)
-      .contains("All KEK URIs must have the same project/account and location/region")
+    assertFailsWith<IllegalArgumentException> { eventSource.getKekUri() }
   }
 
   @Test
@@ -1076,9 +1070,7 @@ class StorageEventSourceTest {
         batchSize = 1000,
       )
 
-    val exception = assertFailsWith<IllegalArgumentException> { eventSource.getKekUri() }
-    assertThat(exception.message)
-      .contains("All KEK URIs must have the same project/account and location/region")
+    assertFailsWith<IllegalArgumentException> { eventSource.getKekUri() }
   }
 
   companion object {

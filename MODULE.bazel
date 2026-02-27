@@ -42,7 +42,6 @@ bazel_dep(
     version = "0.137.0",
     repo_name = "wfa_common_jvm",
 )
-
 bazel_dep(
     name = "common-cpp",
     version = "0.14.0",
