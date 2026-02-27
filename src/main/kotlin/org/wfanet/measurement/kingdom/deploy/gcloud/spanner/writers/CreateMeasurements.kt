@@ -161,7 +161,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
   ): Measurement {
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
 
-    // Data provider required duchies only apply to the LLv2 protocol.
+    // Data provider required duchies only apply to LLv2 protocols.
     val dataProviderRequiredDuchyIds: Set<String> =
       createMeasurementRequest.measurement.dataProvidersMap.keys
         .flatMap {
