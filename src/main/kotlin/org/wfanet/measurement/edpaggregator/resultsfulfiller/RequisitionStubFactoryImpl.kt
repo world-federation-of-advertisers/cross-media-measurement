@@ -28,8 +28,6 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.TransportLayerSecurityParams as LegacyTlsParams
-import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
 
 class DuchyInfo(val target: String, val certHost: String?)
 
@@ -74,34 +72,40 @@ class RequisitionStubFactoryImpl(
 
   private fun loadSigningCerts(fulfillerParams: ResultsFulfillerParams): SigningCerts {
     return if (fulfillerParams.hasUnifiedCmmsConnection()) {
-      loadSigningCerts(fulfillerParams.unifiedCmmsConnection)
+      SigningCerts.fromPemFiles(
+        certificateFile =
+          checkNotNull(
+              getRuntimePath(
+                Paths.get(fulfillerParams.unifiedCmmsConnection.resourceParams.clientCertResourcePath)
+              )
+            )
+            .toFile(),
+        privateKeyFile =
+          checkNotNull(
+              getRuntimePath(
+                Paths.get(
+                  fulfillerParams.unifiedCmmsConnection.resourceParams.clientPrivateKeyResourcePath
+                )
+              )
+            )
+            .toFile(),
+        trustedCertCollectionFile = trustedCertCollection,
+      )
     } else {
-      @Suppress("DEPRECATION") loadSigningCerts(fulfillerParams.cmmsConnection)
+      @Suppress("DEPRECATION")
+      SigningCerts.fromPemFiles(
+        certificateFile =
+          checkNotNull(
+              getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.clientCertResourcePath))
+            )
+            .toFile(),
+        privateKeyFile =
+          checkNotNull(
+              getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.clientPrivateKeyResourcePath))
+            )
+            .toFile(),
+        trustedCertCollectionFile = trustedCertCollection,
+      )
     }
-  }
-
-  private fun loadSigningCerts(connection: UnifiedTransportLayerSecurityParams): SigningCerts {
-    return SigningCerts.fromPemFiles(
-      certificateFile =
-        checkNotNull(getRuntimePath(Paths.get(connection.resourceParams.clientCertResourcePath)))
-          .toFile(),
-      privateKeyFile =
-        checkNotNull(
-            getRuntimePath(Paths.get(connection.resourceParams.clientPrivateKeyResourcePath))
-          )
-          .toFile(),
-      trustedCertCollectionFile = trustedCertCollection,
-    )
-  }
-
-  @Suppress("DEPRECATION")
-  private fun loadSigningCerts(connection: LegacyTlsParams): SigningCerts {
-    return SigningCerts.fromPemFiles(
-      certificateFile =
-        checkNotNull(getRuntimePath(Paths.get(connection.clientCertResourcePath))).toFile(),
-      privateKeyFile =
-        checkNotNull(getRuntimePath(Paths.get(connection.clientPrivateKeyResourcePath))).toFile(),
-      trustedCertCollectionFile = trustedCertCollection,
-    )
   }
 }

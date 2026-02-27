@@ -431,7 +431,7 @@ class RequisitionFetcherFunction : HttpFunction {
         }
       } else {
         require(false) {
-          "Missing 'unified_cmms_connection' for data provider: ${dataProviderConfig.dataProvider}."
+          "Missing 'unified_cmms_connection' and 'cmms_connection' for data provider: ${dataProviderConfig.dataProvider}. At least one must be present."
         }
       }
     }
