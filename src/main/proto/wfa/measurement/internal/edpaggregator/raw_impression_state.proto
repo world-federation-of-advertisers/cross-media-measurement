@@ -20,7 +20,8 @@ option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
 option java_outer_classname = "RawImpressionStateProto";
 
-// The lifecycle state of a raw impression metadata record (used for soft delete).
+// The lifecycle state of a raw impression metadata record (used for soft
+// delete).
 enum RawImpressionState {
   // Default, unspecified state.
   RAW_IMPRESSION_STATE_UNSPECIFIED = 0;
