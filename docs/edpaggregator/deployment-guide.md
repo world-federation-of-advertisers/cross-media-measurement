@@ -1235,13 +1235,15 @@ Once all infrastructure has been deployed, you can verify the setup by running t
 ## EDP Workload Identity Pool Provider Creation
 
 To enable attestation, a **Workload Identity Pool Provider** must be created for the EDP.
-Attestation based on **Signature Builds** will be available in future releases.
+Attestation is based on **Signature Builds**.
 For now, the attribute set that can be validated is:
 
 * The application runs inside a Confidential Space
 * The application uses a **STABLE** (production) disk boot image
 * The request originates from the expected service account (the one running in the VM where the **ResultsFulfiller** app is deployed)
-  **Steps to create the provider:**
+* The container image is signed with an expected key (verified via image signature fingerprint)
+
+**Steps to create the provider:**
 
 Log into the **EDP Google account** and run:
 
@@ -1254,8 +1256,29 @@ gcloud iam workload-identity-pools providers create-oidc <provider_name> \
   --attribute-mapping="google.subject='assertion.sub'" \
   --attribute-condition="assertion.swname == 'CONFIDENTIAL_SPACE' &&
     'STABLE' in assertion.submods.confidential_space.support_attributes &&
-    '<service_account running in the ResultsFulfiller VM>' in assertion.google_service_accounts"
+    '<service_account running in the ResultsFulfiller VM>' in assertion.google_service_accounts &&
+    ['<SIGNATURE_ALGORITHM>:<KEY_ID>'].exists(fingerprint, fingerprint in assertion.submods.container.image_signatures.map(sig, sig.signature_algorithm+':'+sig.key_id))"
 ```
+
+For example, using an ECDSA P256 SHA256 key:
+
+```shell
+gcloud iam workload-identity-pools providers create-oidc <provider_name> \
+  --location="global" \
+  --workload-identity-pool="<name configured when deploying EDP resources>" \
+  --issuer-uri="https://confidentialcomputing.googleapis.com/" \
+  --allowed-audiences="https://sts.googleapis.com" \
+  --attribute-mapping="google.subject='assertion.sub'" \
+  --attribute-condition="assertion.swname == 'CONFIDENTIAL_SPACE' &&
+    'STABLE' in assertion.submods.confidential_space.support_attributes &&
+    '<service_account running in the ResultsFulfiller VM>' in assertion.google_service_accounts &&
+    ['ECDSA_P256_SHA256:<key_id_hex>'].exists(fingerprint, fingerprint in assertion.submods.container.image_signatures.map(sig, sig.signature_algorithm+':'+sig.key_id))"
+```
+
+The image signature condition verifies that the container image was signed with a
+trusted key. Replace `<SIGNATURE_ALGORITHM>` with the signing algorithm (e.g.
+`ECDSA_P256_SHA256`) and `<KEY_ID>` with the hex-encoded fingerprint of the
+signing key.
 
 **Note:**
 If you are running a **debug confidential image** (`confidential-space-debug`), the condition

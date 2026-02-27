@@ -227,6 +227,8 @@ class InProcessCmmsComponents(
         apiKeysClient = publicApiKeysClient,
         measurementConsumersClient = publicMeasurementConsumersClient,
         runId = "12345",
+        // TODO(world-federation-of-advertisers/cross-media-measurement#3593): Remove
+        // this field entirely.
         requiredDuchies = listOf("worker1", "worker2"),
       )
     // Create the MC.
