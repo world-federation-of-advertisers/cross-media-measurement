@@ -315,7 +315,27 @@ class DataAvailabilitySyncFunctionTest {
     assertThat(recordedTraceIds).contains(traceId)
   }
 
+  @Suppress("DEPRECATION")
   private fun fileSystemDataAvailabilitySyncConfig(): DataAvailabilitySyncConfig =
+    dataAvailabilitySyncConfig {
+      dataProvider = "dataProviders/edp123"
+      cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      impressionMetadataStorageConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        // TODO(@marcopremier): Replace with ImpressionMetadata cert when available
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
+      edpImpressionPath = "edp/edp_name"
+      modelLineMap["some-model-line"] = modelLineList { modelLines += "some-model-line-mapped" }
+    }
+
+  private fun fileSystemUnifiedDataAvailabilitySyncConfig(): DataAvailabilitySyncConfig =
     dataAvailabilitySyncConfig {
       dataProvider = "dataProviders/edp123"
       cmmsConnectionParams = unifiedTransportLayerSecurityParams {
@@ -338,46 +358,9 @@ class DataAvailabilitySyncFunctionTest {
       modelLineMap["some-model-line"] = modelLineList { modelLines += "some-model-line-mapped" }
     }
 
-  @Suppress("DEPRECATION")
-  private fun fileSystemLegacyDataAvailabilitySyncConfig(): DataAvailabilitySyncConfig =
-    dataAvailabilitySyncConfig {
-      dataProvider = "dataProviders/edp123"
-      cmmsConnection = transportLayerSecurityParams {
-        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
-      }
-      impressionMetadataStorageConnection = transportLayerSecurityParams {
-        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
-      }
-      dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
-      edpImpressionPath = "edp/edp_name"
-      modelLineMap["some-model-line"] = modelLineList { modelLines += "some-model-line-mapped" }
-    }
-
-  @Suppress("DEPRECATION")
-  private fun fileSystemLegacyDataAvailabilitySyncConfig(): DataAvailabilitySyncConfig =
-    dataAvailabilitySyncConfig {
-      dataProvider = "dataProviders/edp123"
-      cmmsConnection = transportLayerSecurityParams {
-        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
-      }
-      impressionMetadataStorageConnection = transportLayerSecurityParams {
-        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
-      }
-      dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
-      edpImpressionPath = "edp/edp_name"
-      modelLineMap["some-model-line"] = modelLineList { modelLines += "some-model-line-mapped" }
-    }
-
   @Test
-  fun `sync registersUnregisteredImpressionMetadata with legacy cmms connection`() {
+  fun `sync registersUnregisteredImpressionMetadata with unified cmms connection params`() {
+
     val localImpressionBlobKey = "edp/edp_name/timestamp/impressions"
     val localImpressionBlobUri = "file:////edp/edp_name/timestamp/impressions"
     val localMetadataBlobKey = "edp/edp_name/timestamp/metadata.binpb"
@@ -393,7 +376,7 @@ class DataAvailabilitySyncFunctionTest {
       }
     }
 
-    val dataAvailabilitySyncConfig = fileSystemLegacyDataAvailabilitySyncConfig()
+    val dataAvailabilitySyncConfig = fileSystemUnifiedDataAvailabilitySyncConfig()
     File("${tempFolder.root}/edp/edp_name/timestamp").mkdirs()
     val port = runBlocking {
       functionProcess.start(
@@ -419,6 +402,7 @@ class DataAvailabilitySyncFunctionTest {
       storageClient.writeBlob(localImpressionBlobKey, emptyFlow())
       storageClient.writeBlob(localMetadataBlobKey, flowOf(blobDetails.toByteString()))
     }
+    // In practice, the DataWatcher makes this HTTP call
     val client = HttpClient.newHttpClient()
     val getRequest =
       HttpRequest.newBuilder()
@@ -441,7 +425,7 @@ class DataAvailabilitySyncFunctionTest {
   }
 
   @Test
-  fun `sync propagates traceparent header to outgoing grpc calls with legacy cmms connection`() {
+  fun `sync propagates traceparent header to outgoing grpc calls with unified cmms connection params`() {
     val localImpressionBlobKey = "edp/edp_name/timestamp/impressions"
     val localImpressionBlobUri = "file:////edp/edp_name/timestamp/impressions"
     val localMetadataBlobKey = "edp/edp_name/timestamp/metadata.binpb"
@@ -457,7 +441,7 @@ class DataAvailabilitySyncFunctionTest {
       }
     }
 
-    val dataAvailabilitySyncConfig = fileSystemLegacyDataAvailabilitySyncConfig()
+    val dataAvailabilitySyncConfig = fileSystemUnifiedDataAvailabilitySyncConfig()
     File("${tempFolder.root}/edp/edp_name/timestamp").mkdirs()
     val port = runBlocking {
       functionProcess.start(
@@ -515,7 +499,6 @@ class DataAvailabilitySyncFunctionTest {
     assertThat(recordedTraceIds).isNotEmpty()
     assertThat(recordedTraceIds).contains(traceId)
   }
-
 
   private fun parseTraceparentTraceId(header: String?): String? {
     header ?: return null

@@ -214,6 +214,7 @@ class EventGroupSyncFunctionTest() {
   }
 
   @Test
+  @Suppress("DEPRECATION")
   fun `sync registersUnregisteredEventGroups`() {
     val newCampaign = eventGroup {
       eventGroupReferenceId = "reference-id-4"
@@ -237,12 +238,10 @@ class EventGroupSyncFunctionTest() {
       dataProvider = "some-data-provider"
       eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.binpb"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
-      this.cmmsConnectionParams = unifiedTransportLayerSecurityParams {
-        fileSystemParams = fileSystemParams {
-          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
-        }
+      this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
       }
       eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
       eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
@@ -299,6 +298,7 @@ class EventGroupSyncFunctionTest() {
   }
 
   @Test
+  @Suppress("DEPRECATION")
   fun `sync registersUnregisteredEventGroups using JSON format`() {
     val newCampaign =
       """
@@ -347,12 +347,10 @@ class EventGroupSyncFunctionTest() {
       dataProvider = "some-data-provider"
       eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.json"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
-      this.cmmsConnectionParams = unifiedTransportLayerSecurityParams {
-        fileSystemParams = fileSystemParams {
-          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
-        }
+      this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
       }
       eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
       eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
@@ -404,6 +402,7 @@ class EventGroupSyncFunctionTest() {
   }
 
   @Test
+  @Suppress("DEPRECATION")
   fun `sync registersUnregisteredEventGroups using JSON format throws for invalid json`() {
     val newCampaign =
       """
@@ -452,12 +451,10 @@ class EventGroupSyncFunctionTest() {
       dataProvider = "some-data-provider"
       eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.json"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
-      this.cmmsConnectionParams = unifiedTransportLayerSecurityParams {
-        fileSystemParams = fileSystemParams {
-          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
-        }
+      this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
       }
       eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
       eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
@@ -495,6 +492,7 @@ class EventGroupSyncFunctionTest() {
   }
 
   @Test
+  @Suppress("DEPRECATION")
   fun `sync registersUnregisteredEventGroups with path from data watcher`() {
     val newCampaign = eventGroup {
       eventGroupReferenceId = "reference-id-4"
@@ -518,12 +516,10 @@ class EventGroupSyncFunctionTest() {
       dataProvider = "some-data-provider"
       eventGroupsBlobUri = "file:///some/path/that/does/not/exist"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
-      this.cmmsConnectionParams = unifiedTransportLayerSecurityParams {
-        fileSystemParams = fileSystemParams {
-          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
-        }
+      this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
       }
       eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
       eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
@@ -580,9 +576,9 @@ class EventGroupSyncFunctionTest() {
       )
   }
 
+
   @Test
-  @Suppress("DEPRECATION")
-  fun `sync registersUnregisteredEventGroups with legacy cmms connection`() {
+  fun `sync registersUnregisteredEventGroups with unified cmms connection params`() {
     val newCampaign = eventGroup {
       eventGroupReferenceId = "reference-id-4"
       this.eventGroupMetadata = eventGroupMetadata {
@@ -605,10 +601,12 @@ class EventGroupSyncFunctionTest() {
       dataProvider = "some-data-provider"
       eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.binpb"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
-      this.cmmsConnection = transportLayerSecurityParams {
-        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      this.cmmsConnectionParams = unifiedTransportLayerSecurityParams {
+        fileSystemParams = fileSystemParams {
+          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        }
       }
       eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
       eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
@@ -630,6 +628,7 @@ class EventGroupSyncFunctionTest() {
         )
     }
 
+    // In practice, the DataWatcher makes this HTTP call
     val client = HttpClient.newHttpClient()
     val getRequest =
       HttpRequest.newBuilder()
@@ -664,8 +663,7 @@ class EventGroupSyncFunctionTest() {
   }
 
   @Test
-  @Suppress("DEPRECATION")
-  fun `sync registersUnregisteredEventGroups using JSON format with legacy cmms connection`() {
+  fun `sync registersUnregisteredEventGroups using JSON format with unified cmms connection params`() {
     val newCampaign =
       """
         {
@@ -713,10 +711,12 @@ class EventGroupSyncFunctionTest() {
       dataProvider = "some-data-provider"
       eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.json"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
-      this.cmmsConnection = transportLayerSecurityParams {
-        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      this.cmmsConnectionParams = unifiedTransportLayerSecurityParams {
+        fileSystemParams = fileSystemParams {
+          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        }
       }
       eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
       eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
@@ -737,6 +737,7 @@ class EventGroupSyncFunctionTest() {
       )
     }
 
+    // In practice, the DataWatcher makes this HTTP call
     val client = HttpClient.newHttpClient()
     val getRequest =
       HttpRequest.newBuilder()
@@ -767,8 +768,7 @@ class EventGroupSyncFunctionTest() {
   }
 
   @Test
-  @Suppress("DEPRECATION")
-  fun `sync registersUnregisteredEventGroups using JSON format throws for invalid json with legacy cmms connection`() {
+  fun `sync registersUnregisteredEventGroups using JSON format throws for invalid json with unified cmms connection params`() {
     val newCampaign =
       """
         {
@@ -789,6 +789,23 @@ class EventGroupSyncFunctionTest() {
               },
               "measurementConsumer": "measurementConsumers/measurement-consumer-2",
               "mediaTypes": ["OTHER"]
+            },
+            {
+              "eventGroupReferenceId": "reference-id-5",
+              "eventGroupMetadata": {
+                "adMetadata": {
+                  "campaignMetadata": {
+                    "brand": "brand-2",
+                    "campaign": "campaign-3"
+                  }
+                }
+              },
+              "dataAvailabilityInterval": {
+                "startTime": "1970-01-01T00:03:20Z",
+                "endTime": "1970-01-01T00:05:00Z"
+              },
+              "measurementConsumer": "measurementConsumers/measurement-consumer-2",
+              "mediaTypes": ["OTHER"]
             }
            ]
           }
@@ -799,10 +816,12 @@ class EventGroupSyncFunctionTest() {
       dataProvider = "some-data-provider"
       eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.json"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
-      this.cmmsConnection = transportLayerSecurityParams {
-        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      this.cmmsConnectionParams = unifiedTransportLayerSecurityParams {
+        fileSystemParams = fileSystemParams {
+          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        }
       }
       eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
       eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
@@ -823,6 +842,7 @@ class EventGroupSyncFunctionTest() {
       )
     }
 
+    // In practice, the DataWatcher makes this HTTP call
     val client = HttpClient.newHttpClient()
     val getRequest =
       HttpRequest.newBuilder()
@@ -839,8 +859,7 @@ class EventGroupSyncFunctionTest() {
   }
 
   @Test
-  @Suppress("DEPRECATION")
-  fun `sync registersUnregisteredEventGroups with path from data watcher with legacy cmms connection`() {
+  fun `sync registersUnregisteredEventGroups with path from data watcher with unified cmms connection params`() {
     val newCampaign = eventGroup {
       eventGroupReferenceId = "reference-id-4"
       this.eventGroupMetadata = eventGroupMetadata {
@@ -863,10 +882,12 @@ class EventGroupSyncFunctionTest() {
       dataProvider = "some-data-provider"
       eventGroupsBlobUri = "file:///some/path/that/does/not/exist"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
-      this.cmmsConnection = transportLayerSecurityParams {
-        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      this.cmmsConnectionParams = unifiedTransportLayerSecurityParams {
+        fileSystemParams = fileSystemParams {
+          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        }
       }
       eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
       eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
@@ -888,6 +909,7 @@ class EventGroupSyncFunctionTest() {
         )
     }
 
+    // In practice, the DataWatcher makes this HTTP call
     val client = HttpClient.newHttpClient()
     val getRequest =
       HttpRequest.newBuilder()
@@ -921,6 +943,7 @@ class EventGroupSyncFunctionTest() {
         )
       )
   }
+
 
   companion object {
     private val SECRETS_DIR: Path =
