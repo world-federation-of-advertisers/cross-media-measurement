@@ -52,6 +52,7 @@ import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.DeleteEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata as cmmsCampaignMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata as cmmsAdMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
@@ -71,6 +72,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.State
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
@@ -329,6 +331,161 @@ class EventGroupSyncTest {
     verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(createCaptor.capture()) }
     assertThat(createCaptor.firstValue.eventGroup.eventGroupReferenceId).isEqualTo("reference-id-4")
     verifyBlocking(eventGroupsServiceMock, times(0)) { deleteEventGroup(any()) }
+  }
+
+  @Test
+  fun `sync deletes event groups with DELETED state`() {
+    val deletedEventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id-1"
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
+      state = State.DELETED
+    }
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        listOf(deletedEventGroup).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+      )
+    val result = runBlocking { eventGroupSync.sync().toList() }
+    val deleteCaptor = argumentCaptor<DeleteEventGroupRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) { deleteEventGroup(deleteCaptor.capture()) }
+    assertThat(deleteCaptor.firstValue.name)
+      .isEqualTo("dataProviders/data-provider-1/eventGroups/resource-id-1")
+    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { updateEventGroup(any()) }
+    assertThat(result).isEmpty()
+  }
+
+  @Test
+  fun `sync deletes only the targeted MC event group when same ref id is mapped to multiple MCs`() {
+    val deletedEventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id-1"
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
+      state = State.DELETED
+    }
+    val activeEventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id-1"
+      measurementConsumer = "measurementConsumers/measurement-consumer-other"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-1"
+            campaign = "campaign-1"
+          }
+        }
+      }
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("VIDEO"), MediaType.valueOf("DISPLAY"))
+    }
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        listOf(deletedEventGroup, activeEventGroup).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+      )
+    val result = runBlocking { eventGroupSync.sync().toList() }
+
+    val deleteCaptor = argumentCaptor<DeleteEventGroupRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) { deleteEventGroup(deleteCaptor.capture()) }
+    assertThat(deleteCaptor.firstValue.name)
+      .isEqualTo("dataProviders/data-provider-1/eventGroups/resource-id-1")
+
+    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { updateEventGroup(any()) }
+
+    assertThat(result).hasSize(1)
+    assertThat(result.first().eventGroupReferenceId).isEqualTo("reference-id-1")
+    assertThat(result.first().eventGroupResource)
+      .isEqualTo("dataProviders/data-provider-3/eventGroups/resource-id-4")
+  }
+
+  @Test
+  fun `sync skips delete when DELETED event group not found in CMMS`() {
+    val deletedEventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id-nonexistent"
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
+      state = State.DELETED
+    }
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        listOf(deletedEventGroup).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+      )
+    val result = runBlocking { eventGroupSync.sync().toList() }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { deleteEventGroup(any()) }
+    assertThat(result).isEmpty()
+  }
+
+  @Test
+  fun `records sync_deleted metric when event group is deleted`() {
+    runBlocking {
+      val deletedEventGroup = eventGroup {
+        eventGroupReferenceId = "reference-id-1"
+        measurementConsumer = "measurementConsumers/measurement-consumer-1"
+        state = State.DELETED
+      }
+      val eventGroupSync =
+        EventGroupSync(
+          "dataProviders/test-edp-delete-metric",
+          eventGroupsStub,
+          clientAccountsStub,
+          listOf(deletedEventGroup).asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+        )
+      eventGroupSync.sync().collect()
+
+      val metrics = getMetrics()
+      val syncDeletedMetric = metrics.find { it.name == "edpa.event_group.sync_deleted" }
+      assertThat(syncDeletedMetric).isNotNull()
+      assertThat(syncDeletedMetric!!.description)
+        .isEqualTo("Number of Event Groups successfully deleted")
+      assertThat(syncDeletedMetric.longSumData.points.sumOf { it.value }).isEqualTo(1)
+
+      val firstPoint = syncDeletedMetric.longSumData.points.first()
+      assertThat(firstPoint.attributes.get(AttributeKey.stringKey("data_provider_name")))
+        .isEqualTo("dataProviders/test-edp-delete-metric")
+    }
+  }
+
+  @Test
+  fun `does not record sync_deleted metric when DELETED event group not found in CMMS`() {
+    runBlocking {
+      val deletedEventGroup = eventGroup {
+        eventGroupReferenceId = "reference-id-nonexistent"
+        measurementConsumer = "measurementConsumers/measurement-consumer-1"
+        state = State.DELETED
+      }
+      val eventGroupSync =
+        EventGroupSync(
+          "dataProviders/test-edp-no-delete-metric",
+          eventGroupsStub,
+          clientAccountsStub,
+          listOf(deletedEventGroup).asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+        )
+      eventGroupSync.sync().collect()
+
+      val metrics = getMetrics()
+      val syncDeletedMetric = metrics.find { it.name == "edpa.event_group.sync_deleted" }
+      if (syncDeletedMetric != null) {
+        assertThat(syncDeletedMetric.longSumData.points).isEmpty()
+      }
+    }
   }
 
   @Test
@@ -1182,6 +1339,55 @@ class EventGroupSyncTest {
       }
 
     testRule.apply(statement, org.junit.runner.Description.EMPTY).evaluate()
+  }
+
+  @Test
+  fun `validateDeletedEventGroup accepts event group with reference id and measurement consumer`() {
+    val eventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id"
+      measurementConsumer = "measurementConsumers/mc-1"
+      state = State.DELETED
+    }
+    EventGroupSync.validateDeletedEventGroup(eventGroup)
+  }
+
+  @Test
+  fun `validateDeletedEventGroup rejects event group with blank reference id`() {
+    val eventGroup = eventGroup {
+      eventGroupReferenceId = ""
+      measurementConsumer = "measurementConsumers/mc-1"
+      state = State.DELETED
+    }
+    assertFailsWith<IllegalStateException> { EventGroupSync.validateDeletedEventGroup(eventGroup) }
+  }
+
+  @Test
+  fun `validateDeletedEventGroup rejects event group with no measurement consumer`() {
+    val eventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id"
+      state = State.DELETED
+    }
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        EventGroupSync.validateDeletedEventGroup(eventGroup)
+      }
+    assertThat(exception.message)
+      .contains("Measurement Consumer must be set for deleted Event Groups")
+  }
+
+  @Test
+  fun `validateDeletedEventGroup rejects event group with only client account reference id`() {
+    val eventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id"
+      clientAccountReferenceId = "client-ref-1"
+      state = State.DELETED
+    }
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        EventGroupSync.validateDeletedEventGroup(eventGroup)
+      }
+    assertThat(exception.message)
+      .contains("Measurement Consumer must be set for deleted Event Groups")
   }
 
   @Test
