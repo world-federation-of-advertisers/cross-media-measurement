@@ -8,25 +8,23 @@ package(
 kt_jvm_test(
     name = "GenerateSyntheticDataTest",
     srcs = ["GenerateSyntheticDataTest.kt"],
+    jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
     test_class = "org.wfanet.measurement.loadtest.edpaggregator.tools.GenerateSyntheticDataTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:generate_synthetic_data",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/java/picocli",
-        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
 )
 
 kt_jvm_test(
     name = "VerifySyntheticDataTest",
     srcs = ["VerifySyntheticDataTest.kt"],
+    jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
     test_class = "org.wfanet.measurement.loadtest.edpaggregator.tools.VerifySyntheticDataTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:verify_synthetic_data",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/java/picocli",
-        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
 )

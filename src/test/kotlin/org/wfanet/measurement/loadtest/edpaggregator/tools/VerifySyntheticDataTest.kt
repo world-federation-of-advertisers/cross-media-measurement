@@ -16,369 +16,210 @@
 
 package org.wfanet.measurement.loadtest.edpaggregator.tools
 
-import com.google.common.truth.Truth.assertThat
-import kotlin.test.assertFailsWith
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import picocli.CommandLine
+import org.wfanet.measurement.common.testing.CommandLineTesting
+import org.wfanet.measurement.common.testing.CommandLineTesting.assertThat
+import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
 
 @RunWith(JUnit4::class)
 class VerifySyntheticDataTest {
 
   @Rule @JvmField val tempFolder = TemporaryFolder()
 
-  @Test
-  fun `picocli parses required flags correctly`() {
-    val cmd = VerifySyntheticData()
-    CommandLine(cmd)
-      .parseArgs(
-        "--kms-type",
-        "FAKE",
-        "--kek-uri",
-        "fake-kms://key1",
-        "--local-storage-path",
-        "/tmp/storage",
-        "--output-bucket",
-        "test-bucket",
-        "--impression-metadata-base-path",
-        "edp/edp-test",
-      )
+  private fun callCli(args: Array<String>) = CommandLineTesting.capturingOutput(args, ::main)
 
-    assertThat(cmd.kmsType).isEqualTo(KmsType.FAKE)
-    assertThat(cmd.kekUri).isEqualTo("fake-kms://key1")
-    assertThat(cmd.outputBucket).isEqualTo("test-bucket")
-    assertThat(cmd.impressionMetadataBasePath).isEqualTo("edp/edp-test")
+  @Test
+  fun `exits with error when required flags are missing`() {
+    val capturedOutput = callCli(arrayOf())
+
+    assertThat(capturedOutput).status().isNotEqualTo(0)
   }
 
   @Test
-  fun `picocli uses correct AWS default values`() {
-    val cmd = VerifySyntheticData()
-    CommandLine(cmd)
-      .parseArgs(
-        "--kms-type",
-        "FAKE",
-        "--kek-uri",
-        "fake-kms://key1",
-        "--local-storage-path",
-        "/tmp/storage",
-        "--output-bucket",
-        "test-bucket",
-        "--impression-metadata-base-path",
-        "edp/edp-test",
+  fun `exits with error when AWS kms type is missing role arn`() {
+    val capturedOutput =
+      callCli(
+        arrayOf(
+          "--kms-type",
+          "AWS",
+          "--kek-uri",
+          "aws-kms://arn:aws:kms:us-east-1:123456789012:key/abc-123",
+          "--local-storage-path",
+          tempFolder.root.absolutePath,
+          "--output-bucket",
+          "test-bucket",
+          "--impression-metadata-base-path",
+          "edp/edp-test",
+        )
       )
 
-    assertThat(cmd.awsFlags.awsRoleArn).isEmpty()
-    assertThat(cmd.awsFlags.awsWebIdentityTokenFile).isEmpty()
-    assertThat(cmd.awsFlags.awsRoleSessionName).isEqualTo("verify-synthetic-data")
-    assertThat(cmd.awsFlags.awsRegion).isEmpty()
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput).err().contains("--aws-role-arn")
   }
 
   @Test
-  fun `picocli uses correct GcpToAws default values`() {
-    val cmd = VerifySyntheticData()
-    CommandLine(cmd)
-      .parseArgs(
-        "--kms-type",
-        "FAKE",
-        "--kek-uri",
-        "fake-kms://key1",
-        "--local-storage-path",
-        "/tmp/storage",
-        "--output-bucket",
-        "test-bucket",
-        "--impression-metadata-base-path",
-        "edp/edp-test",
+  fun `exits with error when AWS kms type is missing web identity token file`() {
+    val capturedOutput =
+      callCli(
+        arrayOf(
+          "--kms-type",
+          "AWS",
+          "--kek-uri",
+          "aws-kms://arn:aws:kms:us-east-1:123456789012:key/abc-123",
+          "--local-storage-path",
+          tempFolder.root.absolutePath,
+          "--output-bucket",
+          "test-bucket",
+          "--impression-metadata-base-path",
+          "edp/edp-test",
+          "--aws-role-arn",
+          "arn:aws:iam::123456789012:role/test-role",
+        )
       )
 
-    assertThat(cmd.gcpToAwsFlags.roleArn).isEmpty()
-    assertThat(cmd.gcpToAwsFlags.roleSessionName).isEqualTo("verify-synthetic-data")
-    assertThat(cmd.gcpToAwsFlags.region).isEmpty()
-    assertThat(cmd.gcpToAwsFlags.gcpAudience).isEmpty()
-    assertThat(cmd.gcpToAwsFlags.subjectTokenType).isEqualTo("urn:ietf:params:oauth:token-type:jwt")
-    assertThat(cmd.gcpToAwsFlags.tokenUrl).isEqualTo("https://sts.googleapis.com/v1/token")
-    assertThat(cmd.gcpToAwsFlags.credentialSourceFilePath)
-      .isEqualTo("/run/container_launcher/attestation_verifier_claims_token")
-    assertThat(cmd.gcpToAwsFlags.serviceAccountImpersonationUrl).isEmpty()
-    assertThat(cmd.gcpToAwsFlags.awsAudience).isEmpty()
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput).err().contains("--aws-web-identity-token-file")
   }
 
   @Test
-  fun `picocli parses AWS flags correctly`() {
-    val cmd = VerifySyntheticData()
-    CommandLine(cmd)
-      .parseArgs(
-        "--kms-type",
-        "AWS",
-        "--kek-uri",
-        "aws-kms://arn:aws:kms:us-east-1:123456789012:key/abc-123",
-        "--local-storage-path",
-        "/tmp/storage",
-        "--output-bucket",
-        "test-bucket",
-        "--impression-metadata-base-path",
-        "edp/edp-test",
-        "--aws-role-arn",
-        "arn:aws:iam::123456789012:role/test-role",
-        "--aws-web-identity-token-file",
-        "/var/run/secrets/token",
-        "--aws-role-session-name",
-        "my-session",
-        "--aws-region",
-        "us-west-2",
+  fun `exits with error when AWS kms type is missing region`() {
+    val capturedOutput =
+      callCli(
+        arrayOf(
+          "--kms-type",
+          "AWS",
+          "--kek-uri",
+          "aws-kms://arn:aws:kms:us-east-1:123456789012:key/abc-123",
+          "--local-storage-path",
+          tempFolder.root.absolutePath,
+          "--output-bucket",
+          "test-bucket",
+          "--impression-metadata-base-path",
+          "edp/edp-test",
+          "--aws-role-arn",
+          "arn:aws:iam::123456789012:role/test-role",
+          "--aws-web-identity-token-file",
+          "/var/run/secrets/token",
+        )
       )
 
-    assertThat(cmd.kmsType).isEqualTo(KmsType.AWS)
-    assertThat(cmd.awsFlags.awsRoleArn).isEqualTo("arn:aws:iam::123456789012:role/test-role")
-    assertThat(cmd.awsFlags.awsWebIdentityTokenFile).isEqualTo("/var/run/secrets/token")
-    assertThat(cmd.awsFlags.awsRoleSessionName).isEqualTo("my-session")
-    assertThat(cmd.awsFlags.awsRegion).isEqualTo("us-west-2")
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput).err().contains("--aws-region")
   }
 
   @Test
-  fun `picocli parses GCP kms type`() {
-    val cmd = VerifySyntheticData()
-    CommandLine(cmd)
-      .parseArgs(
-        "--kms-type",
-        "GCP",
-        "--kek-uri",
-        "gcp-kms://projects/p1/locations/l1/keyRings/kr1/cryptoKeys/ck1",
-        "--local-storage-path",
-        "/tmp/storage",
-        "--output-bucket",
-        "test-bucket",
-        "--impression-metadata-base-path",
-        "edp/edp-test",
+  fun `exits with error when GCP_TO_AWS is missing role arn`() {
+    val capturedOutput =
+      callCli(
+        arrayOf(
+          "--kms-type",
+          "GCP_TO_AWS",
+          "--kek-uri",
+          "aws-kms://arn:aws:kms:us-east-1:123456789012:key/abc-123",
+          "--local-storage-path",
+          tempFolder.root.absolutePath,
+          "--output-bucket",
+          "test-bucket",
+          "--impression-metadata-base-path",
+          "edp/edp-test",
+        )
       )
 
-    assertThat(cmd.kmsType).isEqualTo(KmsType.GCP)
-    assertThat(cmd.kekUri)
-      .isEqualTo("gcp-kms://projects/p1/locations/l1/keyRings/kr1/cryptoKeys/ck1")
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput).err().contains("--gcp-to-aws-role-arn")
   }
 
   @Test
-  fun `picocli parses GCP_TO_AWS flags correctly`() {
-    val cmd = VerifySyntheticData()
-    CommandLine(cmd)
-      .parseArgs(
-        "--kms-type",
-        "GCP_TO_AWS",
-        "--kek-uri",
-        "aws-kms://arn:aws:kms:us-east-1:123456789012:key/abc-123",
-        "--local-storage-path",
-        "/tmp/storage",
-        "--output-bucket",
-        "test-bucket",
-        "--impression-metadata-base-path",
-        "edp/edp-test",
-        "--gcp-to-aws-role-arn",
-        "arn:aws:iam::123456789012:role/gcp-to-aws-role",
-        "--gcp-to-aws-role-session-name",
-        "my-gcp-to-aws-session",
-        "--gcp-to-aws-region",
-        "eu-west-1",
-        "--gcp-audience",
-        "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/p",
-        "--gcp-service-account-impersonation-url",
-        "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/sa@proj.iam.gserviceaccount.com:generateAccessToken",
-        "--aws-audience",
-        "sts.amazonaws.com",
+  fun `exits with error when GCP_TO_AWS is missing gcp audience`() {
+    val capturedOutput =
+      callCli(
+        arrayOf(
+          "--kms-type",
+          "GCP_TO_AWS",
+          "--kek-uri",
+          "aws-kms://arn:aws:kms:us-east-1:123456789012:key/abc-123",
+          "--local-storage-path",
+          tempFolder.root.absolutePath,
+          "--output-bucket",
+          "test-bucket",
+          "--impression-metadata-base-path",
+          "edp/edp-test",
+          "--gcp-to-aws-role-arn",
+          "arn:aws:iam::123456789012:role/test-role",
+          "--gcp-to-aws-region",
+          "us-east-1",
+        )
       )
 
-    assertThat(cmd.kmsType).isEqualTo(KmsType.GCP_TO_AWS)
-    assertThat(cmd.gcpToAwsFlags.roleArn)
-      .isEqualTo("arn:aws:iam::123456789012:role/gcp-to-aws-role")
-    assertThat(cmd.gcpToAwsFlags.roleSessionName).isEqualTo("my-gcp-to-aws-session")
-    assertThat(cmd.gcpToAwsFlags.region).isEqualTo("eu-west-1")
-    assertThat(cmd.gcpToAwsFlags.gcpAudience)
-      .isEqualTo(
-        "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/p"
-      )
-    assertThat(cmd.gcpToAwsFlags.serviceAccountImpersonationUrl)
-      .isEqualTo(
-        "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/sa@proj.iam.gserviceaccount.com:generateAccessToken"
-      )
-    assertThat(cmd.gcpToAwsFlags.awsAudience).isEqualTo("sts.amazonaws.com")
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput).err().contains("--gcp-audience")
   }
 
   @Test
-  fun `run fails when AWS kms type is missing role arn`() {
-    val cmd = VerifySyntheticData()
-    val storageDir = tempFolder.newFolder("storage")
-    CommandLine(cmd)
-      .parseArgs(
-        "--kms-type",
-        "AWS",
-        "--kek-uri",
-        "aws-kms://arn:aws:kms:us-east-1:123456789012:key/abc-123",
-        "--local-storage-path",
-        storageDir.absolutePath,
-        "--output-bucket",
-        "test-bucket",
-        "--impression-metadata-base-path",
-        "edp/edp-test",
+  fun `exits with error when GCP_TO_AWS is missing service account impersonation url`() {
+    val capturedOutput =
+      callCli(
+        arrayOf(
+          "--kms-type",
+          "GCP_TO_AWS",
+          "--kek-uri",
+          "aws-kms://arn:aws:kms:us-east-1:123456789012:key/abc-123",
+          "--local-storage-path",
+          tempFolder.root.absolutePath,
+          "--output-bucket",
+          "test-bucket",
+          "--impression-metadata-base-path",
+          "edp/edp-test",
+          "--gcp-to-aws-role-arn",
+          "arn:aws:iam::123456789012:role/test-role",
+          "--gcp-to-aws-region",
+          "us-east-1",
+          "--gcp-audience",
+          "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/p",
+        )
       )
 
-    val exception = assertFailsWith<IllegalArgumentException> { cmd.run() }
-    assertThat(exception).hasMessageThat().contains("--aws-role-arn")
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput).err().contains("--gcp-service-account-impersonation-url")
   }
 
   @Test
-  fun `run fails when AWS kms type is missing web identity token file`() {
-    val cmd = VerifySyntheticData()
-    val storageDir = tempFolder.newFolder("storage")
-    CommandLine(cmd)
-      .parseArgs(
-        "--kms-type",
-        "AWS",
-        "--kek-uri",
-        "aws-kms://arn:aws:kms:us-east-1:123456789012:key/abc-123",
-        "--local-storage-path",
-        storageDir.absolutePath,
-        "--output-bucket",
-        "test-bucket",
-        "--impression-metadata-base-path",
-        "edp/edp-test",
-        "--aws-role-arn",
-        "arn:aws:iam::123456789012:role/test-role",
+  fun `exits with error when GCP_TO_AWS is missing aws audience`() {
+    val capturedOutput =
+      callCli(
+        arrayOf(
+          "--kms-type",
+          "GCP_TO_AWS",
+          "--kek-uri",
+          "aws-kms://arn:aws:kms:us-east-1:123456789012:key/abc-123",
+          "--local-storage-path",
+          tempFolder.root.absolutePath,
+          "--output-bucket",
+          "test-bucket",
+          "--impression-metadata-base-path",
+          "edp/edp-test",
+          "--gcp-to-aws-role-arn",
+          "arn:aws:iam::123456789012:role/test-role",
+          "--gcp-to-aws-region",
+          "us-east-1",
+          "--gcp-audience",
+          "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/p",
+          "--gcp-service-account-impersonation-url",
+          "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/sa@proj.iam.gserviceaccount.com:generateAccessToken",
+        )
       )
 
-    val exception = assertFailsWith<IllegalArgumentException> { cmd.run() }
-    assertThat(exception).hasMessageThat().contains("--aws-web-identity-token-file")
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput).err().contains("--aws-audience")
   }
 
-  @Test
-  fun `run fails when AWS kms type is missing region`() {
-    val cmd = VerifySyntheticData()
-    val storageDir = tempFolder.newFolder("storage")
-    CommandLine(cmd)
-      .parseArgs(
-        "--kms-type",
-        "AWS",
-        "--kek-uri",
-        "aws-kms://arn:aws:kms:us-east-1:123456789012:key/abc-123",
-        "--local-storage-path",
-        storageDir.absolutePath,
-        "--output-bucket",
-        "test-bucket",
-        "--impression-metadata-base-path",
-        "edp/edp-test",
-        "--aws-role-arn",
-        "arn:aws:iam::123456789012:role/test-role",
-        "--aws-web-identity-token-file",
-        "/var/run/secrets/token",
-      )
-
-    val exception = assertFailsWith<IllegalArgumentException> { cmd.run() }
-    assertThat(exception).hasMessageThat().contains("--aws-region")
-  }
-
-  @Test
-  fun `run fails when GCP_TO_AWS is missing role arn`() {
-    val cmd = VerifySyntheticData()
-    val storageDir = tempFolder.newFolder("storage")
-    CommandLine(cmd)
-      .parseArgs(
-        "--kms-type",
-        "GCP_TO_AWS",
-        "--kek-uri",
-        "aws-kms://arn:aws:kms:us-east-1:123456789012:key/abc-123",
-        "--local-storage-path",
-        storageDir.absolutePath,
-        "--output-bucket",
-        "test-bucket",
-        "--impression-metadata-base-path",
-        "edp/edp-test",
-      )
-
-    val exception = assertFailsWith<IllegalArgumentException> { cmd.run() }
-    assertThat(exception).hasMessageThat().contains("--gcp-to-aws-role-arn")
-  }
-
-  @Test
-  fun `run fails when GCP_TO_AWS is missing gcp audience`() {
-    val cmd = VerifySyntheticData()
-    val storageDir = tempFolder.newFolder("storage")
-    CommandLine(cmd)
-      .parseArgs(
-        "--kms-type",
-        "GCP_TO_AWS",
-        "--kek-uri",
-        "aws-kms://arn:aws:kms:us-east-1:123456789012:key/abc-123",
-        "--local-storage-path",
-        storageDir.absolutePath,
-        "--output-bucket",
-        "test-bucket",
-        "--impression-metadata-base-path",
-        "edp/edp-test",
-        "--gcp-to-aws-role-arn",
-        "arn:aws:iam::123456789012:role/test-role",
-        "--gcp-to-aws-region",
-        "us-east-1",
-      )
-
-    val exception = assertFailsWith<IllegalArgumentException> { cmd.run() }
-    assertThat(exception).hasMessageThat().contains("--gcp-audience")
-  }
-
-  @Test
-  fun `run fails when GCP_TO_AWS is missing service account impersonation url`() {
-    val cmd = VerifySyntheticData()
-    val storageDir = tempFolder.newFolder("storage")
-    CommandLine(cmd)
-      .parseArgs(
-        "--kms-type",
-        "GCP_TO_AWS",
-        "--kek-uri",
-        "aws-kms://arn:aws:kms:us-east-1:123456789012:key/abc-123",
-        "--local-storage-path",
-        storageDir.absolutePath,
-        "--output-bucket",
-        "test-bucket",
-        "--impression-metadata-base-path",
-        "edp/edp-test",
-        "--gcp-to-aws-role-arn",
-        "arn:aws:iam::123456789012:role/test-role",
-        "--gcp-to-aws-region",
-        "us-east-1",
-        "--gcp-audience",
-        "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/p",
-      )
-
-    val exception = assertFailsWith<IllegalArgumentException> { cmd.run() }
-    assertThat(exception).hasMessageThat().contains("--gcp-service-account-impersonation-url")
-  }
-
-  @Test
-  fun `run fails when GCP_TO_AWS is missing aws audience`() {
-    val cmd = VerifySyntheticData()
-    val storageDir = tempFolder.newFolder("storage")
-    CommandLine(cmd)
-      .parseArgs(
-        "--kms-type",
-        "GCP_TO_AWS",
-        "--kek-uri",
-        "aws-kms://arn:aws:kms:us-east-1:123456789012:key/abc-123",
-        "--local-storage-path",
-        storageDir.absolutePath,
-        "--output-bucket",
-        "test-bucket",
-        "--impression-metadata-base-path",
-        "edp/edp-test",
-        "--gcp-to-aws-role-arn",
-        "arn:aws:iam::123456789012:role/test-role",
-        "--gcp-to-aws-region",
-        "us-east-1",
-        "--gcp-audience",
-        "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/p",
-        "--gcp-service-account-impersonation-url",
-        "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/sa@proj.iam.gserviceaccount.com:generateAccessToken",
-      )
-
-    val exception = assertFailsWith<IllegalArgumentException> { cmd.run() }
-    assertThat(exception).hasMessageThat().contains("--aws-audience")
+  companion object {
+    init {
+      System.setSecurityManager(ExitInterceptingSecurityManager)
+    }
   }
 }
