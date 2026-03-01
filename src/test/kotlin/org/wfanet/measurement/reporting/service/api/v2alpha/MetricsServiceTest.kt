@@ -190,13 +190,13 @@ import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt as InternalMet
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.NoiseMechanism
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
-import org.wfanet.measurement.internal.reporting.v2.TrusTee
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet.SetExpression as InternalSetExpression
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt as InternalReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt.primitiveReportingSetBasis
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt.weightedSubsetUnion
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt as InternalReportingSetsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequestKt.filter
+import org.wfanet.measurement.internal.reporting.v2.TrusTee
 import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsRequest as internalBatchCreateMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsResponse as internalBatchCreateMetricsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest as internalBatchGetMetricsRequest
@@ -1154,9 +1154,10 @@ private val REACH_TRUSTEE_PROTOCOL_CONFIG: ProtocolConfig = protocolConfig {
   measurementType = ProtocolConfig.MeasurementType.REACH
   protocols +=
     ProtocolConfigKt.protocol {
-      trusTee = ProtocolConfigKt.trusTee {
-        noiseMechanism = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
-      }
+      trusTee =
+        ProtocolConfigKt.trusTee {
+          noiseMechanism = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+        }
     }
 }
 
@@ -1261,8 +1262,7 @@ private val SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_TRUSTEE_MEASUREMENT =
     results += resultOutput {
       val result =
         MeasurementKt.result {
-          reach =
-            MeasurementKt.ResultKt.reach { value = UNION_ALL_BUT_LAST_PUBLISHER_REACH_VALUE }
+          reach = MeasurementKt.ResultKt.reach { value = UNION_ALL_BUT_LAST_PUBLISHER_REACH_VALUE }
         }
       encryptedResult =
         encryptResult(signResult(result, AGGREGATOR_SIGNING_KEY), MEASUREMENT_CONSUMER_PUBLIC_KEY)
@@ -1319,9 +1319,10 @@ private val REACH_FREQUENCY_TRUSTEE_PROTOCOL_CONFIG: ProtocolConfig = protocolCo
   measurementType = ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
   protocols +=
     ProtocolConfigKt.protocol {
-      trusTee = ProtocolConfigKt.trusTee {
-        noiseMechanism = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
-      }
+      trusTee =
+        ProtocolConfigKt.trusTee {
+          noiseMechanism = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+        }
     }
 }
 
@@ -6942,8 +6943,7 @@ class MetricsServiceTest {
     runBlocking {
       val measurementsMap =
         mapOf(
-          PENDING_UNION_ALL_REACH_MEASUREMENT.name to
-            SUCCEEDED_UNION_ALL_REACH_TRUSTEE_MEASUREMENT,
+          PENDING_UNION_ALL_REACH_MEASUREMENT.name to SUCCEEDED_UNION_ALL_REACH_TRUSTEE_MEASUREMENT,
           PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name to
             SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_TRUSTEE_MEASUREMENT,
           PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name to
@@ -6964,8 +6964,7 @@ class MetricsServiceTest {
           internalMetricsMock.batchGetMetrics(
             eq(
               internalBatchGetMetricsRequest {
-                cmmsMeasurementConsumerId =
-                  MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+                cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
                 externalMetricIds += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
                 externalMetricIds +=
                   INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
@@ -9034,8 +9033,7 @@ class MetricsServiceTest {
             eq(
               internalBatchGetMetricsRequest {
                 cmmsMeasurementConsumerId =
-                  INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
-                    .cmmsMeasurementConsumerId
+                  INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.cmmsMeasurementConsumerId
                 externalMetricIds +=
                   INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.externalMetricId
               }
@@ -9058,8 +9056,7 @@ class MetricsServiceTest {
       whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
         .thenReturn(Empty.getDefaultInstance())
 
-      val request =
-        getMetricRequest { name = PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name }
+      val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name }
 
       val result =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
