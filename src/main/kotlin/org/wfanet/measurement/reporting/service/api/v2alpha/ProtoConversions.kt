@@ -71,6 +71,7 @@ import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.TimeIntervals as InternalTimeIntervals
+import org.wfanet.measurement.internal.reporting.v2.TrusTee
 import org.wfanet.measurement.internal.reporting.v2.customDirectMethodology
 import org.wfanet.measurement.internal.reporting.v2.deterministicCount
 import org.wfanet.measurement.internal.reporting.v2.honestMajorityShareShuffle
@@ -710,6 +711,10 @@ private fun Measurement.Result.Frequency.toInternal(
           .honestMajorityShareShuffle
       noiseMechanism = cmmsProtocol.noiseMechanism.toInternal()
       honestMajorityShareShuffle = source.honestMajorityShareShuffle.toInternal()
+    } else if (protocolConfig.protocolsList.any { it.hasTrusTee() }) {
+      val cmmsProtocol = protocolConfig.protocolsList.first { it.hasTrusTee() }.trusTee
+      noiseMechanism = cmmsProtocol.noiseMechanism.toInternal()
+      trusTee = TrusTee.getDefaultInstance()
     } else {
       error("Measurement protocol is not set or not supported.")
     }
@@ -762,6 +767,10 @@ private fun Measurement.Result.Reach.toInternal(
           .honestMajorityShareShuffle
       noiseMechanism = cmmsProtocol.noiseMechanism.toInternal()
       honestMajorityShareShuffle = source.honestMajorityShareShuffle.toInternal()
+    } else if (protocolConfig.protocolsList.any { it.hasTrusTee() }) {
+      val cmmsProtocol = protocolConfig.protocolsList.first { it.hasTrusTee() }.trusTee
+      noiseMechanism = cmmsProtocol.noiseMechanism.toInternal()
+      trusTee = TrusTee.getDefaultInstance()
     } else {
       error("Measurement protocol is not set or not supported.")
     }
