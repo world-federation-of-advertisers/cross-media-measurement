@@ -1,0 +1,50 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@rules_java//java:defs.bzl", "java_proto_library")
+load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
+
+package(
+    default_testonly = True,
+    default_visibility = ["//visibility:public"],
+)
+
+IMPORT_PREFIX = "/src/main/proto"
+
+proto_library(
+    name = "event_templates_proto",
+    srcs = glob(["*template.proto"]),
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_protobuf//:descriptor_proto",
+        "@com_google_protobuf//:duration_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto",
+    ],
+)
+
+java_proto_library(
+    name = "event_templates_java_proto",
+    deps = [":event_templates_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "event_templates_kt_jvm_proto",
+    srcs = [":event_templates_proto"],
+    deps = [":event_templates_java_proto"],
+)
+
+proto_library(
+    name = "event_proto",
+    srcs = ["event.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [":event_templates_proto"],
+)
+
+java_proto_library(
+    name = "event_java_proto",
+    deps = [":event_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "event_kt_jvm_proto",
+    srcs = [":event_proto"],
+    deps = [":event_java_proto"],
+)

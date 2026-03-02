@@ -1,0 +1,60 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha.event_templates;
+
+import "wfa/measurement/api/v2alpha/event_annotations.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha.event_templates";
+option java_multiple_files = true;
+
+message BaseDemographicsTemplate {
+  option (.wfa.measurement.api.v2alpha.event_template) = {
+    name: "base_demographics_template"
+    display_name: "Base Demographics"
+    description: "An Event Template that specifies age range and gender."
+  };
+
+  message AgeRange {
+    option (.wfa.measurement.api.v2alpha.event_field) = {
+      display_name: "Age Range"
+    };
+
+    enum Value {
+      AGE_18_TO_24 = 0;
+      AGE_25_TO_34 = 1;
+      AGE_45_TO_54 = 3;
+      AGE_55_TO_64 = 4;
+      AGE_OVER_64 = 5;
+    }
+    Value value = 1;
+  }
+
+  message Gender {
+    option (.wfa.measurement.api.v2alpha.event_field) = {
+      display_name: "Gender"
+    };
+
+    enum Value {
+      GENDER_MALE = 0;
+      GENDER_FEMALE = 1;
+    }
+    Value value = 1;
+  }
+
+  AgeRange age = 1;
+  Gender gender = 2;
+}
