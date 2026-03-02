@@ -86,7 +86,7 @@ message RequisitionDetails {
       string aws_role_arn = 8;
       // Optional. Identifier for the assumed AWS role session.
       // Only used when `kms_type` is `AWS`.
-      string aws_role_session_name = 9;
+      string aws_role_session = 9;
       // Optional. AWS region for STS and KMS endpoints.
       // Only used when `kms_type` is `AWS`.
       string aws_region = 10;

@@ -402,7 +402,7 @@ class ResultsFulfillerAppRunner : Runnable {
                 serviceAccountImpersonationUrl =
                   EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(edpConfig.kmsConfig.serviceAccount),
                 roleArn = edpConfig.kmsConfig.awsRoleArn,
-                roleSessionName = edpConfig.kmsConfig.awsRoleSessionName,
+                roleSessionName = edpConfig.kmsConfig.awsRoleSession,
                 region = edpConfig.kmsConfig.awsRegion,
                 awsAudience = edpConfig.kmsConfig.awsAudience,
               )
@@ -445,8 +445,8 @@ class ResultsFulfillerAppRunner : Runnable {
         require(edpConfig.kmsConfig.awsRoleArn.isNotEmpty()) {
           "aws_role_arn is required when kms_type is AWS for ${edpConfig.dataProvider}"
         }
-        require(edpConfig.kmsConfig.awsRoleSessionName.isNotEmpty()) {
-          "aws_role_session_name is required when kms_type is AWS for ${edpConfig.dataProvider}"
+        require(edpConfig.kmsConfig.awsRoleSession.isNotEmpty()) {
+          "aws_role_session is required when kms_type is AWS for ${edpConfig.dataProvider}"
         }
         require(edpConfig.kmsConfig.awsRegion.isNotEmpty()) {
           "aws_region is required when kms_type is AWS for ${edpConfig.dataProvider}"
@@ -463,7 +463,7 @@ class ResultsFulfillerAppRunner : Runnable {
           impersonatedServiceAccount = edpConfig.kmsConfig.serviceAccount,
           kmsType = apiKmsType,
           awsRoleArn = if (isAws) edpConfig.kmsConfig.awsRoleArn else null,
-          awsRoleSessionName = if (isAws) edpConfig.kmsConfig.awsRoleSessionName else null,
+          awsRoleSession = if (isAws) edpConfig.kmsConfig.awsRoleSession else null,
           awsRegion = if (isAws) edpConfig.kmsConfig.awsRegion else null,
           awsAudience = if (isAws) edpConfig.kmsConfig.awsAudience else null,
         )

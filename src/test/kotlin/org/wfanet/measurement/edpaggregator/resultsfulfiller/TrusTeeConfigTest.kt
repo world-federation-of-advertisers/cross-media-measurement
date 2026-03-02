@@ -35,7 +35,7 @@ class TrusTeeConfigTest {
       impersonatedServiceAccount = "test-sa@example.com",
       kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
       awsRoleArn = null,
-      awsRoleSessionName = null,
+      awsRoleSession = null,
       awsRegion = null,
       awsAudience = null,
     )
@@ -117,7 +117,7 @@ class TrusTeeConfigTest {
     assertThat(params.kmsType)
       .isEqualTo(FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP)
     assertThat(params.awsRoleArn).isNull()
-    assertThat(params.awsRoleSessionName).isNull()
+    assertThat(params.awsRoleSession).isNull()
     assertThat(params.awsRegion).isNull()
     assertThat(params.awsAudience).isNull()
   }
@@ -131,7 +131,7 @@ class TrusTeeConfigTest {
         impersonatedServiceAccount = "test-sa@example.com",
         kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS,
         awsRoleArn = "arn:aws:iam::123456789012:role/my-role",
-        awsRoleSessionName = "my-session",
+        awsRoleSession = "my-session",
         awsRegion = "us-east-1",
         awsAudience = "sts.amazonaws.com",
       )
@@ -142,7 +142,7 @@ class TrusTeeConfigTest {
     assertThat(params.kmsType)
       .isEqualTo(FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS)
     assertThat(params.awsRoleArn).isEqualTo("arn:aws:iam::123456789012:role/my-role")
-    assertThat(params.awsRoleSessionName).isEqualTo("my-session")
+    assertThat(params.awsRoleSession).isEqualTo("my-session")
     assertThat(params.awsRegion).isEqualTo("us-east-1")
     assertThat(params.awsAudience).isEqualTo("sts.amazonaws.com")
   }

@@ -104,7 +104,7 @@ class ResultsFulfillerAppRunnerTest {
 
     assertThat(config.kmsType).isEqualTo(EventDataProviderConfig.KmsConfig.KmsType.AWS)
     assertThat(config.awsRoleArn).isEqualTo("arn:aws:iam::123456789012:role/my-role")
-    assertThat(config.awsRoleSessionName).isEqualTo("my-session")
+    assertThat(config.awsRoleSession).isEqualTo("my-session")
     assertThat(config.awsRegion).isEqualTo("us-east-1")
     assertThat(config.awsAudience).isEqualTo("sts.amazonaws.com")
   }
@@ -132,7 +132,7 @@ class ResultsFulfillerAppRunnerTest {
         .build()
 
     assertThat(config.awsRoleArn).isEmpty()
-    assertThat(config.awsRoleSessionName).isEmpty()
+    assertThat(config.awsRoleSession).isEmpty()
     assertThat(config.awsRegion).isEmpty()
     assertThat(config.awsAudience).isEmpty()
   }
@@ -148,7 +148,7 @@ class ResultsFulfillerAppRunnerTest {
     assertThat(config.kmsType)
       .isEqualTo(EventDataProviderConfig.KmsConfig.KmsType.KMS_TYPE_UNSPECIFIED)
     assertThat(config.awsRoleArn).isEmpty()
-    assertThat(config.awsRoleSessionName).isEmpty()
+    assertThat(config.awsRoleSession).isEmpty()
     assertThat(config.awsRegion).isEmpty()
     assertThat(config.awsAudience).isEmpty()
   }
@@ -221,8 +221,8 @@ class ResultsFulfillerAppRunnerTest {
 
     if (isAws) {
       require(config.awsRoleArn.isNotEmpty()) { "aws_role_arn is required when kms_type is AWS" }
-      require(config.awsRoleSessionName.isNotEmpty()) {
-        "aws_role_session_name is required when kms_type is AWS"
+      require(config.awsRoleSession.isNotEmpty()) {
+        "aws_role_session is required when kms_type is AWS"
       }
       require(config.awsRegion.isNotEmpty()) { "aws_region is required when kms_type is AWS" }
       require(config.awsAudience.isNotEmpty()) { "aws_audience is required when kms_type is AWS" }
@@ -247,7 +247,7 @@ class ResultsFulfillerAppRunnerTest {
   }
 
   @Test
-  fun `AWS KmsType missing aws_role_session_name fails validation`() {
+  fun `AWS KmsType missing aws_role_session fails validation`() {
     val config =
       EventDataProviderConfig.KmsConfig.newBuilder()
         .setKmsType(EventDataProviderConfig.KmsConfig.KmsType.AWS)
@@ -258,11 +258,11 @@ class ResultsFulfillerAppRunnerTest {
 
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        require(config.awsRoleSessionName.isNotEmpty()) {
-          "aws_role_session_name is required when kms_type is AWS"
+        require(config.awsRoleSession.isNotEmpty()) {
+          "aws_role_session is required when kms_type is AWS"
         }
       }
-    assertThat(exception).hasMessageThat().contains("aws_role_session_name")
+    assertThat(exception).hasMessageThat().contains("aws_role_session")
   }
 
   @Test
@@ -314,7 +314,7 @@ class ResultsFulfillerAppRunnerTest {
 
     assertThat(isAws).isFalse()
     assertThat(config.awsRoleArn).isEmpty()
-    assertThat(config.awsRoleSessionName).isEmpty()
+    assertThat(config.awsRoleSession).isEmpty()
     assertThat(config.awsRegion).isEmpty()
     assertThat(config.awsAudience).isEmpty()
   }

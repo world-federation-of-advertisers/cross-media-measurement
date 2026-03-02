@@ -499,7 +499,7 @@ class RequisitionFulfillmentServiceTest {
           impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT
           kmsType = Header.TrusTee.EnvelopeEncryption.KmsType.AWS
           awsRoleArn = "arn:aws:iam::123456789012:role/my-role"
-          awsRoleSessionName = "my-session"
+          awsRoleSession = "my-session"
           awsRegion = "us-east-1"
           awsAudience = "sts.amazonaws.com"
         }
@@ -550,7 +550,7 @@ class RequisitionFulfillmentServiceTest {
                   populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
                   kmsType = RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.AWS
                   awsRoleArn = "arn:aws:iam::123456789012:role/my-role"
-                  awsRoleSessionName = "my-session"
+                  awsRoleSession = "my-session"
                   awsRegion = "us-east-1"
                   awsAudience = "sts.amazonaws.com"
                 }

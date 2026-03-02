@@ -167,12 +167,12 @@ class GenerateSyntheticData : Runnable {
     private set
 
   @Option(
-    names = ["--aws-role-session-name"],
+    names = ["--aws-role-session"],
     description = ["AWS STS role session name. Required when --kms-type=AWS."],
     required = false,
     defaultValue = "generate-synthetic-data",
   )
-  lateinit var awsRoleSessionName: String
+  lateinit var awsRoleSession: String
     private set
 
   @Option(
@@ -226,7 +226,7 @@ class GenerateSyntheticData : Runnable {
             AwsWebIdentityCredentials(
               roleArn = awsRoleArn,
               webIdentityTokenFilePath = awsWebIdentityTokenFile,
-              roleSessionName = awsRoleSessionName,
+              roleSessionName = awsRoleSession,
               region = awsRegion,
             )
           AwsKmsClientFactory().getKmsClient(awsConfig)

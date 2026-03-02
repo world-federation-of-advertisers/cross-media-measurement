@@ -50,7 +50,7 @@ data class TrusTeeConfig(
   val impersonatedServiceAccount: String,
   val kmsType: FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType,
   val awsRoleArn: String?,
-  val awsRoleSessionName: String?,
+  val awsRoleSession: String?,
   val awsRegion: String?,
   val awsAudience: String?,
 ) {
@@ -77,7 +77,7 @@ data class TrusTeeConfig(
       impersonatedServiceAccount = impersonatedServiceAccount,
       kmsType = kmsType,
       awsRoleArn = awsRoleArn,
-      awsRoleSessionName = awsRoleSessionName,
+      awsRoleSession = awsRoleSession,
       awsRegion = awsRegion,
       awsAudience = awsAudience,
     )

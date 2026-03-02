@@ -239,7 +239,7 @@ class FulfillRequisitionRequestBuilderTest {
         impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT,
         kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS,
         awsRoleArn = null,
-        awsRoleSessionName = "session",
+        awsRoleSession = "session",
         awsRegion = "us-east-1",
         awsAudience = "sts.amazonaws.com",
       )
@@ -256,7 +256,7 @@ class FulfillRequisitionRequestBuilderTest {
         impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT,
         kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS,
         awsRoleArn = "arn:aws:iam::123456789012:role/my-role",
-        awsRoleSessionName = "session",
+        awsRoleSession = "session",
         awsRegion = null,
         awsAudience = "sts.amazonaws.com",
       )
@@ -273,7 +273,7 @@ class FulfillRequisitionRequestBuilderTest {
         impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT,
         kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
         awsRoleArn = null,
-        awsRoleSessionName = null,
+        awsRoleSession = null,
         awsRegion = null,
         awsAudience = null,
       )
@@ -340,7 +340,7 @@ class FulfillRequisitionRequestBuilderTest {
         impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT,
         kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
         awsRoleArn = null,
-        awsRoleSessionName = null,
+        awsRoleSession = null,
         awsRegion = null,
         awsAudience = null,
       )

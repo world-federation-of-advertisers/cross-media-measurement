@@ -206,7 +206,7 @@ class TrusTeeMill(
               serviceAccountImpersonationUrl =
                 IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
               roleArn = protocol.awsRoleArn,
-              roleSessionName = protocol.awsRoleSessionName,
+              roleSessionName = protocol.awsRoleSession,
               region = protocol.awsRegion,
               awsAudience = protocol.awsAudience,
             )

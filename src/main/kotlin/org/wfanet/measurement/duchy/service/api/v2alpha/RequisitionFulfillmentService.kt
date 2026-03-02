@@ -341,7 +341,7 @@ class RequisitionFulfillmentService(
               this.populationSpecFingerprint = populationSpecFingerprint
               this.kmsType = envelopeEncryption.kmsType.toInternalKmsType()
               this.awsRoleArn = envelopeEncryption.awsRoleArn
-              this.awsRoleSessionName = envelopeEncryption.awsRoleSessionName
+              this.awsRoleSession = envelopeEncryption.awsRoleSession
               this.awsRegion = envelopeEncryption.awsRegion
               this.awsAudience = envelopeEncryption.awsAudience
             }

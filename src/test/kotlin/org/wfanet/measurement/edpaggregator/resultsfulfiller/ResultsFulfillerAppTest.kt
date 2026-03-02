@@ -515,7 +515,7 @@ class ResultsFulfillerAppTest {
                 impersonatedServiceAccount = "test-sa@example.com",
                 kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
                 awsRoleArn = null,
-                awsRoleSessionName = null,
+                awsRoleSession = null,
                 awsRegion = null,
                 awsAudience = null,
               )
@@ -791,7 +791,7 @@ class ResultsFulfillerAppTest {
               impersonatedServiceAccount = "test-sa@example.com",
               kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
               awsRoleArn = null,
-              awsRoleSessionName = null,
+              awsRoleSession = null,
               awsRegion = null,
               awsAudience = null,
             )
@@ -1220,7 +1220,7 @@ class ResultsFulfillerAppTest {
               impersonatedServiceAccount = "test-sa@example.com",
               kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
               awsRoleArn = null,
-              awsRoleSessionName = null,
+              awsRoleSession = null,
               awsRegion = null,
               awsAudience = null,
             )
@@ -1362,7 +1362,7 @@ class ResultsFulfillerAppTest {
             impersonatedServiceAccount = "test-sa@example.com",
             kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
             awsRoleArn = null,
-            awsRoleSessionName = null,
+            awsRoleSession = null,
             awsRegion = null,
             awsAudience = null,
           )

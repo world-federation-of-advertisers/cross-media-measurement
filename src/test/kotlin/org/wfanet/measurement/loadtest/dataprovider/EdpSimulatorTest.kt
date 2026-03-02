@@ -771,7 +771,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         impersonatedServiceAccount = "impersonated-service-account",
         kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
         awsRoleArn = null,
-        awsRoleSessionName = null,
+        awsRoleSession = null,
         awsRegion = null,
         awsAudience = null,
       )
