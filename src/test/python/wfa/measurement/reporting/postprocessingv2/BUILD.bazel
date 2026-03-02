@@ -1,0 +1,11 @@
+load("@pip//:requirements.bzl", "requirement")
+load("@rules_python//python:defs.bzl", "py_test")
+
+py_test(
+    name = "constraint_generator_test",
+    srcs = ["constraint_generator_test.py"],
+    deps = [
+        "//src/main/python/wfa/measurement/reporting/postprocessingv2:constraint_generator",
+        requirement("protobuf"),
+    ],
+)
