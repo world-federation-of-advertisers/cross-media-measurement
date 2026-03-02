@@ -16,6 +16,13 @@ proto_library(
     name = "transport_layer_security_params_proto",
     srcs = ["transport_layer_security_params.proto"],
     strip_import_prefix = IMPORT_PREFIX,
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:__pkg__",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    ],
     deps = [
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:timestamp_proto",
@@ -108,3 +115,4 @@ kt_jvm_proto_library(
     name = "data_availability_sync_configs_kt_jvm_proto",
     deps = [":data_availability_sync_configs_proto"],
 )
+

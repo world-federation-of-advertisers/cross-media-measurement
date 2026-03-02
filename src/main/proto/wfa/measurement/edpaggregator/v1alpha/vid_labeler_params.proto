@@ -18,21 +18,17 @@ package wfa.measurement.edpaggregator.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
 import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "VidLabelerParamsProto";
 
-// Message representing the params used for the VID Labeling TEE application
+// Combined configuration for the VID Labeling Dispatcher cloud function and
+// the VID Labeling TEE application.
 message VidLabelerParams {
-  // The Cmms Resource name for the EDP
-  string data_provider = 1 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
-  ];
-
-  // Message representing the storage details used by the VID labeler app
+  // Storage details for the labeled impressions output written by the TEE app.
   message StorageParams {
     // The Google Cloud Storage project ID for the storage instance
     string gcs_project_id = 1 [(google.api.field_behavior) = REQUIRED];
@@ -43,14 +39,7 @@ message VidLabelerParams {
         [(google.api.field_behavior) = REQUIRED];
   }
 
-  // The storage used by the tee app
-  StorageParams storage_params = 2 [(google.api.field_behavior) = REQUIRED];
-
-  // The connection to the VID repository API
-  TransportLayerSecurityParams vid_repo_connection = 3
-      [(google.api.field_behavior) = REQUIRED];
-
-  // Message representing the configuration for a model line
+  // Configuration for a single model line used during VID labeling.
   message ModelLineConfig {
     // Mapping from labeler input field names to their corresponding values
     map<string, string> labeler_input_field_mapping = 1;
@@ -59,19 +48,44 @@ message VidLabelerParams {
     map<string, string> event_template_field_mapping = 2;
   }
 
-  // Map from model line resource name to its configuration
-  map<string, ModelLineConfig> model_line_configs = 4
-      [(google.api.field_behavior) = REQUIRED];
+  // Resource name of the DataProvider.
+  string data_provider = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
+  ];
 
-  // Optional; if provided, indicates what model lines to use
+  // ===== TEE app fields =====
+
+  // Output storage for labeled impressions written by the TEE app.
+  StorageParams storage_params = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // TEE TLS connection params.
+  wfa.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
+      tee_transport_layer_security_params = 3
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Map from model line resource name to its configuration.
+  map<string, ModelLineConfig> model_line_configs = 4;
+
+  // If provided, restricts labeling to these model lines (e.g. backfills).
   repeated string override_model_lines = 5 [
     (google.api.field_behavior) = OPTIONAL,
     (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
   ];
 
-  // The input blob URIs to process
-  repeated string input_blob_uris = 6 [(google.api.field_behavior) = REQUIRED];
+  // Input blob URIs for this batch, stamped in per-job by the dispatcher.
+  repeated string input_blob_uris = 6 [(google.api.field_behavior) = OPTIONAL];
 
-  // Batch of files grouped using batch_max_size
-  string batch_index = 7 [(google.api.field_behavior) = REQUIRED];
+  // Unique batch identifier, stamped in per-job by the dispatcher.
+  string batch_index = 7 [(google.api.field_behavior) = OPTIONAL];
+
+  // ===== Dispatcher / cloud function fields =====
+
+  // Cloud TLS connection params.
+  wfa.measurement.config.edpaggregator.TransportLayerSecurityParams
+      cloud_transport_layer_security_params = 8
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Maximum batch size in bytes. If unset, treated as a single batch.
+  optional fixed64 batch_max_size = 9 [(google.api.field_behavior) = OPTIONAL];
 }

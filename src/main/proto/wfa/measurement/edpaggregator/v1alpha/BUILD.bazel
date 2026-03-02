@@ -90,6 +90,7 @@ proto_library(
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
         ":transport_layer_security_params_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],
