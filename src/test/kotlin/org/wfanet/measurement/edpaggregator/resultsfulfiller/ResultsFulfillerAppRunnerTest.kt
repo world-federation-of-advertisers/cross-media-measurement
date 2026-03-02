@@ -24,6 +24,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig
 
 @RunWith(JUnit4::class)
 class ResultsFulfillerAppRunnerTest {
@@ -60,5 +61,91 @@ class ResultsFulfillerAppRunnerTest {
 
     assertThat(nestedFile.exists()).isTrue()
     assertThat(data).isEqualTo(nestedFile.readBytes())
+  }
+
+  @Test
+  fun `EventDataProviderConfig KmsType defaults to UNSPECIFIED`() {
+    val config =
+      EventDataProviderConfig.KmsConfig.newBuilder()
+        .setKmsAudience("test-audience")
+        .setServiceAccount("test@example.com")
+        .build()
+
+    assertThat(config.kmsType)
+      .isEqualTo(EventDataProviderConfig.KmsConfig.KmsType.KMS_TYPE_UNSPECIFIED)
+  }
+
+  @Test
+  fun `EventDataProviderConfig KmsType GCP is set correctly`() {
+    val config =
+      EventDataProviderConfig.KmsConfig.newBuilder()
+        .setKmsType(EventDataProviderConfig.KmsConfig.KmsType.GCP)
+        .setKmsAudience("test-audience")
+        .setServiceAccount("test@example.com")
+        .build()
+
+    assertThat(config.kmsType).isEqualTo(EventDataProviderConfig.KmsConfig.KmsType.GCP)
+    assertThat(config.kmsAudience).isEqualTo("test-audience")
+    assertThat(config.serviceAccount).isEqualTo("test@example.com")
+  }
+
+  @Test
+  fun `EventDataProviderConfig KmsType AWS carries AWS fields`() {
+    val config =
+      EventDataProviderConfig.KmsConfig.newBuilder()
+        .setKmsType(EventDataProviderConfig.KmsConfig.KmsType.AWS)
+        .setAwsRoleArn("arn:aws:iam::123456789012:role/my-role")
+        .setAwsRoleSessionName("my-session")
+        .setAwsRegion("us-east-1")
+        .setAwsAudience("sts.amazonaws.com")
+        .build()
+
+    assertThat(config.kmsType).isEqualTo(EventDataProviderConfig.KmsConfig.KmsType.AWS)
+    assertThat(config.awsRoleArn).isEqualTo("arn:aws:iam::123456789012:role/my-role")
+    assertThat(config.awsRoleSessionName).isEqualTo("my-session")
+    assertThat(config.awsRegion).isEqualTo("us-east-1")
+    assertThat(config.awsAudience).isEqualTo("sts.amazonaws.com")
+  }
+
+  @Test
+  fun `EventDataProviderConfig AWS type has empty GCP fields`() {
+    val config =
+      EventDataProviderConfig.KmsConfig.newBuilder()
+        .setKmsType(EventDataProviderConfig.KmsConfig.KmsType.AWS)
+        .setAwsRoleArn("arn:aws:iam::123456789012:role/my-role")
+        .setAwsRegion("us-east-1")
+        .build()
+
+    assertThat(config.kmsAudience).isEmpty()
+    assertThat(config.serviceAccount).isEmpty()
+  }
+
+  @Test
+  fun `EventDataProviderConfig GCP type has empty AWS fields`() {
+    val config =
+      EventDataProviderConfig.KmsConfig.newBuilder()
+        .setKmsType(EventDataProviderConfig.KmsConfig.KmsType.GCP)
+        .setKmsAudience("test-audience")
+        .setServiceAccount("test@example.com")
+        .build()
+
+    assertThat(config.awsRoleArn).isEmpty()
+    assertThat(config.awsRoleSessionName).isEmpty()
+    assertThat(config.awsRegion).isEmpty()
+    assertThat(config.awsAudience).isEmpty()
+  }
+
+  @Test
+  fun `DuchyFlags fields are set correctly`() {
+    val duchyFlags =
+      ResultsFulfillerAppRunner.DuchyFlags().apply {
+        duchyId = "duchy1"
+        duchyTarget = "localhost:8080"
+        duchyCertHost = "duchy1.example.com"
+      }
+
+    assertThat(duchyFlags.duchyId).isEqualTo("duchy1")
+    assertThat(duchyFlags.duchyTarget).isEqualTo("localhost:8080")
+    assertThat(duchyFlags.duchyCertHost).isEqualTo("duchy1.example.com")
   }
 }

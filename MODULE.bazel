@@ -39,7 +39,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.136.0",
+    version = "0.137.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
