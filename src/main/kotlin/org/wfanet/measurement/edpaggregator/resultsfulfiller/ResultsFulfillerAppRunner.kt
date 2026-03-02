@@ -421,7 +421,7 @@ class ResultsFulfillerAppRunner : Runnable {
           }
           EventDataProviderConfig.KmsConfig.KmsType.KMS_TYPE_UNSPECIFIED,
           EventDataProviderConfig.KmsConfig.KmsType.UNRECOGNIZED ->
-            throw IllegalArgumentException("Unsupported KMS type: ${edpConfig.kmsConfig.kmsType}")
+            error("Unsupported KMS type: ${edpConfig.kmsConfig.kmsType}")
         }
 
       kmsClientsMap[edpConfig.dataProvider] = kmsClient
