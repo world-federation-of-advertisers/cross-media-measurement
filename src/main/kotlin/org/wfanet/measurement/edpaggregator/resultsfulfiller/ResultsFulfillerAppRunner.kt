@@ -431,8 +431,7 @@ class ResultsFulfillerAppRunner : Runnable {
         when (edpConfig.kmsConfig.kmsType) {
           EventDataProviderConfig.KmsConfig.KmsType.AWS ->
             FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS
-          EventDataProviderConfig.KmsConfig.KmsType.GCP ->
-            FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP
+          EventDataProviderConfig.KmsConfig.KmsType.GCP,
           EventDataProviderConfig.KmsConfig.KmsType.KMS_TYPE_UNSPECIFIED ->
             FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP
           EventDataProviderConfig.KmsConfig.KmsType.UNRECOGNIZED ->

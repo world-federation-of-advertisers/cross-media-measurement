@@ -373,11 +373,10 @@ private fun RequisitionMetadata.toConsentSignalingRequisition() =
 private fun Header.TrusTee.EnvelopeEncryption.KmsType.toInternalKmsType():
   RequisitionDetails.RequisitionProtocol.TrusTee.KmsType =
   when (this) {
-    Header.TrusTee.EnvelopeEncryption.KmsType.GCP ->
+    Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
+    Header.TrusTee.EnvelopeEncryption.KmsType.KMS_TYPE_UNSPECIFIED ->
       RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.GCP
     Header.TrusTee.EnvelopeEncryption.KmsType.AWS ->
       RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.AWS
-    Header.TrusTee.EnvelopeEncryption.KmsType.KMS_TYPE_UNSPECIFIED ->
-      RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.GCP
     Header.TrusTee.EnvelopeEncryption.KmsType.UNRECOGNIZED -> error("Unrecognized KMS type")
   }
