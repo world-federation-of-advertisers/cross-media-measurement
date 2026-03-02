@@ -2560,6 +2560,11 @@ class ResultsFulfillerTest {
         kmsClient = kmsClient,
         workloadIdentityProvider = "test-wip",
         impersonatedServiceAccount = "test-sa@example.com",
+        kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
+        awsRoleArn = null,
+        awsRoleSessionName = null,
+        awsRegion = null,
+        awsAudience = null,
       )
 
     val inputKekUri =
@@ -2582,6 +2587,11 @@ class ResultsFulfillerTest {
         kmsClient = kmsClient,
         workloadIdentityProvider = "test-wip",
         impersonatedServiceAccount = "test-sa@example.com",
+        kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
+        awsRoleArn = null,
+        awsRoleSessionName = null,
+        awsRegion = null,
+        awsAudience = null,
       )
 
     val inputKekUri =

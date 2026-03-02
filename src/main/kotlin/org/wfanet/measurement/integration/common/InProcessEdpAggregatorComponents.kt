@@ -52,6 +52,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
@@ -201,6 +202,11 @@ class InProcessEdpAggregatorComponents(
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
+            kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
+            awsRoleArn = null,
+            awsRoleSessionName = null,
+            awsRegion = null,
+            awsAudience = null,
           )
         },
       requisitionMetadataStub = requisitionMetadataClient,
