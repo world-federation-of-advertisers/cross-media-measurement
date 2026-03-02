@@ -1,0 +1,17 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "throwing_kms_client",
+    srcs = ["ThrowingKmsClient.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+    ],
+)

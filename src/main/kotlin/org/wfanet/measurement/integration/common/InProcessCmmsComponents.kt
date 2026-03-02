@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.integration.common
 
+import com.google.crypto.tink.KmsClient
 import com.google.protobuf.ByteString
 import java.security.cert.X509Certificate
 import java.time.ZoneOffset
@@ -66,6 +67,7 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.TrusTeeProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
@@ -85,6 +87,7 @@ class InProcessCmmsComponents(
   private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
     SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL,
   private val useEdpSimulators: Boolean,
+  private val trusTeeKmsClient: KmsClient,
 ) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value
@@ -112,6 +115,7 @@ class InProcessCmmsComponents(
         kingdomPublicApiChannel = kingdom.publicApiChannel,
         duchyDependenciesRule = duchyDependenciesRule,
         trustedCertificates = TRUSTED_CERTIFICATES,
+        trusTeeKmsClient = trusTeeKmsClient,
         verboseGrpcLogging = false,
       )
     }
@@ -440,6 +444,10 @@ class InProcessCmmsComponents(
         "worker1",
         "worker2",
         "aggregator",
+      )
+      TrusTeeProtocolConfig.setForTest(
+        TRUSTEE_PROTOCOL_CONFIG_CONFIG.protocolConfig,
+        TRUSTEE_PROTOCOL_CONFIG_CONFIG.duchyId,
       )
       DuchyInfo.initializeFromConfig(
         loadTextProto("duchy_cert_config.textproto", DuchyCertConfig.getDefaultInstance())
