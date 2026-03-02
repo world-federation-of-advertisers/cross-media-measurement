@@ -136,6 +136,22 @@ class ResultsFulfillerAppRunnerTest {
   }
 
   @Test
+  fun `EventDataProviderConfig unspecified KmsType has empty AWS fields`() {
+    val config =
+      EventDataProviderConfig.KmsConfig.newBuilder()
+        .setKmsAudience("test-audience")
+        .setServiceAccount("test@example.com")
+        .build()
+
+    assertThat(config.kmsType)
+      .isEqualTo(EventDataProviderConfig.KmsConfig.KmsType.KMS_TYPE_UNSPECIFIED)
+    assertThat(config.awsRoleArn).isEmpty()
+    assertThat(config.awsRoleSessionName).isEmpty()
+    assertThat(config.awsRegion).isEmpty()
+    assertThat(config.awsAudience).isEmpty()
+  }
+
+  @Test
   fun `DuchyFlags fields are set correctly`() {
     val duchyFlags =
       ResultsFulfillerAppRunner.DuchyFlags().apply {

@@ -467,6 +467,7 @@ class RequisitionFulfillmentServiceTest {
                   workloadIdentityProvider = WORKLOAD_IDENTITY_PROVIDER
                   impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT
                   populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
+                  kmsType = RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.GCP
                 }
             }
         }
@@ -476,6 +477,84 @@ class RequisitionFulfillmentServiceTest {
         systemFulfillRequisitionRequest {
           name = SYSTEM_REQUISITION_KEY.toName()
           nonce = NONCE
+        }
+      )
+  }
+
+  @Test
+  fun `fulfill encrypted TrusTee requisition with AWS kms type`() = runBlocking {
+    val awsEncryptedTrusTeeHeader = header {
+      name = CanonicalRequisitionKey(DATA_PROVIDER_API_ID, REQUISITION_API_ID).toName()
+      requisitionFingerprint = REQUISITION_FINGERPRINT
+      nonce = NONCE
+      trusTee = trusTee {
+        dataFormat = Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR
+        envelopeEncryption = envelopeEncryption {
+          encryptedDek = encryptionKey {
+            format = EncryptionKey.Format.TINK_ENCRYPTED_KEYSET
+            data = ENCRYPTED_DEK_DATA
+          }
+          kmsKekUri = KMS_KEK_URI
+          workloadIdentityProvider = WORKLOAD_IDENTITY_PROVIDER
+          impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT
+          kmsType = Header.TrusTee.EnvelopeEncryption.KmsType.AWS
+          awsRoleArn = "arn:aws:iam::123456789012:role/my-role"
+          awsRoleSessionName = "my-session"
+          awsRegion = "us-east-1"
+          awsAudience = "sts.amazonaws.com"
+        }
+        populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
+      }
+    }
+
+    val fakeToken = computationToken {
+      globalComputationId = COMPUTATION_ID
+      computationStage = computationStage { trusTee = TrusTeeStage.INITIALIZED }
+      computationDetails = COMPUTATION_DETAILS
+      requisitions += TRUS_TEE_REQUISITION_METADATA
+    }
+    computationsServiceMock.stub {
+      onBlocking { getComputationToken(any()) }
+        .thenReturn(getComputationTokenResponse { token = fakeToken })
+    }
+
+    val response =
+      withPrincipal(DATA_PROVIDER_PRINCIPAL) {
+        service.fulfillRequisition(awsEncryptedTrusTeeHeader.withContent(TEST_REQUISITION_DATA))
+      }
+
+    assertThat(response).isEqualTo(FULFILLED_RESPONSE)
+    val blob = assertNotNull(requisitionStore.get(REQUISITION_BLOB_CONTEXT))
+    assertThat(blob).contentEqualTo(TEST_REQUISITION_DATA)
+    verifyProtoArgument(
+        computationsServiceMock,
+        ComputationsCoroutineImplBase::recordRequisitionFulfillment,
+      )
+      .isEqualTo(
+        recordRequisitionFulfillmentRequest {
+          token = fakeToken
+          key = REQUISITION_KEY
+          blobPath = blob.blobKey
+          publicApiVersion = Version.V2_ALPHA.string
+          protocolDetails =
+            RequisitionDetailsKt.requisitionProtocol {
+              trusTee =
+                RequisitionDetailsKt.RequisitionProtocolKt.trusTee {
+                  dataFormat =
+                    RequisitionDetails.RequisitionProtocol.TrusTee.DataFormat
+                      .ENCRYPTED_FREQUENCY_VECTOR
+                  encryptedDekCiphertext = ENCRYPTED_DEK_DATA
+                  kmsKekUri = KMS_KEK_URI
+                  workloadIdentityProvider = WORKLOAD_IDENTITY_PROVIDER
+                  impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT
+                  populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
+                  kmsType = RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.AWS
+                  awsRoleArn = "arn:aws:iam::123456789012:role/my-role"
+                  awsRoleSessionName = "my-session"
+                  awsRegion = "us-east-1"
+                  awsAudience = "sts.amazonaws.com"
+                }
+            }
         }
       )
   }

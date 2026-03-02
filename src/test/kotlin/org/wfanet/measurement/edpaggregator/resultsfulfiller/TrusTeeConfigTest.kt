@@ -107,4 +107,43 @@ class TrusTeeConfigTest {
     assertThat(params.workloadIdentityProvider).isEqualTo("test-provider")
     assertThat(params.impersonatedServiceAccount).isEqualTo("test-sa@example.com")
   }
+
+  @Test
+  fun `buildEncryptionParams with GCP type has null AWS fields`() {
+    val uri = "gcp-kms://projects/my-project/locations/us-east1/keyRings/my-ring/cryptoKeys/my-key"
+
+    val params = trusTeeConfig.buildEncryptionParams(uri, emptyMap())
+
+    assertThat(params.kmsType)
+      .isEqualTo(FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP)
+    assertThat(params.awsRoleArn).isNull()
+    assertThat(params.awsRoleSessionName).isNull()
+    assertThat(params.awsRegion).isNull()
+    assertThat(params.awsAudience).isNull()
+  }
+
+  @Test
+  fun `buildEncryptionParams with AWS type passes AWS fields`() {
+    val awsConfig =
+      TrusTeeConfig(
+        kmsClient = fakeKmsClient,
+        workloadIdentityProvider = "test-provider",
+        impersonatedServiceAccount = "test-sa@example.com",
+        kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS,
+        awsRoleArn = "arn:aws:iam::123456789012:role/my-role",
+        awsRoleSessionName = "my-session",
+        awsRegion = "us-east-1",
+        awsAudience = "sts.amazonaws.com",
+      )
+    val uri = "aws-kms://arn:aws:kms:us-east-1:123456789012:key/my-key"
+
+    val params = awsConfig.buildEncryptionParams(uri, emptyMap())
+
+    assertThat(params.kmsType)
+      .isEqualTo(FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS)
+    assertThat(params.awsRoleArn).isEqualTo("arn:aws:iam::123456789012:role/my-role")
+    assertThat(params.awsRoleSessionName).isEqualTo("my-session")
+    assertThat(params.awsRegion).isEqualTo("us-east-1")
+    assertThat(params.awsAudience).isEqualTo("sts.amazonaws.com")
+  }
 }
