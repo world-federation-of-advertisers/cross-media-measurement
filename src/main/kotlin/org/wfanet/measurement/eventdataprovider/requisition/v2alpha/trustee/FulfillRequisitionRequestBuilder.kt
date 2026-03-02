@@ -75,7 +75,16 @@ class FulfillRequisitionRequestBuilder(
     val awsRoleSessionName: String?,
     val awsRegion: String?,
     val awsAudience: String?,
-  )
+  ) {
+    init {
+      if (kmsType == FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS) {
+        requireNotNull(awsRoleArn) { "awsRoleArn is required when kmsType is AWS" }
+        requireNotNull(awsRoleSessionName) { "awsRoleSessionName is required when kmsType is AWS" }
+        requireNotNull(awsRegion) { "awsRegion is required when kmsType is AWS" }
+        requireNotNull(awsAudience) { "awsAudience is required when kmsType is AWS" }
+      }
+    }
+  }
 
   private val frequencyVectorBytes: ByteArray
 

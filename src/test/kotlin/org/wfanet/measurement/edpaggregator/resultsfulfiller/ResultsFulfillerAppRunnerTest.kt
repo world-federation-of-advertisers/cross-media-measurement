@@ -24,6 +24,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig
 
 @RunWith(JUnit4::class)
@@ -149,6 +150,57 @@ class ResultsFulfillerAppRunnerTest {
     assertThat(config.awsRoleSessionName).isEmpty()
     assertThat(config.awsRegion).isEmpty()
     assertThat(config.awsAudience).isEmpty()
+  }
+
+  @Test
+  fun `toApiKmsType maps UNSPECIFIED to GCP`() {
+    val apiKmsType =
+      when (EventDataProviderConfig.KmsConfig.KmsType.KMS_TYPE_UNSPECIFIED) {
+        EventDataProviderConfig.KmsConfig.KmsType.AWS ->
+          FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS
+        EventDataProviderConfig.KmsConfig.KmsType.GCP ->
+          FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP
+        EventDataProviderConfig.KmsConfig.KmsType.KMS_TYPE_UNSPECIFIED ->
+          FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP
+        EventDataProviderConfig.KmsConfig.KmsType.UNRECOGNIZED -> error("Unrecognized KMS type")
+      }
+
+    assertThat(apiKmsType)
+      .isEqualTo(FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP)
+  }
+
+  @Test
+  fun `toApiKmsType maps GCP to GCP`() {
+    val apiKmsType =
+      when (EventDataProviderConfig.KmsConfig.KmsType.GCP) {
+        EventDataProviderConfig.KmsConfig.KmsType.AWS ->
+          FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS
+        EventDataProviderConfig.KmsConfig.KmsType.GCP ->
+          FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP
+        EventDataProviderConfig.KmsConfig.KmsType.KMS_TYPE_UNSPECIFIED ->
+          FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP
+        EventDataProviderConfig.KmsConfig.KmsType.UNRECOGNIZED -> error("Unrecognized KMS type")
+      }
+
+    assertThat(apiKmsType)
+      .isEqualTo(FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP)
+  }
+
+  @Test
+  fun `toApiKmsType maps AWS to AWS`() {
+    val apiKmsType =
+      when (EventDataProviderConfig.KmsConfig.KmsType.AWS) {
+        EventDataProviderConfig.KmsConfig.KmsType.AWS ->
+          FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS
+        EventDataProviderConfig.KmsConfig.KmsType.GCP ->
+          FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP
+        EventDataProviderConfig.KmsConfig.KmsType.KMS_TYPE_UNSPECIFIED ->
+          FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP
+        EventDataProviderConfig.KmsConfig.KmsType.UNRECOGNIZED -> error("Unrecognized KMS type")
+      }
+
+    assertThat(apiKmsType)
+      .isEqualTo(FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS)
   }
 
   @Test
