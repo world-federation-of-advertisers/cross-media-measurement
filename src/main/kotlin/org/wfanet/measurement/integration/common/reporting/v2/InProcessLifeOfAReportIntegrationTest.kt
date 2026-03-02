@@ -96,6 +96,7 @@ import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
+import org.wfanet.measurement.integration.crypto.testing.ThrowingKmsClient
 import org.wfanet.measurement.internal.reporting.v2.ListImpressionQualificationFiltersPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listImpressionQualificationFiltersPageToken
@@ -188,7 +189,12 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   reportingDataServicesProviderRule: ProviderRule<Services>,
 ) {
   private val inProcessCmmsComponents: InProcessCmmsComponents =
-    InProcessCmmsComponents(kingdomDataServicesRule, duchyDependenciesRule, useEdpSimulators = true)
+    InProcessCmmsComponents(
+      kingdomDataServicesRule,
+      duchyDependenciesRule,
+      useEdpSimulators = true,
+      trusTeeKmsClient = ThrowingKmsClient,
+    )
 
   private val inProcessCmmsComponentsStartup = TestRule { base, _ ->
     object : Statement() {
