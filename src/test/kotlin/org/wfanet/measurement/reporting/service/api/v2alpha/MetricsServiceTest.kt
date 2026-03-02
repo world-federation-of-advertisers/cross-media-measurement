@@ -9095,6 +9095,127 @@ class MetricsServiceTest {
     }
 
   @Test
+  fun `getMetric uses TrusTee over other protocols when multiple protocols present in config`() =
+    runBlocking {
+      // Verifies that TrusTee is the priority check regardless of what else is in protocolsList.
+      val combinedProtocolConfig = protocolConfig {
+        measurementType = ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
+        protocols +=
+          ProtocolConfigKt.protocol {
+            trusTee =
+              ProtocolConfigKt.trusTee {
+                noiseMechanism = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+              }
+          }
+        protocols +=
+          ProtocolConfigKt.protocol {
+            honestMajorityShareShuffle =
+              ProtocolConfigKt.honestMajorityShareShuffle {
+                noiseMechanism = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+              }
+          }
+      }
+      val succeededMeasurement =
+        PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.copy {
+          protocolConfig = combinedProtocolConfig
+          state = Measurement.State.SUCCEEDED
+          results += resultOutput {
+            val result =
+              MeasurementKt.result {
+                reach = MeasurementKt.ResultKt.reach { value = REACH_FREQUENCY_REACH_VALUE }
+                frequency =
+                  MeasurementKt.ResultKt.frequency {
+                    relativeFrequencyDistribution.putAll(REACH_FREQUENCY_FREQUENCY_VALUE)
+                  }
+              }
+            encryptedResult =
+              encryptResult(
+                signResult(result, AGGREGATOR_SIGNING_KEY),
+                MEASUREMENT_CONSUMER_PUBLIC_KEY,
+              )
+            certificate = AGGREGATOR_CERTIFICATE.name
+          }
+        }
+      val expectedInternalResult =
+        INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.copy {
+          state = InternalMeasurement.State.SUCCEEDED
+          details =
+            details.copy {
+              results +=
+                InternalMeasurementKt.result {
+                  reach =
+                    InternalMeasurementKt.ResultKt.reach {
+                      value = REACH_FREQUENCY_REACH_VALUE
+                      noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
+                      trusTee = TrusTee.getDefaultInstance()
+                    }
+                  frequency =
+                    InternalMeasurementKt.ResultKt.frequency {
+                      relativeFrequencyDistribution.putAll(REACH_FREQUENCY_FREQUENCY_VALUE)
+                      noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
+                      trusTee = TrusTee.getDefaultInstance()
+                    }
+                }
+            }
+        }
+
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
+      doReturn(
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC
+          },
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+                state = InternalMetric.State.SUCCEEDED
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1
+                  measurement = expectedInternalResult
+                }
+              }
+          },
+        )
+        .wheneverBlocking(internalMetricsMock) { batchGetMetrics(any()) }
+      whenever(measurementsMock.batchGetMeasurements(any())).thenAnswer {
+        val request = it.arguments[0] as BatchGetMeasurementsRequest
+        batchGetMeasurementsResponse {
+          measurements += request.namesList.map { _ -> succeededMeasurement }
+        }
+      }
+      whenever(internalMeasurementsMock.batchSetMeasurementResults(any()))
+        .thenReturn(Empty.getDefaultInstance())
+
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        runBlocking {
+          service.getMetric(
+            getMetricRequest { name = PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name }
+          )
+        }
+      }
+
+      val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, times(1)) {
+        batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
+      }
+      assertThat(batchSetMeasurementResultsCaptor.allValues)
+        .containsExactly(
+          batchSetMeasurementResultsRequest {
+            cmmsMeasurementConsumerId = expectedInternalResult.cmmsMeasurementConsumerId
+            measurementResults += measurementResult {
+              cmmsMeasurementId = expectedInternalResult.cmmsMeasurementId
+              this.results += expectedInternalResult.details.resultsList
+            }
+          }
+        )
+      Unit
+    }
+
+  @Test
   fun `getMetric returns SUCCEEDED rf when metric already succeeded and single params set`() =
     runBlocking {
       val internalSucceededReachAndFrequencyMetricWithSingleDataProviderParams = internalMetric {
