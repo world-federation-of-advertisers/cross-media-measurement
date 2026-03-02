@@ -25,6 +25,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_cmms_components",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:synthetic_generation_specs",
+        "//src/main/kotlin/org/wfanet/measurement/integration/crypto/testing:throwing_kms_client",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/common:sample_vids",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_event_query",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server:internal_reporting_server",

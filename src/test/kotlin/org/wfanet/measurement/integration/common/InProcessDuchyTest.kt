@@ -58,7 +58,7 @@ class InProcessDuchyTest {
     }
 
   @Test
-  fun `constructor accepts null trusTeeKmsClient`() {
+  fun `constructor accepts FakeKmsClient without configured keys`() {
     val duchy =
       InProcessDuchy(
         externalDuchyId = AGGREGATOR_NAME,
@@ -66,6 +66,7 @@ class InProcessDuchyTest {
         kingdomPublicApiChannel = createChannel("public-api-test-1"),
         duchyDependenciesRule = emptyDuchyDependenciesRule,
         trustedCertificates = emptyMap<ByteString, X509Certificate>(),
+        trusTeeKmsClient = FakeKmsClient(),
       )
 
     assertThat(duchy.externalDuchyId).isEqualTo(AGGREGATOR_NAME)
