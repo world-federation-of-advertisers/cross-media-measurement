@@ -26,7 +26,12 @@ option java_multiple_files = true;
 option java_outer_classname = "DataAvailabilitySyncConfigProto";
 
 // The Data Availability configuration
+//
+// Deprecated: Use
+// wfa.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams instead.
 message DataAvailabilitySyncConfig {
+  option deprecated = true;
+
   // Resource name referencing the `DataProvider` in an external system,
   // provided out-of-band.
   string data_provider = 1

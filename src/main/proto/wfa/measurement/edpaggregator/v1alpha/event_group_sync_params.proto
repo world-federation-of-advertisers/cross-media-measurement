@@ -1,0 +1,69 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// (-- api-linter: all=disabled
+//     aip.dev/not-precedent: This file needs to be updated to comply with AIPs.
+//     --)
+//  TODO(world-federation-of-advertisers/cross-media-measurement#2777): Update
+//  to comply AIPs.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "EventGroupSyncParamsProto";
+
+// Parameters for the Event Group Sync cloud function, passed over the wire
+// from the dispatcher.
+message EventGroupSyncParams {
+  // Storage details for event group data.
+  message StorageParams {
+    // The Google Cloud Storage project ID for the storage instance.
+    string gcs_project_id = 1;
+
+    // The GCS bucket name where event group data is stored.
+    string bucket_name = 2;
+  }
+
+  // Resource name of the DataProvider.
+  string data_provider = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
+  ];
+
+  // The blob URI for the event groups stored in Mesos RecordIO. Deprecated.
+  // Provided via HTTP headers instead.
+  string event_groups_blob_uri = 2 [deprecated = true];
+
+  // The blob URI that contains MappedEventGroup(s) in Mesos RecordIO.
+  string event_group_map_blob_uri = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // TLS connection params for the CMMS Public API.
+  TransportLayerSecurityParams cmms_connection = 4
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Where the event groups are stored.
+  StorageParams event_group_storage = 5
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Where the event group map is stored.
+  StorageParams event_group_map_storage = 6
+      [(google.api.field_behavior) = REQUIRED];
+}
