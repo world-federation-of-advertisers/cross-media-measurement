@@ -79,5 +79,5 @@ message VidLabelerParams {
   string batch_index = 7 [(google.api.field_behavior) = OPTIONAL];
 
   // Maximum batch size in bytes for the dispatcher. If unset, treated as a single batch.
-  optional fixed64 batch_max_size = 9 [(google.api.field_behavior) = OPTIONAL];
+  optional fixed64 batch_max_size = 8 [(google.api.field_behavior) = OPTIONAL];
 }
