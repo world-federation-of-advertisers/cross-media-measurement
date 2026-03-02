@@ -125,8 +125,32 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunnerTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller_app_runner",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:event_data_provider_configs_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "KmsConstantsTest",
+    srcs = ["KmsConstantsTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.KmsConstantsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:kms_constants",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "TrusTeeConfigTest",
+    srcs = ["TrusTeeConfigTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.TrusTeeConfigTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
     ],
 )
 

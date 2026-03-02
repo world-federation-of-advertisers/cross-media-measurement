@@ -51,6 +51,7 @@ import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
 import org.wfanet.measurement.internal.kingdom.HmssProtocolConfigConfig
 import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
+import org.wfanet.measurement.internal.kingdom.TrusTeeProtocolConfigConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
@@ -90,6 +91,11 @@ val HMSS_PROTOCOL_CONFIG_CONFIG: HmssProtocolConfigConfig =
   loadTextProto(
     "hmss_protocol_config_config.textproto",
     HmssProtocolConfigConfig.getDefaultInstance(),
+  )
+val TRUSTEE_PROTOCOL_CONFIG_CONFIG: TrusTeeProtocolConfigConfig =
+  loadTextProto(
+    "trustee_protocol_config_config.textproto",
+    TrusTeeProtocolConfigConfig.getDefaultInstance(),
   )
 val IMPRESSION_QUALIFICATION_FILTER_CONFIG: ImpressionQualificationFilterConfig =
   loadTextProto(
