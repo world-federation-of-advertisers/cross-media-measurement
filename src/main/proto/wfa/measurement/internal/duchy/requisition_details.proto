@@ -58,6 +58,12 @@ message RequisitionDetails {
         // An encrypted frequency vector.
         ENCRYPTED_FREQUENCY_VECTOR = 2;
       }
+      // Type of KMS used for envelope encryption.
+      enum KmsType {
+        KMS_TYPE_UNSPECIFIED = 0;
+        GCP = 1;
+        AWS = 2;
+      }
       // The data format of the the requisition blob
       DataFormat data_format = 6;
       // The ciphertext of the EncryptionKey of the Data Encryption Key (DEK).
@@ -73,6 +79,20 @@ message RequisitionDetails {
       string impersonated_service_account = 4;
       // The FarmHash fingerprint of the PopulationSpec.
       int64 population_spec_fingerprint = 5;
+      // Type of KMS used for the KEK. Defaults to GCP if unset.
+      KmsType kms_type = 7;
+      // Optional. AWS IAM role ARN to assume via GCP identity federation.
+      // Only used when `kms_type` is `AWS`.
+      string aws_role_arn = 8;
+      // Optional. Identifier for the assumed AWS role session.
+      // Only used when `kms_type` is `AWS`.
+      string aws_role_session_name = 9;
+      // Optional. AWS region for STS and KMS endpoints.
+      // Only used when `kms_type` is `AWS`.
+      string aws_region = 10;
+      // Optional. OIDC audience for the GCP ID token presented to AWS IAM.
+      // Only used when `kms_type` is `AWS`.
+      string aws_audience = 11;
     }
 
     oneof protocol {

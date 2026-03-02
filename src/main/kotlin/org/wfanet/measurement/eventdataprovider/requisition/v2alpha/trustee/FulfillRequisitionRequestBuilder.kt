@@ -70,6 +70,11 @@ class FulfillRequisitionRequestBuilder(
     val kmsKekUri: String,
     val workloadIdentityProvider: String,
     val impersonatedServiceAccount: String,
+    val kmsType: FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType,
+    val awsRoleArn: String?,
+    val awsRoleSessionName: String?,
+    val awsRegion: String?,
+    val awsAudience: String?,
   )
 
   private val frequencyVectorBytes: ByteArray
@@ -168,6 +173,11 @@ class FulfillRequisitionRequestBuilder(
               kmsKekUri = encryptionParams!!.kmsKekUri
               workloadIdentityProvider = encryptionParams.workloadIdentityProvider
               impersonatedServiceAccount = encryptionParams.impersonatedServiceAccount
+              kmsType = encryptionParams.kmsType
+              encryptionParams.awsRoleArn?.let { awsRoleArn = it }
+              encryptionParams.awsRoleSessionName?.let { awsRoleSessionName = it }
+              encryptionParams.awsRegion?.let { awsRegion = it }
+              encryptionParams.awsAudience?.let { awsAudience = it }
             }
           // TODO(world-federation-of-advertisers/cross-media-measurement#2624): generate
           // populationSpec fingerprint

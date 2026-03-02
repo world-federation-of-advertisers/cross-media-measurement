@@ -36,6 +36,7 @@ import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.ProtoReflection
@@ -426,11 +427,30 @@ class ResultsFulfillerAppRunner : Runnable {
 
       kmsClientsMap[edpConfig.dataProvider] = kmsClient
 
+      val apiKmsType =
+        when (edpConfig.kmsConfig.kmsType) {
+          EventDataProviderConfig.KmsConfig.KmsType.AWS ->
+            FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS
+          EventDataProviderConfig.KmsConfig.KmsType.GCP ->
+            FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP
+          EventDataProviderConfig.KmsConfig.KmsType.KMS_TYPE_UNSPECIFIED,
+          EventDataProviderConfig.KmsConfig.KmsType.UNRECOGNIZED ->
+            FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP
+        }
+
+      val isAws =
+        apiKmsType == FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS
+
       trusTeeConfigMap[edpConfig.dataProvider] =
         TrusTeeConfig(
           kmsClient = kmsClient,
           workloadIdentityProvider = edpConfig.kmsConfig.kmsAudience,
           impersonatedServiceAccount = edpConfig.kmsConfig.serviceAccount,
+          kmsType = apiKmsType,
+          awsRoleArn = if (isAws) edpConfig.kmsConfig.awsRoleArn else null,
+          awsRoleSessionName = if (isAws) edpConfig.kmsConfig.awsRoleSessionName else null,
+          awsRegion = if (isAws) edpConfig.kmsConfig.awsRegion else null,
+          awsAudience = if (isAws) edpConfig.kmsConfig.awsAudience else null,
         )
     }
   }

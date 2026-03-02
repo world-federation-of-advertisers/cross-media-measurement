@@ -168,6 +168,7 @@ class RequisitionFulfillmentService(
                     impersonatedServiceAccount =
                       trusTee.envelopeEncryption.impersonatedServiceAccount,
                     populationSpecFingerprint = trusTee.populationSpecFingerprint,
+                    envelopeEncryption = trusTee.envelopeEncryption,
                   )
                 }
                 Header.TrusTee.DataFormat.DATA_FORMAT_UNSPECIFIED,
@@ -331,6 +332,7 @@ class RequisitionFulfillmentService(
     workloadIdentityProvider: String,
     impersonatedServiceAccount: String,
     populationSpecFingerprint: Long,
+    envelopeEncryption: Header.TrusTee.EnvelopeEncryption,
   ) {
     computationsClient.recordRequisitionFulfillment(
       recordRequisitionFulfillmentRequest {
@@ -348,6 +350,11 @@ class RequisitionFulfillmentService(
               this.workloadIdentityProvider = workloadIdentityProvider
               this.impersonatedServiceAccount = impersonatedServiceAccount
               this.populationSpecFingerprint = populationSpecFingerprint
+              this.kmsType = envelopeEncryption.kmsType.toInternalKmsType()
+              this.awsRoleArn = envelopeEncryption.awsRoleArn
+              this.awsRoleSessionName = envelopeEncryption.awsRoleSessionName
+              this.awsRegion = envelopeEncryption.awsRegion
+              this.awsAudience = envelopeEncryption.awsAudience
             }
           }
       }
@@ -373,3 +380,15 @@ class RequisitionFulfillmentService(
 
 private fun RequisitionMetadata.toConsentSignalingRequisition() =
   ConsentSignalingRequisition(externalKey.requisitionFingerprint, details.nonceHash)
+
+private fun Header.TrusTee.EnvelopeEncryption.KmsType.toInternalKmsType():
+  RequisitionDetails.RequisitionProtocol.TrusTee.KmsType =
+  when (this) {
+    Header.TrusTee.EnvelopeEncryption.KmsType.GCP ->
+      RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.GCP
+    Header.TrusTee.EnvelopeEncryption.KmsType.AWS ->
+      RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.AWS
+    Header.TrusTee.EnvelopeEncryption.KmsType.KMS_TYPE_UNSPECIFIED,
+    Header.TrusTee.EnvelopeEncryption.KmsType.UNRECOGNIZED ->
+      RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.KMS_TYPE_UNSPECIFIED
+  }

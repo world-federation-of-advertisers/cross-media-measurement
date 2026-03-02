@@ -28,6 +28,7 @@ import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
@@ -67,7 +68,8 @@ class TrusTeeMill(
   computationStatsClient: ComputationStatsGrpcKt.ComputationStatsCoroutineStub,
   workLockDuration: Duration,
   private val trusTeeProcessorFactory: TrusTeeProcessor.Factory,
-  private val kmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
+  private val gcpKmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
+  private val gcpToAwsKmsClientFactory: KmsClientFactory<GCloudToAwsWifCredentials>,
   private val attestationTokenPath: Path,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
@@ -134,7 +136,7 @@ class TrusTeeMill(
       val dataFormat = details.protocol.trusTee.dataFormat
       when (dataFormat) {
         DataFormat.ENCRYPTED_FREQUENCY_VECTOR -> {
-          val kmsClient = getKmsClient(kmsClientFactory, details.protocol.trusTee)
+          val kmsClient = getKmsClient(details.protocol.trusTee)
           val dek = getDekKeysetHandle(kmsClient, details.protocol.trusTee)
           // TODO(world-federation-of-advertisers/cross-media-measurement#2800): Use
           //  StreamingAeadStorage instead to read and decrypt requisition data.
@@ -191,22 +193,41 @@ class TrusTeeMill(
     }
   }
 
-  private fun getKmsClient(
-    kmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
-    protocol: RequisitionDetails.RequisitionProtocol.TrusTee,
-  ): KmsClient {
-    val credentials =
-      GCloudWifCredentials(
-        audience = protocol.workloadIdentityProvider,
-        subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
-        tokenUrl = GOOGLE_STS_TOKEN_URL,
-        credentialSourceFilePath = attestationTokenPath.toString(),
-        serviceAccountImpersonationUrl =
-          IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
-      )
-
+  private fun getKmsClient(protocol: RequisitionDetails.RequisitionProtocol.TrusTee): KmsClient {
     try {
-      return kmsClientFactory.getKmsClient(credentials)
+      return when (protocol.kmsType) {
+        RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.AWS -> {
+          val credentials =
+            GCloudToAwsWifCredentials(
+              gcloudAudience = protocol.workloadIdentityProvider,
+              subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
+              tokenUrl = GOOGLE_STS_TOKEN_URL,
+              credentialSourceFilePath = attestationTokenPath.toString(),
+              serviceAccountImpersonationUrl =
+                IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
+              roleArn = protocol.awsRoleArn,
+              roleSessionName = protocol.awsRoleSessionName,
+              region = protocol.awsRegion,
+              awsAudience = protocol.awsAudience,
+            )
+          gcpToAwsKmsClientFactory.getKmsClient(credentials)
+        }
+        RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.GCP -> {
+          val credentials =
+            GCloudWifCredentials(
+              audience = protocol.workloadIdentityProvider,
+              subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
+              tokenUrl = GOOGLE_STS_TOKEN_URL,
+              credentialSourceFilePath = attestationTokenPath.toString(),
+              serviceAccountImpersonationUrl =
+                IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
+            )
+          gcpKmsClientFactory.getKmsClient(credentials)
+        }
+        RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.KMS_TYPE_UNSPECIFIED,
+        RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.UNRECOGNIZED ->
+          error("Unsupported KMS type: ${protocol.kmsType}")
+      }
     } catch (e: GeneralSecurityException) {
       throw PermanentErrorException("Failed to create KMS client", e)
     }

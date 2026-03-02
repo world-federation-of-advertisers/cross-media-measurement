@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 
 @RunWith(JUnit4::class)
@@ -32,6 +33,11 @@ class TrusTeeConfigTest {
       kmsClient = fakeKmsClient,
       workloadIdentityProvider = "test-provider",
       impersonatedServiceAccount = "test-sa@example.com",
+      kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
+      awsRoleArn = null,
+      awsRoleSessionName = null,
+      awsRegion = null,
+      awsAudience = null,
     )
 
   @Test

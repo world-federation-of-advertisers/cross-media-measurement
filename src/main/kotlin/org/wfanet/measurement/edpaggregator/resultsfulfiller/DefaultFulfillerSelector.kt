@@ -20,6 +20,7 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.kotlin.unpack
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -47,6 +48,11 @@ data class TrusTeeConfig(
   val kmsClient: KmsClient,
   val workloadIdentityProvider: String,
   val impersonatedServiceAccount: String,
+  val kmsType: FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType,
+  val awsRoleArn: String?,
+  val awsRoleSessionName: String?,
+  val awsRegion: String?,
+  val awsAudience: String?,
 ) {
   /**
    * Builds EncryptionParams for the TrusTee protocol using the provided KEK URI.
@@ -69,6 +75,11 @@ data class TrusTeeConfig(
       kmsKekUri = remappedKekUri,
       workloadIdentityProvider = workloadIdentityProvider,
       impersonatedServiceAccount = impersonatedServiceAccount,
+      kmsType = kmsType,
+      awsRoleArn = awsRoleArn,
+      awsRoleSessionName = awsRoleSessionName,
+      awsRegion = awsRegion,
+      awsAudience = awsAudience,
     )
   }
 
