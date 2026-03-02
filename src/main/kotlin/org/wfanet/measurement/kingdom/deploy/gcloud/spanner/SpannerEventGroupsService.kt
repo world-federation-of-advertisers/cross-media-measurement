@@ -65,7 +65,11 @@ class SpannerEventGroupsService(
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : EventGroupsCoroutineImplBase(coroutineContext) {
   private val staleReadTimestampBound =
-    TimestampBound.ofMaxStaleness(maxReadStaleness.toMillis(), TimeUnit.MILLISECONDS)
+    if (maxReadStaleness == Duration.ZERO) {
+      TimestampBound.strong()
+    } else {
+      TimestampBound.ofMaxStaleness(maxReadStaleness.toMillis(), TimeUnit.MILLISECONDS)
+    }
 
   override suspend fun createEventGroup(request: CreateEventGroupRequest): EventGroup {
     try {
