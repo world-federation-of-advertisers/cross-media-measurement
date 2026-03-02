@@ -44,22 +44,7 @@ class RequisitionStubFactoryImpl(
     fulfillerParams: ResultsFulfillerParams
   ): RequisitionsCoroutineStub {
     val publicChannel = run {
-      val signingCerts =
-        SigningCerts.fromPemFiles(
-          certificateFile =
-            checkNotNull(
-                getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.clientCertResourcePath))
-              )
-              .toFile(),
-          privateKeyFile =
-            checkNotNull(
-                getRuntimePath(
-                  Paths.get(fulfillerParams.cmmsConnection.clientPrivateKeyResourcePath)
-                )
-              )
-              .toFile(),
-          trustedCertCollectionFile = trustedCertCollection,
-        )
+      val signingCerts = loadSigningCerts(fulfillerParams)
       val channel =
         buildMutualTlsChannel(cmmsTarget, signingCerts, cmmsCertHost)
           .withShutdownTimeout(channelShutdownTimeout)
@@ -74,22 +59,7 @@ class RequisitionStubFactoryImpl(
     return duchies
       .map { (duchyResourceName: String, duchyInfo: DuchyInfo) ->
         val publicChannel = run {
-          val signingCerts =
-            SigningCerts.fromPemFiles(
-              certificateFile =
-                checkNotNull(
-                    getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.clientCertResourcePath))
-                  )
-                  .toFile(),
-              privateKeyFile =
-                checkNotNull(
-                    getRuntimePath(
-                      Paths.get(fulfillerParams.cmmsConnection.clientPrivateKeyResourcePath)
-                    )
-                  )
-                  .toFile(),
-              trustedCertCollectionFile = trustedCertCollection,
-            )
+          val signingCerts = loadSigningCerts(fulfillerParams)
           val channel =
             buildMutualTlsChannel(duchyInfo.target, signingCerts, duchyInfo.certHost)
               .withShutdownTimeout(channelShutdownTimeout)
@@ -98,5 +68,46 @@ class RequisitionStubFactoryImpl(
         duchyResourceName to RequisitionFulfillmentCoroutineStub(publicChannel)
       }
       .toMap()
+  }
+
+  private fun loadSigningCerts(fulfillerParams: ResultsFulfillerParams): SigningCerts {
+    return if (fulfillerParams.hasUnifiedCmmsConnection()) {
+      SigningCerts.fromPemFiles(
+        certificateFile =
+          checkNotNull(
+              getRuntimePath(
+                Paths.get(
+                  fulfillerParams.unifiedCmmsConnection.resourceParams.clientCertResourcePath
+                )
+              )
+            )
+            .toFile(),
+        privateKeyFile =
+          checkNotNull(
+              getRuntimePath(
+                Paths.get(
+                  fulfillerParams.unifiedCmmsConnection.resourceParams.clientPrivateKeyResourcePath
+                )
+              )
+            )
+            .toFile(),
+        trustedCertCollectionFile = trustedCertCollection,
+      )
+    } else {
+      @Suppress("DEPRECATION")
+      SigningCerts.fromPemFiles(
+        certificateFile =
+          checkNotNull(
+              getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.clientCertResourcePath))
+            )
+            .toFile(),
+        privateKeyFile =
+          checkNotNull(
+              getRuntimePath(Paths.get(fulfillerParams.cmmsConnection.clientPrivateKeyResourcePath))
+            )
+            .toFile(),
+        trustedCertCollectionFile = trustedCertCollection,
+      )
+    }
   }
 }

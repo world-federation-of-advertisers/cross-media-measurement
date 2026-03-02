@@ -67,9 +67,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadat
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParamsKt.fileSystemParams
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.unifiedTransportLayerSecurityParams
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -313,6 +315,7 @@ class DataAvailabilitySyncFunctionTest {
     assertThat(recordedTraceIds).contains(traceId)
   }
 
+  @Suppress("DEPRECATION")
   private fun fileSystemDataAvailabilitySyncConfig(): DataAvailabilitySyncConfig =
     dataAvailabilitySyncConfig {
       dataProvider = "dataProviders/edp123"
@@ -331,6 +334,171 @@ class DataAvailabilitySyncFunctionTest {
       edpImpressionPath = "edp/edp_name"
       modelLineMap["some-model-line"] = modelLineList { modelLines += "some-model-line-mapped" }
     }
+
+  private fun fileSystemUnifiedDataAvailabilitySyncConfig(): DataAvailabilitySyncConfig =
+    dataAvailabilitySyncConfig {
+      dataProvider = "dataProviders/edp123"
+      unifiedCmmsConnection = unifiedTransportLayerSecurityParams {
+        fileSystemParams = fileSystemParams {
+          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        }
+      }
+      unifiedImpressionMetadataStorageConnection = unifiedTransportLayerSecurityParams {
+        fileSystemParams = fileSystemParams {
+          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+          // TODO(@marcopremier): Replace with ImpressionMetadata cert when available
+          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        }
+      }
+      dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
+      edpImpressionPath = "edp/edp_name"
+      modelLineMap["some-model-line"] = modelLineList { modelLines += "some-model-line-mapped" }
+    }
+
+  @Test
+  fun `sync registersUnregisteredImpressionMetadata with unified cmms connection params`() {
+
+    val localImpressionBlobKey = "edp/edp_name/timestamp/impressions"
+    val localImpressionBlobUri = "file:////edp/edp_name/timestamp/impressions"
+    val localMetadataBlobKey = "edp/edp_name/timestamp/metadata.binpb"
+    val localDoneBlobUri = "file:////edp/edp_name/timestamp/done"
+
+    val blobDetails = blobDetails {
+      blobUri = localImpressionBlobUri
+      eventGroupReferenceId = "reference-id"
+      modelLine = "some-model-line"
+      interval = interval {
+        startTime = timestamp { seconds = 1735689600 }
+        endTime = timestamp { seconds = 1736467200 }
+      }
+    }
+
+    val dataAvailabilitySyncConfig = fileSystemUnifiedDataAvailabilitySyncConfig()
+    File("${tempFolder.root}/edp/edp_name/timestamp").mkdirs()
+    val port = runBlocking {
+      functionProcess.start(
+        mapOf(
+          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+          "KINGDOM_CERT_HOST" to "localhost",
+          "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
+          "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
+          "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
+          "OTEL_METRICS_EXPORTER" to "none",
+          "OTEL_TRACES_EXPORTER" to "none",
+          "OTEL_LOGS_EXPORTER" to "none",
+          "OTEL_PROPAGATORS" to "tracecontext,baggage",
+        )
+      )
+    }
+
+    val url = "http://localhost:$port"
+    logger.info("Testing Cloud Function at: $url")
+
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    runBlocking {
+      storageClient.writeBlob(localImpressionBlobKey, emptyFlow())
+      storageClient.writeBlob(localMetadataBlobKey, flowOf(blobDetails.toByteString()))
+    }
+    // In practice, the DataWatcher makes this HTTP call
+    val client = HttpClient.newHttpClient()
+    val getRequest =
+      HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .header("X-DataWatcher-Path", localDoneBlobUri)
+        .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
+        .build()
+    val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
+    logger.info("Response status: ${getResponse.statusCode()}")
+    logger.info("Response body: ${getResponse.body()}")
+
+    val requestCaptor = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
+    verifyBlocking(dataProvidersServiceMock, times(1)) {
+      replaceDataAvailabilityIntervals(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
+      .contains("some-model-line-mapped")
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
+  }
+
+  @Test
+  fun `sync propagates traceparent header to outgoing grpc calls with unified cmms connection params`() {
+    val localImpressionBlobKey = "edp/edp_name/timestamp/impressions"
+    val localImpressionBlobUri = "file:////edp/edp_name/timestamp/impressions"
+    val localMetadataBlobKey = "edp/edp_name/timestamp/metadata.binpb"
+    val localDoneBlobUri = "file:////edp/edp_name/timestamp/done"
+
+    val blobDetails = blobDetails {
+      blobUri = localImpressionBlobUri
+      eventGroupReferenceId = "reference-id"
+      modelLine = "some-model-line"
+      interval = interval {
+        startTime = timestamp { seconds = 1735689600 }
+        endTime = timestamp { seconds = 1736467200 }
+      }
+    }
+
+    val dataAvailabilitySyncConfig = fileSystemUnifiedDataAvailabilitySyncConfig()
+    File("${tempFolder.root}/edp/edp_name/timestamp").mkdirs()
+    val port = runBlocking {
+      functionProcess.start(
+        mapOf(
+          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+          "KINGDOM_CERT_HOST" to "localhost",
+          "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
+          "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
+          "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
+          "OTEL_METRICS_EXPORTER" to "none",
+          "OTEL_TRACES_EXPORTER" to "none",
+          "OTEL_LOGS_EXPORTER" to "none",
+          "OTEL_PROPAGATORS" to "tracecontext,baggage",
+        )
+      )
+    }
+
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    runBlocking {
+      storageClient.writeBlob(localImpressionBlobKey, emptyFlow())
+      storageClient.writeBlob(localMetadataBlobKey, flowOf(blobDetails.toByteString()))
+    }
+
+    val traceId = "1af7651916cd43dd8448eb211c80319c"
+    val traceParentHeader = "00-$traceId-0123456789abcdef-01"
+
+    val client = HttpClient.newHttpClient()
+    val request =
+      HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:$port"))
+        .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("traceparent", traceParentHeader)
+        .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
+        .build()
+
+    val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+    logger.info("Trace propagation response status: ${response.statusCode()}")
+    logger.info("Trace propagation response body: ${response.body()}")
+
+    verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
+
+    logger.info("Captured traceparent headers: $capturedTraceparentHeaders")
+    logger.info(
+      "Captured grpc-trace-bin headers: ${capturedGrpcTraceBinHeaders.map { it.toHexString() }}"
+    )
+
+    val recordedTraceIds =
+      synchronized(capturedTraceparentHeaders) {
+        val w3cIds = capturedTraceparentHeaders.mapNotNull { parseTraceparentTraceId(it) }
+        val grpcTraceIds = capturedGrpcTraceBinHeaders.mapNotNull { parseGrpcTraceBinTraceId(it) }
+        (w3cIds + grpcTraceIds).toSet()
+      }
+    assertThat(recordedTraceIds).isNotEmpty()
+    assertThat(recordedTraceIds).contains(traceId)
+  }
 
   private fun parseTraceparentTraceId(header: String?): String? {
     header ?: return null

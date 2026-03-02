@@ -1,0 +1,56 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "UnifiedTransportLayerSecurityParamsProto";
+
+// Unified TLS client credentials for connecting to an mTLS-secured API.
+// Populate file_system_params for cloud function contexts (filesystem-mounted
+// certs) or resource_params for TEE application contexts (resource key paths).
+message UnifiedTransportLayerSecurityParams {
+  // TLS params for cloud functions using filesystem-mounted certificates.
+  message FileSystemParams {
+    // The path on the filesystem where the cert is mounted
+    string cert_file_path = 1 [(google.api.field_behavior) = REQUIRED];
+    // The path on the filesystem where the private key is mounted
+    string private_key_file_path = 2 [(google.api.field_behavior) = REQUIRED];
+    // The path on the filesystem where the cert collection is mounted
+    string cert_collection_file_path = 3
+        [(google.api.field_behavior) = REQUIRED];
+  }
+
+  // TLS params for TEE applications using resource key paths.
+  message ResourceParams {
+    // The resource key of the client certificate
+    string client_cert_resource_path = 1
+        [(google.api.field_behavior) = REQUIRED];
+    // The resource key of the client private key
+    string client_private_key_resource_path = 2
+        [(google.api.field_behavior) = REQUIRED];
+  }
+
+  // Populated for cloud function contexts.
+  FileSystemParams file_system_params = 1
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Populated for TEE application contexts.
+  ResourceParams resource_params = 2 [(google.api.field_behavior) = OPTIONAL];
+}

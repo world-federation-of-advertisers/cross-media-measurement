@@ -53,17 +53,24 @@ kt_jvm_proto_library(
 )
 
 proto_library(
-    name = "transport_layer_security_params_proto",
-    srcs = ["transport_layer_security_params.proto"],
+    name = "unified_transport_layer_security_params_proto",
+    srcs = ["unified_transport_layer_security_params.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:__pkg__",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    ],
     deps = [
         "@com_google_googleapis//google/api:field_behavior_proto",
     ],
 )
 
 kt_jvm_proto_library(
-    name = "transport_layer_security_params_kt_jvm_proto",
-    deps = [":transport_layer_security_params_proto"],
+    name = "unified_transport_layer_security_params_kt_jvm_proto",
+    deps = [":unified_transport_layer_security_params_proto"],
 )
 
 proto_library(
@@ -71,7 +78,7 @@ proto_library(
     srcs = ["results_fulfiller_params.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
-        ":transport_layer_security_params_proto",
+        ":unified_transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],
@@ -89,7 +96,7 @@ proto_library(
     srcs = ["vid_labeler_params.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
-        ":transport_layer_security_params_proto",
+        ":unified_transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],

@@ -16,10 +16,6 @@ proto_library(
     name = "transport_layer_security_params_proto",
     srcs = ["transport_layer_security_params.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        "@com_google_googleapis//google/api:resource_proto",
-        "@com_google_protobuf//:timestamp_proto",
-    ],
 )
 
 kt_jvm_proto_library(
@@ -49,6 +45,7 @@ proto_library(
     deps = [
         ":storage_params_proto",
         ":transport_layer_security_params_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:unified_transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
@@ -66,10 +63,8 @@ proto_library(
     deps = [
         ":storage_params_proto",
         ":transport_layer_security_params_proto",
-        "@com_google_googleapis//google/api:field_behavior_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:unified_transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:resource_proto",
-        "@com_google_protobuf//:any_proto",
-        "@com_google_protobuf//:struct_proto",
     ],
 )
 
@@ -99,7 +94,7 @@ proto_library(
     deps = [
         ":storage_params_proto",
         ":transport_layer_security_params_proto",
-        "@com_google_googleapis//google/api:field_behavior_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:unified_transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],
 )

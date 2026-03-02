@@ -46,7 +46,7 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.config.edpaggregator.DataProviderRequisitionConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
-import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
+import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams as LegacyTlsParams
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
@@ -54,6 +54,7 @@ import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.trace
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.withW3CTraceContext
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -168,13 +169,31 @@ class RequisitionFetcherFunction : HttpFunction {
     val requisitionBlobPrefix = createRequisitionBlobPrefix(dataProviderConfig)
     // Create instrumented gRPC channels with mutual TLS and OpenTelemetry tracing
     val instrumentedCmmsChannel =
-      createInstrumentedChannel(dataProviderConfig.cmmsConnection, kingdomTarget, kingdomCertHost)
+      if (dataProviderConfig.hasUnifiedCmmsConnection()) {
+        createInstrumentedChannel(
+          dataProviderConfig.unifiedCmmsConnection,
+          kingdomTarget,
+          kingdomCertHost,
+        )
+      } else {
+        @Suppress("DEPRECATION")
+        createInstrumentedChannel(dataProviderConfig.cmmsConnection, kingdomTarget, kingdomCertHost)
+      }
     val instrumentedMetadataChannel =
-      createInstrumentedChannel(
-        dataProviderConfig.requisitionMetadataStorageConnection,
-        metadataStorageTarget,
-        metadataStorageCertHost,
-      )
+      if (dataProviderConfig.hasUnifiedRequisitionMetadataStorageConnection()) {
+        createInstrumentedChannel(
+          dataProviderConfig.unifiedRequisitionMetadataStorageConnection,
+          metadataStorageTarget,
+          metadataStorageCertHost,
+        )
+      } else {
+        @Suppress("DEPRECATION")
+        createInstrumentedChannel(
+          dataProviderConfig.requisitionMetadataStorageConnection,
+          metadataStorageTarget,
+          metadataStorageCertHost,
+        )
+      }
 
     val requisitionsStub = RequisitionsCoroutineStub(instrumentedCmmsChannel)
     val requisitionMetadataStub =
@@ -258,7 +277,20 @@ class RequisitionFetcherFunction : HttpFunction {
    * @return An instrumented gRPC channel ready for use with stubs.
    */
   private fun createInstrumentedChannel(
-    tlsParams: TransportLayerSecurityParams,
+    tlsParams: UnifiedTransportLayerSecurityParams,
+    target: String,
+    certHost: String?,
+  ): io.grpc.Channel {
+    val signingCerts = loadSigningCerts(tlsParams)
+    val channel =
+      buildMutualTlsChannel(target, signingCerts, certHost)
+        .withShutdownTimeout(channelShutdownDuration)
+    return ClientInterceptors.intercept(channel, grpcTelemetry.newClientInterceptor())
+  }
+
+  @Suppress("DEPRECATION")
+  private fun createInstrumentedChannel(
+    tlsParams: LegacyTlsParams,
     target: String,
     certHost: String?,
   ): io.grpc.Channel {
@@ -331,8 +363,20 @@ class RequisitionFetcherFunction : HttpFunction {
      *   configuration.
      */
     private fun loadSigningCerts(
-      transportLayerSecurityParams: TransportLayerSecurityParams
+      transportLayerSecurityParams: UnifiedTransportLayerSecurityParams
     ): SigningCerts {
+      return SigningCerts.fromPemFiles(
+        certificateFile =
+          checkNotNull(File(transportLayerSecurityParams.fileSystemParams.certFilePath)),
+        privateKeyFile =
+          checkNotNull(File(transportLayerSecurityParams.fileSystemParams.privateKeyFilePath)),
+        trustedCertCollectionFile =
+          checkNotNull(File(transportLayerSecurityParams.fileSystemParams.certCollectionFilePath)),
+      )
+    }
+
+    @Suppress("DEPRECATION")
+    private fun loadSigningCerts(transportLayerSecurityParams: LegacyTlsParams): SigningCerts {
       return SigningCerts.fromPemFiles(
         certificateFile = checkNotNull(File(transportLayerSecurityParams.certFilePath)),
         privateKeyFile = checkNotNull(File(transportLayerSecurityParams.privateKeyFilePath)),
@@ -363,19 +407,33 @@ class RequisitionFetcherFunction : HttpFunction {
         "Missing 'edp_private_key_path' for data provider: ${dataProviderConfig.dataProvider}."
       }
 
-      require(dataProviderConfig.hasCmmsConnection()) {
-        "Missing 'cmms_connection' for data provider: ${dataProviderConfig.dataProvider}."
-      }
-
-      val tls = dataProviderConfig.cmmsConnection
-      require(tls.certFilePath.isNotBlank()) {
-        "Missing 'cert_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
-      }
-      require(tls.privateKeyFilePath.isNotBlank()) {
-        "Missing 'private_key_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
-      }
-      require(tls.certCollectionFilePath.isNotBlank()) {
-        "Missing 'cert_collection_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
+      if (dataProviderConfig.hasUnifiedCmmsConnection()) {
+        val tls = dataProviderConfig.unifiedCmmsConnection.fileSystemParams
+        require(tls.certFilePath.isNotBlank()) {
+          "Missing 'cert_file_path' in unified_cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
+        }
+        require(tls.privateKeyFilePath.isNotBlank()) {
+          "Missing 'private_key_file_path' in unified_cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
+        }
+        require(tls.certCollectionFilePath.isNotBlank()) {
+          "Missing 'cert_collection_file_path' in unified_cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
+        }
+      } else if (dataProviderConfig.hasCmmsConnection()) {
+        @Suppress("DEPRECATION") val tls = dataProviderConfig.cmmsConnection
+        require(tls.certFilePath.isNotBlank()) {
+          "Missing 'cert_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
+        }
+        require(tls.privateKeyFilePath.isNotBlank()) {
+          "Missing 'private_key_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
+        }
+        require(tls.certCollectionFilePath.isNotBlank()) {
+          "Missing 'cert_collection_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
+        }
+      } else {
+        throw IllegalArgumentException(
+          "Missing 'unified_cmms_connection' and 'cmms_connection' for data provider:" +
+            " ${dataProviderConfig.dataProvider}. At least one must be present."
+        )
       }
     }
   }

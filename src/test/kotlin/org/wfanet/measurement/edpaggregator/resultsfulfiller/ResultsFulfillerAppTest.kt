@@ -135,6 +135,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
@@ -143,7 +144,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRespon
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.v1alpha.unifiedTransportLayerSecurityParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
@@ -1509,6 +1510,152 @@ class ResultsFulfillerAppTest {
     assertThat(exception.message).contains("trusTeeConfig is null")
   }
 
+  @Test
+  fun `runWork processes requisition successfully with unified cmms connection params`() =
+    runBlocking {
+      val subscriber =
+        Subscriber(
+          projectId = PROJECT_ID,
+          googlePubSubClient = emulatorClient,
+          maxMessages = 1,
+          pullIntervalMillis = 100,
+          ackDeadlineExtensionIntervalSeconds = 60,
+          ackDeadlineExtensionSeconds = 600,
+          blockingContext = Dispatchers.IO,
+        )
+      val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
+      val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
+
+      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+        .thenReturn(
+          listRequisitionMetadataResponse {
+            requisitionMetadata += requisitionMetadata {
+              state = RequisitionMetadata.State.STORED
+              cmmsCreateTime = timestamp { seconds = 12345 }
+              cmmsRequisition = REQUISITION_NAME
+              blobUri = "some blob uri"
+              blobTypeUrl = "some-blob-type-url"
+              groupId = "an-existing-group-id"
+              report = "report-name"
+            }
+          }
+        )
+
+      val testWorkItemAttempt = workItemAttempt {
+        name = "workItems/workItem/workItemAttempts/workItemAttempt"
+      }
+      val workItemParams =
+        createUnifiedWorkItemParams(
+          ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
+          kAnonymityParams = null,
+        )
+      val workItem = createWorkItem(workItemParams)
+      workItemAttemptsServiceMock.stub {
+        onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+        onBlocking { completeWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+        onBlocking { failWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      }
+      workItemsServiceMock.stub { onBlocking { failWorkItem(any()) } doReturn workItem }
+
+      val tmpPath = Files.createTempDirectory(null).toFile()
+      Files.createDirectories(tmpPath.resolve(REQUISITIONS_BUCKET).toPath())
+      val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
+
+      val requisitionValidator =
+        RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+      val groupedRequisitions =
+        SingleRequisitionGrouper(
+            requisitionsClient = requisitionsStub,
+            eventGroupsClient = eventGroupsStub,
+            requisitionValidator = requisitionValidator,
+            throttler = throttler,
+          )
+          .groupRequisitions(listOf(REQUISITION))
+      requisitionsStorageClient.writeBlob(
+        REQUISITIONS_BLOB_KEY,
+        Any.pack(groupedRequisitions.single()).toByteString(),
+      )
+
+      val kmsClients = getKmsClientMap()
+      val kmsClient = kmsClients.getValue(EDP_NAME)
+      val serializedEncryptionKey = getSerializedEncryptionKey(kmsClient)
+      val mesosRecordIoStorageClient =
+        getImpressionStorageClient(tmpPath, kmsClient, serializedEncryptionKey)
+
+      val impressions =
+        List(100) {
+          LABELED_IMPRESSION.copy {
+            vid = (it % 80 + 1).toLong()
+            eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+            event = TEST_EVENT.pack()
+          }
+        }
+      val impressionsFlow = flow {
+        impressions.forEach { impression -> emit(impression.toByteString()) }
+      }
+      mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
+      writeImpressionMetadata(tmpPath, serializedEncryptionKey)
+
+      val start = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC)
+      val end = FIRST_EVENT_DATE.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)
+
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(
+          listImpressionMetadataResponse {
+            impressionMetadata += impressionMetadata {
+              state = ImpressionMetadata.State.ACTIVE
+              blobUri = "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
+              interval = interval {
+                startTime = timestamp {
+                  seconds = start.epochSecond
+                  nanos = start.nano
+                }
+                endTime = timestamp {
+                  seconds = end.epochSecond
+                  nanos = end.nano
+                }
+              }
+            }
+          }
+        )
+
+      val app =
+        ResultsFulfillerApp(
+          subscriptionId = SUBSCRIPTION_ID,
+          queueSubscriber = subscriber,
+          parser = WorkItem.parser(),
+          workItemsStub,
+          workItemAttemptsStub,
+          requisitionMetadataStub,
+          impressionMetadataStub,
+          TestRequisitionStubFactory(
+            grpcTestServerRule.channel,
+            mapOf("some-duchy" to grpcTestServerRule.channel),
+          ),
+          kmsClients,
+          emptyMap(),
+          getStorageConfig(tmpPath),
+          getStorageConfig(tmpPath),
+          getStorageConfig(tmpPath),
+          mapOf("some-model-line" to MODEL_LINE_INFO),
+          metrics = ResultsFulfillerMetrics.create(),
+        )
+      app.runWork(Any.pack(workItemParams))
+
+      verifyBlocking(requisitionsServiceMock, times(1)) { fulfillDirectRequisition(any()) }
+      val request: FulfillDirectRequisitionRequest =
+        verifyAndCapture(
+          requisitionsServiceMock,
+          RequisitionsCoroutineImplBase::fulfillDirectRequisition,
+        )
+      val result: Measurement.Result =
+        decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
+
+      assertThat(result.reach.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
+      assertTrue(result.reach.hasDeterministicCountDistinct())
+      assertThat(result.reach.value).isEqualTo(80)
+    }
+
   private suspend fun writeImpressionMetadata(tmpPath: File, serializedEncryptionKey: ByteString) {
     // Create the impressions metadata store
     Files.createDirectories(tmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).toPath())
@@ -1600,9 +1747,58 @@ class ResultsFulfillerAppTest {
               ResultsFulfillerParamsKt.storageParams {
                 labeledImpressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
               }
-            this.cmmsConnection = transportLayerSecurityParams {
-              clientCertResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.pem").toString()
-              clientPrivateKeyResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.key").toString()
+            @Suppress("DEPRECATION")
+            this.cmmsConnection =
+              ResultsFulfillerParamsKt.transportLayerSecurityParams {
+                clientCertResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.pem").toString()
+                clientPrivateKeyResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.key").toString()
+              }
+            this.consentParams =
+              ResultsFulfillerParamsKt.consentParams {
+                resultCsCertDerResourcePath =
+                  SECRET_FILES_PATH.resolve("edp1_result_cs_cert.der").toString()
+                resultCsPrivateKeyDerResourcePath =
+                  SECRET_FILES_PATH.resolve("edp1_result_cs_private.der").toString()
+                privateEncryptionKeyResourcePath =
+                  SECRET_FILES_PATH.resolve("edp1_enc_private.tink").toString()
+                edpCertificateName = DATA_PROVIDER_CERTIFICATE_KEY.toName()
+              }
+            this.noiseParams = ResultsFulfillerParamsKt.noiseParams { this.noiseType = noiseType }
+            if (kAnonymityParams != null) {
+              this.kAnonymityParams =
+                ResultsFulfillerParamsKt.kAnonymityParams {
+                  this.minImpressions = kAnonymityParams.minImpressions
+                  this.minUsers = kAnonymityParams.minUsers
+                  this.reachMaxFrequencyPerUser = kAnonymityParams.reachMaxFrequencyPerUser
+                }
+            }
+          }
+          .pack()
+
+      dataPathParams =
+        WorkItemKt.WorkItemParamsKt.dataPathParams { dataPath = REQUISITIONS_FILE_URI }
+    }
+  }
+
+  private fun createUnifiedWorkItemParams(
+    noiseType: ResultsFulfillerParams.NoiseParams.NoiseType,
+    kAnonymityParams: KAnonymityParams?,
+  ): WorkItemParams {
+    return workItemParams {
+      appParams =
+        resultsFulfillerParams {
+            dataProvider = EDP_NAME
+            this.storageParams =
+              ResultsFulfillerParamsKt.storageParams {
+                labeledImpressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
+              }
+            this.unifiedCmmsConnection = unifiedTransportLayerSecurityParams {
+              resourceParams =
+                UnifiedTransportLayerSecurityParamsKt.resourceParams {
+                  clientCertResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.pem").toString()
+                  clientPrivateKeyResourcePath =
+                    SECRET_FILES_PATH.resolve("edp1_tls.key").toString()
+                }
             }
             this.consentParams =
               ResultsFulfillerParamsKt.consentParams {

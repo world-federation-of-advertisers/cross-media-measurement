@@ -20,13 +20,19 @@ option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
 option java_outer_classname = "TransportLayerSecurityParamsProto";
 
-// The details to connect via an MTLS Channel from an EDP Aggregator Cloud
-// Function
+// Deprecated: Use
+// wfa.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
+// instead. The details to connect via an MTLS Channel from an EDP Aggregator
+// Cloud Function
 message TransportLayerSecurityParams {
+  option deprecated = true;
+
   // The path on the filesystem where the cert is mounted
   string cert_file_path = 1;
+
   /// The path on the filesystem where the private key is mounted
   string private_key_file_path = 2;
+
   // The path on the filesystem where the cert collection is mounted
   string cert_collection_file_path = 3;
 }

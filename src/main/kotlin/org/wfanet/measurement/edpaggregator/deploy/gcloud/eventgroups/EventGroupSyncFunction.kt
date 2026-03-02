@@ -267,13 +267,33 @@ class EventGroupSyncFunction() : HttpFunction {
       shutdownTimeout: Duration,
     ): Channel {
       val signingCerts =
-        SigningCerts.fromPemFiles(
-          certificateFile = checkNotNull(File(eventGroupSyncConfig.cmmsConnection.certFilePath)),
-          privateKeyFile =
-            checkNotNull(File(eventGroupSyncConfig.cmmsConnection.privateKeyFilePath)),
-          trustedCertCollectionFile =
-            checkNotNull(File(eventGroupSyncConfig.cmmsConnection.certCollectionFilePath)),
-        )
+        if (eventGroupSyncConfig.hasUnifiedCmmsConnection()) {
+          SigningCerts.fromPemFiles(
+            certificateFile =
+              checkNotNull(
+                File(eventGroupSyncConfig.unifiedCmmsConnection.fileSystemParams.certFilePath)
+              ),
+            privateKeyFile =
+              checkNotNull(
+                File(eventGroupSyncConfig.unifiedCmmsConnection.fileSystemParams.privateKeyFilePath)
+              ),
+            trustedCertCollectionFile =
+              checkNotNull(
+                File(
+                  eventGroupSyncConfig.unifiedCmmsConnection.fileSystemParams.certCollectionFilePath
+                )
+              ),
+          )
+        } else {
+          @Suppress("DEPRECATION")
+          SigningCerts.fromPemFiles(
+            certificateFile = checkNotNull(File(eventGroupSyncConfig.cmmsConnection.certFilePath)),
+            privateKeyFile =
+              checkNotNull(File(eventGroupSyncConfig.cmmsConnection.privateKeyFilePath)),
+            trustedCertCollectionFile =
+              checkNotNull(File(eventGroupSyncConfig.cmmsConnection.certCollectionFilePath)),
+          )
+        }
 
       val publicChannel =
         buildMutualTlsChannel(target, signingCerts, certHost).withShutdownTimeout(shutdownTimeout)

@@ -19,6 +19,7 @@ package wfa.measurement.config.edpaggregator;
 import "google/api/resource.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
 import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
+import "wfa/measurement/edpaggregator/v1alpha/unified_transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
@@ -35,10 +36,13 @@ message EventGroupSyncConfig {
   string event_groups_blob_uri = 2 [deprecated = true];
   // The blob uri that contains MappedEventGroup(s) in Mesos RecordIO.
   string event_group_map_blob_uri = 3;
-  // How the EDP connects to the CMMS Public API
-  TransportLayerSecurityParams cmms_connection = 4;
+  // Deprecated: Use unified_cmms_connection instead.
+  TransportLayerSecurityParams cmms_connection = 4 [deprecated = true];
   // Where the event groups are stored
   StorageParams event_group_storage = 5;
   // Where the event group map is stored
   StorageParams event_group_map_storage = 6;
+  // How the EDP connects to the CMMS Public API
+  wfa.measurement.edpaggregator.v1alpha.UnifiedTransportLayerSecurityParams
+      unified_cmms_connection = 7;
 }
