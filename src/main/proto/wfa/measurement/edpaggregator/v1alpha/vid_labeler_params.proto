@@ -18,7 +18,6 @@ package wfa.measurement.edpaggregator.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
-import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
 import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -59,9 +58,9 @@ message VidLabelerParams {
   // Output storage for labeled impressions written by the TEE app.
   StorageParams storage_params = 2 [(google.api.field_behavior) = OPTIONAL];
 
-  // TEE TLS connection params.
+  // TLS connection params for the VID repository API.
   wfa.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
-      tee_transport_layer_security_params = 3
+      transport_layer_security_params = 3
       [(google.api.field_behavior) = OPTIONAL];
 
   // Map from model line resource name to its configuration.
@@ -79,13 +78,6 @@ message VidLabelerParams {
   // Unique batch identifier, stamped in per-job by the dispatcher.
   string batch_index = 7 [(google.api.field_behavior) = OPTIONAL];
 
-  // ===== Dispatcher / cloud function fields =====
-
-  // Cloud TLS connection params.
-  wfa.measurement.config.edpaggregator.TransportLayerSecurityParams
-      cloud_transport_layer_security_params = 8
-      [(google.api.field_behavior) = REQUIRED];
-
-  // Maximum batch size in bytes. If unset, treated as a single batch.
+  // Maximum batch size in bytes for the dispatcher. If unset, treated as a single batch.
   optional fixed64 batch_max_size = 9 [(google.api.field_behavior) = OPTIONAL];
 }
