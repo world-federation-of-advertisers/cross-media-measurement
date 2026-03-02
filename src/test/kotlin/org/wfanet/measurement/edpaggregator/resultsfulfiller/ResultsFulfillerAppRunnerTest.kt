@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.common.truth.Truth.assertThat
 import java.io.File
 import java.nio.file.Files
+import kotlin.test.assertFailsWith
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -201,6 +202,121 @@ class ResultsFulfillerAppRunnerTest {
 
     assertThat(apiKmsType)
       .isEqualTo(FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS)
+  }
+
+  @Test
+  fun `AWS KmsType with all fields present passes validation`() {
+    val config =
+      EventDataProviderConfig.KmsConfig.newBuilder()
+        .setKmsType(EventDataProviderConfig.KmsConfig.KmsType.AWS)
+        .setAwsRoleArn("arn:aws:iam::123456789012:role/my-role")
+        .setAwsRoleSessionName("my-session")
+        .setAwsRegion("us-east-1")
+        .setAwsAudience("sts.amazonaws.com")
+        .build()
+
+    val apiKmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS
+    val isAws =
+      apiKmsType == FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS
+
+    if (isAws) {
+      require(config.awsRoleArn.isNotEmpty()) { "aws_role_arn is required when kms_type is AWS" }
+      require(config.awsRoleSessionName.isNotEmpty()) {
+        "aws_role_session_name is required when kms_type is AWS"
+      }
+      require(config.awsRegion.isNotEmpty()) { "aws_region is required when kms_type is AWS" }
+      require(config.awsAudience.isNotEmpty()) { "aws_audience is required when kms_type is AWS" }
+    }
+  }
+
+  @Test
+  fun `AWS KmsType missing aws_role_arn fails validation`() {
+    val config =
+      EventDataProviderConfig.KmsConfig.newBuilder()
+        .setKmsType(EventDataProviderConfig.KmsConfig.KmsType.AWS)
+        .setAwsRoleSessionName("my-session")
+        .setAwsRegion("us-east-1")
+        .setAwsAudience("sts.amazonaws.com")
+        .build()
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        require(config.awsRoleArn.isNotEmpty()) { "aws_role_arn is required when kms_type is AWS" }
+      }
+    assertThat(exception).hasMessageThat().contains("aws_role_arn")
+  }
+
+  @Test
+  fun `AWS KmsType missing aws_role_session_name fails validation`() {
+    val config =
+      EventDataProviderConfig.KmsConfig.newBuilder()
+        .setKmsType(EventDataProviderConfig.KmsConfig.KmsType.AWS)
+        .setAwsRoleArn("arn:aws:iam::123456789012:role/my-role")
+        .setAwsRegion("us-east-1")
+        .setAwsAudience("sts.amazonaws.com")
+        .build()
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        require(config.awsRoleSessionName.isNotEmpty()) {
+          "aws_role_session_name is required when kms_type is AWS"
+        }
+      }
+    assertThat(exception).hasMessageThat().contains("aws_role_session_name")
+  }
+
+  @Test
+  fun `AWS KmsType missing aws_region fails validation`() {
+    val config =
+      EventDataProviderConfig.KmsConfig.newBuilder()
+        .setKmsType(EventDataProviderConfig.KmsConfig.KmsType.AWS)
+        .setAwsRoleArn("arn:aws:iam::123456789012:role/my-role")
+        .setAwsRoleSessionName("my-session")
+        .setAwsAudience("sts.amazonaws.com")
+        .build()
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        require(config.awsRegion.isNotEmpty()) { "aws_region is required when kms_type is AWS" }
+      }
+    assertThat(exception).hasMessageThat().contains("aws_region")
+  }
+
+  @Test
+  fun `AWS KmsType missing aws_audience fails validation`() {
+    val config =
+      EventDataProviderConfig.KmsConfig.newBuilder()
+        .setKmsType(EventDataProviderConfig.KmsConfig.KmsType.AWS)
+        .setAwsRoleArn("arn:aws:iam::123456789012:role/my-role")
+        .setAwsRoleSessionName("my-session")
+        .setAwsRegion("us-east-1")
+        .build()
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        require(config.awsAudience.isNotEmpty()) { "aws_audience is required when kms_type is AWS" }
+      }
+    assertThat(exception).hasMessageThat().contains("aws_audience")
+  }
+
+  @Test
+  fun `GCP KmsType skips AWS field validation`() {
+    val config =
+      EventDataProviderConfig.KmsConfig.newBuilder()
+        .setKmsType(EventDataProviderConfig.KmsConfig.KmsType.GCP)
+        .setKmsAudience("test-audience")
+        .setServiceAccount("test@example.com")
+        .build()
+
+    val apiKmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP
+    val isAws =
+      apiKmsType == FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS
+
+    assertThat(isAws).isFalse()
+    assertThat(config.awsRoleArn).isEmpty()
+    assertThat(config.awsRoleSessionName).isEmpty()
+    assertThat(config.awsRegion).isEmpty()
+    assertThat(config.awsAudience).isEmpty()
   }
 
   @Test

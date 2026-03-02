@@ -442,6 +442,21 @@ class ResultsFulfillerAppRunner : Runnable {
       val isAws =
         apiKmsType == FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS
 
+      if (isAws) {
+        require(edpConfig.kmsConfig.awsRoleArn.isNotEmpty()) {
+          "aws_role_arn is required when kms_type is AWS for ${edpConfig.dataProvider}"
+        }
+        require(edpConfig.kmsConfig.awsRoleSessionName.isNotEmpty()) {
+          "aws_role_session_name is required when kms_type is AWS for ${edpConfig.dataProvider}"
+        }
+        require(edpConfig.kmsConfig.awsRegion.isNotEmpty()) {
+          "aws_region is required when kms_type is AWS for ${edpConfig.dataProvider}"
+        }
+        require(edpConfig.kmsConfig.awsAudience.isNotEmpty()) {
+          "aws_audience is required when kms_type is AWS for ${edpConfig.dataProvider}"
+        }
+      }
+
       trusTeeConfigMap[edpConfig.dataProvider] =
         TrusTeeConfig(
           kmsClient = kmsClient,

@@ -377,7 +377,7 @@ private fun Header.TrusTee.EnvelopeEncryption.KmsType.toInternalKmsType():
       RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.GCP
     Header.TrusTee.EnvelopeEncryption.KmsType.AWS ->
       RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.AWS
-    Header.TrusTee.EnvelopeEncryption.KmsType.KMS_TYPE_UNSPECIFIED,
-    Header.TrusTee.EnvelopeEncryption.KmsType.UNRECOGNIZED ->
+    Header.TrusTee.EnvelopeEncryption.KmsType.KMS_TYPE_UNSPECIFIED ->
       RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.GCP
+    Header.TrusTee.EnvelopeEncryption.KmsType.UNRECOGNIZED -> error("Unrecognized KMS type")
   }
