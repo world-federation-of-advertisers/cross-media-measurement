@@ -94,6 +94,19 @@ message EventGroup {
   //
   // Required if `measurement_consumer` is not specified.
   string client_account_reference_id = 6;
+
+  // Possible states of Event Group.
+  enum State {
+    // The default value if state is omitted. Should not be used.
+    STATE_UNSPECIFIED = 0;
+    // The Event Group has been created.
+    ACTIVE = 1;
+    // The Event Group has been deleted. An Event Group in a DELETED state will
+    // have all mutable optional fields cleared. This state is terminal.
+    DELETED = 2;
+  }
+  // Event Group state.
+  State state = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
 // The list of event groups for a data provider. Only used when input is json.

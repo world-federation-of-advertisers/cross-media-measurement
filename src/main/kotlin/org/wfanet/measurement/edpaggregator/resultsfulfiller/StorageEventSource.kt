@@ -36,8 +36,14 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGro
 /** Result of processing a single EventReader. */
 data class EventReaderResult(val batchCount: Int, val eventCount: Int)
 
-/** Project ID and location extracted from a GCP KMS KEK URI. */
-data class KmsKeyLocation(val projectId: String, val location: String)
+/**
+ * Account identifier and location/region extracted from a KMS KEK URI.
+ *
+ * For GCP KMS URIs, [accountId] is the GCP project ID and [location] is the Cloud KMS location. For
+ * AWS KMS URIs, [accountId] is the AWS account ID and [location] is the AWS region. For test URIs
+ * (fake-kms://), both fields are empty strings.
+ */
+data class KmsKeyLocation(val accountId: String, val location: String)
 
 /** Component for tracking progress during event processing. */
 class ProgressTracker(private val totalEventReaders: Int) : AutoCloseable {
@@ -281,14 +287,7 @@ class StorageEventSource(
     }
   }
 
-  /**
-   * Extracts the project/account and location/region from a KEK URI.
-   *
-   * For GCP KMS URIs, returns project ID and location. For AWS KMS URIs, returns account ID and
-   * region. For test URIs (fake-kms://), returns empty strings so consistency checking still works.
-   *
-   * @return KmsKeyLocation with projectId and location
-   */
+  /** Extracts the [KmsKeyLocation] from a KEK URI. */
   private fun extractProjectAndLocation(kekUri: String): KmsKeyLocation {
     if (kekUri.startsWith("fake-kms://")) {
       return KmsKeyLocation("", "")

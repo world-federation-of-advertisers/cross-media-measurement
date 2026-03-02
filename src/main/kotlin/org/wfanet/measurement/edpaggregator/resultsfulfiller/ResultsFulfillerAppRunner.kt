@@ -407,7 +407,7 @@ class ResultsFulfillerAppRunner : Runnable {
               )
             GCloudToAwsKmsClientFactory().getKmsClient(gcloudToAwsConfig)
           }
-          else -> {
+          EventDataProviderConfig.KmsConfig.KmsType.GCP -> {
             val gcpConfig =
               GCloudWifCredentials(
                 audience = edpConfig.kmsConfig.kmsAudience,
@@ -419,6 +419,9 @@ class ResultsFulfillerAppRunner : Runnable {
               )
             GCloudKmsClientFactory().getKmsClient(gcpConfig)
           }
+          EventDataProviderConfig.KmsConfig.KmsType.KMS_TYPE_UNSPECIFIED,
+          EventDataProviderConfig.KmsConfig.KmsType.UNRECOGNIZED ->
+            error("Unsupported KMS type: ${edpConfig.kmsConfig.kmsType}")
         }
 
       kmsClientsMap[edpConfig.dataProvider] = kmsClient
