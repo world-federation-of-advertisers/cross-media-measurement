@@ -54,38 +54,38 @@ message VidLabelerParams {
     (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
   ];
 
-  // ===== Dispatcher / cloud function fields =====
-
-  // Cloud TLS connection params.
-  wfa.measurement.config.edpaggregator.TransportLayerSecurityParams
-      cloud_transport_layer_security_params = 2
-      [(google.api.field_behavior) = REQUIRED];
-
-  // Maximum batch size in bytes. If unset, treated as a single batch.
-  optional fixed64 batch_max_size = 3 [(google.api.field_behavior) = OPTIONAL];
-
   // ===== TEE app fields =====
+
+  // Output storage for labeled impressions written by the TEE app.
+  StorageParams storage_params = 2 [(google.api.field_behavior) = OPTIONAL];
 
   // TEE TLS connection params.
   wfa.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
-      tee_transport_layer_security_params = 4
+      tee_transport_layer_security_params = 3
       [(google.api.field_behavior) = OPTIONAL];
 
-  // Output storage for labeled impressions written by the TEE app.
-  StorageParams storage_params = 5 [(google.api.field_behavior) = OPTIONAL];
-
   // Map from model line resource name to its configuration.
-  map<string, ModelLineConfig> model_line_configs = 6;
+  map<string, ModelLineConfig> model_line_configs = 4;
 
   // If provided, restricts labeling to these model lines (e.g. backfills).
-  repeated string override_model_lines = 7 [
+  repeated string override_model_lines = 5 [
     (google.api.field_behavior) = OPTIONAL,
     (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
   ];
 
   // Input blob URIs for this batch, stamped in per-job by the dispatcher.
-  repeated string input_blob_uris = 8 [(google.api.field_behavior) = OPTIONAL];
+  repeated string input_blob_uris = 6 [(google.api.field_behavior) = OPTIONAL];
 
   // Unique batch identifier, stamped in per-job by the dispatcher.
-  string batch_index = 9 [(google.api.field_behavior) = OPTIONAL];
+  string batch_index = 7 [(google.api.field_behavior) = OPTIONAL];
+
+  // ===== Dispatcher / cloud function fields =====
+
+  // Cloud TLS connection params.
+  wfa.measurement.config.edpaggregator.TransportLayerSecurityParams
+      cloud_transport_layer_security_params = 8
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Maximum batch size in bytes. If unset, treated as a single batch.
+  optional fixed64 batch_max_size = 9 [(google.api.field_behavior) = OPTIONAL];
 }
