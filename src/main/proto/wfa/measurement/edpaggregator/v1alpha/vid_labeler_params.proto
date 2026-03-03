@@ -80,9 +80,12 @@ message VidLabelerParams {
 
   // Cloud TLS connection params.
   wfa.measurement.config.edpaggregator.TransportLayerSecurityParams
-      cloud_transport_layer_security_params = 8
+      raw_impression_metadata_storage_connection = 8
       [(google.api.field_behavior) = REQUIRED];
 
+  // Storage configuration for accessing raw impressions (GCS bucket info).
+  StorageParams raw_impressions_storage = 9;
+
   // Maximum batch size in bytes. If unset, treated as a single batch.
-  optional fixed64 batch_max_size = 9 [(google.api.field_behavior) = OPTIONAL];
+  optional fixed64 batch_max_size = 10 [(google.api.field_behavior) = OPTIONAL];
 }
