@@ -513,11 +513,7 @@ class ResultsFulfillerAppTest {
                 kmsClient = kmsClient,
                 workloadIdentityProvider = "test-wip",
                 impersonatedServiceAccount = "test-sa@example.com",
-                kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
-                awsRoleArn = null,
-                awsRoleSession = null,
-                awsRegion = null,
-                awsAudience = null,
+                awsKmsConfig = null,
               )
           ),
           getStorageConfig(tmpPath),
@@ -789,11 +785,7 @@ class ResultsFulfillerAppTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-              kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
-              awsRoleArn = null,
-              awsRoleSession = null,
-              awsRegion = null,
-              awsAudience = null,
+              awsKmsConfig = null,
             )
         ),
         getStorageConfig(tmpPath),
@@ -1218,11 +1210,7 @@ class ResultsFulfillerAppTest {
               kmsClient = kmsClients.getValue(EDP_NAME),
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-              kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
-              awsRoleArn = null,
-              awsRoleSession = null,
-              awsRegion = null,
-              awsAudience = null,
+              awsKmsConfig = null,
             )
         ),
         getStorageConfig(tmpPath),
@@ -1360,11 +1348,7 @@ class ResultsFulfillerAppTest {
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
-            kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
-            awsRoleArn = null,
-            awsRoleSession = null,
-            awsRegion = null,
-            awsAudience = null,
+            awsKmsConfig = null,
           )
       )
 

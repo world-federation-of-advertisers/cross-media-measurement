@@ -52,9 +52,10 @@ bazel_dep(
     version = "0.89.0",
     repo_name = "wfa_measurement_proto",
 )
+# DO_NOT_SUBMIT: Remove git_override once cross-media-measurement-api PR #269 is merged.
 git_override(
     module_name = "cross-media-measurement-api",
-    commit = "17fa3cf8c3a9a0f4de6b7e902e6372c8a104d394",
+    commit = "6355d7e1a89a31a004df2397e3234656410dff91",
     remote = "https://github.com/world-federation-of-advertisers/cross-media-measurement-api.git",
 )
 bazel_dep(

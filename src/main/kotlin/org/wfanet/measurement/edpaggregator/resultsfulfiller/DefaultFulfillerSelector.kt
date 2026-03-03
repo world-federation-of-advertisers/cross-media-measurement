@@ -48,11 +48,7 @@ data class TrusTeeConfig(
   val kmsClient: KmsClient,
   val workloadIdentityProvider: String,
   val impersonatedServiceAccount: String,
-  val kmsType: FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType,
-  val awsRoleArn: String?,
-  val awsRoleSession: String?,
-  val awsRegion: String?,
-  val awsAudience: String?,
+  val awsKmsConfig: FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.AwsKmsConfig?,
 ) {
   /**
    * Builds EncryptionParams for the TrusTee protocol using the provided KEK URI.
@@ -75,11 +71,7 @@ data class TrusTeeConfig(
       kmsKekUri = remappedKekUri,
       workloadIdentityProvider = workloadIdentityProvider,
       impersonatedServiceAccount = impersonatedServiceAccount,
-      kmsType = kmsType,
-      awsRoleArn = awsRoleArn,
-      awsRoleSession = awsRoleSession,
-      awsRegion = awsRegion,
-      awsAudience = awsAudience,
+      awsKmsConfig = awsKmsConfig,
     )
   }
 

@@ -339,11 +339,15 @@ class RequisitionFulfillmentService(
               this.workloadIdentityProvider = envelopeEncryption.workloadIdentityProvider
               this.impersonatedServiceAccount = envelopeEncryption.impersonatedServiceAccount
               this.populationSpecFingerprint = populationSpecFingerprint
-              this.kmsType = envelopeEncryption.kmsType.toInternalKmsType()
-              this.awsRoleArn = envelopeEncryption.awsRoleArn
-              this.awsRoleSession = envelopeEncryption.awsRoleSession
-              this.awsRegion = envelopeEncryption.awsRegion
-              this.awsAudience = envelopeEncryption.awsAudience
+              if (envelopeEncryption.hasAwsKmsConfig()) {
+                this.awsKmsConfig =
+                  RequisitionDetailsKt.RequisitionProtocolKt.TrusTeeKt.awsKmsConfig {
+                    roleArn = envelopeEncryption.awsKmsConfig.roleArn
+                    roleSession = envelopeEncryption.awsKmsConfig.roleSession
+                    region = envelopeEncryption.awsKmsConfig.region
+                    audience = envelopeEncryption.awsKmsConfig.audience
+                  }
+              }
             }
           }
       }
@@ -369,14 +373,3 @@ class RequisitionFulfillmentService(
 
 private fun RequisitionMetadata.toConsentSignalingRequisition() =
   ConsentSignalingRequisition(externalKey.requisitionFingerprint, details.nonceHash)
-
-private fun Header.TrusTee.EnvelopeEncryption.KmsType.toInternalKmsType():
-  RequisitionDetails.RequisitionProtocol.TrusTee.KmsType =
-  when (this) {
-    Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
-    Header.TrusTee.EnvelopeEncryption.KmsType.KMS_TYPE_UNSPECIFIED ->
-      RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.GCP
-    Header.TrusTee.EnvelopeEncryption.KmsType.AWS ->
-      RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.AWS
-    Header.TrusTee.EnvelopeEncryption.KmsType.UNRECOGNIZED -> error("Unrecognized KMS type")
-  }

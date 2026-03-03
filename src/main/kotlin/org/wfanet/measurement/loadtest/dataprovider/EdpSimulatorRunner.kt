@@ -27,7 +27,6 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
-import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
@@ -171,11 +170,7 @@ class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
           kmsKekUri = trusTeeEncryptionOptions.kmsKekUri,
           workloadIdentityProvider = trusTeeEncryptionOptions.workloadIdentityProvider,
           impersonatedServiceAccount = trusTeeEncryptionOptions.impersonatedServiceAccount,
-          kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
-          awsRoleArn = null,
-          awsRoleSession = null,
-          awsRegion = null,
-          awsAudience = null,
+          awsKmsConfig = null,
         )
       } else {
         null

@@ -195,38 +195,33 @@ class TrusTeeMill(
 
   private fun getKmsClient(protocol: RequisitionDetails.RequisitionProtocol.TrusTee): KmsClient {
     try {
-      return when (protocol.kmsType) {
-        RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.AWS -> {
-          val credentials =
-            GCloudToAwsWifCredentials(
-              gcloudAudience = protocol.workloadIdentityProvider,
-              subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
-              tokenUrl = GOOGLE_STS_TOKEN_URL,
-              credentialSourceFilePath = attestationTokenPath.toString(),
-              serviceAccountImpersonationUrl =
-                IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
-              roleArn = protocol.awsRoleArn,
-              roleSessionName = protocol.awsRoleSession,
-              region = protocol.awsRegion,
-              awsAudience = protocol.awsAudience,
-            )
-          gcpToAwsKmsClientFactory.getKmsClient(credentials)
-        }
-        RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.GCP -> {
-          val credentials =
-            GCloudWifCredentials(
-              audience = protocol.workloadIdentityProvider,
-              subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
-              tokenUrl = GOOGLE_STS_TOKEN_URL,
-              credentialSourceFilePath = attestationTokenPath.toString(),
-              serviceAccountImpersonationUrl =
-                IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
-            )
-          gcpKmsClientFactory.getKmsClient(credentials)
-        }
-        RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.KMS_TYPE_UNSPECIFIED,
-        RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.UNRECOGNIZED ->
-          error("Unsupported KMS type: ${protocol.kmsType}")
+      return if (protocol.hasAwsKmsConfig()) {
+        val awsConfig = protocol.awsKmsConfig
+        val credentials =
+          GCloudToAwsWifCredentials(
+            gcloudAudience = protocol.workloadIdentityProvider,
+            subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
+            tokenUrl = GOOGLE_STS_TOKEN_URL,
+            credentialSourceFilePath = attestationTokenPath.toString(),
+            serviceAccountImpersonationUrl =
+              IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
+            roleArn = awsConfig.roleArn,
+            roleSessionName = awsConfig.roleSession,
+            region = awsConfig.region,
+            awsAudience = awsConfig.audience,
+          )
+        gcpToAwsKmsClientFactory.getKmsClient(credentials)
+      } else {
+        val credentials =
+          GCloudWifCredentials(
+            audience = protocol.workloadIdentityProvider,
+            subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
+            tokenUrl = GOOGLE_STS_TOKEN_URL,
+            credentialSourceFilePath = attestationTokenPath.toString(),
+            serviceAccountImpersonationUrl =
+              IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
+          )
+        gcpKmsClientFactory.getKmsClient(credentials)
       }
     } catch (e: GeneralSecurityException) {
       throw PermanentErrorException("Failed to create KMS client", e)

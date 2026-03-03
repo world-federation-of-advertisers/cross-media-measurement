@@ -33,11 +33,7 @@ class TrusTeeConfigTest {
       kmsClient = fakeKmsClient,
       workloadIdentityProvider = "test-provider",
       impersonatedServiceAccount = "test-sa@example.com",
-      kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
-      awsRoleArn = null,
-      awsRoleSession = null,
-      awsRegion = null,
-      awsAudience = null,
+      awsKmsConfig = null,
     )
 
   @Test
@@ -114,12 +110,7 @@ class TrusTeeConfigTest {
 
     val params = trusTeeConfig.buildEncryptionParams(uri, emptyMap())
 
-    assertThat(params.kmsType)
-      .isEqualTo(FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP)
-    assertThat(params.awsRoleArn).isNull()
-    assertThat(params.awsRoleSession).isNull()
-    assertThat(params.awsRegion).isNull()
-    assertThat(params.awsAudience).isNull()
+    assertThat(params.awsKmsConfig).isNull()
   }
 
   @Test
@@ -129,21 +120,22 @@ class TrusTeeConfigTest {
         kmsClient = fakeKmsClient,
         workloadIdentityProvider = "test-provider",
         impersonatedServiceAccount = "test-sa@example.com",
-        kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS,
-        awsRoleArn = "arn:aws:iam::123456789012:role/my-role",
-        awsRoleSession = "my-session",
-        awsRegion = "us-east-1",
-        awsAudience = "sts.amazonaws.com",
+        awsKmsConfig =
+          FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.AwsKmsConfig.newBuilder()
+            .setRoleArn("arn:aws:iam::123456789012:role/my-role")
+            .setRoleSession("my-session")
+            .setRegion("us-east-1")
+            .setAudience("sts.amazonaws.com")
+            .build(),
       )
     val uri = "aws-kms://arn:aws:kms:us-east-1:123456789012:key/my-key"
 
     val params = awsConfig.buildEncryptionParams(uri, emptyMap())
 
-    assertThat(params.kmsType)
-      .isEqualTo(FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS)
-    assertThat(params.awsRoleArn).isEqualTo("arn:aws:iam::123456789012:role/my-role")
-    assertThat(params.awsRoleSession).isEqualTo("my-session")
-    assertThat(params.awsRegion).isEqualTo("us-east-1")
-    assertThat(params.awsAudience).isEqualTo("sts.amazonaws.com")
+    assertThat(params.awsKmsConfig).isNotNull()
+    assertThat(params.awsKmsConfig!!.roleArn).isEqualTo("arn:aws:iam::123456789012:role/my-role")
+    assertThat(params.awsKmsConfig!!.roleSession).isEqualTo("my-session")
+    assertThat(params.awsKmsConfig!!.region).isEqualTo("us-east-1")
+    assertThat(params.awsKmsConfig!!.audience).isEqualTo("sts.amazonaws.com")
   }
 }

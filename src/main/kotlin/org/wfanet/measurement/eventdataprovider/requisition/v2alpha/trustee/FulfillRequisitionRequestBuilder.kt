@@ -70,21 +70,8 @@ class FulfillRequisitionRequestBuilder(
     val kmsKekUri: String,
     val workloadIdentityProvider: String,
     val impersonatedServiceAccount: String,
-    val kmsType: FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType,
-    val awsRoleArn: String?,
-    val awsRoleSession: String?,
-    val awsRegion: String?,
-    val awsAudience: String?,
-  ) {
-    init {
-      if (kmsType == FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS) {
-        requireNotNull(awsRoleArn) { "awsRoleArn is required when kmsType is AWS" }
-        requireNotNull(awsRoleSession) { "awsRoleSession is required when kmsType is AWS" }
-        requireNotNull(awsRegion) { "awsRegion is required when kmsType is AWS" }
-        requireNotNull(awsAudience) { "awsAudience is required when kmsType is AWS" }
-      }
-    }
-  }
+    val awsKmsConfig: FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.AwsKmsConfig?,
+  )
 
   private val frequencyVectorBytes: ByteArray
 
@@ -182,11 +169,7 @@ class FulfillRequisitionRequestBuilder(
               kmsKekUri = encryptionParams!!.kmsKekUri
               workloadIdentityProvider = encryptionParams.workloadIdentityProvider
               impersonatedServiceAccount = encryptionParams.impersonatedServiceAccount
-              kmsType = encryptionParams.kmsType
-              encryptionParams.awsRoleArn?.let { awsRoleArn = it }
-              encryptionParams.awsRoleSession?.let { awsRoleSession = it }
-              encryptionParams.awsRegion?.let { awsRegion = it }
-              encryptionParams.awsAudience?.let { awsAudience = it }
+              encryptionParams.awsKmsConfig?.let { awsKmsConfig = it }
             }
           // TODO(world-federation-of-advertisers/cross-media-measurement#2624): generate
           // populationSpec fingerprint

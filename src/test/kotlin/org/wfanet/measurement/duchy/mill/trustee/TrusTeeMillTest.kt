@@ -82,7 +82,6 @@ import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationS
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.NoiseMechanism
-import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.RequisitionDetails.RequisitionProtocol.TrusTee.DataFormat
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.trusTee as requisitionTrusTee
@@ -616,51 +615,6 @@ class TrusTeeMillTest {
   }
 
   @Test
-  fun `computingPhase fails when kms type is unspecified`(): Unit = runBlocking {
-    val unspecifiedKmsRequisition =
-      TEST_REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED).copy {
-        details =
-          details.copy {
-            protocol =
-              RequisitionDetailsKt.requisitionProtocol {
-                trusTee = requisitionTrusTee {
-                  dataFormat = DataFormat.ENCRYPTED_FREQUENCY_VECTOR
-                  encryptedDekCiphertext = DEK_KEYSET_HANDLE_1.toEncryptedByteString(KEK_AEAD_1)
-                  kmsKekUri = KEK_URI_1
-                  workloadIdentityProvider = "WIP_1"
-                  impersonatedServiceAccount = "SA_1"
-                }
-              }
-          }
-        path = RequisitionBlobContext(GLOBAL_ID, externalKey.externalRequisitionId).blobKey
-      }
-    val requisitions = listOf(unspecifiedKmsRequisition)
-
-    requisitionStore.write(
-      RequisitionBlobContext(
-        GLOBAL_ID,
-        unspecifiedKmsRequisition.externalKey.externalRequisitionId,
-      ),
-      encryptWithStreamingAead(DEK_STREAMING_AEAD_1, RAW_DATA_1),
-    )
-
-    fakeComputationDb.addComputation(
-      LOCAL_ID,
-      Stage.COMPUTING.toProtocolStage(),
-      computationDetails = COMPUTATION_DETAILS,
-      requisitions = requisitions,
-    )
-
-    val mill = createMill()
-    mill.claimAndProcessWork()
-
-    val finalToken = fakeComputationDb[LOCAL_ID]!!
-    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
-    assertThat(finalToken.computationDetails.endingState)
-      .isEqualTo(ComputationDetails.CompletedReason.FAILED)
-  }
-
-  @Test
   fun `computingPhase fails when cryptor fails`(): Unit = runBlocking {
     writeRequisitionData()
     fakeComputationDb.addComputation(
@@ -776,7 +730,6 @@ class TrusTeeMillTest {
                   kmsKekUri = KEK_URI_1
                   workloadIdentityProvider = "WIP_1"
                   impersonatedServiceAccount = "SA_1"
-                  kmsType = RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.GCP
                 }
               }
           }
@@ -795,7 +748,6 @@ class TrusTeeMillTest {
                   kmsKekUri = KEK_URI_2
                   workloadIdentityProvider = "WIP_2"
                   impersonatedServiceAccount = "SA_2"
-                  kmsType = RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.GCP
                 }
               }
           }

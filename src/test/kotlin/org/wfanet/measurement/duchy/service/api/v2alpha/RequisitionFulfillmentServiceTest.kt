@@ -43,6 +43,7 @@ import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EncryptionKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest.Header
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.EnvelopeEncryptionKt.awsKmsConfig
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.envelopeEncryption
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.honestMajorityShareShuffle
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.trusTee
@@ -467,7 +468,6 @@ class RequisitionFulfillmentServiceTest {
                   workloadIdentityProvider = WORKLOAD_IDENTITY_PROVIDER
                   impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT
                   populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
-                  kmsType = RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.GCP
                 }
             }
         }
@@ -497,11 +497,12 @@ class RequisitionFulfillmentServiceTest {
           kmsKekUri = KMS_KEK_URI
           workloadIdentityProvider = WORKLOAD_IDENTITY_PROVIDER
           impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT
-          kmsType = Header.TrusTee.EnvelopeEncryption.KmsType.AWS
-          awsRoleArn = "arn:aws:iam::123456789012:role/my-role"
-          awsRoleSession = "my-session"
-          awsRegion = "us-east-1"
-          awsAudience = "sts.amazonaws.com"
+          awsKmsConfig = awsKmsConfig {
+            roleArn = "arn:aws:iam::123456789012:role/my-role"
+            roleSession = "my-session"
+            region = "us-east-1"
+            audience = "sts.amazonaws.com"
+          }
         }
         populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
       }
@@ -548,11 +549,13 @@ class RequisitionFulfillmentServiceTest {
                   workloadIdentityProvider = WORKLOAD_IDENTITY_PROVIDER
                   impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT
                   populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
-                  kmsType = RequisitionDetails.RequisitionProtocol.TrusTee.KmsType.AWS
-                  awsRoleArn = "arn:aws:iam::123456789012:role/my-role"
-                  awsRoleSession = "my-session"
-                  awsRegion = "us-east-1"
-                  awsAudience = "sts.amazonaws.com"
+                  awsKmsConfig =
+                    RequisitionDetailsKt.RequisitionProtocolKt.TrusTeeKt.awsKmsConfig {
+                      roleArn = "arn:aws:iam::123456789012:role/my-role"
+                      roleSession = "my-session"
+                      region = "us-east-1"
+                      audience = "sts.amazonaws.com"
+                    }
                 }
             }
         }

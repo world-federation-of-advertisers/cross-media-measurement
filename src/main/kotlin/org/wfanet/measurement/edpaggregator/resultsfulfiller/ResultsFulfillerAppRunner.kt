@@ -36,7 +36,7 @@ import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
-import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.EnvelopeEncryptionKt.awsKmsConfig
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.ProtoReflection
@@ -402,7 +402,7 @@ class ResultsFulfillerAppRunner : Runnable {
                 serviceAccountImpersonationUrl =
                   EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(edpConfig.kmsConfig.serviceAccount),
                 roleArn = edpConfig.kmsConfig.awsRoleArn,
-                roleSessionName = edpConfig.kmsConfig.awsRoleSession,
+                roleSessionName = edpConfig.kmsConfig.awsRoleSessionName,
                 region = edpConfig.kmsConfig.awsRegion,
                 awsAudience = edpConfig.kmsConfig.awsAudience,
               )
@@ -427,45 +427,24 @@ class ResultsFulfillerAppRunner : Runnable {
 
       kmsClientsMap[edpConfig.dataProvider] = kmsClient
 
-      val apiKmsType =
-        when (edpConfig.kmsConfig.kmsType) {
-          EventDataProviderConfig.KmsConfig.KmsType.AWS ->
-            FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS
-          EventDataProviderConfig.KmsConfig.KmsType.GCP,
-          EventDataProviderConfig.KmsConfig.KmsType.KMS_TYPE_UNSPECIFIED ->
-            FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP
-          EventDataProviderConfig.KmsConfig.KmsType.UNRECOGNIZED ->
-            error("Unrecognized KMS type: ${edpConfig.kmsConfig.kmsType}")
+      val apiAwsKmsConfig =
+        if (edpConfig.kmsConfig.kmsType == EventDataProviderConfig.KmsConfig.KmsType.AWS) {
+          awsKmsConfig {
+            roleArn = edpConfig.kmsConfig.awsRoleArn
+            roleSession = edpConfig.kmsConfig.awsRoleSessionName
+            region = edpConfig.kmsConfig.awsRegion
+            audience = edpConfig.kmsConfig.awsAudience
+          }
+        } else {
+          null
         }
-
-      val isAws =
-        apiKmsType == FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS
-
-      if (isAws) {
-        require(edpConfig.kmsConfig.awsRoleArn.isNotEmpty()) {
-          "aws_role_arn is required when kms_type is AWS for ${edpConfig.dataProvider}"
-        }
-        require(edpConfig.kmsConfig.awsRoleSession.isNotEmpty()) {
-          "aws_role_session is required when kms_type is AWS for ${edpConfig.dataProvider}"
-        }
-        require(edpConfig.kmsConfig.awsRegion.isNotEmpty()) {
-          "aws_region is required when kms_type is AWS for ${edpConfig.dataProvider}"
-        }
-        require(edpConfig.kmsConfig.awsAudience.isNotEmpty()) {
-          "aws_audience is required when kms_type is AWS for ${edpConfig.dataProvider}"
-        }
-      }
 
       trusTeeConfigMap[edpConfig.dataProvider] =
         TrusTeeConfig(
           kmsClient = kmsClient,
           workloadIdentityProvider = edpConfig.kmsConfig.kmsAudience,
           impersonatedServiceAccount = edpConfig.kmsConfig.serviceAccount,
-          kmsType = apiKmsType,
-          awsRoleArn = if (isAws) edpConfig.kmsConfig.awsRoleArn else null,
-          awsRoleSession = if (isAws) edpConfig.kmsConfig.awsRoleSession else null,
-          awsRegion = if (isAws) edpConfig.kmsConfig.awsRegion else null,
-          awsAudience = if (isAws) edpConfig.kmsConfig.awsAudience else null,
+          awsKmsConfig = apiAwsKmsConfig,
         )
     }
   }

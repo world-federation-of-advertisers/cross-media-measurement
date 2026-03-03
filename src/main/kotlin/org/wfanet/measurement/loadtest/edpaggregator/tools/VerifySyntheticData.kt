@@ -107,12 +107,12 @@ class VerifySyntheticData : Runnable {
     var awsWebIdentityTokenFile: String = ""
 
     @Option(
-      names = ["--aws-role-session"],
+      names = ["--aws-role-session-name"],
       description = ["AWS STS role session name."],
       required = false,
       defaultValue = "verify-synthetic-data",
     )
-    var awsRoleSession: String = "verify-synthetic-data"
+    var awsRoleSessionName: String = "verify-synthetic-data"
 
     @Option(
       names = ["--aws-region"],
@@ -133,7 +133,7 @@ class VerifySyntheticData : Runnable {
     var roleArn: String = ""
 
     @Option(
-      names = ["--gcp-to-aws-role-session"],
+      names = ["--gcp-to-aws-role-session-name"],
       description = ["AWS role session name for GCP-to-AWS flow."],
       required = false,
       defaultValue = "verify-synthetic-data",
@@ -218,7 +218,7 @@ class VerifySyntheticData : Runnable {
               AwsWebIdentityCredentials(
                 roleArn = awsFlags.awsRoleArn,
                 webIdentityTokenFilePath = awsFlags.awsWebIdentityTokenFile,
-                roleSessionName = awsFlags.awsRoleSession,
+                roleSessionName = awsFlags.awsRoleSessionName,
                 region = awsFlags.awsRegion,
               )
             )

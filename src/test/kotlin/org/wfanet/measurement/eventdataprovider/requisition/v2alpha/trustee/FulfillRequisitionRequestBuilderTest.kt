@@ -230,56 +230,17 @@ class FulfillRequisitionRequestBuilderTest {
   }
 
   @Test
-  fun `EncryptionParams with AWS type requires awsRoleArn`() {
-    assertFailsWith<IllegalArgumentException> {
-      FulfillRequisitionRequestBuilder.EncryptionParams(
-        kmsClient = KMS_CLIENT,
-        kmsKekUri = KEK_URI,
-        workloadIdentityProvider = WORKLOAD_ID_PROVIDER,
-        impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT,
-        kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS,
-        awsRoleArn = null,
-        awsRoleSession = "session",
-        awsRegion = "us-east-1",
-        awsAudience = "sts.amazonaws.com",
-      )
-    }
-  }
-
-  @Test
-  fun `EncryptionParams with AWS type requires awsRegion`() {
-    assertFailsWith<IllegalArgumentException> {
-      FulfillRequisitionRequestBuilder.EncryptionParams(
-        kmsClient = KMS_CLIENT,
-        kmsKekUri = KEK_URI,
-        workloadIdentityProvider = WORKLOAD_ID_PROVIDER,
-        impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT,
-        kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.AWS,
-        awsRoleArn = "arn:aws:iam::123456789012:role/my-role",
-        awsRoleSession = "session",
-        awsRegion = null,
-        awsAudience = "sts.amazonaws.com",
-      )
-    }
-  }
-
-  @Test
-  fun `EncryptionParams with GCP type allows null AWS fields`() {
+  fun `EncryptionParams without awsKmsConfig creates GCP params`() {
     val params =
       FulfillRequisitionRequestBuilder.EncryptionParams(
         kmsClient = KMS_CLIENT,
         kmsKekUri = KEK_URI,
         workloadIdentityProvider = WORKLOAD_ID_PROVIDER,
         impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT,
-        kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
-        awsRoleArn = null,
-        awsRoleSession = null,
-        awsRegion = null,
-        awsAudience = null,
+        awsKmsConfig = null,
       )
 
-    assertThat(params.awsRoleArn).isNull()
-    assertThat(params.awsRegion).isNull()
+    assertThat(params.awsKmsConfig).isNull()
   }
 
   @Test
@@ -338,11 +299,7 @@ class FulfillRequisitionRequestBuilderTest {
         kmsKekUri = KEK_URI,
         workloadIdentityProvider = WORKLOAD_ID_PROVIDER,
         impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT,
-        kmsType = FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.KmsType.GCP,
-        awsRoleArn = null,
-        awsRoleSession = null,
-        awsRegion = null,
-        awsAudience = null,
+        awsKmsConfig = null,
       )
 
     private fun bytesToIntegers(bytes: ByteArray): List<Int> {
