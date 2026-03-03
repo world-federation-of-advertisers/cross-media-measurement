@@ -32,5 +32,5 @@ databaseChangeLog:
       file: create-raw-impression-metadata-schema.sql
       relativeToChangeLogFile: true
   - include:
-      file: add-input-blob-uri-column.sql
+      file: add-raw-impression-fk.sql
       relativeToChangeLogFile: true
