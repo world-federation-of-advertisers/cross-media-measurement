@@ -330,11 +330,11 @@ class InProcessDuchy(
             workLockDuration = Duration.ofSeconds(1),
             privateKeyStore = privateKeyStore,
           )
-        val gcpKmsClientFactory =
+        val gcloudKmsClientFactory =
           object : KmsClientFactory<GCloudWifCredentials> {
             override fun getKmsClient(config: GCloudWifCredentials): KmsClient = trusTeeKmsClient
           }
-        val gcpToAwsKmsClientFactory =
+        val gcloudToAwsKmsClientFactory =
           object : KmsClientFactory<GCloudToAwsWifCredentials> {
             override fun getKmsClient(config: GCloudToAwsWifCredentials): KmsClient =
               trusTeeKmsClient
@@ -353,8 +353,8 @@ class InProcessDuchy(
             computationStatsClient = computationStatsClient,
             workLockDuration = Duration.ofMinutes(5),
             trusTeeProcessorFactory = TrusTeeProcessorImpl,
-            gcpKmsClientFactory = gcpKmsClientFactory,
-            gcpToAwsKmsClientFactory = gcpToAwsKmsClientFactory,
+            gcloudKmsClientFactory = gcloudKmsClientFactory,
+            gcloudToAwsKmsClientFactory = gcloudToAwsKmsClientFactory,
             attestationTokenPath = Paths.get("/dev/null"),
           )
         val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1))

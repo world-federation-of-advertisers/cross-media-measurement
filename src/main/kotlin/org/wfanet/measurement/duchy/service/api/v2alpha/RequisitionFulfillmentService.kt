@@ -152,10 +152,10 @@ class RequisitionFulfillmentService(
                   )
                 }
                 Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR -> {
-                  when (trusTee.envelopeEncryption.encryptedDek.format) {
-                    EncryptionKey.Format.TINK_ENCRYPTED_KEYSET -> {}
-                    else -> failGrpc { "Invalid EncryptedDek format" }
-                  }
+                  grpcRequire(
+                    trusTee.envelopeEncryption.encryptedDek.format ==
+                      EncryptionKey.Format.TINK_ENCRYPTED_KEYSET
+                  ) { "Invalid EncryptedDek format" }
                   recordEncryptedTrusTeeRequisitionLocally(
                     token = computationToken,
                     key = externalRequisitionKey,

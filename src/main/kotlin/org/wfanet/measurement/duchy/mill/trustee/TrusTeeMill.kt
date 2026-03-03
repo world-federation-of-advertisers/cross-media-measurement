@@ -68,8 +68,8 @@ class TrusTeeMill(
   computationStatsClient: ComputationStatsGrpcKt.ComputationStatsCoroutineStub,
   workLockDuration: Duration,
   private val trusTeeProcessorFactory: TrusTeeProcessor.Factory,
-  private val gcpKmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
-  private val gcpToAwsKmsClientFactory: KmsClientFactory<GCloudToAwsWifCredentials>,
+  private val gcloudKmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
+  private val gcloudToAwsKmsClientFactory: KmsClientFactory<GCloudToAwsWifCredentials>,
   private val attestationTokenPath: Path,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
@@ -210,7 +210,7 @@ class TrusTeeMill(
             region = awsConfig.region,
             awsAudience = awsConfig.audience,
           )
-        gcpToAwsKmsClientFactory.getKmsClient(credentials)
+        gcloudToAwsKmsClientFactory.getKmsClient(credentials)
       } else {
         val credentials =
           GCloudWifCredentials(
@@ -221,7 +221,7 @@ class TrusTeeMill(
             serviceAccountImpersonationUrl =
               IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
           )
-        gcpKmsClientFactory.getKmsClient(credentials)
+        gcloudKmsClientFactory.getKmsClient(credentials)
       }
     } catch (e: GeneralSecurityException) {
       throw PermanentErrorException("Failed to create KMS client", e)

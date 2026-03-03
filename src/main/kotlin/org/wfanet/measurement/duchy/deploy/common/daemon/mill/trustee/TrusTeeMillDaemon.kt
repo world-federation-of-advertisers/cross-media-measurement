@@ -53,8 +53,8 @@ abstract class TrusTeeMillDaemon : Runnable {
 
   protected fun run(
     storageClient: StorageClient,
-    gcpKmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
-    gcpToAwsKmsClientFactory: KmsClientFactory<GCloudToAwsWifCredentials>,
+    gcloudKmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
+    gcloudToAwsKmsClientFactory: KmsClientFactory<GCloudToAwsWifCredentials>,
   ) {
     val duchyName = flags.duchy.duchyName
 
@@ -126,8 +126,8 @@ abstract class TrusTeeMillDaemon : Runnable {
         computationStatsClient = computationStatsClient,
         workLockDuration = flags.workLockDuration,
         trusTeeProcessorFactory = TrusTeeProcessorImpl.Factory,
-        gcpKmsClientFactory = gcpKmsClientFactory,
-        gcpToAwsKmsClientFactory = gcpToAwsKmsClientFactory,
+        gcloudKmsClientFactory = gcloudKmsClientFactory,
+        gcloudToAwsKmsClientFactory = gcloudToAwsKmsClientFactory,
         attestationTokenPath = flags.attestationTokenFile.toPath(),
       )
 
