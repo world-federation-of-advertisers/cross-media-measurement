@@ -204,19 +204,12 @@ watched_paths {
         value {
           struct_value {
             fields {
-              key: "gcs"
-              value {
-                struct_value {
-                  fields {
-                    key: "projectId"
-                    value { string_value: "halo-cmm-dev" }
-                  }
-                  fields {
-                    key: "bucketName"
-                    value { string_value: "secure-computation-storage-dev-bucket" }
-                  }
-                }
-              }
+              key: "gcsProjectId"
+              value { string_value: "halo-cmm-dev" }
+            }
+            fields {
+              key: "bucketName"
+              value { string_value: "secure-computation-storage-dev-bucket" }
             }
           }
         }
@@ -226,19 +219,12 @@ watched_paths {
         value {
           struct_value {
             fields {
-              key: "gcs"
-              value {
-                struct_value {
-                  fields {
-                    key: "projectId"
-                    value { string_value: "halo-cmm-dev" }
-                  }
-                  fields {
-                    key: "bucketName"
-                    value { string_value: "secure-computation-storage-dev-bucket" }
-                  }
-                }
-              }
+              key: "gcsProjectId"
+              value { string_value: "halo-cmm-dev" }
+            }
+            fields {
+              key: "bucketName"
+              value { string_value: "secure-computation-storage-dev-bucket" }
             }
           }
         }
@@ -290,19 +276,12 @@ watched_paths {
         value {
           struct_value {
             fields {
-              key: "gcs"
-              value {
-                struct_value {
-                  fields {
-                    key: "projectId"
-                    value { string_value: "halo-cmm-dev" }
-                  }
-                  fields {
-                    key: "bucketName"
-                    value { string_value: "secure-computation-storage-dev-bucket" }
-                  }
-                }
-              }
+              key: "gcsProjectId"
+              value { string_value: "halo-cmm-dev" }
+            }
+            fields {
+              key: "bucketName"
+              value { string_value: "secure-computation-storage-dev-bucket" }
             }
           }
         }
@@ -345,6 +324,10 @@ watched_paths {
           }
         }
       }
+      fields {
+        key: "edpImpressionPath"
+        value { string_value: "edp/edp7" }
+      }
     }
   }
 }
@@ -363,7 +346,7 @@ This configuration is passed from the **DataWatcher** to the **EventGroupSync** 
 The **`http_endpoint_sink`** block defines the target function to invoke and the parameters required for synchronization.
 
 * **endpoint_uri:**  The URL of the Cloud Function to be invoked, here pointing to the deployed **`event-group-sync`** function.
-* **app_params**: A structured set of parameters passed to the invoked function, that conforms to this [proto message definition](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/proto/wfa/measurement/config/edpaggregator/event_group_sync_config.proto). These parameters include all the information EventGroupSync needs to connect to CMMS and access Cloud Storage resources.
+* **app_params**: A structured set of parameters passed to the invoked function, that conforms to this [proto message definition](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/proto/wfa/measurement/edpaggregator/v1alpha/event_group_sync_params.proto). The cloud function also accepts the legacy [EventGroupSyncConfig](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/proto/wfa/measurement/config/edpaggregator/event_group_sync_config.proto) format for backwards compatibility. These parameters include all the information EventGroupSync needs to connect to CMMS and access Cloud Storage resources.
 
 Within **app_params**, the key fields are:
 
@@ -374,9 +357,9 @@ Within **app_params**, the key fields are:
     * **`certFilePath`**: Path to the edp cert file, which must match the [event group secret mapping](#secret-mappings).
     * **`privateKeyFilePath`**: Path to the edp private key file, which must match the [event group secret mapping](#secret-mappings).
     * **`certCollectionFilePath`**: Path to the root CA file, which must match the [event group secret mapping](#secret-mappings).
-    * **eventGroupStorage** and **eventGroupMapStorage**: Configuration for the Cloud Storage buckets containing the Event Group and Event Group Map files, including:
-        * **`projectId`**: The Google Cloud project ID where the bucket resides.
-        * **`bucketName`**: The name of the Cloud Storage bucket used for these files.
+* **eventGroupStorage** and **eventGroupMapStorage**: Configuration for the Cloud Storage buckets containing the Event Group and Event Group Map files, including:
+    * **`gcsProjectId`**: The Google Cloud project ID where the bucket resides.
+    * **`bucketName`**: The name of the Cloud Storage bucket used for these files.
 
 ###### *Variable definition for the ResultsFulfiller watched path*
 
