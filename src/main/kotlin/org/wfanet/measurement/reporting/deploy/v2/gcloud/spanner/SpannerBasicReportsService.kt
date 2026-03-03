@@ -670,9 +670,8 @@ class SpannerBasicReportsService(
         .withSerializableErrorRetries()
         .map { it.reportingSet }
         .toList()
-    } catch (e: Exception) {
+    } finally {
       postgresReadContext?.close()
-      throw e
     }
   }
 
