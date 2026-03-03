@@ -10,7 +10,7 @@ kt_jvm_library(
     srcs = [
         "CertificateAuthority.kt",
         "CertificateManager.kt",
-        "KingomlessCertificateManager.kt",
+        "KingdomlessCertificateManager.kt",
         "V2AlphaCertificateManager.kt",
     ],
     deps = [
