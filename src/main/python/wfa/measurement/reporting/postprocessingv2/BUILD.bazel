@@ -6,11 +6,13 @@ package(default_visibility = ["//visibility:public"])
 py_library(
     name = "report",
     srcs = ["report.py"],
+    imports = ["./"],
 )
 
 py_library(
     name = "constraint_generator",
     srcs = ["constraint_generator.py"],
+    imports = ["./"],
     deps = [
         ":report",
         "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:constraint_py_pb2",
