@@ -176,6 +176,7 @@ import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodology as I
 import org.wfanet.measurement.internal.reporting.v2.CustomDirectMethodologyKt as InternalCustomDirectMethodologyKt
 import org.wfanet.measurement.internal.reporting.v2.DeterministicCount as InternalDeterministicCount
 import org.wfanet.measurement.internal.reporting.v2.DeterministicCountDistinct as InternalDeterministicCountDistinct
+import org.wfanet.measurement.internal.reporting.v2.DeterministicDistribution as InternalDeterministicDistribution
 import org.wfanet.measurement.internal.reporting.v2.DeterministicSum as InternalDeterministicSum
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
@@ -196,7 +197,6 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt.primitiveRepo
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt.weightedSubsetUnion
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt as InternalReportingSetsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequestKt.filter
-import org.wfanet.measurement.internal.reporting.v2.TrusTee
 import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsRequest as internalBatchCreateMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsResponse as internalBatchCreateMetricsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest as internalBatchGetMetricsRequest
@@ -880,7 +880,7 @@ private val INTERNAL_SUCCEEDED_UNION_ALL_REACH_TRUSTEE_MEASUREMENT =
               InternalMeasurementKt.ResultKt.reach {
                 value = UNION_ALL_REACH_VALUE
                 noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
-                trusTee = TrusTee.getDefaultInstance()
+                deterministicCountDistinct = InternalDeterministicCountDistinct.getDefaultInstance()
               }
           }
       }
@@ -897,7 +897,7 @@ private val INTERNAL_SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_TRUSTEE_MEASUR
               InternalMeasurementKt.ResultKt.reach {
                 value = UNION_ALL_BUT_LAST_PUBLISHER_REACH_VALUE
                 noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
-                trusTee = TrusTee.getDefaultInstance()
+                deterministicCountDistinct = InternalDeterministicCountDistinct.getDefaultInstance()
               }
           }
       }
@@ -955,13 +955,13 @@ private val INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_TRUSTEE_MEASUREM
               InternalMeasurementKt.ResultKt.reach {
                 value = REACH_FREQUENCY_REACH_VALUE
                 noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
-                trusTee = TrusTee.getDefaultInstance()
+                deterministicCountDistinct = InternalDeterministicCountDistinct.getDefaultInstance()
               }
             frequency =
               InternalMeasurementKt.ResultKt.frequency {
                 relativeFrequencyDistribution.putAll(REACH_FREQUENCY_FREQUENCY_VALUE)
                 noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
-                trusTee = TrusTee.getDefaultInstance()
+                deterministicDistribution = InternalDeterministicDistribution.getDefaultInstance()
               }
           }
       }
@@ -9147,13 +9147,15 @@ class MetricsServiceTest {
                     InternalMeasurementKt.ResultKt.reach {
                       value = REACH_FREQUENCY_REACH_VALUE
                       noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
-                      trusTee = TrusTee.getDefaultInstance()
+                      deterministicCountDistinct =
+                        InternalDeterministicCountDistinct.getDefaultInstance()
                     }
                   frequency =
                     InternalMeasurementKt.ResultKt.frequency {
                       relativeFrequencyDistribution.putAll(REACH_FREQUENCY_FREQUENCY_VALUE)
                       noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
-                      trusTee = TrusTee.getDefaultInstance()
+                      deterministicDistribution =
+                        InternalDeterministicDistribution.getDefaultInstance()
                     }
                 }
             }

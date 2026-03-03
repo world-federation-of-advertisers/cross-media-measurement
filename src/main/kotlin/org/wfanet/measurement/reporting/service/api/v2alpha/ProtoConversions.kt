@@ -71,7 +71,6 @@ import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.TimeIntervals as InternalTimeIntervals
-import org.wfanet.measurement.internal.reporting.v2.TrusTee
 import org.wfanet.measurement.internal.reporting.v2.customDirectMethodology
 import org.wfanet.measurement.internal.reporting.v2.deterministicCount
 import org.wfanet.measurement.internal.reporting.v2.honestMajorityShareShuffle
@@ -685,12 +684,10 @@ private fun Measurement.Result.Frequency.toInternal(
     if (protocolConfig.protocolsList.any { it.hasTrusTee() }) {
       val cmmsProtocol = protocolConfig.protocolsList.first { it.hasTrusTee() }.trusTee
       noiseMechanism = cmmsProtocol.noiseMechanism.toInternal()
-      // The public API Measurement.Result.Frequency has no TrusTee methodology field (unlike
-      // HonestMajorityShareShuffle which carries frequency_vector_size on the result). Until the
-      // public API is updated to expose a TrusTee methodology message on the result, there is no
-      // source for frequency_vector_size and the default instance is the only option.
-      // TODO: update once the public API Measurement.Result exposes a TrusTee methodology field.
-      trusTee = TrusTee.getDefaultInstance()
+      // TrusTee uses DeterministicMethodology for variance computation. Unlike HMSS, TrusTee
+      // variance depends on the sampling interval from MeasurementSpec rather than
+      // frequency_vector_size, so no additional data from the result is needed.
+      deterministicDistribution = DeterministicDistribution.getDefaultInstance()
     } else if (protocolConfig.protocolsList.any { it.hasDirect() }) {
       noiseMechanism = source.noiseMechanism.toInternal()
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
@@ -738,12 +735,10 @@ private fun Measurement.Result.Reach.toInternal(
     if (protocolConfig.protocolsList.any { it.hasTrusTee() }) {
       val cmmsProtocol = protocolConfig.protocolsList.first { it.hasTrusTee() }.trusTee
       noiseMechanism = cmmsProtocol.noiseMechanism.toInternal()
-      // The public API Measurement.Result.Reach has no TrusTee methodology field (unlike
-      // HonestMajorityShareShuffle which carries frequency_vector_size on the result). Until the
-      // public API is updated to expose a TrusTee methodology message on the result, there is no
-      // source for frequency_vector_size and the default instance is the only option.
-      // TODO: update once the public API Measurement.Result exposes a TrusTee methodology field.
-      trusTee = TrusTee.getDefaultInstance()
+      // TrusTee uses DeterministicMethodology for variance computation. Unlike HMSS, TrusTee
+      // variance depends on the sampling interval from MeasurementSpec rather than
+      // frequency_vector_size, so no additional data from the result is needed.
+      deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
     } else if (protocolConfig.protocolsList.any { it.hasDirect() }) {
       noiseMechanism = source.noiseMechanism.toInternal()
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
