@@ -155,7 +155,9 @@ class RequisitionFulfillmentService(
                   grpcRequire(
                     trusTee.envelopeEncryption.encryptedDek.format ==
                       EncryptionKey.Format.TINK_ENCRYPTED_KEYSET
-                  ) { "Invalid EncryptedDek format" }
+                  ) {
+                    "Invalid EncryptedDek format"
+                  }
                   recordEncryptedTrusTeeRequisitionLocally(
                     token = computationToken,
                     key = externalRequisitionKey,
