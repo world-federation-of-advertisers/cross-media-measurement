@@ -17,6 +17,8 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability
 
 import com.google.common.truth.Truth.assertThat
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser as GsonJsonParser
 import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.grpc.Metadata
@@ -368,6 +370,80 @@ class DataAvailabilitySyncFunctionTest {
         .uri(URI.create(url))
         .header("X-DataWatcher-Path", localDoneBlobUri)
         .POST(HttpRequest.BodyPublishers.ofString(params.toJson()))
+        .build()
+    val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
+    logger.info("Response status: ${getResponse.statusCode()}")
+    logger.info("Response body: ${getResponse.body()}")
+
+    val requestCaptor = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
+    verifyBlocking(dataProvidersServiceMock, times(1)) {
+      replaceDataAvailabilityIntervals(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
+      .contains("some-model-line-mapped")
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
+  }
+
+  @Test
+  fun `sync registersUnregisteredImpressionMetadata with type_url wrapped v1alpha params`() {
+
+    val localImpressionBlobKey = "edp/edp_name/timestamp/impressions"
+    val localImpressionBlobUri = "file:////edp/edp_name/timestamp/impressions"
+    val localMetadataBlobKey = "edp/edp_name/timestamp/metadata.binpb"
+    val localDoneBlobUri = "file:////edp/edp_name/timestamp/done"
+
+    val blobDetails = blobDetails {
+      blobUri = localImpressionBlobUri
+      eventGroupReferenceId = "reference-id"
+      modelLine = "some-model-line"
+      interval = interval {
+        startTime = timestamp { seconds = 1735689600 }
+        endTime = timestamp { seconds = 1736467200 }
+      }
+    }
+
+    val params = fileSystemDataAvailabilitySyncParams()
+    val paramsJson = params.toJson()
+    val wrapper = JsonObject()
+    wrapper.addProperty(
+      "type_url",
+      "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams",
+    )
+    wrapper.add("value", GsonJsonParser.parseString(paramsJson))
+    val wrappedRequestBody = wrapper.toString()
+
+    File("${tempFolder.root}/edp/edp_name/timestamp").mkdirs()
+    val port = runBlocking {
+      functionProcess.start(
+        mapOf(
+          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+          "KINGDOM_CERT_HOST" to "localhost",
+          "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
+          "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
+          "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
+          "OTEL_METRICS_EXPORTER" to "none",
+          "OTEL_TRACES_EXPORTER" to "none",
+          "OTEL_LOGS_EXPORTER" to "none",
+          "OTEL_PROPAGATORS" to "tracecontext,baggage",
+        )
+      )
+    }
+
+    val url = "http://localhost:$port"
+    logger.info("Testing Cloud Function at: $url")
+
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    runBlocking {
+      storageClient.writeBlob(localImpressionBlobKey, emptyFlow())
+      storageClient.writeBlob(localMetadataBlobKey, flowOf(blobDetails.toByteString()))
+    }
+    val client = HttpClient.newHttpClient()
+    val getRequest =
+      HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .header("X-DataWatcher-Path", localDoneBlobUri)
+        .POST(HttpRequest.BodyPublishers.ofString(wrappedRequestBody))
         .build()
     val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
     logger.info("Response status: ${getResponse.statusCode()}")

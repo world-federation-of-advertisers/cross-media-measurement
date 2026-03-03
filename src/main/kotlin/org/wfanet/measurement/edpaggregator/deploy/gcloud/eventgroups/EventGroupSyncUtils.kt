@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
 
+import com.google.gson.JsonParser
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
 import java.util.logging.Logger
@@ -28,29 +29,52 @@ object EventGroupSyncUtils {
   private val logger: Logger = Logger.getLogger("EventGroupSyncUtils")
 
   /**
-   * Parses the request body as either an [EventGroupSyncParams] (v1alpha) or an
-   * [EventGroupSyncConfig] (config).
+   * Parses the request body using a `type_url` discriminator to determine the proto format.
    *
-   * Tries the v1alpha format first. If parsing fails due to unknown fields, falls back to the
-   * legacy config format.
+   * If the JSON contains a `type_url` (or `typeUrl`) field, the `value` field is parsed as the
+   * proto type indicated by the URL suffix:
+   * - `EventGroupSyncParams` -> v1alpha params, converted to config
+   * - `EventGroupSyncConfig` -> config directly
+   *
+   * If no `type_url` is present, the entire request body is parsed as [EventGroupSyncConfig] for
+   * backwards compatibility.
    *
    * @param requestBody JSON string from the HTTP request body
-   * @return [EventGroupSyncConfig] parsed from either format
+   * @return [EventGroupSyncConfig] parsed from the appropriate format
    */
   internal fun parseEventGroupSyncConfig(requestBody: String): EventGroupSyncConfig {
-    return try {
-      val params =
-        EventGroupSyncParams.newBuilder()
-          .apply { JsonFormat.parser().ignoringUnknownFields().merge(requestBody, this) }
-          .build()
-      logger.info("Parsed request body as EventGroupSyncParams (v1alpha)")
-      convertToConfig(params)
-    } catch (e: InvalidProtocolBufferException) {
-      logger.info("Falling back to EventGroupSyncConfig (config)")
-      EventGroupSyncConfig.newBuilder()
-        .apply { JsonFormat.parser().ignoringUnknownFields().merge(requestBody, this) }
-        .build()
+    val jsonObject = JsonParser.parseString(requestBody).asJsonObject
+    val typeUrl = jsonObject.get("type_url")?.asString ?: jsonObject.get("typeUrl")?.asString
+
+    if (typeUrl != null) {
+      val valueElement =
+        jsonObject.get("value")
+          ?: throw InvalidProtocolBufferException("Missing 'value' field")
+      val valueJson = valueElement.toString()
+
+      return when {
+        typeUrl.endsWith("EventGroupSyncParams") -> {
+          logger.info("Parsed request body as EventGroupSyncParams (v1alpha) via type_url")
+          val params =
+            EventGroupSyncParams.newBuilder()
+              .apply { JsonFormat.parser().ignoringUnknownFields().merge(valueJson, this) }
+              .build()
+          convertToConfig(params)
+        }
+        typeUrl.endsWith("EventGroupSyncConfig") -> {
+          logger.info("Parsed request body as EventGroupSyncConfig via type_url")
+          EventGroupSyncConfig.newBuilder()
+            .apply { JsonFormat.parser().ignoringUnknownFields().merge(valueJson, this) }
+            .build()
+        }
+        else -> throw InvalidProtocolBufferException("Unknown type_url: $typeUrl")
+      }
     }
+
+    logger.info("No type_url found, parsing as EventGroupSyncConfig (legacy)")
+    return EventGroupSyncConfig.newBuilder()
+      .apply { JsonFormat.parser().ignoringUnknownFields().merge(requestBody, this) }
+      .build()
   }
 
   /**

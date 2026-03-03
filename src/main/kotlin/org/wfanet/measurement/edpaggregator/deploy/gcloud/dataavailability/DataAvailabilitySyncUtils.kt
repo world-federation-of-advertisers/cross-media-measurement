@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability
 
+import com.google.gson.JsonParser
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
 import java.util.logging.Logger
@@ -28,29 +29,52 @@ object DataAvailabilitySyncUtils {
   private val logger: Logger = Logger.getLogger("DataAvailabilitySyncUtils")
 
   /**
-   * Parses the request body as either a [DataAvailabilitySyncParams] (v1alpha) or a
-   * [DataAvailabilitySyncConfig] (config).
+   * Parses the request body using a `type_url` discriminator to determine the proto format.
    *
-   * Tries the v1alpha format first. If parsing fails due to unknown fields, falls back to the
-   * legacy config format.
+   * If the JSON contains a `type_url` (or `typeUrl`) field, the `value` field is parsed as the
+   * proto type indicated by the URL suffix:
+   * - `DataAvailabilitySyncParams` -> v1alpha params, converted to config
+   * - `DataAvailabilitySyncConfig` -> config directly
+   *
+   * If no `type_url` is present, the entire request body is parsed as
+   * [DataAvailabilitySyncConfig] for backwards compatibility.
    *
    * @param requestBody JSON string from the HTTP request body
-   * @return [DataAvailabilitySyncConfig] parsed from either format
+   * @return [DataAvailabilitySyncConfig] parsed from the appropriate format
    */
   fun parseDataAvailabilitySyncConfig(requestBody: String): DataAvailabilitySyncConfig {
-    return try {
-      val params =
-        DataAvailabilitySyncParams.newBuilder()
-          .apply { JsonFormat.parser().ignoringUnknownFields().merge(requestBody, this) }
-          .build()
-      logger.info("Parsed request body as DataAvailabilitySyncParams (v1alpha)")
-      convertToConfig(params)
-    } catch (e: InvalidProtocolBufferException) {
-      logger.info("Falling back to DataAvailabilitySyncConfig (config)")
-      DataAvailabilitySyncConfig.newBuilder()
-        .apply { JsonFormat.parser().ignoringUnknownFields().merge(requestBody, this) }
-        .build()
+    val jsonObject = JsonParser.parseString(requestBody).asJsonObject
+    val typeUrl = jsonObject.get("type_url")?.asString ?: jsonObject.get("typeUrl")?.asString
+
+    if (typeUrl != null) {
+      val valueElement =
+        jsonObject.get("value")
+          ?: throw InvalidProtocolBufferException("Missing 'value' field")
+      val valueJson = valueElement.toString()
+
+      return when {
+        typeUrl.endsWith("DataAvailabilitySyncParams") -> {
+          logger.info("Parsed request body as DataAvailabilitySyncParams (v1alpha) via type_url")
+          val params =
+            DataAvailabilitySyncParams.newBuilder()
+              .apply { JsonFormat.parser().ignoringUnknownFields().merge(valueJson, this) }
+              .build()
+          convertToConfig(params)
+        }
+        typeUrl.endsWith("DataAvailabilitySyncConfig") -> {
+          logger.info("Parsed request body as DataAvailabilitySyncConfig via type_url")
+          DataAvailabilitySyncConfig.newBuilder()
+            .apply { JsonFormat.parser().ignoringUnknownFields().merge(valueJson, this) }
+            .build()
+        }
+        else -> throw InvalidProtocolBufferException("Unknown type_url: $typeUrl")
+      }
     }
+
+    logger.info("No type_url found, parsing as DataAvailabilitySyncConfig (legacy)")
+    return DataAvailabilitySyncConfig.newBuilder()
+      .apply { JsonFormat.parser().ignoringUnknownFields().merge(requestBody, this) }
+      .build()
   }
 
   /**

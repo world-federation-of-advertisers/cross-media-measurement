@@ -17,6 +17,8 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
 
 import com.google.common.truth.Truth.assertThat
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser as GsonJsonParser
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.timestamp
@@ -627,6 +629,97 @@ class EventGroupSyncFunctionTest() {
       HttpRequest.newBuilder()
         .uri(URI.create(url))
         .POST(HttpRequest.BodyPublishers.ofString(params.toJson()))
+        .build()
+    val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
+    logger.info("Response status: ${getResponse.statusCode()}")
+    logger.info("Response body: ${getResponse.body()}")
+
+    assertThat(getResponse.statusCode()).isEqualTo(200)
+
+    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(any()) }
+    val mappedData = runBlocking {
+      MesosRecordIoStorageClient(storageClient)
+        .getBlob("some/other/path/event-groups-map-uri")!!
+        .read()
+        .map { MappedEventGroup.parseFrom(it) }
+        .toList()
+        .map { it.eventGroupReferenceId to it.eventGroupResource }
+    }
+    assertThat(mappedData)
+      .isEqualTo(
+        listOf(
+          "reference-id-1" to "dataProviders/data-provider-1/eventGroups/reference-id-1",
+          "reference-id-2" to "dataProviders/data-provider-2/eventGroups/reference-id-2",
+          "reference-id-3" to "dataProviders/data-provider-3/eventGroups/reference-id-3",
+          "reference-id-4" to "resource-name-for-reference-id-4",
+        )
+      )
+  }
+
+  @Test
+  fun `sync registersUnregisteredEventGroups with type_url wrapped v1alpha params`() {
+    val newCampaign = eventGroup {
+      eventGroupReferenceId = "reference-id-4"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-2"
+            campaign = "campaign-2"
+          }
+        }
+      }
+      measurementConsumer = "measurementConsumers/measurement-consumer-2"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.OTHER)
+    }
+    val testCampaigns = CAMPAIGNS + newCampaign
+    val params = eventGroupSyncParams {
+      dataProvider = "some-data-provider"
+      eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.binpb"
+      eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
+      cmmsConnection = fileSystemTransportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      eventGroupStorage = v1alphaStorageParams {}
+      eventGroupMapStorage = v1alphaStorageParams {}
+    }
+    val paramsJson = params.toJson()
+    val wrapper = JsonObject()
+    wrapper.addProperty(
+      "type_url",
+      "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams",
+    )
+    wrapper.add("value", GsonJsonParser.parseString(paramsJson))
+    val wrappedRequestBody = wrapper.toString()
+
+    File("${tempFolder.root}/some/path").mkdirs()
+    File("${tempFolder.root}/some/other/path").mkdirs()
+    val port = runBlocking { startFunction() }
+
+    val url = "http://localhost:$port"
+    logger.info("Testing Cloud Function at: $url")
+
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+    runBlocking {
+      MesosRecordIoStorageClient(storageClient)
+        .writeBlob(
+          "some/path/campaigns-blob-uri.binpb",
+          testCampaigns.map { it.toByteString() }.asFlow(),
+        )
+    }
+
+    val client = HttpClient.newHttpClient()
+    val getRequest =
+      HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .POST(HttpRequest.BodyPublishers.ofString(wrappedRequestBody))
         .build()
     val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
     logger.info("Response status: ${getResponse.statusCode()}")
