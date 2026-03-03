@@ -627,8 +627,8 @@ class CumulativeAndNonCumulativeConstraints(ConstraintGenerator):
       self,
       num_metric_sets: int,
       max_frequency: int,
-      non_cumulatives: List[DataProviderMetricSetMap],
-      cumulatives: List[DataProviderMetricSetMap],
+      non_cumulatives: list[DataProviderMetricSetMap],
+      cumulatives: list[DataProviderMetricSetMap],
   ):
     super().__init__(num_metric_sets, max_frequency)
     self.non_cumulatives = non_cumulatives
@@ -654,7 +654,7 @@ class NonCumulativeAndWholeCampaignConstraints(ConstraintGenerator):
       self,
       num_metric_sets: int,
       max_frequency: int,
-      non_cumulatives: List[DataProviderMetricSetMap],
+      non_cumulatives: list[DataProviderMetricSetMap],
       whole_campaign: DataProviderMetricSetMap,
   ):
     super().__init__(num_metric_sets, max_frequency)
