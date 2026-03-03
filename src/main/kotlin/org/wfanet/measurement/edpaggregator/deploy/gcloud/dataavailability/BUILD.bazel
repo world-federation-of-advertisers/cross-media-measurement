@@ -8,7 +8,10 @@ package(default_visibility = [
 
 kt_jvm_library(
     name = "data_availability_sync_function",
-    srcs = ["DataAvailabilitySyncFunction.kt"],
+    srcs = [
+        "DataAvailabilitySyncFunction.kt",
+        "DataAvailabilitySyncUtils.kt",
+    ],
     deps = [
         "//imports/java/io/opentelemetry/api:context",
         "//imports/java/io/opentelemetry/extension:kotlin",

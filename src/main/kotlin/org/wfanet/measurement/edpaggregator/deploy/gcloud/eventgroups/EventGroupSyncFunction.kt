@@ -19,7 +19,6 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
 import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
-import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
 import io.grpc.Channel
 import io.grpc.ClientInterceptors
@@ -44,14 +43,11 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
-import org.wfanet.measurement.config.edpaggregator.StorageParams
-import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroups
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
-import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -281,80 +277,6 @@ class EventGroupSyncFunction() : HttpFunction {
       // Use official OpenTelemetry gRPC instrumentation for automatic span and metric creation
       val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
       return ClientInterceptors.intercept(publicChannel, grpcTelemetry.newClientInterceptor())
-    }
-
-    /**
-     * Parses the request body as either an [EventGroupSyncParams] (v1alpha) or an
-     * [EventGroupSyncConfig] (config).
-     *
-     * Tries the v1alpha format first. If parsing fails due to unknown fields, falls back to the
-     * legacy config format.
-     *
-     * @param requestBody JSON string from the HTTP request body
-     * @return [EventGroupSyncConfig] parsed from either format
-     */
-    private fun parseEventGroupSyncConfig(requestBody: String): EventGroupSyncConfig {
-      return try {
-        val params =
-          EventGroupSyncParams.newBuilder()
-            .apply { JsonFormat.parser().merge(requestBody, this) }
-            .build()
-        logger.info("Parsed request body as EventGroupSyncParams (v1alpha)")
-        convertToConfig(params)
-      } catch (e: InvalidProtocolBufferException) {
-        logger.info("Falling back to EventGroupSyncConfig (config)")
-        EventGroupSyncConfig.newBuilder()
-          .apply { JsonFormat.parser().merge(requestBody, this) }
-          .build()
-      }
-    }
-
-    /**
-     * Converts an [EventGroupSyncParams] to an [EventGroupSyncConfig].
-     *
-     * @param params v1alpha params to convert
-     * @return [EventGroupSyncConfig] with equivalent field values
-     */
-    private fun convertToConfig(params: EventGroupSyncParams): EventGroupSyncConfig {
-      return EventGroupSyncConfig.newBuilder()
-        .apply {
-          dataProvider = params.dataProvider
-          eventGroupsBlobUri = params.eventGroupsBlobUri
-          eventGroupMapBlobUri = params.eventGroupMapBlobUri
-          cmmsConnection =
-            TransportLayerSecurityParams.newBuilder()
-              .apply {
-                certFilePath = params.cmmsConnection.certFilePath
-                privateKeyFilePath = params.cmmsConnection.privateKeyFilePath
-                certCollectionFilePath = params.cmmsConnection.certCollectionFilePath
-              }
-              .build()
-          eventGroupStorage =
-            StorageParams.newBuilder()
-              .apply {
-                gcs =
-                  StorageParams.GcsStorage.newBuilder()
-                    .apply {
-                      projectId = params.eventGroupStorage.gcsProjectId
-                      bucketName = params.eventGroupStorage.bucketName
-                    }
-                    .build()
-              }
-              .build()
-          eventGroupMapStorage =
-            StorageParams.newBuilder()
-              .apply {
-                gcs =
-                  StorageParams.GcsStorage.newBuilder()
-                    .apply {
-                      projectId = params.eventGroupMapStorage.gcsProjectId
-                      bucketName = params.eventGroupMapStorage.bucketName
-                    }
-                    .build()
-              }
-              .build()
-        }
-        .build()
     }
   }
 }
