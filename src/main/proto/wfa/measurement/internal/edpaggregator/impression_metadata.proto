@@ -46,8 +46,12 @@ message ImpressionMetadata {
   // The etag of ImpressionMetadata
   string etag = 11;
 
-  // The URI of the source input impression blob that was used to generate the
-  // blob_uri. For example, for a vid labeled output, the input is the
-  // impression data needed to generate a vid labeled impression. Optional.
-  string input_blob_uri = 12;
+  // Foreign key reference to the source RawImpressionMetadata row.
+  // These three fields, together with data_provider_resource_id, form a
+  // composite FK to RawImpressionMetadata(DataProviderResourceId, UploadId,
+  // BatchIndex, FileId). Optional; unset when there is no source raw
+  // impression.
+  int64 raw_impression_upload_id = 12;
+  int64 raw_impression_batch_index = 13;
+  int64 raw_impression_file_id = 14;
 }

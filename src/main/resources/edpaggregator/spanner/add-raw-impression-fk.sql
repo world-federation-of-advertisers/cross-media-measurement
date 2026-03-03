@@ -14,10 +14,13 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset jojijacob:7 dbms:cloudspanner
--- comment: Add InputBlobUri column to ImpressionMetadata to track the source raw impression blob.
+-- changeset getina:7 dbms:cloudspanner
+-- comment: Add foreign key columns to ImpressionMetadata referencing RawImpressionMetadata.
 
-ALTER TABLE ImpressionMetadata ADD COLUMN InputBlobUri STRING(MAX);
+ALTER TABLE ImpressionMetadata ADD COLUMN RawImpressionUploadId INT64;
+ALTER TABLE ImpressionMetadata ADD COLUMN RawImpressionBatchIndex INT64;
+ALTER TABLE ImpressionMetadata ADD COLUMN RawImpressionFileId INT64;
 
-CREATE INDEX ImpressionMetadataByRawBlob
-  ON ImpressionMetadata(DataProviderResourceId, InputBlobUri);
+ALTER TABLE ImpressionMetadata ADD CONSTRAINT FK_ImpressionMetadata_RawImpressionMetadata
+  FOREIGN KEY (DataProviderResourceId, RawImpressionUploadId, RawImpressionBatchIndex, RawImpressionFileId)
+  REFERENCES RawImpressionMetadata(DataProviderResourceId, UploadId, BatchIndex, FileId);

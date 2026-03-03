@@ -230,8 +230,10 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
     set("IntervalStartTime").to(impressionMetadata.interval.startTime.toGcloudTimestamp())
     set("IntervalEndTime").to(impressionMetadata.interval.endTime.toGcloudTimestamp())
     set("State").to(impressionMetadata.state)
-    if (impressionMetadata.inputBlobUri.isNotEmpty()) {
-      set("InputBlobUri").to(impressionMetadata.inputBlobUri)
+    if (impressionMetadata.rawImpressionUploadId != 0L) {
+      set("RawImpressionUploadId").to(impressionMetadata.rawImpressionUploadId)
+      set("RawImpressionBatchIndex").to(impressionMetadata.rawImpressionBatchIndex)
+      set("RawImpressionFileId").to(impressionMetadata.rawImpressionFileId)
     }
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
@@ -456,7 +458,9 @@ private object ImpressionMetadataEntity {
       State,
       CreateTime,
       UpdateTime,
-      InputBlobUri,
+      RawImpressionUploadId,
+      RawImpressionBatchIndex,
+      RawImpressionFileId,
     FROM
       ImpressionMetadata
     """
@@ -480,8 +484,10 @@ private object ImpressionMetadataEntity {
         createTime = struct.getTimestamp("CreateTime").toProto()
         updateTime = struct.getTimestamp("UpdateTime").toProto()
         etag = ETags.computeETag(updateTime.toInstant())
-        if (!struct.isNull("InputBlobUri")) {
-          inputBlobUri = struct.getString("InputBlobUri")
+        if (!struct.isNull("RawImpressionUploadId")) {
+          rawImpressionUploadId = struct.getLong("RawImpressionUploadId")
+          rawImpressionBatchIndex = struct.getLong("RawImpressionBatchIndex")
+          rawImpressionFileId = struct.getLong("RawImpressionFileId")
         }
       },
       struct.getLong("ImpressionMetadataId"),
