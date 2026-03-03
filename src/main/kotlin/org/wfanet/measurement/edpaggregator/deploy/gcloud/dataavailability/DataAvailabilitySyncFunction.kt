@@ -318,11 +318,13 @@ class DataAvailabilitySyncFunction() : HttpFunction {
 
     /**
      * Parses the request body as either a [DataAvailabilitySyncParams] (v1alpha) or a
-     * [DataAvailabilitySyncConfig] (config), returning a [DataAvailabilitySyncConfig] in both
-     * cases.
+     * [DataAvailabilitySyncConfig] (config).
      *
      * Tries the v1alpha format first. If parsing fails due to unknown fields, falls back to the
      * legacy config format.
+     *
+     * @param requestBody JSON string from the HTTP request body
+     * @return [DataAvailabilitySyncConfig] parsed from either format
      */
     fun parseDataAvailabilitySyncConfig(requestBody: String): DataAvailabilitySyncConfig {
       return try {
@@ -340,6 +342,12 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       }
     }
 
+    /**
+     * Converts a [DataAvailabilitySyncParams] to a [DataAvailabilitySyncConfig].
+     *
+     * @param params v1alpha params to convert
+     * @return [DataAvailabilitySyncConfig] with equivalent field values
+     */
     private fun convertToConfig(
       params: DataAvailabilitySyncParams
     ): DataAvailabilitySyncConfig {

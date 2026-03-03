@@ -285,10 +285,13 @@ class EventGroupSyncFunction() : HttpFunction {
 
     /**
      * Parses the request body as either an [EventGroupSyncParams] (v1alpha) or an
-     * [EventGroupSyncConfig] (config), returning an [EventGroupSyncConfig] in both cases.
+     * [EventGroupSyncConfig] (config).
      *
      * Tries the v1alpha format first. If parsing fails due to unknown fields, falls back to the
      * legacy config format.
+     *
+     * @param requestBody JSON string from the HTTP request body
+     * @return [EventGroupSyncConfig] parsed from either format
      */
     private fun parseEventGroupSyncConfig(requestBody: String): EventGroupSyncConfig {
       return try {
@@ -306,6 +309,12 @@ class EventGroupSyncFunction() : HttpFunction {
       }
     }
 
+    /**
+     * Converts an [EventGroupSyncParams] to an [EventGroupSyncConfig].
+     *
+     * @param params v1alpha params to convert
+     * @return [EventGroupSyncConfig] with equivalent field values
+     */
     private fun convertToConfig(params: EventGroupSyncParams): EventGroupSyncConfig {
       return EventGroupSyncConfig.newBuilder()
         .apply {
