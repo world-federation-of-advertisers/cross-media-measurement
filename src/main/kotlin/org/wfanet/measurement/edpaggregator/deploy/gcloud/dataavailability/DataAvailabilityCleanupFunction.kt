@@ -19,12 +19,10 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability
 import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
-import com.google.protobuf.util.JsonFormat
 import io.grpc.ClientInterceptors
 import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
-import java.io.BufferedReader
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
@@ -64,11 +62,9 @@ class DataAvailabilityCleanupFunction : HttpFunction {
     try {
       logger.fine("Starting DataAvailabilityCleanupFunction")
 
-      val requestBody: BufferedReader = request.reader
+      val requestBody = request.reader.readText()
       val dataAvailabilitySyncConfig =
-        DataAvailabilitySyncConfig.newBuilder()
-          .apply { JsonFormat.parser().merge(requestBody, this) }
-          .build()
+        DataAvailabilitySyncFunction.parseDataAvailabilitySyncConfig(requestBody)
 
       // Read the path as request header
       val deletedBlobPath =

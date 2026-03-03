@@ -20,13 +20,13 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
+import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
 import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
 import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
-import java.io.BufferedReader
 import java.io.File
 import java.time.Clock
 import java.time.Duration
@@ -41,10 +41,12 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
+import org.wfanet.measurement.config.edpaggregator.StorageParams
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
@@ -95,11 +97,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
   override fun service(request: HttpRequest, response: HttpResponse) {
     try {
       logger.fine("Starting DataAvailabilitySyncFunction")
-      val requestBody: BufferedReader = request.getReader()
-      val dataAvailabilitySyncConfig =
-        DataAvailabilitySyncConfig.newBuilder()
-          .apply { JsonFormat.parser().merge(requestBody, this) }
-          .build()
+      val requestBody = request.reader.readText()
+      val dataAvailabilitySyncConfig = parseDataAvailabilitySyncConfig(requestBody)
 
       // Read the path as request header
       val doneBlobPath =
@@ -315,6 +314,79 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         }
 
       return GrpcChannels(cmmsChannel = cmmsChannel, impressionMetadataChannel = impressionChannel)
+    }
+
+    /**
+     * Parses the request body as either a [DataAvailabilitySyncParams] (v1alpha) or a
+     * [DataAvailabilitySyncConfig] (config), returning a [DataAvailabilitySyncConfig] in both
+     * cases.
+     *
+     * Tries the v1alpha format first. If parsing fails due to unknown fields, falls back to the
+     * legacy config format.
+     */
+    fun parseDataAvailabilitySyncConfig(requestBody: String): DataAvailabilitySyncConfig {
+      return try {
+        val params =
+          DataAvailabilitySyncParams.newBuilder()
+            .apply { JsonFormat.parser().merge(requestBody, this) }
+            .build()
+        logger.info("Parsed request body as DataAvailabilitySyncParams (v1alpha)")
+        convertToConfig(params)
+      } catch (e: InvalidProtocolBufferException) {
+        logger.info("Falling back to DataAvailabilitySyncConfig (config)")
+        DataAvailabilitySyncConfig.newBuilder()
+          .apply { JsonFormat.parser().merge(requestBody, this) }
+          .build()
+      }
+    }
+
+    private fun convertToConfig(
+      params: DataAvailabilitySyncParams
+    ): DataAvailabilitySyncConfig {
+      return DataAvailabilitySyncConfig.newBuilder()
+        .apply {
+          dataProvider = params.dataProvider
+          dataAvailabilityStorage =
+            StorageParams.newBuilder()
+              .apply {
+                gcs =
+                  StorageParams.GcsStorage.newBuilder()
+                    .apply {
+                      projectId = params.dataAvailabilityStorage.gcsProjectId
+                      bucketName = params.dataAvailabilityStorage.bucketName
+                    }
+                    .build()
+              }
+              .build()
+          cmmsConnection =
+            TransportLayerSecurityParams.newBuilder()
+              .apply {
+                certFilePath = params.cmmsConnection.certFilePath
+                privateKeyFilePath = params.cmmsConnection.privateKeyFilePath
+                certCollectionFilePath = params.cmmsConnection.certCollectionFilePath
+              }
+              .build()
+          impressionMetadataStorageConnection =
+            TransportLayerSecurityParams.newBuilder()
+              .apply {
+                certFilePath = params.impressionMetadataStorageConnection.certFilePath
+                privateKeyFilePath =
+                  params.impressionMetadataStorageConnection.privateKeyFilePath
+                certCollectionFilePath =
+                  params.impressionMetadataStorageConnection.certCollectionFilePath
+              }
+              .build()
+          edpImpressionPath = params.edpImpressionPath
+          params.modelLineMapMap.forEach { (key, value) ->
+            putModelLineMap(
+              key,
+              DataAvailabilitySyncConfig.ModelLineList.newBuilder()
+                .addAllModelLines(value.modelLinesList)
+                .build(),
+            )
+          }
+        }
+        .build()
     }
   }
 }
