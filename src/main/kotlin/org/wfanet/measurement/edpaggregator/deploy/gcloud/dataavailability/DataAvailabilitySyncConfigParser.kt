@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability
 import com.google.protobuf.Any
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.TypeRegistry
+import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.JsonFormat
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
@@ -69,28 +70,38 @@ object DataAvailabilitySyncConfigParser {
    * @return [DataAvailabilitySyncConfig] parsed from the appropriate format
    */
   fun parseDataAvailabilitySyncConfig(requestBody: String): DataAvailabilitySyncConfig {
-    try {
-      val any =
-        Any.newBuilder().apply { jsonParser.merge(requestBody, this) }.build()
+    val configMessage = parseAnyEnvelope(requestBody) ?: return parseLegacyConfig(requestBody)
 
-      return when {
-        any.`is`(DataAvailabilitySyncParams::class.java) -> {
-          val params = any.unpack(DataAvailabilitySyncParams::class.java)
-          logger.info("Parsed request body as DataAvailabilitySyncParams (v1alpha) via @type")
-          lookupConfig(params.dataProvider)
-        }
-        any.`is`(DataAvailabilitySyncConfig::class.java) -> {
-          logger.info("Parsed request body as DataAvailabilitySyncConfig via @type")
-          any.unpack(DataAvailabilitySyncConfig::class.java)
-        }
-        else -> throw InvalidProtocolBufferException("Unknown @type: ${any.typeUrl}")
-      }
-    } catch (e: InvalidProtocolBufferException) {
-      logger.info("No @type found, parsing as DataAvailabilitySyncConfig (legacy)")
-      return DataAvailabilitySyncConfig.newBuilder()
-        .apply { JsonFormat.parser().ignoringUnknownFields().merge(requestBody, this) }
-        .build()
+    val descriptor = checkNotNull(typeRegistry.getDescriptorForTypeUrl(configMessage.typeUrl)) {
+      "Unknown @type: ${configMessage.typeUrl}"
     }
+
+    return when (descriptor.fullName) {
+      DataAvailabilitySyncParams.getDescriptor().fullName -> {
+        logger.info("Parsed request body as DataAvailabilitySyncParams (v1alpha) via @type")
+        lookupConfig(configMessage.unpack<DataAvailabilitySyncParams>().dataProvider)
+      }
+      DataAvailabilitySyncConfig.getDescriptor().fullName -> {
+        logger.info("Parsed request body as DataAvailabilitySyncConfig via @type")
+        configMessage.unpack()
+      }
+      else -> error("Unsupported @type: ${configMessage.typeUrl}")
+    }
+  }
+
+  private fun parseAnyEnvelope(requestBody: String): Any? {
+    return try {
+      Any.newBuilder().apply { jsonParser.merge(requestBody, this) }.build()
+    } catch (e: InvalidProtocolBufferException) {
+      null
+    }
+  }
+
+  private fun parseLegacyConfig(requestBody: String): DataAvailabilitySyncConfig {
+    logger.info("No @type found, parsing as DataAvailabilitySyncConfig (legacy)")
+    return DataAvailabilitySyncConfig.newBuilder()
+      .apply { JsonFormat.parser().ignoringUnknownFields().merge(requestBody, this) }
+      .build()
   }
 
   /**

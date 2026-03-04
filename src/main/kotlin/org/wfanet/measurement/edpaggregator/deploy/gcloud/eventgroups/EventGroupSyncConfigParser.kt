@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
 import com.google.protobuf.Any
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.TypeRegistry
+import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.JsonFormat
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
@@ -69,28 +70,38 @@ object EventGroupSyncConfigParser {
    * @return [EventGroupSyncConfig] parsed from the appropriate format
    */
   internal fun parseEventGroupSyncConfig(requestBody: String): EventGroupSyncConfig {
-    try {
-      val any =
-        Any.newBuilder().apply { jsonParser.merge(requestBody, this) }.build()
+    val configMessage = parseAnyEnvelope(requestBody) ?: return parseLegacyConfig(requestBody)
 
-      return when {
-        any.`is`(EventGroupSyncParams::class.java) -> {
-          val params = any.unpack(EventGroupSyncParams::class.java)
-          logger.info("Parsed request body as EventGroupSyncParams (v1alpha) via @type")
-          lookupConfig(params.dataProvider)
-        }
-        any.`is`(EventGroupSyncConfig::class.java) -> {
-          logger.info("Parsed request body as EventGroupSyncConfig via @type")
-          any.unpack(EventGroupSyncConfig::class.java)
-        }
-        else -> throw InvalidProtocolBufferException("Unknown @type: ${any.typeUrl}")
-      }
-    } catch (e: InvalidProtocolBufferException) {
-      logger.info("No @type found, parsing as EventGroupSyncConfig (legacy)")
-      return EventGroupSyncConfig.newBuilder()
-        .apply { JsonFormat.parser().ignoringUnknownFields().merge(requestBody, this) }
-        .build()
+    val descriptor = checkNotNull(typeRegistry.getDescriptorForTypeUrl(configMessage.typeUrl)) {
+      "Unknown @type: ${configMessage.typeUrl}"
     }
+
+    return when (descriptor.fullName) {
+      EventGroupSyncParams.getDescriptor().fullName -> {
+        logger.info("Parsed request body as EventGroupSyncParams (v1alpha) via @type")
+        lookupConfig(configMessage.unpack<EventGroupSyncParams>().dataProvider)
+      }
+      EventGroupSyncConfig.getDescriptor().fullName -> {
+        logger.info("Parsed request body as EventGroupSyncConfig via @type")
+        configMessage.unpack()
+      }
+      else -> error("Unsupported @type: ${configMessage.typeUrl}")
+    }
+  }
+
+  private fun parseAnyEnvelope(requestBody: String): Any? {
+    return try {
+      Any.newBuilder().apply { jsonParser.merge(requestBody, this) }.build()
+    } catch (e: InvalidProtocolBufferException) {
+      null
+    }
+  }
+
+  private fun parseLegacyConfig(requestBody: String): EventGroupSyncConfig {
+    logger.info("No @type found, parsing as EventGroupSyncConfig (legacy)")
+    return EventGroupSyncConfig.newBuilder()
+      .apply { JsonFormat.parser().ignoringUnknownFields().merge(requestBody, this) }
+      .build()
   }
 
   /**
