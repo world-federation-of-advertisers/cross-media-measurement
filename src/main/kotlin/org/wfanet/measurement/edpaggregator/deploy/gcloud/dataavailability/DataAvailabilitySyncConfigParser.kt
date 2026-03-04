@@ -37,7 +37,7 @@ object DataAvailabilitySyncConfigParser {
       .build()
 
   private val jsonParser: JsonFormat.Parser =
-    JsonFormat.parser().usingTypeRegistry(typeRegistry).ignoringUnknownFields()
+    JsonFormat.parser().usingTypeRegistry(typeRegistry)
 
   private val configBlobKey: String by lazy {
     System.getenv("CONFIG_BLOB_KEY")
