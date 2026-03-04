@@ -386,7 +386,7 @@ class ResultsFulfillerTest {
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
-            awsKmsConfig = null,
+            awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
       )
@@ -637,7 +637,7 @@ class ResultsFulfillerTest {
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
-            awsKmsConfig = null,
+            awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
       )
@@ -768,7 +768,7 @@ class ResultsFulfillerTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-              awsKmsConfig = null,
+              awsKmsParams = null,
             ),
           kekUriToKeyNameMap = emptyMap(),
         )
@@ -910,7 +910,7 @@ class ResultsFulfillerTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-              awsKmsConfig = null,
+              awsKmsParams = null,
             ),
           kekUriToKeyNameMap = emptyMap(),
         )
@@ -1040,7 +1040,7 @@ class ResultsFulfillerTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-              awsKmsConfig = null,
+              awsKmsParams = null,
             ),
           kekUriToKeyNameMap = emptyMap(),
         )
@@ -1167,7 +1167,7 @@ class ResultsFulfillerTest {
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
-            awsKmsConfig = null,
+            awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
       )
@@ -1273,7 +1273,7 @@ class ResultsFulfillerTest {
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
-            awsKmsConfig = null,
+            awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
       )
@@ -1381,7 +1381,7 @@ class ResultsFulfillerTest {
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
-            awsKmsConfig = null,
+            awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
       )
@@ -1487,7 +1487,7 @@ class ResultsFulfillerTest {
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
-            awsKmsConfig = null,
+            awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
       )
@@ -1590,7 +1590,7 @@ class ResultsFulfillerTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-              awsKmsConfig = null,
+              awsKmsParams = null,
             ),
           kekUriToKeyNameMap = emptyMap(),
         )
@@ -1714,7 +1714,7 @@ class ResultsFulfillerTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-              awsKmsConfig = null,
+              awsKmsParams = null,
             ),
           kekUriToKeyNameMap = emptyMap(),
         )
@@ -1837,7 +1837,7 @@ class ResultsFulfillerTest {
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
-            awsKmsConfig = null,
+            awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
       )
@@ -2013,7 +2013,7 @@ class ResultsFulfillerTest {
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
-            awsKmsConfig = null,
+            awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
       )
@@ -2132,7 +2132,7 @@ class ResultsFulfillerTest {
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
-            awsKmsConfig = null,
+            awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
       )
@@ -2247,7 +2247,7 @@ class ResultsFulfillerTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-              awsKmsConfig = null,
+              awsKmsParams = null,
             ),
           kekUriToKeyNameMap = emptyMap(),
         )
@@ -2500,7 +2500,7 @@ class ResultsFulfillerTest {
         kmsClient = kmsClient,
         workloadIdentityProvider = "test-wip",
         impersonatedServiceAccount = "test-sa@example.com",
-        awsKmsConfig = null,
+        awsKmsParams = null,
       )
 
     val inputKekUri =
@@ -2523,7 +2523,7 @@ class ResultsFulfillerTest {
         kmsClient = kmsClient,
         workloadIdentityProvider = "test-wip",
         impersonatedServiceAccount = "test-sa@example.com",
-        awsKmsConfig = null,
+        awsKmsParams = null,
       )
 
     val inputKekUri =

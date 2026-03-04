@@ -513,7 +513,7 @@ class ResultsFulfillerAppTest {
                 kmsClient = kmsClient,
                 workloadIdentityProvider = "test-wip",
                 impersonatedServiceAccount = "test-sa@example.com",
-                awsKmsConfig = null,
+                awsKmsParams = null,
               )
           ),
           getStorageConfig(tmpPath),
@@ -785,7 +785,7 @@ class ResultsFulfillerAppTest {
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-              awsKmsConfig = null,
+              awsKmsParams = null,
             )
         ),
         getStorageConfig(tmpPath),
@@ -1210,7 +1210,7 @@ class ResultsFulfillerAppTest {
               kmsClient = kmsClients.getValue(EDP_NAME),
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
-              awsKmsConfig = null,
+              awsKmsParams = null,
             )
         ),
         getStorageConfig(tmpPath),
@@ -1348,7 +1348,7 @@ class ResultsFulfillerAppTest {
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
-            awsKmsConfig = null,
+            awsKmsParams = null,
           )
       )
 

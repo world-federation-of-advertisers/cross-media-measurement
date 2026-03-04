@@ -170,7 +170,7 @@ class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
           kmsKekUri = trusTeeEncryptionOptions.kmsKekUri,
           workloadIdentityProvider = trusTeeEncryptionOptions.workloadIdentityProvider,
           impersonatedServiceAccount = trusTeeEncryptionOptions.impersonatedServiceAccount,
-          awsKmsConfig = null,
+          awsKmsParams = null,
         )
       } else {
         null

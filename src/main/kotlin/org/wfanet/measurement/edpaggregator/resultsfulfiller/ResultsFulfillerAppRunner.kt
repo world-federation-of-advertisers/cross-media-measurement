@@ -36,7 +36,7 @@ import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
-import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.EnvelopeEncryptionKt.awsKmsConfig
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.EnvelopeEncryptionKt.awsKmsParams
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.ProtoReflection
@@ -427,9 +427,9 @@ class ResultsFulfillerAppRunner : Runnable {
 
       kmsClientsMap[edpConfig.dataProvider] = kmsClient
 
-      val apiAwsKmsConfig =
+      val apiAwsKmsParams =
         if (edpConfig.kmsConfig.kmsType == EventDataProviderConfig.KmsConfig.KmsType.AWS) {
-          awsKmsConfig {
+          awsKmsParams {
             roleArn = edpConfig.kmsConfig.awsRoleArn
             roleSession = edpConfig.kmsConfig.awsRoleSessionName
             region = edpConfig.kmsConfig.awsRegion
@@ -444,7 +444,7 @@ class ResultsFulfillerAppRunner : Runnable {
           kmsClient = kmsClient,
           workloadIdentityProvider = edpConfig.kmsConfig.kmsAudience,
           impersonatedServiceAccount = edpConfig.kmsConfig.serviceAccount,
-          awsKmsConfig = apiAwsKmsConfig,
+          awsKmsParams = apiAwsKmsParams,
         )
     }
   }

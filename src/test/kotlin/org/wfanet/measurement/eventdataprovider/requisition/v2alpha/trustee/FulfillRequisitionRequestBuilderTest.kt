@@ -230,17 +230,17 @@ class FulfillRequisitionRequestBuilderTest {
   }
 
   @Test
-  fun `EncryptionParams without awsKmsConfig creates GCP params`() {
+  fun `EncryptionParams without awsKmsParams creates GCP params`() {
     val params =
       FulfillRequisitionRequestBuilder.EncryptionParams(
         kmsClient = KMS_CLIENT,
         kmsKekUri = KEK_URI,
         workloadIdentityProvider = WORKLOAD_ID_PROVIDER,
         impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT,
-        awsKmsConfig = null,
+        awsKmsParams = null,
       )
 
-    assertThat(params.awsKmsConfig).isNull()
+    assertThat(params.awsKmsParams).isNull()
   }
 
   @Test
@@ -299,7 +299,7 @@ class FulfillRequisitionRequestBuilderTest {
         kmsKekUri = KEK_URI,
         workloadIdentityProvider = WORKLOAD_ID_PROVIDER,
         impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT,
-        awsKmsConfig = null,
+        awsKmsParams = null,
       )
 
     private fun bytesToIntegers(bytes: ByteArray): List<Int> {

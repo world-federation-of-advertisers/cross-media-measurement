@@ -33,7 +33,7 @@ class TrusTeeConfigTest {
       kmsClient = fakeKmsClient,
       workloadIdentityProvider = "test-provider",
       impersonatedServiceAccount = "test-sa@example.com",
-      awsKmsConfig = null,
+      awsKmsParams = null,
     )
 
   @Test
@@ -110,7 +110,7 @@ class TrusTeeConfigTest {
 
     val params = trusTeeConfig.buildEncryptionParams(uri, emptyMap())
 
-    assertThat(params.awsKmsConfig).isNull()
+    assertThat(params.awsKmsParams).isNull()
   }
 
   @Test
@@ -120,8 +120,8 @@ class TrusTeeConfigTest {
         kmsClient = fakeKmsClient,
         workloadIdentityProvider = "test-provider",
         impersonatedServiceAccount = "test-sa@example.com",
-        awsKmsConfig =
-          FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.AwsKmsConfig.newBuilder()
+        awsKmsParams =
+          FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.AwsKmsParams.newBuilder()
             .setRoleArn("arn:aws:iam::123456789012:role/my-role")
             .setRoleSession("my-session")
             .setRegion("us-east-1")
@@ -132,10 +132,10 @@ class TrusTeeConfigTest {
 
     val params = awsConfig.buildEncryptionParams(uri, emptyMap())
 
-    assertThat(params.awsKmsConfig).isNotNull()
-    assertThat(params.awsKmsConfig!!.roleArn).isEqualTo("arn:aws:iam::123456789012:role/my-role")
-    assertThat(params.awsKmsConfig!!.roleSession).isEqualTo("my-session")
-    assertThat(params.awsKmsConfig!!.region).isEqualTo("us-east-1")
-    assertThat(params.awsKmsConfig!!.audience).isEqualTo("sts.amazonaws.com")
+    assertThat(params.awsKmsParams).isNotNull()
+    assertThat(params.awsKmsParams!!.roleArn).isEqualTo("arn:aws:iam::123456789012:role/my-role")
+    assertThat(params.awsKmsParams!!.roleSession).isEqualTo("my-session")
+    assertThat(params.awsKmsParams!!.region).isEqualTo("us-east-1")
+    assertThat(params.awsKmsParams!!.audience).isEqualTo("sts.amazonaws.com")
   }
 }

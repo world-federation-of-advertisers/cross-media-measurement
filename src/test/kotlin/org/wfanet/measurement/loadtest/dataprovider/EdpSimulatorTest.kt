@@ -769,7 +769,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         kmsKekUri = KEK_URI,
         workloadIdentityProvider = "workload-identity-provider",
         impersonatedServiceAccount = "impersonated-service-account",
-        awsKmsConfig = null,
+        awsKmsParams = null,
       )
 
     requisitionsServiceMock.stub {

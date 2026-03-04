@@ -43,7 +43,7 @@ import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EncryptionKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest.Header
-import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.EnvelopeEncryptionKt.awsKmsConfig
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.EnvelopeEncryptionKt.awsKmsParams
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.envelopeEncryption
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.honestMajorityShareShuffle
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.trusTee
@@ -497,7 +497,7 @@ class RequisitionFulfillmentServiceTest {
           kmsKekUri = KMS_KEK_URI
           workloadIdentityProvider = WORKLOAD_IDENTITY_PROVIDER
           impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT
-          awsKmsConfig = awsKmsConfig {
+          awsKmsParams = awsKmsParams {
             roleArn = "arn:aws:iam::123456789012:role/my-role"
             roleSession = "my-session"
             region = "us-east-1"
@@ -549,8 +549,8 @@ class RequisitionFulfillmentServiceTest {
                   workloadIdentityProvider = WORKLOAD_IDENTITY_PROVIDER
                   impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT
                   populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
-                  awsKmsConfig =
-                    RequisitionDetailsKt.RequisitionProtocolKt.TrusTeeKt.awsKmsConfig {
+                  awsKmsParams =
+                    RequisitionDetailsKt.RequisitionProtocolKt.TrusTeeKt.awsKmsParams {
                       roleArn = "arn:aws:iam::123456789012:role/my-role"
                       roleSession = "my-session"
                       region = "us-east-1"

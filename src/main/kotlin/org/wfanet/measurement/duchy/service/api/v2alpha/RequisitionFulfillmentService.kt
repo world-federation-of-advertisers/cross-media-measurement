@@ -341,13 +341,13 @@ class RequisitionFulfillmentService(
               this.workloadIdentityProvider = envelopeEncryption.workloadIdentityProvider
               this.impersonatedServiceAccount = envelopeEncryption.impersonatedServiceAccount
               this.populationSpecFingerprint = populationSpecFingerprint
-              if (envelopeEncryption.hasAwsKmsConfig()) {
-                this.awsKmsConfig =
-                  RequisitionDetailsKt.RequisitionProtocolKt.TrusTeeKt.awsKmsConfig {
-                    roleArn = envelopeEncryption.awsKmsConfig.roleArn
-                    roleSession = envelopeEncryption.awsKmsConfig.roleSession
-                    region = envelopeEncryption.awsKmsConfig.region
-                    audience = envelopeEncryption.awsKmsConfig.audience
+              if (envelopeEncryption.hasAwsKmsParams()) {
+                this.awsKmsParams =
+                  RequisitionDetailsKt.RequisitionProtocolKt.TrusTeeKt.awsKmsParams {
+                    roleArn = envelopeEncryption.awsKmsParams.roleArn
+                    roleSession = envelopeEncryption.awsKmsParams.roleSession
+                    region = envelopeEncryption.awsKmsParams.region
+                    audience = envelopeEncryption.awsKmsParams.audience
                   }
               }
             }

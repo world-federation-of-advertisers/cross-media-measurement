@@ -58,9 +58,9 @@ message RequisitionDetails {
         // An encrypted frequency vector.
         ENCRYPTED_FREQUENCY_VECTOR = 2;
       }
-      // AWS-specific configuration for KMS. Set when AWS KMS is used.
+      // AWS-specific parameters for KMS. Set when AWS KMS is used.
       // If not set, GCP KMS is assumed.
-      message AwsKmsConfig {
+      message AwsKmsParams {
         // AWS IAM role ARN to assume via GCP identity federation.
         string role_arn = 1;
         // Identifier for the assumed AWS role session.
@@ -85,8 +85,8 @@ message RequisitionDetails {
       string impersonated_service_account = 4;
       // The FarmHash fingerprint of the PopulationSpec.
       int64 population_spec_fingerprint = 5;
-      // AWS KMS configuration. If set, AWS KMS is used; otherwise GCP KMS.
-      AwsKmsConfig aws_kms_config = 7;
+      // AWS KMS parameters. If set, AWS KMS is used; otherwise GCP KMS.
+      AwsKmsParams aws_kms_params = 7;
     }
 
     oneof protocol {

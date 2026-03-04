@@ -201,7 +201,7 @@ class InProcessEdpAggregatorComponents(
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
-            awsKmsConfig = null,
+            awsKmsParams = null,
           )
         },
       requisitionMetadataStub = requisitionMetadataClient,

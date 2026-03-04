@@ -195,8 +195,8 @@ class TrusTeeMill(
 
   private fun getKmsClient(protocol: RequisitionDetails.RequisitionProtocol.TrusTee): KmsClient {
     try {
-      return if (protocol.hasAwsKmsConfig()) {
-        val awsConfig = protocol.awsKmsConfig
+      return if (protocol.hasAwsKmsParams()) {
+        val awsConfig = protocol.awsKmsParams
         val credentials =
           GCloudToAwsWifCredentials(
             gcloudAudience = protocol.workloadIdentityProvider,
