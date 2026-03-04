@@ -83,11 +83,11 @@ jobs:
         echo "commit-age-days=${days_diff}" | tee -a "$GITHUB_OUTPUT"
 
     - name: Check commit age
-      if: ${{ steps.compute-commit-age.outputs.commit-age-days > 5 }}
-      uses: actions/github-script@v3
+      if: ${{ fromJSON(steps.compute-commit-age.outputs.commit-age-days) > 5 }}
+      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
       with:
         script: |
-          core.setFailed('This workflow cannot be run from a commit older than 5 days. Commit ${{ github.sha }} was commited ${{ steps.compute-commit-age.outputs.commit-age-days }} days ago')
+          core.setFailed('This workflow cannot be run from a commit older than 5 days. Commit ${{ github.sha }} was committed ${{ steps.compute-commit-age.outputs.commit-age-days }} days ago')
 
     - name: Write auth.bazelrc
       env:
