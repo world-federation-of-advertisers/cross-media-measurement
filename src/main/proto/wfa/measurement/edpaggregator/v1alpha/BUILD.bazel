@@ -121,7 +121,6 @@ proto_library(
     srcs = ["data_availability_sync_params.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
-        ":file_system_transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],
@@ -137,7 +136,6 @@ proto_library(
     srcs = ["event_group_sync_params.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
-        ":file_system_transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],

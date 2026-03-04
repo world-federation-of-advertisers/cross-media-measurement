@@ -18,46 +18,20 @@ package wfa.measurement.edpaggregator.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
-import "wfa/measurement/edpaggregator/v1alpha/file_system_transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "EventGroupSyncParamsProto";
 
 // Parameters for the Event Group Sync cloud function, passed over the wire
-// from the dispatcher.
+// from the dispatcher as a google.protobuf.Any.
+//
+// The remaining configuration (storage, TLS connections, blob URIs) is loaded
+// at startup from the EDPA config bucket.
 message EventGroupSyncParams {
-  // Storage details for event group data.
-  message StorageParams {
-    // The Google Cloud Storage project ID for the storage instance.
-    string gcs_project_id = 1;
-
-    // The GCS bucket name where event group data is stored.
-    string bucket_name = 2;
-  }
-
   // Resource name of the DataProvider.
   string data_provider = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
   ];
-
-  // The blob URI for the event groups stored in Mesos RecordIO. Deprecated.
-  // Provided via HTTP headers instead.
-  string event_groups_blob_uri = 2 [deprecated = true];
-
-  // The blob URI that contains MappedEventGroup(s) in Mesos RecordIO.
-  string event_group_map_blob_uri = 3 [(google.api.field_behavior) = OPTIONAL];
-
-  // TLS connection params for the CMMS Public API.
-  FileSystemTransportLayerSecurityParams cmms_connection = 4
-      [(google.api.field_behavior) = REQUIRED];
-
-  // Where the event groups are stored.
-  StorageParams event_group_storage = 5
-      [(google.api.field_behavior) = REQUIRED];
-
-  // Where the event group map is stored.
-  StorageParams event_group_map_storage = 6
-      [(google.api.field_behavior) = REQUIRED];
 }

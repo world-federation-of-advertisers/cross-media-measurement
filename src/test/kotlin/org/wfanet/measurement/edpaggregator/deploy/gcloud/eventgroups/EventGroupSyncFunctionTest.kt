@@ -17,11 +17,13 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
 
 import com.google.common.truth.Truth.assertThat
-import com.google.gson.JsonObject
-import com.google.gson.JsonParser as GsonJsonParser
+import com.google.protobuf.Any
 import com.google.protobuf.ByteString
+import com.google.protobuf.TextFormat
+import com.google.protobuf.TypeRegistry
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.timestamp
+import com.google.protobuf.util.JsonFormat
 import com.google.type.interval
 import io.netty.handler.ssl.ClientAuth
 import java.io.File
@@ -70,6 +72,7 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemStorage
 import org.wfanet.measurement.config.edpaggregator.eventGroupSyncConfig
+import org.wfanet.measurement.config.edpaggregator.eventGroupSyncConfigs
 import org.wfanet.measurement.config.edpaggregator.storageParams
 import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
@@ -78,9 +81,8 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.Met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
-import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParamsKt.storageParams as v1alphaStorageParams
+import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.eventGroupSyncParams
-import org.wfanet.measurement.edpaggregator.v1alpha.fileSystemTransportLayerSecurityParams
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -576,7 +578,7 @@ class EventGroupSyncFunctionTest() {
   }
 
   @Test
-  fun `sync registersUnregisteredEventGroups with v1alpha params`() {
+  fun `sync registersUnregisteredEventGroups with Any-wrapped v1alpha params`() {
     val newCampaign = eventGroup {
       eventGroupReferenceId = "reference-id-4"
       this.eventGroupMetadata = eventGroupMetadata {
@@ -595,112 +597,44 @@ class EventGroupSyncFunctionTest() {
       mediaTypes += listOf(MediaType.OTHER)
     }
     val testCampaigns = CAMPAIGNS + newCampaign
-    val params = eventGroupSyncParams {
-      dataProvider = "some-data-provider"
-      eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.binpb"
-      eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
-      cmmsConnection = fileSystemTransportLayerSecurityParams {
-        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+
+    // Write runtime config to the config bucket
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = eventGroupSyncConfigs {
+      configs += eventGroupSyncConfig {
+        dataProvider = "some-data-provider"
+        eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.binpb"
+        eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
+        this.cmmsConnection = transportLayerSecurityParams {
+          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        }
+        eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
+        eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
       }
-      eventGroupStorage = v1alphaStorageParams {}
-      eventGroupMapStorage = v1alphaStorageParams {}
     }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+
+    // Build the Any-wrapped params JSON
+    val params = eventGroupSyncParams { dataProvider = "some-data-provider" }
+    val any = Any.pack(params)
+    val anyTypeRegistry =
+      TypeRegistry.newBuilder().add(EventGroupSyncParams.getDescriptor()).build()
+    val anyJson = JsonFormat.printer().usingTypeRegistry(anyTypeRegistry).print(any)
+
     File("${tempFolder.root}/some/path").mkdirs()
     File("${tempFolder.root}/some/other/path").mkdirs()
-    val port = runBlocking { startFunction() }
-
-    val url = "http://localhost:$port"
-    logger.info("Testing Cloud Function at: $url")
-
-    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-
-    runBlocking {
-      MesosRecordIoStorageClient(storageClient)
-        .writeBlob(
-          "some/path/campaigns-blob-uri.binpb",
-          testCampaigns.map { it.toByteString() }.asFlow(),
-        )
-    }
-
-    val client = HttpClient.newHttpClient()
-    val getRequest =
-      HttpRequest.newBuilder()
-        .uri(URI.create(url))
-        .POST(HttpRequest.BodyPublishers.ofString(params.toJson()))
-        .build()
-    val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
-    logger.info("Response status: ${getResponse.statusCode()}")
-    logger.info("Response body: ${getResponse.body()}")
-
-    assertThat(getResponse.statusCode()).isEqualTo(200)
-
-    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
-    verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(any()) }
-    val mappedData = runBlocking {
-      MesosRecordIoStorageClient(storageClient)
-        .getBlob("some/other/path/event-groups-map-uri")!!
-        .read()
-        .map { MappedEventGroup.parseFrom(it) }
-        .toList()
-        .map { it.eventGroupReferenceId to it.eventGroupResource }
-    }
-    assertThat(mappedData)
-      .isEqualTo(
-        listOf(
-          "reference-id-1" to "dataProviders/data-provider-1/eventGroups/reference-id-1",
-          "reference-id-2" to "dataProviders/data-provider-2/eventGroups/reference-id-2",
-          "reference-id-3" to "dataProviders/data-provider-3/eventGroups/reference-id-3",
-          "reference-id-4" to "resource-name-for-reference-id-4",
+    val port = runBlocking {
+      startFunction(
+        mapOf(
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
         )
       )
-  }
-
-  @Test
-  fun `sync registersUnregisteredEventGroups with type_url wrapped v1alpha params`() {
-    val newCampaign = eventGroup {
-      eventGroupReferenceId = "reference-id-4"
-      this.eventGroupMetadata = eventGroupMetadata {
-        this.adMetadata = adMetadata {
-          this.campaignMetadata = campaignMetadata {
-            brand = "brand-2"
-            campaign = "campaign-2"
-          }
-        }
-      }
-      measurementConsumer = "measurementConsumers/measurement-consumer-2"
-      dataAvailabilityInterval = interval {
-        startTime = timestamp { seconds = 200 }
-        endTime = timestamp { seconds = 300 }
-      }
-      mediaTypes += listOf(MediaType.OTHER)
     }
-    val testCampaigns = CAMPAIGNS + newCampaign
-    val params = eventGroupSyncParams {
-      dataProvider = "some-data-provider"
-      eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.binpb"
-      eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
-      cmmsConnection = fileSystemTransportLayerSecurityParams {
-        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
-      }
-      eventGroupStorage = v1alphaStorageParams {}
-      eventGroupMapStorage = v1alphaStorageParams {}
-    }
-    val paramsJson = params.toJson()
-    val wrapper = JsonObject()
-    wrapper.addProperty(
-      "type_url",
-      "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams",
-    )
-    wrapper.add("value", GsonJsonParser.parseString(paramsJson))
-    val wrappedRequestBody = wrapper.toString()
-
-    File("${tempFolder.root}/some/path").mkdirs()
-    File("${tempFolder.root}/some/other/path").mkdirs()
-    val port = runBlocking { startFunction() }
 
     val url = "http://localhost:$port"
     logger.info("Testing Cloud Function at: $url")
@@ -719,7 +653,7 @@ class EventGroupSyncFunctionTest() {
     val getRequest =
       HttpRequest.newBuilder()
         .uri(URI.create(url))
-        .POST(HttpRequest.BodyPublishers.ofString(wrappedRequestBody))
+        .POST(HttpRequest.BodyPublishers.ofString(anyJson))
         .build()
     val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
     logger.info("Response status: ${getResponse.statusCode()}")

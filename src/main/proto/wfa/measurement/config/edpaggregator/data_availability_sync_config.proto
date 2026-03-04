@@ -65,3 +65,10 @@ message DataAvailabilitySyncConfig {
     repeated string model_lines = 1;
   }
 }
+
+// Wrapper containing Data Availability Sync configurations for all EDPs.
+// Loaded at startup from the EDPA config bucket.
+message DataAvailabilitySyncConfigs {
+  // All the per-EDP Data Availability Sync configs.
+  repeated DataAvailabilitySyncConfig configs = 1;
+}

@@ -16,117 +16,91 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability
 
-import com.google.gson.JsonParser
+import com.google.protobuf.Any
 import com.google.protobuf.InvalidProtocolBufferException
+import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.JsonFormat
 import java.util.logging.Logger
+import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
-import org.wfanet.measurement.config.edpaggregator.StorageParams
-import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
+import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 
 object DataAvailabilitySyncConfigParser {
   private val logger: Logger = Logger.getLogger("DataAvailabilitySyncConfigParser")
 
+  private val typeRegistry: TypeRegistry =
+    TypeRegistry.newBuilder()
+      .add(DataAvailabilitySyncParams.getDescriptor())
+      .add(DataAvailabilitySyncConfig.getDescriptor())
+      .build()
+
+  private val jsonParser: JsonFormat.Parser =
+    JsonFormat.parser().usingTypeRegistry(typeRegistry).ignoringUnknownFields()
+
+  private val configBlobKey: String by lazy {
+    System.getenv("CONFIG_BLOB_KEY")
+      ?: error("Environment variable CONFIG_BLOB_KEY must be set")
+  }
+
+  private val runtimeConfigs: DataAvailabilitySyncConfigs by lazy {
+    runBlocking {
+      EdpAggregatorConfig.getConfigAsProtoMessage(
+        configBlobKey,
+        DataAvailabilitySyncConfigs.getDefaultInstance(),
+      )
+    }
+  }
+
   /**
-   * Parses the request body using a `type_url` discriminator to determine the proto format.
+   * Parses the request body to produce a [DataAvailabilitySyncConfig].
    *
-   * If the JSON contains a `type_url` (or `typeUrl`) field, the `value` field is parsed as the
-   * proto type indicated by the URL suffix:
-   * - `DataAvailabilitySyncParams` -> v1alpha params, converted to config
-   * - `DataAvailabilitySyncConfig` -> config directly
-   *
-   * If no `type_url` is present, the entire request body is parsed as
-   * [DataAvailabilitySyncConfig] for backwards compatibility.
+   * Supports three formats:
+   * 1. **`google.protobuf.Any` wrapping [DataAvailabilitySyncParams]**: The `@type` field
+   *    identifies the params proto. The `data_provider` field is used to look up the full
+   *    per-EDP config from the runtime configs loaded at startup.
+   * 2. **`google.protobuf.Any` wrapping [DataAvailabilitySyncConfig]**: The config is unpacked
+   *    directly.
+   * 3. **Legacy format**: The entire request body is parsed as [DataAvailabilitySyncConfig]
+   *    directly (no `@type` field). This is the backwards-compatible path.
    *
    * @param requestBody JSON string from the HTTP request body
    * @return [DataAvailabilitySyncConfig] parsed from the appropriate format
    */
   fun parseDataAvailabilitySyncConfig(requestBody: String): DataAvailabilitySyncConfig {
-    val jsonObject = JsonParser.parseString(requestBody).asJsonObject
-    val typeUrl = jsonObject.get("type_url")?.asString ?: jsonObject.get("typeUrl")?.asString
-
-    if (typeUrl != null) {
-      val valueElement =
-        jsonObject.get("value")
-          ?: throw InvalidProtocolBufferException("Missing 'value' field")
-      val valueJson = valueElement.toString()
+    try {
+      val any =
+        Any.newBuilder().apply { jsonParser.merge(requestBody, this) }.build()
 
       return when {
-        typeUrl.endsWith("DataAvailabilitySyncParams") -> {
-          logger.info("Parsed request body as DataAvailabilitySyncParams (v1alpha) via type_url")
-          val params =
-            DataAvailabilitySyncParams.newBuilder()
-              .apply { JsonFormat.parser().ignoringUnknownFields().merge(valueJson, this) }
-              .build()
-          convertToConfig(params)
+        any.`is`(DataAvailabilitySyncParams::class.java) -> {
+          val params = any.unpack(DataAvailabilitySyncParams::class.java)
+          logger.info("Parsed request body as DataAvailabilitySyncParams (v1alpha) via @type")
+          lookupConfig(params.dataProvider)
         }
-        typeUrl.endsWith("DataAvailabilitySyncConfig") -> {
-          logger.info("Parsed request body as DataAvailabilitySyncConfig via type_url")
-          DataAvailabilitySyncConfig.newBuilder()
-            .apply { JsonFormat.parser().ignoringUnknownFields().merge(valueJson, this) }
-            .build()
+        any.`is`(DataAvailabilitySyncConfig::class.java) -> {
+          logger.info("Parsed request body as DataAvailabilitySyncConfig via @type")
+          any.unpack(DataAvailabilitySyncConfig::class.java)
         }
-        else -> throw InvalidProtocolBufferException("Unknown type_url: $typeUrl")
+        else -> throw InvalidProtocolBufferException("Unknown @type: ${any.typeUrl}")
       }
+    } catch (e: InvalidProtocolBufferException) {
+      logger.info("No @type found, parsing as DataAvailabilitySyncConfig (legacy)")
+      return DataAvailabilitySyncConfig.newBuilder()
+        .apply { JsonFormat.parser().ignoringUnknownFields().merge(requestBody, this) }
+        .build()
     }
-
-    logger.info("No type_url found, parsing as DataAvailabilitySyncConfig (legacy)")
-    return DataAvailabilitySyncConfig.newBuilder()
-      .apply { JsonFormat.parser().ignoringUnknownFields().merge(requestBody, this) }
-      .build()
   }
 
   /**
-   * Converts a [DataAvailabilitySyncParams] to a [DataAvailabilitySyncConfig].
+   * Looks up a [DataAvailabilitySyncConfig] by data provider name from the runtime configs.
    *
-   * @param params v1alpha params to convert
-   * @return [DataAvailabilitySyncConfig] with equivalent field values
+   * @param dataProvider resource name of the data provider
+   * @return the matching [DataAvailabilitySyncConfig]
+   * @throws NoSuchElementException if no config is found for the given data provider
    */
-  private fun convertToConfig(params: DataAvailabilitySyncParams): DataAvailabilitySyncConfig {
-    return DataAvailabilitySyncConfig.newBuilder()
-      .apply {
-        dataProvider = params.dataProvider
-        dataAvailabilityStorage =
-          StorageParams.newBuilder()
-            .apply {
-              gcs =
-                StorageParams.GcsStorage.newBuilder()
-                  .apply {
-                    projectId = params.dataAvailabilityStorage.gcsProjectId
-                    bucketName = params.dataAvailabilityStorage.bucketName
-                  }
-                  .build()
-            }
-            .build()
-        cmmsConnection =
-          TransportLayerSecurityParams.newBuilder()
-            .apply {
-              certFilePath = params.cmmsConnection.certFilePath
-              privateKeyFilePath = params.cmmsConnection.privateKeyFilePath
-              certCollectionFilePath = params.cmmsConnection.certCollectionFilePath
-            }
-            .build()
-        impressionMetadataStorageConnection =
-          TransportLayerSecurityParams.newBuilder()
-            .apply {
-              certFilePath = params.impressionMetadataStorageConnection.certFilePath
-              privateKeyFilePath =
-                params.impressionMetadataStorageConnection.privateKeyFilePath
-              certCollectionFilePath =
-                params.impressionMetadataStorageConnection.certCollectionFilePath
-            }
-            .build()
-        edpImpressionPath = params.edpImpressionPath
-        params.modelLineMapMap.forEach { (key, value) ->
-          putModelLineMap(
-            key,
-            DataAvailabilitySyncConfig.ModelLineList.newBuilder()
-              .addAllModelLines(value.modelLinesList)
-              .build(),
-          )
-        }
-      }
-      .build()
+  private fun lookupConfig(dataProvider: String): DataAvailabilitySyncConfig {
+    return runtimeConfigs.configsList.first { it.dataProvider == dataProvider }
   }
 }

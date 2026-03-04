@@ -18,61 +18,20 @@ package wfa.measurement.edpaggregator.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
-import "wfa/measurement/edpaggregator/v1alpha/file_system_transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "DataAvailabilitySyncParamsProto";
 
 // Parameters for the Data Availability Sync cloud function, passed over the
-// wire from the dispatcher.
+// wire from the dispatcher as a google.protobuf.Any.
+//
+// The remaining configuration (storage, TLS connections, model line mapping)
+// is loaded at startup from the EDPA config bucket.
 message DataAvailabilitySyncParams {
-  // Storage details for data availability output.
-  message StorageParams {
-    // The Google Cloud Storage project ID for the storage instance.
-    string gcs_project_id = 1;
-
-    // The GCS bucket name where data availability records are stored.
-    string bucket_name = 2;
-  }
-
   // Resource name of the DataProvider.
   string data_provider = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
   ];
-
-  // Where the impressions are stored.
-  StorageParams data_availability_storage = 2
-      [(google.api.field_behavior) = REQUIRED];
-
-  // TLS connection params for the CMMS Public API.
-  FileSystemTransportLayerSecurityParams cmms_connection = 3
-      [(google.api.field_behavior) = REQUIRED];
-
-  // TLS connection params for the ImpressionMetadataStorage Public API.
-  FileSystemTransportLayerSecurityParams impression_metadata_storage_connection =
-      4 [(google.api.field_behavior) = REQUIRED];
-
-  // Path where an EDP uploads their impressions.
-  string edp_impression_path = 5 [(google.api.field_behavior) = OPTIONAL];
-
-  // Mapping from an internal EDPA model line to one or more external model
-  // lines to apply the same availability interval to.
-  //
-  // This is the inverse of the results fulfiller mapping:
-  // - Results fulfiller: external (requisition) model line -> internal (EDPA)
-  // model line
-  // - Data availability: internal (EDPA) model line -> external model lines
-  //
-  // Use this to keep external model line availability in sync when names
-  // change, when multiple external model lines should map to a single internal
-  // model line, or when a deleted external model line should point at a
-  // replacement model line that the kingdom recognizes.
-  map<string, ModelLineList> model_line_map = 6;
-
-  // List of model lines to use for a single mapping entry.
-  message ModelLineList {
-    repeated string model_lines = 1;
-  }
 }
