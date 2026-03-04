@@ -21,6 +21,13 @@ ALTER TABLE ImpressionMetadata ADD COLUMN RawImpressionUploadId INT64;
 ALTER TABLE ImpressionMetadata ADD COLUMN RawImpressionBatchIndex INT64;
 ALTER TABLE ImpressionMetadata ADD COLUMN RawImpressionFileId INT64;
 
+ALTER TABLE ImpressionMetadata ADD CONSTRAINT CK_ImpressionMetadata_RawImpression_AllOrNone
+  CHECK (
+    (RawImpressionUploadId IS NULL AND RawImpressionBatchIndex IS NULL AND RawImpressionFileId IS NULL)
+    OR
+    (RawImpressionUploadId IS NOT NULL AND RawImpressionBatchIndex IS NOT NULL AND RawImpressionFileId IS NOT NULL)
+  );
+
 ALTER TABLE ImpressionMetadata ADD CONSTRAINT FK_ImpressionMetadata_RawImpressionMetadata
   FOREIGN KEY (DataProviderResourceId, RawImpressionUploadId, RawImpressionBatchIndex, RawImpressionFileId)
   REFERENCES RawImpressionMetadata(DataProviderResourceId, UploadId, BatchIndex, FileId);
