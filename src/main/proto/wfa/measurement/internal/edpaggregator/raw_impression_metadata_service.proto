@@ -141,7 +141,7 @@ message SetBatchStateRequest {
 }
 
 message SetBatchStateResponse {
-  int32 updated_count = 1;
+  repeated RawImpressionMetadata raw_impression_metadata = 1;
 }
 
 message ListBatchesRequest {
@@ -154,6 +154,11 @@ message ListBatchesRequest {
   // 100; values above this will be coerced to the maximum value.
   int32 page_size = 3;
   ListBatchesPageToken page_token = 4;
+
+  message Filter {
+    RawImpressionBatchState batch_state = 1;
+  }
+  Filter filter = 5;
 }
 
 message ListBatchesResponse {
