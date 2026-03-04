@@ -169,84 +169,73 @@ watched_paths {
     endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/event-group-sync"
     app_params {
       fields {
-        key: "type_url"
-        value { string_value: "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams" }
+        key: "dataProvider"
+        value { string_value: "dataProviders/T5RryPMNong" }
       }
       fields {
-        key: "value"
+        key: "eventGroupsBlobUri"
+        value { string_value: "gs://secure-computation-storage-dev-bucket/edp7/event-groups/edp7-event-group.pb" }
+      }
+      fields {
+        key: "eventGroupMapBlobUri"
+        value { string_value: "gs://secure-computation-storage-dev-bucket/edp7/event-groups-map/edp7-event-group.pb" }
+      }
+      fields {
+        key: "cmmsConnection"
         value {
           struct_value {
             fields {
-              key: "dataProvider"
-              value { string_value: "dataProviders/T5RryPMNong" }
+              key: "certFilePath"
+              value { string_value: "/secrets/cert/edp7_tls.pem" }
             }
             fields {
-              key: "eventGroupsBlobUri"
-              value { string_value: "gs://secure-computation-storage-dev-bucket/edp7/event-groups/edp7-event-group.pb" }
+              key: "privateKeyFilePath"
+              value { string_value: "/secrets/key/edp7_tls.key" }
             }
             fields {
-              key: "eventGroupMapBlobUri"
-              value { string_value: "gs://secure-computation-storage-dev-bucket/edp7/event-groups-map/edp7-event-group.pb" }
+              key: "certCollectionFilePath"
+              value { string_value: "/secrets/ca/kingdom_root.pem" }
             }
+          }
+        }
+      }
+      fields {
+        key: "eventGroupStorage"
+        value {
+          struct_value {
             fields {
-              key: "cmmsConnection"
+              key: "gcs"
               value {
                 struct_value {
                   fields {
-                    key: "certFilePath"
-                    value { string_value: "/secrets/cert/edp7_tls.pem" }
+                    key: "projectId"
+                    value { string_value: "halo-cmm-dev" }
                   }
                   fields {
-                    key: "privateKeyFilePath"
-                    value { string_value: "/secrets/key/edp7_tls.key" }
-                  }
-                  fields {
-                    key: "certCollectionFilePath"
-                    value { string_value: "/secrets/ca/kingdom_root.pem" }
+                    key: "bucketName"
+                    value { string_value: "secure-computation-storage-dev-bucket" }
                   }
                 }
               }
             }
+          }
+        }
+      }
+      fields {
+        key: "eventGroupMapStorage"
+        value {
+          struct_value {
             fields {
-              key: "eventGroupStorage"
+              key: "gcs"
               value {
                 struct_value {
                   fields {
-                    key: "gcs"
-                    value {
-                      struct_value {
-                        fields {
-                          key: "projectId"
-                          value { string_value: "halo-cmm-dev" }
-                        }
-                        fields {
-                          key: "bucketName"
-                          value { string_value: "secure-computation-storage-dev-bucket" }
-                        }
-                      }
-                    }
+                    key: "projectId"
+                    value { string_value: "halo-cmm-dev" }
                   }
-                }
-              }
-            }
-            fields {
-              key: "eventGroupMapStorage"
-              value {
-                struct_value {
                   fields {
-                    key: "gcs"
-                    value {
-                      struct_value {
-                        fields {
-                          key: "projectId"
-                          value { string_value: "halo-cmm-dev" }
-                        }
-                        fields {
-                          key: "bucketName"
-                          value { string_value: "secure-computation-storage-dev-bucket" }
-                        }
-                      }
-                    }
+                    key: "bucketName"
+                    value { string_value: "secure-computation-storage-dev-bucket" }
                   }
                 }
               }
@@ -293,76 +282,65 @@ watched_paths {
     endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/data-availability-sync"
     app_params {
       fields {
-        key: "type_url"
-        value { string_value: "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams" }
+        key: "dataProvider"
+        value { string_value: "dataProviders/T5RryPMNong" }
       }
       fields {
-        key: "value"
+        key: "dataAvailabilityStorage"
         value {
           struct_value {
             fields {
-              key: "dataProvider"
-              value { string_value: "dataProviders/T5RryPMNong" }
-            }
-            fields {
-              key: "dataAvailabilityStorage"
+              key: "gcs"
               value {
                 struct_value {
                   fields {
-                    key: "gcs"
-                    value {
-                      struct_value {
-                        fields {
-                          key: "projectId"
-                          value { string_value: "halo-cmm-dev" }
-                        }
-                        fields {
-                          key: "bucketName"
-                          value { string_value: "secure-computation-storage-dev-bucket" }
-                        }
-                      }
-                    }
+                    key: "projectId"
+                    value { string_value: "halo-cmm-dev" }
+                  }
+                  fields {
+                    key: "bucketName"
+                    value { string_value: "secure-computation-storage-dev-bucket" }
                   }
                 }
               }
             }
+          }
+        }
+      }
+      fields {
+        key: "cmmsConnection"
+        value {
+          struct_value {
             fields {
-              key: "cmmsConnection"
-              value {
-                struct_value {
-                  fields {
-                    key: "certFilePath"
-                    value { string_value: "/secrets/cert/edp7_tls.pem" }
-                  }
-                  fields {
-                    key: "privateKeyFilePath"
-                    value { string_value: "/secrets/key/edp7_tls.key" }
-                  }
-                  fields {
-                    key: "certCollectionFilePath"
-                    value { string_value: "/secrets/ca/kingdom_root.pem" }
-                  }
-                }
-              }
+              key: "certFilePath"
+              value { string_value: "/secrets/cert/edp7_tls.pem" }
             }
             fields {
-              key: "impressionMetadataStorageConnection"
-              value {
-                struct_value {
-                  fields {
-                    key: "certFilePath"
-                    value { string_value: "/secrets/cert/data_availability/data_availability_tls.pem" }
-                  }
-                  fields {
-                    key: "privateKeyFilePath"
-                    value { string_value: "/secrets/key/data_availability/data_availability_tls.key" }
-                  }
-                  fields {
-                    key: "certCollectionFilePath"
-                    value { string_value: "/secrets/ca/metadata_storage/edp_aggregator_root.pem" }
-                  }
-                }
-              }
+              key: "privateKeyFilePath"
+              value { string_value: "/secrets/key/edp7_tls.key" }
+            }
+            fields {
+              key: "certCollectionFilePath"
+              value { string_value: "/secrets/ca/kingdom_root.pem" }
+            }
+          }
+        }
+      }
+      fields {
+        key: "impressionMetadataStorageConnection"
+        value {
+          struct_value {
+            fields {
+              key: "certFilePath"
+              value { string_value: "/secrets/cert/data_availability/data_availability_tls.pem" }
+            }
+            fields {
+              key: "privateKeyFilePath"
+              value { string_value: "/secrets/key/data_availability/data_availability_tls.key" }
+            }
+            fields {
+              key: "certCollectionFilePath"
+              value { string_value: "/secrets/ca/metadata_storage/edp_aggregator_root.pem" }
             }
           }
         }
@@ -385,9 +363,9 @@ This configuration is passed from the **DataWatcher** to the **EventGroupSync** 
 The **`http_endpoint_sink`** block defines the target function to invoke and the parameters required for synchronization.
 
 * **endpoint_uri:**  The URL of the Cloud Function to be invoked, here pointing to the deployed **`event-group-sync`** function.
-* **app_params**: A structured set of parameters passed to the invoked function. The `app_params` uses a `type_url` + `value` wrapper to indicate the proto format. The `type_url` field specifies the proto type (e.g., `type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams`), and the `value` field contains the actual parameters conforming to that [proto message definition](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/proto/wfa/measurement/edpaggregator/v1alpha/event_group_sync_params.proto). These parameters include all the information EventGroupSync needs to connect to CMMS and access Cloud Storage resources.
+* **app_params**: A structured set of parameters passed to the invoked function, that conforms to this [proto message definition](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/proto/wfa/measurement/config/edpaggregator/event_group_sync_config.proto). These parameters include all the information EventGroupSync needs to connect to CMMS and access Cloud Storage resources.
 
-Within the **`value`** field of **app_params**, the key fields are:
+Within **app_params**, the key fields are:
 
 * **dataProvider**: The CMMS data provider identifier associated with this EDP.
 * **eventGroupsBlobUri**: The URI of the Event Group protobuf file stored in the EDP Aggregator Storage bucket.
