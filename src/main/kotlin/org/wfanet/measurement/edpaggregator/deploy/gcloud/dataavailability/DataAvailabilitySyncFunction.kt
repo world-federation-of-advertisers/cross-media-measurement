@@ -94,7 +94,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     try {
       logger.fine("Starting DataAvailabilitySyncFunction")
       val requestBody = request.reader.readText()
-      val dataAvailabilitySyncConfig = DataAvailabilitySyncUtils.parseDataAvailabilitySyncConfig(requestBody)
+      val dataAvailabilitySyncConfig = DataAvailabilitySyncConfigParser.parseDataAvailabilitySyncConfig(requestBody)
 
       // Read the path as request header
       val doneBlobPath =

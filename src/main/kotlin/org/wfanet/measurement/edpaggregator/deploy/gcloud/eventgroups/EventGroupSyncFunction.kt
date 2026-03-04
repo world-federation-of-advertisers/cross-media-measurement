@@ -64,7 +64,7 @@ class EventGroupSyncFunction() : HttpFunction {
     logger.fine("Value of DATA_WATCHER_PATH_HEADER: $dataWatcherPath")
     try {
       val requestBody = request.reader.readText()
-      val eventGroupSyncConfig = EventGroupSyncUtils.parseEventGroupSyncConfig(requestBody)
+      val eventGroupSyncConfig = EventGroupSyncConfigParser.parseEventGroupSyncConfig(requestBody)
 
       runBlocking {
         Tracing.traceSuspending(

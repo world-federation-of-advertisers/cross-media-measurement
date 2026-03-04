@@ -25,8 +25,8 @@ import org.wfanet.measurement.config.edpaggregator.StorageParams
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 
-object EventGroupSyncUtils {
-  private val logger: Logger = Logger.getLogger("EventGroupSyncUtils")
+object EventGroupSyncConfigParser {
+  private val logger: Logger = Logger.getLogger("EventGroupSyncConfigParser")
 
   /**
    * Parses the request body using a `type_url` discriminator to determine the proto format.

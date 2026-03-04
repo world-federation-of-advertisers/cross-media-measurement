@@ -25,8 +25,8 @@ import org.wfanet.measurement.config.edpaggregator.StorageParams
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 
-object DataAvailabilitySyncUtils {
-  private val logger: Logger = Logger.getLogger("DataAvailabilitySyncUtils")
+object DataAvailabilitySyncConfigParser {
+  private val logger: Logger = Logger.getLogger("DataAvailabilitySyncConfigParser")
 
   /**
    * Parses the request body using a `type_url` discriminator to determine the proto format.
