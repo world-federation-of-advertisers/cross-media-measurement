@@ -1,0 +1,192 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/annotations.proto";
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
+import "google/api/resource.proto";
+import "wfa/measurement/edpaggregator/v1alpha/raw_impression_metadata.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RawImpressionMetadataServiceProto";
+
+// Service for managing RawImpressionMetadata.
+service RawImpressionMetadataService {
+  // Creates a new RawImpressionMetadata entry for a single file.
+  rpc CreateRawImpressionMetadata(CreateRawImpressionMetadataRequest)
+      returns (RawImpressionMetadata) {}
+
+  // Creates multiple RawImpressionMetadata entries in a single request.
+  rpc BatchCreateRawImpressionMetadata(BatchCreateRawImpressionMetadataRequest)
+      returns (BatchCreateRawImpressionMetadataResponse) {}
+
+  // Retrieves a specific RawImpressionMetadata entry.
+  rpc GetRawImpressionMetadata(GetRawImpressionMetadataRequest)
+      returns (RawImpressionMetadata) {}
+
+  // Lists RawImpressionMetadata entries.
+  //
+  // Supports listing files within a specific batch, or across all batches in
+  // a RawImpressionUpload by using a `-` wildcard for the batch segment.
+  rpc ListRawImpressionMetadata(ListRawImpressionMetadataRequest)
+      returns (ListRawImpressionMetadataResponse) {}
+
+  // Sets the batch processing state for all files in a batch.
+  rpc SetBatchState(SetBatchStateRequest) returns (SetBatchStateResponse) {}
+}
+
+// Request message for the `CreateRawImpressionMetadata` method.
+message CreateRawImpressionMetadataRequest {
+  // The parent batch resource name.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/batches/{batch}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionMetadata"
+    }
+  ];
+
+  // The RawImpressionMetadata to create.
+  // The `name` and output-only fields are ignored.
+  RawImpressionMetadata raw_impression_metadata = 2
+      [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure idempotency.
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 10 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for the `BatchCreateRawImpressionMetadata` method.
+// (-- api-linter: core::0233::request-requests-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata" to
+//     "Metadatum".  --)
+message BatchCreateRawImpressionMetadataRequest {
+  // The parent batch resource name.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/batches/{batch}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionMetadata"
+    }
+  ];
+
+  // The list of RawImpressionMetadata to create.
+  repeated CreateRawImpressionMetadataRequest requests = 2
+      [(google.api.field_behavior) = REQUIRED];
+}
+
+// Response message for the `BatchCreateRawImpressionMetadata` method.
+// (-- api-linter: core::0233::response-resource-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata" to
+//     "Metadatum".  --)
+message BatchCreateRawImpressionMetadataResponse {
+  // The list of newly created RawImpressionMetadata, in the same order as the
+  // request.
+  repeated RawImpressionMetadata raw_impression_metadata = 1;
+}
+
+// Request message for the `GetRawImpressionMetadata` method.
+message GetRawImpressionMetadataRequest {
+  // The resource name of the RawImpressionMetadata to retrieve.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/batches/{batch}/files/{file}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionMetadata"
+    }
+  ];
+}
+
+// Request message for the `ListRawImpressionMetadata` method.
+// (-- api-linter: core::0132::request-field-types=disabled
+//     aip.dev/not-precedent: Using a customized message for the filter.
+//     --)
+message ListRawImpressionMetadataRequest {
+  // The parent resource name.
+  //
+  // Supported formats:
+  // - Batch:
+  //   `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/batches/{batch}`
+  //   Lists files in a specific batch.
+  // - Upload (wildcard):
+  //   `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/batches/-`
+  //   Lists files across all batches in the upload.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionMetadata"
+    }
+  ];
+
+  // The maximum number of results to return.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // A page token, received from a previous call.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // Optional. A filter to apply to the results.
+  // All fields are combined with `AND` logic.
+  Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
+
+  // Filter for `ListRawImpressionMetadata` method.
+  message Filter {
+    // The batch processing state to filter by.
+    RawImpressionMetadata.BatchState batch_state = 1
+        [(google.api.field_behavior) = OPTIONAL];
+  }
+
+  // A flag indicating whether to include soft DELETED entries.
+  bool show_deleted = 5 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Response message for the `ListRawImpressionMetadata` method.
+message ListRawImpressionMetadataResponse {
+  // A list of `RawImpressionMetadata` entries matching the request.
+  repeated RawImpressionMetadata raw_impression_metadata = 1;
+
+  // A token to retrieve the next page of results.
+  // If this field is omitted, there are no subsequent pages.
+  string next_page_token = 2;
+}
+
+// Request message for the `SetBatchState` method.
+message SetBatchStateRequest {
+  // The batch resource path to update.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/batches/{batch}`
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // The batch processing state to set for all files in the batch.
+  RawImpressionMetadata.BatchState batch_state = 2
+      [(google.api.field_behavior) = REQUIRED];
+}
+
+// Response message for the `SetBatchState` method.
+message SetBatchStateResponse {
+  // The list of updated RawImpressionMetadata entries in the batch.
+  repeated RawImpressionMetadata raw_impression_metadata = 1;
+}
