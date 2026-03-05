@@ -38,7 +38,7 @@ object DataAvailabilitySyncConfigParser {
       .build()
 
   private val jsonParser: JsonFormat.Parser =
-    JsonFormat.parser().usingTypeRegistry(typeRegistry)
+    JsonFormat.parser().ignoringUnknownFields().usingTypeRegistry(typeRegistry)
 
   private val configBlobKey: String by lazy {
     System.getenv("CONFIG_BLOB_KEY")
@@ -112,6 +112,6 @@ object DataAvailabilitySyncConfigParser {
    * @throws NoSuchElementException if no config is found for the given data provider
    */
   private fun lookupConfig(dataProvider: String): DataAvailabilitySyncConfig {
-    return runtimeConfigs.configsList.first { it.dataProvider == dataProvider }
+    return runtimeConfigs.configsList.single { it.dataProvider == dataProvider }
   }
 }
