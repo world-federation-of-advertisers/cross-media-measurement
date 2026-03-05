@@ -75,7 +75,8 @@ class EventGroupsService(
         "EventGroup name is either unspecified or invalid"
       }
 
-    val measurementConsumerName = MeasurementConsumerKey(eventGroupKey.measurementConsumerId).toName()
+    val measurementConsumerName =
+      MeasurementConsumerKey(eventGroupKey.cmmsMeasurementConsumerId).toName()
     authorization.check(measurementConsumerName, GET_EVENT_GROUP_PERMISSIONS)
 
     val measurementConsumerConfig =
@@ -89,9 +90,8 @@ class EventGroupsService(
 
     val cmmsEventGroupKey =
       CmmsEventGroupKey(
-        measurementConsumerId = eventGroupKey.measurementConsumerId,
         dataProviderId = "-",
-        eventGroupId = eventGroupKey.eventGroupId,
+        eventGroupId = eventGroupKey.cmmsEventGroupId,
       )
 
     val cmmsEventGroup =
