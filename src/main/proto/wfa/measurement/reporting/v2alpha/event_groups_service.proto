@@ -32,6 +32,14 @@ option go_package = "github.com/world-federation-of-advertisers/cross-media-meas
 
 // Service for interacting with `EventGroup` resources.
 service EventGroups {
+  // Returns the `EventGroup` with the specified resource name.
+  rpc GetEventGroup(GetEventGroupRequest) returns (EventGroup) {
+    option (google.api.http) = {
+      get: "/v2alpha/{name=measurementConsumers/*/eventGroups/*}"
+    };
+    option (google.api.method_signature) = "name";
+  }
+
   // Lists `EventGroup`s. Results in a `PERMISSION_DENIED` error if attempting
   // to list `EventGroup`s that the authenticated user does not have access to.
   rpc ListEventGroups(ListEventGroupsRequest)
@@ -41,6 +49,18 @@ service EventGroups {
     };
     option (google.api.method_signature) = "parent";
   }
+}
+
+// Request message for `GetEventGroup` method.
+message GetEventGroupRequest {
+  // The name of the `EventGroup` to retrieve.
+  // Format: measurementConsumers/{measurement_consumer}/eventGroups/{event_group}
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/EventGroup"
+    }
+  ];
 }
 
 // Request message for `ListEventGroups` method.
