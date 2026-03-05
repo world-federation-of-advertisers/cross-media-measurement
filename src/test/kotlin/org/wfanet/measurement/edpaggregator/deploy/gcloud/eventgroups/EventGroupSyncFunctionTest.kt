@@ -47,6 +47,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineImplBase
@@ -614,6 +615,18 @@ class EventGroupSyncFunctionTest() {
         eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
         eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
       }
+      configs += eventGroupSyncConfig {
+        dataProvider = "other-data-provider"
+        eventGroupsBlobUri = "file:///other/path/campaigns-blob-uri.binpb"
+        eventGroupMapBlobUri = "file:///other/path/event-groups-map-uri"
+        this.cmmsConnection = transportLayerSecurityParams {
+          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        }
+        eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
+        eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
+      }
     }
     File(configBucketDir, "config.textproto")
       .writeText(TextFormat.printer().printToString(runtimeConfig))
@@ -661,7 +674,11 @@ class EventGroupSyncFunctionTest() {
 
     assertThat(getResponse.statusCode()).isEqualTo(200)
 
-    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
+    val createCaptor = argumentCaptor<CreateEventGroupRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) {
+      createEventGroup(createCaptor.capture())
+    }
+    assertThat(createCaptor.firstValue.parent).isEqualTo("some-data-provider")
     verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(any()) }
     val mappedData = runBlocking {
       MesosRecordIoStorageClient(storageClient)

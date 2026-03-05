@@ -197,6 +197,16 @@ class DataAvailabilitySyncFunctionTest {
     }
 
     val dataAvailabilitySyncConfig = fileSystemDataAvailabilitySyncConfig()
+
+    // Write runtime config to the config bucket
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = dataAvailabilitySyncConfigs {
+      configs += dataAvailabilitySyncConfig
+    }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+
     File("${tempFolder.root}/edp/edp_name/timestamp").mkdirs()
     val port = runBlocking {
       functionProcess.start(
@@ -206,6 +216,8 @@ class DataAvailabilitySyncFunctionTest {
           "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
           "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
           "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
           "OTEL_METRICS_EXPORTER" to "none",
           "OTEL_TRACES_EXPORTER" to "none",
           "OTEL_LOGS_EXPORTER" to "none",
@@ -262,6 +274,16 @@ class DataAvailabilitySyncFunctionTest {
     }
 
     val dataAvailabilitySyncConfig = fileSystemDataAvailabilitySyncConfig()
+
+    // Write runtime config to the config bucket
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = dataAvailabilitySyncConfigs {
+      configs += dataAvailabilitySyncConfig
+    }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+
     File("${tempFolder.root}/edp/edp_name/timestamp").mkdirs()
     val port = runBlocking {
       functionProcess.start(
@@ -271,6 +293,8 @@ class DataAvailabilitySyncFunctionTest {
           "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
           "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
           "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
           "OTEL_METRICS_EXPORTER" to "none",
           "OTEL_TRACES_EXPORTER" to "none",
           "OTEL_LOGS_EXPORTER" to "none",
@@ -301,7 +325,12 @@ class DataAvailabilitySyncFunctionTest {
     logger.info("Trace propagation response status: ${response.statusCode()}")
     logger.info("Trace propagation response body: ${response.body()}")
 
-    verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+    val requestCaptor = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
+    verifyBlocking(dataProvidersServiceMock, times(1)) {
+      replaceDataAvailabilityIntervals(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
+      .contains("some-model-line-mapped")
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
 
@@ -400,6 +429,56 @@ class DataAvailabilitySyncFunctionTest {
       .contains("some-model-line-mapped")
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
+  }
+
+  @Test
+  fun `sync returns error for Any-wrapped params with invalid data provider`() {
+    // Write runtime config to the config bucket
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = dataAvailabilitySyncConfigs {
+      configs += fileSystemDataAvailabilitySyncConfig()
+    }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+
+    // Build Any-wrapped params with a data provider that doesn't match any config
+    val params = dataAvailabilitySyncParams { dataProvider = "dataProviders/nonexistent" }
+    val any = Any.pack(params)
+    val anyTypeRegistry =
+      TypeRegistry.newBuilder().add(DataAvailabilitySyncParams.getDescriptor()).build()
+    val anyJson = JsonFormat.printer().usingTypeRegistry(anyTypeRegistry).print(any)
+
+    val port = runBlocking {
+      functionProcess.start(
+        mapOf(
+          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+          "KINGDOM_CERT_HOST" to "localhost",
+          "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
+          "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
+          "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+          "OTEL_METRICS_EXPORTER" to "none",
+          "OTEL_TRACES_EXPORTER" to "none",
+          "OTEL_LOGS_EXPORTER" to "none",
+          "OTEL_PROPAGATORS" to "tracecontext,baggage",
+        )
+      )
+    }
+
+    val client = HttpClient.newHttpClient()
+    val request =
+      HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:$port"))
+        .POST(HttpRequest.BodyPublishers.ofString(anyJson))
+        .build()
+    val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+
+    assertThat(response.statusCode()).isEqualTo(500)
+    verifyBlocking(dataProvidersServiceMock, times(0)) {
+      replaceDataAvailabilityIntervals(any())
+    }
   }
 
   private fun fileSystemDataAvailabilitySyncConfig(): DataAvailabilitySyncConfig =
