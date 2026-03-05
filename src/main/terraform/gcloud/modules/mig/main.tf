@@ -21,7 +21,6 @@ locals {
       "tee-signed-image-repos" = var.tee_signed_image_repo
       "tee-image-reference"    = var.docker_image
       "tee-cmd"                = jsonencode(var.tee_cmd)
-      tee-container-log-redirect = "true"
 
       "google-logging-enabled"     = "true"
       "google-monitoring-enabled"  = "true"
