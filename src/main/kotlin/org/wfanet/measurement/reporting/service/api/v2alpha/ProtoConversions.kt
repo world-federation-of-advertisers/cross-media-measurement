@@ -681,7 +681,14 @@ private fun Measurement.Result.Frequency.toInternal(
   return InternalMeasurementKt.ResultKt.frequency {
     relativeFrequencyDistribution.putAll(source.relativeFrequencyDistributionMap)
 
-    if (protocolConfig.protocolsList.any { it.hasDirect() }) {
+    if (protocolConfig.protocolsList.any { it.hasTrusTee() }) {
+      val cmmsProtocol = protocolConfig.protocolsList.first { it.hasTrusTee() }.trusTee
+      noiseMechanism = cmmsProtocol.noiseMechanism.toInternal()
+      // TrusTee uses DeterministicMethodology for variance computation. Unlike HMSS, TrusTee
+      // variance depends on the sampling interval from MeasurementSpec rather than
+      // frequency_vector_size, so no additional data from the result is needed.
+      deterministicDistribution = DeterministicDistribution.getDefaultInstance()
+    } else if (protocolConfig.protocolsList.any { it.hasDirect() }) {
       noiseMechanism = source.noiseMechanism.toInternal()
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       when (source.methodologyCase) {
@@ -725,7 +732,14 @@ private fun Measurement.Result.Reach.toInternal(
   return InternalMeasurementKt.ResultKt.reach {
     value = source.value
 
-    if (protocolConfig.protocolsList.any { it.hasDirect() }) {
+    if (protocolConfig.protocolsList.any { it.hasTrusTee() }) {
+      val cmmsProtocol = protocolConfig.protocolsList.first { it.hasTrusTee() }.trusTee
+      noiseMechanism = cmmsProtocol.noiseMechanism.toInternal()
+      // TrusTee uses DeterministicMethodology for variance computation. Unlike HMSS, TrusTee
+      // variance depends on the sampling interval from MeasurementSpec rather than
+      // frequency_vector_size, so no additional data from the result is needed.
+      deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+    } else if (protocolConfig.protocolsList.any { it.hasDirect() }) {
       noiseMechanism = source.noiseMechanism.toInternal()
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       when (source.methodologyCase) {
