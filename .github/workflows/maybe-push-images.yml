@@ -94,6 +94,7 @@ jobs:
   sign-images-with-release-key:
     uses: ./.github/workflows/sign-images.yml
     needs: [get-image-tag, push-images]
+    # DO_NOT_SUBMIT: update WIP Provider condition (not using 'release' event anymore)
     if: ${{ inputs.use-release-key }}
     secrets: inherit
     permissions:
