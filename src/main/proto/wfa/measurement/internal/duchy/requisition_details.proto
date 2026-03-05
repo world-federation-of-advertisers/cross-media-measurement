@@ -58,8 +58,7 @@ message RequisitionDetails {
         // An encrypted frequency vector.
         ENCRYPTED_FREQUENCY_VECTOR = 2;
       }
-      // AWS-specific parameters for KMS. Set when AWS KMS is used.
-      // If not set, GCP KMS is assumed.
+      // AWS-specific parameters for KMS.
       message AwsKmsParams {
         // AWS IAM role ARN to assume via GCP identity federation.
         string role_arn = 1;

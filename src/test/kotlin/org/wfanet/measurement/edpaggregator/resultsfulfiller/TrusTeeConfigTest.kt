@@ -20,7 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.EnvelopeEncryptionKt.awsKmsParams
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 
 @RunWith(JUnit4::class)
@@ -121,21 +121,21 @@ class TrusTeeConfigTest {
         workloadIdentityProvider = "test-provider",
         impersonatedServiceAccount = "test-sa@example.com",
         awsKmsParams =
-          FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.AwsKmsParams.newBuilder()
-            .setRoleArn("arn:aws:iam::123456789012:role/my-role")
-            .setRoleSession("my-session")
-            .setRegion("us-east-1")
-            .setAudience("sts.amazonaws.com")
-            .build(),
+          awsKmsParams {
+            roleArn = "arn:aws:iam::123456789012:role/my-role"
+            roleSession = "my-session"
+            region = "us-east-1"
+            audience = "sts.amazonaws.com"
+          },
       )
     val uri = "aws-kms://arn:aws:kms:us-east-1:123456789012:key/my-key"
 
     val params = awsConfig.buildEncryptionParams(uri, emptyMap())
 
-    assertThat(params.awsKmsParams).isNotNull()
-    assertThat(params.awsKmsParams!!.roleArn).isEqualTo("arn:aws:iam::123456789012:role/my-role")
-    assertThat(params.awsKmsParams!!.roleSession).isEqualTo("my-session")
-    assertThat(params.awsKmsParams!!.region).isEqualTo("us-east-1")
-    assertThat(params.awsKmsParams!!.audience).isEqualTo("sts.amazonaws.com")
+    val resultAwsKmsParams = checkNotNull(params.awsKmsParams)
+    assertThat(resultAwsKmsParams.roleArn).isEqualTo("arn:aws:iam::123456789012:role/my-role")
+    assertThat(resultAwsKmsParams.roleSession).isEqualTo("my-session")
+    assertThat(resultAwsKmsParams.region).isEqualTo("us-east-1")
+    assertThat(resultAwsKmsParams.audience).isEqualTo("sts.amazonaws.com")
   }
 }
