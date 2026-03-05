@@ -148,9 +148,21 @@ variable "secure_computation_public_api_target" {
   type        = string
 }
 
+variable "secure_computation_public_api_cert_host" {
+  description = "Expected hostname (DNS-ID) in the SecureComputation public API server's TLS certificate."
+  type        = string
+  default     = null
+}
+
 variable "metadata_storage_public_api_target" {
   description = "Metadata storage public api target"
   type        = string
+}
+
+variable "metadata_storage_public_api_cert_host" {
+  description = "Expected hostname (DNS-ID) in the Metadata Storage public API server's TLS certificate."
+  type        = string
+  default     = null
 }
 
 variable "image_tag" {
