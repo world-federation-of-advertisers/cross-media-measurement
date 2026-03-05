@@ -54,7 +54,8 @@ service EventGroups {
 // Request message for `GetEventGroup` method.
 message GetEventGroupRequest {
   // The name of the `EventGroup` to retrieve.
-  // Format: measurementConsumers/{measurement_consumer}/eventGroups/{event_group}
+  // Format:
+  // measurementConsumers/{measurement_consumer}/eventGroups/{event_group}
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
