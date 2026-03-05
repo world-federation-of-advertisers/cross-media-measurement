@@ -25,6 +25,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig
+import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfigKt.kmsConfig
 
 @RunWith(JUnit4::class)
 class ResultsFulfillerAppRunnerTest {
@@ -64,25 +65,23 @@ class ResultsFulfillerAppRunnerTest {
   }
 
   @Test
-  fun `EventDataProviderConfig KmsType defaults to UNSPECIFIED`() {
-    val config =
-      EventDataProviderConfig.KmsConfig.newBuilder()
-        .setKmsAudience("test-audience")
-        .setServiceAccount("test@example.com")
-        .build()
+  fun `KmsType defaults to UNSPECIFIED`() {
+    val config = kmsConfig {
+      kmsAudience = "test-audience"
+      serviceAccount = "test@example.com"
+    }
 
     assertThat(config.kmsType)
       .isEqualTo(EventDataProviderConfig.KmsConfig.KmsType.KMS_TYPE_UNSPECIFIED)
   }
 
   @Test
-  fun `EventDataProviderConfig KmsType GCP is set correctly`() {
-    val config =
-      EventDataProviderConfig.KmsConfig.newBuilder()
-        .setKmsType(EventDataProviderConfig.KmsConfig.KmsType.GCP)
-        .setKmsAudience("test-audience")
-        .setServiceAccount("test@example.com")
-        .build()
+  fun `GCP KmsType is set correctly`() {
+    val config = kmsConfig {
+      kmsAudience = "test-audience"
+      serviceAccount = "test@example.com"
+      kmsType = EventDataProviderConfig.KmsConfig.KmsType.GCP
+    }
 
     assertThat(config.kmsType).isEqualTo(EventDataProviderConfig.KmsConfig.KmsType.GCP)
     assertThat(config.kmsAudience).isEqualTo("test-audience")
@@ -90,15 +89,14 @@ class ResultsFulfillerAppRunnerTest {
   }
 
   @Test
-  fun `EventDataProviderConfig KmsType AWS carries AWS fields`() {
-    val config =
-      EventDataProviderConfig.KmsConfig.newBuilder()
-        .setKmsType(EventDataProviderConfig.KmsConfig.KmsType.AWS)
-        .setAwsRoleArn("arn:aws:iam::123456789012:role/my-role")
-        .setAwsRoleSessionName("my-session")
-        .setAwsRegion("us-east-1")
-        .setAwsAudience("sts.amazonaws.com")
-        .build()
+  fun `AWS KmsType carries AWS fields`() {
+    val config = kmsConfig {
+      kmsType = EventDataProviderConfig.KmsConfig.KmsType.AWS
+      awsRoleArn = "arn:aws:iam::123456789012:role/my-role"
+      awsRoleSessionName = "my-session"
+      awsRegion = "us-east-1"
+      awsAudience = "sts.amazonaws.com"
+    }
 
     assertThat(config.kmsType).isEqualTo(EventDataProviderConfig.KmsConfig.KmsType.AWS)
     assertThat(config.awsRoleArn).isEqualTo("arn:aws:iam::123456789012:role/my-role")
@@ -108,31 +106,70 @@ class ResultsFulfillerAppRunnerTest {
   }
 
   @Test
-  fun `EventDataProviderConfig AWS type has empty GCP fields`() {
-    val config =
-      EventDataProviderConfig.KmsConfig.newBuilder()
-        .setKmsType(EventDataProviderConfig.KmsConfig.KmsType.AWS)
-        .setAwsRoleArn("arn:aws:iam::123456789012:role/my-role")
-        .setAwsRegion("us-east-1")
-        .build()
+  fun `AWS type has empty GCP fields`() {
+    val config = kmsConfig {
+      kmsType = EventDataProviderConfig.KmsConfig.KmsType.AWS
+      awsRoleArn = "arn:aws:iam::123456789012:role/my-role"
+      awsRegion = "us-east-1"
+    }
 
     assertThat(config.kmsAudience).isEmpty()
     assertThat(config.serviceAccount).isEmpty()
   }
 
   @Test
-  fun `EventDataProviderConfig GCP type has empty AWS fields`() {
-    val config =
-      EventDataProviderConfig.KmsConfig.newBuilder()
-        .setKmsType(EventDataProviderConfig.KmsConfig.KmsType.GCP)
-        .setKmsAudience("test-audience")
-        .setServiceAccount("test@example.com")
-        .build()
+  fun `GCP type has empty AWS fields`() {
+    val config = kmsConfig {
+      kmsType = EventDataProviderConfig.KmsConfig.KmsType.GCP
+      kmsAudience = "test-audience"
+      serviceAccount = "test@example.com"
+    }
 
     assertThat(config.awsRoleArn).isEmpty()
     assertThat(config.awsRoleSessionName).isEmpty()
     assertThat(config.awsRegion).isEmpty()
     assertThat(config.awsAudience).isEmpty()
+  }
+
+  @Test
+  fun `UNSPECIFIED KmsType has empty AWS fields`() {
+    val config = kmsConfig {
+      kmsAudience = "test-audience"
+      serviceAccount = "test@example.com"
+    }
+
+    assertThat(config.awsRoleArn).isEmpty()
+    assertThat(config.awsRoleSessionName).isEmpty()
+    assertThat(config.awsRegion).isEmpty()
+    assertThat(config.awsAudience).isEmpty()
+  }
+
+  @Test
+  fun `AWS KmsType with all fields present passes validation`() {
+    val config = kmsConfig {
+      kmsType = EventDataProviderConfig.KmsConfig.KmsType.AWS
+      awsRoleArn = "arn:aws:iam::123456789012:role/my-role"
+      awsRoleSessionName = "my-session"
+      awsRegion = "us-east-1"
+      awsAudience = "sts.amazonaws.com"
+    }
+
+    assertThat(config.kmsType).isEqualTo(EventDataProviderConfig.KmsConfig.KmsType.AWS)
+    assertThat(config.awsRoleArn).isEqualTo("arn:aws:iam::123456789012:role/my-role")
+    assertThat(config.awsRoleSessionName).isEqualTo("my-session")
+    assertThat(config.awsRegion).isEqualTo("us-east-1")
+    assertThat(config.awsAudience).isEqualTo("sts.amazonaws.com")
+  }
+
+  @Test
+  fun `GCP KmsType skips AWS field validation`() {
+    val config = kmsConfig {
+      kmsType = EventDataProviderConfig.KmsConfig.KmsType.GCP
+      kmsAudience = "test-audience"
+      serviceAccount = "test@example.com"
+    }
+
+    assertThat(config.kmsType).isEqualTo(EventDataProviderConfig.KmsConfig.KmsType.GCP)
   }
 
   @Test

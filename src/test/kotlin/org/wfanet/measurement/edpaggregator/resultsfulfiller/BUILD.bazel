@@ -128,6 +128,7 @@ kt_jvm_test(
         "//src/main/proto/wfa/measurement/config/edpaggregator:event_data_provider_configs_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
 

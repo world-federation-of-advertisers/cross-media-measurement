@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.EnvelopeEncryptionKt.awsKmsParams
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 
 @RunWith(JUnit4::class)
@@ -32,6 +33,7 @@ class TrusTeeConfigTest {
       kmsClient = fakeKmsClient,
       workloadIdentityProvider = "test-provider",
       impersonatedServiceAccount = "test-sa@example.com",
+      awsKmsParams = null,
     )
 
   @Test
@@ -100,5 +102,40 @@ class TrusTeeConfigTest {
     assertThat(params.kmsClient).isSameInstanceAs(fakeKmsClient)
     assertThat(params.workloadIdentityProvider).isEqualTo("test-provider")
     assertThat(params.impersonatedServiceAccount).isEqualTo("test-sa@example.com")
+  }
+
+  @Test
+  fun `buildEncryptionParams with GCP type has null AWS fields`() {
+    val uri = "gcp-kms://projects/my-project/locations/us-east1/keyRings/my-ring/cryptoKeys/my-key"
+
+    val params = trusTeeConfig.buildEncryptionParams(uri, emptyMap())
+
+    assertThat(params.awsKmsParams).isNull()
+  }
+
+  @Test
+  fun `buildEncryptionParams with AWS type passes AWS fields`() {
+    val awsConfig =
+      TrusTeeConfig(
+        kmsClient = fakeKmsClient,
+        workloadIdentityProvider = "test-provider",
+        impersonatedServiceAccount = "test-sa@example.com",
+        awsKmsParams =
+          awsKmsParams {
+            roleArn = "arn:aws:iam::123456789012:role/my-role"
+            roleSession = "my-session"
+            region = "us-east-1"
+            audience = "sts.amazonaws.com"
+          },
+      )
+    val uri = "aws-kms://arn:aws:kms:us-east-1:123456789012:key/my-key"
+
+    val params = awsConfig.buildEncryptionParams(uri, emptyMap())
+
+    val resultAwsKmsParams = checkNotNull(params.awsKmsParams)
+    assertThat(resultAwsKmsParams.roleArn).isEqualTo("arn:aws:iam::123456789012:role/my-role")
+    assertThat(resultAwsKmsParams.roleSession).isEqualTo("my-session")
+    assertThat(resultAwsKmsParams.region).isEqualTo("us-east-1")
+    assertThat(resultAwsKmsParams.audience).isEqualTo("sts.amazonaws.com")
   }
 }
