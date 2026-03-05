@@ -21,6 +21,9 @@ on:
       existing-image-tag:
         description: "Tag of existing published container images"
         type: string
+      use-release-key:
+        type: boolean
+        default: false
     outputs:
       image-tag:
         description: "Tag of container images"
@@ -90,7 +93,7 @@ jobs:
   sign-images-with-release-key:
     uses: ./.github/workflows/sign-images.yml
     needs: [get-image-tag, push-images]
-    if: ${{ github.event_name == 'release' }}
+    if: inputs.use-release-key
     secrets: inherit
     permissions:
       contents: read
