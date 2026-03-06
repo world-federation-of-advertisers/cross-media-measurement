@@ -110,7 +110,6 @@ class InProcessReportingServer(
   private val defaultModelLineName: String,
   private val populationDataProviderName: String,
   private val verboseGrpcLogging: Boolean = true,
-  private val overrideMetricSpecConfig: MetricSpecConfig? = null,
 ) : TestRule {
   private val publicKingdomMeasurementConsumersClient =
     PublicKingdomMeasurementConsumersCoroutineStub(kingdomPublicApiChannel)
@@ -239,9 +238,8 @@ class InProcessReportingServer(
 
         val authorization = Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(accessChannel))
 
-        val effectiveMetricSpecConfig = overrideMetricSpecConfig ?: METRIC_SPEC_CONFIG
-        effectiveMetricSpecConfig.validate()
-        metricSpecConfig = effectiveMetricSpecConfig
+        METRIC_SPEC_CONFIG.validate()
+        metricSpecConfig = METRIC_SPEC_CONFIG
 
         listOf(
             DataProvidersService(
@@ -265,14 +263,14 @@ class InProcessReportingServer(
             MetricCalculationSpecsService(
                 internalMetricCalculationSpecsClient,
                 publicKingdomModelLinesClient,
-                effectiveMetricSpecConfig,
+                METRIC_SPEC_CONFIG,
                 authorization,
                 SecureRandom().asKotlinRandom(),
                 measurementConsumerConfigs,
               )
               .withTrustedPrincipalAuthentication(),
             MetricsService(
-                effectiveMetricSpecConfig,
+                METRIC_SPEC_CONFIG,
                 measurementConsumerConfigs,
                 internalReportingSetsClient,
                 internalMetricsClient,
@@ -303,7 +301,7 @@ class InProcessReportingServer(
                 internalReportsClient,
                 internalMetricCalculationSpecsClient,
                 PublicMetricsCoroutineStub(this@GrpcTestServerRule.channel),
-                effectiveMetricSpecConfig,
+                METRIC_SPEC_CONFIG,
                 authorization,
                 SecureRandom().asKotlinRandom(),
               )
@@ -316,7 +314,7 @@ class InProcessReportingServer(
                 PublicReportsCoroutineStub(this@GrpcTestServerRule.channel),
                 publicKingdomModelLinesClient,
                 EventMessageDescriptor(eventDescriptor),
-                effectiveMetricSpecConfig,
+                METRIC_SPEC_CONFIG,
                 SecureRandom().asKotlinRandom(),
                 authorization,
                 measurementConsumerConfigs,

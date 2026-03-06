@@ -47,6 +47,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
@@ -158,7 +159,12 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
           },
       ),
       duchyMap,
-      noiseTypeOverrides = emptyMap(),
+      edpNoise =
+        mapOf(
+          "edp1" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
+          "edp2" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
+          "edp3" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
+        ),
     )
     initMcSimulator()
   }

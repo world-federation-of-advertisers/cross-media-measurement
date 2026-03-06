@@ -452,6 +452,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:edp_aggregator_measurement_consumer_simulator",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:simulator",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:services",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",

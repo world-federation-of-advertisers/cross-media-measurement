@@ -239,8 +239,9 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               },
           ),
           duchyMap,
-          noiseTypeOverrides =
+          edpNoise =
             mapOf(
+              "edp1" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
               "edp2" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
               "edp3" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
             ),
