@@ -38,11 +38,14 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
+import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfigs
+import org.wfanet.measurement.edpaggregator.ConfigParser
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroups
@@ -64,7 +67,11 @@ class EventGroupSyncFunction() : HttpFunction {
     logger.fine("Value of DATA_WATCHER_PATH_HEADER: $dataWatcherPath")
     try {
       val requestBody = request.reader.readText()
-      val eventGroupSyncConfig = EventGroupSyncConfigParser.parseEventGroupSyncConfig(requestBody)
+      val eventGroupSyncConfig =
+        ConfigParser.buildEventGroupSyncConfig(
+          requestBody,
+          runtimeConfigs?.configsList ?: emptyList(),
+        )
 
       runBlocking {
         Tracing.traceSuspending(
@@ -234,6 +241,17 @@ class EventGroupSyncFunction() : HttpFunction {
     private const val JSON_FILE_SUFFIX = ".json"
     private val DATA_WATCHER_PATH_HEADER =
       System.getenv("DATA_WATCHER_PATH_HEADER") ?: "X-DataWatcher-Path"
+
+    private val configBlobKey: String? = System.getenv("CONFIG_BLOB_KEY")
+    private val runtimeConfigs: EventGroupSyncConfigs? =
+      configBlobKey?.let {
+        runBlocking {
+          EdpAggregatorConfig.getConfigAsProtoMessage(
+            it,
+            EventGroupSyncConfigs.getDefaultInstance(),
+          )
+        }
+      }
 
     init {
       EdpaTelemetry.ensureInitialized()

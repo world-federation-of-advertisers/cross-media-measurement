@@ -10,13 +10,13 @@ kt_jvm_library(
     name = "event_group_sync_function",
     srcs = [
         "EventGroupSyncFunction.kt",
-        "EventGroupSyncConfigParser.kt",
     ],
     deps = [
         "//imports/java/io/opentelemetry/instrumentation/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common:env_vars",
         "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:edp_aggregator_config",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:interceptors",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:config_parser",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/eventgroups:event_group_sync",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
         "//src/main/proto/wfa/measurement/api/v2alpha:client_accounts_service_kt_jvm_grpc_proto",

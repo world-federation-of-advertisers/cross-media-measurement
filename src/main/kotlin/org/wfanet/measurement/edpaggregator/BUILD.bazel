@@ -23,3 +23,15 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
     ],
 )
+
+kt_jvm_library(
+    name = "config_parser",
+    srcs = ["ConfigParser.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/config/edpaggregator:data_availability_sync_configs_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:event_group_sync_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:data_availability_sync_params_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:event_group_sync_params_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)

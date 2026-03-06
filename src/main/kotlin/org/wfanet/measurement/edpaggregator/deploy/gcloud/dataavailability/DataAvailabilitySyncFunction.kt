@@ -35,11 +35,14 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCorou
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
+import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.ConfigParser
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
@@ -94,7 +97,11 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     try {
       logger.fine("Starting DataAvailabilitySyncFunction")
       val requestBody = request.reader.readText()
-      val dataAvailabilitySyncConfig = DataAvailabilitySyncConfigParser.parseDataAvailabilitySyncConfig(requestBody)
+      val dataAvailabilitySyncConfig =
+        ConfigParser.buildDataAvailabilitySyncConfig(
+          requestBody,
+          runtimeConfigs?.configsList ?: emptyList(),
+        )
 
       // Read the path as request header
       val doneBlobPath =
@@ -226,6 +233,17 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         ?: DEFAULT_IMPRESSION_METADATA_BATCH_SIZE
 
     private val channelCache = ConcurrentHashMap<ChannelKey, ManagedChannel>()
+
+    private val configBlobKey: String? = System.getenv("CONFIG_BLOB_KEY")
+    private val runtimeConfigs: DataAvailabilitySyncConfigs? =
+      configBlobKey?.let {
+        runBlocking {
+          EdpAggregatorConfig.getConfigAsProtoMessage(
+            it,
+            DataAvailabilitySyncConfigs.getDefaultInstance(),
+          )
+        }
+      }
 
     /**
      * Creates a gRPC [ManagedChannel] configured with mutual TLS authentication.
