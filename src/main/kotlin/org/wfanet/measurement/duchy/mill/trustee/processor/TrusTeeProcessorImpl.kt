@@ -91,7 +91,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
             rawHistogram,
             vidSamplingIntervalWidth,
             frequencyVector.size,
-            trusTeeParams.dpParams.toDifferentialPrivacyParams(),
+            trusTeeParams.dpParams?.toDifferentialPrivacyParams(),
             kAnonymityParams = null,
           )
 
@@ -103,14 +103,14 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
             rawHistogram,
             vidSamplingIntervalWidth,
             frequencyVector.size,
-            trusTeeParams.reachDpParams.toDifferentialPrivacyParams(),
+            trusTeeParams.reachDpParams?.toDifferentialPrivacyParams(),
             kAnonymityParams = null,
           )
         val frequency =
           ReachAndFrequencyComputations.computeFrequencyDistribution(
             rawHistogram,
             maxFrequency,
-            trusTeeParams.frequencyDpParams.toDifferentialPrivacyParams(),
+            trusTeeParams.frequencyDpParams?.toDifferentialPrivacyParams(),
             kAnonymityParams = null,
             vidSamplingIntervalWidth = null,
           )

@@ -155,6 +155,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
           },
       ),
       duchyMap,
+      noiseTypeOverrides = emptyMap(),
     )
     initMcSimulator()
   }
@@ -356,7 +357,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     @BeforeClass
     @JvmStatic
     fun initConfig() {
-      InProcessCmmsComponents.initConfig()
+      InProcessCmmsComponents.initConfig(TRUSTEE_PROTOCOL_CONFIG_CONFIG)
     }
 
     @get:ClassRule @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()

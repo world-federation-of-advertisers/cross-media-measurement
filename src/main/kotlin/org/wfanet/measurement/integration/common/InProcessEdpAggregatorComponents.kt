@@ -243,6 +243,7 @@ class InProcessEdpAggregatorComponents(
     edpDisplayNameToResourceMap: Map<String, Resource>,
     edpCapabilities: Map<String, DataProvider.Capabilities>,
     duchyMap: Map<String, Channel>,
+    noiseTypeOverrides: Map<String, ResultsFulfillerParams.NoiseParams.NoiseType>,
   ) = runBlocking {
     publicApiChannel = kingdomChannel
     duchyChannelMap = duchyMap
@@ -274,7 +275,11 @@ class InProcessEdpAggregatorComponents(
                   .certificate
               )!!,
               "file:///$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName",
-              noiseType = ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
+              noiseType =
+                noiseTypeOverrides.getOrDefault(
+                  edpAggregatorShortName,
+                  ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
+                ),
             )
         }
       getDataWatcherResultFulfillerParamsConfig(
