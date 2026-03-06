@@ -47,7 +47,7 @@ message VidLabelerParams {
   // The storage used by the tee app
   StorageParams storage_params = 2 [(google.api.field_behavior) = REQUIRED];
 
-  // TEE App connection params
+  // Connection used by TEE App to access the Vid Repo
   TransportLayerSecurityParams vid_repo_connection = 3
       [(google.api.field_behavior) = REQUIRED];
 
