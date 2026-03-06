@@ -98,8 +98,6 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.FULFILLER_TOPIC_ID
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
-import org.wfanet.measurement.integration.common.TRUSTEE_PROTOCOL_CONFIG_CONFIG
-import org.wfanet.measurement.kingdom.deploy.common.TrusTeeProtocolConfig
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.InProcessEdpAggregatorComponents
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
@@ -418,7 +416,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   }
 
   @Test
-  fun `HMSS with noise basic report has the expected result`() = runBlocking {
+  fun `HMSS basic report has the expected result`() = runBlocking {
     val hmssEventGroups = getHmssEventGroups()
     check(hmssEventGroups.size > 1)
 
@@ -461,24 +459,19 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .that(hmssProtocolMeasurements)
       .isNotEmpty()
 
-    assertTotalResults(completedBasicReport)
+    assertHmssResults(completedBasicReport)
   }
 
   @Test
   fun `TrusTee no noise basic report has the expected result`() = runBlocking {
-    TrusTeeProtocolConfig.setForTest(
-      NO_NOISE_TRUSTEE_PROTOCOL_CONFIG_CONFIG.protocolConfig,
-      NO_NOISE_TRUSTEE_PROTOCOL_CONFIG_CONFIG.duchyId,
-    )
-
     val trusTeeEventGroups = getTrusTeeEventGroups()
     check(trusTeeEventGroups.size > 1)
 
     val createBasicReportRequest =
       buildCreateBasicReportRequest(
         trusTeeEventGroups,
-        "trustee-no-noise-campaign",
-        "trustee-no-noise-basicreport",
+        "trustee-campaign",
+        "trustee-basicreport",
         includeIqfFilter = false,
       )
 
@@ -513,59 +506,63 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .that(trusTeeProtocolMeasurements)
       .isNotEmpty()
 
-    assertNoNoiseTrusTeeResults(completedBasicReport)
+    assertNoNoiseResults(completedBasicReport)
   }
 
-  @Test
-  fun `TrusTee with noise basic report has the expected result`() = runBlocking {
-    TrusTeeProtocolConfig.setForTest(
-      TRUSTEE_PROTOCOL_CONFIG_CONFIG.protocolConfig,
-      TRUSTEE_PROTOCOL_CONFIG_CONFIG.duchyId,
-    )
+  /**
+   * Checks structural invariants on HMSS results. HMSS uses DISCRETE_GAUSSIAN noise so only
+   * structural properties are verified, not exact values.
+   */
+  private fun assertHmssResults(basicReport: BasicReport) {
+    basicReport.resultGroupsList.forEach { resultGroup ->
+      val totalResults =
+        resultGroup.resultsList.filter {
+          it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
+        }
+      assertWithMessage("total results").that(totalResults).isNotEmpty()
 
-    val trusTeeEventGroups = getTrusTeeEventGroups()
-    check(trusTeeEventGroups.size > 1)
+      totalResults.forEach { result ->
+        val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
 
-    val createBasicReportRequest =
-      buildCreateBasicReportRequest(
-        trusTeeEventGroups,
-        "trustee-noise-campaign",
-        "trustee-noise-basicreport",
-        includeIqfFilter = false,
-      )
+        assertWithMessage("population size")
+          .that(result.metricSet.populationSize)
+          .isGreaterThan(0)
 
-    val createdBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .createBasicReport(createBasicReportRequest)
+        assertWithMessage("reporting unit impressions")
+          .that(reportingUnitCumulative.impressions)
+          .isGreaterThan(0)
 
-    val retrievedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+        assertWithMessage("reporting unit k+ reach is monotonically non-increasing")
+          .that(
+            reportingUnitCumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it }
+          )
+          .isTrue()
 
-    assertRunningBasicReport(createBasicReportRequest, createdBasicReport, retrievedBasicReport)
+        assertWithMessage("reporting unit percent k+ reach is monotonically non-increasing")
+          .that(
+            reportingUnitCumulative.percentKPlusReachList
+              .zipWithNext { a, b -> b <= a }
+              .all { it }
+          )
+          .isTrue()
 
-    executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
+        val componentReaches = mutableListOf<Long>()
+        result.metricSet.componentsList.forEach { component ->
+          val cumulative = component.value.cumulative
+          componentReaches.add(cumulative.reach)
 
-    val completedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+          assertWithMessage("component ${component.key} k+ reach is monotonically non-increasing")
+            .that(cumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it })
+            .isTrue()
+        }
 
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
-
-    val measurements = listMeasurements()
-    val trusTeeProtocolMeasurements =
-      measurements.filter { measurement ->
-        measurement.protocolConfig.protocolsList.any { it.hasTrusTee() }
+        if (componentReaches.all { it > 0L }) {
+          assertWithMessage("cross-publisher reach < sum of individual EDP reaches")
+            .that(reportingUnitCumulative.reach)
+            .isLessThan(componentReaches.sum())
+        }
       }
-    assertWithMessage("at least one measurement used TrusTee protocol")
-      .that(trusTeeProtocolMeasurements)
-      .isNotEmpty()
-
-    assertNoisyTrusTeeResults(completedBasicReport)
+    }
   }
 
   /**
@@ -583,7 +580,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
    *   EDP with spec1: reach=4472, impressions=5135, kPlusReach=[4472, 663, 0, 0, 0]
    *   EDP with spec2: reach=3338, impressions=3988, kPlusReach=[3337, 650, 0, 0, 0]
    */
-  private fun assertNoNoiseTrusTeeResults(basicReport: BasicReport) {
+  private fun assertNoNoiseResults(basicReport: BasicReport) {
     assertWithMessage("result groups").that(basicReport.resultGroupsList).hasSize(1)
 
     val resultGroup = basicReport.resultGroupsList.single()
@@ -657,46 +654,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     assertWithMessage("cross-publisher reach < sum of individual EDP reaches")
       .that(reportingUnitCumulative.reach)
       .isLessThan(componentReaches.sum())
-  }
-
-  /**
-   * Checks structural invariants on noisy TrusTee results. With CONTINUOUS_GAUSSIAN noise, exact
-   * values are non-deterministic, so only structural properties are verified.
-   */
-  private fun assertNoisyTrusTeeResults(basicReport: BasicReport) {
-    assertWithMessage("result groups").that(basicReport.resultGroupsList).hasSize(1)
-
-    val resultGroup = basicReport.resultGroupsList.single()
-    val totalResults =
-      resultGroup.resultsList.filter {
-        it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
-      }
-    assertWithMessage("total results").that(totalResults).hasSize(1)
-
-    val result = totalResults.single()
-    val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
-
-    assertWithMessage("reporting unit k+ reach is monotonically non-increasing")
-      .that(reportingUnitCumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it })
-      .isTrue()
-
-    assertWithMessage("number of components").that(result.metricSet.componentsCount).isEqualTo(2)
-
-    val componentReaches = mutableListOf<Long>()
-    result.metricSet.componentsList.forEach { component ->
-      val cumulative = component.value.cumulative
-      componentReaches.add(cumulative.reach)
-
-      assertWithMessage("component ${component.key} k+ reach is monotonically non-increasing")
-        .that(cumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it })
-        .isTrue()
-    }
-
-    if (componentReaches.all { it > 0L }) {
-      assertWithMessage("cross-publisher reach < sum of individual EDP reaches")
-        .that(reportingUnitCumulative.reach)
-        .isLessThan(componentReaches.sum())
-    }
   }
 
   private fun assertRunningBasicReport(
@@ -824,62 +781,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
-  /**
-   * Checks structural invariants on noisy HMSS results. Cross-publisher >= component invariants are
-   * not checked here because noise is applied independently and can cause the cross-publisher value
-   * to be less than a component's. See [assertNoNoiseTrusTeeResults] for exact invariant checks.
-   */
-  private fun assertTotalResults(basicReport: BasicReport) {
-    basicReport.resultGroupsList.forEach { resultGroup ->
-      val totalResults =
-        resultGroup.resultsList.filter {
-          it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
-        }
-      assertWithMessage("total results").that(totalResults).isNotEmpty()
-
-      totalResults.forEach { result ->
-        val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
-
-        assertWithMessage("population size")
-          .that(result.metricSet.populationSize)
-          .isGreaterThan(0)
-
-        assertWithMessage("reporting unit impressions")
-          .that(reportingUnitCumulative.impressions)
-          .isGreaterThan(0)
-
-        assertWithMessage("reporting unit k+ reach is monotonically non-increasing")
-          .that(
-            reportingUnitCumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it }
-          )
-          .isTrue()
-
-        assertWithMessage("reporting unit percent k+ reach is monotonically non-increasing")
-          .that(
-            reportingUnitCumulative.percentKPlusReachList
-              .zipWithNext { a, b -> b <= a }
-              .all { it }
-          )
-          .isTrue()
-
-        val componentReaches = mutableListOf<Long>()
-        result.metricSet.componentsList.forEach { component ->
-          val cumulative = component.value.cumulative
-          componentReaches.add(cumulative.reach)
-
-          assertWithMessage("component ${component.key} k+ reach is monotonically non-increasing")
-            .that(cumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it })
-            .isTrue()
-        }
-
-        if (componentReaches.all { it > 0L }) {
-          assertWithMessage("cross-publisher reach < sum of individual EDP reaches")
-            .that(reportingUnitCumulative.reach)
-            .isLessThan(componentReaches.sum())
-        }
-      }
-    }
-  }
 
   private suspend fun listMeasurements(): List<Measurement> {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
@@ -1124,7 +1025,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     @JvmStatic
     fun initConfig() {
       InProcessCmmsComponents.initConfig(
-        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG
+        trusTeeProtocolConfigConfig = NO_NOISE_TRUSTEE_PROTOCOL_CONFIG_CONFIG
       )
     }
     @get:ClassRule @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()

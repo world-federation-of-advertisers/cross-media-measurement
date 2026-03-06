@@ -40,6 +40,8 @@ object TrusTeeProtocolConfig {
   }
 
   fun setForTest(protocolConfig: ProtocolConfig.TrusTee, duchyId: String) {
+    require(!TrusTeeProtocolConfig::protocolConfig.isInitialized)
+
     TrusTeeProtocolConfig.protocolConfig = protocolConfig
     TrusTeeProtocolConfig.duchyId = duchyId
   }
