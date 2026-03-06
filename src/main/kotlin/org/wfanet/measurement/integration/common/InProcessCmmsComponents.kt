@@ -63,11 +63,11 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.config.DuchyCertConfig
 import org.wfanet.measurement.dataprovider.DataProviderData
+import org.wfanet.measurement.internal.kingdom.TrusTeeProtocolConfigConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
-import org.wfanet.measurement.internal.kingdom.TrusTeeProtocolConfigConfig
 import org.wfanet.measurement.kingdom.deploy.common.TrusTeeProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
@@ -426,9 +426,7 @@ class InProcessCmmsComponents(
       )
 
     @JvmStatic
-    fun initConfig(
-      trusTeeProtocolConfigConfig: TrusTeeProtocolConfigConfig,
-    ) {
+    fun initConfig(trusTeeProtocolConfigConfig: TrusTeeProtocolConfigConfig) {
       DuchyIds.setForTest(ALL_DUCHIES)
       Llv2ProtocolConfig.setForTest(
         LLV2_PROTOCOL_CONFIG_CONFIG.protocolConfig,

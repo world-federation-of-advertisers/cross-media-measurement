@@ -356,7 +356,8 @@ class InProcessEdpAggregatorComponents(
           SyntheticDataGeneration.generateEvents(
             TestEvent.getDefaultInstance(),
             syntheticPopulationSpec,
-            syntheticEventGroupMapByEdp.getValue(edpAggregatorShortName)
+            syntheticEventGroupMapByEdp
+              .getValue(edpAggregatorShortName)
               .getValue(mappedEventGroup.eventGroupReferenceId),
           )
 
@@ -474,8 +475,8 @@ class InProcessEdpAggregatorComponents(
     measurementConsumerData: MeasurementConsumerData,
     edpAggregatorShortName: String,
   ): List<EventGroup> {
-    return syntheticEventGroupMapByEdp.getValue(edpAggregatorShortName)
-      .flatMap { (eventGroupReferenceId, syntheticEventGroupSpec) ->
+    return syntheticEventGroupMapByEdp.getValue(edpAggregatorShortName).flatMap {
+      (eventGroupReferenceId, syntheticEventGroupSpec) ->
       syntheticEventGroupSpec.dateSpecsList.map { dateSpec ->
         val dateRange = dateSpec.dateRange
         val startTime =
@@ -528,7 +529,8 @@ class InProcessEdpAggregatorComponents(
         SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           syntheticPopulationSpec,
-          syntheticEventGroupMapByEdp.getValue(edpAggregatorShortName)
+          syntheticEventGroupMapByEdp
+            .getValue(edpAggregatorShortName)
             .getValue(mappedEventGroup.eventGroupReferenceId),
         )
       val modelLineName = modelLineInfoMap.keys.first()

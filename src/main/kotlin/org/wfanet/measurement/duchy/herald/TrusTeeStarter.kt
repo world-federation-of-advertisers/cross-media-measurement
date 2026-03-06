@@ -149,8 +149,7 @@ object TrusTeeStarter {
   ): TrusTee.ComputationDetails.Parameters {
     require(mpcProtocolConfig.hasTrusTee()) { "Missing TrusTee in the duchy protocol config." }
 
-    val internalNoiseMechanism =
-      mpcProtocolConfig.trusTee.noiseMechanism.toInternalNoiseMechanism()
+    val internalNoiseMechanism = mpcProtocolConfig.trusTee.noiseMechanism.toInternalNoiseMechanism()
     val isNoNoise = internalNoiseMechanism == NoiseMechanism.NONE
 
     return TrusTeeKt.ComputationDetailsKt.parameters {

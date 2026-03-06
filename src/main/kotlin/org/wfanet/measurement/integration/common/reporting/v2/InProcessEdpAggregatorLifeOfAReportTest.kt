@@ -74,8 +74,8 @@ import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
-import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
@@ -87,10 +87,6 @@ import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
-import org.wfanet.measurement.internal.kingdom.ProtocolConfig
-import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
-import org.wfanet.measurement.internal.kingdom.TrusTeeProtocolConfigConfig
-import org.wfanet.measurement.internal.kingdom.trusTeeProtocolConfigConfig
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
@@ -103,6 +99,10 @@ import org.wfanet.measurement.integration.common.InProcessEdpAggregatorComponent
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.integration.common.PROJECT_ID
 import org.wfanet.measurement.integration.common.SUBSCRIPTION_ID
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
+import org.wfanet.measurement.internal.kingdom.TrusTeeProtocolConfigConfig
+import org.wfanet.measurement.internal.kingdom.trusTeeProtocolConfigConfig
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
@@ -116,14 +116,14 @@ import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsC
 import org.wfanet.measurement.reporting.v2alpha.CreateBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as ReportingEventGroupsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.Report
-import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
-import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as ReportingReportingSetsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub as ReportingReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
 import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
+import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilterKt
+import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
+import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as ReportingReportingSetsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub as ReportingReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.basicReport
 import org.wfanet.measurement.reporting.v2alpha.copy
@@ -222,18 +222,21 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           measurementConsumerData,
           edpDisplayNameToResourceMap,
           mapOf(
-            "edp1" to DataProviderKt.capabilities {
-              honestMajorityShareShuffleSupported = true
-              trusTeeSupported = false
-            },
-            "edp2" to DataProviderKt.capabilities {
-              honestMajorityShareShuffleSupported = true
-              trusTeeSupported = true
-            },
-            "edp3" to DataProviderKt.capabilities {
-              honestMajorityShareShuffleSupported = false
-              trusTeeSupported = true
-            },
+            "edp1" to
+              DataProviderKt.capabilities {
+                honestMajorityShareShuffleSupported = true
+                trusTeeSupported = false
+              },
+            "edp2" to
+              DataProviderKt.capabilities {
+                honestMajorityShareShuffleSupported = true
+                trusTeeSupported = true
+              },
+            "edp3" to
+              DataProviderKt.capabilities {
+                honestMajorityShareShuffleSupported = false
+                trusTeeSupported = true
+              },
           ),
           duchyMap,
           noiseTypeOverrides =
@@ -262,59 +265,60 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
 
   private lateinit var measurementConsumerConfig: MeasurementConsumerConfig
 
-  private val reportingServerRule = object : TestRule {
-    lateinit var reportingServer: InProcessReportingServer
-      private set
+  private val reportingServerRule =
+    object : TestRule {
+      lateinit var reportingServer: InProcessReportingServer
+        private set
 
-    private fun buildReportingServer(): InProcessReportingServer {
-      val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
-      val measurementConsumer = runBlocking {
-        publicMeasurementConsumersClient
-          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-          .getMeasurementConsumer(
-            getMeasurementConsumerRequest { name = measurementConsumerData.name }
-          )
+      private fun buildReportingServer(): InProcessReportingServer {
+        val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+        val measurementConsumer = runBlocking {
+          publicMeasurementConsumersClient
+            .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+            .getMeasurementConsumer(
+              getMeasurementConsumerRequest { name = measurementConsumerData.name }
+            )
+        }
+        val encryptionKeyPairConfig = encryptionKeyPairConfig {
+          principalKeyPairs += principalKeyPairs {
+            principal = measurementConsumerData.name
+            keyPairs += keyPair {
+              publicKeyFile = "mc_enc_public.tink"
+              privateKeyFile = "mc_enc_private.tink"
+            }
+          }
+        }
+        measurementConsumerConfig = measurementConsumerConfig {
+          apiKey = measurementConsumerData.apiAuthenticationKey
+          signingCertificateName = measurementConsumer.certificate
+          signingPrivateKeyPath = MC_SIGNING_PRIVATE_KEY_PATH
+          offlinePrincipal = "principals/mc-user"
+        }
+        return InProcessReportingServer(
+          reportingDataServicesProviderRule.value,
+          accessServicesFactory,
+          inProcessCmmsComponents.kingdom.publicApiChannel,
+          encryptionKeyPairConfig,
+          SECRETS_DIR,
+          measurementConsumerConfig,
+          TRUSTED_CERTIFICATES,
+          TestEvent.getDescriptor(),
+          defaultModelLineName = inProcessCmmsComponents.modelLineResourceName,
+          verboseGrpcLogging = false,
+          populationDataProviderName =
+            inProcessCmmsComponents.getPopulationData().populationDataProviderName,
+        )
       }
-      val encryptionKeyPairConfig = encryptionKeyPairConfig {
-        principalKeyPairs += principalKeyPairs {
-          principal = measurementConsumerData.name
-          keyPairs += keyPair {
-            publicKeyFile = "mc_enc_public.tink"
-            privateKeyFile = "mc_enc_private.tink"
+
+      override fun apply(base: Statement, description: Description): Statement {
+        return object : Statement() {
+          override fun evaluate() {
+            reportingServer = buildReportingServer()
+            reportingServer.apply(base, description).evaluate()
           }
         }
       }
-      measurementConsumerConfig = measurementConsumerConfig {
-        apiKey = measurementConsumerData.apiAuthenticationKey
-        signingCertificateName = measurementConsumer.certificate
-        signingPrivateKeyPath = MC_SIGNING_PRIVATE_KEY_PATH
-        offlinePrincipal = "principals/mc-user"
-      }
-      return InProcessReportingServer(
-        reportingDataServicesProviderRule.value,
-        accessServicesFactory,
-        inProcessCmmsComponents.kingdom.publicApiChannel,
-        encryptionKeyPairConfig,
-        SECRETS_DIR,
-        measurementConsumerConfig,
-        TRUSTED_CERTIFICATES,
-        TestEvent.getDescriptor(),
-        defaultModelLineName = inProcessCmmsComponents.modelLineResourceName,
-        verboseGrpcLogging = false,
-        populationDataProviderName =
-          inProcessCmmsComponents.getPopulationData().populationDataProviderName,
-      )
     }
-
-    override fun apply(base: Statement, description: Description): Statement {
-      return object : Statement() {
-        override fun evaluate() {
-          reportingServer = buildReportingServer()
-          reportingServer.apply(base, description).evaluate()
-        }
-      }
-    }
-  }
 
   private val reportingServer: InProcessReportingServer
     get() = reportingServerRule.reportingServer
@@ -354,7 +358,9 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   private lateinit var credentials: TrustedPrincipalAuthInterceptor.Credentials
 
   @Before
-  fun setup() { createAccessPolicy() }
+  fun setup() {
+    createAccessPolicy()
+  }
 
   private fun createAccessPolicy() {
     val measurementConsumerData: MeasurementConsumerData =
@@ -362,56 +368,76 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     val accessChannel = reportingServer.accessChannel
     val rolesStub = RolesGrpc.newBlockingStub(accessChannel)
     val mcResourceType = "halo.wfanet.org/MeasurementConsumer"
-    val mcUserRole = rolesStub.createRole(createRoleRequest {
-      roleId = "mcUser"
-      role = role {
-        resourceTypes += mcResourceType
-        permissions += PERMISSIONS_CONFIG.permissionsMap
-          .filterValues { it.protectedResourceTypesList.contains(mcResourceType) }
-          .keys.map { PermissionKey(it).toName() }
-      }
-    })
+    val mcUserRole =
+      rolesStub.createRole(
+        createRoleRequest {
+          roleId = "mcUser"
+          role = role {
+            resourceTypes += mcResourceType
+            permissions +=
+              PERMISSIONS_CONFIG.permissionsMap
+                .filterValues { it.protectedResourceTypesList.contains(mcResourceType) }
+                .keys
+                .map { PermissionKey(it).toName() }
+          }
+        }
+      )
     val rootResourceType = "reporting.halo-cmm.org/Root"
-    val kingdomUserRole = rolesStub.createRole(createRoleRequest {
-      roleId = "kingdomUser"
-      role = role {
-        resourceTypes += rootResourceType
-        permissions += PERMISSIONS_CONFIG.permissionsMap
-          .filterValues { it.protectedResourceTypesList.contains(rootResourceType) }
-          .keys.map { PermissionKey(it).toName() }
-      }
-    })
+    val kingdomUserRole =
+      rolesStub.createRole(
+        createRoleRequest {
+          roleId = "kingdomUser"
+          role = role {
+            resourceTypes += rootResourceType
+            permissions +=
+              PERMISSIONS_CONFIG.permissionsMap
+                .filterValues { it.protectedResourceTypesList.contains(rootResourceType) }
+                .keys
+                .map { PermissionKey(it).toName() }
+          }
+        }
+      )
     val principalsStub = PrincipalsGrpc.newBlockingStub(accessChannel)
-    val principal = principalsStub.createPrincipal(createPrincipalRequest {
-      principalId = "mc-user"
-      this.principal = principal {
-        user = PrincipalKt.oAuthUser {
-          issuer = "example.com"
-          subject = "mc-user@example.com"
+    val principal =
+      principalsStub.createPrincipal(
+        createPrincipalRequest {
+          principalId = "mc-user"
+          this.principal = principal {
+            user =
+              PrincipalKt.oAuthUser {
+                issuer = "example.com"
+                subject = "mc-user@example.com"
+              }
+          }
         }
-      }
-    })
+      )
     val policiesStub = PoliciesGrpc.newBlockingStub(accessChannel)
-    policiesStub.createPolicy(createPolicyRequest {
-      policyId = "test-mc-policy"
-      policy = policy {
-        protectedResource = measurementConsumerData.name
-        bindings += PolicyKt.binding {
-          this.role = mcUserRole.name
-          members += principal.name
+    policiesStub.createPolicy(
+      createPolicyRequest {
+        policyId = "test-mc-policy"
+        policy = policy {
+          protectedResource = measurementConsumerData.name
+          bindings +=
+            PolicyKt.binding {
+              this.role = mcUserRole.name
+              members += principal.name
+            }
         }
       }
-    })
-    policiesStub.createPolicy(createPolicyRequest {
-      policyId = "test-root-policy"
-      policy = policy {
-        protectedResource = ""
-        bindings += PolicyKt.binding {
-          this.role = kingdomUserRole.name
-          members += principal.name
+    )
+    policiesStub.createPolicy(
+      createPolicyRequest {
+        policyId = "test-root-policy"
+        policy = policy {
+          protectedResource = ""
+          bindings +=
+            PolicyKt.binding {
+              this.role = kingdomUserRole.name
+              members += principal.name
+            }
         }
       }
-    })
+    )
     credentials = TrustedPrincipalAuthInterceptor.Credentials(principal, setOf("reporting.*"))
   }
 
@@ -524,25 +550,19 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       totalResults.forEach { result ->
         val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
 
-        assertWithMessage("population size")
-          .that(result.metricSet.populationSize)
-          .isGreaterThan(0)
+        assertWithMessage("population size").that(result.metricSet.populationSize).isGreaterThan(0)
 
         assertWithMessage("reporting unit impressions")
           .that(reportingUnitCumulative.impressions)
           .isGreaterThan(0)
 
         assertWithMessage("reporting unit k+ reach is monotonically non-increasing")
-          .that(
-            reportingUnitCumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it }
-          )
+          .that(reportingUnitCumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it })
           .isTrue()
 
         assertWithMessage("reporting unit percent k+ reach is monotonically non-increasing")
           .that(
-            reportingUnitCumulative.percentKPlusReachList
-              .zipWithNext { a, b -> b <= a }
-              .all { it }
+            reportingUnitCumulative.percentKPlusReachList.zipWithNext { a, b -> b <= a }.all { it }
           )
           .isTrue()
 
@@ -573,12 +593,12 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
    * ranges) so that the cross-publisher reach (union of VIDs) is strictly greater than any
    * individual EDP's reach.
    *
-   * Expected cross-publisher results (deterministic with no noise):
-   *   reach=5369, impressions=9122, kPlusReach=[5369, 2677, 682, 394, 0]
+   * Expected cross-publisher results (deterministic with no noise): reach=5369, impressions=9122,
+   * kPlusReach=[5369, 2677, 682, 394, 0]
    *
-   * Expected per-EDP results (order depends on resource name):
-   *   EDP with spec1: reach=4472, impressions=5135, kPlusReach=[4472, 663, 0, 0, 0]
-   *   EDP with spec2: reach=3338, impressions=3988, kPlusReach=[3337, 650, 0, 0, 0]
+   * Expected per-EDP results (order depends on resource name): EDP with spec1: reach=4472,
+   * impressions=5135, kPlusReach=[4472, 663, 0, 0, 0] EDP with spec2: reach=3338, impressions=3988,
+   * kPlusReach=[3337, 650, 0, 0, 0]
    */
   private fun assertNoNoiseResults(basicReport: BasicReport) {
     assertWithMessage("result groups").that(basicReport.resultGroupsList).hasSize(1)
@@ -617,9 +637,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       val cumulative = component.value.cumulative
       componentReaches.add(cumulative.reach)
 
-      assertWithMessage("component ${component.key} reach")
-        .that(cumulative.reach)
-        .isGreaterThan(0L)
+      assertWithMessage("component ${component.key} reach").that(cumulative.reach).isGreaterThan(0L)
 
       assertWithMessage("component ${component.key} impressions")
         .that(cumulative.impressions)
@@ -781,7 +799,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
-
   private suspend fun listMeasurements(): List<Measurement> {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     return publicMeasurementsClient
@@ -792,20 +809,29 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
 
   private suspend fun listReportingEventGroups(): List<EventGroup> {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
-    return reportingEventGroupsClient.withCallCredentials(credentials)
-      .listEventGroups(listEventGroupsRequest {
-        parent = measurementConsumerData.name; pageSize = 1000
-      }).eventGroupsList
+    return reportingEventGroupsClient
+      .withCallCredentials(credentials)
+      .listEventGroups(
+        listEventGroupsRequest {
+          parent = measurementConsumerData.name
+          pageSize = 1000
+        }
+      )
+      .eventGroupsList
   }
 
   private suspend fun pollForCompletedReport(reportName: String): Report {
     while (true) {
-      val retrievedReport = reportingReportsClient.withCallCredentials(credentials)
-        .getReport(getReportRequest { name = reportName })
+      val retrievedReport =
+        reportingReportsClient
+          .withCallCredentials(credentials)
+          .getReport(getReportRequest { name = reportName })
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       when (retrievedReport.state) {
-        Report.State.SUCCEEDED, Report.State.FAILED -> return retrievedReport
-        Report.State.RUNNING, Report.State.UNRECOGNIZED,
+        Report.State.SUCCEEDED,
+        Report.State.FAILED -> return retrievedReport
+        Report.State.RUNNING,
+        Report.State.UNRECOGNIZED,
         Report.State.STATE_UNSPECIFIED -> delay(5000)
       }
     }
@@ -813,25 +839,27 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
 
   private suspend fun executeBasicReportsReportsJob(basicReportName: String) {
     val basicReportKey = BasicReportKey.fromName(basicReportName)!!
-    val internalBasicReport = reportingServer.internalBasicReportsClient.getBasicReport(
-      internalGetBasicReportRequest {
-        cmmsMeasurementConsumerId = basicReportKey.cmmsMeasurementConsumerId
-        externalBasicReportId = basicReportKey.basicReportId
-      })
-    val reportName = ReportKey(
-      internalBasicReport.cmmsMeasurementConsumerId,
-      internalBasicReport.externalReportId,
-    ).toName()
+    val internalBasicReport =
+      reportingServer.internalBasicReportsClient.getBasicReport(
+        internalGetBasicReportRequest {
+          cmmsMeasurementConsumerId = basicReportKey.cmmsMeasurementConsumerId
+          externalBasicReportId = basicReportKey.basicReportId
+        }
+      )
+    val reportName =
+      ReportKey(internalBasicReport.cmmsMeasurementConsumerId, internalBasicReport.externalReportId)
+        .toName()
     pollForCompletedReport(reportName)
     val measurementConsumerName = inProcessCmmsComponents.getMeasurementConsumerData().name
     BasicReportsReportsJob(
-      measurementConsumerConfigs { configs[measurementConsumerName] = measurementConsumerConfig },
-      reportingServer.internalBasicReportsClient,
-      reportingReportsClient,
-      reportingServer.internalMetricCalculationSpecsClient,
-      reportingServer.internalReportResultsClient,
-      EventMessageDescriptor(TestEvent.getDescriptor()),
-    ).execute()
+        measurementConsumerConfigs { configs[measurementConsumerName] = measurementConsumerConfig },
+        reportingServer.internalBasicReportsClient,
+        reportingReportsClient,
+        reportingServer.internalMetricCalculationSpecsClient,
+        reportingServer.internalReportResultsClient,
+        EventMessageDescriptor(TestEvent.getDescriptor()),
+      )
+      .execute()
   }
 
   private fun executeReportProcessorJob() {
@@ -849,7 +877,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
 
   private suspend fun registerDataAvailabilityIntervals(
     kingdomChannel: io.grpc.Channel,
-    edpDisplayNameToResourceMap: Map<String, org.wfanet.measurement.loadtest.resourcesetup.Resources.Resource>,
+    edpDisplayNameToResourceMap:
+      Map<String, org.wfanet.measurement.loadtest.resourcesetup.Resources.Resource>,
   ) {
     val dataAvailabilityInterval = computeDataAvailabilityInterval()
     val modelLineName = inProcessCmmsComponents.modelLineResourceName
@@ -932,57 +961,90 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private val SECRETS_DIR: File = getRuntimePath(
-      Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles"))!!.toFile()
+    private val SECRETS_DIR: File =
+      getRuntimePath(
+          Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+        )!!
+        .toFile()
     private val ALL_ROOT_CERTS_FILE: File = SECRETS_DIR.resolve("all_root_certs.pem")
     private val TRUSTED_CERTIFICATES =
-      readCertificateCollection(ALL_ROOT_CERTS_FILE)
-        .associateBy { it.subjectKeyIdentifier!! }
+      readCertificateCollection(ALL_ROOT_CERTS_FILE).associateBy { it.subjectKeyIdentifier!! }
     private val REPORTING_TLS_CERT_FILE: File = SECRETS_DIR.resolve("reporting_tls.pem")
     private val REPORTING_TLS_KEY_FILE: File = SECRETS_DIR.resolve("reporting_tls.key")
     private val POST_PROCESS_REPORT_RESULT_FILE: File =
       getRuntimePath(
-        Paths.get(
-          "wfa_measurement_system",
-          "src",
-          "main",
-          "python",
-          "wfa",
-          "measurement",
-          "reporting",
-          "deploy",
-          "v2",
-          "common",
-          "job",
-          "post_process_report_result_job_executor.zip",
-        )
-      )!!.toFile()
+          Paths.get(
+            "wfa_measurement_system",
+            "src",
+            "main",
+            "python",
+            "wfa",
+            "measurement",
+            "reporting",
+            "deploy",
+            "v2",
+            "common",
+            "job",
+            "post_process_report_result_job_executor.zip",
+          )
+        )!!
+        .toFile()
     private const val MC_SIGNING_PRIVATE_KEY_PATH = "mc_cs_private.der"
-    private val TEST_DATA_PATH = Paths.get(
-      "wfa_measurement_system", "src", "main", "proto", "wfa", "measurement", "loadtest", "dataprovider")
+    private val TEST_DATA_PATH =
+      Paths.get(
+        "wfa_measurement_system",
+        "src",
+        "main",
+        "proto",
+        "wfa",
+        "measurement",
+        "loadtest",
+        "dataprovider",
+      )
     private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
-    private val TEST_RESULTS_FULFILER_DATA_PATH = Paths.get(
-      "wfa_measurement_system", "src", "main", "kotlin", "org", "wfanet", "measurement",
-      "edpaggregator", "resultsfulfiller", "testing")
-    private val TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH = getRuntimePath(TEST_RESULTS_FULFILER_DATA_PATH)!!
-    val syntheticPopulationSpec: SyntheticPopulationSpec = parseTextProto(
-      TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
-      SyntheticPopulationSpec.getDefaultInstance())
-    val syntheticEventGroupSpec1: SyntheticEventGroupSpec = parseTextProto(
-      TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
-      SyntheticEventGroupSpec.getDefaultInstance())
-    val syntheticEventGroupSpec2: SyntheticEventGroupSpec = parseTextProto(
-      TEST_DATA_RUNTIME_PATH.resolve("small_data_spec_2.textproto").toFile(),
-      SyntheticEventGroupSpec.getDefaultInstance())
-    val populationSpec: PopulationSpec = parseTextProto(
-      TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
-      PopulationSpec.getDefaultInstance())
-    private val MODEL_LINE_INFO = ModelLineInfo(
-      populationSpec = populationSpec,
-      vidIndexMap = InMemoryVidIndexMap.build(populationSpec),
-      eventDescriptor = TestEvent.getDescriptor(),
-      localAlias = null,
-    )
+    private val TEST_RESULTS_FULFILER_DATA_PATH =
+      Paths.get(
+        "wfa_measurement_system",
+        "src",
+        "main",
+        "kotlin",
+        "org",
+        "wfanet",
+        "measurement",
+        "edpaggregator",
+        "resultsfulfiller",
+        "testing",
+      )
+    private val TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH =
+      getRuntimePath(TEST_RESULTS_FULFILER_DATA_PATH)!!
+    val syntheticPopulationSpec: SyntheticPopulationSpec =
+      parseTextProto(
+        TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
+        SyntheticPopulationSpec.getDefaultInstance(),
+      )
+    val syntheticEventGroupSpec1: SyntheticEventGroupSpec =
+      parseTextProto(
+        TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
+        SyntheticEventGroupSpec.getDefaultInstance(),
+      )
+    val syntheticEventGroupSpec2: SyntheticEventGroupSpec =
+      parseTextProto(
+        TEST_DATA_RUNTIME_PATH.resolve("small_data_spec_2.textproto").toFile(),
+        SyntheticEventGroupSpec.getDefaultInstance(),
+      )
+    val populationSpec: PopulationSpec =
+      parseTextProto(
+        TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto")
+          .toFile(),
+        PopulationSpec.getDefaultInstance(),
+      )
+    private val MODEL_LINE_INFO =
+      ModelLineInfo(
+        populationSpec = populationSpec,
+        vidIndexMap = InMemoryVidIndexMap.build(populationSpec),
+        eventDescriptor = TestEvent.getDescriptor(),
+        localAlias = null,
+      )
     val modelLineInfoMap: MutableMap<String, ModelLineInfo> = mutableMapOf()
     private val PASSTHROUGH_IMPRESSION_QUALIFICATION_FILTER =
       reportingImpressionQualificationFilter {
@@ -1015,9 +1077,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     private val NO_NOISE_TRUSTEE_PROTOCOL_CONFIG_CONFIG: TrusTeeProtocolConfigConfig =
       trusTeeProtocolConfigConfig {
         protocolConfig =
-          ProtocolConfigKt.trusTee {
-            noiseMechanism = ProtocolConfig.NoiseMechanism.NONE
-          }
+          ProtocolConfigKt.trusTee { noiseMechanism = ProtocolConfig.NoiseMechanism.NONE }
         duchyId = "aggregator"
       }
 
@@ -1028,6 +1088,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         trusTeeProtocolConfigConfig = NO_NOISE_TRUSTEE_PROTOCOL_CONFIG_CONFIG
       )
     }
+
     @get:ClassRule @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
   }
 }
