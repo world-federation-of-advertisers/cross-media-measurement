@@ -72,11 +72,13 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadat
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
+import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
+import org.wfanet.measurement.edpaggregator.v1alpha.eventGroupSyncParams
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -472,6 +474,56 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:$port"))
         .POST(HttpRequest.BodyPublishers.ofString(anyJson))
+        .build()
+    val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+
+    assertThat(response.statusCode()).isEqualTo(500)
+    verifyBlocking(dataProvidersServiceMock, times(0)) {
+      replaceDataAvailabilityIntervals(any())
+    }
+  }
+
+  @Test
+  fun `sync returns error for Any-wrapped params with unsupported type`() {
+    // Write runtime config to the config bucket
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = dataAvailabilitySyncConfigs {
+      configs += fileSystemDataAvailabilitySyncConfig()
+    }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+
+    // Build Any-wrapped params with a type that is not DataAvailabilitySyncParams
+    val params = eventGroupSyncParams { dataProvider = "dataProviders/edp123" }
+    val any = Any.pack(params)
+    val anyTypeRegistry =
+      TypeRegistry.newBuilder().add(EventGroupSyncParams.getDescriptor()).build()
+    val invalidAnyJson = JsonFormat.printer().usingTypeRegistry(anyTypeRegistry).print(any)
+
+    val port = runBlocking {
+      functionProcess.start(
+        mapOf(
+          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+          "KINGDOM_CERT_HOST" to "localhost",
+          "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
+          "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
+          "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+          "OTEL_METRICS_EXPORTER" to "none",
+          "OTEL_TRACES_EXPORTER" to "none",
+          "OTEL_LOGS_EXPORTER" to "none",
+          "OTEL_PROPAGATORS" to "tracecontext,baggage",
+        )
+      )
+    }
+
+    val client = HttpClient.newHttpClient()
+    val request =
+      HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:$port"))
+        .POST(HttpRequest.BodyPublishers.ofString(invalidAnyJson))
         .build()
     val response = client.send(request, HttpResponse.BodyHandlers.ofString())
 
