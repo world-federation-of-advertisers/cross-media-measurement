@@ -175,10 +175,15 @@ message ListRawImpressionMetadataResponse {
 
 // Request message for the `SetBatchState` method.
 message SetBatchStateRequest {
-  // The batch resource path to update.
+  // The parent batch resource name.
   // Format:
   // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/batches/{batch}`
-  string name = 1 [(google.api.field_behavior) = REQUIRED];
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionMetadata"
+    }
+  ];
 
   // The batch processing state to set for all files in the batch.
   RawImpressionMetadata.BatchState batch_state = 2
