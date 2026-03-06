@@ -102,12 +102,15 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     tempDirectory.root.toPath()
   }
 
-  private val syntheticEventGroupMap =
+  private val syntheticEventGroupMapByEdp =
     mapOf(
-      "edpa-eg-reference-id-1" to syntheticEventGroupSpec,
-      "edpa-eg-reference-id-2" to syntheticEventGroupSpec,
-      "edpa-eg-reference-id-3" to syntheticEventGroupSpec,
+      "edp1" to mapOf("edpa-eg-reference-id-1" to syntheticEventGroupSpec),
+      "edp2" to mapOf("edpa-eg-reference-id-2" to syntheticEventGroupSpec),
+      "edp3" to mapOf("edpa-eg-reference-id-3" to syntheticEventGroupSpec),
     )
+
+  private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec> =
+    syntheticEventGroupMapByEdp.values.flatMap { it.entries }.associate { it.key to it.value }
 
   @get:Rule
   val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents =
@@ -115,7 +118,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       secureComputationDatabaseAdmin = secureComputationDatabaseAdmin,
       storagePath = tempPath,
       pubSubClient = pubSubClient,
-      syntheticEventGroupMap = syntheticEventGroupMap,
+      syntheticEventGroupMapByEdp = syntheticEventGroupMapByEdp,
       syntheticPopulationSpec = syntheticPopulationSpec,
       modelLineInfoMap = modelLineInfoMap,
       externalKmsClient = sharedKmsClient,

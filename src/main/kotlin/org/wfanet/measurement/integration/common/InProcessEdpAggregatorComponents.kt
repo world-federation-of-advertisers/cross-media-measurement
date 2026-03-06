@@ -117,7 +117,7 @@ class InProcessEdpAggregatorComponents(
   private val storagePath: Path,
   private val pubSubClient: GooglePubSubEmulatorClient,
   private val syntheticPopulationSpec: SyntheticPopulationSpec,
-  private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec>,
+  private val syntheticEventGroupMapByEdp: Map<String, Map<String, SyntheticEventGroupSpec>>,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val externalKmsClient: FakeKmsClient,
 ) : TestRule {
@@ -337,7 +337,7 @@ class InProcessEdpAggregatorComponents(
           requisitionFetcher.fetchAndStoreRequisitions()
         }
       }
-      val eventGroups = buildEventGroups(measurementConsumerData)
+      val eventGroups = buildEventGroups(measurementConsumerData, edpAggregatorShortName)
       eventGroupSync =
         EventGroupSync(
           edpResourceName,
@@ -356,7 +356,8 @@ class InProcessEdpAggregatorComponents(
           SyntheticDataGeneration.generateEvents(
             TestEvent.getDefaultInstance(),
             syntheticPopulationSpec,
-            syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
+            syntheticEventGroupMapByEdp.getValue(edpAggregatorShortName)
+              .getValue(mappedEventGroup.eventGroupReferenceId),
           )
 
         val allDates: List<LocalDate> = events.map { it.localDate }.toList()
@@ -469,8 +470,12 @@ class InProcessEdpAggregatorComponents(
     }
   }
 
-  private fun buildEventGroups(measurementConsumerData: MeasurementConsumerData): List<EventGroup> {
-    return syntheticEventGroupMap.flatMap { (eventGroupReferenceId, syntheticEventGroupSpec) ->
+  private fun buildEventGroups(
+    measurementConsumerData: MeasurementConsumerData,
+    edpAggregatorShortName: String,
+  ): List<EventGroup> {
+    return syntheticEventGroupMapByEdp.getValue(edpAggregatorShortName)
+      .flatMap { (eventGroupReferenceId, syntheticEventGroupSpec) ->
       syntheticEventGroupSpec.dateSpecsList.map { dateSpec ->
         val dateRange = dateSpec.dateRange
         val startTime =
@@ -523,7 +528,8 @@ class InProcessEdpAggregatorComponents(
         SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           syntheticPopulationSpec,
-          syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
+          syntheticEventGroupMapByEdp.getValue(edpAggregatorShortName)
+            .getValue(mappedEventGroup.eventGroupReferenceId),
         )
       val modelLineName = modelLineInfoMap.keys.first()
       val impressionWriter =

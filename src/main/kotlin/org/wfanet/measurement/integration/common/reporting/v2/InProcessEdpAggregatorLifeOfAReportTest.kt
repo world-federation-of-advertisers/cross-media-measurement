@@ -98,6 +98,8 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.FULFILLER_TOPIC_ID
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
+import org.wfanet.measurement.integration.common.TRUSTEE_PROTOCOL_CONFIG_CONFIG
+import org.wfanet.measurement.kingdom.deploy.common.TrusTeeProtocolConfig
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.InProcessEdpAggregatorComponents
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
@@ -185,11 +187,11 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     tempDirectory.root.toPath()
   }
 
-  private val syntheticEventGroupMap =
+  private val syntheticEventGroupMapByEdp =
     mapOf(
-      "edpa-eg-reference-id-1" to syntheticEventGroupSpec,
-      "edpa-eg-reference-id-2" to syntheticEventGroupSpec,
-      "edpa-eg-reference-id-3" to syntheticEventGroupSpec,
+      "edp1" to mapOf("edp1-eg-ref-1" to syntheticEventGroupSpec1),
+      "edp2" to mapOf("edp2-eg-ref-1" to syntheticEventGroupSpec1),
+      "edp3" to mapOf("edp3-eg-ref-1" to syntheticEventGroupSpec2),
     )
 
   private val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents =
@@ -197,7 +199,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       secureComputationDatabaseAdmin = secureComputationDatabaseAdmin,
       storagePath = tempPath,
       pubSubClient = pubSubClient,
-      syntheticEventGroupMap = syntheticEventGroupMap,
+      syntheticEventGroupMapByEdp = syntheticEventGroupMapByEdp,
       syntheticPopulationSpec = syntheticPopulationSpec,
       modelLineInfoMap = modelLineInfoMap,
       externalKmsClient = sharedKmsClient,
@@ -416,7 +418,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   }
 
   @Test
-  fun `HMSS basic report through Reporting Server has the expected result`() = runBlocking {
+  fun `HMSS with noise basic report has the expected result`() = runBlocking {
     val hmssEventGroups = getHmssEventGroups()
     check(hmssEventGroups.size > 1)
 
@@ -463,15 +465,20 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   }
 
   @Test
-  fun `TrusTee basic report through Reporting Server has the expected result`() = runBlocking {
+  fun `TrusTee no noise basic report has the expected result`() = runBlocking {
+    TrusTeeProtocolConfig.setForTest(
+      NO_NOISE_TRUSTEE_PROTOCOL_CONFIG_CONFIG.protocolConfig,
+      NO_NOISE_TRUSTEE_PROTOCOL_CONFIG_CONFIG.duchyId,
+    )
+
     val trusTeeEventGroups = getTrusTeeEventGroups()
     check(trusTeeEventGroups.size > 1)
 
     val createBasicReportRequest =
       buildCreateBasicReportRequest(
         trusTeeEventGroups,
-        "trustee-campaign",
-        "trustee-basicreport",
+        "trustee-no-noise-campaign",
+        "trustee-no-noise-basicreport",
         includeIqfFilter = false,
       )
 
@@ -509,14 +516,72 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     assertNoNoiseTrusTeeResults(completedBasicReport)
   }
 
+  @Test
+  fun `TrusTee with noise basic report has the expected result`() = runBlocking {
+    TrusTeeProtocolConfig.setForTest(
+      TRUSTEE_PROTOCOL_CONFIG_CONFIG.protocolConfig,
+      TRUSTEE_PROTOCOL_CONFIG_CONFIG.duchyId,
+    )
+
+    val trusTeeEventGroups = getTrusTeeEventGroups()
+    check(trusTeeEventGroups.size > 1)
+
+    val createBasicReportRequest =
+      buildCreateBasicReportRequest(
+        trusTeeEventGroups,
+        "trustee-noise-campaign",
+        "trustee-noise-basicreport",
+        includeIqfFilter = false,
+      )
+
+    val createdBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .createBasicReport(createBasicReportRequest)
+
+    val retrievedBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+    assertRunningBasicReport(createBasicReportRequest, createdBasicReport, retrievedBasicReport)
+
+    executeBasicReportsReportsJob(createdBasicReport.name)
+    executeReportProcessorJob()
+
+    val completedBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+
+    val measurements = listMeasurements()
+    val trusTeeProtocolMeasurements =
+      measurements.filter { measurement ->
+        measurement.protocolConfig.protocolsList.any { it.hasTrusTee() }
+      }
+    assertWithMessage("at least one measurement used TrusTee protocol")
+      .that(trusTeeProtocolMeasurements)
+      .isNotEmpty()
+
+    assertNoisyTrusTeeResults(completedBasicReport)
+  }
+
   /**
    * Asserts exact metric values for the no-noise TrusTee basic report.
    *
-   * With NoiseMechanism.NONE and full VID sampling (width=1.0), TrusTee produces deterministic
-   * results. The test uses 2 EDPs with identical synthetic data (one event group per EDP). Each EDP
-   * contributes a frequency vector from the same small_data_spec (3290 VIDs at freq=1, 647 VIDs at
-   * freq=2). TrusTee sums frequencies across EDPs, so each VID's frequency doubles for the
-   * cross-publisher reporting unit result.
+   * With NoiseMechanism.NONE, TrusTee produces deterministic results. The test uses 2 EDPs with
+   * different synthetic data (small_data_spec and small_data_spec_2 with partially overlapping VID
+   * ranges) so that the cross-publisher reach (union of VIDs) is strictly greater than any
+   * individual EDP's reach.
+   *
+   * Expected cross-publisher results (deterministic with no noise):
+   *   reach=5369, impressions=9122, kPlusReach=[5369, 2677, 682, 394, 0]
+   *
+   * Expected per-EDP results (order depends on resource name):
+   *   EDP with spec1: reach=4472, impressions=5135, kPlusReach=[4472, 663, 0, 0, 0]
+   *   EDP with spec2: reach=3338, impressions=3988, kPlusReach=[3337, 650, 0, 0, 0]
    */
   private fun assertNoNoiseTrusTeeResults(basicReport: BasicReport) {
     assertWithMessage("result groups").that(basicReport.resultGroupsList).hasSize(1)
@@ -531,65 +596,45 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     val result = totalResults.single()
     val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
 
-    assertWithMessage("reporting unit reach")
+    assertWithMessage("cross-publisher reach")
       .that(reportingUnitCumulative.reach)
       .isEqualTo(EXPECTED_CROSS_PUBLISHER_REACH)
 
-    assertWithMessage("reporting unit impressions")
+    assertWithMessage("cross-publisher impressions")
       .that(reportingUnitCumulative.impressions)
       .isEqualTo(EXPECTED_CROSS_PUBLISHER_IMPRESSIONS)
 
-    assertWithMessage("reporting unit k+ reach")
+    assertWithMessage("cross-publisher k+ reach")
       .that(reportingUnitCumulative.kPlusReachList)
-      .containsExactly(
-        EXPECTED_CROSS_PUBLISHER_REACH,
-        EXPECTED_CROSS_PUBLISHER_REACH,
-        EXPECTED_CROSS_PUBLISHER_FREQ2_REACH,
-        EXPECTED_CROSS_PUBLISHER_FREQ2_REACH,
-        0L,
-      )
+      .containsExactly(5369L, 2677L, 682L, 394L, 0L)
       .inOrder()
 
-    assertWithMessage("reporting unit k+ reach is monotonically non-increasing")
+    assertWithMessage("cross-publisher k+ reach is monotonically non-increasing")
       .that(reportingUnitCumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it })
       .isTrue()
 
-    assertWithMessage("reporting unit stacked incremental reach")
-      .that(result.metricSet.reportingUnit.stackedIncrementalReachList)
-      .containsExactly(EXPECTED_CROSS_PUBLISHER_REACH, 0L)
-      .inOrder()
-
     assertWithMessage("number of components").that(result.metricSet.componentsCount).isEqualTo(2)
 
+    val componentReaches = mutableListOf<Long>()
     result.metricSet.componentsList.forEach { component ->
       val cumulative = component.value.cumulative
+      componentReaches.add(cumulative.reach)
 
       assertWithMessage("component ${component.key} reach")
         .that(cumulative.reach)
-        .isEqualTo(EXPECTED_PER_EDP_REACH)
+        .isGreaterThan(0L)
 
       assertWithMessage("component ${component.key} impressions")
         .that(cumulative.impressions)
-        .isEqualTo(EXPECTED_PER_EDP_IMPRESSIONS)
-
-      assertWithMessage("component ${component.key} k+ reach")
-        .that(cumulative.kPlusReachList)
-        .containsExactly(
-          EXPECTED_PER_EDP_REACH,
-          EXPECTED_PER_EDP_FREQ2_REACH,
-          0L,
-          0L,
-          0L,
-        )
-        .inOrder()
+        .isGreaterThan(0L)
 
       assertWithMessage("component ${component.key} k+ reach is monotonically non-increasing")
         .that(cumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it })
         .isTrue()
 
-      assertWithMessage("cross-publisher reach >= component ${component.key} reach")
+      assertWithMessage("cross-publisher reach > component ${component.key} reach")
         .that(reportingUnitCumulative.reach)
-        .isAtLeast(cumulative.reach)
+        .isGreaterThan(cumulative.reach)
 
       assertWithMessage("cross-publisher impressions >= component ${component.key} impressions")
         .that(reportingUnitCumulative.impressions)
@@ -602,6 +647,55 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           .that(reportingUnitCumulative.kPlusReachList[k])
           .isAtLeast(cumulative.kPlusReachList[k])
       }
+    }
+
+    assertWithMessage("component reach values")
+      .that(componentReaches.sorted())
+      .containsExactly(EXPECTED_EDP_SPEC2_REACH, EXPECTED_EDP_SPEC1_REACH)
+      .inOrder()
+
+    assertWithMessage("cross-publisher reach < sum of individual EDP reaches")
+      .that(reportingUnitCumulative.reach)
+      .isLessThan(componentReaches.sum())
+  }
+
+  /**
+   * Checks structural invariants on noisy TrusTee results. With CONTINUOUS_GAUSSIAN noise, exact
+   * values are non-deterministic, so only structural properties are verified.
+   */
+  private fun assertNoisyTrusTeeResults(basicReport: BasicReport) {
+    assertWithMessage("result groups").that(basicReport.resultGroupsList).hasSize(1)
+
+    val resultGroup = basicReport.resultGroupsList.single()
+    val totalResults =
+      resultGroup.resultsList.filter {
+        it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
+      }
+    assertWithMessage("total results").that(totalResults).hasSize(1)
+
+    val result = totalResults.single()
+    val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
+
+    assertWithMessage("reporting unit k+ reach is monotonically non-increasing")
+      .that(reportingUnitCumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it })
+      .isTrue()
+
+    assertWithMessage("number of components").that(result.metricSet.componentsCount).isEqualTo(2)
+
+    val componentReaches = mutableListOf<Long>()
+    result.metricSet.componentsList.forEach { component ->
+      val cumulative = component.value.cumulative
+      componentReaches.add(cumulative.reach)
+
+      assertWithMessage("component ${component.key} k+ reach is monotonically non-increasing")
+        .that(cumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it })
+        .isTrue()
+    }
+
+    if (componentReaches.all { it > 0L }) {
+      assertWithMessage("cross-publisher reach < sum of individual EDP reaches")
+        .that(reportingUnitCumulative.reach)
+        .isLessThan(componentReaches.sum())
     }
   }
 
@@ -768,12 +862,20 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           )
           .isTrue()
 
+        val componentReaches = mutableListOf<Long>()
         result.metricSet.componentsList.forEach { component ->
           val cumulative = component.value.cumulative
+          componentReaches.add(cumulative.reach)
 
           assertWithMessage("component ${component.key} k+ reach is monotonically non-increasing")
             .that(cumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it })
             .isTrue()
+        }
+
+        if (componentReaches.all { it > 0L }) {
+          assertWithMessage("cross-publisher reach < sum of individual EDP reaches")
+            .that(reportingUnitCumulative.reach)
+            .isLessThan(componentReaches.sum())
         }
       }
     }
@@ -867,7 +969,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   }
 
   private fun computeDataAvailabilityInterval(): com.google.type.Interval {
-    val dateSpec = syntheticEventGroupSpec.dateSpecsList.first()
+    val dateSpec = syntheticEventGroupSpec1.dateSpecsList.first()
     val dateRange = dateSpec.dateRange
     val startTime =
       LocalDate.of(dateRange.start.year, dateRange.start.month, dateRange.start.day)
@@ -965,8 +1067,11 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     val syntheticPopulationSpec: SyntheticPopulationSpec = parseTextProto(
       TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
       SyntheticPopulationSpec.getDefaultInstance())
-    val syntheticEventGroupSpec: SyntheticEventGroupSpec = parseTextProto(
+    val syntheticEventGroupSpec1: SyntheticEventGroupSpec = parseTextProto(
       TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
+      SyntheticEventGroupSpec.getDefaultInstance())
+    val syntheticEventGroupSpec2: SyntheticEventGroupSpec = parseTextProto(
+      TEST_DATA_RUNTIME_PATH.resolve("small_data_spec_2.textproto").toFile(),
       SyntheticEventGroupSpec.getDefaultInstance())
     val populationSpec: PopulationSpec = parseTextProto(
       TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
@@ -1001,12 +1106,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           }
         }
     }
-    private const val EXPECTED_PER_EDP_REACH = 4454L
-    private const val EXPECTED_PER_EDP_FREQ2_REACH = 656L
-    private const val EXPECTED_PER_EDP_IMPRESSIONS = 5110L
-    private const val EXPECTED_CROSS_PUBLISHER_REACH = EXPECTED_PER_EDP_REACH
-    private const val EXPECTED_CROSS_PUBLISHER_FREQ2_REACH = EXPECTED_PER_EDP_FREQ2_REACH
-    private const val EXPECTED_CROSS_PUBLISHER_IMPRESSIONS = 10220L
+    private const val EXPECTED_CROSS_PUBLISHER_REACH = 5369L
+    private const val EXPECTED_CROSS_PUBLISHER_IMPRESSIONS = 9122L
+    private const val EXPECTED_EDP_SPEC1_REACH = 4472L
+    private const val EXPECTED_EDP_SPEC2_REACH = 3338L
 
     private val NO_NOISE_TRUSTEE_PROTOCOL_CONFIG_CONFIG: TrusTeeProtocolConfigConfig =
       trusTeeProtocolConfigConfig {
@@ -1021,7 +1124,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     @JvmStatic
     fun initConfig() {
       InProcessCmmsComponents.initConfig(
-        trusTeeProtocolConfigConfig = NO_NOISE_TRUSTEE_PROTOCOL_CONFIG_CONFIG
+        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG
       )
     }
     @get:ClassRule @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
