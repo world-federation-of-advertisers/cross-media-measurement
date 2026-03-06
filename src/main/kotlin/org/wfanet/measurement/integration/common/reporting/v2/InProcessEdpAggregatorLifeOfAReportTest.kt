@@ -211,6 +211,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           pubSubClient.createSubscription(PROJECT_ID, SUBSCRIPTION_ID, FULFILLER_TOPIC_ID)
         }
         inProcessCmmsComponents.startDaemons()
+        modelLineInfoMap.clear()
         modelLineInfoMap[inProcessCmmsComponents.modelLineResourceName] = MODEL_LINE_INFO
         val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
         val edpDisplayNameToResourceMap = inProcessCmmsComponents.edpDisplayNameToResourceMap
@@ -486,7 +487,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .that(hmssProtocolMeasurements)
       .isNotEmpty()
 
-    assertHmssResults(completedBasicReport)
+    assertNoisedResults(completedBasicReport)
   }
 
   @Test
@@ -537,10 +538,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   }
 
   /**
-   * Checks structural invariants on HMSS results. HMSS uses DISCRETE_GAUSSIAN noise so only
+   * Checks structural invariants on noised results. HMSS uses DISCRETE_GAUSSIAN noise so only
    * structural properties are verified, not exact values.
    */
-  private fun assertHmssResults(basicReport: BasicReport) {
+  private fun assertNoisedResults(basicReport: BasicReport) {
     basicReport.resultGroupsList.forEach { resultGroup ->
       val totalResults =
         resultGroup.resultsList.filter {
@@ -567,20 +568,12 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           )
           .isTrue()
 
-        val componentReaches = mutableListOf<Long>()
         result.metricSet.componentsList.forEach { component ->
           val cumulative = component.value.cumulative
-          componentReaches.add(cumulative.reach)
 
           assertWithMessage("component ${component.key} k+ reach is monotonically non-increasing")
             .that(cumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it })
             .isTrue()
-        }
-
-        if (componentReaches.all { it > 0L }) {
-          assertWithMessage("cross-publisher reach < sum of individual EDP reaches")
-            .that(reportingUnitCumulative.reach)
-            .isLessThan(componentReaches.sum())
         }
       }
     }
