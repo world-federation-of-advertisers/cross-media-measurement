@@ -248,6 +248,28 @@ private val RO_LLV2_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
   }
 }
 
+private val LLV2_NONE_NOISE_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
+  liquidLegionsV2 = liquidLegionsV2 {
+    sketchParams = liquidLegionsSketchParams {
+      decayRate = 12.0
+      maxSize = 100_000
+    }
+    ellipticCurveId = 415
+    noiseMechanism = SystemNoiseMechanism.NONE
+  }
+}
+
+private val RO_LLV2_NONE_NOISE_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
+  reachOnlyLiquidLegionsV2 = liquidLegionsV2 {
+    sketchParams = liquidLegionsSketchParams {
+      decayRate = 12.0
+      maxSize = 100_000
+    }
+    ellipticCurveId = 415
+    noiseMechanism = SystemNoiseMechanism.NONE
+  }
+}
+
 private val HMSS_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
   honestMajorityShareShuffle = honestMajorityShareShuffle {
     reachAndFrequencyRingModulus = 127
@@ -1717,6 +1739,53 @@ class HeraldTest {
           .toName()
       )
     assertThat(failRequest.failure.errorMessage).contains("1 attempts")
+  }
+
+  @Test
+  fun `syncStatuses fails llv2 computation with NONE noise mechanism`() = runTest {
+    val computation =
+      buildComputationAtKingdom(
+        COMPUTATION_GLOBAL_ID,
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        mpcProtocolConfig = LLV2_NONE_NOISE_MPC_PROTOCOL_CONFIG,
+      )
+    mockStreamActiveComputationsToReturn(computation)
+
+    nonAggregatorHerald.syncStatuses()
+
+    val failRequest: FailComputationParticipantRequest = captureFirst {
+      runBlocking { verify(systemComputationParticipants).failComputationParticipant(capture()) }
+    }
+    assertThat(failRequest.name)
+      .isEqualTo(
+        ComputationParticipantKey(computation.key.computationId, NON_AGGREGATOR_DUCHY_ID).toName()
+      )
+    assertThat(failRequest.failure.errorMessage)
+      .contains("Liquid Legions V2 does not support NoiseMechanism.NONE")
+  }
+
+  @Test
+  fun `syncStatuses fails reach-only llv2 computation with NONE noise mechanism`() = runTest {
+    val computation =
+      buildComputationAtKingdom(
+        COMPUTATION_GLOBAL_ID,
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        serializedMeasurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC,
+        mpcProtocolConfig = RO_LLV2_NONE_NOISE_MPC_PROTOCOL_CONFIG,
+      )
+    mockStreamActiveComputationsToReturn(computation)
+
+    nonAggregatorHerald.syncStatuses()
+
+    val failRequest: FailComputationParticipantRequest = captureFirst {
+      runBlocking { verify(systemComputationParticipants).failComputationParticipant(capture()) }
+    }
+    assertThat(failRequest.name)
+      .isEqualTo(
+        ComputationParticipantKey(computation.key.computationId, NON_AGGREGATOR_DUCHY_ID).toName()
+      )
+    assertThat(failRequest.failure.errorMessage)
+      .contains("Reach-Only Liquid Legions V2 does not support NoiseMechanism.NONE")
   }
 
   @Test
