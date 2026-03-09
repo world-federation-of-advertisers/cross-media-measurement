@@ -20,7 +20,6 @@ proto_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
         "//src/main/proto/wfa/measurement/config/edpaggregator:__pkg__",
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
     ],
     deps = [
