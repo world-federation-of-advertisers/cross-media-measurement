@@ -20,7 +20,6 @@ proto_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
         "//src/main/proto/wfa/measurement/config/edpaggregator:__pkg__",
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
     ],
     deps = [
@@ -114,5 +113,20 @@ proto_library(
 kt_jvm_proto_library(
     name = "data_availability_sync_configs_kt_jvm_proto",
     deps = [":data_availability_sync_configs_proto"],
+)
+
+proto_library(
+    name = "vid_labeling_dispatcher_config_proto",
+    srcs = ["vid_labeling_dispatcher_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":transport_layer_security_params_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "vid_labeling_dispatcher_config_kt_jvm_proto",
+    deps = [":vid_labeling_dispatcher_config_proto"],
 )
 
