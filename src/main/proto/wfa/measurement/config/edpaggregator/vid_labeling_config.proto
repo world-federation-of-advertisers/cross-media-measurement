@@ -25,8 +25,8 @@ option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
 option java_outer_classname = "VidLabelingConfigProto";
 
-// Static configuration for the VID Labeling TEE application, read at startup
-// by the Cloud Function dispatcher.
+// Static config for the Cloud Function dispatcher. Used to construct the
+// VidLabelerParams passed to the Secure Computation API.
 message VidLabelingConfig {
   // The CMMS resource name for the EDP.
   string data_provider = 1 [

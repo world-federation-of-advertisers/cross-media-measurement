@@ -17,21 +17,19 @@ syntax = "proto3";
 package wfa.measurement.edpaggregator.v1alpha;
 
 import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
-option java_outer_classname = "FileSystemTransportLayerSecurityParamsProto";
+option java_outer_classname = "VidLabelingDispatcherParamsProto";
 
-// TLS client credential filesystem paths used by a Cloud Function to connect
-// to an mTLS-secured API.
-message FileSystemTransportLayerSecurityParams {
-  // The path on the filesystem where the client certificate is mounted.
-  string cert_file_path = 1 [(google.api.field_behavior) = REQUIRED];
-
-  // The path on the filesystem where the client private key is mounted.
-  string private_key_file_path = 2 [(google.api.field_behavior) = REQUIRED];
-
-  // The path on the filesystem where the trusted certificate collection is
-  // mounted.
-  string cert_collection_file_path = 3 [(google.api.field_behavior) = REQUIRED];
+// Parameters sent by the DataWatcher to the VID Labeling Dispatcher cloud
+// function. The dispatcher uses the data_provider to look up the matching
+// VidLabelingConfig and build the VidLabelerParams for the TEE application.
+message VidLabelingDispatcherParams {
+  // Resource name of the DataProvider.
+  string data_provider = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
+  ];
 }
