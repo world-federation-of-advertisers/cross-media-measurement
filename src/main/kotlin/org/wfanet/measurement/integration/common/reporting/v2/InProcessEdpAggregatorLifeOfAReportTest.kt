@@ -94,6 +94,7 @@ import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.FULFILLER_TOPIC_ID
+import org.wfanet.measurement.integration.common.HMSS_PROTOCOL_CONFIG_CONFIG
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.InProcessEdpAggregatorComponents
@@ -1113,7 +1114,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     @JvmStatic
     fun initConfig() {
       InProcessCmmsComponents.initConfig(
-        trusTeeProtocolConfigConfig = NO_NOISE_TRUSTEE_PROTOCOL_CONFIG_CONFIG
+        trusTeeProtocolConfigConfig = NO_NOISE_TRUSTEE_PROTOCOL_CONFIG_CONFIG,
+        hmssProtocolConfigConfig = HMSS_PROTOCOL_CONFIG_CONFIG,
       )
     }
 

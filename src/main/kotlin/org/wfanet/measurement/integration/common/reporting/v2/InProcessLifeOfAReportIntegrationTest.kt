@@ -93,6 +93,7 @@ import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.dataprovider.MeasurementResults
 import org.wfanet.measurement.integration.common.ALL_EDP_DISPLAY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
+import org.wfanet.measurement.integration.common.HMSS_PROTOCOL_CONFIG_CONFIG
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
@@ -3256,7 +3257,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     @BeforeClass
     @JvmStatic
     fun initConfig() {
-      InProcessCmmsComponents.initConfig(TRUSTEE_PROTOCOL_CONFIG_CONFIG)
+      InProcessCmmsComponents.initConfig(
+        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG,
+        hmssProtocolConfigConfig = HMSS_PROTOCOL_CONFIG_CONFIG,
+      )
     }
   }
 }
