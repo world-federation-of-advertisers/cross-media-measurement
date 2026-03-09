@@ -359,7 +359,7 @@ object LiquidLegionsV2Starter {
       SystemNoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
       SystemNoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
       SystemNoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
-      SystemNoiseMechanism.NONE -> NoiseMechanism.NONE
+      SystemNoiseMechanism.NONE -> error("Liquid Legions V2 does not support NoiseMechanism.NONE")
       SystemNoiseMechanism.UNRECOGNIZED,
       SystemNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED -> error("Invalid system NoiseMechanism")
     }

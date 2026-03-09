@@ -211,6 +211,102 @@ class TrusTeeProcessorImplTest {
     assertThat(result.reach).isAtMost(maxPossibleScaledReach)
   }
 
+  @Test
+  fun `computeResult for Reach-Only with no noise returns exact reach`() {
+    val params = TrusTeeReachParams(vidSamplingIntervalWidth = 1.0f, dpParams = null)
+    val processor = TrusTeeProcessorImpl(params)
+    processor.addFrequencyVector(byteArrayOf(1, 0, 1, 0, 1, 0))
+    val result = processor.computeResult() as ReachResult
+
+    assertThat(result.reach).isEqualTo(3)
+  }
+
+  @Test
+  fun `computeResult for Reach-Only with no noise and sampling returns scaled reach`() {
+    val params = TrusTeeReachParams(vidSamplingIntervalWidth = 0.5f, dpParams = null)
+    val processor = TrusTeeProcessorImpl(params)
+    processor.addFrequencyVector(byteArrayOf(1, 0, 1, 0, 1, 0))
+    val result = processor.computeResult() as ReachResult
+
+    assertThat(result.reach).isEqualTo(6)
+  }
+
+  @Test
+  fun `computeResult for R&F with no noise returns exact reach and frequency`() {
+    val params =
+      TrusTeeReachAndFrequencyParams(
+        maximumFrequency = 3,
+        vidSamplingIntervalWidth = 1.0f,
+        reachDpParams = null,
+        frequencyDpParams = null,
+      )
+    val processor = TrusTeeProcessorImpl(params)
+    // 4 VIDs: frequencies [2, 1, 0, 3] -> histogram: {1: 1, 2: 1, 3+: 1}, 3 reached
+    processor.addFrequencyVector(byteArrayOf(2, 1, 0, 3))
+    val result = processor.computeResult() as ReachAndFrequencyResult
+
+    assertThat(result.reach).isEqualTo(3)
+    assertThat(result.frequency).containsExactly(1L, 1.0 / 3, 2L, 1.0 / 3, 3L, 1.0 / 3)
+  }
+
+  @Test
+  fun `computeResult for R&F with no noise aggregates multiple vectors`() {
+    val params =
+      TrusTeeReachAndFrequencyParams(
+        maximumFrequency = 3,
+        vidSamplingIntervalWidth = 1.0f,
+        reachDpParams = null,
+        frequencyDpParams = null,
+      )
+    val processor = TrusTeeProcessorImpl(params)
+    // VID0: 1+0=1, VID1: 0+1=1, VID2: 1+1=2, VID3: 0+0=0
+    // histogram: {1: 2, 2: 1}, 3 reached
+    processor.addFrequencyVector(byteArrayOf(1, 0, 1, 0))
+    processor.addFrequencyVector(byteArrayOf(0, 1, 1, 0))
+    val result = processor.computeResult() as ReachAndFrequencyResult
+
+    assertThat(result.reach).isEqualTo(3)
+    assertThat(result.frequency).containsExactly(1L, 2.0 / 3, 2L, 1.0 / 3, 3L, 0.0)
+  }
+
+  @Test
+  fun `computeResult for R&F with no noise caps frequency at max`() {
+    val params =
+      TrusTeeReachAndFrequencyParams(
+        maximumFrequency = 2,
+        vidSamplingIntervalWidth = 1.0f,
+        reachDpParams = null,
+        frequencyDpParams = null,
+      )
+    val processor = TrusTeeProcessorImpl(params)
+    // VID0: 1+1=2(capped at 2), VID1: 1+1=2(capped at 2), VID2: 0+0=0
+    // histogram: {2: 2}, 2 reached
+    processor.addFrequencyVector(byteArrayOf(1, 1, 0))
+    processor.addFrequencyVector(byteArrayOf(1, 1, 0))
+    val result = processor.computeResult() as ReachAndFrequencyResult
+
+    assertThat(result.reach).isEqualTo(2)
+    assertThat(result.frequency).containsExactly(1L, 0.0, 2L, 1.0)
+  }
+
+  @Test
+  fun `computeResult for R&F with no noise and all-zero vectors returns zero reach`() {
+    val params =
+      TrusTeeReachAndFrequencyParams(
+        maximumFrequency = MAX_FREQUENCY,
+        vidSamplingIntervalWidth = 1.0f,
+        reachDpParams = null,
+        frequencyDpParams = null,
+      )
+    val processor = TrusTeeProcessorImpl(params)
+    processor.addFrequencyVector(byteArrayOf(0, 0, 0, 0))
+    val result = processor.computeResult() as ReachAndFrequencyResult
+
+    assertThat(result.reach).isEqualTo(0)
+    val expectedDistribution = (1L..MAX_FREQUENCY).associateWith { 0.0 }
+    assertThat(result.frequency).isEqualTo(expectedDistribution)
+  }
+
   companion object {
     private const val MAX_FREQUENCY = 5
     private const val FLOAT_COMPARISON_TOLERANCE = 1e-9
