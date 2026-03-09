@@ -72,6 +72,23 @@ jobs:
     steps:
     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
+    - name: Compute commit age
+      id: compute-commit-age
+      env:
+        COMMIT_SHA: ${{ github.sha }}
+      run: |
+        commit_ts=$(git show --no-patch --pretty="%ct" "${COMMIT_SHA}")
+        now_ts=$(date -u +%s)
+        days_diff=$(( (now_ts - commit_ts) / 86400 ))
+        echo "commit-age-days=${days_diff}" | tee -a "$GITHUB_OUTPUT"
+
+    - name: Check commit age
+      if: ${{ fromJSON(steps.compute-commit-age.outputs.commit-age-days) > 5 }}
+      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+      with:
+        script: |
+          core.setFailed('This workflow cannot be run from a commit older than 5 days. Commit ${{ github.sha }} was committed ${{ steps.compute-commit-age.outputs.commit-age-days }} days ago')
+
     - name: Write auth.bazelrc
       env:
         BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}

@@ -77,7 +77,7 @@ jobs:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
 
   terraform:
-    uses: ./.github/workflows/terraform-cmms.yml
+    uses: ./.github/workflows/terraform-cmms-v2.yml
     needs: [publish-images]
     secrets: inherit
     permissions:

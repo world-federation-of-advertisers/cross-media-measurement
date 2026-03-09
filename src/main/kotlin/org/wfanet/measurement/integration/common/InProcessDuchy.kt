@@ -45,6 +45,7 @@ import org.wfanet.measurement.api.v2alpha.testing.withMetadataPrincipalIdentitie
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
@@ -329,9 +330,14 @@ class InProcessDuchy(
             workLockDuration = Duration.ofSeconds(1),
             privateKeyStore = privateKeyStore,
           )
-        val kmsClientFactory =
+        val gcloudKmsClientFactory =
           object : KmsClientFactory<GCloudWifCredentials> {
             override fun getKmsClient(config: GCloudWifCredentials): KmsClient = trusTeeKmsClient
+          }
+        val gcloudToAwsKmsClientFactory =
+          object : KmsClientFactory<GCloudToAwsWifCredentials> {
+            override fun getKmsClient(config: GCloudToAwsWifCredentials): KmsClient =
+              trusTeeKmsClient
           }
         val trusTeeMill =
           TrusTeeMill(
@@ -347,7 +353,8 @@ class InProcessDuchy(
             computationStatsClient = computationStatsClient,
             workLockDuration = Duration.ofMinutes(5),
             trusTeeProcessorFactory = TrusTeeProcessorImpl,
-            kmsClientFactory = kmsClientFactory,
+            gcloudKmsClientFactory = gcloudKmsClientFactory,
+            gcloudToAwsKmsClientFactory = gcloudToAwsKmsClientFactory,
             attestationTokenPath = Paths.get("/dev/null"),
           )
         val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1))
