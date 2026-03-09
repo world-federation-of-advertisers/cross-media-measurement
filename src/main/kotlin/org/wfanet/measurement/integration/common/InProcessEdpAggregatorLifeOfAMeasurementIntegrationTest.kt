@@ -108,6 +108,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       "edp1" to mapOf("edpa-eg-reference-id-1" to syntheticEventGroupSpec),
       "edp2" to mapOf("edpa-eg-reference-id-2" to syntheticEventGroupSpec),
       "edp3" to mapOf("edpa-eg-reference-id-3" to syntheticEventGroupSpec),
+      "edp4" to mapOf("edpa-eg-reference-id-4" to syntheticEventGroupSpec),
     )
 
   private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec> =
@@ -157,6 +158,11 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
             honestMajorityShareShuffleSupported = false
             trusTeeSupported = true
           },
+        "edp4" to
+          DataProviderKt.capabilities {
+            honestMajorityShareShuffleSupported = true
+            trusTeeSupported = true
+          },
       ),
       duchyMap,
       edpNoise =
@@ -164,7 +170,9 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
           "edp1" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
           "edp2" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
           "edp3" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
+          "edp4" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
         ),
+      edpMultiPartyNoiseTypes = emptyMap(),
     )
     initMcSimulator()
   }

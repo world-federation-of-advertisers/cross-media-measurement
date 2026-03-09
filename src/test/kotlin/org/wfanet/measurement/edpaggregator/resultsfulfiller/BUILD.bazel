@@ -24,6 +24,8 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher/testing",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:continuous_gaussian_noiser_selector",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_reader",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:frequency_vector",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:direct_measurement_fulfiller",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:impression_data_source_provider",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:no_noiser_selector",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:pipeline_configuration",
