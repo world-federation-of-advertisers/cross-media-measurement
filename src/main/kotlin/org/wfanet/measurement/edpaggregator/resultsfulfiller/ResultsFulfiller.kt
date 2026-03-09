@@ -27,6 +27,7 @@ import io.opentelemetry.api.trace.Span
 import java.security.GeneralSecurityException
 import java.time.Duration
 import java.time.Instant
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
@@ -42,10 +43,12 @@ import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
@@ -53,6 +56,7 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
+import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -318,15 +322,16 @@ class ResultsFulfiller(
       attributes = Attributes.empty(),
     ) {
       val span = Span.current()
+      var processingMetadata: RequisitionMetadata? = null
       try {
-        val updateMetadataResult =
+        processingMetadata =
           metrics.networkTasksDuration.measureSuspending {
             signalRequisitionStartProcessing(requisitionMetadata)
           }
         span.addEvent(
           EVENT_REQUISITION_START_PROCESSING_SIGNALED,
           Attributes.builder()
-            .put(ATTR_REQUISITION_METADATA_NAME_KEY, updateMetadataResult.name)
+            .put(ATTR_REQUISITION_METADATA_NAME_KEY, processingMetadata.name)
             .put(ATTR_REQUISITION_NAME_KEY, requisition.name)
             .put(ATTR_GROUP_ID_KEY, groupedRequisitions.groupId)
             .put(ATTR_REPORT_ID_KEY, reportId)
@@ -362,7 +367,7 @@ class ResultsFulfiller(
 
         val fulfilledMetadata =
           metrics.networkTasksDuration.measureSuspending {
-            signalRequisitionFulfilled(updateMetadataResult)
+            signalRequisitionFulfilled(processingMetadata)
           }
         span.addEvent(
           EVENT_REQUISITION_METADATA_FULFILLED,
@@ -379,6 +384,16 @@ class ResultsFulfiller(
           requisitionProcessingTimer = requisitionProcessingTimer,
           requisitionMetadata = requisitionMetadata,
         )
+      } catch (e: RequisitionRefusalException) {
+        recordRequisitionFailure(
+          span = span,
+          throwable = e,
+          requisitionMetadata = requisitionMetadata,
+          requisitionName = requisition.name,
+        )
+        val metadataForRefusal = processingMetadata ?: requisitionMetadata
+        signalRequisitionRefused(metadataForRefusal, e.message ?: "Requisition refused")
+        refuseRequisitionInCmms(requisition, e)
       } catch (t: Throwable) {
         recordRequisitionFailure(
           span = span,
@@ -464,6 +479,30 @@ class ResultsFulfiller(
     return requisitionMetadataStub.markWithdrawnRequisitionMetadata(
       markWithdrawnRequisitionMetadataRequest
     )
+  }
+
+  private suspend fun refuseRequisitionInCmms(
+    requisition: Requisition,
+    e: RequisitionRefusalException,
+  ) {
+    try {
+      requisitionsStub.refuseRequisition(
+        refuseRequisitionRequest {
+          name = requisition.name
+          refusal =
+            RequisitionKt.refusal {
+              justification = e.justification
+              message = e.message ?: "Requisition refused"
+            }
+        }
+      )
+    } catch (refusalError: Exception) {
+      logger.log(
+        Level.SEVERE,
+        "Failed to refuse requisition ${requisition.name} in CMMS",
+        refusalError,
+      )
+    }
   }
 
   private suspend fun <T> DoubleHistogram.measureSuspending(block: suspend () -> T): T {

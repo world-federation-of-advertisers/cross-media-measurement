@@ -151,4 +151,16 @@ message ResultsFulfillerParams {
 
   // TrusTee encryption parameters. Required for TrusTee protocol support.
   TrusTeeParams trustee_params = 9;
+
+  // Configuration for multi-party computation protocols (HMSS, TrusTee).
+  message MultiPartyConfig {
+    // Noise types that this EDP supports for multi-party protocols.
+    // When populated, the EDP will refuse any HMSS or TrusTee requisition
+    // whose protocol noise mechanism does not map to a type in this list.
+    // When empty, no multi-party noise validation is performed.
+    repeated NoiseParams.NoiseType supported_noise_types = 1;
+  }
+
+  // Multi-party computation protocol configuration.
+  MultiPartyConfig multi_party_config = 10;
 }

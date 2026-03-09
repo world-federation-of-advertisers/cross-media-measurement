@@ -193,6 +193,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       "edp1" to mapOf("edp1-eg-ref-1" to syntheticEventGroupSpec2),
       "edp2" to mapOf("edp2-eg-ref-1" to syntheticEventGroupSpec1),
       "edp3" to mapOf("edp3-eg-ref-1" to syntheticEventGroupSpec2),
+      "edp4" to mapOf("edp4-eg-ref-1" to syntheticEventGroupSpec1),
     )
 
   private val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents =
@@ -241,6 +242,11 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
                 honestMajorityShareShuffleSupported = false
                 trusTeeSupported = true
               },
+            "edp4" to
+              DataProviderKt.capabilities {
+                honestMajorityShareShuffleSupported = true
+                trusTeeSupported = true
+              },
           ),
           duchyMap,
           edpNoise =
@@ -248,6 +254,11 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               "edp1" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
               "edp2" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
               "edp3" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
+              "edp4" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
+            ),
+          edpMultiPartyNoiseTypes =
+            mapOf(
+              "edp4" to listOf(ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN)
             ),
         )
         runBlocking {
@@ -554,6 +565,62 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       expectedEdpSpec1Reach = EXPECTED_TRUSTEE_EDP_SPEC1_REACH,
       expectedEdpSpec2Reach = EXPECTED_TRUSTEE_EDP_SPEC2_REACH,
     )
+  }
+
+  @Test
+  fun `HMSS no noise basic report fails when EDP requires Gaussian noise`() = runBlocking {
+    val hmssEventGroups = getHmssEventGroupsIncludingRestrictedEdp()
+    check(hmssEventGroups.size > 1)
+
+    val createBasicReportRequest =
+      buildCreateBasicReportRequest(
+        hmssEventGroups,
+        "hmss-gaussian-campaign",
+        "hmss-gaussian-basicreport",
+        includeIqfFilter = false,
+      )
+
+    val createdBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .createBasicReport(createBasicReportRequest)
+
+    executeBasicReportsReportsJob(createdBasicReport.name)
+
+    val completedBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
+  }
+
+  @Test
+  fun `TrusTee no noise basic report fails when EDP requires Gaussian noise`() = runBlocking {
+    val trusTeeEventGroups = getTrusTeeEventGroupsIncludingRestrictedEdp()
+    check(trusTeeEventGroups.size > 1)
+
+    val createBasicReportRequest =
+      buildCreateBasicReportRequest(
+        trusTeeEventGroups,
+        "trustee-gaussian-campaign",
+        "trustee-gaussian-basicreport",
+        includeIqfFilter = false,
+      )
+
+    val createdBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .createBasicReport(createBasicReportRequest)
+
+    executeBasicReportsReportsJob(createdBasicReport.name)
+
+    val completedBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
   }
 
   /**
@@ -977,7 +1044,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   }
 
   private suspend fun getEventGroupsByCapability(
-    isCapable: (DataProvider.Capabilities) -> Boolean
+    isCapable: (DataProvider.Capabilities) -> Boolean,
+    excludeEdpDisplayNames: Set<String>,
   ): List<EventGroup> {
     return buildList {
       val includedDataProviders = mutableSetOf<String>()
@@ -987,8 +1055,12 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           reportingDataProvidersClient
             .withCallCredentials(credentials)
             .getDataProvider(getDataProviderRequest { name = eventGroup.cmmsDataProvider })
+        val displayName =
+          inProcessCmmsComponents.getDataProviderDisplayNameFromDataProviderName(dataProvider.name)
         if (
-          isCapable(dataProvider.capabilities) && !includedDataProviders.contains(dataProvider.name)
+          isCapable(dataProvider.capabilities) &&
+            !includedDataProviders.contains(dataProvider.name) &&
+            displayName !in excludeEdpDisplayNames
         ) {
           includedDataProviders.add(dataProvider.name)
           add(eventGroup)
@@ -997,15 +1069,58 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
-  private suspend fun getHmssEventGroups(): List<EventGroup> = getEventGroupsByCapability {
-    it.honestMajorityShareShuffleSupported
+  private suspend fun getHmssEventGroups(): List<EventGroup> =
+    getEventGroupsByCapability(
+      { it.honestMajorityShareShuffleSupported },
+      setOf(RESTRICTED_EDP_DISPLAY_NAME),
+    )
+
+  private suspend fun getTrusTeeEventGroups(): List<EventGroup> =
+    getEventGroupsByCapability({ it.trusTeeSupported }, setOf(RESTRICTED_EDP_DISPLAY_NAME))
+
+  /**
+   * Returns capable event groups that include exactly one restricted EDP (one whose multi-party
+   * noise config requires CONTINUOUS_GAUSSIAN) and one unrestricted EDP.
+   */
+  private suspend fun getEventGroupsIncludingRestrictedEdp(
+    capabilityFilter: (DataProvider.Capabilities) -> Boolean
+  ): List<EventGroup> {
+    val allGroups = getEventGroupsByCapability(capabilityFilter, emptySet())
+    var restrictedGroup: EventGroup? = null
+    var unrestrictedGroup: EventGroup? = null
+    for (eventGroup in allGroups) {
+      val dataProvider =
+        reportingDataProvidersClient
+          .withCallCredentials(credentials)
+          .getDataProvider(getDataProviderRequest { name = eventGroup.cmmsDataProvider })
+      val displayName =
+        inProcessCmmsComponents.getDataProviderDisplayNameFromDataProviderName(dataProvider.name)
+      if (displayName == RESTRICTED_EDP_DISPLAY_NAME && restrictedGroup == null) {
+        restrictedGroup = eventGroup
+      } else if (displayName != RESTRICTED_EDP_DISPLAY_NAME && unrestrictedGroup == null) {
+        unrestrictedGroup = eventGroup
+      }
+      if (restrictedGroup != null && unrestrictedGroup != null) break
+    }
+    check(restrictedGroup != null) {
+      "No event group found for restricted EDP '$RESTRICTED_EDP_DISPLAY_NAME'"
+    }
+    check(unrestrictedGroup != null) { "No unrestricted event group found" }
+    return listOf(unrestrictedGroup, restrictedGroup)
   }
 
-  private suspend fun getTrusTeeEventGroups(): List<EventGroup> = getEventGroupsByCapability {
-    it.trusTeeSupported
-  }
+  private suspend fun getHmssEventGroupsIncludingRestrictedEdp(): List<EventGroup> =
+    getEventGroupsIncludingRestrictedEdp {
+      it.honestMajorityShareShuffleSupported
+    }
+
+  private suspend fun getTrusTeeEventGroupsIncludingRestrictedEdp(): List<EventGroup> =
+    getEventGroupsIncludingRestrictedEdp {
+      it.trusTeeSupported
+    }
 
   companion object {
+    private const val RESTRICTED_EDP_DISPLAY_NAME = "edp4"
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val SECRETS_DIR: File =
       getRuntimePath(
