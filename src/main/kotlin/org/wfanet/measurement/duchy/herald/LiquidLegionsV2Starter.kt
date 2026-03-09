@@ -431,7 +431,7 @@ object LiquidLegionsV2Starter {
       if (measurementSpec.hasReachAndFrequency()) {
         val frequencyPrivacyParams = measurementSpec.reachAndFrequency.frequencyPrivacyParams
         require(frequencyPrivacyParams.delta > 0) {
-          "Frequency privacy delta must be be greater than 0"
+          "Frequency privacy delta must be greater than 0"
         }
         require(frequencyPrivacyParams.epsilon >= MIN_FREQUENCY_EPSILON) {
           "Frequency privacy epsilon must be greater than or equal to $MIN_FREQUENCY_EPSILON"

@@ -159,9 +159,11 @@ object TrusTeeStarter {
         reachDpParams =
           measurementSpec.reachAndFrequency.reachPrivacyParams.toDuchyDifferentialPrivacyParams()
         if (!isNoNoise) {
-          require(reachDpParams.delta > 0) { "Reach privacy delta must be greater than 0" }
+          require(reachDpParams.delta > 0) {
+            "Reach privacy delta must be greater than 0 for noised computations"
+          }
           require(reachDpParams.epsilon >= MIN_REACH_EPSILON) {
-            "Reach privacy epsilon must be greater than or equal to $MIN_REACH_EPSILON"
+            "Reach privacy epsilon must be greater than or equal to $MIN_REACH_EPSILON for noised computations"
           }
         }
         frequencyDpParams =
@@ -169,10 +171,10 @@ object TrusTeeStarter {
             .toDuchyDifferentialPrivacyParams()
         if (!isNoNoise) {
           require(frequencyDpParams.delta > 0) {
-            "Frequency privacy delta must be be greater than 0"
+            "Frequency privacy delta must be greater than 0 for noised computations"
           }
           require(frequencyDpParams.epsilon >= MIN_FREQUENCY_EPSILON) {
-            "Frequency privacy epsilon must be greater than or equal to $MIN_FREQUENCY_EPSILON"
+            "Frequency privacy epsilon must be greater than or equal to $MIN_FREQUENCY_EPSILON for noised computations"
           }
         }
       } else {
