@@ -72,6 +72,7 @@ message VidLabelingConfig {
 // Wrapper containing VID Labeling configurations for all EDPs.
 // Loaded at startup from the EDPA config bucket.
 message VidLabelingConfigs {
-  // All the per-EDP VID Labeling configs.
+  // All the per-EDP VID Labeling configs. Each entry must have a unique
+  // `data_provider` value.
   repeated VidLabelingConfig configs = 1;
 }
