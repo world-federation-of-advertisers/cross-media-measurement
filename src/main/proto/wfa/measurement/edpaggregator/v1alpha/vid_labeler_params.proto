@@ -18,7 +18,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
-import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
+import "wfa/measurement/edpaggregator/v1alpha/file_system_transport_layer_security_params.proto";
 import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -78,8 +78,9 @@ message VidLabelerParams {
 
   // ===== Dispatcher / cloud function fields =====
 
-  // Cloud TLS connection params.
-  wfa.measurement.config.edpaggregator.TransportLayerSecurityParams
+  // Cloud Function TLS connection params for the RawImpressionMetadata
+  // storage service.
+  FileSystemTransportLayerSecurityParams
       raw_impression_metadata_storage_connection = 8
       [(google.api.field_behavior) = REQUIRED];
 
