@@ -493,11 +493,11 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     assertStructuralResults(completedBasicReport)
     assertNoNoiseResults(
       completedBasicReport,
-      expectedCrossPublisherReach = EXPECTED_HMSS_CROSS_PUBLISHER_REACH,
-      expectedCrossPublisherImpressions = EXPECTED_HMSS_CROSS_PUBLISHER_IMPRESSIONS,
-      expectedKPlusReach = EXPECTED_HMSS_K_PLUS_REACH,
-      expectedEdpSpec1Reach = EXPECTED_HMSS_EDP_SPEC1_REACH,
-      expectedEdpSpec2Reach = EXPECTED_HMSS_EDP_SPEC2_REACH,
+      expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,
+      expectedCrossPublisherImpressions = EXPECTED_CROSS_PUBLISHER_IMPRESSIONS,
+      expectedKPlusReach = EXPECTED_K_PLUS_REACH,
+      expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
+      expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
     )
   }
 
@@ -548,11 +548,11 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     assertStructuralResults(completedBasicReport)
     assertNoNoiseResults(
       completedBasicReport,
-      expectedCrossPublisherReach = EXPECTED_TRUSTEE_CROSS_PUBLISHER_REACH,
-      expectedCrossPublisherImpressions = EXPECTED_TRUSTEE_CROSS_PUBLISHER_IMPRESSIONS,
-      expectedKPlusReach = EXPECTED_TRUSTEE_K_PLUS_REACH,
-      expectedEdpSpec1Reach = EXPECTED_TRUSTEE_EDP_SPEC1_REACH,
-      expectedEdpSpec2Reach = EXPECTED_TRUSTEE_EDP_SPEC2_REACH,
+      expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,
+      expectedCrossPublisherImpressions = EXPECTED_CROSS_PUBLISHER_IMPRESSIONS,
+      expectedKPlusReach = EXPECTED_K_PLUS_REACH,
+      expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
+      expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
     )
   }
 
@@ -1115,17 +1115,11 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           }
         }
     }
-    private const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_REACH = 5369L
-    private const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_IMPRESSIONS = 9122L
-    private val EXPECTED_TRUSTEE_K_PLUS_REACH = listOf(5369L, 2677L, 682L, 394L, 0L)
-    private const val EXPECTED_TRUSTEE_EDP_SPEC1_REACH = 4472L
-    private const val EXPECTED_TRUSTEE_EDP_SPEC2_REACH = 3338L
-
-    private const val EXPECTED_HMSS_CROSS_PUBLISHER_REACH = 5371L
-    private const val EXPECTED_HMSS_CROSS_PUBLISHER_IMPRESSIONS = 9124L
-    private val EXPECTED_HMSS_K_PLUS_REACH = listOf(5371L, 2678L, 682L, 394L, 0L)
-    private const val EXPECTED_HMSS_EDP_SPEC1_REACH = 4473L
-    private const val EXPECTED_HMSS_EDP_SPEC2_REACH = 3338L
+    private const val EXPECTED_CROSS_PUBLISHER_REACH = 5371L
+    private const val EXPECTED_CROSS_PUBLISHER_IMPRESSIONS = 9124L
+    private val EXPECTED_K_PLUS_REACH = listOf(5371L, 2678L, 682L, 394L, 0L)
+    private const val EXPECTED_EDP_SPEC1_REACH = 4473L
+    private const val EXPECTED_EDP_SPEC2_REACH = 3338L
 
     private val NO_NOISE_TRUSTEE_PROTOCOL_CONFIG_CONFIG: TrusTeeProtocolConfigConfig =
       trusTeeProtocolConfigConfig {

@@ -174,7 +174,7 @@ class TrusTeeMill(
           }
         }
         TrusTeeReachParams(
-          parameters.vidSamplingIntervalWidth,
+          parameters.vidSamplingIntervalWidth.toDouble(),
           if (isNoNoise) null else parameters.reachDpParams,
         )
       }
@@ -189,7 +189,7 @@ class TrusTeeMill(
         }
         TrusTeeReachAndFrequencyParams(
           parameters.maximumFrequency,
-          parameters.vidSamplingIntervalWidth,
+          parameters.vidSamplingIntervalWidth.toDouble(),
           if (isNoNoise) null else parameters.reachDpParams,
           if (isNoNoise) null else parameters.frequencyDpParams,
         )
