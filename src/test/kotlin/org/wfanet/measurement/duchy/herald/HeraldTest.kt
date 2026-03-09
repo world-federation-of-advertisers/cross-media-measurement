@@ -278,6 +278,14 @@ private val HMSS_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
   }
 }
 
+private val HMSS_NONE_NOISE_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
+  honestMajorityShareShuffle = honestMajorityShareShuffle {
+    reachAndFrequencyRingModulus = 127
+    reachRingModulus = 127
+    noiseMechanism = SystemNoiseMechanism.NONE
+  }
+}
+
 private val TRUS_TEE_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
   trusTee = trusTee { noiseMechanism = SystemNoiseMechanism.CONTINUOUS_GAUSSIAN }
 }
@@ -997,6 +1005,162 @@ class HeraldTest {
         }
       )
   }
+
+  @Test
+  fun `syncStatuses creates hmss computation with NONE noise for non aggregator without dp params`() =
+    runTest {
+      val confirmingKnown =
+        buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
+
+      val systemApiRequisitions1 =
+        REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+      val systemApiRequisitions2 =
+        REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+      val confirmingUnknown =
+        buildComputationAtKingdom(
+          "2",
+          Computation.State.PENDING_REQUISITION_PARAMS,
+          systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
+          mpcProtocolConfig = HMSS_NONE_NOISE_MPC_PROTOCOL_CONFIG,
+        )
+      mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
+
+      fakeComputationDatabase.addComputation(
+        globalId = confirmingKnown.key.computationId,
+        stage = HonestMajorityShareShuffle.Stage.INITIALIZED.toProtocolStage(),
+        computationDetails = HMSS_FIRST_NON_AGGREGATOR_COMPUTATION_DETAILS,
+      )
+
+      nonAggregatorHerald.syncStatuses()
+
+      val computationDetails =
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+      val hmssDetails = computationDetails!!.honestMajorityShareShuffle
+      assertThat(hmssDetails)
+        .ignoringFields(
+          HonestMajorityShareShuffle.ComputationDetails.RANDOM_SEED_FIELD_NUMBER,
+          HonestMajorityShareShuffle.ComputationDetails.ENCRYPTION_KEY_PAIR_FIELD_NUMBER,
+        )
+        .isEqualTo(
+          HonestMajorityShareShuffleKt.computationDetails {
+            role = RoleInComputation.FIRST_NON_AGGREGATOR
+            parameters =
+              HonestMajorityShareShuffleKt.ComputationDetailsKt.parameters {
+                maximumFrequency = 10
+                ringModulus = 127
+                noiseMechanism = NoiseMechanism.NONE
+              }
+            nonAggregators += listOf(DUCHY_TWO, DUCHY_THREE)
+          }
+        )
+      assertThat(hmssDetails.parameters.hasReachDpParams()).isFalse()
+      assertThat(hmssDetails.parameters.hasFrequencyDpParams()).isFalse()
+      assertThat(hmssDetails.randomSeed).isNotEmpty()
+      assertThat(hmssDetails.hasEncryptionKeyPair()).isTrue()
+      verifyEncryptionKeyPair(hmssDetails.encryptionKeyPair)
+    }
+
+  @Test
+  fun `syncStatuses creates hmss computation with NONE noise for aggregator without dp params`() =
+    runTest {
+      val confirmingKnown =
+        buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
+
+      val systemApiRequisitions1 =
+        REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+      val systemApiRequisitions2 =
+        REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+      val confirmingUnknown =
+        buildComputationAtKingdom(
+          "2",
+          Computation.State.PENDING_REQUISITION_PARAMS,
+          systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
+          mpcProtocolConfig = HMSS_NONE_NOISE_MPC_PROTOCOL_CONFIG,
+        )
+      mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
+
+      fakeComputationDatabase.addComputation(
+        globalId = confirmingKnown.key.computationId,
+        stage = HonestMajorityShareShuffle.Stage.INITIALIZED.toProtocolStage(),
+        computationDetails = HMSS_FIRST_NON_AGGREGATOR_COMPUTATION_DETAILS,
+      )
+
+      aggregatorHerald.syncStatuses()
+
+      val computationDetails =
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+      val hmssDetails = computationDetails!!.honestMajorityShareShuffle
+      assertThat(hmssDetails)
+        .isEqualTo(
+          HonestMajorityShareShuffleKt.computationDetails {
+            role = RoleInComputation.AGGREGATOR
+            parameters =
+              HonestMajorityShareShuffleKt.ComputationDetailsKt.parameters {
+                maximumFrequency = 10
+                ringModulus = 127
+                noiseMechanism = NoiseMechanism.NONE
+              }
+            nonAggregators += listOf(DUCHY_TWO, DUCHY_THREE)
+          }
+        )
+      assertThat(hmssDetails.parameters.hasReachDpParams()).isFalse()
+      assertThat(hmssDetails.parameters.hasFrequencyDpParams()).isFalse()
+    }
+
+  @Test
+  fun `syncStatuses creates reach-only hmss computation with NONE noise without dp params`() =
+    runTest {
+      val confirmingKnown =
+        buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
+
+      val systemApiRequisitions1 =
+        REACH_ONLY_REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+      val systemApiRequisitions2 =
+        REACH_ONLY_REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+      val confirmingUnknown =
+        buildComputationAtKingdom(
+          "2",
+          Computation.State.PENDING_REQUISITION_PARAMS,
+          systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
+          serializedMeasurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC,
+          mpcProtocolConfig = HMSS_NONE_NOISE_MPC_PROTOCOL_CONFIG,
+        )
+      mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
+
+      fakeComputationDatabase.addComputation(
+        globalId = confirmingKnown.key.computationId,
+        stage = HonestMajorityShareShuffle.Stage.INITIALIZED.toProtocolStage(),
+        computationDetails = HMSS_FIRST_NON_AGGREGATOR_COMPUTATION_DETAILS,
+      )
+
+      nonAggregatorHerald.syncStatuses()
+
+      val computationDetails =
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+      val hmssDetails = computationDetails!!.honestMajorityShareShuffle
+      assertThat(hmssDetails)
+        .ignoringFields(
+          HonestMajorityShareShuffle.ComputationDetails.RANDOM_SEED_FIELD_NUMBER,
+          HonestMajorityShareShuffle.ComputationDetails.ENCRYPTION_KEY_PAIR_FIELD_NUMBER,
+        )
+        .isEqualTo(
+          HonestMajorityShareShuffleKt.computationDetails {
+            role = RoleInComputation.FIRST_NON_AGGREGATOR
+            parameters =
+              HonestMajorityShareShuffleKt.ComputationDetailsKt.parameters {
+                maximumFrequency = 1
+                ringModulus = 127
+                noiseMechanism = NoiseMechanism.NONE
+              }
+            nonAggregators += listOf(DUCHY_TWO, DUCHY_THREE)
+          }
+        )
+      assertThat(hmssDetails.parameters.hasReachDpParams()).isFalse()
+      assertThat(hmssDetails.parameters.hasFrequencyDpParams()).isFalse()
+      assertThat(hmssDetails.randomSeed).isNotEmpty()
+      assertThat(hmssDetails.hasEncryptionKeyPair()).isTrue()
+      verifyEncryptionKeyPair(hmssDetails.encryptionKeyPair)
+    }
 
   @Test
   fun `syncStatuses confirms participants for llv2 computations`() = runTest {
