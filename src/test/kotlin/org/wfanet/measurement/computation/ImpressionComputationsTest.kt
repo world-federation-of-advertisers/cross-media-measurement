@@ -29,7 +29,7 @@ class ImpressionComputationsTest {
     val result =
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0f,
+        vidSamplingIntervalWidth = 1.0,
         maxFrequency = null,
         dpParams = null,
         kAnonymityParams = null,
@@ -43,7 +43,7 @@ class ImpressionComputationsTest {
     val result =
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0f,
+        vidSamplingIntervalWidth = 1.0,
         maxFrequency = 4,
         dpParams = null,
         kAnonymityParams = null,
@@ -54,7 +54,7 @@ class ImpressionComputationsTest {
   @Test
   fun `impression count is scaled by vidSamplingIntervalWidth`() {
     val histogram = longArrayOf(0L, 5L, 0L, 3L, 7L, 0L) // 2*5 + 4*3 + 5*7
-    val scale = 0.5f
+    val scale = 0.5
     val result =
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
@@ -73,7 +73,7 @@ class ImpressionComputationsTest {
     val result =
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0f,
+        vidSamplingIntervalWidth = 1.0,
         maxFrequency = maxFrequency,
         dpParams = DP_PARAMS,
         kAnonymityParams = null,
@@ -99,7 +99,7 @@ class ImpressionComputationsTest {
     val result =
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
-        vidSamplingIntervalWidth = 0.5f,
+        vidSamplingIntervalWidth = 0.5,
         maxFrequency = maxFrequency,
         dpParams = DP_PARAMS,
         kAnonymityParams = null,
@@ -124,7 +124,7 @@ class ImpressionComputationsTest {
     assertFailsWith<IllegalStateException> {
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0f,
+        vidSamplingIntervalWidth = 1.0,
         maxFrequency = null,
         dpParams = DP_PARAMS,
         kAnonymityParams = null,
@@ -139,7 +139,7 @@ class ImpressionComputationsTest {
     val result =
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0f,
+        vidSamplingIntervalWidth = 1.0,
         dpParams = null,
         maxFrequency = null,
         kAnonymityParams = kAnonymityParams,
@@ -154,7 +154,7 @@ class ImpressionComputationsTest {
     val result =
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0f,
+        vidSamplingIntervalWidth = 1.0,
         dpParams = null,
         maxFrequency = null,
         kAnonymityParams = kAnonymityParams,
@@ -169,7 +169,7 @@ class ImpressionComputationsTest {
     val result =
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0f,
+        vidSamplingIntervalWidth = 1.0,
         dpParams = null,
         maxFrequency = null,
         kAnonymityParams = kAnonymityParams,
@@ -184,7 +184,7 @@ class ImpressionComputationsTest {
     val result =
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
-        vidSamplingIntervalWidth = 0.5f,
+        vidSamplingIntervalWidth = 0.5,
         dpParams = null,
         maxFrequency = null,
         kAnonymityParams = kAnonymityParams,
@@ -199,7 +199,7 @@ class ImpressionComputationsTest {
     val result =
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
-        vidSamplingIntervalWidth = 0.5f,
+        vidSamplingIntervalWidth = 0.5,
         dpParams = null,
         maxFrequency = null,
         kAnonymityParams = kAnonymityParams,
