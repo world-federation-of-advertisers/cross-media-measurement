@@ -1,0 +1,83 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Prepare release
+
+on:
+  workflow_dispatch:
+    inputs:
+      existing-nightly-build:
+        description: "Existing nightly build tag (e.g. nightly/20260305.2)"
+        type: string
+      new-release-tag:
+        description: "Release tag to create (e.g. v0.5.35)"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-release:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      actions: write    
+    steps:
+    - name: Checkout (full history)
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      with:
+        fetch-depth: 0
+
+    - name: Get nightly build sha
+      id: get-nightly-build-sha
+      env:
+        NIGHTLY_BUILD_TAG: refs/tags/${{ inputs.existing-nightly-build }}
+      run: |
+        sha=$(git rev-list -n 1 ${NIGHTLY_BUILD_TAG})
+        echo "sha=$sha" | tee -a $GITHUB_OUTPUT
+
+    - name: Create release tag
+      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+      env:
+        RELEASE_TAG: ${{ inputs.new-release-tag }}
+        NIGHTLY_BUILD_SHA: ${{ steps.get-nightly-build-sha.outputs.sha }}
+      with:
+        script: |
+          const tag = process.env['RELEASE_TAG'];
+          const sha = process.env['NIGHTLY_BUILD_SHA'];
+          github.rest.git.createRef({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            ref: `refs/tags/${tag}`,
+            sha: sha,
+          });
+
+    # Use workflow dispatch via API so that the workflow gets the right ref.
+    - name: Create deploy dispatch to QA
+      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+      env:
+        RELEASE_TAG: ${{ inputs.new-release-tag }}
+      with:
+        script: |
+          const tag = process.env['TAG'];
+          github.rest.actions.createWorkflowDispatch({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            workflow_id: 'update-cmms.yml',
+            ref: tag,
+            inputs: {
+              environment: 'QA',
+              apply: true,
+            },
+          });
