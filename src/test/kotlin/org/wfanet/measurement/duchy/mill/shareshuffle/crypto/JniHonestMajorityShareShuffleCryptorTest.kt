@@ -17,12 +17,15 @@ package org.wfanet.measurement.duchy.mill.shareshuffle.crypto
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertFailsWith
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
 import org.wfanet.measurement.internal.duchy.NoiseMechanism
 import org.wfanet.measurement.internal.duchy.protocol.CompleteAggregationPhaseRequestKt
 import org.wfanet.measurement.internal.duchy.protocol.CompleteShufflePhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeAggregationPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.shareShuffleFrequencyVectorParams
 
+@RunWith(JUnit4::class)
 class JniHonestMajorityShareShuffleCryptorTest {
 
   private val cryptor = JniHonestMajorityShareShuffleCryptor()
@@ -65,8 +68,7 @@ class JniHonestMajorityShareShuffleCryptorTest {
     val response = cryptor.completeReachAndFrequencyAggregationPhase(request)
 
     assertThat(response.reach).isEqualTo(4)
-    assertThat(response.frequencyDistributionMap)
-      .containsExactly(1L, 0.25, 2L, 0.5, 3L, 0.25)
+    assertThat(response.frequencyDistributionMap).containsExactly(1L, 0.25, 2L, 0.5, 3L, 0.25)
   }
 
   @Test
@@ -115,8 +117,7 @@ class JniHonestMajorityShareShuffleCryptorTest {
     val response = cryptor.completeReachAndFrequencyAggregationPhase(request)
 
     assertThat(response.reach).isEqualTo(8)
-    assertThat(response.frequencyDistributionMap)
-      .containsExactly(1L, 0.25, 2L, 0.5, 3L, 0.25)
+    assertThat(response.frequencyDistributionMap).containsExactly(1L, 0.25, 2L, 0.5, 3L, 0.25)
   }
 
   @Test
@@ -146,7 +147,6 @@ class JniHonestMajorityShareShuffleCryptorTest {
     val response = cryptor.completeReachAndFrequencyAggregationPhase(request)
 
     assertThat(response.reach).isEqualTo(4)
-    assertThat(response.frequencyDistributionMap)
-      .containsExactly(1L, 0.5, 2L, 0.25, 3L, 0.25)
+    assertThat(response.frequencyDistributionMap).containsExactly(1L, 0.5, 2L, 0.25, 3L, 0.25)
   }
 }

@@ -320,7 +320,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       )
     private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
 
-    private val TEST_RESULTS_FULFILER_DATA_PATH =
+    private val TEST_RESULTS_FULFILLER_DATA_PATH =
       Paths.get(
         "wfa_measurement_system",
         "src",
@@ -334,7 +334,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         "testing",
       )
     private val TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH =
-      getRuntimePath(TEST_RESULTS_FULFILER_DATA_PATH)!!
+      getRuntimePath(TEST_RESULTS_FULFILLER_DATA_PATH)!!
 
     val syntheticPopulationSpec: SyntheticPopulationSpec =
       parseTextProto(

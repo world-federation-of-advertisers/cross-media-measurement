@@ -55,6 +55,7 @@ import org.wfanet.measurement.access.v1alpha.createRoleRequest
 import org.wfanet.measurement.access.v1alpha.policy
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.access.v1alpha.role
+import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
@@ -554,9 +555,25 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
 
         assertWithMessage("population size").that(result.metricSet.populationSize).isGreaterThan(0)
 
+        assertWithMessage("reporting unit reach")
+          .that(reportingUnitCumulative.reach)
+          .isGreaterThan(0L)
+
+        assertWithMessage("reporting unit percent reach")
+          .that(reportingUnitCumulative.percentReach)
+          .isGreaterThan(0f)
+
         assertWithMessage("reporting unit impressions")
           .that(reportingUnitCumulative.impressions)
           .isGreaterThan(0)
+
+        assertWithMessage("reporting unit average frequency")
+          .that(reportingUnitCumulative.averageFrequency)
+          .isGreaterThan(0f)
+
+        assertWithMessage("reporting unit grps")
+          .that(reportingUnitCumulative.grps)
+          .isGreaterThan(0f)
 
         assertWithMessage("reporting unit k+ reach is monotonically non-increasing")
           .that(reportingUnitCumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it })
@@ -568,8 +585,20 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           )
           .isTrue()
 
+        assertWithMessage("stacked incremental reach is not empty")
+          .that(result.metricSet.reportingUnit.stackedIncrementalReachList)
+          .isNotEmpty()
+
         result.metricSet.componentsList.forEach { component ->
           val cumulative = component.value.cumulative
+
+          assertWithMessage("component ${component.key} reach")
+            .that(cumulative.reach)
+            .isGreaterThan(0L)
+
+          assertWithMessage("component ${component.key} impressions")
+            .that(cumulative.impressions)
+            .isGreaterThan(0L)
 
           assertWithMessage("component ${component.key} k+ reach is monotonically non-increasing")
             .that(cumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it })
@@ -607,13 +636,25 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     val result = totalResults.single()
     val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
 
+    assertWithMessage("population size").that(result.metricSet.populationSize).isGreaterThan(0)
+
     assertWithMessage("cross-publisher reach")
       .that(reportingUnitCumulative.reach)
       .isEqualTo(EXPECTED_CROSS_PUBLISHER_REACH)
 
+    assertWithMessage("cross-publisher percent reach")
+      .that(reportingUnitCumulative.percentReach)
+      .isGreaterThan(0f)
+
     assertWithMessage("cross-publisher impressions")
       .that(reportingUnitCumulative.impressions)
       .isEqualTo(EXPECTED_CROSS_PUBLISHER_IMPRESSIONS)
+
+    assertWithMessage("cross-publisher average frequency")
+      .that(reportingUnitCumulative.averageFrequency)
+      .isGreaterThan(0f)
+
+    assertWithMessage("cross-publisher grps").that(reportingUnitCumulative.grps).isGreaterThan(0f)
 
     assertWithMessage("cross-publisher k+ reach")
       .that(reportingUnitCumulative.kPlusReachList)
@@ -623,6 +664,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     assertWithMessage("cross-publisher k+ reach is monotonically non-increasing")
       .that(reportingUnitCumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it })
       .isTrue()
+
+    assertWithMessage("stacked incremental reach is not empty")
+      .that(result.metricSet.reportingUnit.stackedIncrementalReachList)
+      .isNotEmpty()
 
     assertWithMessage("number of components").that(result.metricSet.componentsCount).isEqualTo(2)
 
@@ -913,7 +958,9 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
-  private suspend fun getHmssEventGroups(): List<EventGroup> {
+  private suspend fun getEventGroupsByCapability(
+    isCapable: (DataProvider.Capabilities) -> Boolean
+  ): List<EventGroup> {
     return buildList {
       val includedDataProviders = mutableSetOf<String>()
       val eventGroups = listReportingEventGroups()
@@ -923,8 +970,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
             .withCallCredentials(credentials)
             .getDataProvider(getDataProviderRequest { name = eventGroup.cmmsDataProvider })
         if (
-          dataProvider.capabilities.honestMajorityShareShuffleSupported &&
-            !includedDataProviders.contains(dataProvider.name)
+          isCapable(dataProvider.capabilities) && !includedDataProviders.contains(dataProvider.name)
         ) {
           includedDataProviders.add(dataProvider.name)
           add(eventGroup)
@@ -933,24 +979,12 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
-  private suspend fun getTrusTeeEventGroups(): List<EventGroup> {
-    return buildList {
-      val includedDataProviders = mutableSetOf<String>()
-      val eventGroups = listReportingEventGroups()
-      eventGroups.forEach { eventGroup ->
-        val dataProvider =
-          reportingDataProvidersClient
-            .withCallCredentials(credentials)
-            .getDataProvider(getDataProviderRequest { name = eventGroup.cmmsDataProvider })
-        if (
-          dataProvider.capabilities.trusTeeSupported &&
-            !includedDataProviders.contains(dataProvider.name)
-        ) {
-          includedDataProviders.add(dataProvider.name)
-          add(eventGroup)
-        }
-      }
-    }
+  private suspend fun getHmssEventGroups(): List<EventGroup> = getEventGroupsByCapability {
+    it.honestMajorityShareShuffleSupported
+  }
+
+  private suspend fun getTrusTeeEventGroups(): List<EventGroup> = getEventGroupsByCapability {
+    it.trusTeeSupported
   }
 
   companion object {
@@ -996,7 +1030,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         "dataprovider",
       )
     private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
-    private val TEST_RESULTS_FULFILER_DATA_PATH =
+    private val TEST_RESULTS_FULFILLER_DATA_PATH =
       Paths.get(
         "wfa_measurement_system",
         "src",
@@ -1010,7 +1044,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         "testing",
       )
     private val TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH =
-      getRuntimePath(TEST_RESULTS_FULFILER_DATA_PATH)!!
+      getRuntimePath(TEST_RESULTS_FULFILLER_DATA_PATH)!!
     val syntheticPopulationSpec: SyntheticPopulationSpec =
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),

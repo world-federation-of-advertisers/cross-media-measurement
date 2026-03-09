@@ -1762,6 +1762,7 @@ class HeraldTest {
       )
     assertThat(failRequest.failure.errorMessage)
       .contains("Liquid Legions V2 does not support NoiseMechanism.NONE")
+    assertThat(failRequest.failure.participantChildReferenceId).isEqualTo(NON_AGGREGATOR_HERALD_ID)
   }
 
   @Test
@@ -1786,6 +1787,7 @@ class HeraldTest {
       )
     assertThat(failRequest.failure.errorMessage)
       .contains("Reach-Only Liquid Legions V2 does not support NoiseMechanism.NONE")
+    assertThat(failRequest.failure.participantChildReferenceId).isEqualTo(NON_AGGREGATOR_HERALD_ID)
   }
 
   @Test
