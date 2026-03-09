@@ -1044,7 +1044,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   }
 
   private suspend fun getEventGroupsByCapability(
-    isCapable: (DataProvider.Capabilities) -> Boolean
+    isCapable: (DataProvider.Capabilities) -> Boolean,
+    excludeEdpDisplayNames: Set<String>,
   ): List<EventGroup> {
     return buildList {
       val includedDataProviders = mutableSetOf<String>()
@@ -1054,8 +1055,12 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           reportingDataProvidersClient
             .withCallCredentials(credentials)
             .getDataProvider(getDataProviderRequest { name = eventGroup.cmmsDataProvider })
+        val displayName =
+          inProcessCmmsComponents.getDataProviderDisplayNameFromDataProviderName(dataProvider.name)
         if (
-          isCapable(dataProvider.capabilities) && !includedDataProviders.contains(dataProvider.name)
+          isCapable(dataProvider.capabilities) &&
+            !includedDataProviders.contains(dataProvider.name) &&
+            displayName !in excludeEdpDisplayNames
         ) {
           includedDataProviders.add(dataProvider.name)
           add(eventGroup)
@@ -1064,13 +1069,14 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
-  private suspend fun getHmssEventGroups(): List<EventGroup> = getEventGroupsByCapability {
-    it.honestMajorityShareShuffleSupported
-  }
+  private suspend fun getHmssEventGroups(): List<EventGroup> =
+    getEventGroupsByCapability(
+      { it.honestMajorityShareShuffleSupported },
+      setOf(RESTRICTED_EDP_DISPLAY_NAME),
+    )
 
-  private suspend fun getTrusTeeEventGroups(): List<EventGroup> = getEventGroupsByCapability {
-    it.trusTeeSupported
-  }
+  private suspend fun getTrusTeeEventGroups(): List<EventGroup> =
+    getEventGroupsByCapability({ it.trusTeeSupported }, setOf(RESTRICTED_EDP_DISPLAY_NAME))
 
   /**
    * Returns capable event groups that include exactly one restricted EDP (one whose multi-party
@@ -1079,7 +1085,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   private suspend fun getEventGroupsIncludingRestrictedEdp(
     capabilityFilter: (DataProvider.Capabilities) -> Boolean
   ): List<EventGroup> {
-    val allGroups = getEventGroupsByCapability(capabilityFilter)
+    val allGroups = getEventGroupsByCapability(capabilityFilter, emptySet())
     var restrictedGroup: EventGroup? = null
     var unrestrictedGroup: EventGroup? = null
     for (eventGroup in allGroups) {
