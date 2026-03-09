@@ -28,7 +28,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 
 /**
- * Parses HTTP request bodies into typed config messages.
+ * Parses HTTP request bodies as versioned params to load the correct config for a particular data
+ * provider.
  *
  * Supports two formats:
  * 1. **`google.protobuf.Any` wrapping params**: The `@type` field identifies the params proto. The
@@ -36,8 +37,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
  * 2. **Legacy format**: The entire request body is parsed as the config proto directly (no `@type`
  *    field). This is the backwards-compatible path.
  */
-object ConfigParser {
-  private val logger: Logger = Logger.getLogger("ConfigParser")
+object ConfigLoader {
+  private val logger: Logger = Logger.getLogger("ConfigLoader")
 
   private val typeRegistry: TypeRegistry =
     TypeRegistry.newBuilder()

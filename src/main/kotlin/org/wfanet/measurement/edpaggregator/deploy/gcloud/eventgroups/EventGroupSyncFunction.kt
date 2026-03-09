@@ -45,7 +45,7 @@ import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfigs
-import org.wfanet.measurement.edpaggregator.ConfigParser
+import org.wfanet.measurement.edpaggregator.ConfigLoader
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroups
@@ -68,9 +68,9 @@ class EventGroupSyncFunction() : HttpFunction {
     try {
       val requestBody = request.reader.readText()
       val eventGroupSyncConfig =
-        ConfigParser.buildEventGroupSyncConfig(
+        ConfigLoader.buildEventGroupSyncConfig(
           requestBody,
-          runtimeConfigs?.configsList ?: emptyList(),
+          runtimeConfigs.configsList,
         )
 
       runBlocking {
@@ -242,15 +242,16 @@ class EventGroupSyncFunction() : HttpFunction {
     private val DATA_WATCHER_PATH_HEADER =
       System.getenv("DATA_WATCHER_PATH_HEADER") ?: "X-DataWatcher-Path"
 
-    private val configBlobKey: String? = System.getenv("CONFIG_BLOB_KEY")
-    private val runtimeConfigs: EventGroupSyncConfigs? =
-      configBlobKey?.let {
-        runBlocking {
-          EdpAggregatorConfig.getConfigAsProtoMessage(
-            it,
-            EventGroupSyncConfigs.getDefaultInstance(),
-          )
-        }
+    private val configBlobKey: String =
+      requireNotNull(System.getenv("CONFIG_BLOB_KEY")) {
+        "CONFIG_BLOB_KEY environment variable must be set"
+      }
+    private val runtimeConfigs: EventGroupSyncConfigs =
+      runBlocking {
+        EdpAggregatorConfig.getConfigAsProtoMessage(
+          configBlobKey,
+          EventGroupSyncConfigs.getDefaultInstance(),
+        )
       }
 
     init {

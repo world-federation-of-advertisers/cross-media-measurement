@@ -42,7 +42,7 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
-import org.wfanet.measurement.edpaggregator.ConfigParser
+import org.wfanet.measurement.edpaggregator.ConfigLoader
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
@@ -98,9 +98,9 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       logger.fine("Starting DataAvailabilitySyncFunction")
       val requestBody = request.reader.readText()
       val dataAvailabilitySyncConfig =
-        ConfigParser.buildDataAvailabilitySyncConfig(
+        ConfigLoader.buildDataAvailabilitySyncConfig(
           requestBody,
-          runtimeConfigs?.configsList ?: emptyList(),
+          runtimeConfigs.configsList,
         )
 
       // Read the path as request header
@@ -234,15 +234,16 @@ class DataAvailabilitySyncFunction() : HttpFunction {
 
     private val channelCache = ConcurrentHashMap<ChannelKey, ManagedChannel>()
 
-    private val configBlobKey: String? = System.getenv("CONFIG_BLOB_KEY")
-    private val runtimeConfigs: DataAvailabilitySyncConfigs? =
-      configBlobKey?.let {
-        runBlocking {
-          EdpAggregatorConfig.getConfigAsProtoMessage(
-            it,
-            DataAvailabilitySyncConfigs.getDefaultInstance(),
-          )
-        }
+    private val configBlobKey: String =
+      requireNotNull(System.getenv("CONFIG_BLOB_KEY")) {
+        "CONFIG_BLOB_KEY environment variable must be set"
+      }
+    private val runtimeConfigs: DataAvailabilitySyncConfigs =
+      runBlocking {
+        EdpAggregatorConfig.getConfigAsProtoMessage(
+          configBlobKey,
+          DataAvailabilitySyncConfigs.getDefaultInstance(),
+        )
       }
 
     /**

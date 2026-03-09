@@ -557,7 +557,11 @@ class EventGroupSyncFunctionTest() {
 
     assertThat(getResponse.statusCode()).isEqualTo(200)
 
-    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
+    val createCaptor = argumentCaptor<CreateEventGroupRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) {
+      createEventGroup(createCaptor.capture())
+    }
+    assertThat(createCaptor.firstValue.parent).isEqualTo("some-data-provider")
     verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(any()) }
     val mappedData = runBlocking {
       MesosRecordIoStorageClient(storageClient)

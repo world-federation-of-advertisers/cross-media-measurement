@@ -25,8 +25,8 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "config_parser",
-    srcs = ["ConfigParser.kt"],
+    name = "config_loader",
+    srcs = ["ConfigLoader.kt"],
     deps = [
         "//src/main/proto/wfa/measurement/config/edpaggregator:data_availability_sync_configs_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/edpaggregator:event_group_sync_config_kt_jvm_proto",
