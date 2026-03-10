@@ -59,11 +59,7 @@ data class ImpressionMetadataResult(
 data class ModelLineBoundResult(val cmmsModelLine: String, val bound: Interval)
 
 /** Resolved internal Spanner IDs for a RawImpressionMetadata FK reference. */
-data class RawImpressionInternalKey(
-  val uploadId: Long,
-  val batchIndex: Long,
-  val fileId: Long,
-)
+data class RawImpressionInternalKey(val uploadId: Long, val batchIndex: Long, val fileId: Long)
 
 /** Returns whether the [ImpressionMetadata] with the specified [impressionMetadataId] exists. */
 suspend fun AsyncDatabaseClient.ReadContext.impressionMetadataExists(
@@ -250,8 +246,7 @@ suspend fun AsyncDatabaseClient.ReadContext.resolveRawImpressionInternalKey(
         }
       )
       .singleOrNullIfEmpty()
-      ?: throw Status.NOT_FOUND
-        .withDescription("RawImpressionMetadata not found")
+      ?: throw Status.NOT_FOUND.withDescription("RawImpressionMetadata not found")
         .asRuntimeException()
 
   return RawImpressionInternalKey(
