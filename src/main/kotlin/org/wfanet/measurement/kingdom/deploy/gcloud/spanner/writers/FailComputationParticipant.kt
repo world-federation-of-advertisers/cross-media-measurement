@@ -119,12 +119,14 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       measurementDetails.copy {
         failure = measurementFailure {
           reason = MeasurementFailure.Reason.COMPUTATION_PARTICIPANT_FAILED
-          message = "Computation Participant failed. ${request.logMessage}"
+          message =
+            "Computation Participant failed. ${request.externalDuchyId}: ${request.logMessage}"
         }
       }
 
     val measurementLogEntryDetails = measurementLogEntryDetails {
-      logMessage = "Computation Participant failed. ${request.logMessage}"
+      logMessage =
+        "Computation Participant failed. ${request.externalDuchyId}: ${request.logMessage}"
       this.error = request.error
     }
 
