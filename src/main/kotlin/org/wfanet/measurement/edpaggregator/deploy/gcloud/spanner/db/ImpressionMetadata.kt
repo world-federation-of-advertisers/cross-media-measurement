@@ -554,6 +554,7 @@ private object ImpressionMetadataEntity {
         etag = ETags.computeETag(updateTime.toInstant())
         if (!struct.isNull("RawImpressionUploadResourceId")) {
           rawImpressionMetadataKey = rawImpressionMetadataKey {
+            dataProviderId = struct.getString("DataProviderResourceId")
             rawImpressionUploadId = struct.getString("RawImpressionUploadResourceId")
             batchIndex = struct.getLong("RawImpressionBatchIndex")
             fileResourceId = struct.getString("RawImpressionFileResourceId")
