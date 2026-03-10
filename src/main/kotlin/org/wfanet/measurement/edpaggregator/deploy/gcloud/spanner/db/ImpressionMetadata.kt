@@ -44,8 +44,10 @@ import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as State
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataKey
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.impressionMetadata
+import org.wfanet.measurement.internal.edpaggregator.rawImpressionMetadataKey
 
 private const val IMPRESSION_METADATA_RESOURCE_ID_PREFIX = "imp"
 
@@ -55,6 +57,13 @@ data class ImpressionMetadataResult(
 )
 
 data class ModelLineBoundResult(val cmmsModelLine: String, val bound: Interval)
+
+/** Resolved internal Spanner IDs for a RawImpressionMetadata FK reference. */
+data class RawImpressionInternalKey(
+  val uploadId: Long,
+  val batchIndex: Long,
+  val fileId: Long,
+)
 
 /** Returns whether the [ImpressionMetadata] with the specified [impressionMetadataId] exists. */
 suspend fun AsyncDatabaseClient.ReadContext.impressionMetadataExists(
@@ -82,8 +91,8 @@ suspend fun AsyncDatabaseClient.ReadContext.getImpressionMetadataByResourceId(
     appendLine(ImpressionMetadataEntity.BASE_SQL)
     appendLine(
       """
-      WHERE DataProviderResourceId = @dataProviderResourceId
-      AND ImpressionMetadataResourceId = @impressionMetadataResourceId
+      WHERE IM.DataProviderResourceId = @dataProviderResourceId
+      AND IM.ImpressionMetadataResourceId = @impressionMetadataResourceId
       """
         .trimIndent()
     )
@@ -118,8 +127,8 @@ suspend fun AsyncDatabaseClient.ReadContext.getImpressionMetadataByResourceIds(
     appendLine(ImpressionMetadataEntity.BASE_SQL)
     appendLine(
       """
-      WHERE DataProviderResourceId = @dataProviderResourceId
-      AND ImpressionMetadataResourceId IN UNNEST(@impressionMetadataResourceIds)
+      WHERE IM.DataProviderResourceId = @dataProviderResourceId
+      AND IM.ImpressionMetadataResourceId IN UNNEST(@impressionMetadataResourceIds)
       """
         .trimIndent()
     )
@@ -153,9 +162,9 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingImpressionMetadataByRequ
     appendLine(ImpressionMetadataEntity.BASE_SQL)
     appendLine(
       """
-      WHERE DataProviderResourceId = @dataProviderResourceId
-        AND CreateRequestId IS NOT NULL
-        AND CreateRequestId IN UNNEST(@createRequestIds)
+      WHERE IM.DataProviderResourceId = @dataProviderResourceId
+        AND IM.CreateRequestId IS NOT NULL
+        AND IM.CreateRequestId IN UNNEST(@createRequestIds)
       """
         .trimIndent()
     )
@@ -191,8 +200,8 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingImpressionMetadataByBlob
     appendLine(ImpressionMetadataEntity.BASE_SQL)
     appendLine(
       """
-      WHERE DataProviderResourceId = @dataProviderResourceId
-        AND BlobUri IN UNNEST(@blobUris)
+      WHERE IM.DataProviderResourceId = @dataProviderResourceId
+        AND IM.BlobUri IN UNNEST(@blobUris)
       """
         .trimIndent()
     )
@@ -210,11 +219,54 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingImpressionMetadataByBlob
     .associateBy { it.impressionMetadata.blobUri }
 }
 
+/**
+ * Resolves resource IDs from a [RawImpressionMetadataKey] to internal Spanner IDs.
+ *
+ * @throws io.grpc.StatusRuntimeException with NOT_FOUND if the referenced RawImpressionMetadata
+ *   does not exist
+ */
+suspend fun AsyncDatabaseClient.ReadContext.resolveRawImpressionInternalKey(
+  dataProviderResourceId: String,
+  key: RawImpressionMetadataKey,
+): RawImpressionInternalKey {
+  val sql =
+    """
+    SELECT UploadId, BatchIndex, FileId
+    FROM RawImpressionMetadata@{FORCE_INDEX=RawImpressionMetadataByFileResourceId}
+    WHERE DataProviderResourceId = @dataProviderResourceId
+      AND UploadResourceId = @uploadResourceId
+      AND BatchIndex = @batchIndex
+      AND FileResourceId = @fileResourceId
+    """
+      .trimIndent()
+
+  val row: Struct =
+    executeQuery(
+        statement(sql) {
+          bind("dataProviderResourceId").to(dataProviderResourceId)
+          bind("uploadResourceId").to(key.rawImpressionUploadId)
+          bind("batchIndex").to(key.batchIndex)
+          bind("fileResourceId").to(key.fileResourceId)
+        }
+      )
+      .singleOrNullIfEmpty()
+      ?: throw Status.NOT_FOUND
+        .withDescription("RawImpressionMetadata not found")
+        .asRuntimeException()
+
+  return RawImpressionInternalKey(
+    uploadId = row.getLong("UploadId"),
+    batchIndex = row.getLong("BatchIndex"),
+    fileId = row.getLong("FileId"),
+  )
+}
+
 /** Buffers an insert mutation for a [ImpressionMetadata] row. */
 fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
   impressionMetadataId: Long,
   impressionMetadata: ImpressionMetadata,
   createRequestId: String,
+  rawImpressionInternalKey: RawImpressionInternalKey? = null,
 ) {
   bufferInsertMutation("ImpressionMetadata") {
     set("DataProviderResourceId").to(impressionMetadata.dataProviderResourceId)
@@ -230,10 +282,10 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
     set("IntervalStartTime").to(impressionMetadata.interval.startTime.toGcloudTimestamp())
     set("IntervalEndTime").to(impressionMetadata.interval.endTime.toGcloudTimestamp())
     set("State").to(impressionMetadata.state)
-    if (impressionMetadata.rawImpressionUploadId != 0L) {
-      set("RawImpressionUploadId").to(impressionMetadata.rawImpressionUploadId)
-      set("RawImpressionBatchIndex").to(impressionMetadata.rawImpressionBatchIndex)
-      set("RawImpressionFileId").to(impressionMetadata.rawImpressionFileId)
+    if (rawImpressionInternalKey != null) {
+      set("RawImpressionUploadId").to(rawImpressionInternalKey.uploadId)
+      set("RawImpressionBatchIndex").to(rawImpressionInternalKey.batchIndex)
+      set("RawImpressionFileId").to(rawImpressionInternalKey.fileId)
     }
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
@@ -292,13 +344,28 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchCreateImpressionMetadata
             "$IMPRESSION_METADATA_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
           }
 
+        val rawImpressionInternalKey =
+          if (request.impressionMetadata.hasRawImpressionMetadataKey()) {
+            resolveRawImpressionInternalKey(
+              dataProviderResourceId,
+              request.impressionMetadata.rawImpressionMetadataKey,
+            )
+          } else {
+            null
+          }
+
         val created =
           request.impressionMetadata.copy {
             this.impressionMetadataResourceId = impressionMetadataResourceId
             state = State.IMPRESSION_METADATA_STATE_ACTIVE
           }
 
-        insertImpressionMetadata(impressionMetadataId, created, request.requestId)
+        insertImpressionMetadata(
+          impressionMetadataId,
+          created,
+          request.requestId,
+          rawImpressionInternalKey,
+        )
         created
       }
 
@@ -334,36 +401,36 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
   val sql = buildString {
     appendLine(ImpressionMetadataEntity.BASE_SQL)
 
-    val conjuncts = mutableListOf("DataProviderResourceId = @dataProviderResourceId")
+    val conjuncts = mutableListOf("IM.DataProviderResourceId = @dataProviderResourceId")
 
     if (filter.state != State.IMPRESSION_METADATA_STATE_UNSPECIFIED) {
-      conjuncts.add("State = @state")
+      conjuncts.add("IM.State = @state")
     }
 
     if (filter.cmmsModelLine.isNotEmpty()) {
-      conjuncts.add("CmmsModelLine = @cmmsModelLine")
+      conjuncts.add("IM.CmmsModelLine = @cmmsModelLine")
     }
 
     if (filter.eventGroupReferenceId.isNotEmpty()) {
-      conjuncts.add("EventGroupReferenceId = @eventGroupReferenceId")
+      conjuncts.add("IM.EventGroupReferenceId = @eventGroupReferenceId")
     }
 
     if (filter.hasIntervalOverlaps()) {
       conjuncts.add(
-        "IntervalStartTime < @intervalOverlapsEndTime AND IntervalEndTime > @intervalOverlapsStartTime"
+        "IM.IntervalStartTime < @intervalOverlapsEndTime AND IM.IntervalEndTime > @intervalOverlapsStartTime"
       )
     }
 
     if (filter.blobUriPrefix.isNotEmpty()) {
-      conjuncts.add("STARTS_WITH(BlobUri, @blobUriPrefix)")
+      conjuncts.add("STARTS_WITH(IM.BlobUri, @blobUriPrefix)")
     }
 
     if (after != null) {
-      conjuncts.add("ImpressionMetadataResourceId > @afterImpressionMetadataResourceId")
+      conjuncts.add("IM.ImpressionMetadataResourceId > @afterImpressionMetadataResourceId")
     }
 
     appendLine("WHERE " + conjuncts.joinToString(" AND "))
-    appendLine("ORDER BY ImpressionMetadataResourceId ASC")
+    appendLine("ORDER BY IM.ImpressionMetadataResourceId ASC")
     appendLine("LIMIT @limit")
   }
 
@@ -445,24 +512,30 @@ private object ImpressionMetadataEntity {
   val BASE_SQL =
     """
     SELECT
-      DataProviderResourceId,
-      ImpressionMetadataId,
-      ImpressionMetadataResourceId,
-      CreateRequestId,
-      BlobUri,
-      BlobTypeUrl,
-      EventGroupReferenceId,
-      CmmsModelLine,
-      IntervalStartTime,
-      IntervalEndTime,
-      State,
-      CreateTime,
-      UpdateTime,
-      RawImpressionUploadId,
-      RawImpressionBatchIndex,
-      RawImpressionFileId,
+      IM.DataProviderResourceId,
+      IM.ImpressionMetadataId,
+      IM.ImpressionMetadataResourceId,
+      IM.CreateRequestId,
+      IM.BlobUri,
+      IM.BlobTypeUrl,
+      IM.EventGroupReferenceId,
+      IM.CmmsModelLine,
+      IM.IntervalStartTime,
+      IM.IntervalEndTime,
+      IM.State,
+      IM.CreateTime,
+      IM.UpdateTime,
+      RIM.UploadResourceId AS RawImpressionUploadResourceId,
+      IM.RawImpressionBatchIndex,
+      RIM.FileResourceId AS RawImpressionFileResourceId,
     FROM
-      ImpressionMetadata
+      ImpressionMetadata AS IM
+    LEFT JOIN
+      RawImpressionMetadata AS RIM
+      ON IM.DataProviderResourceId = RIM.DataProviderResourceId
+      AND IM.RawImpressionUploadId = RIM.UploadId
+      AND IM.RawImpressionBatchIndex = RIM.BatchIndex
+      AND IM.RawImpressionFileId = RIM.FileId
     """
       .trimIndent()
 
@@ -484,10 +557,12 @@ private object ImpressionMetadataEntity {
         createTime = struct.getTimestamp("CreateTime").toProto()
         updateTime = struct.getTimestamp("UpdateTime").toProto()
         etag = ETags.computeETag(updateTime.toInstant())
-        if (!struct.isNull("RawImpressionUploadId")) {
-          rawImpressionUploadId = struct.getLong("RawImpressionUploadId")
-          rawImpressionBatchIndex = struct.getLong("RawImpressionBatchIndex")
-          rawImpressionFileId = struct.getLong("RawImpressionFileId")
+        if (!struct.isNull("RawImpressionUploadResourceId")) {
+          rawImpressionMetadataKey = rawImpressionMetadataKey {
+            rawImpressionUploadId = struct.getString("RawImpressionUploadResourceId")
+            batchIndex = struct.getLong("RawImpressionBatchIndex")
+            fileResourceId = struct.getString("RawImpressionFileResourceId")
+          }
         }
       },
       struct.getLong("ImpressionMetadataId"),
