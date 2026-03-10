@@ -92,9 +92,17 @@ class FailComputationParticipant(private val request: FailComputationParticipant
         withdrawRequisitions(measurementConsumerId, measurementId)
       Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
       Measurement.State.PENDING_COMPUTATION -> {}
-      Measurement.State.FAILED,
-      Measurement.State.SUCCEEDED,
       Measurement.State.CANCELLED,
+      Measurement.State.FAILED,
+      Measurement.State.SUCCEEDED -> {
+        throw MeasurementStateIllegalException(
+          ExternalId(computationParticipant.externalMeasurementConsumerId),
+          ExternalId(computationParticipant.externalMeasurementId),
+          measurementState,
+        ) {
+          "Measurement has been in terminal state $measurementState (${measurementState.number})"
+        }
+      }
       Measurement.State.STATE_UNSPECIFIED,
       Measurement.State.UNRECOGNIZED -> {
         throw MeasurementStateIllegalException(
@@ -119,12 +127,12 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       measurementDetails.copy {
         failure = measurementFailure {
           reason = MeasurementFailure.Reason.COMPUTATION_PARTICIPANT_FAILED
-          message = "Computation Participant failed. ${request.logMessage}"
+          message = "Computation Participant failed. $duchyId: ${request.logMessage}"
         }
       }
 
     val measurementLogEntryDetails = measurementLogEntryDetails {
-      logMessage = "Computation Participant failed. ${request.logMessage}"
+      logMessage = "Computation Participant failed. $duchyId: ${request.logMessage}"
       this.error = request.error
     }
 
