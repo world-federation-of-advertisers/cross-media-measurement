@@ -109,8 +109,14 @@ object ConfigLoader {
               .merge(requestBody, this)
           }
           .build()
-      if (any.typeUrl.isEmpty()) null else any
+      if (any.typeUrl.isEmpty()) {
+        logger.severe("Parsed request body but @type URL is empty — falling back to legacy parsing")
+        null
+      } else {
+        any
+      }
     } catch (e: InvalidProtocolBufferException) {
+      logger.severe("Failed to parse request body as Any: ${e.message}")
       null
     }
   }

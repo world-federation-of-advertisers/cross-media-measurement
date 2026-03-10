@@ -181,7 +181,7 @@ class DataAvailabilitySyncFunctionTest {
   }
 
   @Test
-  fun `sync registersUnregisteredImpressionMetadata`() {
+  fun `sync registersUnregisteredImpressionMetadata with legacy config sent over the wire as params`() {
 
     val localImpressionBlobKey = "edp/edp_name/timestamp/impressions"
     val localImpressionBlobUri = "file:////edp/edp_name/timestamp/impressions"

@@ -82,7 +82,9 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.Met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
+import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.eventGroupSyncParams
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
@@ -220,7 +222,7 @@ class EventGroupSyncFunctionTest() {
   }
 
   @Test
-  fun `sync registersUnregisteredEventGroups`() {
+  fun `sync registersUnregisteredEventGroups with legacy config sent over the wire as params`() {
     val newCampaign = eventGroup {
       eventGroupReferenceId = "reference-id-4"
       this.eventGroupMetadata = eventGroupMetadata {
@@ -495,7 +497,7 @@ class EventGroupSyncFunctionTest() {
   }
 
   @Test
-  fun `sync registersUnregisteredEventGroups with path from data watcher`() {
+  fun `sync registersUnregisteredEventGroups with path from data watcher with legacy config sent over the wire as params`() {
     val newCampaign = eventGroup {
       eventGroupReferenceId = "reference-id-4"
       this.eventGroupMetadata = eventGroupMetadata {
@@ -701,6 +703,106 @@ class EventGroupSyncFunctionTest() {
           "reference-id-4" to "resource-name-for-reference-id-4",
         )
       )
+  }
+
+  @Test
+  fun `sync returns error for Any-wrapped params with invalid data provider`() {
+    // Write runtime config to the config bucket
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = eventGroupSyncConfigs {
+      configs += eventGroupSyncConfig {
+        dataProvider = "some-data-provider"
+        eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.binpb"
+        eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
+        this.cmmsConnection = transportLayerSecurityParams {
+          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        }
+        eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
+        eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
+      }
+    }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+
+    // Build Any-wrapped params with a data provider that doesn't match any config
+    val params = eventGroupSyncParams { dataProvider = "nonexistent-data-provider" }
+    val any = Any.pack(params)
+    val anyTypeRegistry =
+      TypeRegistry.newBuilder().add(EventGroupSyncParams.getDescriptor()).build()
+    val anyJson = JsonFormat.printer().usingTypeRegistry(anyTypeRegistry).print(any)
+
+    val port = runBlocking {
+      startFunction(
+        mapOf(
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+        )
+      )
+    }
+
+    val client = HttpClient.newHttpClient()
+    val request =
+      HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:$port"))
+        .POST(HttpRequest.BodyPublishers.ofString(anyJson))
+        .build()
+    val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+
+    assertThat(response.statusCode()).isEqualTo(500)
+    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+  }
+
+  @Test
+  fun `sync returns error for Any-wrapped params with unsupported type`() {
+    // Write runtime config to the config bucket
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = eventGroupSyncConfigs {
+      configs += eventGroupSyncConfig {
+        dataProvider = "some-data-provider"
+        eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.binpb"
+        eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
+        this.cmmsConnection = transportLayerSecurityParams {
+          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        }
+        eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
+        eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
+      }
+    }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+
+    // Build Any-wrapped params with a type that is not EventGroupSyncParams
+    val params = dataAvailabilitySyncParams { dataProvider = "some-data-provider" }
+    val any = Any.pack(params)
+    val anyTypeRegistry =
+      TypeRegistry.newBuilder().add(DataAvailabilitySyncParams.getDescriptor()).build()
+    val invalidAnyJson = JsonFormat.printer().usingTypeRegistry(anyTypeRegistry).print(any)
+
+    val port = runBlocking {
+      startFunction(
+        mapOf(
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+        )
+      )
+    }
+
+    val client = HttpClient.newHttpClient()
+    val request =
+      HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:$port"))
+        .POST(HttpRequest.BodyPublishers.ofString(invalidAnyJson))
+        .build()
+    val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+
+    assertThat(response.statusCode()).isEqualTo(500)
+    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
   }
 
   companion object {
