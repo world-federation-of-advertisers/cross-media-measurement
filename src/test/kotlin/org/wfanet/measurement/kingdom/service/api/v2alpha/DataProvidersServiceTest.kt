@@ -431,7 +431,26 @@ class DataProvidersServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("start_time")
+    assertThat(exception.message).contains("Both")
+  }
+
+  @Test
+  fun `replaceDataAvailabilityInterval throws INVALID_ARGUMENT when end_time missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.replaceDataAvailabilityInterval(
+              replaceDataAvailabilityIntervalRequest {
+                name = DATA_PROVIDER_NAME
+                dataAvailabilityInterval = interval { startTime = timestamp { seconds = 300 } }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("Both")
   }
 
   @Test
@@ -576,8 +595,6 @@ class DataProvidersServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception).hasMessageThat().contains("ModelLine")
   }
-
-
 
   @Test
   fun `replaceDataAvailabilityIntervals throws INVALID_ARGUMENT when end_time is before start_time`() {

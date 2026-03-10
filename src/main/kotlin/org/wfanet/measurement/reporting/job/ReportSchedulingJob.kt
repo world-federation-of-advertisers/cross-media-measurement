@@ -407,39 +407,33 @@ class ReportSchedulingJob(
           }
 
         // The final data availability end time for the event group can only be the same or earlier
-        // than the data provider's data availability end time. If neither has an end time, data
-        // availability is unbounded. If only one has an end time, that one is used.
-        val dpHasEnd = dataProvider.dataAvailabilityInterval.hasEndTime()
-        val egHasEnd = eventGroup!!.dataAvailabilityInterval.hasEndTime()
-        val dataAvailabilityIntervalEnd: Timestamp? =
-          when {
-            dpHasEnd && egHasEnd -> {
-              if (
-                Timestamps.compare(
-                  dataProvider.dataAvailabilityInterval.endTime,
-                  eventGroup.dataAvailabilityInterval.endTime,
-                ) < 0
-              ) {
-                dataProvider.dataAvailabilityInterval.endTime
-              } else {
-                eventGroup.dataAvailabilityInterval.endTime
-              }
+        // than the data provider's data availability end time. If the event group doesn't have a
+        // data availability end time, then the data provider's data availability end time is
+        // used by default.
+        val dataAvailabilityIntervalEnd =
+          if (eventGroup.dataAvailabilityInterval.hasEndTime()) {
+            if (
+              Timestamps.compare(
+                dataProvider.dataAvailabilityInterval.endTime,
+                eventGroup.dataAvailabilityInterval.endTime,
+              ) < 0
+            ) {
+              dataProvider.dataAvailabilityInterval.endTime
+            } else {
+              eventGroup.dataAvailabilityInterval.endTime
             }
-            dpHasEnd -> dataProvider.dataAvailabilityInterval.endTime
-            egHasEnd -> eventGroup.dataAvailabilityInterval.endTime
-            else -> null
+          } else {
+            dataProvider.dataAvailabilityInterval.endTime
           }
 
-        if (dataAvailabilityIntervalEnd != null) {
-          // Data can only be available if the start time is before the end time, exclusive.
-          if (Timestamps.compare(dataAvailabilityIntervalStart, dataAvailabilityIntervalEnd) >= 0) {
-            return false
-          }
+        // Data can only be available if the start time is before the end time, exclusive.
+        if (Timestamps.compare(dataAvailabilityIntervalStart, dataAvailabilityIntervalEnd) >= 0) {
+          return false
+        }
 
-          // The report window end time has to be before the data availability end time, inclusive.
-          if (Timestamps.compare(eventTimestamp, dataAvailabilityIntervalEnd) > 0) {
-            return false
-          }
+        // The report window end time has to be before the data availability end time, inclusive.
+        if (Timestamps.compare(eventTimestamp, dataAvailabilityIntervalEnd) > 0) {
+          return false
         }
 
         // The report window start time has to be after the data availability start time, inclusive.

@@ -177,7 +177,6 @@ class SpannerDataProvidersService(
         if (!entry.value.hasStartTime()) {
           throw RequiredFieldNotSetException("data_availability_intervals[$index].value.start_time")
         }
-
       }
     }
   }

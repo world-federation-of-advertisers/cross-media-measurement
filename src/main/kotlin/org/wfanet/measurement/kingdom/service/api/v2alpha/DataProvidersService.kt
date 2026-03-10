@@ -216,19 +216,20 @@ class DataProvidersService(
       }
     }
 
-    grpcRequire(request.dataAvailabilityInterval.startTime.seconds > 0) {
-      "start_time is required in data_availability_interval"
+    grpcRequire(
+      request.dataAvailabilityInterval.startTime.seconds > 0 &&
+        request.dataAvailabilityInterval.endTime.seconds > 0
+    ) {
+      "Both start_time and end_time are required in data_availability_interval"
     }
 
-    if (request.dataAvailabilityInterval.hasEndTime()) {
-      grpcRequire(
-        Timestamps.compare(
-          request.dataAvailabilityInterval.startTime,
-          request.dataAvailabilityInterval.endTime,
-        ) < 0
-      ) {
-        "data_availability_interval start_time must be before end_time"
-      }
+    grpcRequire(
+      Timestamps.compare(
+        request.dataAvailabilityInterval.startTime,
+        request.dataAvailabilityInterval.endTime,
+      ) < 0
+    ) {
+      "data_availability_interval start_time must be before end_time"
     }
 
     val internalDataProvider: InternalDataProvider =
@@ -328,9 +329,7 @@ private fun InternalDataProvider.toDataProvider(): DataProvider {
           value = internalEntry.value
         }
     }
-    if (source.details.hasDataAvailabilityInterval()) {
-      dataAvailabilityInterval = source.details.dataAvailabilityInterval
-    }
+    dataAvailabilityInterval = source.details.dataAvailabilityInterval
     capabilities = source.details.capabilities.toCapabilities()
   }
 }
