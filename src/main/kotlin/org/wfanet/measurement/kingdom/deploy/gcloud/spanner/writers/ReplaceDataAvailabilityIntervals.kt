@@ -99,7 +99,8 @@ class ReplaceDataAvailabilityIntervals(
               .endTimeOrNull ?: Timestamps.MAX_VALUE)
             .toInstant()
       val availabilityRange: OpenEndRange<Instant> =
-        interval.startTime.toInstant()..<interval.endTime.toInstant()
+        interval.startTime.toInstant()..<(interval.endTimeOrNull ?: Timestamps.MAX_VALUE)
+            .toInstant()
       if (availabilityRange !in activeRange) {
         throw ModelLineNotActiveException(modelLineResult.externalKey, activeRange)
       }
@@ -145,7 +146,7 @@ class ReplaceDataAvailabilityIntervals(
       set("ModelSuiteId").to(modelLineKey.modelSuiteId)
       set("ModelLineId").to(modelLineKey.modelLineId)
       set("StartTime").to(interval.startTime.toGcloudTimestamp())
-      set("EndTime").to(interval.endTime.toGcloudTimestamp())
+      set("EndTime").to(interval.endTimeOrNull?.toGcloudTimestamp())
     }
 
     /**

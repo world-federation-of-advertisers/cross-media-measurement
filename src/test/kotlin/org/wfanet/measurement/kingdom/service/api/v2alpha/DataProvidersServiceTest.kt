@@ -431,26 +431,7 @@ class DataProvidersServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("Both")
-  }
-
-  @Test
-  fun `replaceDataAvailabilityInterval throws INVALID_ARGUMENT when end_time missing`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-          runBlocking {
-            service.replaceDataAvailabilityInterval(
-              replaceDataAvailabilityIntervalRequest {
-                name = DATA_PROVIDER_NAME
-                dataAvailabilityInterval = interval { startTime = timestamp { seconds = 300 } }
-              }
-            )
-          }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("Both")
+    assertThat(exception.message).contains("start_time")
   }
 
   @Test
@@ -596,28 +577,7 @@ class DataProvidersServiceTest {
     assertThat(exception).hasMessageThat().contains("ModelLine")
   }
 
-  @Test
-  fun `replaceDataAvailabilityIntervals throws INVALID_ARGUMENT when end_time not set`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-            service.replaceDataAvailabilityIntervals(
-              replaceDataAvailabilityIntervalsRequest {
-                name = DATA_PROVIDER_NAME
-                dataAvailabilityIntervals +=
-                  DATA_PROVIDER.dataAvailabilityIntervalsList.first().copy {
-                    value = value.copy { clearEndTime() }
-                  }
-              }
-            )
-          }
-        }
-      }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("end_time")
-  }
 
   @Test
   fun `replaceDataAvailabilityIntervals throws INVALID_ARGUMENT when end_time is before start_time`() {

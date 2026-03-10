@@ -122,7 +122,8 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
               ?: Timestamps.MAX_VALUE)
             .toInstant()
       val availabilityRange: OpenEndRange<Instant> =
-        entry.value.startTime.toInstant()..<entry.value.endTime.toInstant()
+        entry.value.startTime.toInstant()..<(entry.value.endTimeOrNull ?: Timestamps.MAX_VALUE)
+            .toInstant()
       if (availabilityRange !in activeRange) {
         throw ModelLineNotActiveException(entry.key, activeRange)
       }
@@ -132,7 +133,7 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
         set("ModelSuiteId").to(internalKey.modelSuiteId)
         set("ModelLineId").to(internalKey.modelLineId)
         set("StartTime").to(entry.value.startTime.toGcloudTimestamp())
-        set("EndTime").to(entry.value.endTime.toGcloudTimestamp())
+        set("EndTime").to(entry.value.endTimeOrNull?.toGcloudTimestamp())
       }
     }
   }

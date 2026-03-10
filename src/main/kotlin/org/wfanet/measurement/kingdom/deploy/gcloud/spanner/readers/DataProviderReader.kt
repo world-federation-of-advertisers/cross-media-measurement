@@ -148,7 +148,9 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
           }
           value = interval {
             startTime = it.getTimestamp("StartTime").toProto()
-            endTime = it.getTimestamp("EndTime").toProto()
+            if (!it.isNull("EndTime")) {
+              endTime = it.getTimestamp("EndTime").toProto()
+            }
           }
         }
       }

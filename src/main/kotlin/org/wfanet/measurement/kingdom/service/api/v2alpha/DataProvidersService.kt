@@ -170,10 +170,7 @@ class DataProvidersService(
         if (interval.startTime.seconds == 0L) {
           throw Status.INVALID_ARGUMENT.withDescription("start_time not set").asRuntimeException()
         }
-        if (interval.endTime.seconds == 0L) {
-          throw Status.INVALID_ARGUMENT.withDescription("end_time not set").asRuntimeException()
-        }
-        if (Timestamps.compare(interval.startTime, interval.endTime) > 0) {
+        if (interval.hasEndTime() && Timestamps.compare(interval.startTime, interval.endTime) > 0) {
           throw Status.INVALID_ARGUMENT.withDescription("end_time is before start_time")
             .asRuntimeException()
         }
@@ -219,20 +216,19 @@ class DataProvidersService(
       }
     }
 
-    grpcRequire(
-      request.dataAvailabilityInterval.startTime.seconds > 0 &&
-        request.dataAvailabilityInterval.endTime.seconds > 0
-    ) {
-      "Both start_time and end_time are required in data_availability_interval"
+    grpcRequire(request.dataAvailabilityInterval.startTime.seconds > 0) {
+      "start_time is required in data_availability_interval"
     }
 
-    grpcRequire(
-      Timestamps.compare(
-        request.dataAvailabilityInterval.startTime,
-        request.dataAvailabilityInterval.endTime,
-      ) < 0
-    ) {
-      "data_availability_interval start_time must be before end_time"
+    if (request.dataAvailabilityInterval.hasEndTime()) {
+      grpcRequire(
+        Timestamps.compare(
+          request.dataAvailabilityInterval.startTime,
+          request.dataAvailabilityInterval.endTime,
+        ) < 0
+      ) {
+        "data_availability_interval start_time must be before end_time"
+      }
     }
 
     val internalDataProvider: InternalDataProvider =
@@ -332,7 +328,9 @@ private fun InternalDataProvider.toDataProvider(): DataProvider {
           value = internalEntry.value
         }
     }
-    dataAvailabilityInterval = source.details.dataAvailabilityInterval
+    if (source.details.hasDataAvailabilityInterval()) {
+      dataAvailabilityInterval = source.details.dataAvailabilityInterval
+    }
     capabilities = source.details.capabilities.toCapabilities()
   }
 }
