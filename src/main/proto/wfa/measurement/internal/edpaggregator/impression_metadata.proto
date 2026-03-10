@@ -19,6 +19,7 @@ package wfa.measurement.internal.edpaggregator;
 import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/internal/edpaggregator/impression_metadata_state.proto";
+import "wfa/measurement/internal/edpaggregator/raw_impression_metadata_key.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
@@ -46,12 +47,7 @@ message ImpressionMetadata {
   // The etag of ImpressionMetadata
   string etag = 11;
 
-  // Foreign key reference to the source RawImpressionMetadata row.
-  // These three fields, together with data_provider_resource_id, form a
-  // composite FK to RawImpressionMetadata(DataProviderResourceId, UploadId,
-  // BatchIndex, FileId). Optional; unset when there is no source raw
-  // impression.
-  int64 raw_impression_upload_id = 12;
-  int64 raw_impression_batch_index = 13;
-  int64 raw_impression_file_id = 14;
+  // External key reference to the source RawImpressionMetadata.
+  // Optional; unset when there is no source raw impression.
+  RawImpressionMetadataKey raw_impression_metadata_key = 12;
 }
