@@ -27,7 +27,9 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.Instrumentation
-import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
+import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
+import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
+import org.wfanet.measurement.edpaggregator.ConfigLoader
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityCleanup
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
@@ -50,8 +52,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrp
  * - `IMPRESSION_METADATA_CERT_HOST`: Optional. Overrides TLS authority for testing.
  *
  * ## Configuration
- * - A [DataAvailabilitySyncConfig] is provided in the request body by the DataWatcher Cloud
- *   Function. This is used to configure the gRPC channel.
+ * - The request body contains versioned params (as a `google.protobuf.Any`) or a legacy
+ *   `DataAvailabilitySyncConfig` JSON. The config is resolved via [ConfigLoader].
  */
 class DataAvailabilityCleanupFunction : HttpFunction {
   init {
@@ -64,7 +66,10 @@ class DataAvailabilityCleanupFunction : HttpFunction {
 
       val requestBody = request.reader.readText()
       val dataAvailabilitySyncConfig =
-        DataAvailabilitySyncConfigParser.parseDataAvailabilitySyncConfig(requestBody)
+        ConfigLoader.buildDataAvailabilitySyncConfig(
+          requestBody,
+          runtimeConfigs.configsList,
+        )
 
       // Read the path as request header
       val deletedBlobPath =
@@ -118,5 +123,17 @@ class DataAvailabilityCleanupFunction : HttpFunction {
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
     private const val IMPRESSION_METADATA_RESOURCE_ID_HEADER: String =
       "X-Impression-Metadata-Resource-Id"
+
+    private val configBlobKey: String =
+      requireNotNull(System.getenv("CONFIG_BLOB_KEY")) {
+        "CONFIG_BLOB_KEY environment variable must be set"
+      }
+    private val runtimeConfigs: DataAvailabilitySyncConfigs =
+      runBlocking {
+        EdpAggregatorConfig.getConfigAsProtoMessage(
+          configBlobKey,
+          DataAvailabilitySyncConfigs.getDefaultInstance(),
+        )
+      }
   }
 }

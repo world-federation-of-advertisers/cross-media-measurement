@@ -252,6 +252,7 @@ class DataAvailabilitySyncFunctionTest {
     verifyBlocking(dataProvidersServiceMock, times(1)) {
       replaceDataAvailabilityIntervals(requestCaptor.capture())
     }
+    assertThat(requestCaptor.firstValue.dataProvider).isEqualTo("dataProviders/edp123")
     assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
       .contains("some-model-line-mapped")
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
@@ -331,6 +332,7 @@ class DataAvailabilitySyncFunctionTest {
     verifyBlocking(dataProvidersServiceMock, times(1)) {
       replaceDataAvailabilityIntervals(requestCaptor.capture())
     }
+    assertThat(requestCaptor.firstValue.dataProvider).isEqualTo("dataProviders/edp123")
     assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
       .contains("some-model-line-mapped")
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
