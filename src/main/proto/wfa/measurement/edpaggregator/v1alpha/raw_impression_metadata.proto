@@ -26,13 +26,13 @@ option java_outer_classname = "RawImpressionMetadataProto";
 
 // Metadata for a raw impression file within a batch upload.
 // This resource tracks individual files uploaded as part of a batched raw
-// impression upload by an EDP.
+// impression metadata upload by an EDP.
 message RawImpressionMetadata {
   option (google.api.resource) = {
-    type: "edpaggregator.halo-cmm.org/RawImpressionMetadata"
-    pattern: "dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/batches/{batch}/files/{file}"
-    singular: "rawImpressionMetadata"
-    plural: "rawImpressionMetadata"
+    type: "edpaggregator.halo-cmm.org/RawImpressionMetadataUploadBatchFile"
+    pattern: "dataProviders/{data_provider}/rawImpressionMetadataUploads/{raw_impression_metadata_upload}/batches/{batch}/files/{file}"
+    singular: "rawImpressionMetadataUploadBatchFile"
+    plural: "rawImpressionMetadataUploadBatchFiles"
   };
 
   // The lifecycle state of the raw impression metadata.

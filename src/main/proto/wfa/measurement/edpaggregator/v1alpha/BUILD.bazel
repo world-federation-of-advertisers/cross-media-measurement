@@ -227,8 +227,6 @@ proto_library(
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
         ":raw_impression_metadata_proto",
-        "@com_google_googleapis//google/api:annotations_proto",
-        "@com_google_googleapis//google/api:client_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:field_info_proto",
         "@com_google_googleapis//google/api:resource_proto",
