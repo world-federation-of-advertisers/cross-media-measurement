@@ -16,8 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.edpaggregator.v1alpha;
 
-import "google/api/annotations.proto";
-import "google/api/client.proto";
 import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
@@ -44,7 +42,8 @@ service RawImpressionMetadataService {
   // Lists RawImpressionMetadata entries.
   //
   // Supports listing files within a specific batch, or across all batches in
-  // a RawImpressionUpload by using a `-` wildcard for the batch segment.
+  // a RawImpressionMetadataUpload by using a `-` wildcard for the batch
+  // segment.
   rpc ListRawImpressionMetadata(ListRawImpressionMetadataRequest)
       returns (ListRawImpressionMetadataResponse) {}
 
@@ -56,11 +55,11 @@ service RawImpressionMetadataService {
 message CreateRawImpressionMetadataRequest {
   // The parent batch resource name.
   // Format:
-  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/batches/{batch}`
+  // `dataProviders/{data_provider}/rawImpressionMetadataUploads/{raw_impression_metadata_upload}/batches/{batch}`
   string parent = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
-      child_type: "edpaggregator.halo-cmm.org/RawImpressionMetadata"
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionMetadataUploadBatchFile"
     }
   ];
 
@@ -85,11 +84,11 @@ message CreateRawImpressionMetadataRequest {
 message BatchCreateRawImpressionMetadataRequest {
   // The parent batch resource name.
   // Format:
-  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/batches/{batch}`
+  // `dataProviders/{data_provider}/rawImpressionMetadataUploads/{raw_impression_metadata_upload}/batches/{batch}`
   string parent = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
-      child_type: "edpaggregator.halo-cmm.org/RawImpressionMetadata"
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionMetadataUploadBatchFile"
     }
   ];
 
@@ -112,11 +111,11 @@ message BatchCreateRawImpressionMetadataResponse {
 message GetRawImpressionMetadataRequest {
   // The resource name of the RawImpressionMetadata to retrieve.
   // Format:
-  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/batches/{batch}/files/{file}`
+  // `dataProviders/{data_provider}/rawImpressionMetadataUploads/{raw_impression_metadata_upload}/batches/{batch}/files/{file}`
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
-      type: "edpaggregator.halo-cmm.org/RawImpressionMetadata"
+      type: "edpaggregator.halo-cmm.org/RawImpressionMetadataUploadBatchFile"
     }
   ];
 }
@@ -130,15 +129,15 @@ message ListRawImpressionMetadataRequest {
   //
   // Supported formats:
   // - Batch:
-  //   `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/batches/{batch}`
+  //   `dataProviders/{data_provider}/rawImpressionMetadataUploads/{raw_impression_metadata_upload}/batches/{batch}`
   //   Lists files in a specific batch.
   // - Upload (wildcard):
-  //   `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/batches/-`
+  //   `dataProviders/{data_provider}/rawImpressionMetadataUploads/{raw_impression_metadata_upload}/batches/-`
   //   Lists files across all batches in the upload.
   string parent = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
-      child_type: "edpaggregator.halo-cmm.org/RawImpressionMetadata"
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionMetadataUploadBatchFile"
     }
   ];
 
@@ -177,11 +176,11 @@ message ListRawImpressionMetadataResponse {
 message SetBatchStateRequest {
   // The parent batch resource name.
   // Format:
-  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/batches/{batch}`
+  // `dataProviders/{data_provider}/rawImpressionMetadataUploads/{raw_impression_metadata_upload}/batches/{batch}`
   string parent = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
-      child_type: "edpaggregator.halo-cmm.org/RawImpressionMetadata"
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionMetadataUploadBatchFile"
     }
   ];
 
