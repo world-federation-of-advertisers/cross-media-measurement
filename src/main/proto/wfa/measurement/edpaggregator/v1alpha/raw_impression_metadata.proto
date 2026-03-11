@@ -28,11 +28,9 @@ option java_outer_classname = "RawImpressionMetadataProto";
 // This resource tracks individual files uploaded as part of a batched raw
 // impression metadata upload by an EDP.
 // (-- api-linter: core::0123::resource-pattern-singular=disabled
-//     aip.dev/not-precedent: Using short hierarchical segments for deeply nested
-//     resource pattern. --)
+//     aip.dev/not-precedent: This is a nested collection. --)
 // (-- api-linter: core::0123::resource-pattern-plural=disabled
-//     aip.dev/not-precedent: Using short hierarchical segments for deeply nested
-//     resource pattern. --)
+//     aip.dev/not-precedent: This is a nested collection. --)
 message RawImpressionMetadata {
   option (google.api.resource) = {
     type: "edpaggregator.halo-cmm.org/RawImpressionMetadataUploadBatchFile"
