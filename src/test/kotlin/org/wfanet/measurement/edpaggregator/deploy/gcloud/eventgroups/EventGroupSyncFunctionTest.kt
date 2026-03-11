@@ -560,9 +560,7 @@ class EventGroupSyncFunctionTest() {
     assertThat(getResponse.statusCode()).isEqualTo(200)
 
     val createCaptor = argumentCaptor<CreateEventGroupRequest>()
-    verifyBlocking(eventGroupsServiceMock, times(1)) {
-      createEventGroup(createCaptor.capture())
-    }
+    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(createCaptor.capture()) }
     assertThat(createCaptor.firstValue.parent).isEqualTo("some-data-provider")
     verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(any()) }
     val mappedData = runBlocking {
@@ -681,9 +679,7 @@ class EventGroupSyncFunctionTest() {
     assertThat(getResponse.statusCode()).isEqualTo(200)
 
     val createCaptor = argumentCaptor<CreateEventGroupRequest>()
-    verifyBlocking(eventGroupsServiceMock, times(1)) {
-      createEventGroup(createCaptor.capture())
-    }
+    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(createCaptor.capture()) }
     assertThat(createCaptor.firstValue.parent).isEqualTo("some-data-provider")
     verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(any()) }
     val mappedData = runBlocking {

@@ -203,9 +203,7 @@ class DataAvailabilitySyncFunctionTest {
     // Write runtime config to the config bucket
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
-    val runtimeConfig = dataAvailabilitySyncConfigs {
-      configs += dataAvailabilitySyncConfig
-    }
+    val runtimeConfig = dataAvailabilitySyncConfigs { configs += dataAvailabilitySyncConfig }
     File(configBucketDir, "config.textproto")
       .writeText(TextFormat.printer().printToString(runtimeConfig))
 
@@ -252,7 +250,7 @@ class DataAvailabilitySyncFunctionTest {
     verifyBlocking(dataProvidersServiceMock, times(1)) {
       replaceDataAvailabilityIntervals(requestCaptor.capture())
     }
-    assertThat(requestCaptor.firstValue.dataProvider).isEqualTo("dataProviders/edp123")
+    assertThat(requestCaptor.firstValue.name).isEqualTo("dataProviders/edp123")
     assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
       .contains("some-model-line-mapped")
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
@@ -281,9 +279,7 @@ class DataAvailabilitySyncFunctionTest {
     // Write runtime config to the config bucket
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
-    val runtimeConfig = dataAvailabilitySyncConfigs {
-      configs += dataAvailabilitySyncConfig
-    }
+    val runtimeConfig = dataAvailabilitySyncConfigs { configs += dataAvailabilitySyncConfig }
     File(configBucketDir, "config.textproto")
       .writeText(TextFormat.printer().printToString(runtimeConfig))
 
@@ -332,7 +328,7 @@ class DataAvailabilitySyncFunctionTest {
     verifyBlocking(dataProvidersServiceMock, times(1)) {
       replaceDataAvailabilityIntervals(requestCaptor.capture())
     }
-    assertThat(requestCaptor.firstValue.dataProvider).isEqualTo("dataProviders/edp123")
+    assertThat(requestCaptor.firstValue.name).isEqualTo("dataProviders/edp123")
     assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
       .contains("some-model-line-mapped")
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
@@ -374,9 +370,7 @@ class DataAvailabilitySyncFunctionTest {
     // Write runtime config to the config bucket
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
-    val runtimeConfig = dataAvailabilitySyncConfigs {
-      configs += fileSystemDataAvailabilitySyncConfig()
-    }
+    val runtimeConfig = dataAvailabilitySyncConfigs { configs += fileSystemDataAvailabilitySyncConfig() }
     File(configBucketDir, "config.textproto")
       .writeText(TextFormat.printer().printToString(runtimeConfig))
 
@@ -429,7 +423,7 @@ class DataAvailabilitySyncFunctionTest {
     verifyBlocking(dataProvidersServiceMock, times(1)) {
       replaceDataAvailabilityIntervals(requestCaptor.capture())
     }
-    assertThat(requestCaptor.firstValue.dataProvider).isEqualTo("dataProviders/edp123")
+    assertThat(requestCaptor.firstValue.name).isEqualTo("dataProviders/edp123")
     assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
       .contains("some-model-line-mapped")
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
@@ -441,9 +435,7 @@ class DataAvailabilitySyncFunctionTest {
     // Write runtime config to the config bucket
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
-    val runtimeConfig = dataAvailabilitySyncConfigs {
-      configs += fileSystemDataAvailabilitySyncConfig()
-    }
+    val runtimeConfig = dataAvailabilitySyncConfigs { configs += fileSystemDataAvailabilitySyncConfig() }
     File(configBucketDir, "config.textproto")
       .writeText(TextFormat.printer().printToString(runtimeConfig))
 
@@ -481,9 +473,7 @@ class DataAvailabilitySyncFunctionTest {
     val response = client.send(request, HttpResponse.BodyHandlers.ofString())
 
     assertThat(response.statusCode()).isEqualTo(500)
-    verifyBlocking(dataProvidersServiceMock, times(0)) {
-      replaceDataAvailabilityIntervals(any())
-    }
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
   }
 
   @Test
@@ -491,9 +481,7 @@ class DataAvailabilitySyncFunctionTest {
     // Write runtime config to the config bucket
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
-    val runtimeConfig = dataAvailabilitySyncConfigs {
-      configs += fileSystemDataAvailabilitySyncConfig()
-    }
+    val runtimeConfig = dataAvailabilitySyncConfigs { configs += fileSystemDataAvailabilitySyncConfig() }
     File(configBucketDir, "config.textproto")
       .writeText(TextFormat.printer().printToString(runtimeConfig))
 
@@ -531,9 +519,7 @@ class DataAvailabilitySyncFunctionTest {
     val response = client.send(request, HttpResponse.BodyHandlers.ofString())
 
     assertThat(response.statusCode()).isEqualTo(500)
-    verifyBlocking(dataProvidersServiceMock, times(0)) {
-      replaceDataAvailabilityIntervals(any())
-    }
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
   }
 
   private fun fileSystemDataAvailabilitySyncConfig(): DataAvailabilitySyncConfig =
