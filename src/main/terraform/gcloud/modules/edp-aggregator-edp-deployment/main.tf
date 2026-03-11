@@ -15,7 +15,6 @@
 data "google_project" "project" {}
 
 resource "google_kms_key_ring" "edp_key_ring" {
-  project  = data.google_project.project.name
   name     = var.kms_keyring
   location = var.location
 }
@@ -40,16 +39,15 @@ resource "google_kms_crypto_key_iam_member" "edp_sa_decrypter" {
 }
 
 resource "google_iam_workload_identity_pool" "edp_workload_identity_pool" {
-  project                           = data.google_project.project.name
-  location                          = var.location
-  workload_identity_pool_id         = var.workload_identity_pool_id
-  display_name                      = var.wip_display_name
-  description                       = "EDP workload identity pool."
-  disabled                          = false
+  location                  = var.location
+  workload_identity_pool_id = var.workload_identity_pool_id
+  display_name              = var.wip_display_name
+  description               = "EDP workload identity pool."
+  disabled                  = false
 }
 
 resource "google_service_account_iam_member" "edp_sa_workload_identity_user" {
   service_account_id = google_service_account.edp_service_account.name
-  role = "roles/iam.workloadIdentityUser"
-  member = "principalSet://iam.googleapis.com/projects/${data.google_project.project.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.edp_workload_identity_pool.workload_identity_pool_id}/*"
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/projects/${data.google_project.project.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.edp_workload_identity_pool.workload_identity_pool_id}/*"
 }

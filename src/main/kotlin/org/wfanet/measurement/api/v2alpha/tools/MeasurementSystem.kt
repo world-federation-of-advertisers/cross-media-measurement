@@ -25,6 +25,7 @@ import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.any
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.kotlin.unpack
+import com.google.protobuf.util.JsonFormat
 import com.google.type.interval
 import io.grpc.ManagedChannel
 import java.io.File
@@ -45,9 +46,12 @@ import org.wfanet.measurement.api.v2alpha.ApiKey
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ClientAccount
+import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.ListClientAccountsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.ListModelOutagesRequestKt
 import org.wfanet.measurement.api.v2alpha.ListModelRolloutsRequestKt
@@ -82,11 +86,15 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
 import org.wfanet.measurement.api.v2alpha.apiKey
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
+import org.wfanet.measurement.api.v2alpha.batchCreateClientAccountsRequest
+import org.wfanet.measurement.api.v2alpha.batchDeleteClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.certificate
+import org.wfanet.measurement.api.v2alpha.clientAccount
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
+import org.wfanet.measurement.api.v2alpha.createClientAccountRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
@@ -96,15 +104,18 @@ import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.createModelShardRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.dateInterval
+import org.wfanet.measurement.api.v2alpha.deleteClientAccountRequest
 import org.wfanet.measurement.api.v2alpha.deleteModelOutageRequest
 import org.wfanet.measurement.api.v2alpha.deleteModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.deleteModelShardRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
+import org.wfanet.measurement.api.v2alpha.getClientAccountRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.listClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.listModelOutagesRequest
@@ -146,6 +157,7 @@ import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.PrivateJwkHandle
 import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
@@ -157,6 +169,9 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup as EdpaEventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroups as EdpaEventGroups
+import org.wfanet.measurement.storage.SelectedStorageClient
 import picocli.CommandLine
 import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Command
@@ -178,6 +193,7 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = JavaDuration.ofSeconds(30)
       CommandLine.HelpCommand::class,
       Accounts::class,
       Certificates::class,
+      ClientAccounts::class,
       PublicKeys::class,
       MeasurementConsumers::class,
       Measurements::class,
@@ -1042,6 +1058,593 @@ private class ApiKeys {
         apiKeysClient.withIdToken(idToken).createApiKey(request)
       }
     println(response)
+  }
+}
+
+@Command(name = "client-accounts", subcommands = [CommandLine.HelpCommand::class])
+private class ClientAccounts {
+  @ParentCommand
+  lateinit var parentCommand: MeasurementSystem
+    private set
+
+  @Option(
+    names = ["--api-key"],
+    paramLabel = "<apiKey>",
+    description = ["API authentication key"],
+    required = true,
+  )
+  lateinit var apiAuthenticationKey: String
+
+  val clientAccountsStub: ClientAccountsCoroutineStub by lazy {
+    ClientAccountsCoroutineStub(parentCommand.kingdomChannel)
+      .withAuthenticationKey(apiAuthenticationKey)
+  }
+
+  @Command(description = ["Creates ClientAccount(s)"])
+  fun create(
+    @Option(
+      names = ["--parent"],
+      description = ["API resource name of the parent MeasurementConsumer"],
+      required = true,
+    )
+    parent: String,
+    @Option(
+      names = ["--data-provider"],
+      description = ["API resource name of the associated DataProvider"],
+      required = true,
+    )
+    dataProvider: String,
+    @Option(
+      names = ["--client-account-reference-id"],
+      description =
+        [
+          "External reference ID (max 36 chars). Can be specified multiple times for batch creation. " +
+            "Required unless --brand is specified."
+        ],
+      required = false,
+    )
+    clientAccountReferenceIds: List<String>?,
+    @Option(
+      names = ["--brand"],
+      description =
+        [
+          "Brand name to apply changes to or filter by. When specified, --event-groups-blob-uri is required. " +
+            "Cannot be used together with --client-account-reference-id."
+        ],
+      required = false,
+    )
+    brand: String?,
+    @Option(
+      names = ["--event-groups-blob-uri"],
+      description =
+        [
+          "Blob URI for event groups (e.g. gs://bucket/path/file.binpb or gs://bucket/path/file.json). " +
+            "Required when --brand is specified."
+        ],
+      required = false,
+    )
+    eventGroupsBlobUri: String?,
+  ) {
+    if (brand != null && !clientAccountReferenceIds.isNullOrEmpty()) {
+      throw ParameterException(
+        parentCommand.commandLine,
+        "--brand and --client-account-reference-id cannot be used together",
+      )
+    }
+
+    if (brand != null) {
+      if (eventGroupsBlobUri == null) {
+        throw ParameterException(
+          parentCommand.commandLine,
+          "--event-groups-blob-uri is required when --brand is specified",
+        )
+      }
+      createFromBrand(parent, dataProvider, brand, eventGroupsBlobUri)
+    } else {
+      if (clientAccountReferenceIds.isNullOrEmpty()) {
+        throw ParameterException(
+          parentCommand.commandLine,
+          "--client-account-reference-id is required when --brand is not specified",
+        )
+      }
+      createClientAccounts(parent, dataProvider, clientAccountReferenceIds)
+    }
+  }
+
+  private fun createClientAccounts(
+    parent: String,
+    dataProvider: String,
+    clientAccountReferenceIds: List<String>,
+  ) {
+    if (clientAccountReferenceIds.size > MAX_BATCH_SIZE) {
+      throw ParameterException(
+        parentCommand.commandLine,
+        "Batch size cannot exceed $MAX_BATCH_SIZE (found ${clientAccountReferenceIds.size})",
+      )
+    }
+
+    val existingAccountReferenceIds = getExistingAccountReferenceIds(parent, dataProvider)
+    val newAccountReferenceIds =
+      clientAccountReferenceIds.filter { it !in existingAccountReferenceIds }
+
+    val skippedCount = clientAccountReferenceIds.size - newAccountReferenceIds.size
+    if (skippedCount > 0) {
+      println("Skipping $skippedCount already-existing client accounts")
+    }
+    if (newAccountReferenceIds.isEmpty()) {
+      println("All client accounts already exist. Nothing to create.")
+      return
+    }
+
+    val request = batchCreateClientAccountsRequest {
+      this.parent = parent
+      for (referenceId in newAccountReferenceIds) {
+        requests += createClientAccountRequest {
+          this.parent = parent
+          clientAccount = clientAccount {
+            this.dataProvider = dataProvider
+            clientAccountReferenceId = referenceId
+          }
+        }
+      }
+    }
+
+    val response =
+      runBlocking(parentCommand.rpcDispatcher) {
+        clientAccountsStub.batchCreateClientAccounts(request)
+      }
+
+    println("Created ${response.clientAccountsCount} ClientAccount(s):")
+    response.clientAccountsList.forEach { printClientAccount(it) }
+  }
+
+  private fun createFromBrand(
+    parent: String,
+    dataProvider: String,
+    brand: String,
+    eventGroupsBlobUri: String,
+  ) {
+    val eventGroups = parseEventGroupsFromBlobUri(eventGroupsBlobUri)
+    val allAccountReferenceIds = getAccountReferenceIdsByBrand(eventGroups, brand)
+
+    if (allAccountReferenceIds.isEmpty()) {
+      println("No event groups found with brand '$brand' that have client_account_reference_id set")
+      return
+    }
+
+    println(
+      "Found ${allAccountReferenceIds.size} unique client account reference IDs for brand '$brand'"
+    )
+
+    val existingAccountReferenceIds = getExistingAccountReferenceIds(parent, dataProvider)
+    val newAccountReferenceIds = allAccountReferenceIds - existingAccountReferenceIds
+    if (existingAccountReferenceIds.isNotEmpty()) {
+      println(
+        "Skipping ${allAccountReferenceIds.size - newAccountReferenceIds.size} already-existing client accounts"
+      )
+    }
+    if (newAccountReferenceIds.isEmpty()) {
+      println("All client accounts already exist. Nothing to create.")
+      return
+    }
+
+    val createdAccounts = mutableListOf<ClientAccount>()
+    val failedBatches = mutableListOf<Pair<Int, String>>()
+
+    val batches = newAccountReferenceIds.chunked(MAX_BATCH_SIZE)
+    for ((batchIndex, batch) in batches.withIndex()) {
+      try {
+        val request = batchCreateClientAccountsRequest {
+          this.parent = parent
+          for (referenceId in batch) {
+            requests += createClientAccountRequest {
+              this.parent = parent
+              clientAccount = clientAccount {
+                this.dataProvider = dataProvider
+                clientAccountReferenceId = referenceId
+              }
+            }
+          }
+        }
+        val response =
+          runBlocking(parentCommand.rpcDispatcher) {
+            clientAccountsStub.batchCreateClientAccounts(request)
+          }
+        createdAccounts.addAll(response.clientAccountsList)
+      } catch (e: Exception) {
+        failedBatches.add(batchIndex to e.message.orEmpty())
+      }
+    }
+
+    println("\nSuccessfully created ${createdAccounts.size} ClientAccounts:")
+    createdAccounts.forEach { printClientAccount(it) }
+
+    if (failedBatches.isNotEmpty()) {
+      println("\nFailed to create ${failedBatches.size} batch(es):")
+      failedBatches.forEach { (batchIdx, error) -> println("  Batch $batchIdx: $error") }
+    }
+  }
+
+  companion object {
+    private const val MAX_BATCH_SIZE = 1000
+    private const val LIST_PAGE_SIZE = 1000
+  }
+
+  /**
+   * Lists all existing client accounts for the given [parent] and [dataProvider] by paginating
+   * through the list API.
+   */
+  private fun listAllClientAccounts(parent: String, dataProvider: String): List<ClientAccount> {
+    val accounts = mutableListOf<ClientAccount>()
+    var pageToken = ""
+    do {
+      val request = listClientAccountsRequest {
+        this.parent = parent
+        this.pageSize = LIST_PAGE_SIZE
+        if (pageToken.isNotBlank()) {
+          this.pageToken = pageToken
+        }
+        filter = ListClientAccountsRequestKt.filter { this.dataProvider = dataProvider }
+      }
+      val response =
+        runBlocking(parentCommand.rpcDispatcher) { clientAccountsStub.listClientAccounts(request) }
+      accounts.addAll(response.clientAccountsList)
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotBlank())
+    return accounts
+  }
+
+  private fun getExistingAccountReferenceIds(parent: String, dataProvider: String): Set<String> {
+    return listAllClientAccounts(parent, dataProvider)
+      .mapNotNull { it.clientAccountReferenceId.ifEmpty { null } }
+      .toSet()
+  }
+
+  private fun parseEventGroupsFromBlobUri(uri: String): List<EdpaEventGroup> {
+    val blobUri = SelectedStorageClient.parseBlobUri(uri)
+    val rootDirectory = if (blobUri.scheme == "file") File("/") else null
+    val storageClient = SelectedStorageClient(blobUri, rootDirectory = rootDirectory)
+    val blob =
+      runBlocking(parentCommand.rpcDispatcher) { storageClient.getBlob(blobUri.key) }
+        ?: error("Blob not found: $uri")
+    val bytes = runBlocking(parentCommand.rpcDispatcher) { blob.read().flatten() }
+
+    return when {
+      blobUri.key.endsWith(".binpb") -> EdpaEventGroups.parseFrom(bytes).eventGroupsList
+      blobUri.key.endsWith(".json") -> {
+        val eventGroupsBuilder = EdpaEventGroups.newBuilder()
+        JsonFormat.parser().merge(bytes.toStringUtf8(), eventGroupsBuilder)
+        eventGroupsBuilder.build().eventGroupsList
+      }
+      else -> error("Unsupported file format. Use .binpb or .json: ${blobUri.key}")
+    }
+  }
+
+  private fun getAccountReferenceIdsByBrand(
+    eventGroups: List<EdpaEventGroup>,
+    brand: String,
+  ): Set<String> {
+    return eventGroups
+      .filter { eventGroup ->
+        eventGroup.hasEventGroupMetadata() &&
+          eventGroup.eventGroupMetadata.hasAdMetadata() &&
+          eventGroup.eventGroupMetadata.adMetadata.hasCampaignMetadata() &&
+          eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.brand.equals(
+            brand,
+            ignoreCase = true,
+          )
+      }
+      .map { it.clientAccountReferenceId }
+      .filter { it.isNotEmpty() }
+      .toSet()
+  }
+
+  @Command(description = ["Gets a ClientAccount"])
+  fun get(
+    @Parameters(index = "0", description = ["API resource name of the ClientAccount"]) name: String
+  ) {
+    val request = getClientAccountRequest { this.name = name }
+    val response: ClientAccount =
+      runBlocking(parentCommand.rpcDispatcher) { clientAccountsStub.getClientAccount(request) }
+    printClientAccount(response)
+  }
+
+  @Command(description = ["Lists ClientAccounts"])
+  fun list(
+    @Option(
+      names = ["--parent"],
+      description =
+        ["API resource name of the parent (MeasurementConsumer or DataProvider resource)"],
+      required = true,
+    )
+    parent: String,
+    @Option(
+      names = ["--page-size"],
+      description = ["The maximum number of ClientAccounts to return"],
+      required = false,
+      defaultValue = "0",
+    )
+    pageSize: Int,
+    @Option(
+      names = ["--page-token"],
+      description =
+        [
+          "A page token, received from a previous ListClientAccountsRequest call. Provide this to retrieve the subsequent page"
+        ],
+      required = false,
+      defaultValue = "",
+    )
+    pageToken: String,
+    @Option(
+      names = ["--measurement-consumer"],
+      description = ["Filter by MeasurementConsumer resource name"],
+      required = false,
+    )
+    measurementConsumer: String?,
+    @Option(
+      names = ["--data-provider"],
+      description = ["Filter by DataProvider resource name"],
+      required = false,
+    )
+    dataProvider: String?,
+    @Option(
+      names = ["--client-account-reference-id"],
+      description = ["Filter by client account reference ID"],
+      required = false,
+    )
+    clientAccountReferenceId: String?,
+  ) {
+    val request = listClientAccountsRequest {
+      this.parent = parent
+      this.pageSize = pageSize
+      if (pageToken.isNotBlank()) {
+        this.pageToken = pageToken
+      }
+      if (measurementConsumer != null || dataProvider != null || clientAccountReferenceId != null) {
+        filter =
+          ListClientAccountsRequestKt.filter {
+            if (measurementConsumer != null) {
+              this.measurementConsumer = measurementConsumer
+            }
+            if (dataProvider != null) {
+              this.dataProvider = dataProvider
+            }
+            if (clientAccountReferenceId != null) {
+              this.clientAccountReferenceId = clientAccountReferenceId
+            }
+          }
+      }
+    }
+
+    val response =
+      runBlocking(parentCommand.rpcDispatcher) { clientAccountsStub.listClientAccounts(request) }
+
+    println("Found ${response.clientAccountsCount} ClientAccounts:")
+    response.clientAccountsList.forEach { printClientAccount(it) }
+    if (response.nextPageToken.isNotBlank()) {
+      println("Next page token: ${response.nextPageToken}")
+    }
+  }
+
+  @Command(description = ["Deletes ClientAccount(s)"])
+  fun delete(
+    @Parameters(
+      index = "0",
+      description =
+        [
+          "API resource name of the ClientAccount. " +
+            "Not used when --client-account-reference-id or --brand is specified."
+        ],
+      arity = "0..1",
+    )
+    name: String?,
+    @Option(
+      names = ["--parent"],
+      description =
+        [
+          "API resource name of the parent MeasurementConsumer. " +
+            "Required when --client-account-reference-id or --brand is specified."
+        ],
+      required = false,
+    )
+    parent: String?,
+    @Option(
+      names = ["--data-provider"],
+      description =
+        [
+          "API resource name of the associated DataProvider. " +
+            "Required when --client-account-reference-id or --brand is specified."
+        ],
+      required = false,
+    )
+    dataProvider: String?,
+    @Option(
+      names = ["--client-account-reference-id"],
+      description =
+        [
+          "External reference ID of the ClientAccount to delete. Can be specified multiple times " +
+            "for batch deletion. When specified, --parent and --data-provider are required. " +
+            "Cannot be used together with --brand."
+        ],
+      required = false,
+    )
+    clientAccountReferenceIds: List<String>?,
+    @Option(
+      names = ["--brand"],
+      description =
+        [
+          "Brand name whose client accounts should be deleted. When specified, --parent, " +
+            "--data-provider, and --event-groups-blob-uri are required. " +
+            "Cannot be used together with --client-account-reference-id."
+        ],
+      required = false,
+    )
+    brand: String?,
+    @Option(
+      names = ["--event-groups-blob-uri"],
+      description =
+        [
+          "Blob URI for event groups (e.g. gs://bucket/path/file.binpb or gs://bucket/path/file.json). " +
+            "Required when --brand is specified."
+        ],
+      required = false,
+    )
+    eventGroupsBlobUri: String?,
+  ) {
+    if (brand != null && !clientAccountReferenceIds.isNullOrEmpty()) {
+      throw ParameterException(
+        parentCommand.commandLine,
+        "--brand and --client-account-reference-id cannot be used together",
+      )
+    }
+
+    if (brand != null) {
+      if (parent == null) {
+        throw ParameterException(
+          parentCommand.commandLine,
+          "--parent is required when --brand is specified",
+        )
+      }
+      if (dataProvider == null) {
+        throw ParameterException(
+          parentCommand.commandLine,
+          "--data-provider is required when --brand is specified",
+        )
+      }
+      if (eventGroupsBlobUri == null) {
+        throw ParameterException(
+          parentCommand.commandLine,
+          "--event-groups-blob-uri is required when --brand is specified",
+        )
+      }
+      deleteByBrand(parent, dataProvider, brand, eventGroupsBlobUri)
+    } else if (!clientAccountReferenceIds.isNullOrEmpty()) {
+      if (parent == null) {
+        throw ParameterException(
+          parentCommand.commandLine,
+          "--parent is required when --client-account-reference-id is specified",
+        )
+      }
+      if (dataProvider == null) {
+        throw ParameterException(
+          parentCommand.commandLine,
+          "--data-provider is required when --client-account-reference-id is specified",
+        )
+      }
+      deleteClientAccounts(parent, dataProvider, clientAccountReferenceIds)
+    } else {
+      if (name == null) {
+        throw ParameterException(
+          parentCommand.commandLine,
+          "ClientAccount resource name is required when --client-account-reference-id and --brand are not specified",
+        )
+      }
+      val request = deleteClientAccountRequest { this.name = name }
+      runBlocking(parentCommand.rpcDispatcher) { clientAccountsStub.deleteClientAccount(request) }
+      println("ClientAccount deleted: $name")
+    }
+  }
+
+  private fun deleteClientAccounts(
+    parent: String,
+    dataProvider: String,
+    clientAccountReferenceIds: List<String>,
+  ) {
+    if (clientAccountReferenceIds.size > MAX_BATCH_SIZE) {
+      throw ParameterException(
+        parentCommand.commandLine,
+        "Batch size cannot exceed $MAX_BATCH_SIZE (found ${clientAccountReferenceIds.size})",
+      )
+    }
+
+    val existingAccounts = listAllClientAccounts(parent, dataProvider)
+    val existingAccountsByReferenceId = existingAccounts.associateBy { it.clientAccountReferenceId }
+
+    val accountsToDelete =
+      clientAccountReferenceIds.mapNotNull { refId -> existingAccountsByReferenceId[refId] }
+
+    val notFoundCount = clientAccountReferenceIds.size - accountsToDelete.size
+    if (notFoundCount > 0) {
+      println("Skipping $notFoundCount client accounts that were not found")
+    }
+    if (accountsToDelete.isEmpty()) {
+      println("No matching client accounts found. Nothing to delete.")
+      return
+    }
+
+    val request = batchDeleteClientAccountsRequest {
+      this.parent = parent
+      this.names += accountsToDelete.map { it.name }
+    }
+
+    runBlocking(parentCommand.rpcDispatcher) {
+      clientAccountsStub.batchDeleteClientAccounts(request)
+    }
+
+    println("Deleted ${accountsToDelete.size} ClientAccount(s):")
+    accountsToDelete.forEach { printClientAccount(it) }
+  }
+
+  private fun deleteByBrand(
+    parent: String,
+    dataProvider: String,
+    brand: String,
+    eventGroupsBlobUri: String,
+  ) {
+    val eventGroups = parseEventGroupsFromBlobUri(eventGroupsBlobUri)
+    val brandReferenceIds = getAccountReferenceIdsByBrand(eventGroups, brand)
+
+    if (brandReferenceIds.isEmpty()) {
+      println("No event groups found with brand '$brand' that have client_account_reference_id set")
+      return
+    }
+
+    println(
+      "Found ${brandReferenceIds.size} unique client account reference IDs for brand '$brand'"
+    )
+
+    val existingAccounts = listAllClientAccounts(parent, dataProvider)
+    val accountsToDelete =
+      existingAccounts.filter { it.clientAccountReferenceId in brandReferenceIds }
+
+    if (accountsToDelete.isEmpty()) {
+      println("No existing client accounts found matching brand '$brand'. Nothing to delete.")
+      return
+    }
+
+    println("Deleting ${accountsToDelete.size} client accounts for brand '$brand'")
+
+    val failedBatches = mutableListOf<Pair<Int, String>>()
+    var deletedCount = 0
+
+    val batches = accountsToDelete.chunked(MAX_BATCH_SIZE)
+    for ((batchIndex, batch) in batches.withIndex()) {
+      try {
+        val request = batchDeleteClientAccountsRequest {
+          this.parent = parent
+          this.names += batch.map { it.name }
+        }
+        runBlocking(parentCommand.rpcDispatcher) {
+          clientAccountsStub.batchDeleteClientAccounts(request)
+        }
+        deletedCount += batch.size
+      } catch (e: Exception) {
+        failedBatches.add(batchIndex to e.message.orEmpty())
+      }
+    }
+
+    println("\nSuccessfully deleted $deletedCount ClientAccounts")
+
+    if (failedBatches.isNotEmpty()) {
+      println("\nFailed to delete ${failedBatches.size} batch(es):")
+      failedBatches.forEach { (batchIdx, error) -> println("  Batch $batchIdx: $error") }
+    }
+  }
+
+  private fun printClientAccount(clientAccount: ClientAccount) {
+    println("NAME - ${clientAccount.name}")
+    println("DATA PROVIDER - ${clientAccount.dataProvider}")
+    println("CLIENT ACCOUNT REFERENCE ID - ${clientAccount.clientAccountReferenceId}")
   }
 }
 

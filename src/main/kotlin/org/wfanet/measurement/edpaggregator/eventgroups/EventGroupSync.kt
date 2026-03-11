@@ -75,10 +75,11 @@ data class EventGroupKey(val eventGroupReferenceId: String, val measurementConsu
  * Syncs event groups with the CMMS Public API.
  * 1. **Creates** any EventGroups that exist in the input flow but not in CMMS.
  * 2. **Updates** existing EventGroups in CMMS if their data has changed.
- * 3. **Deletes** EventGroups that exist in CMMS but are no longer present
- *    in the input [eventGroups] flow.
+ * 3. **Deletes** EventGroups whose state is [EventGroup.State.DELETED] from CMMS.
  * 4. **Returns** a flow of [MappedEventGroup], one element for each successfully
- *    created or updated EventGroup.
+ *    created or updated EventGroup (deleted EventGroups are not included).
+ *
+ * EventGroups that exist in CMMS but are absent from the input flow are left as-is.
  */
 class EventGroupSync(
   private val edpName: String,
@@ -109,8 +110,11 @@ class EventGroupSync(
    * For EventGroups with `client_account_reference_id`, resolves all associated
    * MeasurementConsumers and creates separate EventGroup resources for each.
    *
+   * EventGroups with [EventGroup.State.DELETED] are deleted from CMMS if they exist. EventGroups
+   * absent from the input flow are left unchanged.
+   *
    * @return Flow of [MappedEventGroup] for each successfully synced EventGroup. Failed syncs are
-   *   skipped and logged.
+   *   skipped and logged. Deleted EventGroups are not included.
    */
   suspend fun sync(): Flow<MappedEventGroup> = flow {
     withSpan(
@@ -131,10 +135,28 @@ class EventGroupSync(
 
       val edpEventGroupsList = eventGroups.toList()
 
-      // Track keys of successfully resolved EventGroups to prevent deletion
-      val resolvedEventGroupKeys = mutableSetOf<EventGroupKey>()
-
       for (eventGroup in edpEventGroupsList) {
+        if (eventGroup.state == EventGroup.State.DELETED) {
+          try {
+            validateDeletedEventGroup(eventGroup)
+          } catch (e: Exception) {
+            logger.log(Level.SEVERE, e) {
+              "Skipping deleted Event Group ${eventGroup.eventGroupReferenceId}: " +
+                "Validation failed"
+            }
+            metrics.invalidEventGroupFailure.add(1, metricAttributes())
+            continue
+          }
+
+          val key = EventGroupKey(eventGroup.eventGroupReferenceId, eventGroup.measurementConsumer)
+          val cmmsEventGroup = cmmsEventGroups[key]
+          if (cmmsEventGroup != null) {
+            deleteCmmsEventGroup(cmmsEventGroup)
+            metrics.syncDeleted.add(1, metricAttributes())
+          }
+          continue
+        }
+
         try {
           validateEventGroup(eventGroup)
         } catch (e: Exception) {
@@ -148,24 +170,11 @@ class EventGroupSync(
         val measurementConsumerKeys: Set<MeasurementConsumerKey> =
           resolveMeasurementConsumers(eventGroup)
 
-        // Process event group for each measurement consumer
         for (measurementConsumerKey in measurementConsumerKeys) {
           val eventGroupWithConsumer =
             eventGroup.copy { measurementConsumer = measurementConsumerKey.toName() }
-          resolvedEventGroupKeys.add(
-            EventGroupKey(
-              eventGroupWithConsumer.eventGroupReferenceId,
-              eventGroupWithConsumer.measurementConsumer,
-            )
-          )
           syncEventGroupItem(eventGroupWithConsumer, cmmsEventGroups)?.let { emit(it) }
         }
-      }
-
-      val keysToDelete = cmmsEventGroups.keys - resolvedEventGroupKeys
-      for (key in keysToDelete) {
-        val eventGroup = cmmsEventGroups.getValue(key)
-        deleteCmmsEventGroup(eventGroup)
       }
     }
   }
@@ -455,6 +464,16 @@ class EventGroupSync(
       val hasClientAccountRef = eventGroup.clientAccountReferenceId.isNotEmpty()
       check(eventGroup.measurementConsumer.isNotBlank() || hasClientAccountRef) {
         "Either Measurement Consumer or Client Account Reference ID must be set"
+      }
+    }
+
+    /** Validates minimum fields required to identify and delete an EventGroup. */
+    fun validateDeletedEventGroup(eventGroup: EventGroup) {
+      check(eventGroup.eventGroupReferenceId.isNotBlank()) {
+        "Event Group Reference Id must be set"
+      }
+      check(eventGroup.measurementConsumer.isNotBlank()) {
+        "Measurement Consumer must be set for deleted Event Groups"
       }
     }
   }

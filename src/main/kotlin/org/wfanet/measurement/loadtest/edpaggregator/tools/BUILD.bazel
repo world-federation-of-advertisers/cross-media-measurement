@@ -3,7 +3,10 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(
     default_testonly = True,
-    default_visibility = ["//visibility:private"],
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:__pkg__",
+    ],
 )
 
 kt_jvm_library(
@@ -22,6 +25,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/aws/kms:aws_kms_client_factory",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
@@ -35,4 +39,33 @@ java_binary(
     name = "GenerateSyntheticData",
     main_class = "org.wfanet.measurement.loadtest.edpaggregator.tools.GenerateSyntheticDataKt",
     runtime_deps = [":generate_synthetic_data"],
+)
+
+kt_jvm_library(
+    name = "verify_synthetic_data",
+    srcs = [
+        "VerifySyntheticData.kt",
+    ],
+    deps = [
+        ":generate_synthetic_data",
+        "//imports/java/com/google/crypto/tink/integration/gcpkms",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/aws/kms:aws_kms_client_factory",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/kms:gcloud_to_aws_kms_client_factory",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
+    ],
+)
+
+java_binary(
+    name = "VerifySyntheticData",
+    main_class = "org.wfanet.measurement.loadtest.edpaggregator.tools.VerifySyntheticDataKt",
+    runtime_deps = [":verify_synthetic_data"],
 )

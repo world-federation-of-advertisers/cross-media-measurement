@@ -755,19 +755,20 @@ defaultNetworkPolicies: [Name=string]: #NetworkPolicy & {
 	_name: Name
 }
 defaultNetworkPolicies: {
-	// This policy will deny ingress and egress traffic at all unconfigured pods.
+	// Deny all traffic to/from Pods in the namespace.
 	"default-deny": {
 		spec: {
 			podSelector: {}
 			policyTypes: ["Ingress", "Egress"]
 		}
 	}
+	// Allow egress from all Pods in namespace to kube-dns.
 	"kube-dns": {
 		_egresses: {
 			dns: {
 				to: [{
-					namespaceSelector: {} // Allow DNS only inside the cluster
-					podSelector: matchLabels: "k8s-app": "kube-dns"
+					namespaceSelector: matchLabels: "kubernetes.io/metadata.name": "kube-system"
+					podSelector: matchLabels: "k8s-app":                           "kube-dns"
 				}]
 				ports: [{
 					protocol: "UDP"

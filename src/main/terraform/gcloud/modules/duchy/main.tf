@@ -20,24 +20,24 @@ locals {
 
   trustee_secrets_to_access = var.trustee_config != null ? [
     {
-      secret_id  = var.trustee_config.aggregator_tls_cert.secret_id
-      version    = "latest"
+      secret_id = var.trustee_config.aggregator_tls_cert.secret_id
+      version   = "latest"
     },
     {
-      secret_id  = var.trustee_config.aggregator_tls_key.secret_id
-      version    = "latest"
+      secret_id = var.trustee_config.aggregator_tls_key.secret_id
+      version   = "latest"
     },
     {
-      secret_id  = var.trustee_config.aggregator_cert_collection.secret_id
-      version    = "latest"
+      secret_id = var.trustee_config.aggregator_cert_collection.secret_id
+      version   = "latest"
     },
     {
-      secret_id  = var.trustee_config.aggregator_cs_cert.secret_id
-      version    = "latest"
+      secret_id = var.trustee_config.aggregator_cs_cert.secret_id
+      version   = "latest"
     },
     {
-      secret_id  = var.trustee_config.aggregator_cs_private.secret_id
-      version    = "latest"
+      secret_id = var.trustee_config.aggregator_cs_private.secret_id
+      version   = "latest"
     },
   ] : []
 
@@ -59,7 +59,7 @@ module "storage_user" {
 }
 
 resource "google_project_iam_member" "storage_metric_writer" {
-  project = data.google_project.project.name
+  project = data.google_project.project.id
   role    = "roles/monitoring.metricWriter"
   member  = module.storage_user.iam_service_account.member
 }
@@ -73,7 +73,7 @@ module "internal_server_user" {
 }
 
 resource "google_project_iam_member" "internal_server_metric_writer" {
-  project = data.google_project.project.name
+  project = data.google_project.project.id
   role    = "roles/monitoring.metricWriter"
   member  = module.internal_server_user.iam_service_account.member
 }
@@ -108,7 +108,7 @@ resource "google_storage_bucket_iam_member" "storage" {
 }
 
 resource "google_storage_bucket_iam_member" "trustee_mill" {
-  count  = var.trustee_config != null ? 1 : 0
+  count = var.trustee_config != null ? 1 : 0
 
   bucket = var.storage_bucket.name
   role   = "roles/storage.objectAdmin"
@@ -126,8 +126,8 @@ resource "google_compute_address" "system_v1alpha" {
 }
 
 resource "google_compute_address" "internal" {
-  name    = "${var.name}-duchy-internal"
-  address = var.internal_ip_address
+  name         = "${var.name}-duchy-internal"
+  address      = var.internal_ip_address
   address_type = "INTERNAL"
 }
 
@@ -142,16 +142,16 @@ resource "google_monitoring_dashboard" "dashboards" {
 resource "google_compute_subnetwork" "trustee_mill_subnetwork" {
   count = var.trustee_config != null ? 1 : 0
 
-  name          = "${var.name}-trustee-mill-compute-subnetwork"
-  region        = data.google_client_config.default.region
-  network       = var.trustee_mill_subnetwork_network
-  ip_cidr_range = var.trustee_mill_subnetwork_cidr_range
+  name                     = "${var.name}-trustee-mill-compute-subnetwork"
+  region                   = data.google_client_config.default.region
+  network                  = var.trustee_mill_subnetwork_network
+  ip_cidr_range            = var.trustee_mill_subnetwork_cidr_range
   private_ip_google_access = true
 }
 
 # Cloud Router for NAT gateway
 resource "google_compute_router" "trustee_mill_router" {
-  count   = var.trustee_config != null ? 1 : 0
+  count = var.trustee_config != null ? 1 : 0
 
   name    = "${var.name}-trustee-mill-compute-router"
   region  = data.google_client_config.default.region
@@ -184,7 +184,7 @@ resource "google_compute_router_nat" "trustee_mill_nat" {
 module "trustee_mill" {
   count = var.trustee_config != null ? 1 : 0
 
-  source   = "../mig"
+  source = "../mig"
 
   depends_on = [module.secrets]
 
@@ -206,11 +206,11 @@ module "trustee_mill" {
 }
 
 module "secrets" {
-  source            = "../secret"
+  source = "../secret"
 
-  for_each          = local.all_secrets
-  secret_id         = each.value.secret_id
-  secret_path       = each.value.secret_local_path
-  is_binary_format  = each.value.is_binary_format
+  for_each         = local.all_secrets
+  secret_id        = each.value.secret_id
+  secret_path      = each.value.secret_local_path
+  is_binary_format = each.value.is_binary_format
 }
 

@@ -30,7 +30,9 @@ import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.aws.kms.AwsKmsClientFactory
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.crypto.tink.AwsWebIdentityCredentials
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
@@ -43,6 +45,8 @@ import picocli.CommandLine.Option
 enum class KmsType {
   FAKE,
   GCP,
+  AWS,
+  GCP_TO_AWS,
 }
 
 @Command(
@@ -143,6 +147,43 @@ class GenerateSyntheticData : Runnable {
   lateinit var impressionMetadataBasePath: String
     private set
 
+  @Option(
+    names = ["--aws-role-arn"],
+    description =
+      ["AWS IAM role ARN for STS AssumeRoleWithWebIdentity. Required when --kms-type=AWS."],
+    required = false,
+    defaultValue = "",
+  )
+  lateinit var awsRoleArn: String
+    private set
+
+  @Option(
+    names = ["--aws-web-identity-token-file"],
+    description = ["AWS web identity token file path. Required when --kms-type=AWS."],
+    required = false,
+    defaultValue = "",
+  )
+  lateinit var awsWebIdentityTokenFile: String
+    private set
+
+  @Option(
+    names = ["--aws-role-session-name"],
+    description = ["AWS STS role session name. Required when --kms-type=AWS."],
+    required = false,
+    defaultValue = "generate-synthetic-data",
+  )
+  lateinit var awsRoleSessionName: String
+    private set
+
+  @Option(
+    names = ["--aws-region"],
+    description = ["AWS region for STS and KMS. Required when --kms-type=AWS."],
+    required = false,
+    defaultValue = "",
+  )
+  lateinit var awsRegion: String
+    private set
+
   @kotlin.io.path.ExperimentalPathApi
   override fun run() {
     val syntheticPopulationSpec: SyntheticPopulationSpec =
@@ -174,6 +215,26 @@ class GenerateSyntheticData : Runnable {
         }
         KmsType.GCP -> {
           GcpKmsClient().withDefaultCredentials()
+        }
+        KmsType.AWS -> {
+          require(awsRoleArn.isNotEmpty()) { "--aws-role-arn is required when --kms-type=AWS" }
+          require(awsWebIdentityTokenFile.isNotEmpty()) {
+            "--aws-web-identity-token-file is required when --kms-type=AWS"
+          }
+          require(awsRegion.isNotEmpty()) { "--aws-region is required when --kms-type=AWS" }
+          val awsConfig =
+            AwsWebIdentityCredentials(
+              roleArn = awsRoleArn,
+              webIdentityTokenFilePath = awsWebIdentityTokenFile,
+              roleSessionName = awsRoleSessionName,
+              region = awsRegion,
+            )
+          AwsKmsClientFactory().getKmsClient(awsConfig)
+        }
+        KmsType.GCP_TO_AWS -> {
+          throw UnsupportedOperationException(
+            "GCP_TO_AWS is not yet supported in GenerateSyntheticData. Use VerifySyntheticData."
+          )
         }
       }
     }

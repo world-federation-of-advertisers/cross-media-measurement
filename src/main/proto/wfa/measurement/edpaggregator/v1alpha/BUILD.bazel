@@ -234,3 +234,18 @@ kt_jvm_proto_library(
     name = "encryption_key_kt_jvm_proto",
     deps = [":encryption_key_proto"],
 )
+
+proto_library(
+    name = "vid_labeling_dispatcher_params_proto",
+    srcs = ["vid_labeling_dispatcher_params.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "vid_labeling_dispatcher_params_kt_jvm_proto",
+    deps = [":vid_labeling_dispatcher_params_proto"],
+)
