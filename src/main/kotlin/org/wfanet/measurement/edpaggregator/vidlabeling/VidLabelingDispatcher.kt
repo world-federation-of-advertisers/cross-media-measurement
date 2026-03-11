@@ -20,7 +20,6 @@ import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import java.security.MessageDigest
-import java.util.UUID
 import java.util.logging.Logger
 import kotlin.time.TimeSource
 import org.wfanet.measurement.common.pack
@@ -64,13 +63,15 @@ class VidLabelingDispatcher(
    * Dispatches VID labeling work for raw impression files in the directory containing the done blob.
    *
    * @param doneBlobPath the full storage URI of the "done" blob that triggered this dispatch.
+   * @throws IllegalArgumentException if [doneBlobPath] uses an unsupported URI scheme.
+   * @throws Exception if a WorkItem creation fails via the Secure Computation API.
    */
   suspend fun dispatch(doneBlobPath: String) {
-    val startTime = TimeSource.Monotonic.markNow()
+    val startTime: TimeSource.Monotonic.ValueTimeMark = TimeSource.Monotonic.markNow()
 
     try {
-      val doneBlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
-      val folderPrefix = doneBlobUri.key.substringBeforeLast("/")
+      val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
+      val folderPrefix: String = doneBlobUri.key.substringBeforeLast("/")
 
       // Crawl for raw impression files, excluding the done marker.
       val blobInfos = mutableListOf<BlobInfo>()
@@ -94,11 +95,11 @@ class VidLabelingDispatcher(
         Attributes.of(DATA_PROVIDER_ATTR, dataProviderName),
       )
 
-      val batches = partitionIntoBatches(blobInfos)
+      val batches: List<List<BlobInfo>> = partitionIntoBatches(blobInfos)
 
       for (batch in batches) {
-        val batchBlobUris = batch.map { buildBlobUri(doneBlobUri, it.blobKey) }
-        val batchId = generateDeterministicId(batchBlobUris)
+        val batchBlobUris: List<String> = batch.map { buildBlobUri(doneBlobUri, it.blobKey) }
+        val batchId: String = generateDeterministicId(batchBlobUris)
 
         val params = vidLabelerParams {
           dataProvider = vidLabelerParamsTemplate.dataProvider
@@ -224,7 +225,7 @@ class VidLabelingDispatcher(
     startTime: TimeSource.Monotonic.ValueTimeMark,
     status: String,
   ) {
-    val duration = startTime.elapsedNow().inWholeMilliseconds / 1000.0
+    val duration: Double = startTime.elapsedNow().inWholeMilliseconds / 1000.0
     metrics.dispatchDurationHistogram.record(
       duration,
       Attributes.of(DATA_PROVIDER_ATTR, dataProviderName, DISPATCH_STATUS_ATTR, status),
@@ -238,7 +239,7 @@ class VidLabelingDispatcher(
    * @return a 32-character hex string.
    */
   private fun generateDeterministicId(blobUris: List<String>): String {
-    val hash =
+    val hash: ByteArray =
       MessageDigest.getInstance("SHA-256")
         .digest(blobUris.sorted().joinToString("\n").toByteArray())
     return hash.take(16).joinToString("") { "%02x".format(it) }
