@@ -74,6 +74,8 @@ private data class ChannelKey(
  * - `CONFIG_BLOB_KEY`: Required. Blob key for the [VidLabelingConfigs] textproto.
  * - `CONTROL_PLANE_TARGET`: Required. Target endpoint for the Secure Computation control plane.
  * - `CONTROL_PLANE_CERT_HOST`: Optional. Overrides TLS authority for testing.
+ * - `VID_LABELER_QUEUE_NAME`: Required. Resource name of the Secure Computation queue for VID
+ *   labeling work items.
  * - `CHANNEL_SHUTDOWN_DURATION_SECONDS`: Optional. gRPC channel shutdown timeout (default: 3s).
  * - `VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH`: Optional. Enables [FileSystemStorageClient] instead
  *   of GCS. Used only in testing.
@@ -118,13 +120,18 @@ class VidLabelingDispatcherFunction : HttpFunction {
       val workItemsStub = WorkItemsGrpcKt.WorkItemsCoroutineStub(instrumentedChannel)
       val vidLabelerParamsTemplate: VidLabelerParams = buildVidLabelerParamsTemplate(config)
 
+      val batchMaxSizeBytes: Long =
+        if (config.hasBatchMaxSize()) config.batchMaxSize
+        else VidLabelingDispatcher.DEFAULT_BATCH_MAX_SIZE_BYTES
+
       val dispatcher =
         VidLabelingDispatcher(
           storageClient = storageClient,
           workItemsStub = workItemsStub,
           dataProviderName = config.dataProvider,
           vidLabelerParamsTemplate = vidLabelerParamsTemplate,
-          batchMaxSizeBytes = if (config.hasBatchMaxSize()) config.batchMaxSize else null,
+          queueName = vidLabelerQueueName,
+          batchMaxSizeBytes = batchMaxSizeBytes,
         )
 
       Tracing.withW3CTraceContext(request) {
@@ -143,6 +150,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
 
     private val controlPlaneTarget: String = EnvVars.checkNotNullOrEmpty("CONTROL_PLANE_TARGET")
     private val controlPlaneCertHost: String? = System.getenv("CONTROL_PLANE_CERT_HOST")
+    private val vidLabelerQueueName: String = EnvVars.checkNotNullOrEmpty("VID_LABELER_QUEUE_NAME")
     private val channelShutdownDuration =
       Duration.ofSeconds(
         System.getenv("CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLong()
