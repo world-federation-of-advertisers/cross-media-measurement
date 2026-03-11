@@ -64,13 +64,14 @@ class VidLabelingDispatcherTest {
   }
 
   private fun createDispatcher(
-    batchMaxSizeBytes: Long? = null,
+    batchMaxSizeBytes: Long = VidLabelingDispatcher.DEFAULT_BATCH_MAX_SIZE_BYTES,
   ): VidLabelingDispatcher {
     return VidLabelingDispatcher(
       storageClient = storageClient,
       workItemsStub = workItemsStub,
       dataProviderName = DATA_PROVIDER_NAME,
       vidLabelerParamsTemplate = vidLabelerParamsTemplate,
+      queueName = QUEUE_NAME,
       batchMaxSizeBytes = batchMaxSizeBytes,
     )
   }
@@ -108,7 +109,7 @@ class VidLabelingDispatcherTest {
 
     val request = requestCaptor.firstValue
     assertThat(request.workItemId).startsWith("vid-labeling-")
-    assertThat(request.workItem.queue).isEqualTo("queues/vid-labeler-queue")
+    assertThat(request.workItem.queue).isEqualTo(QUEUE_NAME)
 
     val workItemParams =
       request.workItem.workItemParams.unpack(
@@ -123,7 +124,7 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
-  fun `dispatch with no batch max size creates single work item for all files`() = runBlocking {
+  fun `dispatch with default batch max size creates single work item for all files`() = runBlocking {
     val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
     val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet", 2000L)
     val blob3 = createMockBlob("$FOLDER_PREFIX/file3.parquet", 3000L)
@@ -132,7 +133,7 @@ class VidLabelingDispatcherTest {
       WorkItem.getDefaultInstance()
     )
 
-    val dispatcher = createDispatcher(batchMaxSizeBytes = null)
+    val dispatcher = createDispatcher()
     dispatcher.dispatch(DONE_BLOB_PATH)
 
     val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
@@ -149,15 +150,15 @@ class VidLabelingDispatcherTest {
 
   @Test
   fun `dispatch with batch max size partitions files into multiple work items`() = runBlocking {
-    val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet", 500L)
-    val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet", 500L)
-    val blob3 = createMockBlob("$FOLDER_PREFIX/file3.parquet", 500L)
+    val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet", 400L)
+    val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet", 400L)
+    val blob3 = createMockBlob("$FOLDER_PREFIX/file3.parquet", 400L)
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2, blob3))
     whenever(workItemsService.createWorkItem(any())).thenReturn(
       WorkItem.getDefaultInstance()
     )
 
-    // Batch max size of 900 bytes means file1+file2 fit in one batch, file3 goes to another.
+    // Batch max size of 900 bytes: BFD packs file1+file2 into one batch, file3 into another.
     val dispatcher = createDispatcher(batchMaxSizeBytes = 900L)
     dispatcher.dispatch(DONE_BLOB_PATH)
 
@@ -246,6 +247,7 @@ class VidLabelingDispatcherTest {
 
   companion object {
     private const val DATA_PROVIDER_NAME = "dataProviders/edp123"
+    private const val QUEUE_NAME = "queues/vid-labeler-queue"
     private const val DONE_BLOB_PATH = "file:///test-bucket/edp1/2024-01-15/done"
     private const val FOLDER_PREFIX = "edp1/2024-01-15"
   }

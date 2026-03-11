@@ -45,7 +45,9 @@ import org.wfanet.measurement.storage.StorageClient
  * @param vidLabelerParamsTemplate template [VidLabelerParams] with static fields populated.
  *   Per-batch fields ([VidLabelerParams.getInputBlobUrisList] and
  *   [VidLabelerParams.getBatchIndex]) are set by the dispatcher for each batch.
- * @param batchMaxSizeBytes maximum batch size in bytes. If null, all files go into a single batch.
+ * @param queueName resource name of the Secure Computation queue for VID labeling work items.
+ * @param batchMaxSizeBytes maximum batch size in bytes. Defaults to [DEFAULT_BATCH_MAX_SIZE_BYTES]
+ *   (10 GB).
  * @param metrics OpenTelemetry metrics recorder.
  */
 class VidLabelingDispatcher(
@@ -53,7 +55,8 @@ class VidLabelingDispatcher(
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   private val dataProviderName: String,
   private val vidLabelerParamsTemplate: VidLabelerParams,
-  private val batchMaxSizeBytes: Long? = null,
+  private val queueName: String,
+  private val batchMaxSizeBytes: Long = DEFAULT_BATCH_MAX_SIZE_BYTES,
   private val metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
 ) {
   /** Holds a blob key and its size for batching. */
@@ -86,9 +89,6 @@ class VidLabelingDispatcher(
         recordDispatchDuration(startTime, DISPATCH_STATUS_SUCCESS)
         return
       }
-
-      // Sort by key for deterministic batching.
-      blobInfos.sortBy { it.blobKey }
 
       metrics.filesProcessedCounter.add(
         blobInfos.size.toLong(),
@@ -134,22 +134,19 @@ class VidLabelingDispatcher(
   }
 
   /**
-   * Partitions blob infos into batches based on [batchMaxSizeBytes].
+   * Partitions blob infos into batches using Best-Fit Decreasing bin-packing.
    *
-   * If [batchMaxSizeBytes] is null, all blobs are placed in a single batch. Files that individually
-   * exceed [batchMaxSizeBytes] are placed in their own batch and an oversized file alert is emitted.
+   * Files that individually exceed [batchMaxSizeBytes] are placed in their own batch and an
+   * oversized file alert is emitted. Remaining files are sorted by size descending (with blob key as
+   * tiebreaker) and each file is placed into the batch with the smallest remaining capacity that can
+   * still fit it.
    *
-   * @param blobInfos sorted list of blob infos to partition.
+   * @param blobInfos list of blob infos to partition.
    * @return list of batches, where each batch is a list of [BlobInfo].
    */
   private fun partitionIntoBatches(blobInfos: List<BlobInfo>): List<List<BlobInfo>> {
-    if (batchMaxSizeBytes == null) {
-      return listOf(blobInfos)
-    }
-
-    val batches = mutableListOf<MutableList<BlobInfo>>()
-    var currentBatch = mutableListOf<BlobInfo>()
-    var currentBatchSize = 0L
+    val oversizedBatches = mutableListOf<List<BlobInfo>>()
+    val fittingBlobs = mutableListOf<BlobInfo>()
 
     for (blobInfo in blobInfos) {
       if (blobInfo.sizeBytes > batchMaxSizeBytes) {
@@ -161,30 +158,44 @@ class VidLabelingDispatcher(
           1,
           Attributes.of(DATA_PROVIDER_ATTR, dataProviderName),
         )
-        if (currentBatch.isNotEmpty()) {
-          batches.add(currentBatch)
-          currentBatch = mutableListOf()
-          currentBatchSize = 0L
+        oversizedBatches.add(listOf(blobInfo))
+      } else {
+        fittingBlobs.add(blobInfo)
+      }
+    }
+
+    // Sort by size descending for Best-Fit Decreasing, with blob key as tiebreaker.
+    val sortedBlobs =
+      fittingBlobs.sortedWith(
+        compareByDescending<BlobInfo> { it.sizeBytes }.thenBy { it.blobKey }
+      )
+
+    val batches = mutableListOf<MutableList<BlobInfo>>()
+    val batchSizes = mutableListOf<Long>()
+
+    for (blobInfo in sortedBlobs) {
+      // Find the batch with the smallest remaining capacity that can fit this file.
+      var bestFitIndex = -1
+      var bestFitRemaining = Long.MAX_VALUE
+
+      for (i in batches.indices) {
+        val remaining = batchMaxSizeBytes - batchSizes[i]
+        if (blobInfo.sizeBytes <= remaining && remaining < bestFitRemaining) {
+          bestFitIndex = i
+          bestFitRemaining = remaining
         }
+      }
+
+      if (bestFitIndex >= 0) {
+        batches[bestFitIndex].add(blobInfo)
+        batchSizes[bestFitIndex] += blobInfo.sizeBytes
+      } else {
         batches.add(mutableListOf(blobInfo))
-        continue
+        batchSizes.add(blobInfo.sizeBytes)
       }
-
-      if (currentBatchSize + blobInfo.sizeBytes > batchMaxSizeBytes && currentBatch.isNotEmpty()) {
-        batches.add(currentBatch)
-        currentBatch = mutableListOf()
-        currentBatchSize = 0L
-      }
-
-      currentBatch.add(blobInfo)
-      currentBatchSize += blobInfo.sizeBytes
     }
 
-    if (currentBatch.isNotEmpty()) {
-      batches.add(currentBatch)
-    }
-
-    return batches
+    return oversizedBatches + batches
   }
 
   /**
@@ -201,7 +212,7 @@ class VidLabelingDispatcher(
     val request = createWorkItemRequest {
       this.workItemId = workItemId
       workItem = workItem {
-        queue = VID_LABELER_QUEUE
+        queue = queueName
         workItemParams = packedWorkItemParams
       }
     }
@@ -258,13 +269,15 @@ class VidLabelingDispatcher(
   }
 
   private fun isDoneMarker(blobKey: String): Boolean {
-    return blobKey.substringAfterLast("/").lowercase() == DONE_MARKER_FILE_NAME
+    return blobKey.substringAfterLast("/").equals(DONE_MARKER_FILE_NAME, ignoreCase = true)
   }
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    private const val VID_LABELER_QUEUE = "queues/vid-labeler-queue"
+    /** Default maximum batch size in bytes (10 GB). */
+    const val DEFAULT_BATCH_MAX_SIZE_BYTES: Long = 10_000_000_000L
+
     private const val DONE_MARKER_FILE_NAME = "done"
 
     private val DATA_PROVIDER_ATTR: AttributeKey<String> =
