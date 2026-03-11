@@ -48,6 +48,9 @@ service RawImpressionMetadataService {
       returns (ListRawImpressionMetadataResponse) {}
 
   // Sets the batch processing state for all files in a batch.
+  // (-- api-linter: core::0134::synonyms=disabled
+  //     aip.dev/not-precedent: This sets a state across a batch, not a
+  //     single-resource update. --)
   rpc SetBatchState(SetBatchStateRequest) returns (SetBatchStateResponse) {}
 }
 
@@ -154,6 +157,9 @@ message ListRawImpressionMetadataRequest {
   // Filter for `ListRawImpressionMetadata` method.
   message Filter {
     // The batch processing state to filter by.
+    // (-- api-linter: core::0216::state-field-output-only=disabled
+    //     aip.dev/not-precedent: This is a filter input field, not a resource
+    //     state field. --)
     RawImpressionMetadata.BatchState batch_state = 1
         [(google.api.field_behavior) = OPTIONAL];
   }
@@ -163,6 +169,9 @@ message ListRawImpressionMetadataRequest {
 }
 
 // Response message for the `ListRawImpressionMetadata` method.
+// (-- api-linter: core::0158::response-plural-first-field=disabled
+//     aip.dev/not-precedent: Field name matches the message type
+//     RawImpressionMetadata, not the resource pattern. --)
 message ListRawImpressionMetadataResponse {
   // A list of `RawImpressionMetadata` entries matching the request.
   repeated RawImpressionMetadata raw_impression_metadata = 1;
@@ -185,6 +194,9 @@ message SetBatchStateRequest {
   ];
 
   // The batch processing state to set for all files in the batch.
+  // (-- api-linter: core::0216::state-field-output-only=disabled
+  //     aip.dev/not-precedent: This is a request input field specifying the
+  //     desired state, not a resource state field. --)
   RawImpressionMetadata.BatchState batch_state = 2
       [(google.api.field_behavior) = REQUIRED];
 }
