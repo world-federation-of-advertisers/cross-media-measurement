@@ -97,9 +97,13 @@ class VidLabelingDispatcher(
 
       val batches: List<List<BlobInfo>> = partitionIntoBatches(blobInfos)
 
-      for (batch in batches) {
+      for ((index, batch) in batches.withIndex()) {
         val batchBlobUris: List<String> = batch.map { buildBlobUri(doneBlobUri, it.blobKey) }
-        val batchId: String = generateDeterministicId(batchBlobUris)
+
+        // TODO(world-federation-of-advertisers/cross-media-measurement#3584): Replace
+        //   deterministic hash with {uploadDate}-{uploadId}-{batchIndex} once the
+        //   RawImpressionMetadata API provides the upload ID.
+        val workItemBatchId: String = generateDeterministicId(batchBlobUris)
 
         val params = vidLabelerParams {
           dataProvider = vidLabelerParamsTemplate.dataProvider
@@ -108,13 +112,13 @@ class VidLabelingDispatcher(
           modelLineConfigs.putAll(vidLabelerParamsTemplate.modelLineConfigsMap)
           overrideModelLines += vidLabelerParamsTemplate.overrideModelLinesList
           inputBlobUris += batchBlobUris
-          batchIndex = batchId
+          batchIndex = index.toString()
         }
 
         // TODO(world-federation-of-advertisers/cross-media-measurement#3584): Persist batch
         //   metadata via RawImpressionMetadataService once the service is implemented.
 
-        createWorkItem(batchId, params)
+        createWorkItem(workItemBatchId, params)
       }
 
       metrics.batchesCreatedCounter.add(
