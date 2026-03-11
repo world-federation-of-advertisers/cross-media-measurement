@@ -119,7 +119,7 @@ class VidLabelingDispatcherTest {
     assertThat(vidLabelerParams.dataProvider).isEqualTo(DATA_PROVIDER_NAME)
     assertThat(vidLabelerParams.inputBlobUrisList).hasSize(1)
     assertThat(vidLabelerParams.inputBlobUrisList[0]).contains("file1.parquet")
-    assertThat(vidLabelerParams.batchIndex).isNotEmpty()
+    assertThat(vidLabelerParams.batchIndex).isEqualTo("0")
   }
 
   @Test
@@ -188,7 +188,9 @@ class VidLabelingDispatcherTest {
         .unpack(VidLabelerParams::class.java)
 
     assertThat(batch1Params.inputBlobUrisList).hasSize(2)
+    assertThat(batch1Params.batchIndex).isEqualTo("0")
     assertThat(batch2Params.inputBlobUrisList).hasSize(1)
+    assertThat(batch2Params.batchIndex).isEqualTo("1")
   }
 
   @Test
