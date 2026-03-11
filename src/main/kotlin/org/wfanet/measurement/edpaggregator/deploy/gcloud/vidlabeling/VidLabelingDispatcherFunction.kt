@@ -122,7 +122,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
 
       val batchMaxSizeBytes: Long =
         if (config.hasBatchMaxSize()) config.batchMaxSize
-        else VidLabelingDispatcher.DEFAULT_BATCH_MAX_SIZE_BYTES
+        else DEFAULT_BATCH_MAX_SIZE_BYTES
 
       val dispatcher =
         VidLabelingDispatcher(
@@ -145,6 +145,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
+    private const val DEFAULT_BATCH_MAX_SIZE_BYTES: Long = 10_000_000_000L
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
     private const val GOOGLE_PROJECT_ID_ENV = "GOOGLE_PROJECT_ID"
 
