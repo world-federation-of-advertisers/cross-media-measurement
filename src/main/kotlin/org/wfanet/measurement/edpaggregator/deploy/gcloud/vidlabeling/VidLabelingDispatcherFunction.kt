@@ -42,9 +42,10 @@ import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
-import org.wfanet.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams as V1alphaTransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
+import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
@@ -101,21 +102,21 @@ class VidLabelingDispatcherFunction : HttpFunction {
           IllegalArgumentException("Missing required header: $DATA_WATCHER_PATH_HEADER")
         }
 
-      val config =
+      val config: VidLabelingConfig =
         vidLabelingConfigsByDataProvider[dispatcherParams.dataProvider]
           ?: throw IllegalArgumentException(
             "No VidLabelingConfig found for data provider: ${dispatcherParams.dataProvider}"
           )
 
-      val storageClient = createStorageClient(doneBlobPath)
+      val storageClient: StorageClient = createStorageClient(doneBlobPath)
 
-      val controlPlaneChannel = getOrCreateControlPlaneChannel(config)
+      val controlPlaneChannel: ManagedChannel = getOrCreateControlPlaneChannel(config)
       val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
       val instrumentedChannel =
         ClientInterceptors.intercept(controlPlaneChannel, grpcTelemetry.newClientInterceptor())
 
       val workItemsStub = WorkItemsGrpcKt.WorkItemsCoroutineStub(instrumentedChannel)
-      val vidLabelerParamsTemplate = buildVidLabelerParamsTemplate(config)
+      val vidLabelerParamsTemplate: VidLabelerParams = buildVidLabelerParamsTemplate(config)
 
       val dispatcher =
         VidLabelingDispatcher(
@@ -140,7 +141,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
     private const val GOOGLE_PROJECT_ID_ENV = "GOOGLE_PROJECT_ID"
 
-    private val controlPlaneTarget = EnvVars.checkNotNullOrEmpty("CONTROL_PLANE_TARGET")
+    private val controlPlaneTarget: String = EnvVars.checkNotNullOrEmpty("CONTROL_PLANE_TARGET")
     private val controlPlaneCertHost: String? = System.getenv("CONTROL_PLANE_CERT_HOST")
     private val channelShutdownDuration =
       Duration.ofSeconds(
@@ -154,7 +155,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
     //   RAW_IMPRESSION_METADATA_TARGET and RAW_IMPRESSION_METADATA_CERT_HOST env vars when
     //   RawImpressionMetadataService is implemented.
 
-    private val configBlobKey = EnvVars.checkNotNullOrEmpty("CONFIG_BLOB_KEY")
+    private val configBlobKey: String = EnvVars.checkNotNullOrEmpty("CONFIG_BLOB_KEY")
 
     private val vidLabelingConfigs: VidLabelingConfigs by lazy {
       runBlocking {
@@ -268,16 +269,14 @@ class VidLabelingDispatcherFunction : HttpFunction {
 
       return vidLabelerParams {
         dataProvider = config.dataProvider
-        storageParams =
-          VidLabelerParams.StorageParams.newBuilder()
-            .setGcsProjectId(config.storageParams.gcs.projectId)
-            .setLabeledImpressionsBlobPrefix("gs://${config.storageParams.gcs.bucketName}")
-            .build()
-        vidRepoConnection =
-          V1alphaTransportLayerSecurityParams.newBuilder()
-            .setClientCertResourcePath(config.vidRepoConnection.certFilePath)
-            .setClientPrivateKeyResourcePath(config.vidRepoConnection.privateKeyFilePath)
-            .build()
+        storageParams = VidLabelerParamsKt.storageParams {
+          gcsProjectId = config.storageParams.gcs.projectId
+          labeledImpressionsBlobPrefix = "gs://${config.storageParams.gcs.bucketName}"
+        }
+        vidRepoConnection = transportLayerSecurityParams {
+          clientCertResourcePath = config.vidRepoConnection.certFilePath
+          clientPrivateKeyResourcePath = config.vidRepoConnection.privateKeyFilePath
+        }
         modelLineConfigs.putAll(convertModelLineConfigs(config.modelLineConfigsMap))
         overrideModelLines += config.overrideModelLinesList
       }
@@ -296,10 +295,10 @@ class VidLabelingDispatcherFunction : HttpFunction {
       configModelLines: Map<String, VidLabelingConfig.ModelLineConfig>
     ): Map<String, VidLabelerParams.ModelLineConfig> {
       return configModelLines.mapValues { (_, configModelLine) ->
-        VidLabelerParams.ModelLineConfig.newBuilder()
-          .putAllLabelerInputFieldMapping(configModelLine.labelerInputFieldMappingMap)
-          .putAllEventTemplateFieldMapping(configModelLine.eventTemplateFieldMappingMap)
-          .build()
+        VidLabelerParamsKt.modelLineConfig {
+          labelerInputFieldMapping.putAll(configModelLine.labelerInputFieldMappingMap)
+          eventTemplateFieldMapping.putAll(configModelLine.eventTemplateFieldMappingMap)
+        }
       }
     }
   }
