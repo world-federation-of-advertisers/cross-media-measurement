@@ -152,21 +152,16 @@ class RequisitionFulfillmentService(
                   )
                 }
                 Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR -> {
-                  val encryptedDekCiphertext =
-                    when (trusTee.envelopeEncryption.encryptedDek.format) {
-                      EncryptionKey.Format.TINK_ENCRYPTED_KEYSET ->
-                        trusTee.envelopeEncryption.encryptedDek.data
-                      else -> failGrpc { "Invalid EncryptedDek format" }
-                    }
+                  when (trusTee.envelopeEncryption.encryptedDek.format) {
+                    EncryptionKey.Format.TINK_ENCRYPTED_KEYSET -> {}
+                    EncryptionKey.Format.FORMAT_UNSPECIFIED,
+                    EncryptionKey.Format.UNRECOGNIZED -> failGrpc { "Invalid EncryptedDek format" }
+                  }
                   recordEncryptedTrusTeeRequisitionLocally(
                     token = computationToken,
                     key = externalRequisitionKey,
                     blobPath = blob.blobKey,
-                    encryptedDekCiphertext = encryptedDekCiphertext,
-                    kmsKekUri = trusTee.envelopeEncryption.kmsKekUri,
-                    workloadIdentityProvider = trusTee.envelopeEncryption.workloadIdentityProvider,
-                    impersonatedServiceAccount =
-                      trusTee.envelopeEncryption.impersonatedServiceAccount,
+                    envelopeEncryption = trusTee.envelopeEncryption,
                     populationSpecFingerprint = trusTee.populationSpecFingerprint,
                   )
                 }
@@ -326,10 +321,7 @@ class RequisitionFulfillmentService(
     token: ComputationToken,
     key: ExternalRequisitionKey,
     blobPath: String,
-    encryptedDekCiphertext: ByteString,
-    kmsKekUri: String,
-    workloadIdentityProvider: String,
-    impersonatedServiceAccount: String,
+    envelopeEncryption: Header.TrusTee.EnvelopeEncryption,
     populationSpecFingerprint: Long,
   ) {
     computationsClient.recordRequisitionFulfillment(
@@ -343,11 +335,20 @@ class RequisitionFulfillmentService(
             trusTee = trusTee {
               this.dataFormat =
                 RequisitionDetails.RequisitionProtocol.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR
-              this.encryptedDekCiphertext = encryptedDekCiphertext
-              this.kmsKekUri = kmsKekUri
-              this.workloadIdentityProvider = workloadIdentityProvider
-              this.impersonatedServiceAccount = impersonatedServiceAccount
+              this.encryptedDekCiphertext = envelopeEncryption.encryptedDek.data
+              this.kmsKekUri = envelopeEncryption.kmsKekUri
+              this.workloadIdentityProvider = envelopeEncryption.workloadIdentityProvider
+              this.impersonatedServiceAccount = envelopeEncryption.impersonatedServiceAccount
               this.populationSpecFingerprint = populationSpecFingerprint
+              if (envelopeEncryption.hasAwsKmsParams()) {
+                this.awsKmsParams =
+                  RequisitionDetailsKt.RequisitionProtocolKt.TrusTeeKt.awsKmsParams {
+                    roleArn = envelopeEncryption.awsKmsParams.roleArn
+                    roleSession = envelopeEncryption.awsKmsParams.roleSession
+                    region = envelopeEncryption.awsKmsParams.region
+                    audience = envelopeEncryption.awsKmsParams.audience
+                  }
+              }
             }
           }
       }

@@ -45,6 +45,7 @@ import org.wfanet.measurement.api.v2alpha.testing.withMetadataPrincipalIdentitie
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
@@ -102,9 +103,7 @@ class InProcessDuchy(
   val duchyDependenciesRule:
     ProviderRule<(String, SystemComputationLogEntriesCoroutineStub) -> DuchyDependencies>,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
-  private val trusTeeKmsClient: KmsClient? =
-    null, // TODO(@dawn-wang22): Remove default and make this a required param after all callers
-  // provide a KmsClient.
+  private val trusTeeKmsClient: KmsClient,
   val verboseGrpcLogging: Boolean = true,
   daemonContext: CoroutineContext = Dispatchers.Default,
 ) : TestRule {
@@ -331,38 +330,39 @@ class InProcessDuchy(
             workLockDuration = Duration.ofSeconds(1),
             privateKeyStore = privateKeyStore,
           )
-        val trusTeeMill =
-          if (trusTeeKmsClient != null) {
-            val kmsClientFactory =
-              object : KmsClientFactory<GCloudWifCredentials> {
-                override fun getKmsClient(config: GCloudWifCredentials): KmsClient =
-                  trusTeeKmsClient
-              }
-            TrusTeeMill(
-              millId = "$externalDuchyId trusTeeMill",
-              duchyId = externalDuchyId,
-              signingKey = signingKey,
-              consentSignalCert =
-                Certificate(duchyCertMap.getValue(externalDuchyId), consentSignal509Cert),
-              dataClients = computationDataClients,
-              systemComputationParticipantsClient = systemComputationParticipantsClient,
-              systemComputationsClient = systemComputationsClient,
-              systemComputationLogEntriesClient = systemComputationLogEntriesClient,
-              computationStatsClient = computationStatsClient,
-              workLockDuration = Duration.ofMinutes(5),
-              trusTeeProcessorFactory = TrusTeeProcessorImpl,
-              kmsClientFactory = kmsClientFactory,
-              attestationTokenPath = Paths.get("/dev/null"),
-            )
-          } else {
-            null
+        val gcloudKmsClientFactory =
+          object : KmsClientFactory<GCloudWifCredentials> {
+            override fun getKmsClient(config: GCloudWifCredentials): KmsClient = trusTeeKmsClient
           }
+        val gcloudToAwsKmsClientFactory =
+          object : KmsClientFactory<GCloudToAwsWifCredentials> {
+            override fun getKmsClient(config: GCloudToAwsWifCredentials): KmsClient =
+              trusTeeKmsClient
+          }
+        val trusTeeMill =
+          TrusTeeMill(
+            millId = "$externalDuchyId trusTeeMill",
+            duchyId = externalDuchyId,
+            signingKey = signingKey,
+            consentSignalCert =
+              Certificate(duchyCertMap.getValue(externalDuchyId), consentSignal509Cert),
+            dataClients = computationDataClients,
+            systemComputationParticipantsClient = systemComputationParticipantsClient,
+            systemComputationsClient = systemComputationsClient,
+            systemComputationLogEntriesClient = systemComputationLogEntriesClient,
+            computationStatsClient = computationStatsClient,
+            workLockDuration = Duration.ofMinutes(5),
+            trusTeeProcessorFactory = TrusTeeProcessorImpl,
+            gcloudKmsClientFactory = gcloudKmsClientFactory,
+            gcloudToAwsKmsClientFactory = gcloudToAwsKmsClientFactory,
+            attestationTokenPath = Paths.get("/dev/null"),
+          )
         val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1))
         throttler.loopOnReady {
           reachFrequencyLiquidLegionsV2Mill.claimAndProcessWork()
           reachOnlyLiquidLegionsV2Mill.claimAndProcessWork()
           honestMajorityShareShuffleMill.claimAndProcessWork()
-          trusTeeMill?.claimAndProcessWork()
+          trusTeeMill.claimAndProcessWork()
         }
       }
   }

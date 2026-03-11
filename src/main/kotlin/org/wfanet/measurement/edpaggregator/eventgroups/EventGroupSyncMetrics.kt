@@ -89,6 +89,17 @@ class EventGroupSyncMetrics(meter: Meter) {
       .build()
 
   /**
+   * Counter for successfully deleted Event Groups.
+   *
+   * Incremented when an event group with DELETED state is successfully removed from CMMS.
+   */
+  val syncDeleted: LongCounter =
+    meter
+      .counterBuilder("edpa.event_group.sync_deleted")
+      .setDescription("Number of Event Groups successfully deleted")
+      .build()
+
+  /**
    * Counter for unmapped Event Groups.
    *
    * Incremented when an event group cannot be resolved to any MeasurementConsumer. This can occur

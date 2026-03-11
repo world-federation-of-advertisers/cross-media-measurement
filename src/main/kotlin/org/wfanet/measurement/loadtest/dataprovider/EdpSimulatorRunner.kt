@@ -166,10 +166,11 @@ class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
             "Failed to initialize KMS client."
           }
         TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams(
-          kmsClient,
-          trusTeeEncryptionOptions.kmsKekUri,
-          trusTeeEncryptionOptions.workloadIdentityProvider,
-          trusTeeEncryptionOptions.impersonatedServiceAccount,
+          kmsClient = kmsClient,
+          kmsKekUri = trusTeeEncryptionOptions.kmsKekUri,
+          workloadIdentityProvider = trusTeeEncryptionOptions.workloadIdentityProvider,
+          impersonatedServiceAccount = trusTeeEncryptionOptions.impersonatedServiceAccount,
+          awsKmsParams = null,
         )
       } else {
         null

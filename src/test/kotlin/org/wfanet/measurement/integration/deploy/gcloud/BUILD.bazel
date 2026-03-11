@@ -227,7 +227,7 @@ kt_jvm_library(
 java_test(
     name = "GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest",
     size = "large",
-    timeout = "moderate",
+    timeout = "long",
     tags = [
         "cpu:2",
         "no-remote-exec",

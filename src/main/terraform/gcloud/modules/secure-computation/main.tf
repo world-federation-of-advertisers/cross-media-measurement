@@ -23,7 +23,7 @@ module "secure_computation_internal" {
 }
 
 resource "google_project_iam_member" "secure_computation_internal_metric_writer" {
-  project = data.google_project.project.name
+  project = data.google_project.project.id
   role    = "roles/monitoring.metricWriter"
   member  = module.secure_computation_internal.iam_service_account.member
 }

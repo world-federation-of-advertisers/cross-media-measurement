@@ -507,7 +507,15 @@ class ResultsFulfillerAppTest {
             mapOf("some-duchy" to grpcTestServerRule.channel),
           ),
           kmsClients,
-          mapOf(EDP_NAME to TrusTeeConfig(kmsClient, "test-wip", "test-sa@example.com")),
+          mapOf(
+            EDP_NAME to
+              TrusTeeConfig(
+                kmsClient = kmsClient,
+                workloadIdentityProvider = "test-wip",
+                impersonatedServiceAccount = "test-sa@example.com",
+                awsKmsParams = null,
+              )
+          ),
           getStorageConfig(tmpPath),
           getStorageConfig(tmpPath),
           getStorageConfig(tmpPath),
@@ -771,7 +779,15 @@ class ResultsFulfillerAppTest {
           mapOf("some-duchy" to grpcTestServerRule.channel),
         ),
         kmsClients,
-        mapOf(EDP_NAME to TrusTeeConfig(kmsClient, "test-wip", "test-sa@example.com")),
+        mapOf(
+          EDP_NAME to
+            TrusTeeConfig(
+              kmsClient = kmsClient,
+              workloadIdentityProvider = "test-wip",
+              impersonatedServiceAccount = "test-sa@example.com",
+              awsKmsParams = null,
+            )
+        ),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
@@ -1190,7 +1206,12 @@ class ResultsFulfillerAppTest {
         kmsClients,
         mapOf(
           EDP_NAME to
-            TrusTeeConfig(kmsClients.getValue(EDP_NAME), "test-wip", "test-sa@example.com")
+            TrusTeeConfig(
+              kmsClient = kmsClients.getValue(EDP_NAME),
+              workloadIdentityProvider = "test-wip",
+              impersonatedServiceAccount = "test-sa@example.com",
+              awsKmsParams = null,
+            )
         ),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
@@ -1327,6 +1348,7 @@ class ResultsFulfillerAppTest {
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
+            awsKmsParams = null,
           )
       )
 

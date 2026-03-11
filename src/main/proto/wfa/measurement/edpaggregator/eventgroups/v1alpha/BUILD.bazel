@@ -5,7 +5,9 @@ load(
 )
 
 package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/api/v2alpha/tools:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__subpackages__",
 ])

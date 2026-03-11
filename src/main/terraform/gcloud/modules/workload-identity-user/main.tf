@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+data "google_project" "project" {}
+
 locals {
-  workload_pool       = "${data.google_project.project.name}.svc.id.goog"
+  google_project_id   = trimprefix(data.google_project.project.id, "projects/")
+  workload_pool       = "${local.google_project_id}.svc.id.goog"
   member              = "serviceAccount:${local.workload_pool}[${var.cluster_namespace}/${var.k8s_service_account_name}]"
   iam_service_account = try(google_service_account.iam[0], var.iam_service_account)
 }
-
-data "google_project" "project" {}
 
 resource "google_service_account" "iam" {
   count = var.iam_service_account == null ? 1 : 0
