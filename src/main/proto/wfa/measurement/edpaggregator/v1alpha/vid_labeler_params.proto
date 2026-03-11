@@ -74,6 +74,6 @@ message VidLabelerParams {
   // The input blob URIs to process.
   repeated string input_blob_uris = 6 [(google.api.field_behavior) = REQUIRED];
 
-  // Batch of files grouped using batch_max_size.
-  string batch_index = 7 [(google.api.field_behavior) = REQUIRED];
+  // Zero-based index identifying the batch within the upload.
+  int64 batch_index = 7 [(google.api.field_behavior) = REQUIRED];
 }
