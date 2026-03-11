@@ -46,8 +46,7 @@ import org.wfanet.measurement.storage.StorageClient
  *   Per-batch fields ([VidLabelerParams.getInputBlobUrisList] and
  *   [VidLabelerParams.getBatchIndex]) are set by the dispatcher for each batch.
  * @param queueName resource name of the Secure Computation queue for VID labeling work items.
- * @param batchMaxSizeBytes maximum batch size in bytes. Defaults to [DEFAULT_BATCH_MAX_SIZE_BYTES]
- *   (10 GB).
+ * @param batchMaxSizeBytes maximum batch size in bytes.
  * @param metrics OpenTelemetry metrics recorder.
  */
 class VidLabelingDispatcher(
@@ -56,7 +55,7 @@ class VidLabelingDispatcher(
   private val dataProviderName: String,
   private val vidLabelerParamsTemplate: VidLabelerParams,
   private val queueName: String,
-  private val batchMaxSizeBytes: Long = DEFAULT_BATCH_MAX_SIZE_BYTES,
+  private val batchMaxSizeBytes: Long,
   private val metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
 ) {
   /** Holds a blob key and its size for batching. */
@@ -274,9 +273,6 @@ class VidLabelingDispatcher(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-
-    /** Default maximum batch size in bytes (10 GB). */
-    const val DEFAULT_BATCH_MAX_SIZE_BYTES: Long = 10_000_000_000L
 
     private const val DONE_MARKER_FILE_NAME = "done"
 
