@@ -112,7 +112,7 @@ class VidLabelingDispatcher(
           modelLineConfigs.putAll(vidLabelerParamsTemplate.modelLineConfigsMap)
           overrideModelLines += vidLabelerParamsTemplate.overrideModelLinesList
           inputBlobUris += batchBlobUris
-          batchIndex = index.toString()
+          batchIndex = index.toLong()
         }
 
         // TODO(world-federation-of-advertisers/cross-media-measurement#3584): Persist batch
