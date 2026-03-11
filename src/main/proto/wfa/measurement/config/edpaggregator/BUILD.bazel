@@ -125,4 +125,3 @@ kt_jvm_proto_library(
     name = "vid_labeling_config_kt_jvm_proto",
     deps = [":vid_labeling_config_proto"],
 )
-
