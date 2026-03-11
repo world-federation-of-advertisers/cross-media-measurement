@@ -17,7 +17,6 @@
 package org.wfanet.measurement.edpaggregator.vidlabeling
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.Any
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -36,6 +35,7 @@ import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -57,11 +57,10 @@ class VidLabelingDispatcherTest {
 
   private val vidLabelerParamsTemplate = vidLabelerParams {
     dataProvider = DATA_PROVIDER_NAME
-    storageParams =
-      VidLabelerParams.StorageParams.newBuilder()
-        .setGcsProjectId("test-project")
-        .setLabeledImpressionsBlobPrefix("gs://output-bucket/labeled")
-        .build()
+    storageParams = VidLabelerParamsKt.storageParams {
+      gcsProjectId = "test-project"
+      labeledImpressionsBlobPrefix = "gs://output-bucket/labeled"
+    }
   }
 
   private fun createDispatcher(
