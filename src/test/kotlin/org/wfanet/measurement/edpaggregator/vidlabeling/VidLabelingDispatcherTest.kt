@@ -64,7 +64,7 @@ class VidLabelingDispatcherTest {
   }
 
   private fun createDispatcher(
-    batchMaxSizeBytes: Long = VidLabelingDispatcher.DEFAULT_BATCH_MAX_SIZE_BYTES,
+    batchMaxSizeBytes: Long = BATCH_MAX_SIZE_BYTES,
   ): VidLabelingDispatcher {
     return VidLabelingDispatcher(
       storageClient = storageClient,
@@ -248,6 +248,7 @@ class VidLabelingDispatcherTest {
   companion object {
     private const val DATA_PROVIDER_NAME = "dataProviders/edp123"
     private const val QUEUE_NAME = "queues/vid-labeler-queue"
+    private const val BATCH_MAX_SIZE_BYTES = 10_000_000_000L
     private const val DONE_BLOB_PATH = "file:///test-bucket/edp1/2024-01-15/done"
     private const val FOLDER_PREFIX = "edp1/2024-01-15"
   }
