@@ -46,6 +46,7 @@ message EventGroupSyncConfig {
 // Wrapper containing Event Group Sync configurations for all EDPs.
 // Loaded at startup from the EDPA config bucket.
 message EventGroupSyncConfigs {
-  // All the per-EDP Event Group Sync configs.
+  // All the per-EDP Event Group Sync configs. Each entry must have a unique
+  // `data_provider` value.
   repeated EventGroupSyncConfig configs = 1;
 }

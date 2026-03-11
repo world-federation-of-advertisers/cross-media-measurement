@@ -69,6 +69,7 @@ message DataAvailabilitySyncConfig {
 // Wrapper containing Data Availability Sync configurations for all EDPs.
 // Loaded at startup from the EDPA config bucket.
 message DataAvailabilitySyncConfigs {
-  // All the per-EDP Data Availability Sync configs.
+  // All the per-EDP Data Availability Sync configs. Each entry must have a
+  // unique `data_provider` value.
   repeated DataAvailabilitySyncConfig configs = 1;
 }

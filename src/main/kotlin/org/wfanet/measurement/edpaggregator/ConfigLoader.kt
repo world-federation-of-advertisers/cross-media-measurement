@@ -21,6 +21,7 @@ import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Message
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.JsonFormat
+import java.util.logging.Level
 import java.util.logging.Logger
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
@@ -110,13 +111,12 @@ object ConfigLoader {
           }
           .build()
       if (any.typeUrl.isEmpty()) {
-        logger.severe("Parsed request body but @type URL is empty — falling back to legacy parsing")
         null
       } else {
         any
       }
     } catch (e: InvalidProtocolBufferException) {
-      logger.severe("Failed to parse request body as Any: ${e.message}")
+      logger.log(Level.WARNING, "Failed to parse request body as Any, falling back to legacy", e)
       null
     }
   }
