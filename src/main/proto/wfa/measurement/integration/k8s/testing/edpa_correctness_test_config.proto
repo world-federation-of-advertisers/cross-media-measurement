@@ -47,4 +47,7 @@ message EdpaCorrectnessTestConfig {
 
   // Storage bucket.
   string storage_bucket = 7;
+
+  // The model line to use.
+  string model_line = 8;
 }
