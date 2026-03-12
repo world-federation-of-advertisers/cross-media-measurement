@@ -41,7 +41,7 @@ message RawImpressionMetadata {
 
   // The lifecycle state of the raw impression metadata.
   enum State {
-    // Default, unspecified state.
+    // Default, unspecified state. Should not be used.
     STATE_UNSPECIFIED = 0;
     // The metadata is active.
     ACTIVE = 1;
@@ -51,7 +51,7 @@ message RawImpressionMetadata {
 
   // The processing state of a batch of raw impression files.
   enum BatchState {
-    // Default, unspecified state.
+    // Default, unspecified state. Should not be used.
     BATCH_STATE_UNSPECIFIED = 0;
     // The batch has been created and is awaiting processing.
     CREATED = 1;
@@ -84,4 +84,10 @@ message RawImpressionMetadata {
   // The timestamp when this metadata entry was last updated.
   google.protobuf.Timestamp update_time = 6
       [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The date when the raw impression data was uploaded.
+  google.protobuf.Timestamp upload_date = 7 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 }
