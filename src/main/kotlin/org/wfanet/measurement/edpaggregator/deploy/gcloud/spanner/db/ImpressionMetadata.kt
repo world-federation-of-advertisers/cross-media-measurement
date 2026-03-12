@@ -246,8 +246,7 @@ suspend fun AsyncDatabaseClient.ReadContext.resolveRawImpressionInternalKey(
           bind("fileResourceId").to(key.fileResourceId)
         }
       )
-      .singleOrNullIfEmpty()
-      ?: throw RawImpressionMetadataNotFoundException(dataProviderResourceId)
+      .singleOrNullIfEmpty() ?: throw RawImpressionMetadataNotFoundException(dataProviderResourceId)
 
   return RawImpressionInternalKey(
     uploadId = row.getLong("UploadId"),
@@ -396,7 +395,8 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
   val sql = buildString {
     appendLine(ImpressionMetadataEntity.BASE_SQL)
 
-    val conjuncts = mutableListOf("ImpressionMetadata.DataProviderResourceId = @dataProviderResourceId")
+    val conjuncts =
+      mutableListOf("ImpressionMetadata.DataProviderResourceId = @dataProviderResourceId")
 
     if (filter.state != State.IMPRESSION_METADATA_STATE_UNSPECIFIED) {
       conjuncts.add("ImpressionMetadata.State = @state")
@@ -421,7 +421,9 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
     }
 
     if (after != null) {
-      conjuncts.add("ImpressionMetadata.ImpressionMetadataResourceId > @afterImpressionMetadataResourceId")
+      conjuncts.add(
+        "ImpressionMetadata.ImpressionMetadataResourceId > @afterImpressionMetadataResourceId"
+      )
     }
 
     appendLine("WHERE " + conjuncts.joinToString(" AND "))

@@ -169,7 +169,6 @@ class ImpressionMetadataStateInvalidException(
     cause,
   )
 
-
 class RawImpressionMetadataNotFoundException(
   dataProviderResourceId: String,
   cause: Throwable? = null,
