@@ -212,27 +212,37 @@ object HonestMajorityShareShuffleStarter {
     require(apiVersion == Version.V2_ALPHA) { "Unsupported API version $apiVersion" }
     val measurementSpec = MeasurementSpec.parseFrom(measurementSpec)
 
+    val isNoNoise = hmssConfig.noiseMechanism == Computation.MpcProtocolConfig.NoiseMechanism.NONE
+
     return HonestMajorityShareShuffleKt.ComputationDetailsKt.parameters {
       if (measurementSpec.hasReachAndFrequency()) {
         maximumFrequency = measurementSpec.reachAndFrequency.maximumFrequency
         require(maximumFrequency > 1) { "Maximum frequency must be greater than 1" }
-        reachDpParams =
-          measurementSpec.reachAndFrequency.reachPrivacyParams.toDuchyDifferentialPrivacyParams()
-        require(reachDpParams.delta > 0) { "Reach privacy delta must be greater than 0" }
-        require(reachDpParams.epsilon >= MIN_REACH_EPSILON) {
-          "Reach privacy epsilon must be greater than or equal to $MIN_REACH_EPSILON"
-        }
-        frequencyDpParams =
-          measurementSpec.reachAndFrequency.frequencyPrivacyParams
-            .toDuchyDifferentialPrivacyParams()
-        require(frequencyDpParams.delta > 0) { "Frequency privacy delta must be be greater than 0" }
-        require(frequencyDpParams.epsilon >= MIN_FREQUENCY_EPSILON) {
-          "Frequency privacy epsilon must be greater than or equal to $MIN_FREQUENCY_EPSILON"
+        if (!isNoNoise) {
+          reachDpParams =
+            measurementSpec.reachAndFrequency.reachPrivacyParams.toDuchyDifferentialPrivacyParams()
+          require(reachDpParams.delta > 0) {
+            "Reach privacy delta must be greater than 0 for noised computations"
+          }
+          require(reachDpParams.epsilon >= MIN_REACH_EPSILON) {
+            "Reach privacy epsilon must be greater than or equal to $MIN_REACH_EPSILON for noised computations"
+          }
+          frequencyDpParams =
+            measurementSpec.reachAndFrequency.frequencyPrivacyParams
+              .toDuchyDifferentialPrivacyParams()
+          require(frequencyDpParams.delta > 0) {
+            "Frequency privacy delta must be greater than 0 for noised computations"
+          }
+          require(frequencyDpParams.epsilon >= MIN_FREQUENCY_EPSILON) {
+            "Frequency privacy epsilon must be greater than or equal to $MIN_FREQUENCY_EPSILON for noised computations"
+          }
         }
         ringModulus = hmssConfig.reachAndFrequencyRingModulus
       } else {
         maximumFrequency = 1
-        reachDpParams = measurementSpec.reach.privacyParams.toDuchyDifferentialPrivacyParams()
+        if (!isNoNoise) {
+          reachDpParams = measurementSpec.reach.privacyParams.toDuchyDifferentialPrivacyParams()
+        }
         ringModulus = hmssConfig.reachRingModulus
       }
       noiseMechanism = hmssConfig.noiseMechanism.toInternalNoiseMechanism()
@@ -247,6 +257,7 @@ object HonestMajorityShareShuffleStarter {
         NoiseMechanism.DISCRETE_GAUSSIAN
       Computation.MpcProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN ->
         NoiseMechanism.CONTINUOUS_GAUSSIAN
+      Computation.MpcProtocolConfig.NoiseMechanism.NONE -> NoiseMechanism.NONE
       Computation.MpcProtocolConfig.NoiseMechanism.UNRECOGNIZED,
       Computation.MpcProtocolConfig.NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED ->
         error("Invalid system NoiseMechanism")

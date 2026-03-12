@@ -286,6 +286,8 @@ object ReachOnlyLiquidLegionsV2Starter {
         NoiseMechanism.DISCRETE_GAUSSIAN
       Computation.MpcProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN ->
         NoiseMechanism.CONTINUOUS_GAUSSIAN
+      Computation.MpcProtocolConfig.NoiseMechanism.NONE ->
+        error("Reach-Only Liquid Legions V2 does not support NoiseMechanism.NONE")
       Computation.MpcProtocolConfig.NoiseMechanism.UNRECOGNIZED,
       Computation.MpcProtocolConfig.NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED ->
         error("Invalid system NoiseMechanism")
