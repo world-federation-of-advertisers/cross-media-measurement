@@ -85,8 +85,8 @@ message RawImpressionMetadata {
   google.protobuf.Timestamp update_time = 6
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // The date when the raw impression data was uploaded.
-  google.protobuf.Timestamp upload_date = 7 [
+  // The time when the raw impression data was uploaded.
+  google.protobuf.Timestamp upload_time = 7 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];

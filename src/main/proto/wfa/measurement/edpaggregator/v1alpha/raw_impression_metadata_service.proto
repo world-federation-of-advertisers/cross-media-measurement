@@ -229,6 +229,9 @@ message DeleteRawImpressionMetadataRequest {
 }
 
 // Request message for the `BatchDeleteRawImpressionMetadata` method.
+// (-- api-linter: core::0235::request-names-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata" to
+//     "Metadatum".  --)
 message BatchDeleteRawImpressionMetadataRequest {
   // The parent batch resource name.
   // Format:
@@ -246,6 +249,9 @@ message BatchDeleteRawImpressionMetadataRequest {
 }
 
 // Response message for the `BatchDeleteRawImpressionMetadata` method.
+// (-- api-linter: core::0235::response-resource-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata" to
+//     "Metadatum".  --)
 message BatchDeleteRawImpressionMetadataResponse {
   // The list of soft-deleted RawImpressionMetadata entries.
   repeated RawImpressionMetadata raw_impression_metadata = 1;
