@@ -34,7 +34,6 @@ import java.util.logging.Logger
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
-import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
@@ -100,12 +99,6 @@ import org.wfanet.measurement.integration.common.InProcessEdpAggregatorComponent
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.integration.common.PROJECT_ID
 import org.wfanet.measurement.integration.common.SUBSCRIPTION_ID
-import org.wfanet.measurement.internal.kingdom.HmssProtocolConfigConfig
-import org.wfanet.measurement.internal.kingdom.ProtocolConfig
-import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
-import org.wfanet.measurement.internal.kingdom.TrusTeeProtocolConfigConfig
-import org.wfanet.measurement.internal.kingdom.hmssProtocolConfigConfig
-import org.wfanet.measurement.internal.kingdom.trusTeeProtocolConfigConfig
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
@@ -502,7 +495,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   }
 
   @Test
-  fun `TrusTee no noise basic report has the expected result`() = runBlocking {
+  fun `TrusTee basic report has the expected result`() = runBlocking {
     val trusTeeEventGroups = getTrusTeeEventGroups()
     check(trusTeeEventGroups.size > 1)
 
@@ -545,22 +538,16 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .that(trusTeeProtocolMeasurements)
       .isNotEmpty()
 
-    assertStructuralResults(completedBasicReport)
-    assertNoNoiseResults(
-      completedBasicReport,
-      expectedCrossPublisherReach = EXPECTED_TRUSTEE_CROSS_PUBLISHER_REACH,
-      expectedCrossPublisherImpressions = EXPECTED_TRUSTEE_CROSS_PUBLISHER_IMPRESSIONS,
-      expectedKPlusReach = EXPECTED_TRUSTEE_K_PLUS_REACH,
-      expectedEdpSpec1Reach = EXPECTED_TRUSTEE_EDP_SPEC1_REACH,
-      expectedEdpSpec2Reach = EXPECTED_TRUSTEE_EDP_SPEC2_REACH,
-    )
+    assertTrusTeeResults(completedBasicReport)
   }
+
+  protected abstract fun assertTrusTeeResults(basicReport: BasicReport)
 
   /**
    * Checks structural invariants on basic report results: all metrics are positive, k+ reach is
    * monotonically non-increasing, and component-level metrics are present.
    */
-  private fun assertStructuralResults(basicReport: BasicReport) {
+  protected fun assertStructuralResults(basicReport: BasicReport) {
     basicReport.resultGroupsList.forEach { resultGroup ->
       val totalResults =
         resultGroup.resultsList.filter {
@@ -634,7 +621,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
    * ranges) so that the cross-publisher reach (union of VIDs) is strictly greater than any
    * individual EDP's reach.
    */
-  private fun assertNoNoiseResults(
+  protected fun assertNoNoiseResults(
     basicReport: BasicReport,
     expectedCrossPublisherReach: Long,
     expectedCrossPublisherImpressions: Long,
@@ -1115,46 +1102,11 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           }
         }
     }
-    private const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_REACH = 5369L
-    private const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_IMPRESSIONS = 9122L
-    private val EXPECTED_TRUSTEE_K_PLUS_REACH = listOf(5369L, 2677L, 682L, 394L, 0L)
-    private const val EXPECTED_TRUSTEE_EDP_SPEC1_REACH = 4472L
-    private const val EXPECTED_TRUSTEE_EDP_SPEC2_REACH = 3338L
-
     private const val EXPECTED_HMSS_CROSS_PUBLISHER_REACH = 5371L
     private const val EXPECTED_HMSS_CROSS_PUBLISHER_IMPRESSIONS = 9124L
     private val EXPECTED_HMSS_K_PLUS_REACH = listOf(5371L, 2678L, 682L, 394L, 0L)
     private const val EXPECTED_HMSS_EDP_SPEC1_REACH = 4473L
     private const val EXPECTED_HMSS_EDP_SPEC2_REACH = 3338L
-
-    private val NO_NOISE_TRUSTEE_PROTOCOL_CONFIG_CONFIG: TrusTeeProtocolConfigConfig =
-      trusTeeProtocolConfigConfig {
-        protocolConfig =
-          ProtocolConfigKt.trusTee { noiseMechanism = ProtocolConfig.NoiseMechanism.NONE }
-        duchyId = "aggregator"
-      }
-
-    private val NO_NOISE_HMSS_PROTOCOL_CONFIG_CONFIG: HmssProtocolConfigConfig =
-      hmssProtocolConfigConfig {
-        protocolConfig =
-          ProtocolConfigKt.honestMajorityShareShuffle {
-            noiseMechanism = ProtocolConfig.NoiseMechanism.NONE
-            reachAndFrequencyRingModulus = 127
-            reachRingModulus = 127
-          }
-        firstNonAggregatorDuchyId = "worker1"
-        secondNonAggregatorDuchyId = "worker2"
-        aggregatorDuchyId = "aggregator"
-      }
-
-    @BeforeClass
-    @JvmStatic
-    fun initConfig() {
-      InProcessCmmsComponents.initConfig(
-        trusTeeProtocolConfigConfig = NO_NOISE_TRUSTEE_PROTOCOL_CONFIG_CONFIG,
-        hmssProtocolConfigConfig = NO_NOISE_HMSS_PROTOCOL_CONFIG_CONFIG,
-      )
-    }
 
     @get:ClassRule @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
   }

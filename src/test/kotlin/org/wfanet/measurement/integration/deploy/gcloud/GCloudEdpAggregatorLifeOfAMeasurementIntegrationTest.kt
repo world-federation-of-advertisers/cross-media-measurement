@@ -14,20 +14,16 @@
 
 package org.wfanet.measurement.integration.deploy.gcloud
 
-import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.rules.Timeout
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
-import org.wfanet.measurement.integration.common.HMSS_PROTOCOL_CONFIG_CONFIG
-import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest
-import org.wfanet.measurement.integration.common.TRUSTEE_PROTOCOL_CONFIG_CONFIG
 
 /**
  * Implementation of [InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest] for GCloud backends
- * with Spanner database. Uses TrusTee protocol config with k-anonymity params.
+ * with Spanner database.
  */
 class GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest :
   InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
@@ -45,14 +41,5 @@ class GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest :
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
-
-    @BeforeClass
-    @JvmStatic
-    fun initConfig() {
-      InProcessCmmsComponents.initConfig(
-        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG,
-        hmssProtocolConfigConfig = HMSS_PROTOCOL_CONFIG_CONFIG,
-      )
-    }
   }
 }

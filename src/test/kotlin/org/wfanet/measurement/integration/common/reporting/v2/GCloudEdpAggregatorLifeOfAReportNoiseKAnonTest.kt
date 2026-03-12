@@ -24,7 +24,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.IMPRESSION_QUALIFICATION_FILTER_MAPPING
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
-import org.wfanet.measurement.integration.common.TRUSTEE_PROTOCOL_CONFIG_CONFIG_NO_K_ANON
+import org.wfanet.measurement.integration.common.TRUSTEE_PROTOCOL_CONFIG_CONFIG
 import org.wfanet.measurement.integration.deploy.gcloud.InternalReportingServicesProviderRule
 import org.wfanet.measurement.integration.deploy.gcloud.KingdomDataServicesProviderRule
 import org.wfanet.measurement.integration.deploy.gcloud.SpannerAccessServicesFactory
@@ -38,9 +38,9 @@ import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 
 /**
  * Implementation of [InProcessEdpAggregatorLifeOfAReportTest] for GCloud backends with Spanner
- * database. Uses Gaussian noise TrusTee protocol config without k-anonymity.
+ * database. Uses Gaussian noise TrusTee protocol config with k-anonymity.
  */
-class GCloudEdpAggregatorLifeOfAReportTest :
+class GCloudEdpAggregatorLifeOfAReportNoiseKAnonTest :
   InProcessEdpAggregatorLifeOfAReportTest(
     kingdomDataServicesRule = KingdomDataServicesProviderRule(spannerEmulator),
     duchyDependenciesRule = SpannerDuchyDependencyProviderRule(spannerEmulator, ALL_DUCHY_NAMES),
@@ -67,10 +67,10 @@ class GCloudEdpAggregatorLifeOfAReportTest :
     val result = totalResults.single()
     val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
 
-    assertWithMessage("cross-publisher reach is positive (noise, no k-anon)")
+    assertWithMessage("cross-publisher reach is positive (noise + k-anon)")
       .that(reportingUnitCumulative.reach)
       .isGreaterThan(0L)
-    assertWithMessage("cross-publisher impressions is positive (noise, no k-anon)")
+    assertWithMessage("cross-publisher impressions is positive (noise + k-anon)")
       .that(reportingUnitCumulative.impressions)
       .isGreaterThan(0L)
   }
@@ -87,7 +87,7 @@ class GCloudEdpAggregatorLifeOfAReportTest :
     @JvmStatic
     fun initConfig() {
       InProcessCmmsComponents.initConfig(
-        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG_NO_K_ANON,
+        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG,
         hmssProtocolConfigConfig =
           hmssProtocolConfigConfig {
             protocolConfig =

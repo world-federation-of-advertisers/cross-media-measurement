@@ -23,6 +23,7 @@ import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
+import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
@@ -281,12 +282,15 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   @Test
   fun `create a TrusTee reach-only measurement and check the result is equal to the expected result`() =
     runBlocking {
+      // Use frontend simulator to create a TrusTee reach-only measurement and verify its result.
       mcSimulator.testReachOnly("1234", ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE)
     }
 
   @Test
   fun `create a TrusTee RF measurement and check the result is equal to the expected result`() =
     runBlocking {
+      // Use frontend simulator to create a TrusTee reach and frequency measurement and verify its
+      // result.
       mcSimulator.testReachAndFrequency("1234", ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE)
     }
 
@@ -358,6 +362,15 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
             localAlias = null,
           )
       )
+
+    @BeforeClass
+    @JvmStatic
+    fun initConfig() {
+      InProcessCmmsComponents.initConfig(
+        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG,
+        hmssProtocolConfigConfig = HMSS_PROTOCOL_CONFIG_CONFIG,
+      )
+    }
 
     @get:ClassRule @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
   }
