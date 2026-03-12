@@ -26,6 +26,9 @@ internal enum class IdVariable {
   DATA_PROVIDER,
   MODEL_LINE,
   REPORT,
+  RAW_IMPRESSION_METADATA_UPLOAD,
+  BATCH,
+  FILE,
   WORK_ITEM,
 }
 
