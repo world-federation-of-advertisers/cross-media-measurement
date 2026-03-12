@@ -500,6 +500,57 @@ class VidLabelingDispatcherTest {
     assertThat(normalBatchParams.inputBlobUrisList[0]).contains("normal.parquet")
   }
 
+  @Test
+  fun `dispatch with unsupported URI scheme throws exception`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+
+    val dispatcher = createDispatcher()
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        dispatcher.dispatch("s3://test-bucket/$FOLDER_PREFIX/done")
+      }
+    assertThat(exception).hasMessageThat().contains("Unsupported scheme")
+  }
+
+  @Test
+  fun `dispatch propagates exception on work item creation failure`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    whenever(workItemsService.createWorkItem(any()))
+      .thenThrow(StatusException(Status.UNAVAILABLE.withDescription("Service unavailable")))
+
+    val dispatcher = createDispatcher()
+    val exception =
+      assertFailsWith<Exception> { dispatcher.dispatch(DONE_BLOB_PATH) }
+    assertThat(exception).hasMessageThat().contains("Error creating WorkItem")
+    assertThat(exception).hasCauseThat().isInstanceOf(StatusException::class.java)
+  }
+
+  @Test
+  fun `dispatch with gs scheme constructs correct blob URIs`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    whenever(workItemsService.createWorkItem(any())).thenReturn(
+      WorkItem.getDefaultInstance()
+    )
+
+    val dispatcher = createDispatcher()
+    dispatcher.dispatch(GCS_DONE_BLOB_PATH)
+
+    val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
+
+    val workItemParams =
+      requestCaptor.firstValue.workItem.workItemParams.unpack(
+        org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::class
+          .java
+      )
+    val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
+    assertThat(vidLabelerParams.inputBlobUrisList[0])
+      .isEqualTo("gs://test-bucket/$FOLDER_PREFIX/file1.parquet")
+  }
+
   companion object {
     private const val DATA_PROVIDER_NAME = "dataProviders/edp123"
     private const val QUEUE_NAME = "queues/vid-labeler-queue"
