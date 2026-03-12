@@ -14,6 +14,7 @@ kt_jvm_library(
     srcs = [
         "IdVariable.kt",
         "ImpressionMetadataKey.kt",
+        "RawImpressionMetadataKey.kt",
         "RequisitionMetadataKey.kt",
     ],
     deps = [
