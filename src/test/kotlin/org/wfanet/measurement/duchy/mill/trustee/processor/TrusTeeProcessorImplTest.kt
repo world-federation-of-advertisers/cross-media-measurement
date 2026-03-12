@@ -34,6 +34,7 @@ class TrusTeeProcessorImplTest {
         reachDpParams = DEFAULT_DP_PARAMS,
         frequencyDpParams = DEFAULT_DP_PARAMS,
         vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
+        kAnonymityParams = null,
       )
     val exception = assertFailsWith<IllegalArgumentException> { TrusTeeProcessorImpl(params) }
     assertThat(exception.message).contains("Invalid max frequency")
@@ -47,6 +48,7 @@ class TrusTeeProcessorImplTest {
         reachDpParams = DEFAULT_DP_PARAMS,
         frequencyDpParams = DEFAULT_DP_PARAMS,
         vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
+        kAnonymityParams = null,
       )
     val exception = assertFailsWith<IllegalArgumentException> { TrusTeeProcessorImpl(params) }
     assertThat(exception.message).contains("Invalid max frequency")
@@ -60,6 +62,7 @@ class TrusTeeProcessorImplTest {
         reachDpParams = DEFAULT_DP_PARAMS,
         frequencyDpParams = DEFAULT_DP_PARAMS,
         vidSamplingIntervalWidth = -0.2f,
+        kAnonymityParams = null,
       )
     val exception = assertFailsWith<IllegalArgumentException> { TrusTeeProcessorImpl(params) }
     assertThat(exception.message).contains("Invalid vid sampling interval width")
@@ -73,6 +76,7 @@ class TrusTeeProcessorImplTest {
         reachDpParams = DEFAULT_DP_PARAMS,
         frequencyDpParams = DEFAULT_DP_PARAMS,
         vidSamplingIntervalWidth = 1.1f,
+        kAnonymityParams = null,
       )
     val exception = assertFailsWith<IllegalArgumentException> { TrusTeeProcessorImpl(params) }
     assertThat(exception.message).contains("Invalid vid sampling interval width")
@@ -149,7 +153,12 @@ class TrusTeeProcessorImplTest {
 
   @Test
   fun `computeResult for Reach-Only returns correct result type`() {
-    val params = TrusTeeReachParams(vidSamplingIntervalWidth = 0.5f, dpParams = DEFAULT_DP_PARAMS)
+    val params =
+      TrusTeeReachParams(
+        vidSamplingIntervalWidth = 0.5f,
+        dpParams = DEFAULT_DP_PARAMS,
+        kAnonymityParams = null,
+      )
     val processor = TrusTeeProcessorImpl(params)
     processor.addFrequencyVector(byteArrayOf(1, 0, 1, 0, 1, 0))
     val result = processor.computeResult() as ReachResult
@@ -168,6 +177,7 @@ class TrusTeeProcessorImplTest {
         vidSamplingIntervalWidth = 0.25f,
         reachDpParams = DEFAULT_DP_PARAMS,
         frequencyDpParams = DEFAULT_DP_PARAMS,
+        kAnonymityParams = null,
       )
     val processor = TrusTeeProcessorImpl(params)
     processor.addFrequencyVector(byteArrayOf(1, 2, 0, 1, 3))
@@ -197,6 +207,7 @@ class TrusTeeProcessorImplTest {
         vidSamplingIntervalWidth = samplingWidth,
         reachDpParams = dpParams,
         frequencyDpParams = dpParams,
+        kAnonymityParams = null,
       )
     val processor = TrusTeeProcessorImpl(params)
 
@@ -216,7 +227,8 @@ class TrusTeeProcessorImplTest {
 
   @Test
   fun `computeResult for Reach-Only with no noise returns exact reach`() {
-    val params = TrusTeeReachParams(vidSamplingIntervalWidth = 1.0f, dpParams = null)
+    val params =
+      TrusTeeReachParams(vidSamplingIntervalWidth = 1.0f, dpParams = null, kAnonymityParams = null)
     val processor = TrusTeeProcessorImpl(params)
     processor.addFrequencyVector(byteArrayOf(1, 0, 1, 0, 1, 0))
     val result = processor.computeResult() as ReachResult
@@ -226,7 +238,8 @@ class TrusTeeProcessorImplTest {
 
   @Test
   fun `computeResult for Reach-Only with no noise and sampling returns scaled reach`() {
-    val params = TrusTeeReachParams(vidSamplingIntervalWidth = 0.5f, dpParams = null)
+    val params =
+      TrusTeeReachParams(vidSamplingIntervalWidth = 0.5f, dpParams = null, kAnonymityParams = null)
     val processor = TrusTeeProcessorImpl(params)
     processor.addFrequencyVector(byteArrayOf(1, 0, 1, 0, 1, 0))
     val result = processor.computeResult() as ReachResult
@@ -242,6 +255,7 @@ class TrusTeeProcessorImplTest {
         vidSamplingIntervalWidth = 1.0f,
         reachDpParams = null,
         frequencyDpParams = null,
+        kAnonymityParams = null,
       )
     val processor = TrusTeeProcessorImpl(params)
     processor.addFrequencyVector(byteArrayOf(2, 1, 0, 3))
@@ -259,6 +273,7 @@ class TrusTeeProcessorImplTest {
         vidSamplingIntervalWidth = 1.0f,
         reachDpParams = null,
         frequencyDpParams = null,
+        kAnonymityParams = null,
       )
     val processor = TrusTeeProcessorImpl(params)
     processor.addFrequencyVector(byteArrayOf(1, 0, 1, 0))
@@ -277,6 +292,7 @@ class TrusTeeProcessorImplTest {
         vidSamplingIntervalWidth = 1.0f,
         reachDpParams = null,
         frequencyDpParams = null,
+        kAnonymityParams = null,
       )
     val processor = TrusTeeProcessorImpl(params)
     processor.addFrequencyVector(byteArrayOf(1, 1, 0))
@@ -295,6 +311,7 @@ class TrusTeeProcessorImplTest {
         vidSamplingIntervalWidth = 1.0f,
         reachDpParams = null,
         frequencyDpParams = null,
+        kAnonymityParams = null,
       )
     val processor = TrusTeeProcessorImpl(params)
     processor.addFrequencyVector(byteArrayOf(0, 0, 0, 0))
@@ -464,6 +481,7 @@ class TrusTeeProcessorImplTest {
       TrusTeeReachParams(
         vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
         dpParams = DEFAULT_DP_PARAMS,
+        kAnonymityParams = null,
       )
     private val REACH_AND_FREQUENCY_PARAMS =
       TrusTeeReachAndFrequencyParams(
@@ -471,6 +489,7 @@ class TrusTeeProcessorImplTest {
         reachDpParams = DEFAULT_DP_PARAMS,
         frequencyDpParams = DEFAULT_DP_PARAMS,
         vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
+        kAnonymityParams = null,
       )
   }
 }

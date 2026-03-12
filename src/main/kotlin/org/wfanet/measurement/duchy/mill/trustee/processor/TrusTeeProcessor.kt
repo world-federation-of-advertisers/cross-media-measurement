@@ -27,7 +27,7 @@ sealed interface TrusTeeParams {
 data class TrusTeeReachParams(
   val vidSamplingIntervalWidth: Float,
   val dpParams: DifferentialPrivacyParams?,
-  override val kAnonymityParams: KAnonymityParams? = null,
+  override val kAnonymityParams: KAnonymityParams?,
 ) : TrusTeeParams
 
 /** TrusTEE parameters for a Reach-and-Frequency measurement. */
@@ -36,7 +36,7 @@ data class TrusTeeReachAndFrequencyParams(
   val vidSamplingIntervalWidth: Float,
   val reachDpParams: DifferentialPrivacyParams?,
   val frequencyDpParams: DifferentialPrivacyParams?,
-  override val kAnonymityParams: KAnonymityParams? = null,
+  override val kAnonymityParams: KAnonymityParams?,
 ) : TrusTeeParams
 
 /**

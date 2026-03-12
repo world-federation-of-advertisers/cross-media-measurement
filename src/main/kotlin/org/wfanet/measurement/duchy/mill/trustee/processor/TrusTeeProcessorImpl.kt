@@ -112,8 +112,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
             maxFrequency,
             trusTeeParams.frequencyDpParams?.toDifferentialPrivacyParams(),
             kAnonymityParams = trusTeeParams.kAnonymityParams,
-            vidSamplingIntervalWidth =
-              if (trusTeeParams.kAnonymityParams != null) vidSamplingIntervalWidth else null,
+            vidSamplingIntervalWidth = vidSamplingIntervalWidth,
           )
 
         ReachAndFrequencyResult(reach, frequency, DeterministicMethodology)
