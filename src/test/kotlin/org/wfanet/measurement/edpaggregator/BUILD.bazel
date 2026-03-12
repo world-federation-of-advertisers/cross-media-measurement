@@ -1,0 +1,24 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+package(
+    default_testonly = True,
+    default_visibility = ["//visibility:public"],
+)
+
+kt_jvm_test(
+    name = "ConfigLoaderTest",
+    srcs = ["ConfigLoaderTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.ConfigLoaderTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:config_loader",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:data_availability_sync_configs_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:event_group_sync_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:data_availability_sync_params_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:event_group_sync_params_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)

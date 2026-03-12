@@ -17,11 +17,9 @@
 package org.wfanet.measurement.edpaggregator
 
 import com.google.protobuf.Any
-import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Message
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.JsonFormat
-import java.util.logging.Level
 import java.util.logging.Logger
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
@@ -55,6 +53,7 @@ object ConfigLoader {
    * @return [DataAvailabilitySyncConfig] parsed from the appropriate format
    * @throws NoSuchElementException if the data provider from params doesn't match any config
    * @throws IllegalStateException if the `@type` is not a supported type
+   * @throws com.google.protobuf.InvalidProtocolBufferException if the request body is malformed JSON
    */
   fun buildDataAvailabilitySyncConfig(
     requestBody: String,
@@ -81,6 +80,7 @@ object ConfigLoader {
    * @return [EventGroupSyncConfig] parsed from the appropriate format
    * @throws NoSuchElementException if the data provider from params doesn't match any config
    * @throws IllegalStateException if the `@type` is not a supported type
+   * @throws com.google.protobuf.InvalidProtocolBufferException if the request body is malformed JSON
    */
   fun buildEventGroupSyncConfig(
     requestBody: String,
@@ -100,25 +100,23 @@ object ConfigLoader {
   }
 
   private fun tryParseAsAny(requestBody: String): Any? {
-    return try {
-      val any =
-        Any.newBuilder()
-          .apply {
-            JsonFormat.parser()
-              .ignoringUnknownFields()
-              .usingTypeRegistry(typeRegistry)
-              .merge(requestBody, this)
-          }
-          .build()
-      if (any.typeUrl.isEmpty()) {
-        null
-      } else {
-        any
-      }
-    } catch (e: InvalidProtocolBufferException) {
-      logger.log(Level.WARNING, "Failed to parse request body as Any, falling back to legacy", e)
-      null
+    val any =
+      Any.newBuilder()
+        .apply {
+          JsonFormat.parser()
+            .ignoringUnknownFields()
+            .usingTypeRegistry(typeRegistry)
+            .merge(requestBody, this)
+        }
+        .build()
+    // An empty type URL means the request body is not an Any-wrapped params proto. This is
+    // the expected result for legacy format requests: because we parse with
+    // ignoringUnknownFields(), fields like "data_provider" are silently ignored and we get an
+    // empty Any. Returning null signals the caller to fall back to legacy parsing.
+    if (any.typeUrl.isEmpty()) {
+      return null
     }
+    return any
   }
 
   @Suppress("UNCHECKED_CAST")
