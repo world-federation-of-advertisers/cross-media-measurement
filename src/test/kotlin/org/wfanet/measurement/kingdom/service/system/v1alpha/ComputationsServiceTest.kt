@@ -48,11 +48,13 @@ import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.TrusTeeKt.kAnonymityParams as internalTrusTeeKAnonymityParams
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.TrusTeeParams
 import org.wfanet.measurement.internal.kingdom.computationKey
 import org.wfanet.measurement.internal.kingdom.computationParticipantDetails
 import org.wfanet.measurement.internal.kingdom.copy
@@ -69,6 +71,8 @@ import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt
+import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.TrusTeeKt.kAnonymityParams as systemTrusTeeKAnonymityParams
+import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.trusTee as systemTrusTee
 import org.wfanet.measurement.system.v1alpha.ComputationKt.mpcProtocolConfig
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
@@ -276,6 +280,32 @@ private val INTERNAL_RO_LLV2_MEASUREMENT =
     computationParticipants += INTERNAL_RO_LLV2_COMPUTATION_PARTICIPANT
   }
 
+private val INTERNAL_TRUS_TEE_COMPUTATION_PARTICIPANT =
+  INTERNAL_COMPUTATION_PARTICIPANT.copy {
+    details = computationParticipantDetails { trusTee = TrusTeeParams.getDefaultInstance() }
+  }
+
+private val INTERNAL_TRUS_TEE_MEASUREMENT =
+  INTERNAL_MEASUREMENT.copy {
+    details = measurementDetails {
+      apiVersion = PUBLIC_API_VERSION
+      measurementSpec = MEASUREMENT_SPEC
+      duchyProtocolConfig = duchyProtocolConfig {}
+      protocolConfig = protocolConfig {
+        trusTee =
+          ProtocolConfigKt.trusTee {
+            noiseMechanism = InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
+            kAnonymityParams = internalTrusTeeKAnonymityParams {
+              minImpressions = 10
+              minUsers = 5
+            }
+          }
+      }
+    }
+    computationParticipants.clear()
+    computationParticipants += INTERNAL_TRUS_TEE_COMPUTATION_PARTICIPANT
+  }
+
 @RunWith(JUnit4::class)
 class ComputationsServiceTest {
   @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHY_ID)
@@ -480,6 +510,75 @@ class ComputationsServiceTest {
       )
       .isEqualTo(
         getMeasurementByComputationIdRequest { externalComputationId = EXTERNAL_COMPUTATION_ID }
+      )
+  }
+
+  @Test
+  fun `get trustee computation with kAnonymityParams successfully`() = runBlocking {
+    whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
+      .thenReturn(INTERNAL_TRUS_TEE_MEASUREMENT)
+
+    val request = getComputationRequest { name = SYSTEM_COMPUTATION_NAME }
+
+    val response = service.getComputation(request)
+
+    assertThat(response)
+      .isEqualTo(
+        computation {
+          name = SYSTEM_COMPUTATION_NAME
+          publicApiVersion = PUBLIC_API_VERSION
+          measurementSpec = MEASUREMENT_SPEC
+          state = Computation.State.FAILED
+          aggregatorCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
+          encryptedResult = ENCRYPTED_RESULT
+          mpcProtocolConfig = mpcProtocolConfig {
+            trusTee = systemTrusTee {
+              noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
+              kAnonymityParams = systemTrusTeeKAnonymityParams {
+                minImpressions = 10
+                minUsers = 5
+              }
+            }
+          }
+          requisitions += requisition {
+            name = SYSTEM_REQUISITION_NAME
+            state = Requisition.State.FULFILLED
+            requisitionSpecHash = ENCRYPTED_REQUISITION_SPEC_HASH.bytes
+            nonceHash = NONCE_HASH.bytes
+            fulfillingComputationParticipant = SYSTEM_COMPUTATION_PARTICIPATE_NAME
+            nonce = NONCE
+          }
+          computationParticipants += computationParticipant {
+            name = SYSTEM_COMPUTATION_PARTICIPATE_NAME
+            state = ComputationParticipant.State.FAILED
+            updateTime = timestamp {
+              seconds = 123
+              nanos = 456
+            }
+            requisitionParams = requisitionParams {
+              duchyCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
+              trusTee = ComputationParticipant.RequisitionParams.TrusTee.getDefaultInstance()
+            }
+            failure =
+              ComputationParticipantKt.failure {
+                participantChildReferenceId = MILL_ID
+                errorMessage = DUCHY_ERROR_MESSAGE
+                errorTime = timestamp {
+                  seconds = 1001
+                  nanos = 2002
+                }
+                stageAttempt = stageAttempt {
+                  stage = STAGE_ATTEMPT_STAGE
+                  stageName = STAGE_ATTEMPT_STAGE_NAME
+                  attemptNumber = STAGE_ATTEMPT_ATTEMPT_NUMBER
+                  stageStartTime = timestamp {
+                    seconds = 100
+                    nanos = 200
+                  }
+                }
+              }
+          }
+        }
       )
   }
 

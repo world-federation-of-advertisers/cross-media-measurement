@@ -23,6 +23,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/common:bitwise_operations",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/computation:k_anonymity_params",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/mill:mill_base",
         "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/processor:trus_tee_processor",

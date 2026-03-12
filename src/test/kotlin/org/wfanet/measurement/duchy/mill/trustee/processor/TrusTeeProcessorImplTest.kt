@@ -19,6 +19,7 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.duchy.utils.ReachAndFrequencyResult
 import org.wfanet.measurement.duchy.utils.ReachResult
 import org.wfanet.measurement.internal.duchy.differentialPrivacyParams
@@ -211,12 +212,87 @@ class TrusTeeProcessorImplTest {
     assertThat(result.reach).isAtMost(maxPossibleScaledReach)
   }
 
+  @Test
+  fun `computeResult for Reach-Only with kAnonymityParams returns zero when below threshold`() {
+    val kAnonymityParams = KAnonymityParams(minUsers = 1000, minImpressions = 1000)
+    val params =
+      TrusTeeReachParams(
+        vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
+        dpParams = LOW_NOISE_DP_PARAMS,
+        kAnonymityParams = kAnonymityParams,
+      )
+    val processor = TrusTeeProcessorImpl(params)
+    processor.addFrequencyVector(byteArrayOf(1, 0, 1, 0))
+    val result = processor.computeResult() as ReachResult
+
+    assertThat(result.reach).isEqualTo(0)
+  }
+
+  @Test
+  fun `computeResult for Reach-Only with kAnonymityParams returns nonzero when above threshold`() {
+    val kAnonymityParams = KAnonymityParams(minUsers = 1, minImpressions = 1)
+    val params =
+      TrusTeeReachParams(
+        vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
+        dpParams = LOW_NOISE_DP_PARAMS,
+        kAnonymityParams = kAnonymityParams,
+      )
+    val processor = TrusTeeProcessorImpl(params)
+    val vector = ByteArray(100) { 1 }
+    processor.addFrequencyVector(vector)
+    val result = processor.computeResult() as ReachResult
+
+    assertThat(result.reach).isGreaterThan(0)
+  }
+
+  @Test
+  fun `computeResult for R&F with kAnonymityParams returns zero reach when below threshold`() {
+    val kAnonymityParams = KAnonymityParams(minUsers = 1000, minImpressions = 1000)
+    val params =
+      TrusTeeReachAndFrequencyParams(
+        maximumFrequency = MAX_FREQUENCY,
+        vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
+        reachDpParams = LOW_NOISE_DP_PARAMS,
+        frequencyDpParams = LOW_NOISE_DP_PARAMS,
+        kAnonymityParams = kAnonymityParams,
+      )
+    val processor = TrusTeeProcessorImpl(params)
+    processor.addFrequencyVector(byteArrayOf(1, 2, 0, 1))
+    val result = processor.computeResult() as ReachAndFrequencyResult
+
+    assertThat(result.reach).isEqualTo(0)
+  }
+
+  @Test
+  fun `computeResult for R&F with kAnonymityParams returns nonzero when above threshold`() {
+    val kAnonymityParams = KAnonymityParams(minUsers = 1, minImpressions = 1)
+    val params =
+      TrusTeeReachAndFrequencyParams(
+        maximumFrequency = MAX_FREQUENCY,
+        vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
+        reachDpParams = LOW_NOISE_DP_PARAMS,
+        frequencyDpParams = LOW_NOISE_DP_PARAMS,
+        kAnonymityParams = kAnonymityParams,
+      )
+    val processor = TrusTeeProcessorImpl(params)
+    val vector = ByteArray(100) { 1 }
+    processor.addFrequencyVector(vector)
+    val result = processor.computeResult() as ReachAndFrequencyResult
+
+    assertThat(result.reach).isGreaterThan(0)
+  }
+
   companion object {
     private const val MAX_FREQUENCY = 5
     private const val FLOAT_COMPARISON_TOLERANCE = 1e-9
 
     private val DEFAULT_DP_PARAMS = differentialPrivacyParams {
       epsilon = 1.0
+      delta = 0.99
+    }
+
+    private val LOW_NOISE_DP_PARAMS = differentialPrivacyParams {
+      epsilon = 100.0
       delta = 0.99
     }
 

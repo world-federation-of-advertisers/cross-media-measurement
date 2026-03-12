@@ -31,6 +31,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
+import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.PermanentErrorException
 import org.wfanet.measurement.duchy.mill.Certificate
@@ -164,12 +165,32 @@ class TrusTeeMill(
 
   /** Converts internal [TrusTee.ComputationDetails] to the internal [TrusTeeParams]. */
   fun TrusTeeDetails.toTrusTeeParams(): TrusTeeParams {
+    val kAnonymityParams: KAnonymityParams? =
+      if (parameters.hasKAnonymityParams()) {
+        require(parameters.kAnonymityParams.minUsers > 0) {
+          "k-anonymity minUsers must be greater than 0, got ${parameters.kAnonymityParams.minUsers}"
+        }
+        require(parameters.kAnonymityParams.minImpressions > 0) {
+          "k-anonymity minImpressions must be greater than 0, got ${parameters.kAnonymityParams.minImpressions}"
+        }
+        KAnonymityParams(
+          minUsers = parameters.kAnonymityParams.minUsers,
+          minImpressions = parameters.kAnonymityParams.minImpressions,
+        )
+      } else {
+        null
+      }
+
     return when (type) {
       TrusTeeDetails.Type.REACH -> {
         require(parameters.hasReachDpParams()) {
           "Reach DP params are required for a Reach-only TrusTee computation."
         }
-        TrusTeeReachParams(parameters.vidSamplingIntervalWidth, parameters.reachDpParams)
+        TrusTeeReachParams(
+          parameters.vidSamplingIntervalWidth,
+          parameters.reachDpParams,
+          kAnonymityParams,
+        )
       }
       TrusTeeDetails.Type.REACH_AND_FREQUENCY -> {
         require(parameters.hasReachDpParams()) {
@@ -183,6 +204,7 @@ class TrusTeeMill(
           parameters.vidSamplingIntervalWidth,
           parameters.reachDpParams,
           parameters.frequencyDpParams,
+          kAnonymityParams,
         )
       }
       TrusTeeDetails.Type.TYPE_UNSPECIFIED,

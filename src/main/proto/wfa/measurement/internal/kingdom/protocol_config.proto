@@ -151,6 +151,18 @@ message ProtocolConfig {
   message TrusTee {
     // The mechanism to generate noise from computation.
     NoiseMechanism noise_mechanism = 1;
+
+    // Parameters for k-anonymity applied to the result. If the threshold is not
+    // met, a zero result is returned instead.
+    message KAnonymityParams {
+      // The minimum number of impressions.
+      int32 min_impressions = 1;
+      // The minimum number of unique users.
+      int32 min_users = 2;
+    }
+
+    // Optional k-anonymity parameters.
+    KAnonymityParams k_anonymity_params = 2;
   }
 
   // Configuration for the specific protocol.

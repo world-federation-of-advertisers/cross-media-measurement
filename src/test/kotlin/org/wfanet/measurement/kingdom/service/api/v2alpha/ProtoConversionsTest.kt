@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -25,12 +26,22 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.copyFromShar
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.copyToSharedStorageStep as v2AlphaCopyToSharedStorageStep
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.inputStep as v2AlphaInputStep
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step as v2AlphaStep
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.TrusTeeKt.kAnonymityParams as publicKAnonymityParams
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.protocol
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.trusTee as publicTrusTee
 import org.wfanet.measurement.api.v2alpha.exchangeWorkflow as v2AlphaWorkflow
+import org.wfanet.measurement.api.v2alpha.protocolConfig as publicProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow.Party as InternalParty
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow.Step as InternalExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt.step as internalStep
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.TrusTeeKt.kAnonymityParams as internalKAnonymityParams
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.exchangeWorkflow as internalWorkflow
+import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 
 private val V2ALPHA_EDP_INPUT_STEP = v2AlphaStep {
   stepId = "edp-input-foo-step"
@@ -188,6 +199,64 @@ class ProtoConversionsTest {
               INTERNAL_MP_STEP.withStepIndex(5).withPrerequisites(1),
               INTERNAL_EDP_STEP.withStepIndex(6),
             )
+        }
+      )
+  }
+
+  @Test
+  fun `toProtocolConfig maps TrusTee kAnonymityParams`() {
+    val internal = internalProtocolConfig {
+      externalProtocolConfigId = "trustee"
+      trusTee =
+        ProtocolConfigKt.trusTee {
+          noiseMechanism = InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
+          kAnonymityParams = internalKAnonymityParams {
+            minImpressions = 10
+            minUsers = 5
+          }
+        }
+    }
+
+    val result =
+      internal.toProtocolConfig(MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY, 2)
+
+    assertThat(result)
+      .isEqualTo(
+        publicProtocolConfig {
+          measurementType = ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
+          protocols += protocol {
+            trusTee = publicTrusTee {
+              noiseMechanism = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+              kAnonymityParams = publicKAnonymityParams {
+                minImpressions = 10
+                minUsers = 5
+              }
+            }
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `toProtocolConfig maps TrusTee without kAnonymityParams`() {
+    val internal = internalProtocolConfig {
+      externalProtocolConfigId = "trustee"
+      trusTee =
+        ProtocolConfigKt.trusTee { noiseMechanism = InternalNoiseMechanism.CONTINUOUS_GAUSSIAN }
+    }
+
+    val result =
+      internal.toProtocolConfig(MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY, 2)
+
+    assertThat(result)
+      .isEqualTo(
+        publicProtocolConfig {
+          measurementType = ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
+          protocols += protocol {
+            trusTee = publicTrusTee {
+              noiseMechanism = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+            }
+          }
         }
       )
   }

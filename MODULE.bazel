@@ -442,3 +442,9 @@ single_version_override(
     module_name = "boringssl",
     version = BORINGSSL_VERSION,
 )
+
+git_override(
+    module_name = "cross-media-measurement-api",
+    commit = "bf5f0175a237db7a6912ca671329f7c546d84b88",
+    remote = "https://github.com/world-federation-of-advertisers/cross-media-measurement-api.git",
+)
