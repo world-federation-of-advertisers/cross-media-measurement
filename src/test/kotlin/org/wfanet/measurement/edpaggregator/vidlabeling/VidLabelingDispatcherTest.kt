@@ -407,6 +407,99 @@ class VidLabelingDispatcherTest {
       .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
   }
 
+  @Test
+  fun `dispatch packs files efficiently using best-fit decreasing`() = runBlocking {
+    val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet", 400L)
+    val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet", 400L)
+    val blob3 = createMockBlob("$FOLDER_PREFIX/file3.parquet", 600L)
+    val blob4 = createMockBlob("$FOLDER_PREFIX/file4.parquet", 600L)
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2, blob3, blob4))
+    whenever(workItemsService.createWorkItem(any())).thenReturn(
+      WorkItem.getDefaultInstance()
+    )
+
+    // BFD with max 1000: sorts [600, 600, 400, 400], packs (600+400), (600+400).
+    val dispatcher = createDispatcher(batchMaxSizeBytes = 1000L)
+    dispatcher.dispatch(DONE_BLOB_PATH)
+
+    val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService, times(2)) { createWorkItem(requestCaptor.capture()) }
+
+    val batch1Params =
+      requestCaptor.allValues[0]
+        .workItem
+        .workItemParams
+        .unpack(
+          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::
+            class
+            .java
+        )
+        .appParams
+        .unpack(VidLabelerParams::class.java)
+    val batch2Params =
+      requestCaptor.allValues[1]
+        .workItem
+        .workItemParams
+        .unpack(
+          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::
+            class
+            .java
+        )
+        .appParams
+        .unpack(VidLabelerParams::class.java)
+
+    // Each batch should contain exactly 2 files (one 600 + one 400).
+    assertThat(batch1Params.inputBlobUrisList).hasSize(2)
+    assertThat(batch2Params.inputBlobUrisList).hasSize(2)
+  }
+
+  @Test
+  fun `dispatch places oversized file in its own batch`() = runBlocking {
+    val normalBlob = createMockBlob("$FOLDER_PREFIX/normal.parquet", 400L)
+    val oversizedBlob = createMockBlob("$FOLDER_PREFIX/oversized.parquet", 1500L)
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(normalBlob, oversizedBlob))
+    whenever(workItemsService.createWorkItem(any())).thenReturn(
+      WorkItem.getDefaultInstance()
+    )
+
+    val dispatcher = createDispatcher(batchMaxSizeBytes = 1000L)
+    dispatcher.dispatch(DONE_BLOB_PATH)
+
+    val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService, times(2)) { createWorkItem(requestCaptor.capture()) }
+
+    // Oversized batches come first in the output.
+    val oversizedBatchParams =
+      requestCaptor.allValues[0]
+        .workItem
+        .workItemParams
+        .unpack(
+          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::
+            class
+            .java
+        )
+        .appParams
+        .unpack(VidLabelerParams::class.java)
+    val normalBatchParams =
+      requestCaptor.allValues[1]
+        .workItem
+        .workItemParams
+        .unpack(
+          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::
+            class
+            .java
+        )
+        .appParams
+        .unpack(VidLabelerParams::class.java)
+
+    // Oversized file is alone in its batch.
+    assertThat(oversizedBatchParams.inputBlobUrisList).hasSize(1)
+    assertThat(oversizedBatchParams.inputBlobUrisList[0]).contains("oversized.parquet")
+    // Normal file is in its own batch.
+    assertThat(normalBatchParams.inputBlobUrisList).hasSize(1)
+    assertThat(normalBatchParams.inputBlobUrisList[0]).contains("normal.parquet")
+  }
+
   companion object {
     private const val DATA_PROVIDER_NAME = "dataProviders/edp123"
     private const val QUEUE_NAME = "queues/vid-labeler-queue"
