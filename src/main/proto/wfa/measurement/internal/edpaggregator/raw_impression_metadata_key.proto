@@ -21,7 +21,7 @@ option java_multiple_files = true;
 
 // Key components for a [RawImpressionMetadata][] scoped to a DataProvider.
 message RawImpressionMetadataKey {
-  string raw_impression_upload_id = 1;
+  string raw_impression_upload_resource_id = 1;
   int64 batch_index = 2;
   string file_resource_id = 3;
 }

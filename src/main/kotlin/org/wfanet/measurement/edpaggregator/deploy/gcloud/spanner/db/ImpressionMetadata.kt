@@ -34,6 +34,7 @@ import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataNotFoundException
+import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionMetadataNotFoundException
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -87,8 +88,8 @@ suspend fun AsyncDatabaseClient.ReadContext.getImpressionMetadataByResourceId(
     appendLine(ImpressionMetadataEntity.BASE_SQL)
     appendLine(
       """
-      WHERE IM.DataProviderResourceId = @dataProviderResourceId
-      AND IM.ImpressionMetadataResourceId = @impressionMetadataResourceId
+      WHERE ImpressionMetadata.DataProviderResourceId = @dataProviderResourceId
+      AND ImpressionMetadata.ImpressionMetadataResourceId = @impressionMetadataResourceId
       """
         .trimIndent()
     )
@@ -123,8 +124,8 @@ suspend fun AsyncDatabaseClient.ReadContext.getImpressionMetadataByResourceIds(
     appendLine(ImpressionMetadataEntity.BASE_SQL)
     appendLine(
       """
-      WHERE IM.DataProviderResourceId = @dataProviderResourceId
-      AND IM.ImpressionMetadataResourceId IN UNNEST(@impressionMetadataResourceIds)
+      WHERE ImpressionMetadata.DataProviderResourceId = @dataProviderResourceId
+      AND ImpressionMetadata.ImpressionMetadataResourceId IN UNNEST(@impressionMetadataResourceIds)
       """
         .trimIndent()
     )
@@ -158,9 +159,9 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingImpressionMetadataByRequ
     appendLine(ImpressionMetadataEntity.BASE_SQL)
     appendLine(
       """
-      WHERE IM.DataProviderResourceId = @dataProviderResourceId
-        AND IM.CreateRequestId IS NOT NULL
-        AND IM.CreateRequestId IN UNNEST(@createRequestIds)
+      WHERE ImpressionMetadata.DataProviderResourceId = @dataProviderResourceId
+        AND ImpressionMetadata.CreateRequestId IS NOT NULL
+        AND ImpressionMetadata.CreateRequestId IN UNNEST(@createRequestIds)
       """
         .trimIndent()
     )
@@ -196,8 +197,8 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingImpressionMetadataByBlob
     appendLine(ImpressionMetadataEntity.BASE_SQL)
     appendLine(
       """
-      WHERE IM.DataProviderResourceId = @dataProviderResourceId
-        AND IM.BlobUri IN UNNEST(@blobUris)
+      WHERE ImpressionMetadata.DataProviderResourceId = @dataProviderResourceId
+        AND ImpressionMetadata.BlobUri IN UNNEST(@blobUris)
       """
         .trimIndent()
     )
@@ -218,8 +219,8 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingImpressionMetadataByBlob
 /**
  * Resolves resource IDs from a [RawImpressionMetadataKey] to internal Spanner IDs.
  *
- * @throws io.grpc.StatusRuntimeException with NOT_FOUND if the referenced RawImpressionMetadata
- *   does not exist
+ * @throws RawImpressionMetadataNotFoundException if the referenced RawImpressionMetadata does not
+ *   exist
  */
 suspend fun AsyncDatabaseClient.ReadContext.resolveRawImpressionInternalKey(
   dataProviderResourceId: String,
@@ -240,14 +241,13 @@ suspend fun AsyncDatabaseClient.ReadContext.resolveRawImpressionInternalKey(
     executeQuery(
         statement(sql) {
           bind("dataProviderResourceId").to(dataProviderResourceId)
-          bind("uploadResourceId").to(key.rawImpressionUploadId)
+          bind("uploadResourceId").to(key.rawImpressionUploadResourceId)
           bind("batchIndex").to(key.batchIndex)
           bind("fileResourceId").to(key.fileResourceId)
         }
       )
       .singleOrNullIfEmpty()
-      ?: throw Status.NOT_FOUND.withDescription("RawImpressionMetadata not found")
-        .asRuntimeException()
+      ?: throw RawImpressionMetadataNotFoundException(dataProviderResourceId)
 
   return RawImpressionInternalKey(
     uploadId = row.getLong("UploadId"),
@@ -396,36 +396,36 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
   val sql = buildString {
     appendLine(ImpressionMetadataEntity.BASE_SQL)
 
-    val conjuncts = mutableListOf("IM.DataProviderResourceId = @dataProviderResourceId")
+    val conjuncts = mutableListOf("ImpressionMetadata.DataProviderResourceId = @dataProviderResourceId")
 
     if (filter.state != State.IMPRESSION_METADATA_STATE_UNSPECIFIED) {
-      conjuncts.add("IM.State = @state")
+      conjuncts.add("ImpressionMetadata.State = @state")
     }
 
     if (filter.cmmsModelLine.isNotEmpty()) {
-      conjuncts.add("IM.CmmsModelLine = @cmmsModelLine")
+      conjuncts.add("ImpressionMetadata.CmmsModelLine = @cmmsModelLine")
     }
 
     if (filter.eventGroupReferenceId.isNotEmpty()) {
-      conjuncts.add("IM.EventGroupReferenceId = @eventGroupReferenceId")
+      conjuncts.add("ImpressionMetadata.EventGroupReferenceId = @eventGroupReferenceId")
     }
 
     if (filter.hasIntervalOverlaps()) {
       conjuncts.add(
-        "IM.IntervalStartTime < @intervalOverlapsEndTime AND IM.IntervalEndTime > @intervalOverlapsStartTime"
+        "ImpressionMetadata.IntervalStartTime < @intervalOverlapsEndTime AND ImpressionMetadata.IntervalEndTime > @intervalOverlapsStartTime"
       )
     }
 
     if (filter.blobUriPrefix.isNotEmpty()) {
-      conjuncts.add("STARTS_WITH(IM.BlobUri, @blobUriPrefix)")
+      conjuncts.add("STARTS_WITH(ImpressionMetadata.BlobUri, @blobUriPrefix)")
     }
 
     if (after != null) {
-      conjuncts.add("IM.ImpressionMetadataResourceId > @afterImpressionMetadataResourceId")
+      conjuncts.add("ImpressionMetadata.ImpressionMetadataResourceId > @afterImpressionMetadataResourceId")
     }
 
     appendLine("WHERE " + conjuncts.joinToString(" AND "))
-    appendLine("ORDER BY IM.ImpressionMetadataResourceId ASC")
+    appendLine("ORDER BY ImpressionMetadata.ImpressionMetadataResourceId ASC")
     appendLine("LIMIT @limit")
   }
 
@@ -507,30 +507,30 @@ private object ImpressionMetadataEntity {
   val BASE_SQL =
     """
     SELECT
-      IM.DataProviderResourceId,
-      IM.ImpressionMetadataId,
-      IM.ImpressionMetadataResourceId,
-      IM.CreateRequestId,
-      IM.BlobUri,
-      IM.BlobTypeUrl,
-      IM.EventGroupReferenceId,
-      IM.CmmsModelLine,
-      IM.IntervalStartTime,
-      IM.IntervalEndTime,
-      IM.State,
-      IM.CreateTime,
-      IM.UpdateTime,
-      RIM.UploadResourceId AS RawImpressionUploadResourceId,
-      IM.RawImpressionBatchIndex,
-      RIM.FileResourceId AS RawImpressionFileResourceId,
+      ImpressionMetadata.DataProviderResourceId,
+      ImpressionMetadata.ImpressionMetadataId,
+      ImpressionMetadata.ImpressionMetadataResourceId,
+      ImpressionMetadata.CreateRequestId,
+      ImpressionMetadata.BlobUri,
+      ImpressionMetadata.BlobTypeUrl,
+      ImpressionMetadata.EventGroupReferenceId,
+      ImpressionMetadata.CmmsModelLine,
+      ImpressionMetadata.IntervalStartTime,
+      ImpressionMetadata.IntervalEndTime,
+      ImpressionMetadata.State,
+      ImpressionMetadata.CreateTime,
+      ImpressionMetadata.UpdateTime,
+      RawImpressionMetadata.UploadResourceId AS RawImpressionUploadResourceId,
+      ImpressionMetadata.RawImpressionBatchIndex,
+      RawImpressionMetadata.FileResourceId AS RawImpressionFileResourceId,
     FROM
-      ImpressionMetadata AS IM
+      ImpressionMetadata
     LEFT JOIN
-      RawImpressionMetadata AS RIM
-      ON IM.DataProviderResourceId = RIM.DataProviderResourceId
-      AND IM.RawImpressionUploadId = RIM.UploadId
-      AND IM.RawImpressionBatchIndex = RIM.BatchIndex
-      AND IM.RawImpressionFileId = RIM.FileId
+      RawImpressionMetadata
+      ON ImpressionMetadata.DataProviderResourceId = RawImpressionMetadata.DataProviderResourceId
+      AND ImpressionMetadata.RawImpressionUploadId = RawImpressionMetadata.UploadId
+      AND ImpressionMetadata.RawImpressionBatchIndex = RawImpressionMetadata.BatchIndex
+      AND ImpressionMetadata.RawImpressionFileId = RawImpressionMetadata.FileId
     """
       .trimIndent()
 
@@ -554,7 +554,7 @@ private object ImpressionMetadataEntity {
         etag = ETags.computeETag(updateTime.toInstant())
         if (!struct.isNull("RawImpressionUploadResourceId")) {
           rawImpressionMetadataKey = rawImpressionMetadataKey {
-            rawImpressionUploadId = struct.getString("RawImpressionUploadResourceId")
+            rawImpressionUploadResourceId = struct.getString("RawImpressionUploadResourceId")
             batchIndex = struct.getLong("RawImpressionBatchIndex")
             fileResourceId = struct.getString("RawImpressionFileResourceId")
           }
