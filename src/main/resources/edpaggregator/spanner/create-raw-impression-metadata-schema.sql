@@ -31,6 +31,7 @@ ALTER PROTO BUNDLE INSERT (
 -- Tracks raw impression files grouped into batches for VID labeling.
 -- Hierarchy: DataProvider -> Upload -> Batch -> File
 -- Resource pattern: dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/batches/{batch}/files/{file}
+-- TODO(@getina): Rename the DB table to align with the Resource name in the public API.
 CREATE TABLE RawImpressionMetadata (
   -- External API resource ID of the DataProvider that owns this file.
   DataProviderResourceId STRING(63) NOT NULL,
