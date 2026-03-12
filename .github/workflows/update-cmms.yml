@@ -235,6 +235,9 @@ jobs:
     ]
     uses: ./.github/workflows/edpa-cloud-test.yml
     secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
     with:
       environment: ${{ inputs.environment }}
 
