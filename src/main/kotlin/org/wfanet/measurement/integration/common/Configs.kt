@@ -102,6 +102,11 @@ val TRUSTEE_PROTOCOL_CONFIG_CONFIG_NO_K_ANON: TrusTeeProtocolConfigConfig =
     "trustee_protocol_config_config_no_k_anon.textproto",
     TrusTeeProtocolConfigConfig.getDefaultInstance(),
   )
+val TRUSTEE_PROTOCOL_CONFIG_CONFIG_K_ANON_NO_NOISE: TrusTeeProtocolConfigConfig =
+  loadTextProto(
+    "trustee_protocol_config_config_k_anon_no_noise.textproto",
+    TrusTeeProtocolConfigConfig.getDefaultInstance(),
+  )
 val IMPRESSION_QUALIFICATION_FILTER_CONFIG: ImpressionQualificationFilterConfig =
   loadTextProto(
     "impression_qualification_filter_config.textproto",

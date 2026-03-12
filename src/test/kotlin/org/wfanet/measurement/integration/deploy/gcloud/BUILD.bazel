@@ -230,6 +230,35 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "gcloud_edp_aggregator_life_of_a_measurement_k_anon_no_noise_integration_test",
+    srcs = ["GCloudEdpAggregatorLifeOfAMeasurementKAnonNoNoiseIntegrationTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_cmms_components",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_edp_aggregator_life_of_a_measurement_integration_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "GCloudEdpAggregatorLifeOfAMeasurementKAnonNoNoiseIntegrationTest",
+    size = "large",
+    timeout = "long",
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudEdpAggregatorLifeOfAMeasurementKAnonNoNoiseIntegrationTest",
+    runtime_deps = [
+        ":gcloud_edp_aggregator_life_of_a_measurement_k_anon_no_noise_integration_test",
+        "//imports/java/org/slf4j:simple",
+    ],
+)
+
+kt_jvm_library(
     name = "gcloud_in_process_model_repository_cli_integration_test",
     srcs = ["GCloudInProcessModelRepositoryCliIntegrationTest.kt"],
     data = ["@cloud_spanner_emulator//:emulator"],

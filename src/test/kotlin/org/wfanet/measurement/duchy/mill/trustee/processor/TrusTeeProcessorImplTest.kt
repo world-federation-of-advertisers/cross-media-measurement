@@ -196,17 +196,12 @@ class TrusTeeProcessorImplTest {
   @Test
   fun `computeResult for R&F caps noised reach at theoretical maximum`() {
     val samplingWidth = 0.5f
-    // Low noise
-    val dpParams = differentialPrivacyParams {
-      epsilon = 100.0
-      delta = 0.99
-    }
     val params =
       TrusTeeReachAndFrequencyParams(
         maximumFrequency = MAX_FREQUENCY,
         vidSamplingIntervalWidth = samplingWidth,
-        reachDpParams = dpParams,
-        frequencyDpParams = dpParams,
+        reachDpParams = DEFAULT_DP_PARAMS,
+        frequencyDpParams = DEFAULT_DP_PARAMS,
         kAnonymityParams = null,
       )
     val processor = TrusTeeProcessorImpl(params)
@@ -219,7 +214,6 @@ class TrusTeeProcessorImplTest {
 
     val maxPossibleScaledReach = (vectorSize / samplingWidth).toLong() // 200 / 0.5 = 400
 
-    // The result should be at most the theoretical maximum.
     assertThat(result.reach).isAtMost(maxPossibleScaledReach)
   }
 

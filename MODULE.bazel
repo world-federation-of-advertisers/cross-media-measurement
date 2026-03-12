@@ -447,6 +447,6 @@ single_version_override(
 # https://github.com/world-federation-of-advertisers/cross-media-measurement-api/pull/272
 git_override(
     module_name = "cross-media-measurement-api",
-    commit = "bf5f0175a237db7a6912ca671329f7c546d84b88",
+    commit = "2776237cf826e17285ada805cbeda36322337819",
     remote = "https://github.com/world-federation-of-advertisers/cross-media-measurement-api.git",
 )

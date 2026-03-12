@@ -259,6 +259,38 @@ class ReachAndFrequencyComputationsTest {
     assertThat(distribution).isEqualTo(expected)
   }
 
+  @Test
+  fun `computeFrequencyDistribution with noise and k-anonymity`() {
+    val rawHistogram = longArrayOf(10, 30, 70) // Frequencies 1, 2, 3
+    val distribution =
+      ReachAndFrequencyComputations.computeFrequencyDistribution(
+        rawHistogram,
+        maxFrequency = 3,
+        dpParams = DP_PARAMS,
+        kAnonymityParams = KAnonymityParams(minUsers = 11, minImpressions = 5),
+        vidSamplingIntervalWidth = 1.0f,
+      )
+    assertThat(distribution[1L]).isEqualTo(0.0)
+    assertThat(distribution[2L]).isGreaterThan(0.0)
+    assertThat(distribution[3L]).isGreaterThan(0.0)
+    assertThat(distribution.values.sum()).isWithin(FLOAT_COMPARISON_TOLERANCE).of(1.0)
+  }
+
+  @Test
+  fun `computeFrequencyDistribution with noise and k-anonymity goes to zero`() {
+    val rawHistogram = longArrayOf(10, 30, 70) // Frequencies 1, 2, 3
+    val distribution =
+      ReachAndFrequencyComputations.computeFrequencyDistribution(
+        rawHistogram,
+        maxFrequency = 3,
+        dpParams = DP_PARAMS,
+        kAnonymityParams = KAnonymityParams(minUsers = 110, minImpressions = 5),
+        vidSamplingIntervalWidth = 1.0f,
+      )
+    val expected = mapOf(1L to 0.0, 2L to 0.0, 3L to 0.0)
+    assertThat(distribution).isEqualTo(expected)
+  }
+
   companion object {
     private const val MAX_FREQUENCY = 5
     private const val FLOAT_COMPARISON_TOLERANCE = 1e-9
