@@ -16,11 +16,15 @@ name: Conditionally build and push container images
 
 on:
   workflow_dispatch:
+    # DO_NOT_SUBMIT: TODO: default?
   workflow_call:
     inputs:
       existing-image-tag:
         description: "Tag of existing published container images"
         type: string
+      use-release-key:
+        type: boolean
+        default: false
     outputs:
       image-tag:
         description: "Tag of container images"
@@ -90,7 +94,8 @@ jobs:
   sign-images-with-release-key:
     uses: ./.github/workflows/sign-images.yml
     needs: [get-image-tag, push-images]
-    if: ${{ github.event_name == 'release' }}
+    # DO_NOT_SUBMIT: update WIP Provider condition (not using 'release' event anymore)
+    if: ${{ inputs.use-release-key }}
     secrets: inherit
     permissions:
       contents: read
