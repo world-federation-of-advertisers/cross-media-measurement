@@ -39,6 +39,8 @@ jobs:
       with:
         fetch-depth: 0
 
+    # DO_NOT_SUBMIT: TODO: precondition on new-release-tag: vX.Y.Z (optional suffix, e.g. "-rc1")
+
     - name: Get nightly build sha
       id: get-nightly-build-sha
       env:
