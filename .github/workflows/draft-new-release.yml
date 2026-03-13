@@ -17,15 +17,14 @@ name: Draft new release
 on:
   workflow_dispatch:
     inputs:
-      new-release-tag:
+      existing-release-tag:
         type: string
+        description: "Existing release tag (e.g. v0.5.35)"
         required: true
       milestone-name:
         type: string
-        description: "Milestone name. Default: stable version of the new-release-tag"
-      target-commitish:
-        type: string
-        description: "Target tag / full commit SHA. Default: latest nightly build."
+        description: "Milestone name. Default: stable version of the existing-release-tag (i.e. non-RC)"
+      # DO_NOT_SUBMIT: default to the second-to-last? (logic/description)
       notes-start-commitish:
         type: string
         description: "Start tag / full commit SHA for getting release notes. Default: latest final release (no RC, no draft, no pre-release)."
@@ -82,7 +81,7 @@ jobs:
         shell: bash
         env:
           MILESTONE_NAME: ${{ inputs.milestone-name }}
-          NEW_RELEASE_TAG: ${{ inputs.new-release-tag }}
+          NEW_RELEASE_TAG: ${{ inputs.existing-release-tag }}
         run: |
           name="${MILESTONE_NAME}"
           if [ -z "${name}" ]; then
@@ -106,15 +105,8 @@ jobs:
         id: compute-release-target
         shell: bash
         env:
-          RELEASE_TARGET_COMMITISH: ${{ inputs.target-commitish }}
+          RELEASE_TARGET_COMMITISH: ${{ inputs.existing-release-tag }}
         run: |
-          set -euo pipefail
-          target="${RELEASE_TARGET_COMMITISH}"
-          if [ -z "${target}" ]; then
-            latest_nightly_build_tag=$(git tag --list "nightly/*" | sort -V | tail -n1)
-            echo "Using SHA of latest nightly build tag: ${latest_nightly_build_tag}"
-            target="${latest_nightly_build_tag}"
-          fi
           sha=$(git rev-parse --verify "${target}")
           echo "sha=${sha}" | tee -a $GITHUB_OUTPUT
 
@@ -145,13 +137,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NOTES_START_TAG: ${{ needs.compute-notes-start-commitish.outputs.commitish }}
-          NEW_RELEASE_TAG: ${{ inputs.new-release-tag }}
+          EXISTING_RELEASE_TAG: ${{ inputs.existing-release-tag }}
           RELEASE_TARGET: ${{ needs.compute-release-target.outputs.sha }}
           EXTRA_NOTES: ${{ needs.compute-release-notes.outputs.summary }}
         run: >
           gh release create --draft
           --target "${RELEASE_TARGET}"
+          --verify-tag
           --generate-notes
           --notes-start-tag "${NOTES_START_TAG}"
           --notes "${EXTRA_NOTES}"
-          "${NEW_RELEASE_TAG}"
+          "${EXISTING_RELEASE_TAG}"
