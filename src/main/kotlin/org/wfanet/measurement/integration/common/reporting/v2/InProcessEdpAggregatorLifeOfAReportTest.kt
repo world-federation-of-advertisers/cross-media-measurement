@@ -719,13 +719,24 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   }
 
   /**
-   * Asserts that k-anonymity filtering zeroed some metrics while preserving others.
+   * Asserts that k-anonymity filtering zeroed some or all k+ reach metrics.
    *
-   * With a high k-anonymity threshold (e.g. min_users=500), higher frequency buckets with fewer
-   * users are filtered to zero, while lower frequency buckets with more users survive. This results
-   * in some k+ reach values being zero while cross-publisher and component reaches remain positive.
+   * With a high k-anonymity threshold, frequency buckets with fewer users than the threshold are
+   * filtered to zero. The [expectedNonZeroKPlusReachCount] specifies how many leading k+ reach
+   * entries should survive.
+   *
+   * When [expectedNonZeroKPlusReachCount] is 0, all TrusTee metrics (reach, k+ reach, component
+   * reaches) are expected to be zeroed. When positive, cross-publisher reach and component reaches
+   * should survive while only higher frequency k+ reach entries are zeroed.
+   *
+   * @param expectedNonZeroKPlusReachCount The number of leading k+ reach entries that should be
+   *   positive. All remaining entries are expected to be zero. Since k+ reach is monotonically
+   *   non-increasing, the non-zero entries are always at the front.
    */
-  protected fun assertKAnonFilteredResults(basicReport: BasicReport) {
+  protected fun assertKAnonFilteredResults(
+    basicReport: BasicReport,
+    expectedNonZeroKPlusReachCount: Int,
+  ) {
     assertWithMessage("result groups").that(basicReport.resultGroupsList).hasSize(1)
 
     val resultGroup = basicReport.resultGroupsList.single()
@@ -738,24 +749,35 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     val result = totalResults.single()
     val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
 
-    assertWithMessage("cross-publisher reach survives k-anon")
-      .that(reportingUnitCumulative.reach)
-      .isGreaterThan(0L)
+    if (expectedNonZeroKPlusReachCount > 0) {
+      assertWithMessage("cross-publisher reach survives k-anon")
+        .that(reportingUnitCumulative.reach)
+        .isGreaterThan(0L)
+    } else {
+      assertWithMessage("cross-publisher reach zeroed by k-anon")
+        .that(reportingUnitCumulative.reach)
+        .isEqualTo(0L)
+    }
 
-    assertWithMessage("cross-publisher impressions survives k-anon")
+    assertWithMessage("cross-publisher impressions")
       .that(reportingUnitCumulative.impressions)
       .isGreaterThan(0L)
 
-    assertWithMessage("k+ reach has at least one non-zero entry")
-      .that(reportingUnitCumulative.kPlusReachList.any { it > 0L })
-      .isTrue()
-
-    assertWithMessage("k+ reach has at least one zero entry (filtered by k-anon)")
-      .that(reportingUnitCumulative.kPlusReachList)
-      .contains(0L)
+    val kPlusReach = reportingUnitCumulative.kPlusReachList
+    for (k in kPlusReach.indices) {
+      if (k < expectedNonZeroKPlusReachCount) {
+        assertWithMessage("k+${k + 1} reach should survive k-anon")
+          .that(kPlusReach[k])
+          .isGreaterThan(0L)
+      } else {
+        assertWithMessage("k+${k + 1} reach should be zeroed by k-anon")
+          .that(kPlusReach[k])
+          .isEqualTo(0L)
+      }
+    }
 
     assertWithMessage("k+ reach is monotonically non-increasing")
-      .that(reportingUnitCumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it })
+      .that(kPlusReach.zipWithNext { a, b -> b <= a }.all { it })
       .isTrue()
 
     assertWithMessage("number of components").that(result.metricSet.componentsCount).isEqualTo(2)
@@ -763,11 +785,17 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     result.metricSet.componentsList.forEach { component ->
       val cumulative = component.value.cumulative
 
-      assertWithMessage("component ${component.key} reach survives k-anon")
-        .that(cumulative.reach)
-        .isGreaterThan(0L)
+      if (expectedNonZeroKPlusReachCount > 0) {
+        assertWithMessage("component ${component.key} reach survives k-anon")
+          .that(cumulative.reach)
+          .isGreaterThan(0L)
+      } else {
+        assertWithMessage("component ${component.key} reach zeroed by k-anon")
+          .that(cumulative.reach)
+          .isEqualTo(0L)
+      }
 
-      assertWithMessage("component ${component.key} impressions survives k-anon")
+      assertWithMessage("component ${component.key} impressions")
         .that(cumulative.impressions)
         .isGreaterThan(0L)
 

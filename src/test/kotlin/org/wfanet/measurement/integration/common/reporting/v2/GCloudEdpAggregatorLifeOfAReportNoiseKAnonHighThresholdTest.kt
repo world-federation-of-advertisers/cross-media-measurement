@@ -56,7 +56,7 @@ class GCloudEdpAggregatorLifeOfAReportNoiseKAnonHighThresholdTest :
   @get:Rule val timeout: Timeout = Timeout.seconds(180)
 
   override fun assertTrusTeeResults(basicReport: BasicReport) {
-    assertKAnonFilteredResults(basicReport)
+    assertKAnonFilteredResults(basicReport, expectedNonZeroKPlusReachCount = 0)
   }
 
   companion object {
