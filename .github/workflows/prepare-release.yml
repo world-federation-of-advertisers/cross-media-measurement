@@ -20,9 +20,11 @@ on:
       existing-nightly-build:
         description: "Existing nightly build tag (e.g. nightly/20260305.2)"
         type: string
+        required: true
       new-release-tag:
         description: "Release tag to create (e.g. v0.5.35)"
         type: string
+        required: true
 
 permissions:
   contents: read
