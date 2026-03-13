@@ -16,7 +16,7 @@ name: Conditionally build and push container images
 
 on:
   workflow_dispatch:
-    # TODO: default?
+    # DO_NOT_SUBMIT: TODO: default?
   workflow_call:
     inputs:
       existing-image-tag:
