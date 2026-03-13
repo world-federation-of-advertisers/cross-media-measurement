@@ -114,6 +114,7 @@ object ConfigLoader {
     // ignoringUnknownFields(), fields like "data_provider" are silently ignored and we get an
     // empty Any. Returning null signals the caller to fall back to legacy parsing.
     if (any.typeUrl.isEmpty()) {
+      logger.info("Request body has no @type field; falling back to legacy format parsing")
       return null
     }
     return any
