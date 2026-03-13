@@ -4,7 +4,7 @@ protocol_config {
   noise_mechanism: CONTINUOUS_GAUSSIAN
   k_anonymity_params {
     min_impressions: 10
-    min_users: 200
+    min_users: 1000000000
   }
 }
 duchy_id: "aggregator"

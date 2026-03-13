@@ -111,7 +111,6 @@ kt_jvm_library(
     ],
     deps = _REPORT_TEST_DEPS + [
         "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_edp_aggregator_life_of_a_report_test",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
     ],
 )
 

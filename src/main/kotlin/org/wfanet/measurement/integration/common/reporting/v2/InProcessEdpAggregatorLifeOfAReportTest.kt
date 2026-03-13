@@ -718,93 +718,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .isLessThan(componentReaches.sum())
   }
 
-  /**
-   * Asserts that k-anonymity filtering zeroed some or all k+ reach metrics.
-   *
-   * With a high k-anonymity threshold, frequency buckets with fewer users than the threshold are
-   * filtered to zero. The [expectedNonZeroKPlusReachCount] specifies how many leading k+ reach
-   * entries should survive.
-   *
-   * When [expectedNonZeroKPlusReachCount] is 0, all TrusTee metrics (reach, k+ reach, component
-   * reaches) are expected to be zeroed. When positive, cross-publisher reach and component reaches
-   * should survive while only higher frequency k+ reach entries are zeroed.
-   *
-   * @param expectedNonZeroKPlusReachCount The number of leading k+ reach entries that should be
-   *   positive. All remaining entries are expected to be zero. Since k+ reach is monotonically
-   *   non-increasing, the non-zero entries are always at the front.
-   */
-  protected fun assertKAnonFilteredResults(
-    basicReport: BasicReport,
-    expectedNonZeroKPlusReachCount: Int,
-  ) {
-    assertWithMessage("result groups").that(basicReport.resultGroupsList).hasSize(1)
-
-    val resultGroup = basicReport.resultGroupsList.single()
-    val totalResults =
-      resultGroup.resultsList.filter {
-        it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
-      }
-    assertWithMessage("total results").that(totalResults).hasSize(1)
-
-    val result = totalResults.single()
-    val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
-
-    if (expectedNonZeroKPlusReachCount > 0) {
-      assertWithMessage("cross-publisher reach survives k-anon")
-        .that(reportingUnitCumulative.reach)
-        .isGreaterThan(0L)
-    } else {
-      assertWithMessage("cross-publisher reach zeroed by k-anon")
-        .that(reportingUnitCumulative.reach)
-        .isEqualTo(0L)
-    }
-
-    assertWithMessage("cross-publisher impressions")
-      .that(reportingUnitCumulative.impressions)
-      .isGreaterThan(0L)
-
-    val kPlusReach = reportingUnitCumulative.kPlusReachList
-    for (k in kPlusReach.indices) {
-      if (k < expectedNonZeroKPlusReachCount) {
-        assertWithMessage("k+${k + 1} reach should survive k-anon")
-          .that(kPlusReach[k])
-          .isGreaterThan(0L)
-      } else {
-        assertWithMessage("k+${k + 1} reach should be zeroed by k-anon")
-          .that(kPlusReach[k])
-          .isEqualTo(0L)
-      }
-    }
-
-    assertWithMessage("k+ reach is monotonically non-increasing")
-      .that(kPlusReach.zipWithNext { a, b -> b <= a }.all { it })
-      .isTrue()
-
-    assertWithMessage("number of components").that(result.metricSet.componentsCount).isEqualTo(2)
-
-    result.metricSet.componentsList.forEach { component ->
-      val cumulative = component.value.cumulative
-
-      if (expectedNonZeroKPlusReachCount > 0) {
-        assertWithMessage("component ${component.key} reach survives k-anon")
-          .that(cumulative.reach)
-          .isGreaterThan(0L)
-      } else {
-        assertWithMessage("component ${component.key} reach zeroed by k-anon")
-          .that(cumulative.reach)
-          .isEqualTo(0L)
-      }
-
-      assertWithMessage("component ${component.key} impressions")
-        .that(cumulative.impressions)
-        .isGreaterThan(0L)
-
-      assertWithMessage("component ${component.key} k+ reach is monotonically non-increasing")
-        .that(cumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it })
-        .isTrue()
-    }
-  }
-
   private fun assertRunningBasicReport(
     createBasicReportRequest: CreateBasicReportRequest,
     createdBasicReport: BasicReport,
@@ -1200,6 +1113,12 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     val EXPECTED_TRUSTEE_K_PLUS_REACH = listOf(5369L, 2677L, 682L, 394L, 0L)
     const val EXPECTED_TRUSTEE_EDP_SPEC1_REACH = 4472L
     const val EXPECTED_TRUSTEE_EDP_SPEC2_REACH = 3338L
+
+    const val EXPECTED_TRUSTEE_K_ANON_CROSS_PUBLISHER_REACH = 5459L
+    const val EXPECTED_TRUSTEE_K_ANON_CROSS_PUBLISHER_IMPRESSIONS = 9032L
+    val EXPECTED_TRUSTEE_K_ANON_K_PLUS_REACH = listOf(5459L, 2349L, 0L, 0L, 0L)
+    const val EXPECTED_TRUSTEE_K_ANON_EDP_SPEC1_REACH = 4436L
+    const val EXPECTED_TRUSTEE_K_ANON_EDP_SPEC2_REACH = 3310L
 
     @get:ClassRule @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
   }

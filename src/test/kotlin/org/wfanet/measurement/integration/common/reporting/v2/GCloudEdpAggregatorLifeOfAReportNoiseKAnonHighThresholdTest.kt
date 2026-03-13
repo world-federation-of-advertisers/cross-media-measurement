@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.integration.common.reporting.v2
 
+import com.google.common.truth.Truth.assertWithMessage
 import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
@@ -33,11 +34,12 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.hmssProtocolConfigConfig
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPORTING_CHANGELOG_PATH as POSTGRES_REPORTING_CHANGELOG_PATH
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
+import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 
 /**
  * Implementation of [InProcessEdpAggregatorLifeOfAReportTest] for GCloud backends with Spanner
- * database. Uses Gaussian noise TrusTee protocol config with high k-anonymity thresholds that cause
- * some component metrics to be zeroed.
+ * database. Uses Gaussian noise TrusTee protocol config with a very high k-anonymity threshold
+ * (min_users=100000) that zeroes all TrusTee reach metrics regardless of noise.
  */
 class GCloudEdpAggregatorLifeOfAReportNoiseKAnonHighThresholdTest :
   InProcessEdpAggregatorLifeOfAReportTest(
@@ -56,7 +58,25 @@ class GCloudEdpAggregatorLifeOfAReportNoiseKAnonHighThresholdTest :
   @get:Rule val timeout: Timeout = Timeout.seconds(180)
 
   override fun assertTrusTeeResults(basicReport: BasicReport) {
-    assertKAnonFilteredResults(basicReport, expectedNonZeroKPlusReachCount = 0)
+    val resultGroup = basicReport.resultGroupsList.single()
+    val totalResults =
+      resultGroup.resultsList.filter {
+        it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
+      }
+    val result = totalResults.single()
+    val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
+
+    assertWithMessage("cross-publisher reach zeroed by k-anon (noise)")
+      .that(reportingUnitCumulative.reach)
+      .isEqualTo(0L)
+
+    assertWithMessage("cross-publisher impressions positive (noise)")
+      .that(reportingUnitCumulative.impressions)
+      .isGreaterThan(0L)
+
+    assertWithMessage("all k+ reach zeroed by k-anon (noise)")
+      .that(reportingUnitCumulative.kPlusReachList.all { it == 0L })
+      .isTrue()
   }
 
   companion object {

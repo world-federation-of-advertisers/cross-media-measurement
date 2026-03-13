@@ -37,7 +37,7 @@ import org.wfanet.measurement.reporting.v2alpha.BasicReport
 /**
  * Implementation of [InProcessEdpAggregatorLifeOfAReportTest] for GCloud backends with Spanner
  * database. Uses no-noise TrusTee protocol config with high k-anonymity thresholds that cause some
- * component metrics to be zeroed.
+ * k+ reach entries to be zeroed.
  */
 class GCloudEdpAggregatorLifeOfAReportKAnonNoNoiseHighThresholdTest :
   InProcessEdpAggregatorLifeOfAReportTest(
@@ -56,7 +56,15 @@ class GCloudEdpAggregatorLifeOfAReportKAnonNoNoiseHighThresholdTest :
   @get:Rule val timeout: Timeout = Timeout.seconds(180)
 
   override fun assertTrusTeeResults(basicReport: BasicReport) {
-    assertKAnonFilteredResults(basicReport, expectedNonZeroKPlusReachCount = 2)
+    assertStructuralResults(basicReport)
+    assertNoNoiseResults(
+      basicReport,
+      expectedCrossPublisherReach = EXPECTED_TRUSTEE_K_ANON_CROSS_PUBLISHER_REACH,
+      expectedCrossPublisherImpressions = EXPECTED_TRUSTEE_K_ANON_CROSS_PUBLISHER_IMPRESSIONS,
+      expectedKPlusReach = EXPECTED_TRUSTEE_K_ANON_K_PLUS_REACH,
+      expectedEdpSpec1Reach = EXPECTED_TRUSTEE_K_ANON_EDP_SPEC1_REACH,
+      expectedEdpSpec2Reach = EXPECTED_TRUSTEE_K_ANON_EDP_SPEC2_REACH,
+    )
   }
 
   companion object {
