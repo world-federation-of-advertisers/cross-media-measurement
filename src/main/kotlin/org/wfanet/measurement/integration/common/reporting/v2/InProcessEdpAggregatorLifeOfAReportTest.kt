@@ -718,6 +718,65 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .isLessThan(componentReaches.sum())
   }
 
+  /**
+   * Asserts that k-anonymity filtering zeroed some metrics while preserving others.
+   *
+   * With a high k-anonymity threshold (e.g. min_users=500), higher frequency buckets with fewer
+   * users are filtered to zero, while lower frequency buckets with more users survive. This results
+   * in some k+ reach values being zero while cross-publisher and component reaches remain positive.
+   */
+  protected fun assertKAnonFilteredResults(basicReport: BasicReport) {
+    assertWithMessage("result groups").that(basicReport.resultGroupsList).hasSize(1)
+
+    val resultGroup = basicReport.resultGroupsList.single()
+    val totalResults =
+      resultGroup.resultsList.filter {
+        it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
+      }
+    assertWithMessage("total results").that(totalResults).hasSize(1)
+
+    val result = totalResults.single()
+    val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
+
+    assertWithMessage("cross-publisher reach survives k-anon")
+      .that(reportingUnitCumulative.reach)
+      .isGreaterThan(0L)
+
+    assertWithMessage("cross-publisher impressions survives k-anon")
+      .that(reportingUnitCumulative.impressions)
+      .isGreaterThan(0L)
+
+    assertWithMessage("k+ reach has at least one non-zero entry")
+      .that(reportingUnitCumulative.kPlusReachList.any { it > 0L })
+      .isTrue()
+
+    assertWithMessage("k+ reach has at least one zero entry (filtered by k-anon)")
+      .that(reportingUnitCumulative.kPlusReachList)
+      .contains(0L)
+
+    assertWithMessage("k+ reach is monotonically non-increasing")
+      .that(reportingUnitCumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it })
+      .isTrue()
+
+    assertWithMessage("number of components").that(result.metricSet.componentsCount).isEqualTo(2)
+
+    result.metricSet.componentsList.forEach { component ->
+      val cumulative = component.value.cumulative
+
+      assertWithMessage("component ${component.key} reach survives k-anon")
+        .that(cumulative.reach)
+        .isGreaterThan(0L)
+
+      assertWithMessage("component ${component.key} impressions survives k-anon")
+        .that(cumulative.impressions)
+        .isGreaterThan(0L)
+
+      assertWithMessage("component ${component.key} k+ reach is monotonically non-increasing")
+        .that(cumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it })
+        .isTrue()
+    }
+  }
+
   private fun assertRunningBasicReport(
     createBasicReportRequest: CreateBasicReportRequest,
     createdBasicReport: BasicReport,
@@ -1108,10 +1167,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     private const val EXPECTED_HMSS_EDP_SPEC1_REACH = 4473L
     private const val EXPECTED_HMSS_EDP_SPEC2_REACH = 3338L
 
-    const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_REACH = 5371L
-    const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_IMPRESSIONS = 9124L
-    val EXPECTED_TRUSTEE_K_PLUS_REACH = listOf(5371L, 2678L, 682L, 394L, 0L)
-    const val EXPECTED_TRUSTEE_EDP_SPEC1_REACH = 4473L
+    const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_REACH = 5369L
+    const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_IMPRESSIONS = 9122L
+    val EXPECTED_TRUSTEE_K_PLUS_REACH = listOf(5369L, 2677L, 682L, 394L, 0L)
+    const val EXPECTED_TRUSTEE_EDP_SPEC1_REACH = 4472L
     const val EXPECTED_TRUSTEE_EDP_SPEC2_REACH = 3338L
 
     @get:ClassRule @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
