@@ -1,0 +1,95 @@
+# Copyright 2025 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Terraform Validate
+
+on:
+  pull_request:
+    branches:
+      - main
+      - 'releases/**'
+    # paths:
+    #  - 'src/main/terraform/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Job 1: Static Quality & Style Gate
+  # Ensures HCL is valid and follows team's style standards
+  format-validate:
+    name: Format and Validate
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        terraform_dir:
+          - src/main/terraform/gcloud/cmms
+    steps:
+      - name: Check out revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Set up Bazel
+        uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
+
+      - name: Write auth.bazelrc
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+        run: |
+          cat << EOF > auth.bazelrc
+          build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+          EOF
+
+      - name: Write ~/.bazelrc
+        run: |
+          cat << EOF > ~/.bazelrc
+          common --config=ci
+          build --remote_download_outputs=all
+          EOF
+
+      - name: Generate and copy trusted certs
+        run: |
+          bazelisk build //src/main/k8s/testing/secretfiles:gen_trusted_certs
+          cp bazel-bin/src/main/k8s/testing/secretfiles/all_root_certs.pem src/main/k8s/testing/secretfiles/
+
+      - name: Terraform Init
+        working-directory: ${{ matrix.terraform_dir }}
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        working-directory: ${{ matrix.terraform_dir }}
+        run: terraform validate
+
+  # Job 2: Security & Policy Scan
+  # Scans for infrastructure vulnerabilities before resources are created
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Run Trivy IaC scanner
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
+        with:
+          scan-type: 'config'
+          scan-ref: 'src/main/terraform/gcloud'
+          format: 'table'
+          exit-code: '1'
+          severity: 'HIGH,CRITICAL'
+
