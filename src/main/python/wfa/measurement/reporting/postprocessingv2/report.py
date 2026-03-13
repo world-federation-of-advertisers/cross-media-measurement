@@ -13,21 +13,26 @@
 # limitations under the License.
 
 from collections.abc import MutableMapping
-rom dataclasses import dataclass
+from dataclasses import dataclass
+
 
 @dataclass
 class Metric:
   value: float
   sigma: float
   name: str
+  index: int = -1
+
 
 @dataclass
-class MetrictSet:
+class MetricSet:
   reach: Metric
-  k_reach: list[Metric]
+  k_reach: dict[int, Metric]
   impression: Metric
 
+
 class DataProviderMetricSetMap(MutableMapping):
+
   def __init__(self, *args, **kwargs):
     self.data = dict(*args, **kwargs)
 
@@ -53,7 +58,9 @@ class Report:
   weekly_non_cumulatives: list[DataProviderMetricSetMap]
   whole_campaign: DataProviderMetricSetMap
 
+
 class FilterReportMap(MutableMapping):
+
   def __init__(self, *args, **kwargs):
     self.data = dict(*args, **kwargs)
 
