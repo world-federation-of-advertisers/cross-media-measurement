@@ -23,7 +23,6 @@ import com.google.protobuf.util.JsonFormat
 import io.grpc.Channel
 import io.grpc.ClientInterceptors
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
-import java.io.BufferedReader
 import java.io.File
 import java.time.Clock
 import java.time.Duration
@@ -39,11 +38,14 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
+import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfigs
+import org.wfanet.measurement.edpaggregator.ConfigLoader
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroups
@@ -64,11 +66,12 @@ class EventGroupSyncFunction() : HttpFunction {
     val dataWatcherPath: String = request.getFirstHeader(DATA_WATCHER_PATH_HEADER).orElse("")
     logger.fine("Value of DATA_WATCHER_PATH_HEADER: $dataWatcherPath")
     try {
-      val requestBody: BufferedReader = request.getReader()
+      val requestBody = request.reader.readText()
       val eventGroupSyncConfig =
-        EventGroupSyncConfig.newBuilder()
-          .apply { JsonFormat.parser().merge(requestBody, this) }
-          .build()
+        ConfigLoader.buildEventGroupSyncConfig(
+          requestBody,
+          runtimeConfigs.configsList,
+        )
 
       runBlocking {
         Tracing.traceSuspending(
@@ -238,6 +241,18 @@ class EventGroupSyncFunction() : HttpFunction {
     private const val JSON_FILE_SUFFIX = ".json"
     private val DATA_WATCHER_PATH_HEADER =
       System.getenv("DATA_WATCHER_PATH_HEADER") ?: "X-DataWatcher-Path"
+
+    private val configBlobKey: String =
+      requireNotNull(System.getenv("CONFIG_BLOB_KEY")) {
+        "CONFIG_BLOB_KEY environment variable must be set"
+      }
+    private val runtimeConfigs: EventGroupSyncConfigs =
+      runBlocking {
+        EdpAggregatorConfig.getConfigAsProtoMessage(
+          configBlobKey,
+          EventGroupSyncConfigs.getDefaultInstance(),
+        )
+      }
 
     init {
       EdpaTelemetry.ensureInitialized()

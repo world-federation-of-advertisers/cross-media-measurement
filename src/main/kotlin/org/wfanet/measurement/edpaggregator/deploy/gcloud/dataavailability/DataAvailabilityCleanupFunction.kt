@@ -19,17 +19,17 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability
 import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
-import com.google.protobuf.util.JsonFormat
 import io.grpc.ClientInterceptors
 import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
-import java.io.BufferedReader
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.Instrumentation
-import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
+import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
+import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
+import org.wfanet.measurement.edpaggregator.ConfigLoader
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityCleanup
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
@@ -52,8 +52,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrp
  * - `IMPRESSION_METADATA_CERT_HOST`: Optional. Overrides TLS authority for testing.
  *
  * ## Configuration
- * - A [DataAvailabilitySyncConfig] is provided in the request body by the DataWatcher Cloud
- *   Function. This is used to configure the gRPC channel.
+ * - The request body contains versioned params (as a `google.protobuf.Any`) or a legacy
+ *   `DataAvailabilitySyncConfig` JSON. The config is resolved via [ConfigLoader].
  */
 class DataAvailabilityCleanupFunction : HttpFunction {
   init {
@@ -64,11 +64,12 @@ class DataAvailabilityCleanupFunction : HttpFunction {
     try {
       logger.fine("Starting DataAvailabilityCleanupFunction")
 
-      val requestBody: BufferedReader = request.reader
+      val requestBody = request.reader.readText()
       val dataAvailabilitySyncConfig =
-        DataAvailabilitySyncConfig.newBuilder()
-          .apply { JsonFormat.parser().merge(requestBody, this) }
-          .build()
+        ConfigLoader.buildDataAvailabilitySyncConfig(
+          requestBody,
+          runtimeConfigs.configsList,
+        )
 
       // Read the path as request header
       val deletedBlobPath =
@@ -122,5 +123,17 @@ class DataAvailabilityCleanupFunction : HttpFunction {
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
     private const val IMPRESSION_METADATA_RESOURCE_ID_HEADER: String =
       "X-Impression-Metadata-Resource-Id"
+
+    private val configBlobKey: String =
+      requireNotNull(System.getenv("CONFIG_BLOB_KEY")) {
+        "CONFIG_BLOB_KEY environment variable must be set"
+      }
+    private val runtimeConfigs: DataAvailabilitySyncConfigs =
+      runBlocking {
+        EdpAggregatorConfig.getConfigAsProtoMessage(
+          configBlobKey,
+          DataAvailabilitySyncConfigs.getDefaultInstance(),
+        )
+      }
   }
 }

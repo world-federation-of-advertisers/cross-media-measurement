@@ -20,13 +20,11 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
-import com.google.protobuf.util.JsonFormat
 import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
 import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
-import java.io.BufferedReader
 import java.io.File
 import java.time.Clock
 import java.time.Duration
@@ -37,11 +35,14 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCorou
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
+import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.ConfigLoader
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
@@ -95,11 +96,12 @@ class DataAvailabilitySyncFunction() : HttpFunction {
   override fun service(request: HttpRequest, response: HttpResponse) {
     try {
       logger.fine("Starting DataAvailabilitySyncFunction")
-      val requestBody: BufferedReader = request.getReader()
+      val requestBody = request.reader.readText()
       val dataAvailabilitySyncConfig =
-        DataAvailabilitySyncConfig.newBuilder()
-          .apply { JsonFormat.parser().merge(requestBody, this) }
-          .build()
+        ConfigLoader.buildDataAvailabilitySyncConfig(
+          requestBody,
+          runtimeConfigs.configsList,
+        )
 
       // Read the path as request header
       val doneBlobPath =
@@ -231,6 +233,18 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         ?: DEFAULT_IMPRESSION_METADATA_BATCH_SIZE
 
     private val channelCache = ConcurrentHashMap<ChannelKey, ManagedChannel>()
+
+    private val configBlobKey: String =
+      requireNotNull(System.getenv("CONFIG_BLOB_KEY")) {
+        "CONFIG_BLOB_KEY environment variable must be set"
+      }
+    private val runtimeConfigs: DataAvailabilitySyncConfigs =
+      runBlocking {
+        EdpAggregatorConfig.getConfigAsProtoMessage(
+          configBlobKey,
+          DataAvailabilitySyncConfigs.getDefaultInstance(),
+        )
+      }
 
     /**
      * Creates a gRPC [ManagedChannel] configured with mutual TLS authentication.
