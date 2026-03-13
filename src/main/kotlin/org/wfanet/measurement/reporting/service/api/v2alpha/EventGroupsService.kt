@@ -49,10 +49,12 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
+import org.wfanet.measurement.api.v2alpha.getEventGroupRequest as cmmsGetEventGroupRequest
 import org.wfanet.measurement.reporting.v2alpha.DateInterval
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupKt
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
+import org.wfanet.measurement.reporting.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.reporting.v2alpha.MediaType
@@ -67,6 +69,52 @@ class EventGroupsService(
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val ticker: Ticker = Deadline.getSystemTicker(),
 ) : EventGroupsCoroutineImplBase(coroutineContext) {
+  override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup {
+    val eventGroupKey =
+      grpcRequireNotNull(EventGroupKey.fromName(request.name)) {
+        "EventGroup name is either unspecified or invalid"
+      }
+
+    val measurementConsumerName =
+      MeasurementConsumerKey(eventGroupKey.cmmsMeasurementConsumerId).toName()
+    authorization.check(measurementConsumerName, GET_EVENT_GROUP_PERMISSIONS)
+
+    val measurementConsumerConfig =
+      measurementConsumerConfigs.configsMap[measurementConsumerName]
+        ?: throw Status.INTERNAL.withDescription(
+            "MeasurementConsumerConfig not found for $measurementConsumerName"
+          )
+          .asRuntimeException()
+
+    val apiAuthenticationKey: String = measurementConsumerConfig.apiKey
+
+    val cmmsEventGroupKey =
+      CmmsEventGroupKey(
+        dataProviderId = "-",
+        eventGroupId = eventGroupKey.cmmsEventGroupId,
+      )
+
+    val cmmsEventGroup =
+      try {
+        cmmsEventGroupsStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .getEventGroup(cmmsGetEventGroupRequest { name = cmmsEventGroupKey.toName() })
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND ->
+            Status.NOT_FOUND.withDescription("EventGroup not found")
+              .withCause(e)
+              .asRuntimeException()
+          else ->
+            Status.INTERNAL.withDescription("Error getting EventGroup from backend")
+              .withCause(e)
+              .asRuntimeException()
+        }
+      }
+
+    return cmmsEventGroup.toEventGroup()
+  }
+
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
     val parentKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
@@ -207,6 +255,7 @@ class EventGroupsService(
     /** Default RPC deadline in milliseconds. */
     private const val RPC_DEFAULT_DEADLINE_MILLIS = 30_000L
 
+    val GET_EVENT_GROUP_PERMISSIONS = setOf("reporting.eventGroups.get")
     val LIST_EVENT_GROUPS_PERMISSIONS = setOf("reporting.eventGroups.list")
   }
 }

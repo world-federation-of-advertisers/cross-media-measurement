@@ -71,6 +71,7 @@ import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupKt
+import org.wfanet.measurement.reporting.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
@@ -78,6 +79,7 @@ import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.dateInterval
 import org.wfanet.measurement.reporting.v2alpha.eventGroup
+import org.wfanet.measurement.reporting.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsResponse
 
@@ -91,12 +93,15 @@ class EventGroupsServiceTest {
           nextPageToken = ""
         }
       )
+    onBlocking { getEventGroup(any()) }
+      .thenReturn(CMMS_EVENT_GROUP)
   }
 
   private val permissionsServiceMock: PermissionsGrpcKt.PermissionsCoroutineImplBase = mockService {
     onBlocking { checkPermissions(any()) } doReturn
       checkPermissionsResponse {
         permissions += EventGroupsService.LIST_EVENT_GROUPS_PERMISSIONS.map { "permissions/$it" }
+        permissions += EventGroupsService.GET_EVENT_GROUP_PERMISSIONS.map { "permissions/$it" }
       }
   }
 
@@ -378,6 +383,45 @@ class EventGroupsServiceTest {
           this.pageToken = pageToken
         }
       )
+  }
+
+  @Test
+  fun `getEventGroup returns expected EventGroup`() {
+    val response =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        runBlocking {
+          service.getEventGroup(
+            getEventGroupRequest {
+              name = EVENT_GROUP.name
+            }
+          )
+        }
+      }
+
+    assertThat(response).isEqualTo(EVENT_GROUP)
+  }
+
+  @Test
+  fun `getEventGroup throws NOT_FOUND when EventGroup not found`() {
+    runBlocking {
+      whenever(cmmsEventGroupsMock.getEventGroup(any()))
+        .thenThrow(Status.NOT_FOUND.asRuntimeException())
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking {
+            service.getEventGroup(
+              getEventGroupRequest {
+                name = EVENT_GROUP.name
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
   @Test
