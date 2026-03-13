@@ -1108,6 +1108,16 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     private const val EXPECTED_HMSS_EDP_SPEC1_REACH = 4473L
     private const val EXPECTED_HMSS_EDP_SPEC2_REACH = 3338L
 
+    // The TrusTee protocol produces identical raw reach (5459) for both no-k-anon and k-anon
+    // configs when noise_mechanism is NONE, because the underlying frequency vectors and VID
+    // sampling intervals are the same. The differing final values below are the result of the
+    // report post-processor's QP (quadratic programming) solver, which adjusts reach and
+    // frequency values to be globally consistent across all measurements in the report
+    // (cross-publisher reach, component reaches, frequency distribution, impressions). Because
+    // k-anonymity filtering zeroes frequency buckets 3+ and 4+, the QP solver faces different
+    // consistency constraints and produces a different correction -- in the no-k-anon case the
+    // solver adjusts reach downward (5459 -> 5369), while in the k-anon case the fewer
+    // constraints allow the raw value to remain unchanged (5459).
     const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_REACH = 5369L
     const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_IMPRESSIONS = 9122L
     val EXPECTED_TRUSTEE_K_PLUS_REACH = listOf(5369L, 2677L, 682L, 394L, 0L)
