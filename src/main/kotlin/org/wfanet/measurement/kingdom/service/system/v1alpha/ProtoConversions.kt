@@ -35,6 +35,7 @@ import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.Noise
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.liquidLegionsSketchParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
+import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.TrusTeeKt.kAnonymityParams as systemKAnonymityParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.honestMajorityShareShuffle
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.trusTee
@@ -345,6 +346,12 @@ private fun buildMpcProtocolConfig(
       mpcProtocolConfig {
         trusTee = trusTee {
           noiseMechanism = protocolConfig.trusTee.noiseMechanism.toSystemNoiseMechanism()
+          if (protocolConfig.trusTee.hasKAnonymityParams()) {
+            kAnonymityParams = systemKAnonymityParams {
+              minImpressions = protocolConfig.trusTee.kAnonymityParams.minImpressions
+              minUsers = protocolConfig.trusTee.kAnonymityParams.minUsers
+            }
+          }
         }
       }
     }

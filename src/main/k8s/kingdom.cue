@@ -64,7 +64,7 @@ import ("strings")
 	_hmssEnableFlag:                         "--enable-hmss"
 	_hmssProtocolConfigConfig:               "--hmss-protocol-config-config=/var/run/secrets/files/hmss_protocol_config_config.textproto"
 	_trusteeEnableFlag:                      "--enable-trustee"
-	_trusteeProtocolConfigConfig:            "--trustee-protocol-config-config=/var/run/secrets/files/trustee_protocol_config_config.textproto"
+	_trusteeProtocolConfigConfig:            "--trustee-protocol-config-config=/var/run/secrets/files/trustee_protocol_config_config_noise_no_k_anon.textproto"
 	_kingdom_tls_cert_file_flag:             "--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem"
 	_kingdom_tls_key_file_flag:              "--tls-key-file=/var/run/secrets/files/kingdom_tls.key"
 	_kingdom_cert_collection_file_flag:      "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
