@@ -1108,6 +1108,12 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     private const val EXPECTED_HMSS_EDP_SPEC1_REACH = 4473L
     private const val EXPECTED_HMSS_EDP_SPEC2_REACH = 3338L
 
+    const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_REACH = 5371L
+    const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_IMPRESSIONS = 9124L
+    val EXPECTED_TRUSTEE_K_PLUS_REACH = listOf(5371L, 2678L, 682L, 394L, 0L)
+    const val EXPECTED_TRUSTEE_EDP_SPEC1_REACH = 4473L
+    const val EXPECTED_TRUSTEE_EDP_SPEC2_REACH = 3338L
+
     @get:ClassRule @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
   }
 }

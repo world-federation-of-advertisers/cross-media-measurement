@@ -217,8 +217,6 @@ class TrusTeeProcessorImplTest {
     assertThat(result.reach).isAtMost(maxPossibleScaledReach)
   }
 
-  // -- No noise, no k-anonymity tests --
-
   @Test
   fun `computeResult for Reach-Only with no noise returns exact reach`() {
     val params =
@@ -252,6 +250,7 @@ class TrusTeeProcessorImplTest {
         kAnonymityParams = null,
       )
     val processor = TrusTeeProcessorImpl(params)
+    // 4 VIDs: frequencies [2, 1, 0, 3] -> histogram: {1: 1, 2: 1, 3+: 1}, 3 reached
     processor.addFrequencyVector(byteArrayOf(2, 1, 0, 3))
     val result = processor.computeResult() as ReachAndFrequencyResult
 
@@ -270,6 +269,8 @@ class TrusTeeProcessorImplTest {
         kAnonymityParams = null,
       )
     val processor = TrusTeeProcessorImpl(params)
+    // VID0: 1+0=1, VID1: 0+1=1, VID2: 1+1=2, VID3: 0+0=0
+    // histogram: {1: 2, 2: 1}, 3 reached
     processor.addFrequencyVector(byteArrayOf(1, 0, 1, 0))
     processor.addFrequencyVector(byteArrayOf(0, 1, 1, 0))
     val result = processor.computeResult() as ReachAndFrequencyResult
@@ -289,6 +290,8 @@ class TrusTeeProcessorImplTest {
         kAnonymityParams = null,
       )
     val processor = TrusTeeProcessorImpl(params)
+    // VID0: 1+1=2(capped at 2), VID1: 1+1=2(capped at 2), VID2: 0+0=0
+    // histogram: {2: 2}, 2 reached
     processor.addFrequencyVector(byteArrayOf(1, 1, 0))
     processor.addFrequencyVector(byteArrayOf(1, 1, 0))
     val result = processor.computeResult() as ReachAndFrequencyResult
@@ -315,8 +318,6 @@ class TrusTeeProcessorImplTest {
     val expectedDistribution = (1L..MAX_FREQUENCY).associateWith { 0.0 }
     assertThat(result.frequency).isEqualTo(expectedDistribution)
   }
-
-  // -- K-anonymity with no noise tests --
 
   @Test
   fun `computeResult for Reach-Only with k-anon and no noise returns zero when below threshold`() {
@@ -387,8 +388,6 @@ class TrusTeeProcessorImplTest {
 
     assertThat(result.reach).isEqualTo(100)
   }
-
-  // -- K-anonymity with noise tests --
 
   @Test
   fun `computeResult for Reach-Only with k-anon and noise returns zero when below threshold`() {

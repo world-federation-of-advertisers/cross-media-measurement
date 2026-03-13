@@ -24,7 +24,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.IMPRESSION_QUALIFICATION_FILTER_MAPPING
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
-import org.wfanet.measurement.integration.common.TRUSTEE_PROTOCOL_CONFIG_CONFIG
+import org.wfanet.measurement.integration.common.TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_K_ANON
 import org.wfanet.measurement.integration.deploy.gcloud.InternalReportingServicesProviderRule
 import org.wfanet.measurement.integration.deploy.gcloud.KingdomDataServicesProviderRule
 import org.wfanet.measurement.integration.deploy.gcloud.SpannerAccessServicesFactory
@@ -87,7 +87,7 @@ class GCloudEdpAggregatorLifeOfAReportNoiseKAnonTest :
     @JvmStatic
     fun initConfig() {
       InProcessCmmsComponents.initConfig(
-        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG,
+        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_K_ANON,
         hmssProtocolConfigConfig =
           hmssProtocolConfigConfig {
             protocolConfig =
