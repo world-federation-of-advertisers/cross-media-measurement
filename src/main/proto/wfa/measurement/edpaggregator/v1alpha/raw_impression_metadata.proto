@@ -1,0 +1,93 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RawImpressionMetadataProto";
+
+// Metadata for a raw impression file within a batch upload.
+// This resource tracks individual files uploaded as part of a batched raw
+// impression metadata upload by an EDP.
+// (-- api-linter: core::0123::resource-pattern-singular=disabled
+//     aip.dev/not-precedent: This is a nested collection. --)
+// (-- api-linter: core::0123::resource-pattern-plural=disabled
+//     aip.dev/not-precedent: This is a nested collection. --)
+message RawImpressionMetadata {
+  option (google.api.resource) = {
+    type: "edpaggregator.halo-cmm.org/RawImpressionMetadataUploadBatchFile"
+    pattern: "dataProviders/{data_provider}/rawImpressionMetadataUploads/{raw_impression_metadata_upload}/batches/{batch}/files/{file}"
+    singular: "rawImpressionMetadataUploadBatchFile"
+    plural: "rawImpressionMetadataUploadBatchFiles"
+  };
+
+  // The lifecycle state of the raw impression metadata.
+  enum State {
+    // Default, unspecified state. Should not be used.
+    STATE_UNSPECIFIED = 0;
+    // The metadata is active.
+    ACTIVE = 1;
+    // The metadata has been marked as deleted.
+    DELETED = 2;
+  }
+
+  // The processing state of a batch of raw impression files.
+  enum BatchState {
+    // Default, unspecified state. Should not be used.
+    BATCH_STATE_UNSPECIFIED = 0;
+    // The batch has been created and is awaiting processing.
+    CREATED = 1;
+    // All files in the batch have been successfully processed.
+    PROCESSED = 2;
+    // Processing failed for one or more files in the batch.
+    FAILED = 3;
+  }
+
+  // Resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // The blob storage URI of the raw impression file.
+  // This is provided by the client on creation and cannot be changed.
+  string blob_uri = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // The current lifecycle state.
+  State state = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The current batch processing state.
+  BatchState batch_state = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The timestamp when this metadata entry was created.
+  google.protobuf.Timestamp create_time = 5
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The timestamp when this metadata entry was last updated.
+  google.protobuf.Timestamp update_time = 6
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The time when the raw impression data was uploaded.
+  google.protobuf.Timestamp upload_time = 7 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+}
