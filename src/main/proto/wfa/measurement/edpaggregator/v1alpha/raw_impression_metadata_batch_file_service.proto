@@ -112,7 +112,8 @@ message BatchCreateRawImpressionMetadataBatchFilesRequest {
 message BatchCreateRawImpressionMetadataBatchFilesResponse {
   // The list of newly created RawImpressionMetadataBatchFile
   // entries, in the same order as the request.
-  repeated RawImpressionMetadataBatchFile raw_impression_metadata_batch_files = 1;
+  repeated RawImpressionMetadataBatchFile raw_impression_metadata_batch_files =
+      1;
 }
 
 // Request message for the
@@ -157,7 +158,8 @@ message ListRawImpressionMetadataBatchFilesRequest {
 // `ListRawImpressionMetadataBatchFiles` method.
 message ListRawImpressionMetadataBatchFilesResponse {
   // A list of `RawImpressionMetadataBatchFile` entries.
-  repeated RawImpressionMetadataBatchFile raw_impression_metadata_batch_files = 1;
+  repeated RawImpressionMetadataBatchFile raw_impression_metadata_batch_files =
+      1;
 
   // A token to retrieve the next page of results.
   // If this field is omitted, there are no subsequent pages.
@@ -203,5 +205,6 @@ message BatchDeleteRawImpressionMetadataBatchFilesRequest {
 message BatchDeleteRawImpressionMetadataBatchFilesResponse {
   // The list of soft-deleted RawImpressionMetadataBatchFile
   // entries.
-  repeated RawImpressionMetadataBatchFile raw_impression_metadata_batch_files = 1;
+  repeated RawImpressionMetadataBatchFile raw_impression_metadata_batch_files =
+      1;
 }
