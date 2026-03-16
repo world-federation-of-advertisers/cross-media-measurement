@@ -57,6 +57,9 @@ object Errors {
     EXPECTED_REQUISITION_METADATA_STATES("expectedRequisitionMetadataStates"),
     REQUEST_ETAG("requestEtag"),
     ETAG("etag"),
+    RAW_IMPRESSION_UPLOAD_RESOURCE_ID("rawImpressionUploadResourceId"),
+    BATCH_INDEX("batchIndex"),
+    FILE_RESOURCE_ID("fileResourceId"),
     FIELD_NAME("fieldName");
 
     companion object {
@@ -171,12 +174,21 @@ class ImpressionMetadataStateInvalidException(
 
 class RawImpressionMetadataNotFoundException(
   dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  batchIndex: Long,
+  fileResourceId: String,
   cause: Throwable? = null,
 ) :
   ServiceException(
     Errors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-    "RawImpressionMetadata for DataProvider with resource ID $dataProviderResourceId not found",
-    mapOf(Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId),
+    "RawImpressionMetadata with upload $rawImpressionUploadResourceId batch $batchIndex" +
+      " file $fileResourceId for DataProvider $dataProviderResourceId not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+      Errors.Metadata.BATCH_INDEX to batchIndex.toString(),
+      Errors.Metadata.FILE_RESOURCE_ID to fileResourceId,
+    ),
     cause,
   )
 

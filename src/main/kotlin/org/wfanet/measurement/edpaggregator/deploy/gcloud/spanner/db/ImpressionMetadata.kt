@@ -246,7 +246,12 @@ suspend fun AsyncDatabaseClient.ReadContext.resolveRawImpressionInternalKey(
           bind("fileResourceId").to(key.fileResourceId)
         }
       )
-      .singleOrNullIfEmpty() ?: throw RawImpressionMetadataNotFoundException(dataProviderResourceId)
+      .singleOrNullIfEmpty() ?: throw RawImpressionMetadataNotFoundException(
+        dataProviderResourceId,
+        key.rawImpressionUploadResourceId,
+        key.batchIndex,
+        key.fileResourceId,
+      )
 
   return RawImpressionInternalKey(
     uploadId = row.getLong("UploadId"),
