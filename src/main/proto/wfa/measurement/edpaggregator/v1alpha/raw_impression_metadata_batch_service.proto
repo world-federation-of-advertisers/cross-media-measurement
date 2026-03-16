@@ -150,7 +150,8 @@ message DeleteRawImpressionMetadataBatchRequest {
   ];
 }
 
-// Request message for the `SetRawImpressionMetadataBatchProcessingState` method.
+// Request message for the
+// `SetRawImpressionMetadataBatchProcessingState` method.
 message SetRawImpressionMetadataBatchProcessingStateRequest {
   // The resource name of the RawImpressionMetadataBatch to update.
   // Format:

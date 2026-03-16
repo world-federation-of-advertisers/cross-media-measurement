@@ -25,34 +25,43 @@ option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "RawImpressionMetadataFileServiceProto";
 
-// Service for managing RawImpressionMetadataFile resources within a batch.
+// Service for managing RawImpressionMetadataFile resources.
 service RawImpressionMetadataFileService {
   // Creates a new RawImpressionMetadataFile within a batch.
-  rpc CreateRawImpressionMetadataFile(CreateRawImpressionMetadataFileRequest)
+  rpc CreateRawImpressionMetadataFile(
+      CreateRawImpressionMetadataFileRequest)
       returns (RawImpressionMetadataFile) {}
 
-  // Creates multiple RawImpressionMetadataFile entries in a single request.
-  rpc BatchCreateRawImpressionMetadataFiles(BatchCreateRawImpressionMetadataFilesRequest)
+  // Creates multiple RawImpressionMetadataFile entries in a
+  // single request.
+  rpc BatchCreateRawImpressionMetadataFiles(
+      BatchCreateRawImpressionMetadataFilesRequest)
       returns (BatchCreateRawImpressionMetadataFilesResponse) {}
 
   // Retrieves a specific RawImpressionMetadataFile.
-  rpc GetRawImpressionMetadataFile(GetRawImpressionMetadataFileRequest)
+  rpc GetRawImpressionMetadataFile(
+      GetRawImpressionMetadataFileRequest)
       returns (RawImpressionMetadataFile) {}
 
   // Lists RawImpressionMetadataFile resources within a batch.
-  rpc ListRawImpressionMetadataFiles(ListRawImpressionMetadataFilesRequest)
+  rpc ListRawImpressionMetadataFiles(
+      ListRawImpressionMetadataFilesRequest)
       returns (ListRawImpressionMetadataFilesResponse) {}
 
   // Soft-deletes a RawImpressionMetadataFile.
-  rpc DeleteRawImpressionMetadataFile(DeleteRawImpressionMetadataFileRequest)
+  rpc DeleteRawImpressionMetadataFile(
+      DeleteRawImpressionMetadataFileRequest)
       returns (RawImpressionMetadataFile) {}
 
-  // Soft-deletes multiple RawImpressionMetadataFile entries in a single request.
-  rpc BatchDeleteRawImpressionMetadataFiles(BatchDeleteRawImpressionMetadataFilesRequest)
+  // Soft-deletes multiple RawImpressionMetadataFile entries in
+  // a single request.
+  rpc BatchDeleteRawImpressionMetadataFiles(
+      BatchDeleteRawImpressionMetadataFilesRequest)
       returns (BatchDeleteRawImpressionMetadataFilesResponse) {}
 }
 
-// Request message for the `CreateRawImpressionMetadataFile` method.
+// Request message for the
+// `CreateRawImpressionMetadataFile` method.
 message CreateRawImpressionMetadataFileRequest {
   // The parent batch resource name.
   // Format:
@@ -78,7 +87,8 @@ message CreateRawImpressionMetadataFileRequest {
   ];
 }
 
-// Request message for the `BatchCreateRawImpressionMetadataFiles` method.
+// Request message for the
+// `BatchCreateRawImpressionMetadataFiles` method.
 message BatchCreateRawImpressionMetadataFilesRequest {
   // The parent batch resource name.
   // Format:
@@ -95,16 +105,19 @@ message BatchCreateRawImpressionMetadataFilesRequest {
       [(google.api.field_behavior) = REQUIRED];
 }
 
-// Response message for the `BatchCreateRawImpressionMetadataFiles` method.
+// Response message for the
+// `BatchCreateRawImpressionMetadataFiles` method.
 message BatchCreateRawImpressionMetadataFilesResponse {
-  // The list of newly created RawImpressionMetadataFile entries, in the same order as
-  // the request.
+  // The list of newly created RawImpressionMetadataFile
+  // entries, in the same order as the request.
   repeated RawImpressionMetadataFile raw_impression_metadata_files = 1;
 }
 
-// Request message for the `GetRawImpressionMetadataFile` method.
+// Request message for the
+// `GetRawImpressionMetadataFile` method.
 message GetRawImpressionMetadataFileRequest {
-  // The resource name of the RawImpressionMetadataFile to retrieve.
+  // The resource name of the RawImpressionMetadataFile to
+  // retrieve.
   // Format:
   // `dataProviders/{data_provider}/rawImpressionMetadataBatches/{raw_impression_metadata_batch}/rawImpressionMetadataFiles/{raw_impression_metadata_file}`
   string name = 1 [
@@ -115,7 +128,8 @@ message GetRawImpressionMetadataFileRequest {
   ];
 }
 
-// Request message for the `ListRawImpressionMetadataFiles` method.
+// Request message for the
+// `ListRawImpressionMetadataFiles` method.
 message ListRawImpressionMetadataFilesRequest {
   // The parent batch resource name.
   // Format:
@@ -133,13 +147,14 @@ message ListRawImpressionMetadataFilesRequest {
   // A page token, received from a previous call.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 
-  // A flag indicating whether to include soft DELETED entries.
+  // Whether to include soft DELETED entries.
   bool show_deleted = 4 [(google.api.field_behavior) = OPTIONAL];
 }
 
-// Response message for the `ListRawImpressionMetadataFiles` method.
+// Response message for the
+// `ListRawImpressionMetadataFiles` method.
 message ListRawImpressionMetadataFilesResponse {
-  // A list of `RawImpressionMetadataFile` entries matching the request.
+  // A list of `RawImpressionMetadataFile` entries.
   repeated RawImpressionMetadataFile raw_impression_metadata_files = 1;
 
   // A token to retrieve the next page of results.
@@ -147,9 +162,11 @@ message ListRawImpressionMetadataFilesResponse {
   string next_page_token = 2;
 }
 
-// Request message for the `DeleteRawImpressionMetadataFile` method.
+// Request message for the
+// `DeleteRawImpressionMetadataFile` method.
 message DeleteRawImpressionMetadataFileRequest {
-  // The resource name of the RawImpressionMetadataFile to delete.
+  // The resource name of the RawImpressionMetadataFile to
+  // delete.
   // Format:
   // `dataProviders/{data_provider}/rawImpressionMetadataBatches/{raw_impression_metadata_batch}/rawImpressionMetadataFiles/{raw_impression_metadata_file}`
   string name = 1 [
@@ -160,7 +177,8 @@ message DeleteRawImpressionMetadataFileRequest {
   ];
 }
 
-// Request message for the `BatchDeleteRawImpressionMetadataFiles` method.
+// Request message for the
+// `BatchDeleteRawImpressionMetadataFiles` method.
 message BatchDeleteRawImpressionMetadataFilesRequest {
   // The parent batch resource name.
   // Format:
@@ -177,7 +195,8 @@ message BatchDeleteRawImpressionMetadataFilesRequest {
       [(google.api.field_behavior) = REQUIRED];
 }
 
-// Response message for the `BatchDeleteRawImpressionMetadataFiles` method.
+// Response message for the
+// `BatchDeleteRawImpressionMetadataFiles` method.
 message BatchDeleteRawImpressionMetadataFilesResponse {
   // The list of soft-deleted RawImpressionMetadataFile entries.
   repeated RawImpressionMetadataFile raw_impression_metadata_files = 1;
