@@ -370,7 +370,9 @@ class DataAvailabilitySyncFunctionTest {
     // Write runtime config to the config bucket
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
-    val runtimeConfig = dataAvailabilitySyncConfigs { configs += fileSystemDataAvailabilitySyncConfig() }
+    val runtimeConfig = dataAvailabilitySyncConfigs {
+      configs += fileSystemDataAvailabilitySyncConfig()
+    }
     File(configBucketDir, "config.textproto")
       .writeText(TextFormat.printer().printToString(runtimeConfig))
 
@@ -435,7 +437,9 @@ class DataAvailabilitySyncFunctionTest {
     // Write runtime config to the config bucket
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
-    val runtimeConfig = dataAvailabilitySyncConfigs { configs += fileSystemDataAvailabilitySyncConfig() }
+    val runtimeConfig = dataAvailabilitySyncConfigs {
+      configs += fileSystemDataAvailabilitySyncConfig()
+    }
     File(configBucketDir, "config.textproto")
       .writeText(TextFormat.printer().printToString(runtimeConfig))
 
@@ -481,7 +485,9 @@ class DataAvailabilitySyncFunctionTest {
     // Write runtime config to the config bucket
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
-    val runtimeConfig = dataAvailabilitySyncConfigs { configs += fileSystemDataAvailabilitySyncConfig() }
+    val runtimeConfig = dataAvailabilitySyncConfigs {
+      configs += fileSystemDataAvailabilitySyncConfig()
+    }
     File(configBucketDir, "config.textproto")
       .writeText(TextFormat.printer().printToString(runtimeConfig))
 

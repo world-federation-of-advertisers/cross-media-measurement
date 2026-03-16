@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator
 
 import com.google.protobuf.Any
+import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Message
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.JsonFormat
@@ -100,24 +101,27 @@ object ConfigLoader {
   }
 
   private fun tryParseAsAny(requestBody: String): Any? {
-    val any =
-      Any.newBuilder()
-        .apply {
-          JsonFormat.parser()
-            .ignoringUnknownFields()
-            .usingTypeRegistry(typeRegistry)
-            .merge(requestBody, this)
-        }
-        .build()
-    // An empty type URL means the request body is not an Any-wrapped params proto. This is
-    // the expected result for legacy format requests: because we parse with
-    // ignoringUnknownFields(), fields like "data_provider" are silently ignored and we get an
-    // empty Any. Returning null signals the caller to fall back to legacy parsing.
-    if (any.typeUrl.isEmpty()) {
-      logger.info("Request body has no @type field; falling back to legacy format parsing")
-      return null
+    // Legacy format requests contain fields like "data_provider" that are unknown to Any,
+    // causing InvalidProtocolBufferException. Catching this signals the caller to fall back
+    // to legacy parsing.
+    return try {
+      val any =
+        Any.newBuilder()
+          .apply {
+            JsonFormat.parser()
+              .usingTypeRegistry(typeRegistry)
+              .merge(requestBody, this)
+          }
+          .build()
+      if (any.typeUrl.isEmpty()) {
+        logger.info("Request body has no @type field; falling back to legacy format parsing")
+        return null
+      }
+      any
+    } catch (e: InvalidProtocolBufferException) {
+      logger.info("Request body is not Any-wrapped; falling back to legacy format parsing")
+      null
     }
-    return any
   }
 
   @Suppress("UNCHECKED_CAST")
@@ -127,7 +131,7 @@ object ConfigLoader {
     )
     return defaultInstance
       .newBuilderForType()
-      .apply { JsonFormat.parser().ignoringUnknownFields().merge(requestBody, this) }
+      .apply { JsonFormat.parser().merge(requestBody, this) }
       .build() as T
   }
 }

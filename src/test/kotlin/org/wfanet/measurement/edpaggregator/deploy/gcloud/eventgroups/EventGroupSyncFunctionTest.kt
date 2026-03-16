@@ -253,9 +253,23 @@ class EventGroupSyncFunctionTest() {
       eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
       eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
     }
+    // Write runtime config to the config bucket
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = eventGroupSyncConfigs { configs += config }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+
     File("${tempFolder.root}/some/path").mkdirs()
     File("${tempFolder.root}/some/other/path").mkdirs()
-    val port = runBlocking { startFunction() }
+    val port = runBlocking {
+      startFunction(
+        mapOf(
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+        )
+      )
+    }
 
     val url = "http://localhost:$port"
     logger.info("Testing Cloud Function at: $url")
@@ -361,9 +375,23 @@ class EventGroupSyncFunctionTest() {
       eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
       eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
     }
+    // Write runtime config to the config bucket
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = eventGroupSyncConfigs { configs += config }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+
     File("${tempFolder.root}/some/path").mkdirs()
     File("${tempFolder.root}/some/other/path").mkdirs()
-    val port = runBlocking { startFunction() }
+    val port = runBlocking {
+      startFunction(
+        mapOf(
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+        )
+      )
+    }
 
     val url = "http://localhost:$port"
     logger.info("Testing Cloud Function at: $url")
@@ -464,9 +492,23 @@ class EventGroupSyncFunctionTest() {
       eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
       eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
     }
+    // Write runtime config to the config bucket
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = eventGroupSyncConfigs { configs += config }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+
     File("${tempFolder.root}/some/path").mkdirs()
     File("${tempFolder.root}/some/other/path").mkdirs()
-    val port = runBlocking { startFunction() }
+    val port = runBlocking {
+      startFunction(
+        mapOf(
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+        )
+      )
+    }
 
     val url = "http://localhost:$port"
     logger.info("Testing Cloud Function at: $url")
@@ -528,9 +570,23 @@ class EventGroupSyncFunctionTest() {
       eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
       eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
     }
+    // Write runtime config to the config bucket
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = eventGroupSyncConfigs { configs += config }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+
     File("${tempFolder.root}/some/path").mkdirs()
     File("${tempFolder.root}/some/other/path").mkdirs()
-    val port = runBlocking { startFunction() }
+    val port = runBlocking {
+      startFunction(
+        mapOf(
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+        )
+      )
+    }
 
     val url = "http://localhost:$port"
     logger.info("Testing Cloud Function at: $url")
