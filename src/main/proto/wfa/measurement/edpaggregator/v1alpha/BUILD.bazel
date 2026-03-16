@@ -238,8 +238,8 @@ kt_jvm_proto_library(
 )
 
 proto_library(
-    name = "raw_impression_metadata_file_proto",
-    srcs = ["raw_impression_metadata_file.proto"],
+    name = "raw_impression_metadata_batch_file_proto",
+    srcs = ["raw_impression_metadata_batch_file.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
         "@com_google_googleapis//google/api:field_behavior_proto",
@@ -249,8 +249,8 @@ proto_library(
 )
 
 kt_jvm_proto_library(
-    name = "raw_impression_metadata_file_kt_jvm_proto",
-    deps = [":raw_impression_metadata_file_proto"],
+    name = "raw_impression_metadata_batch_file_kt_jvm_proto",
+    deps = [":raw_impression_metadata_batch_file_proto"],
 )
 
 proto_library(
@@ -271,11 +271,11 @@ kt_jvm_grpc_proto_library(
 )
 
 proto_library(
-    name = "raw_impression_metadata_file_service_proto",
-    srcs = ["raw_impression_metadata_file_service.proto"],
+    name = "raw_impression_metadata_batch_file_service_proto",
+    srcs = ["raw_impression_metadata_batch_file_service.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
-        ":raw_impression_metadata_file_proto",
+        ":raw_impression_metadata_batch_file_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:field_info_proto",
         "@com_google_googleapis//google/api:resource_proto",
@@ -283,6 +283,6 @@ proto_library(
 )
 
 kt_jvm_grpc_proto_library(
-    name = "raw_impression_metadata_file_service_kt_jvm_grpc_proto",
-    deps = [":raw_impression_metadata_file_service_proto"],
+    name = "raw_impression_metadata_batch_file_service_kt_jvm_grpc_proto",
+    deps = [":raw_impression_metadata_batch_file_service_proto"],
 )

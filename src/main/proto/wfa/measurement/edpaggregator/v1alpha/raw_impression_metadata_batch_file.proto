@@ -22,17 +22,17 @@ import "google/protobuf/timestamp.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
-option java_outer_classname = "RawImpressionMetadataFileProto";
+option java_outer_classname = "RawImpressionMetadataBatchFileProto";
 
 // Metadata for a raw impression file within a batch.
-// This resource tracks individual files uploaded as part of a batched raw
-// impression upload by an EDP.
-message RawImpressionMetadataFile {
+// This resource tracks individual files uploaded as part of a
+// batched raw impression upload by an EDP.
+message RawImpressionMetadataBatchFile {
   option (google.api.resource) = {
-    type: "edpaggregator.halo-cmm.org/RawImpressionMetadataFile"
-    pattern: "dataProviders/{data_provider}/rawImpressionMetadataBatches/{raw_impression_metadata_batch}/rawImpressionMetadataFiles/{raw_impression_metadata_file}"
-    singular: "rawImpressionMetadataFile"
-    plural: "rawImpressionMetadataFiles"
+    type: "edpaggregator.halo-cmm.org/RawImpressionMetadataBatchFile"
+    pattern: "dataProviders/{data_provider}/rawImpressionMetadataBatches/{raw_impression_metadata_batch}/files/{file}"
+    singular: "rawImpressionMetadataBatchFile"
+    plural: "rawImpressionMetadataBatchFiles"
   };
 
   // The lifecycle state of the raw impression file.
@@ -49,7 +49,8 @@ message RawImpressionMetadataFile {
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
 
   // The blob storage URI of the raw impression file.
-  // This is provided by the client on creation and cannot be changed.
+  // This is provided by the client on creation and cannot be
+  // changed.
   string blob_uri = 2 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
