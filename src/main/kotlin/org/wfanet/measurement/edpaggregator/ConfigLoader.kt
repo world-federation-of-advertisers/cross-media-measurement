@@ -113,6 +113,9 @@ object ConfigLoader {
               .merge(requestBody, this)
           }
           .build()
+      // An empty JSON object ("{}") parses into Any without error since there are no unknown
+      // fields to reject, but produces an Any with no type URL. Check for this explicitly so
+      // the caller falls back to legacy parsing instead of hitting the "Unsupported @type" error.
       if (any.typeUrl.isEmpty()) {
         logger.info("Request body has no @type field; falling back to legacy format parsing")
         return null
