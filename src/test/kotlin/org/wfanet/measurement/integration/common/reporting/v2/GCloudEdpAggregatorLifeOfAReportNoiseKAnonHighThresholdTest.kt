@@ -91,8 +91,7 @@ class GCloudEdpAggregatorLifeOfAReportNoiseKAnonHighThresholdTest :
     @JvmStatic
     fun initConfig() {
       InProcessCmmsComponents.initConfig(
-        trusTeeProtocolConfigConfig =
-          TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_K_ANON_HIGH_THRESHOLD,
+        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_K_ANON_HIGH_THRESHOLD,
         hmssProtocolConfigConfig =
           hmssProtocolConfigConfig {
             protocolConfig =
