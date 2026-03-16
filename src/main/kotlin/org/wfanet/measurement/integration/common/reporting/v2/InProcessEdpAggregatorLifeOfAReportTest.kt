@@ -1108,16 +1108,37 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     private const val EXPECTED_HMSS_EDP_SPEC1_REACH = 4473L
     private const val EXPECTED_HMSS_EDP_SPEC2_REACH = 3338L
 
-    // The TrusTee protocol produces identical raw reach (5459) for both no-k-anon and k-anon
-    // configs when noise_mechanism is NONE, because the underlying frequency vectors and VID
-    // sampling intervals are the same. The differing final values below are the result of the
-    // report post-processor's QP (quadratic programming) solver, which adjusts reach and
-    // frequency values to be globally consistent across all measurements in the report
-    // (cross-publisher reach, component reaches, frequency distribution, impressions). Because
-    // k-anonymity filtering zeroes frequency buckets 3+ and 4+, the QP solver faces different
-    // consistency constraints and produces a different correction -- in the no-k-anon case the
-    // solver adjusts reach downward (5459 -> 5369), while in the k-anon case the fewer
-    // constraints allow the raw value to remain unchanged (5459).
+    // Why K_ANON reach (5459) > non-K_ANON reach (5369):
+    //
+    // TrusTee raw reach is identical (5459) for both configs — the difference is
+    // entirely from the report post-processor QP solver.
+    //
+    // Why the QP solver corrects even without differential privacy:
+    //   The report creates 7 measurements using DIFFERENT VID sampling intervals
+    //   per metric type (configured in InProcessReportingServer.METRIC_SPEC_CONFIG):
+    //     - R&F (1 TrusTee 2-EDP + 2 Direct 1-EDP): VID [0.16, 0.1767)
+    //     - Impressions (3 Direct 1-EDP + 1 Direct 2-EDP): VID [0.477, 0.683)
+    //   Different VID ranges sample different people with different frequency
+    //   profiles, so the R&F-implied impression count (reach * avgFreq) doesn't
+    //   match the independently measured impression count. The QP solver adjusts
+    //   reach, frequency, and impressions to satisfy:
+    //     impressions == reach * avgFreq  (and other monotonicity constraints)
+    //   Verified: when R&F and impression VID intervals are set equal, the QP
+    //   solver makes no corrections and raw TrusTee reach passes through unchanged.
+    //
+    // Concrete numbers for no-k-anon:
+    //   TrusTee raw: reach=5459, freq={1=0.495, 2=0.374, 3=0.055, 4=0.077}
+    //     -> implied avgFreq = 1.716, implied impressions = 5459 * 1.716 = 9368
+    //   But the impression measurement (different VIDs) reports ~9122
+    //     -> inconsistency of ~246, QP adjusts reach down 5459 -> 5369
+    //
+    // For k-anon (min_users=500), frequency buckets 3 and 4 are zeroed:
+    //   bucket 3: 5 sampled * 60 = 300 scaled users < min_users 500 -> zeroed
+    //   bucket 4: 7 sampled * 60 = 420 scaled users < min_users 500 -> zeroed
+    //   TrusTee raw: reach=5459, freq={1=0.570, 2=0.430}
+    //     -> implied avgFreq = 1.430, implied impressions = 5459 * 1.430 = 7806
+    //   Impression measurement reports ~9032 -> larger gap, so QP solver adjusts
+    //   freq upward instead of reducing reach, leaving reach at 5459
     const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_REACH = 5369L
     const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_IMPRESSIONS = 9122L
     val EXPECTED_TRUSTEE_K_PLUS_REACH = listOf(5369L, 2677L, 682L, 394L, 0L)
