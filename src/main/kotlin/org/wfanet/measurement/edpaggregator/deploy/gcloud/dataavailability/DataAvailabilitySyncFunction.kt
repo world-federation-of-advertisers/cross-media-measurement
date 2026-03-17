@@ -98,10 +98,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       logger.fine("Starting DataAvailabilitySyncFunction")
       val requestBody = request.reader.readText()
       val dataAvailabilitySyncConfig =
-        ConfigLoader.buildDataAvailabilitySyncConfig(
-          requestBody,
-          runtimeConfigs.configsList,
-        )
+        ConfigLoader.buildDataAvailabilitySyncConfig(requestBody, runtimeConfigs.configsList)
 
       // Read the path as request header
       val doneBlobPath =
@@ -238,13 +235,12 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       requireNotNull(System.getenv("CONFIG_BLOB_KEY")) {
         "CONFIG_BLOB_KEY environment variable must be set"
       }
-    private val runtimeConfigs: DataAvailabilitySyncConfigs =
-      runBlocking {
-        EdpAggregatorConfig.getConfigAsProtoMessage(
-          configBlobKey,
-          DataAvailabilitySyncConfigs.getDefaultInstance(),
-        )
-      }
+    private val runtimeConfigs: DataAvailabilitySyncConfigs = runBlocking {
+      EdpAggregatorConfig.getConfigAsProtoMessage(
+        configBlobKey,
+        DataAvailabilitySyncConfigs.getDefaultInstance(),
+      )
+    }
 
     /**
      * Creates a gRPC [ManagedChannel] configured with mutual TLS authentication.

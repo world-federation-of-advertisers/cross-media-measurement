@@ -164,11 +164,14 @@ class ConfigLoaderTest {
       protoAny: ProtoAny,
       vararg descriptors: com.google.protobuf.Descriptors.Descriptor,
     ): String {
-      val typeRegistry = TypeRegistry.newBuilder().apply {
-        for (descriptor in descriptors) {
-          add(descriptor)
-        }
-      }.build()
+      val typeRegistry =
+        TypeRegistry.newBuilder()
+          .apply {
+            for (descriptor in descriptors) {
+              add(descriptor)
+            }
+          }
+          .build()
       return JsonFormat.printer().usingTypeRegistry(typeRegistry).print(protoAny)
     }
   }

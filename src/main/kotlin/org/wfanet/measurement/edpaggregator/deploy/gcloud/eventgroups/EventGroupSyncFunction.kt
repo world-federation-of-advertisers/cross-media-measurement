@@ -68,10 +68,7 @@ class EventGroupSyncFunction() : HttpFunction {
     try {
       val requestBody = request.reader.readText()
       val eventGroupSyncConfig =
-        ConfigLoader.buildEventGroupSyncConfig(
-          requestBody,
-          runtimeConfigs.configsList,
-        )
+        ConfigLoader.buildEventGroupSyncConfig(requestBody, runtimeConfigs.configsList)
 
       runBlocking {
         Tracing.traceSuspending(
@@ -246,13 +243,12 @@ class EventGroupSyncFunction() : HttpFunction {
       requireNotNull(System.getenv("CONFIG_BLOB_KEY")) {
         "CONFIG_BLOB_KEY environment variable must be set"
       }
-    private val runtimeConfigs: EventGroupSyncConfigs =
-      runBlocking {
-        EdpAggregatorConfig.getConfigAsProtoMessage(
-          configBlobKey,
-          EventGroupSyncConfigs.getDefaultInstance(),
-        )
-      }
+    private val runtimeConfigs: EventGroupSyncConfigs = runBlocking {
+      EdpAggregatorConfig.getConfigAsProtoMessage(
+        configBlobKey,
+        EventGroupSyncConfigs.getDefaultInstance(),
+      )
+    }
 
     init {
       EdpaTelemetry.ensureInitialized()

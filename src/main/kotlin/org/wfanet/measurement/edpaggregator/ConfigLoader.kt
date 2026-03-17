@@ -53,14 +53,15 @@ object ConfigLoader {
    * @return [DataAvailabilitySyncConfig] parsed from the appropriate format
    * @throws NoSuchElementException if the data provider from params doesn't match any config
    * @throws IllegalStateException if the `@type` is not a supported type
-   * @throws com.google.protobuf.InvalidProtocolBufferException if the request body is malformed JSON
+   * @throws com.google.protobuf.InvalidProtocolBufferException if the request body is malformed
+   *   JSON
    */
   fun buildDataAvailabilitySyncConfig(
     requestBody: String,
     configs: List<DataAvailabilitySyncConfig>,
   ): DataAvailabilitySyncConfig {
-    val protoAny = tryParseAsAny(requestBody)
-      ?: return parseLegacyDataAvailabilitySyncConfig(requestBody)
+    val protoAny =
+      tryParseAsAny(requestBody) ?: return parseLegacyDataAvailabilitySyncConfig(requestBody)
 
     return when {
       protoAny.`is`(DataAvailabilitySyncParams::class.java) -> {
@@ -80,14 +81,14 @@ object ConfigLoader {
    * @return [EventGroupSyncConfig] parsed from the appropriate format
    * @throws NoSuchElementException if the data provider from params doesn't match any config
    * @throws IllegalStateException if the `@type` is not a supported type
-   * @throws com.google.protobuf.InvalidProtocolBufferException if the request body is malformed JSON
+   * @throws com.google.protobuf.InvalidProtocolBufferException if the request body is malformed
+   *   JSON
    */
   fun buildEventGroupSyncConfig(
     requestBody: String,
     configs: List<EventGroupSyncConfig>,
   ): EventGroupSyncConfig {
-    val protoAny = tryParseAsAny(requestBody)
-      ?: return parseLegacyEventGroupSyncConfig(requestBody)
+    val protoAny = tryParseAsAny(requestBody) ?: return parseLegacyEventGroupSyncConfig(requestBody)
 
     return when {
       protoAny.`is`(EventGroupSyncParams::class.java) -> {
@@ -105,11 +106,7 @@ object ConfigLoader {
     // to legacy parsing.
     return try {
       ProtoAny.newBuilder()
-        .apply {
-          JsonFormat.parser()
-            .usingTypeRegistry(typeRegistry)
-            .merge(requestBody, this)
-        }
+        .apply { JsonFormat.parser().usingTypeRegistry(typeRegistry).merge(requestBody, this) }
         .build()
     } catch (e: InvalidProtocolBufferException) {
       logger.info("Request body is not Any-wrapped; falling back to legacy format parsing")
@@ -118,7 +115,7 @@ object ConfigLoader {
   }
 
   private fun parseLegacyDataAvailabilitySyncConfig(
-    requestBody: String,
+    requestBody: String
   ): DataAvailabilitySyncConfig {
     logger.info("No @type found, parsing as DataAvailabilitySyncConfig (legacy)")
     return DataAvailabilitySyncConfig.newBuilder()

@@ -128,12 +128,11 @@ class DataAvailabilityCleanupFunction : HttpFunction {
       requireNotNull(System.getenv("CONFIG_BLOB_KEY")) {
         "CONFIG_BLOB_KEY environment variable must be set"
       }
-    private val runtimeConfigs: DataAvailabilitySyncConfigs =
-      runBlocking {
-        EdpAggregatorConfig.getConfigAsProtoMessage(
-          configBlobKey,
-          DataAvailabilitySyncConfigs.getDefaultInstance(),
-        )
-      }
+    private val runtimeConfigs: DataAvailabilitySyncConfigs = runBlocking {
+      EdpAggregatorConfig.getConfigAsProtoMessage(
+        configBlobKey,
+        DataAvailabilitySyncConfigs.getDefaultInstance(),
+      )
+    }
   }
 }
