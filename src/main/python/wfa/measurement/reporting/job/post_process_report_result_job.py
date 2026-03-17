@@ -49,8 +49,11 @@ class PostProcessReportResultJob:
         self._basic_reports_stub = (
             basic_reports_service_pb2_grpc.BasicReportsStub(
                 internal_reporting_channel))
-        self._post_processor = post_process_report_result.PostProcessReportResult(
-            self._report_results_stub, self._reporting_sets_stub)
+        self._post_processor = (
+            post_process_report_result.PostProcessReportResult(
+                self._report_results_stub, self._reporting_sets_stub
+            )
+        )
 
     def _process_basic_report(
             self, basic_report: basic_report_pb2.BasicReport) -> bool:
@@ -70,21 +73,25 @@ class PostProcessReportResultJob:
 
         try:
             logging.info(
-                f"Processing report: {basic_report.external_report_result_id}")
+                "Processing report %s", basic_report.external_report_result_id
+            )
             add_processed_result_values_request = self._post_processor.process(
                 basic_report.cmms_measurement_consumer_id,
                 basic_report.external_report_result_id,
             )
             if add_processed_result_values_request:
                 logging.info(
-                    f"Updating report: {basic_report.external_report_result_id}"
+                    "Updating ReportResult %s",
+                    basic_report.external_report_result_id,
                 )
                 self._report_results_stub.AddProcessedResultValues(
                     add_processed_result_values_request)
         except Exception:
             logging.warning(
-                f"Failed to process  basic report {basic_report.external_basic_report_id}"
-                f" for measurement consumer {basic_report.cmms_measurement_consumer_id}."
+                "Failed to process BasicReport %s for MeasurementConsumer %s",
+                basic_report.external_basic_report_id,
+                basic_report.cmms_measurement_consumer_id,
+                exc_info=True,
             )
             self._basic_reports_stub.FailBasicReport(
                 basic_reports_service_pb2.FailBasicReportRequest(
@@ -113,8 +120,9 @@ class PostProcessReportResultJob:
         basic_reports_request = basic_reports_service_pb2.ListBasicReportsRequest(
             page_size=_MAX_PAGE_SIZE,
             filter=basic_reports_service_pb2.ListBasicReportsRequest.Filter(
-                state=basic_report_pb2.BasicReport.State.
-                UNPROCESSED_RESULTS_READY))
+                state=basic_report_pb2.BasicReport.State.UNPROCESSED_RESULTS_READY
+            ),
+        )
 
         while True:
             response = self._basic_reports_stub.ListBasicReports(
