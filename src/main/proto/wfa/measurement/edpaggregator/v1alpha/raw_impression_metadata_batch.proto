@@ -19,7 +19,6 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
-import "google/type/date.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
@@ -34,49 +33,34 @@ message RawImpressionMetadataBatch {
     plural: "rawImpressionMetadataBatches"
   };
 
-  // The lifecycle state of the raw impression batch.
+  // The state of the batch.
   enum State {
     // Default, unspecified state. Should not be used.
     STATE_UNSPECIFIED = 0;
-    // The batch is active.
-    ACTIVE = 1;
-    // The batch has been marked as deleted.
-    DELETED = 2;
-  }
-
-  // The processing state of the batch.
-  enum ProcessingState {
-    // Default, unspecified state. Should not be used.
-    PROCESSING_STATE_UNSPECIFIED = 0;
     // The batch has been created and is awaiting processing.
     CREATED = 1;
     // All files in the batch have been successfully processed.
     PROCESSED = 2;
     // Processing failed for one or more files in the batch.
     FAILED = 3;
+    // The batch has been soft-deleted.
+    DELETED = 4;
   }
 
   // Resource name.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
 
-  // The current lifecycle state.
+  // The current state of the batch.
   State state = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
-
-  // The current processing state of the batch.
-  ProcessingState processing_state = 3
-      [(google.api.field_behavior) = OUTPUT_ONLY];
-
-  // The date when the raw impression data was uploaded.
-  google.type.Date upload_date = 4 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE
-  ];
-
   // The timestamp when this batch was created.
-  google.protobuf.Timestamp create_time = 5
+  google.protobuf.Timestamp create_time = 3
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The timestamp when this batch was last updated.
-  google.protobuf.Timestamp update_time = 6
+  google.protobuf.Timestamp update_time = 4
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The timestamp when this batch was soft-deleted.
+  google.protobuf.Timestamp delete_time = 5
       [(google.api.field_behavior) = OUTPUT_ONLY];
 }

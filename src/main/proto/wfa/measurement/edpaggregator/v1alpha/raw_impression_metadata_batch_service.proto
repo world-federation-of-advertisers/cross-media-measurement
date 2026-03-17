@@ -43,12 +43,13 @@ service RawImpressionMetadataBatchService {
   rpc DeleteRawImpressionMetadataBatch(DeleteRawImpressionMetadataBatchRequest)
       returns (RawImpressionMetadataBatch) {}
 
-  // Sets the processing state for a RawImpressionMetadataBatch.
-  // (-- api-linter: core::0134::synonyms=disabled
-  //     aip.dev/not-precedent: This sets a processing state, not a
-  //     single-field update. --)
-  rpc SetRawImpressionMetadataBatchProcessingState(
-      SetRawImpressionMetadataBatchProcessingStateRequest)
+  // Transitions a RawImpressionMetadataBatch to the PROCESSED state.
+  rpc ProcessRawImpressionMetadataBatch(
+      ProcessRawImpressionMetadataBatchRequest)
+      returns (RawImpressionMetadataBatch) {}
+
+  // Transitions a RawImpressionMetadataBatch to the FAILED state.
+  rpc FailRawImpressionMetadataBatch(FailRawImpressionMetadataBatchRequest)
       returns (RawImpressionMetadataBatch) {}
 }
 
@@ -109,19 +110,19 @@ message ListRawImpressionMetadataBatchesRequest {
   // A page token, received from a previous call.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 
+  // Filter for `ListRawImpressionMetadataBatches` method.
+  message Filter {
+    // The state to filter by.
+    // (-- api-linter: core::0216::state-field-output-only=disabled
+    //     aip.dev/not-precedent: This is a filter input field, not a
+    //     resource state field. --)
+    RawImpressionMetadataBatch.State state = 1
+        [(google.api.field_behavior) = OPTIONAL];
+  }
+
   // Optional. A filter to apply to the results.
   // All fields are combined with `AND` logic.
   Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
-
-  // Filter for `ListRawImpressionMetadataBatches` method.
-  message Filter {
-    // The processing state to filter by.
-    // (-- api-linter: core::0216::state-field-output-only=disabled
-    //     aip.dev/not-precedent: This is a filter input field, not a resource
-    //     state field. --)
-    RawImpressionMetadataBatch.ProcessingState processing_state = 1
-        [(google.api.field_behavior) = OPTIONAL];
-  }
 
   // A flag indicating whether to include soft DELETED entries.
   bool show_deleted = 5 [(google.api.field_behavior) = OPTIONAL];
@@ -151,9 +152,9 @@ message DeleteRawImpressionMetadataBatchRequest {
 }
 
 // Request message for the
-// `SetRawImpressionMetadataBatchProcessingState` method.
-message SetRawImpressionMetadataBatchProcessingStateRequest {
-  // The resource name of the RawImpressionMetadataBatch to update.
+// `ProcessRawImpressionMetadataBatch` method.
+message ProcessRawImpressionMetadataBatchRequest {
+  // The resource name of the RawImpressionMetadataBatch.
   // Format:
   // `dataProviders/{data_provider}/rawImpressionMetadataBatches/{raw_impression_metadata_batch}`
   string name = 1 [
@@ -162,11 +163,18 @@ message SetRawImpressionMetadataBatchProcessingStateRequest {
       type: "edpaggregator.halo-cmm.org/RawImpressionMetadataBatch"
     }
   ];
+}
 
-  // The processing state to set.
-  // (-- api-linter: core::0216::state-field-output-only=disabled
-  //     aip.dev/not-precedent: This is a request input field specifying the
-  //     desired state, not a resource state field. --)
-  RawImpressionMetadataBatch.ProcessingState processing_state = 2
-      [(google.api.field_behavior) = REQUIRED];
+// Request message for the
+// `FailRawImpressionMetadataBatch` method.
+message FailRawImpressionMetadataBatchRequest {
+  // The resource name of the RawImpressionMetadataBatch.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionMetadataBatches/{raw_impression_metadata_batch}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionMetadataBatch"
+    }
+  ];
 }
