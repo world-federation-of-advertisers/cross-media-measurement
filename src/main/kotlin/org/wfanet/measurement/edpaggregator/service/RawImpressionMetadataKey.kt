@@ -21,15 +21,15 @@ import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 
-/** [ResourceKey] of a RawImpressionMetadataUpload. */
-data class RawImpressionUploadKey(
+/** [ResourceKey] of a RawImpressionMetadataBatch. */
+data class RawImpressionMetadataBatchKey(
   override val parentKey: DataProviderKey,
-  val rawImpressionMetadataUploadId: String,
+  val rawImpressionMetadataBatchId: String,
 ) : ChildResourceKey {
   constructor(
     dataProviderId: String,
-    rawImpressionMetadataUploadId: String,
-  ) : this(DataProviderKey(dataProviderId), rawImpressionMetadataUploadId)
+    rawImpressionMetadataBatchId: String,
+  ) : this(DataProviderKey(dataProviderId), rawImpressionMetadataBatchId)
 
   val dataProviderId: String
     get() = parentKey.dataProviderId
@@ -38,116 +38,65 @@ data class RawImpressionUploadKey(
     return parser.assembleName(
       mapOf(
         IdVariable.DATA_PROVIDER to dataProviderId,
-        IdVariable.RAW_IMPRESSION_METADATA_UPLOAD to rawImpressionMetadataUploadId,
+        IdVariable.RAW_IMPRESSION_METADATA_BATCH to rawImpressionMetadataBatchId,
       )
     )
   }
 
-  companion object FACTORY : ResourceKey.Factory<RawImpressionUploadKey> {
+  companion object FACTORY : ResourceKey.Factory<RawImpressionMetadataBatchKey> {
     const val PATTERN =
-      "${DataProviderKey.PATTERN}/rawImpressionMetadataUploads/{raw_impression_metadata_upload}"
+      "${DataProviderKey.PATTERN}/rawImpressionMetadataBatches/{raw_impression_metadata_batch}"
     private val parser = ResourceNameParser(PATTERN)
 
-    override fun fromName(resourceName: String): RawImpressionUploadKey? {
+    override fun fromName(resourceName: String): RawImpressionMetadataBatchKey? {
       val idVars: Map<IdVariable, String> = parser.parseIdVars(resourceName) ?: return null
-      return RawImpressionUploadKey(
+      return RawImpressionMetadataBatchKey(
         idVars.getValue(IdVariable.DATA_PROVIDER),
-        idVars.getValue(IdVariable.RAW_IMPRESSION_METADATA_UPLOAD),
+        idVars.getValue(IdVariable.RAW_IMPRESSION_METADATA_BATCH),
       )
     }
   }
 }
 
-/** [ResourceKey] of a RawImpressionMetadataUpload batch. */
-data class RawImpressionBatchKey(
-  override val parentKey: RawImpressionUploadKey,
-  val batchId: String,
-) : ChildResourceKey {
-  constructor(
-    dataProviderId: String,
-    rawImpressionMetadataUploadId: String,
-    batchId: String,
-  ) : this(
-    RawImpressionUploadKey(dataProviderId, rawImpressionMetadataUploadId),
-    batchId,
-  )
-
-  val dataProviderId: String
-    get() = parentKey.dataProviderId
-
-  val rawImpressionMetadataUploadId: String
-    get() = parentKey.rawImpressionMetadataUploadId
-
-  override fun toName(): String {
-    return parser.assembleName(
-      mapOf(
-        IdVariable.DATA_PROVIDER to dataProviderId,
-        IdVariable.RAW_IMPRESSION_METADATA_UPLOAD to rawImpressionMetadataUploadId,
-        IdVariable.BATCH to batchId,
-      )
-    )
-  }
-
-  companion object FACTORY : ResourceKey.Factory<RawImpressionBatchKey> {
-    const val PATTERN = "${RawImpressionUploadKey.PATTERN}/batches/{batch}"
-    private val parser = ResourceNameParser(PATTERN)
-
-    override fun fromName(resourceName: String): RawImpressionBatchKey? {
-      val idVars: Map<IdVariable, String> = parser.parseIdVars(resourceName) ?: return null
-      return RawImpressionBatchKey(
-        idVars.getValue(IdVariable.DATA_PROVIDER),
-        idVars.getValue(IdVariable.RAW_IMPRESSION_METADATA_UPLOAD),
-        idVars.getValue(IdVariable.BATCH),
-      )
-    }
-  }
-}
-
-/** [ResourceKey] of a RawImpressionMetadata file. */
-data class RawImpressionMetadataKey(
-  override val parentKey: RawImpressionBatchKey,
+/** [ResourceKey] of a RawImpressionMetadataBatchFile. */
+data class RawImpressionMetadataBatchFileKey(
+  override val parentKey: RawImpressionMetadataBatchKey,
   val fileId: String,
 ) : ChildResourceKey {
   constructor(
     dataProviderId: String,
-    rawImpressionMetadataUploadId: String,
-    batchId: String,
+    rawImpressionMetadataBatchId: String,
     fileId: String,
   ) : this(
-    RawImpressionBatchKey(dataProviderId, rawImpressionMetadataUploadId, batchId),
+    RawImpressionMetadataBatchKey(dataProviderId, rawImpressionMetadataBatchId),
     fileId,
   )
 
   val dataProviderId: String
     get() = parentKey.dataProviderId
 
-  val rawImpressionMetadataUploadId: String
-    get() = parentKey.parentKey.rawImpressionMetadataUploadId
-
-  val batchId: String
-    get() = parentKey.batchId
+  val rawImpressionMetadataBatchId: String
+    get() = parentKey.rawImpressionMetadataBatchId
 
   override fun toName(): String {
     return parser.assembleName(
       mapOf(
         IdVariable.DATA_PROVIDER to dataProviderId,
-        IdVariable.RAW_IMPRESSION_METADATA_UPLOAD to rawImpressionMetadataUploadId,
-        IdVariable.BATCH to batchId,
+        IdVariable.RAW_IMPRESSION_METADATA_BATCH to rawImpressionMetadataBatchId,
         IdVariable.FILE to fileId,
       )
     )
   }
 
-  companion object FACTORY : ResourceKey.Factory<RawImpressionMetadataKey> {
-    const val PATTERN = "${RawImpressionBatchKey.PATTERN}/files/{file}"
+  companion object FACTORY : ResourceKey.Factory<RawImpressionMetadataBatchFileKey> {
+    const val PATTERN = "${RawImpressionMetadataBatchKey.PATTERN}/files/{file}"
     private val parser = ResourceNameParser(PATTERN)
 
-    override fun fromName(resourceName: String): RawImpressionMetadataKey? {
+    override fun fromName(resourceName: String): RawImpressionMetadataBatchFileKey? {
       val idVars: Map<IdVariable, String> = parser.parseIdVars(resourceName) ?: return null
-      return RawImpressionMetadataKey(
+      return RawImpressionMetadataBatchFileKey(
         idVars.getValue(IdVariable.DATA_PROVIDER),
-        idVars.getValue(IdVariable.RAW_IMPRESSION_METADATA_UPLOAD),
-        idVars.getValue(IdVariable.BATCH),
+        idVars.getValue(IdVariable.RAW_IMPRESSION_METADATA_BATCH),
         idVars.getValue(IdVariable.FILE),
       )
     }
