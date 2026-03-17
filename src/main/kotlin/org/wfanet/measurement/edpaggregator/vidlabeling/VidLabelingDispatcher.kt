@@ -46,7 +46,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @param vidLabelerParamsTemplate template [VidLabelerParams] with static fields populated.
  *   Per-batch fields ([VidLabelerParams.getInputBlobUrisList] and
  *   [VidLabelerParams.getBatchIndex]) are set by the dispatcher for each batch.
- * @param batchMaxSizeBytes maximum batch size in bytes. If null, all files go into a single batch.
+ * @param batchMaxSizeBytes maximum batch size in bytes.
  * @param metrics OpenTelemetry metrics recorder.
  */
 class VidLabelingDispatcher(
@@ -54,7 +54,7 @@ class VidLabelingDispatcher(
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   private val dataProviderName: String,
   private val vidLabelerParamsTemplate: VidLabelerParams,
-  private val batchMaxSizeBytes: Long? = null,
+  private val batchMaxSizeBytes: Long,
   private val metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
 ) {
   /** Holds a blob key and its size for batching. */
@@ -131,16 +131,13 @@ class VidLabelingDispatcher(
   /**
    * Partitions blob infos into batches based on [batchMaxSizeBytes].
    *
-   * If [batchMaxSizeBytes] is null, all blobs are placed in a single batch. Files that individually
-   * exceed [batchMaxSizeBytes] are placed in their own batch and an oversized file alert is emitted.
+   * Files that individually exceed [batchMaxSizeBytes] are placed in their own batch and an
+   * oversized file alert is emitted.
    *
    * @param blobInfos sorted list of blob infos to partition.
    * @return list of batches, where each batch is a list of [BlobInfo].
    */
   private fun partitionIntoBatches(blobInfos: List<BlobInfo>): List<List<BlobInfo>> {
-    if (batchMaxSizeBytes == null) {
-      return listOf(blobInfos)
-    }
 
     val batches = mutableListOf<MutableList<BlobInfo>>()
     var currentBatch = mutableListOf<BlobInfo>()

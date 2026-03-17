@@ -121,7 +121,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
       val vidLabelerParamsTemplate: VidLabelerParams = buildVidLabelerParamsTemplate(config)
 
       val batchMaxSizeBytes: Long =
-        if (config.hasBatchMaxSize()) config.batchMaxSize
+        if (config.hasMaxBatchSizeBytes()) config.maxBatchSizeBytes
         else DEFAULT_BATCH_MAX_SIZE_BYTES
 
       val dispatcher =
