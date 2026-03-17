@@ -18,6 +18,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":impression_metadata_state_proto",
+        ":raw_impression_metadata_key_proto",
         "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
@@ -96,6 +97,17 @@ proto_library(
 kt_jvm_grpc_proto_library(
     name = "requisition_metadata_service_kt_jvm_grpc_proto",
     deps = [":requisition_metadata_service_proto"],
+)
+
+proto_library(
+    name = "raw_impression_metadata_key_proto",
+    srcs = ["raw_impression_metadata_key.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "raw_impression_metadata_key_kt_jvm_proto",
+    deps = [":raw_impression_metadata_key_proto"],
 )
 
 proto_library(
