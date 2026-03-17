@@ -43,8 +43,8 @@ import org.wfanet.measurement.storage.StorageClient
  * @param workItemsStub gRPC stub for creating WorkItems via Secure Computation API.
  * @param dataProviderName resource name of the DataProvider.
  * @param vidLabelerParamsTemplate template [VidLabelerParams] with static fields populated.
- *   Per-batch fields ([VidLabelerParams.getInputBlobUrisList] and
- *   [VidLabelerParams.getBatchIndex]) are set by the dispatcher for each batch.
+ *   Per-batch field [VidLabelerParams.getRawImpressionMetadataBatch] is set by the dispatcher for
+ *   each batch.
  * @param queueName resource name of the Secure Computation queue for VID labeling work items.
  * @param batchMaxSizeBytes maximum batch size in bytes.
  * @param metrics OpenTelemetry metrics recorder.
@@ -104,18 +104,19 @@ class VidLabelingDispatcher(
         //   RawImpressionMetadata API provides the upload ID.
         val workItemBatchId: String = generateDeterministicId(batchBlobUris)
 
+        // TODO(world-federation-of-advertisers/cross-media-measurement#3584): Create batch via
+        //   RawImpressionMetadataBatch gRPC API and use the returned resource name.
+        val batchResourceName =
+          "$dataProviderName/rawImpressionMetadataBatches/$workItemBatchId"
+
         val params = vidLabelerParams {
           dataProvider = vidLabelerParamsTemplate.dataProvider
           storageParams = vidLabelerParamsTemplate.storageParams
           vidRepoConnection = vidLabelerParamsTemplate.vidRepoConnection
           modelLineConfigs.putAll(vidLabelerParamsTemplate.modelLineConfigsMap)
           overrideModelLines += vidLabelerParamsTemplate.overrideModelLinesList
-          inputBlobUris += batchBlobUris
-          batchIndex = index.toLong()
+          rawImpressionMetadataBatch = batchResourceName
         }
-
-        // TODO(world-federation-of-advertisers/cross-media-measurement#3584): Persist batch
-        //   metadata via RawImpressionMetadataService once the service is implemented.
 
         createWorkItem(workItemBatchId, params)
       }
@@ -218,7 +219,9 @@ class VidLabelingDispatcher(
 
     try {
       workItemsStub.createWorkItem(request)
-      logger.info("Created WorkItem $workItemId with ${params.inputBlobUrisList.size} files")
+      logger.info(
+        "Created WorkItem $workItemId for batch ${params.rawImpressionMetadataBatch}"
+      )
     } catch (e: StatusException) {
       metrics.rpcErrorsCounter.add(
         1,

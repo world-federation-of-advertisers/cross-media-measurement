@@ -71,9 +71,16 @@ message VidLabelerParams {
     (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
   ];
 
-  // The input blob URIs to process.
-  repeated string input_blob_uris = 6 [(google.api.field_behavior) = REQUIRED];
+  // Deprecated: TEE app lists files via RawImpressionMetadataBatchFile service.
+  repeated string input_blob_uris = 6 [deprecated = true];
 
-  // Zero-based index identifying the batch within the upload.
-  int64 batch_index = 7 [(google.api.field_behavior) = REQUIRED];
+  // Deprecated: Use raw_impression_metadata_batch instead.
+  int64 batch_index = 7 [deprecated = true];
+
+  // Resource name of the RawImpressionMetadataBatch for this batch.
+  string raw_impression_metadata_batch = 8 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type =
+        "edpaggregator.halo-cmm.org/RawImpressionMetadataBatch"
+  ];
 }
