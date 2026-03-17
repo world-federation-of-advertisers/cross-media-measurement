@@ -120,9 +120,8 @@ class VidLabelingDispatcherTest {
       )
     val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
     assertThat(vidLabelerParams.dataProvider).isEqualTo(DATA_PROVIDER_NAME)
-    assertThat(vidLabelerParams.inputBlobUrisList).hasSize(1)
-    assertThat(vidLabelerParams.inputBlobUrisList[0]).contains("file1.parquet")
-    assertThat(vidLabelerParams.batchIndex).isEqualTo(0L)
+    assertThat(vidLabelerParams.rawImpressionMetadataBatch)
+      .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
   }
 
   @Test
@@ -147,7 +146,8 @@ class VidLabelingDispatcherTest {
           .java
       )
     val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
-    assertThat(vidLabelerParams.inputBlobUrisList).hasSize(3)
+    assertThat(vidLabelerParams.rawImpressionMetadataBatch)
+      .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
   }
 
   @Test
@@ -190,10 +190,12 @@ class VidLabelingDispatcherTest {
         .appParams
         .unpack(VidLabelerParams::class.java)
 
-    assertThat(batch1Params.inputBlobUrisList).hasSize(2)
-    assertThat(batch1Params.batchIndex).isEqualTo(0L)
-    assertThat(batch2Params.inputBlobUrisList).hasSize(1)
-    assertThat(batch2Params.batchIndex).isEqualTo(1L)
+    assertThat(batch1Params.rawImpressionMetadataBatch)
+      .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
+    assertThat(batch2Params.rawImpressionMetadataBatch)
+      .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
+    assertThat(batch1Params.rawImpressionMetadataBatch)
+      .isNotEqualTo(batch2Params.rawImpressionMetadataBatch)
   }
 
   @Test
@@ -217,8 +219,8 @@ class VidLabelingDispatcherTest {
           .java
       )
     val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
-    assertThat(vidLabelerParams.inputBlobUrisList).hasSize(1)
-    assertThat(vidLabelerParams.inputBlobUrisList[0]).contains("file1.parquet")
+    assertThat(vidLabelerParams.rawImpressionMetadataBatch)
+      .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
   }
 
   @Test
@@ -288,9 +290,13 @@ class VidLabelingDispatcherTest {
         .appParams
         .unpack(VidLabelerParams::class.java)
 
-    // Each batch should contain exactly 2 files (one 600 + one 400).
-    assertThat(batch1Params.inputBlobUrisList).hasSize(2)
-    assertThat(batch2Params.inputBlobUrisList).hasSize(2)
+    // Each batch should have a unique resource name.
+    assertThat(batch1Params.rawImpressionMetadataBatch)
+      .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
+    assertThat(batch2Params.rawImpressionMetadataBatch)
+      .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
+    assertThat(batch1Params.rawImpressionMetadataBatch)
+      .isNotEqualTo(batch2Params.rawImpressionMetadataBatch)
   }
 
   @Test
@@ -332,12 +338,13 @@ class VidLabelingDispatcherTest {
         .appParams
         .unpack(VidLabelerParams::class.java)
 
-    // Oversized file is alone in its batch.
-    assertThat(oversizedBatchParams.inputBlobUrisList).hasSize(1)
-    assertThat(oversizedBatchParams.inputBlobUrisList[0]).contains("oversized.parquet")
-    // Normal file is in its own batch.
-    assertThat(normalBatchParams.inputBlobUrisList).hasSize(1)
-    assertThat(normalBatchParams.inputBlobUrisList[0]).contains("normal.parquet")
+    // Each batch should have a unique resource name.
+    assertThat(oversizedBatchParams.rawImpressionMetadataBatch)
+      .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
+    assertThat(normalBatchParams.rawImpressionMetadataBatch)
+      .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
+    assertThat(oversizedBatchParams.rawImpressionMetadataBatch)
+      .isNotEqualTo(normalBatchParams.rawImpressionMetadataBatch)
   }
 
   @Test
@@ -387,8 +394,8 @@ class VidLabelingDispatcherTest {
           .java
       )
     val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
-    assertThat(vidLabelerParams.inputBlobUrisList[0])
-      .isEqualTo("gs://test-bucket/$FOLDER_PREFIX/file1.parquet")
+    assertThat(vidLabelerParams.rawImpressionMetadataBatch)
+      .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
   }
 
   companion object {
