@@ -168,7 +168,10 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             ))
         # Verifies that the exception was logged.
         mock_logging.assert_called_once_with(
-            "Failed to process  basic report basic_report_1 for measurement consumer mc_id_1."
+            "Failed to process BasicReport %s for MeasurementConsumer %s",
+            "basic_report_1",
+            "mc_id_1",
+            exc_info=True,
         )
 
 
