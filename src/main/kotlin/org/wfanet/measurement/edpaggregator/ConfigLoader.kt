@@ -18,7 +18,6 @@ package org.wfanet.measurement.edpaggregator
 
 import com.google.protobuf.Any
 import com.google.protobuf.InvalidProtocolBufferException
-import com.google.protobuf.Message
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.JsonFormat
 import java.util.logging.Logger
@@ -61,7 +60,7 @@ object ConfigLoader {
     configs: List<DataAvailabilitySyncConfig>,
   ): DataAvailabilitySyncConfig {
     val any = tryParseAsAny(requestBody)
-      ?: return parseLegacy(requestBody, DataAvailabilitySyncConfig.getDefaultInstance())
+      ?: return parseLegacyDataAvailabilitySyncConfig(requestBody)
 
     return when {
       any.`is`(DataAvailabilitySyncParams::class.java) -> {
@@ -88,7 +87,7 @@ object ConfigLoader {
     configs: List<EventGroupSyncConfig>,
   ): EventGroupSyncConfig {
     val any = tryParseAsAny(requestBody)
-      ?: return parseLegacy(requestBody, EventGroupSyncConfig.getDefaultInstance())
+      ?: return parseLegacyEventGroupSyncConfig(requestBody)
 
     return when {
       any.`is`(EventGroupSyncParams::class.java) -> {
@@ -105,36 +104,32 @@ object ConfigLoader {
     // causing InvalidProtocolBufferException. Catching this signals the caller to fall back
     // to legacy parsing.
     return try {
-      val any =
-        Any.newBuilder()
-          .apply {
-            JsonFormat.parser()
-              .usingTypeRegistry(typeRegistry)
-              .merge(requestBody, this)
-          }
-          .build()
-      // An empty JSON object ("{}") parses into Any without error since there are no unknown
-      // fields to reject, but produces an Any with no type URL. Check for this explicitly so
-      // the caller falls back to legacy parsing instead of hitting the "Unsupported @type" error.
-      if (any.typeUrl.isEmpty()) {
-        logger.info("Request body has no @type field; falling back to legacy format parsing")
-        return null
-      }
-      any
+      Any.newBuilder()
+        .apply {
+          JsonFormat.parser()
+            .usingTypeRegistry(typeRegistry)
+            .merge(requestBody, this)
+        }
+        .build()
     } catch (e: InvalidProtocolBufferException) {
       logger.info("Request body is not Any-wrapped; falling back to legacy format parsing")
       null
     }
   }
 
-  @Suppress("UNCHECKED_CAST")
-  private fun <T : Message> parseLegacy(requestBody: String, defaultInstance: T): T {
-    logger.info(
-      "No @type found, parsing as ${defaultInstance.descriptorForType.fullName} (legacy)"
-    )
-    return defaultInstance
-      .newBuilderForType()
+  private fun parseLegacyDataAvailabilitySyncConfig(
+    requestBody: String,
+  ): DataAvailabilitySyncConfig {
+    logger.info("No @type found, parsing as DataAvailabilitySyncConfig (legacy)")
+    return DataAvailabilitySyncConfig.newBuilder()
       .apply { JsonFormat.parser().merge(requestBody, this) }
-      .build() as T
+      .build()
+  }
+
+  private fun parseLegacyEventGroupSyncConfig(requestBody: String): EventGroupSyncConfig {
+    logger.info("No @type found, parsing as EventGroupSyncConfig (legacy)")
+    return EventGroupSyncConfig.newBuilder()
+      .apply { JsonFormat.parser().merge(requestBody, this) }
+      .build()
   }
 }

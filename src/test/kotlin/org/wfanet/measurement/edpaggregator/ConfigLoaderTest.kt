@@ -89,12 +89,12 @@ class ConfigLoaderTest {
   }
 
   @Test
-  fun `buildDataAvailabilitySyncConfig returns default config for empty JSON object`() {
+  fun `buildDataAvailabilitySyncConfig throws for empty JSON object`() {
     val config = dataAvailabilitySyncConfig { dataProvider = "dataProviders/edp1" }
 
-    val result = ConfigLoader.buildDataAvailabilitySyncConfig("{}", listOf(config))
-
-    assertThat(result.dataProvider).isEmpty()
+    assertFailsWith<IllegalStateException> {
+      ConfigLoader.buildDataAvailabilitySyncConfig("{}", listOf(config))
+    }
   }
 
   @Test
@@ -151,12 +151,12 @@ class ConfigLoaderTest {
   }
 
   @Test
-  fun `buildEventGroupSyncConfig returns default config for empty JSON object`() {
+  fun `buildEventGroupSyncConfig throws for empty JSON object`() {
     val config = eventGroupSyncConfig { dataProvider = "dataProviders/edp1" }
 
-    val result = ConfigLoader.buildEventGroupSyncConfig("{}", listOf(config))
-
-    assertThat(result.dataProvider).isEmpty()
+    assertFailsWith<IllegalStateException> {
+      ConfigLoader.buildEventGroupSyncConfig("{}", listOf(config))
+    }
   }
 
   companion object {
