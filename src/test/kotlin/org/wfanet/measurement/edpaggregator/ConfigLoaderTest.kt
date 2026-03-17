@@ -17,7 +17,7 @@
 package org.wfanet.measurement.edpaggregator
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.Any
+import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.JsonFormat
@@ -50,7 +50,7 @@ class ConfigLoaderTest {
     val config1 = dataAvailabilitySyncConfig { dataProvider = "dataProviders/edp1" }
     val config2 = dataAvailabilitySyncConfig { dataProvider = "dataProviders/edp2" }
     val params = dataAvailabilitySyncParams { dataProvider = "dataProviders/edp2" }
-    val anyJson = packToJson(Any.pack(params), DataAvailabilitySyncParams.getDescriptor())
+    val anyJson = packToJson(ProtoAny.pack(params), DataAvailabilitySyncParams.getDescriptor())
 
     val result = ConfigLoader.buildDataAvailabilitySyncConfig(anyJson, listOf(config1, config2))
 
@@ -61,7 +61,7 @@ class ConfigLoaderTest {
   fun `buildDataAvailabilitySyncConfig throws for Any-wrapped params with non-matching data provider`() {
     val config = dataAvailabilitySyncConfig { dataProvider = "dataProviders/edp1" }
     val params = dataAvailabilitySyncParams { dataProvider = "dataProviders/nonexistent" }
-    val anyJson = packToJson(Any.pack(params), DataAvailabilitySyncParams.getDescriptor())
+    val anyJson = packToJson(ProtoAny.pack(params), DataAvailabilitySyncParams.getDescriptor())
 
     assertFailsWith<NoSuchElementException> {
       ConfigLoader.buildDataAvailabilitySyncConfig(anyJson, listOf(config))
@@ -72,7 +72,7 @@ class ConfigLoaderTest {
   fun `buildDataAvailabilitySyncConfig throws for Any-wrapped params with unsupported type`() {
     val config = dataAvailabilitySyncConfig { dataProvider = "dataProviders/edp1" }
     val params = eventGroupSyncParams { dataProvider = "dataProviders/edp1" }
-    val anyJson = packToJson(Any.pack(params), EventGroupSyncParams.getDescriptor())
+    val anyJson = packToJson(ProtoAny.pack(params), EventGroupSyncParams.getDescriptor())
 
     assertFailsWith<IllegalStateException> {
       ConfigLoader.buildDataAvailabilitySyncConfig(anyJson, listOf(config))
@@ -112,7 +112,7 @@ class ConfigLoaderTest {
     val config1 = eventGroupSyncConfig { dataProvider = "dataProviders/edp1" }
     val config2 = eventGroupSyncConfig { dataProvider = "dataProviders/edp2" }
     val params = eventGroupSyncParams { dataProvider = "dataProviders/edp2" }
-    val anyJson = packToJson(Any.pack(params), EventGroupSyncParams.getDescriptor())
+    val anyJson = packToJson(ProtoAny.pack(params), EventGroupSyncParams.getDescriptor())
 
     val result = ConfigLoader.buildEventGroupSyncConfig(anyJson, listOf(config1, config2))
 
@@ -123,7 +123,7 @@ class ConfigLoaderTest {
   fun `buildEventGroupSyncConfig throws for Any-wrapped params with non-matching data provider`() {
     val config = eventGroupSyncConfig { dataProvider = "dataProviders/edp1" }
     val params = eventGroupSyncParams { dataProvider = "dataProviders/nonexistent" }
-    val anyJson = packToJson(Any.pack(params), EventGroupSyncParams.getDescriptor())
+    val anyJson = packToJson(ProtoAny.pack(params), EventGroupSyncParams.getDescriptor())
 
     assertFailsWith<NoSuchElementException> {
       ConfigLoader.buildEventGroupSyncConfig(anyJson, listOf(config))
@@ -134,7 +134,7 @@ class ConfigLoaderTest {
   fun `buildEventGroupSyncConfig throws for Any-wrapped params with unsupported type`() {
     val config = eventGroupSyncConfig { dataProvider = "dataProviders/edp1" }
     val params = dataAvailabilitySyncParams { dataProvider = "dataProviders/edp1" }
-    val anyJson = packToJson(Any.pack(params), DataAvailabilitySyncParams.getDescriptor())
+    val anyJson = packToJson(ProtoAny.pack(params), DataAvailabilitySyncParams.getDescriptor())
 
     assertFailsWith<IllegalStateException> {
       ConfigLoader.buildEventGroupSyncConfig(anyJson, listOf(config))
@@ -161,7 +161,7 @@ class ConfigLoaderTest {
 
   companion object {
     private fun packToJson(
-      any: Any,
+      protoAny: ProtoAny,
       vararg descriptors: com.google.protobuf.Descriptors.Descriptor,
     ): String {
       val typeRegistry = TypeRegistry.newBuilder().apply {
@@ -169,7 +169,7 @@ class ConfigLoaderTest {
           add(descriptor)
         }
       }.build()
-      return JsonFormat.printer().usingTypeRegistry(typeRegistry).print(any)
+      return JsonFormat.printer().usingTypeRegistry(typeRegistry).print(protoAny)
     }
   }
 }

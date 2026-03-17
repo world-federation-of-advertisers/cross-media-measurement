@@ -16,7 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator
 
-import com.google.protobuf.Any
+import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.JsonFormat
@@ -59,16 +59,16 @@ object ConfigLoader {
     requestBody: String,
     configs: List<DataAvailabilitySyncConfig>,
   ): DataAvailabilitySyncConfig {
-    val any = tryParseAsAny(requestBody)
+    val protoAny = tryParseAsAny(requestBody)
       ?: return parseLegacyDataAvailabilitySyncConfig(requestBody)
 
     return when {
-      any.`is`(DataAvailabilitySyncParams::class.java) -> {
-        val params = any.unpack(DataAvailabilitySyncParams::class.java)
+      protoAny.`is`(DataAvailabilitySyncParams::class.java) -> {
+        val params = protoAny.unpack(DataAvailabilitySyncParams::class.java)
         logger.info("Parsed request body as DataAvailabilitySyncParams (v1alpha) via @type")
         configs.single { it.dataProvider == params.dataProvider }
       }
-      else -> error("Unsupported @type: ${any.typeUrl}")
+      else -> error("Unsupported @type: ${protoAny.typeUrl}")
     }
   }
 
@@ -86,25 +86,25 @@ object ConfigLoader {
     requestBody: String,
     configs: List<EventGroupSyncConfig>,
   ): EventGroupSyncConfig {
-    val any = tryParseAsAny(requestBody)
+    val protoAny = tryParseAsAny(requestBody)
       ?: return parseLegacyEventGroupSyncConfig(requestBody)
 
     return when {
-      any.`is`(EventGroupSyncParams::class.java) -> {
-        val params = any.unpack(EventGroupSyncParams::class.java)
+      protoAny.`is`(EventGroupSyncParams::class.java) -> {
+        val params = protoAny.unpack(EventGroupSyncParams::class.java)
         logger.info("Parsed request body as EventGroupSyncParams (v1alpha) via @type")
         configs.single { it.dataProvider == params.dataProvider }
       }
-      else -> error("Unsupported @type: ${any.typeUrl}")
+      else -> error("Unsupported @type: ${protoAny.typeUrl}")
     }
   }
 
-  private fun tryParseAsAny(requestBody: String): Any? {
+  private fun tryParseAsAny(requestBody: String): ProtoAny? {
     // Legacy format requests contain fields like "data_provider" that are unknown to Any,
     // causing InvalidProtocolBufferException. Catching this signals the caller to fall back
     // to legacy parsing.
     return try {
-      Any.newBuilder()
+      ProtoAny.newBuilder()
         .apply {
           JsonFormat.parser()
             .usingTypeRegistry(typeRegistry)
