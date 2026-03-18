@@ -43,13 +43,14 @@ service RawImpressionMetadataBatchService {
   rpc DeleteRawImpressionMetadataBatch(DeleteRawImpressionMetadataBatchRequest)
       returns (RawImpressionMetadataBatch) {}
 
-  // Transitions a RawImpressionMetadataBatch to the PROCESSED state.
-  rpc ProcessRawImpressionMetadataBatch(
-      ProcessRawImpressionMetadataBatchRequest)
+  // Sets a RawImpressionMetadataBatch to the PROCESSED state.
+  rpc SetRawImpressionMetadataBatchStateProcessed(
+      SetRawImpressionMetadataBatchStateProcessedRequest)
       returns (RawImpressionMetadataBatch) {}
 
-  // Transitions a RawImpressionMetadataBatch to the FAILED state.
-  rpc FailRawImpressionMetadataBatch(FailRawImpressionMetadataBatchRequest)
+  // Sets a RawImpressionMetadataBatch to the FAILED state.
+  rpc SetRawImpressionMetadataBatchStateFailed(
+      SetRawImpressionMetadataBatchStateFailedRequest)
       returns (RawImpressionMetadataBatch) {}
 }
 
@@ -152,8 +153,8 @@ message DeleteRawImpressionMetadataBatchRequest {
 }
 
 // Request message for the
-// `ProcessRawImpressionMetadataBatch` method.
-message ProcessRawImpressionMetadataBatchRequest {
+// `SetRawImpressionMetadataBatchStateProcessed` method.
+message SetRawImpressionMetadataBatchStateProcessedRequest {
   // The resource name of the RawImpressionMetadataBatch.
   // Format:
   // `dataProviders/{data_provider}/rawImpressionMetadataBatches/{raw_impression_metadata_batch}`
@@ -166,8 +167,8 @@ message ProcessRawImpressionMetadataBatchRequest {
 }
 
 // Request message for the
-// `FailRawImpressionMetadataBatch` method.
-message FailRawImpressionMetadataBatchRequest {
+// `SetRawImpressionMetadataBatchStateFailed` method.
+message SetRawImpressionMetadataBatchStateFailedRequest {
   // The resource name of the RawImpressionMetadataBatch.
   // Format:
   // `dataProviders/{data_provider}/rawImpressionMetadataBatches/{raw_impression_metadata_batch}`

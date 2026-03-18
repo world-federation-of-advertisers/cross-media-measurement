@@ -43,8 +43,6 @@ message RawImpressionMetadataBatch {
     PROCESSED = 2;
     // Processing failed for one or more files in the batch.
     FAILED = 3;
-    // The batch has been soft-deleted.
-    DELETED = 4;
   }
 
   // Resource name.

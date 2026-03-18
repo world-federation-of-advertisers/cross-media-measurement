@@ -41,8 +41,6 @@ message RawImpressionMetadataBatchFile {
     STATE_UNSPECIFIED = 0;
     // The file is active.
     ACTIVE = 1;
-    // The file has been marked as deleted.
-    DELETED = 2;
   }
 
   // Resource name.
