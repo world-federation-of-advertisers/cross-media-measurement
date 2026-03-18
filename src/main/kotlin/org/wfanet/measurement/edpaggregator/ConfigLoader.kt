@@ -60,7 +60,7 @@ object ConfigLoader {
     requestBody: String,
     configs: List<DataAvailabilitySyncConfig>,
   ): DataAvailabilitySyncConfig {
-    val protoAny =
+    val protoAny: ProtoAny? =
       tryParseAsAny(requestBody) ?: return parseLegacyDataAvailabilitySyncConfig(requestBody)
 
     return when {
@@ -88,7 +88,7 @@ object ConfigLoader {
     requestBody: String,
     configs: List<EventGroupSyncConfig>,
   ): EventGroupSyncConfig {
-    val protoAny = tryParseAsAny(requestBody) ?: return parseLegacyEventGroupSyncConfig(requestBody)
+    val protoAny: ProtoAny? = tryParseAsAny(requestBody) ?: return parseLegacyEventGroupSyncConfig(requestBody)
 
     return when {
       protoAny.`is`(EventGroupSyncParams::class.java) -> {
