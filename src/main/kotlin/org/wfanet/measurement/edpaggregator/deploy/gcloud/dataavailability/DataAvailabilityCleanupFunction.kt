@@ -66,10 +66,7 @@ class DataAvailabilityCleanupFunction : HttpFunction {
 
       val requestBody = request.reader.readText()
       val dataAvailabilitySyncConfig =
-        ConfigLoader.buildDataAvailabilitySyncConfig(
-          requestBody,
-          runtimeConfigs.configsList,
-        )
+        ConfigLoader.buildDataAvailabilitySyncConfig(requestBody, runtimeConfigs.configsList)
 
       // Read the path as request header
       val deletedBlobPath =
