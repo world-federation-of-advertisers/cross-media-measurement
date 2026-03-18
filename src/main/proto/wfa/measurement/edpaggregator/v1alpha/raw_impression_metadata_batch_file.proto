@@ -35,14 +35,6 @@ message RawImpressionMetadataBatchFile {
     plural: "rawImpressionMetadataBatchFiles"
   };
 
-  // The lifecycle state of the raw impression file.
-  enum State {
-    // Default, unspecified state. Should not be used.
-    STATE_UNSPECIFIED = 0;
-    // The file is active.
-    ACTIVE = 1;
-  }
-
   // Resource name.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
 
@@ -54,9 +46,6 @@ message RawImpressionMetadataBatchFile {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // The current lifecycle state.
-  State state = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
-
   // The timestamp when this file entry was created.
   google.protobuf.Timestamp create_time = 4
       [(google.api.field_behavior) = OUTPUT_ONLY];
@@ -66,6 +55,7 @@ message RawImpressionMetadataBatchFile {
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The timestamp when this file was soft-deleted.
+  // Only populated if the file has been deleted.
   google.protobuf.Timestamp delete_time = 6
       [(google.api.field_behavior) = OUTPUT_ONLY];
 }

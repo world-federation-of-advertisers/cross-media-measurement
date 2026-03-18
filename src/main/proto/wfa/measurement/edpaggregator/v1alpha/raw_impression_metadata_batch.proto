@@ -59,6 +59,7 @@ message RawImpressionMetadataBatch {
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The timestamp when this batch was soft-deleted.
+  // Only populated if the batch has been deleted.
   google.protobuf.Timestamp delete_time = 5
       [(google.api.field_behavior) = OUTPUT_ONLY];
 }
