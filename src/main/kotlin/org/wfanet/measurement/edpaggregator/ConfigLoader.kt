@@ -60,17 +60,14 @@ object ConfigLoader {
     requestBody: String,
     configs: List<DataAvailabilitySyncConfig>,
   ): DataAvailabilitySyncConfig {
-    val protoAny: ProtoAny? =
-      tryParseAsAny(requestBody) ?: return parseLegacyDataAvailabilitySyncConfig(requestBody)
-
-    return when {
-      protoAny.`is`(DataAvailabilitySyncParams::class.java) -> {
-        val params = protoAny.unpack(DataAvailabilitySyncParams::class.java)
-        logger.info("Parsed request body as DataAvailabilitySyncParams (v1alpha) via @type")
-        configs.single { it.dataProvider == params.dataProvider }
-      }
-      else -> error("Unsupported @type: ${protoAny.typeUrl}")
+    val protoAny: ProtoAny? = tryParseAsAny(requestBody)
+    if (protoAny == null) return parseLegacyDataAvailabilitySyncConfig(requestBody)
+    if (protoAny.`is`(DataAvailabilitySyncParams::class.java)) {
+      val params = protoAny.unpack(DataAvailabilitySyncParams::class.java)
+      logger.info("Parsed request body as DataAvailabilitySyncParams (v1alpha) via @type")
+      return configs.single { it.dataProvider == params.dataProvider }
     }
+    error("Unsupported @type: ${protoAny.typeUrl}")
   }
 
   /**
@@ -88,17 +85,14 @@ object ConfigLoader {
     requestBody: String,
     configs: List<EventGroupSyncConfig>,
   ): EventGroupSyncConfig {
-    val protoAny: ProtoAny? =
-      tryParseAsAny(requestBody) ?: return parseLegacyEventGroupSyncConfig(requestBody)
-
-    return when {
-      protoAny.`is`(EventGroupSyncParams::class.java) -> {
-        val params = protoAny.unpack(EventGroupSyncParams::class.java)
-        logger.info("Parsed request body as EventGroupSyncParams (v1alpha) via @type")
-        configs.single { it.dataProvider == params.dataProvider }
-      }
-      else -> error("Unsupported @type: ${protoAny.typeUrl}")
+    val protoAny: ProtoAny? = tryParseAsAny(requestBody)
+    if (protoAny == null) return parseLegacyEventGroupSyncConfig(requestBody)
+    if (protoAny.`is`(EventGroupSyncParams::class.java)) {
+      val params = protoAny.unpack(EventGroupSyncParams::class.java)
+      logger.info("Parsed request body as EventGroupSyncParams (v1alpha) via @type")
+      return configs.single { it.dataProvider == params.dataProvider }
     }
+    error("Unsupported @type: ${protoAny.typeUrl}")
   }
 
   private fun tryParseAsAny(requestBody: String): ProtoAny? {
