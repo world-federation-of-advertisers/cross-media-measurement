@@ -133,9 +133,9 @@ message GetRawImpressionMetadataBatchFileRequest {
 
 // Request message for the
 // `ListRawImpressionMetadataBatchFiles` method.
-// (-- api-linter: core::0132::request-unknown-fields=disabled
-//     aip.dev/not-precedent: Using a custom blob URI filter
-//     field. --)
+// (-- api-linter: core::0132::request-field-types=disabled
+//     aip.dev/not-precedent: Using a customized message for the
+//     filter. --)
 message ListRawImpressionMetadataBatchFilesRequest {
   // The parent batch resource name.
   // Format:
@@ -157,14 +157,17 @@ message ListRawImpressionMetadataBatchFilesRequest {
   // A page token, received from a previous call.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 
-  // A filter for matching files by blob URIs.
-  message BlobUriFilter {
-    // The list of blob URIs to match.
-    repeated string blob_uris = 1 [(google.api.field_behavior) = REQUIRED];
+  // Filter for `ListRawImpressionMetadataBatchFiles` method.
+  // (-- api-linter: core::0140::prepositions=disabled
+  //     aip.dev/not-precedent: Using verb suffix per newer API
+  //     conventions. --)
+  message Filter {
+    // Filter where blob URI of the file is in the given list.
+    repeated string blob_uri_in = 1 [(google.api.field_behavior) = REQUIRED];
   }
 
-  // Filter by a list of blob URIs.
-  BlobUriFilter blob_uri_filter = 4 [(google.api.field_behavior) = OPTIONAL];
+  // A filter to apply to the list results.
+  Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
 
   // Whether to include soft-deleted entries.
   bool show_deleted = 5 [(google.api.field_behavior) = OPTIONAL];
