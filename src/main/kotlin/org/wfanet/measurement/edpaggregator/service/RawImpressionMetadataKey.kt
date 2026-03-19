@@ -67,10 +67,7 @@ data class RawImpressionMetadataBatchFileKey(
     dataProviderId: String,
     rawImpressionMetadataBatchId: String,
     fileId: String,
-  ) : this(
-    RawImpressionMetadataBatchKey(dataProviderId, rawImpressionMetadataBatchId),
-    fileId,
-  )
+  ) : this(RawImpressionMetadataBatchKey(dataProviderId, rawImpressionMetadataBatchId), fileId)
 
   val dataProviderId: String
     get() = parentKey.dataProviderId
