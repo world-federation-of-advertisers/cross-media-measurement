@@ -43,8 +43,8 @@ service RawImpressionMetadataBatchFileService {
       GetRawImpressionMetadataBatchFileRequest)
       returns (RawImpressionMetadataBatchFile) {}
 
-  // Lists RawImpressionMetadataBatchFile resources for a data
-  // provider.
+  // Lists RawImpressionMetadataBatchFile resources within a
+  // batch.
   rpc ListRawImpressionMetadataBatchFiles(
       ListRawImpressionMetadataBatchFilesRequest)
       returns (ListRawImpressionMetadataBatchFilesResponse) {}
@@ -133,12 +133,17 @@ message GetRawImpressionMetadataBatchFileRequest {
 
 // Request message for the
 // `ListRawImpressionMetadataBatchFiles` method.
-// (-- api-linter: core::0132::request-field-types=disabled
-//     aip.dev/not-precedent: Using a customized message for the
-//     filter. --)
+// (-- api-linter: core::0132::request-unknown-fields=disabled
+//     aip.dev/not-precedent: Using a custom blob URI filter
+//     field. --)
 message ListRawImpressionMetadataBatchFilesRequest {
-  // The parent data provider resource name.
-  // Format: `dataProviders/{data_provider}`
+  // The parent batch resource name.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionMetadataBatches/{raw_impression_metadata_batch}`
+  //
+  // The batch segment may be the wildcard `-` to list
+  // files across all batches for a data provider. See
+  // AIP-159.
   string parent = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
@@ -152,24 +157,14 @@ message ListRawImpressionMetadataBatchFilesRequest {
   // A page token, received from a previous call.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 
-  // Filter for `ListRawImpressionMetadataBatchFiles` method.
-  message Filter {
-    // A filter for matching files by blob URIs.
-    message BlobUriFilter {
-      // The list of blob URIs to match.
-      repeated string blob_uris = 1 [(google.api.field_behavior) = REQUIRED];
-    }
-
-    oneof filter {
-      // Filter by batch resource ID.
-      string batch_id = 1;
-      // Filter by a list of blob URIs.
-      BlobUriFilter blob_uri_filter = 2;
-    }
+  // A filter for matching files by blob URIs.
+  message BlobUriFilter {
+    // The list of blob URIs to match.
+    repeated string blob_uris = 1 [(google.api.field_behavior) = REQUIRED];
   }
 
-  // Optional. A filter to apply to the results.
-  Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
+  // Filter by a list of blob URIs.
+  BlobUriFilter blob_uri_filter = 4 [(google.api.field_behavior) = OPTIONAL];
 
   // Whether to include soft-deleted entries.
   bool show_deleted = 5 [(google.api.field_behavior) = OPTIONAL];

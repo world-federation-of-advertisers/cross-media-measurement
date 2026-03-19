@@ -47,15 +47,15 @@ message RawImpressionMetadataBatchFile {
   ];
 
   // The timestamp when this file entry was created.
-  google.protobuf.Timestamp create_time = 4
+  google.protobuf.Timestamp create_time = 3
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The timestamp when this file entry was last updated.
-  google.protobuf.Timestamp update_time = 5
+  google.protobuf.Timestamp update_time = 4
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The timestamp when this file was soft-deleted.
   // Only populated if the file has been deleted.
-  google.protobuf.Timestamp delete_time = 6
+  google.protobuf.Timestamp delete_time = 5
       [(google.api.field_behavior) = OUTPUT_ONLY];
 }
