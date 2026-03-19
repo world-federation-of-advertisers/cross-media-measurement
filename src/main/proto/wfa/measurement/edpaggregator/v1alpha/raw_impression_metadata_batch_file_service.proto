@@ -1,0 +1,233 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
+import "google/api/resource.proto";
+import "wfa/measurement/edpaggregator/v1alpha/raw_impression_metadata_batch_file.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RawImpressionMetadataBatchFileServiceProto";
+
+// Service for managing RawImpressionMetadataBatchFile resources.
+service RawImpressionMetadataBatchFileService {
+  // Creates a new RawImpressionMetadataBatchFile within a batch.
+  rpc CreateRawImpressionMetadataBatchFile(
+      CreateRawImpressionMetadataBatchFileRequest)
+      returns (RawImpressionMetadataBatchFile) {}
+
+  // Creates multiple RawImpressionMetadataBatchFile entries in
+  // a single request.
+  rpc BatchCreateRawImpressionMetadataBatchFiles(
+      BatchCreateRawImpressionMetadataBatchFilesRequest)
+      returns (BatchCreateRawImpressionMetadataBatchFilesResponse) {}
+
+  // Retrieves a specific RawImpressionMetadataBatchFile.
+  rpc GetRawImpressionMetadataBatchFile(
+      GetRawImpressionMetadataBatchFileRequest)
+      returns (RawImpressionMetadataBatchFile) {}
+
+  // Lists RawImpressionMetadataBatchFile resources within a
+  // batch.
+  rpc ListRawImpressionMetadataBatchFiles(
+      ListRawImpressionMetadataBatchFilesRequest)
+      returns (ListRawImpressionMetadataBatchFilesResponse) {}
+
+  // Soft-deletes a RawImpressionMetadataBatchFile.
+  rpc DeleteRawImpressionMetadataBatchFile(
+      DeleteRawImpressionMetadataBatchFileRequest)
+      returns (RawImpressionMetadataBatchFile) {}
+
+  // Soft-deletes multiple RawImpressionMetadataBatchFile
+  // entries in a single request.
+  rpc BatchDeleteRawImpressionMetadataBatchFiles(
+      BatchDeleteRawImpressionMetadataBatchFilesRequest)
+      returns (BatchDeleteRawImpressionMetadataBatchFilesResponse) {}
+}
+
+// Request message for the
+// `CreateRawImpressionMetadataBatchFile` method.
+message CreateRawImpressionMetadataBatchFileRequest {
+  // The parent batch resource name.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionMetadataBatches/{raw_impression_metadata_batch}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionMetadataBatchFile"
+    }
+  ];
+
+  // The RawImpressionMetadataBatchFile to create.
+  // The `name` and output-only fields are ignored.
+  RawImpressionMetadataBatchFile raw_impression_metadata_batch_file = 2
+      [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure idempotency.
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for the
+// `BatchCreateRawImpressionMetadataBatchFiles` method.
+message BatchCreateRawImpressionMetadataBatchFilesRequest {
+  // The parent batch resource name.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionMetadataBatches/{raw_impression_metadata_batch}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionMetadataBatchFile"
+    }
+  ];
+
+  // The list of RawImpressionMetadataBatchFile entries to
+  // create.
+  repeated CreateRawImpressionMetadataBatchFileRequest requests = 2
+      [(google.api.field_behavior) = REQUIRED];
+}
+
+// Response message for the
+// `BatchCreateRawImpressionMetadataBatchFiles` method.
+message BatchCreateRawImpressionMetadataBatchFilesResponse {
+  // The list of newly created RawImpressionMetadataBatchFile
+  // entries, in the same order as the request.
+  repeated RawImpressionMetadataBatchFile raw_impression_metadata_batch_files =
+      1;
+}
+
+// Request message for the
+// `GetRawImpressionMetadataBatchFile` method.
+message GetRawImpressionMetadataBatchFileRequest {
+  // The resource name of the
+  // RawImpressionMetadataBatchFile to retrieve.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionMetadataBatches/{raw_impression_metadata_batch}/files/{file}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionMetadataBatchFile"
+    }
+  ];
+}
+
+// Request message for the
+// `ListRawImpressionMetadataBatchFiles` method.
+// (-- api-linter: core::0132::request-field-types=disabled
+//     aip.dev/not-precedent: Using a customized message for the
+//     filter. --)
+message ListRawImpressionMetadataBatchFilesRequest {
+  // The parent batch resource name.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionMetadataBatches/{raw_impression_metadata_batch}`
+  //
+  // The batch segment may be the wildcard `-` to list
+  // files across all batches for a data provider. See
+  // AIP-159.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionMetadataBatchFile"
+    }
+  ];
+
+  // The maximum number of results to return.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // A page token, received from a previous call.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // Filter for `ListRawImpressionMetadataBatchFiles` method.
+  // (-- api-linter: core::0140::prepositions=disabled
+  //     aip.dev/not-precedent: Using verb suffix per newer API
+  //     conventions. --)
+  message Filter {
+    // Filter where blob URI of the file is in the given list.
+    repeated string blob_uri_in = 1 [(google.api.field_behavior) = REQUIRED];
+  }
+
+  // A filter to apply to the list results.
+  Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
+
+  // Whether to include soft-deleted entries.
+  bool show_deleted = 5 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Response message for the
+// `ListRawImpressionMetadataBatchFiles` method.
+message ListRawImpressionMetadataBatchFilesResponse {
+  // A list of `RawImpressionMetadataBatchFile` entries.
+  repeated RawImpressionMetadataBatchFile raw_impression_metadata_batch_files =
+      1;
+
+  // A token to retrieve the next page of results.
+  // If this field is omitted, there are no subsequent pages.
+  string next_page_token = 2;
+}
+
+// Request message for the
+// `DeleteRawImpressionMetadataBatchFile` method.
+message DeleteRawImpressionMetadataBatchFileRequest {
+  // The resource name of the
+  // RawImpressionMetadataBatchFile to delete.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionMetadataBatches/{raw_impression_metadata_batch}/files/{file}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionMetadataBatchFile"
+    }
+  ];
+}
+
+// Request message for the
+// `BatchDeleteRawImpressionMetadataBatchFiles` method.
+message BatchDeleteRawImpressionMetadataBatchFilesRequest {
+  // The parent batch resource name.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionMetadataBatches/{raw_impression_metadata_batch}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionMetadataBatchFile"
+    }
+  ];
+
+  // The resource names of the
+  // RawImpressionMetadataBatchFile to delete.
+  repeated string names = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionMetadataBatchFile"
+    }
+  ];
+}
+
+// Response message for the
+// `BatchDeleteRawImpressionMetadataBatchFiles` method.
+message BatchDeleteRawImpressionMetadataBatchFilesResponse {
+  // The list of soft-deleted RawImpressionMetadataBatchFile
+  // entries.
+  repeated RawImpressionMetadataBatchFile raw_impression_metadata_batch_files =
+      1;
+}
