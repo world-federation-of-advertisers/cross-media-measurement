@@ -1,0 +1,213 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/edpaggregator/raw_impression_batch_state.proto";
+import "wfa/measurement/internal/edpaggregator/raw_impression_metadata.proto";
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "RawImpressionMetadataServiceProto";
+
+// Service for managing RawImpressionMetadata batches and files.
+service RawImpressionMetadataService {
+  // Creates a new RawImpressionMetadataBatch.
+  rpc CreateRawImpressionMetadataBatch(CreateRawImpressionMetadataBatchRequest)
+      returns (RawImpressionMetadataBatch);
+
+  // Retrieves a specific RawImpressionMetadataBatch.
+  rpc GetRawImpressionMetadataBatch(GetRawImpressionMetadataBatchRequest)
+      returns (RawImpressionMetadataBatch);
+
+  // Lists RawImpressionMetadataBatch entries for a data
+  // provider.
+  rpc ListRawImpressionMetadataBatches(ListRawImpressionMetadataBatchesRequest)
+      returns (ListRawImpressionMetadataBatchesResponse);
+
+  // Soft-deletes a RawImpressionMetadataBatch.
+  rpc DeleteRawImpressionMetadataBatch(DeleteRawImpressionMetadataBatchRequest)
+      returns (RawImpressionMetadataBatch);
+
+  // Marks a RawImpressionMetadataBatch as PROCESSED.
+  rpc MarkRawImpressionMetadataBatchProcessed(
+      MarkRawImpressionMetadataBatchProcessedRequest)
+      returns (RawImpressionMetadataBatch);
+
+  // Marks a RawImpressionMetadataBatch as FAILED.
+  rpc MarkRawImpressionMetadataBatchFailed(
+      MarkRawImpressionMetadataBatchFailedRequest)
+      returns (RawImpressionMetadataBatch);
+
+  // Creates a new RawImpressionMetadataBatchFile within a
+  // batch.
+  rpc CreateRawImpressionMetadataBatchFile(
+      CreateRawImpressionMetadataBatchFileRequest)
+      returns (RawImpressionMetadataBatchFile);
+
+  // Creates multiple RawImpressionMetadataBatchFile entries in
+  // a single request.
+  rpc BatchCreateRawImpressionMetadataBatchFiles(
+      BatchCreateRawImpressionMetadataBatchFilesRequest)
+      returns (BatchCreateRawImpressionMetadataBatchFilesResponse);
+
+  // Retrieves a specific RawImpressionMetadataBatchFile.
+  rpc GetRawImpressionMetadataBatchFile(
+      GetRawImpressionMetadataBatchFileRequest)
+      returns (RawImpressionMetadataBatchFile);
+
+  // Lists RawImpressionMetadataBatchFile entries within a
+  // batch.
+  rpc ListRawImpressionMetadataBatchFiles(
+      ListRawImpressionMetadataBatchFilesRequest)
+      returns (ListRawImpressionMetadataBatchFilesResponse);
+
+  // Soft-deletes a RawImpressionMetadataBatchFile.
+  rpc DeleteRawImpressionMetadataBatchFile(
+      DeleteRawImpressionMetadataBatchFileRequest)
+      returns (RawImpressionMetadataBatchFile);
+
+  // Soft-deletes multiple RawImpressionMetadataBatchFile
+  // entries in a single request.
+  rpc BatchDeleteRawImpressionMetadataBatchFiles(
+      BatchDeleteRawImpressionMetadataBatchFilesRequest)
+      returns (BatchDeleteRawImpressionMetadataBatchFilesResponse);
+}
+
+// -- Batch request/response messages --
+
+message CreateRawImpressionMetadataBatchRequest {
+  RawImpressionMetadataBatch raw_impression_metadata_batch = 1;
+  string request_id = 2;
+}
+
+message GetRawImpressionMetadataBatchRequest {
+  string data_provider_resource_id = 1;
+  string batch_resource_id = 2;
+}
+
+message ListRawImpressionMetadataBatchesRequest {
+  string data_provider_resource_id = 1;
+
+  int32 page_size = 2;
+  ListRawImpressionMetadataBatchesPageToken page_token = 3;
+
+  message Filter {
+    RawImpressionBatchState state = 1;
+  }
+  Filter filter = 4;
+
+  bool show_deleted = 5;
+}
+
+message ListRawImpressionMetadataBatchesResponse {
+  repeated RawImpressionMetadataBatch raw_impression_metadata_batches = 1;
+  ListRawImpressionMetadataBatchesPageToken next_page_token = 2;
+}
+
+message ListRawImpressionMetadataBatchesPageToken {
+  message After {
+    google.protobuf.Timestamp create_time = 1;
+    string batch_resource_id = 2;
+  }
+  After after = 1;
+}
+
+message DeleteRawImpressionMetadataBatchRequest {
+  string data_provider_resource_id = 1;
+  string batch_resource_id = 2;
+}
+
+message MarkRawImpressionMetadataBatchProcessedRequest {
+  string data_provider_resource_id = 1;
+  string batch_resource_id = 2;
+}
+
+message MarkRawImpressionMetadataBatchFailedRequest {
+  string data_provider_resource_id = 1;
+  string batch_resource_id = 2;
+}
+
+// -- File request/response messages --
+
+message CreateRawImpressionMetadataBatchFileRequest {
+  RawImpressionMetadataBatchFile raw_impression_metadata_batch_file = 1;
+  string request_id = 2;
+}
+
+message BatchCreateRawImpressionMetadataBatchFilesRequest {
+  string data_provider_resource_id = 1;
+  string batch_resource_id = 2;
+  repeated CreateRawImpressionMetadataBatchFileRequest requests = 3;
+}
+
+message BatchCreateRawImpressionMetadataBatchFilesResponse {
+  repeated RawImpressionMetadataBatchFile raw_impression_metadata_batch_files =
+      1;
+}
+
+message GetRawImpressionMetadataBatchFileRequest {
+  string data_provider_resource_id = 1;
+  string batch_resource_id = 2;
+  string file_resource_id = 3;
+}
+
+message ListRawImpressionMetadataBatchFilesRequest {
+  string data_provider_resource_id = 1;
+  string batch_resource_id = 2;
+
+  int32 page_size = 3;
+  ListRawImpressionMetadataBatchFilesPageToken page_token = 4;
+
+  message Filter {
+    repeated string blob_uri_in = 1;
+  }
+  Filter filter = 5;
+
+  bool show_deleted = 6;
+}
+
+message ListRawImpressionMetadataBatchFilesResponse {
+  repeated RawImpressionMetadataBatchFile raw_impression_metadata_batch_files =
+      1;
+  ListRawImpressionMetadataBatchFilesPageToken next_page_token = 2;
+}
+
+message ListRawImpressionMetadataBatchFilesPageToken {
+  message After {
+    google.protobuf.Timestamp create_time = 1;
+    string file_resource_id = 2;
+  }
+  After after = 1;
+}
+
+message DeleteRawImpressionMetadataBatchFileRequest {
+  string data_provider_resource_id = 1;
+  string batch_resource_id = 2;
+  string file_resource_id = 3;
+}
+
+message BatchDeleteRawImpressionMetadataBatchFilesRequest {
+  string data_provider_resource_id = 1;
+  string batch_resource_id = 2;
+  repeated string file_resource_ids = 3;
+}
+
+message BatchDeleteRawImpressionMetadataBatchFilesResponse {
+  repeated RawImpressionMetadataBatchFile raw_impression_metadata_batch_files =
+      1;
+}
