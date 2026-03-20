@@ -19,23 +19,16 @@
 
 START BATCH DDL;
 
--- ============================================================
--- Phase 1: Tear down old schema (changeset 7 FK, then changeset 6 table)
--- ============================================================
-
--- 1a. Drop the FK index and constraint on ImpressionMetadata (from changeset 7).
---     Must drop index first, then constraint, then columns.
+-- Drop FK from ImpressionMetadata to old table.
 DROP INDEX ImpressionMetadataByRawImpressionAndModelLine;
 
 ALTER TABLE ImpressionMetadata
   DROP CONSTRAINT FK_ImpressionMetadata_RawImpressionMetadata;
 
--- 1b. Drop the FK columns that no longer apply.
---     Keep RawImpressionFileId — it still references FileId in the new table.
 ALTER TABLE ImpressionMetadata DROP COLUMN RawImpressionUploadId;
 ALTER TABLE ImpressionMetadata DROP COLUMN RawImpressionBatchIndex;
 
--- 1c. Drop all indexes on RawImpressionMetadata, then the table itself.
+-- Drop old single-table schema.
 DROP INDEX RawImpressionMetadataByUploadResourceId;
 DROP INDEX RawImpressionMetadataByFileResourceId;
 DROP INDEX RawImpressionMetadataByBlobUri;
@@ -43,11 +36,6 @@ DROP INDEX RawImpressionMetadataByUploadDateAndState;
 
 DROP TABLE RawImpressionMetadata;
 
--- ============================================================
--- Phase 2: Create new two-table schema
--- ============================================================
-
--- 2a. Batch table — models the RawImpressionMetadataBatch resource.
 -- Resource pattern: dataProviders/{data_provider}/rawImpressionMetadataBatches/{raw_impression_metadata_batch}
 CREATE TABLE RawImpressionMetadataBatch (
   DataProviderResourceId STRING(63) NOT NULL,
@@ -60,9 +48,7 @@ CREATE TABLE RawImpressionMetadataBatch (
   DeleteTime TIMESTAMP OPTIONS (allow_commit_timestamp=true),
 ) PRIMARY KEY (DataProviderResourceId, BatchId);
 
--- 2b. File table — models the RawImpressionMetadataBatchFile resource.
 -- Resource pattern: dataProviders/{data_provider}/rawImpressionMetadataBatches/{batch}/files/{file}
--- Interleaved for Spanner locality: batch + file rows are co-located on disk.
 CREATE TABLE RawImpressionMetadataBatchFile (
   DataProviderResourceId STRING(63) NOT NULL,
   BatchId INT64 NOT NULL,
@@ -76,7 +62,6 @@ CREATE TABLE RawImpressionMetadataBatchFile (
 ) PRIMARY KEY (DataProviderResourceId, BatchId, FileId),
   INTERLEAVE IN PARENT RawImpressionMetadataBatch ON DELETE CASCADE;
 
--- 2c. Batch indexes.
 CREATE UNIQUE INDEX RawImpressionMetadataBatchByResourceId
   ON RawImpressionMetadataBatch(DataProviderResourceId, BatchResourceId);
 
@@ -86,7 +71,6 @@ CREATE UNIQUE NULL_FILTERED INDEX RawImpressionMetadataBatchByCreateRequestId
 CREATE INDEX RawImpressionMetadataBatchByState
   ON RawImpressionMetadataBatch(DataProviderResourceId, State);
 
--- 2d. File indexes.
 CREATE UNIQUE INDEX RawImpressionMetadataBatchFileByResourceId
   ON RawImpressionMetadataBatchFile(DataProviderResourceId, BatchId, FileResourceId);
 
@@ -96,10 +80,7 @@ CREATE UNIQUE NULL_FILTERED INDEX RawImpressionMetadataBatchFileByCreateRequestI
 CREATE UNIQUE INDEX RawImpressionMetadataBatchFileByBlobUri
   ON RawImpressionMetadataBatchFile(DataProviderResourceId, BlobUri);
 
--- ============================================================
--- Phase 3: Rebuild FK from ImpressionMetadata to the new file table
--- ============================================================
-
+-- Rebuild FK from ImpressionMetadata to the new file table.
 ALTER TABLE ImpressionMetadata ADD COLUMN RawImpressionBatchId INT64;
 
 ALTER TABLE ImpressionMetadata
