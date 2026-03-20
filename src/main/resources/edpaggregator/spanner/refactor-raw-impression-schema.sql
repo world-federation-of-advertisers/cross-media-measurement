@@ -1,3 +1,5 @@
+-- liquibase formatted sql
+
 -- Copyright 2026 The Cross-Media Measurement Authors
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +14,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- liquibase formatted sql
 -- changeset getina:8 dbms:cloudspanner
 -- comment: Refactor RawImpressionMetadata into two tables (Batch + File) to align with the approved public API.
 

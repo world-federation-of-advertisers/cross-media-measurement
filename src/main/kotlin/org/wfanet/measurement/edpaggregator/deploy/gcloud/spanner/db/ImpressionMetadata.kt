@@ -254,10 +254,7 @@ suspend fun AsyncDatabaseClient.ReadContext.resolveRawImpressionInternalKey(
         key.fileResourceId,
       )
 
-  return RawImpressionInternalKey(
-    batchId = row.getLong("BatchId"),
-    fileId = row.getLong("FileId"),
-  )
+  return RawImpressionInternalKey(batchId = row.getLong("BatchId"), fileId = row.getLong("FileId"))
 }
 
 /** Buffers an insert mutation for a [ImpressionMetadata] row. */
