@@ -486,7 +486,7 @@ class MeasurementsService(
 
   private fun buildInternalProtocolConfig(
     measurementSpec: MeasurementSpec,
-    dataProviderCapabilities: Collection<InternalDataProviderCapabilities>,
+    dataProviderCapabilities: List<InternalDataProviderCapabilities>,
     dataProviderRequirements: List<InternalDataProviderRequirements>,
     measurementConsumerName: String,
   ): InternalProtocolConfig {
@@ -583,7 +583,7 @@ class MeasurementsService(
   }
 
   private fun buildMpcProtocolConfig(
-    dataProviderCapabilities: Collection<InternalDataProviderCapabilities>,
+    dataProviderCapabilities: List<InternalDataProviderCapabilities>,
     dataProviderRequirements: List<InternalDataProviderRequirements>,
     measurementConsumerName: String,
     reachOnly: Boolean,
@@ -592,15 +592,9 @@ class MeasurementsService(
       (measurementConsumerName in trusTeeEnabledMeasurementConsumers || trusTeeEnabled) &&
         dataProviderCapabilities.all { it.trusTeeSupported }
     ) {
-      val trusTeeNoiseMechanisms =
-        selectNoiseMechanisms(TRUSTEE_SERVER_NOISE_MECHANISMS, dataProviderRequirements)
       return protocolConfig {
         externalProtocolConfigId = TrusTeeProtocolConfig.NAME
-        trusTee =
-          ProtocolConfigKt.trusTee {
-            noiseMechanism = TrusTeeProtocolConfig.protocolConfig.noiseMechanism
-            noiseMechanisms += trusTeeNoiseMechanisms
-          }
+        trusTee = selectTrusTeeNoiseMechanism(dataProviderRequirements)
       }
     } else if (
       (measurementConsumerName in hmssEnabledMeasurementConsumers || hmssEnabled) &&
@@ -624,7 +618,7 @@ class MeasurementsService(
   }
 
   private fun CreateMeasurementRequest.buildInternalCreateMeasurementRequest(
-    dataProviderCapabilities: Collection<InternalDataProviderCapabilities>,
+    dataProviderCapabilities: List<InternalDataProviderCapabilities>,
     dataProviderRequirements: List<InternalDataProviderRequirements>,
     parentKey: MeasurementConsumerKey,
   ): InternalCreateMeasurementRequest {
@@ -692,13 +686,44 @@ class MeasurementsService(
     }
   }
 
-  companion object {
-    private val TRUSTEE_SERVER_NOISE_MECHANISMS =
-      listOf(
-        InternalProtocolConfig.NoiseMechanism.NONE,
-        InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
-      )
+  /**
+   * Selects the TrusTee noise mechanism based on server config and EDP requirements.
+   *
+   * If the server's `TrusTeeProtocolConfig.noiseMechanisms` is empty or any EDP has an empty
+   * `allowedNoiseMechanisms`, falls back to `TrusTeeProtocolConfig.protocolConfig` (using the
+   * existing `noise_mechanism` value). Otherwise, intersects server and EDP mechanisms and selects
+   * the preferred one (`NONE` > `CONTINUOUS_GAUSSIAN`).
+   */
+  private fun selectTrusTeeNoiseMechanism(
+    dataProviderRequirements: List<InternalDataProviderRequirements>,
+  ): InternalProtocolConfig.TrusTee {
+    val serverNoiseMechanisms = TrusTeeProtocolConfig.noiseMechanisms
+    if (
+      serverNoiseMechanisms.isEmpty() ||
+        dataProviderRequirements.any { it.allowedNoiseMechanismsCount == 0 }
+    ) {
+      return TrusTeeProtocolConfig.protocolConfig
+    }
 
+    val selected =
+      selectNoiseMechanisms(serverNoiseMechanisms, dataProviderRequirements)
+    val preferred =
+      when {
+        InternalProtocolConfig.NoiseMechanism.NONE in selected ->
+          InternalProtocolConfig.NoiseMechanism.NONE
+        InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN in selected ->
+          InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+        else ->
+          throw Status.INTERNAL
+            .withDescription(
+              "Unexpected noise mechanisms after selection: $selected"
+            )
+            .asRuntimeException()
+      }
+    return ProtocolConfigKt.trusTee { noiseMechanism = preferred }
+  }
+
+  companion object {
     /**
      * Narrows [serverNoiseMechanisms] to those allowed by all [dataProviderRequirements].
      *

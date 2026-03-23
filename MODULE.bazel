@@ -52,6 +52,7 @@ bazel_dep(
     version = "0.90.0",
     repo_name = "wfa_measurement_proto",
 )
+# DO_NOT_SUBMIT: Remove after https://github.com/world-federation-of-advertisers/cross-media-measurement-api/pull/273 is merged.
 git_override(
     module_name = "cross-media-measurement-api",
     remote = "https://github.com/world-federation-of-advertisers/cross-media-measurement-api.git",

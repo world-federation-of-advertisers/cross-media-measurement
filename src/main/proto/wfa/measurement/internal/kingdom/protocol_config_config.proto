@@ -49,7 +49,21 @@ message HmssProtocolConfigConfig {
 // the TrusTEE protocol.
 message TrusTeeProtocolConfigConfig {
   // The TrusTee protocol Config.
+  //
+  // The `noise_mechanism` within this config is used as the default when
+  // `noise_mechanisms` is not specified. This field is planned to be deprecated
+  // in a future Halo CMM release.
   ProtocolConfig.TrusTee protocol_config = 1;
   // The id of the duchy executing the computation.
   string duchy_id = 2;
+
+  // The set of noise mechanisms supported by this server for TrusTEE
+  // computations.
+  //
+  // When specified, the Kingdom will intersect these with each
+  // `DataProvider`'s `allowed_noise_mechanisms` to select the noise mechanism
+  // for a `Measurement`. If not specified, falls back to
+  // `protocol_config.noise_mechanism`. This field is planned to become REQUIRED
+  // in a future Halo CMM release.
+  repeated ProtocolConfig.NoiseMechanism noise_mechanisms = 3;
 }

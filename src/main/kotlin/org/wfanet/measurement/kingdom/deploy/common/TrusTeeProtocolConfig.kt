@@ -26,6 +26,9 @@ object TrusTeeProtocolConfig {
   lateinit var protocolConfig: ProtocolConfig.TrusTee
     private set
 
+  var noiseMechanisms: List<ProtocolConfig.NoiseMechanism> = emptyList()
+    private set
+
   lateinit var duchyId: String
 
   fun initializeFromFlags(flags: TrusTeeProtocolConfigFlags) {
@@ -36,13 +39,17 @@ object TrusTeeProtocolConfig {
       }
 
     protocolConfig = configMessage.protocolConfig
+    noiseMechanisms = configMessage.noiseMechanismsList
     duchyId = configMessage.duchyId
   }
 
-  fun setForTest(protocolConfig: ProtocolConfig.TrusTee, duchyId: String) {
-    require(!TrusTeeProtocolConfig::protocolConfig.isInitialized)
-
+  fun setForTest(
+    protocolConfig: ProtocolConfig.TrusTee,
+    duchyId: String,
+    noiseMechanisms: List<ProtocolConfig.NoiseMechanism>,
+  ) {
     TrusTeeProtocolConfig.protocolConfig = protocolConfig
+    TrusTeeProtocolConfig.noiseMechanisms = noiseMechanisms
     TrusTeeProtocolConfig.duchyId = duchyId
   }
 }
