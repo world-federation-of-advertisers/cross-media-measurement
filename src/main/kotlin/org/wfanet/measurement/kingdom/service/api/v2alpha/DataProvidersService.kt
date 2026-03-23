@@ -39,6 +39,7 @@ import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.api.v2alpha.ReplaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.api.v2alpha.ReplaceDataProviderRequiredDuchiesRequest
+import org.wfanet.measurement.api.v2alpha.ReplaceDataProviderRequirementsRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.setMessage
@@ -54,15 +55,18 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProviderCapabilities as InternalDataProviderCapabilities
 import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
+import org.wfanet.measurement.internal.kingdom.DataProviderRequirements as InternalDataProviderRequirements
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelLineKey as InternalModelLineKey
 import org.wfanet.measurement.internal.kingdom.dataProviderCapabilities as internalDataProviderCapabilities
+import org.wfanet.measurement.internal.kingdom.dataProviderRequirements as internalDataProviderRequirements
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.modelLineKey
 import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalsRequest as internalReplaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest
+import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequirementsRequest
 
 class DataProvidersService(
   private val internalClient: DataProvidersCoroutineStub,
@@ -288,6 +292,40 @@ class DataProvidersService(
     return response.toDataProvider()
   }
 
+  override suspend fun replaceDataProviderRequirements(
+    request: ReplaceDataProviderRequirementsRequest
+  ): DataProvider {
+    val key: DataProviderKey =
+      grpcRequireNotNull(DataProviderKey.fromName(request.name)) {
+        "Resource name unspecified or invalid"
+      }
+
+    val principal: MeasurementPrincipal = principalFromCurrentContext
+    if (principal.resourceKey != key) {
+      failGrpc(Status.PERMISSION_DENIED) {
+        "Permission for method replaceDataProviderRequirements denied on resource $request.name"
+      }
+    }
+
+    val response: InternalDataProvider =
+      try {
+        internalClient.replaceDataProviderRequirements(
+          replaceDataProviderRequirementsRequest {
+            externalDataProviderId = ApiId(key.dataProviderId).externalId.value
+            requirements = request.requirements.toInternal()
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          Status.Code.CANCELLED -> Status.CANCELLED
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
+      }
+    return response.toDataProvider()
+  }
+
   private fun permissionDeniedStatus(permission: String, resourceName: String) =
     Status.PERMISSION_DENIED.withDescription(
       "Permission $permission denied on resource $resourceName (or it might not exist)"
@@ -334,6 +372,7 @@ private fun InternalDataProvider.toDataProvider(): DataProvider {
     }
     dataAvailabilityInterval = source.details.dataAvailabilityInterval
     capabilities = source.details.capabilities.toCapabilities()
+    requirements = source.details.requirements.toRequirements()
   }
 }
 
@@ -350,5 +389,20 @@ private fun DataProvider.Capabilities.toInternal(): InternalDataProviderCapabili
   return internalDataProviderCapabilities {
     honestMajorityShareShuffleSupported = source.honestMajorityShareShuffleSupported
     trusTeeSupported = source.trusTeeSupported
+  }
+}
+
+private fun InternalDataProviderRequirements.toRequirements(): DataProvider.Requirements {
+  val source = this
+  return DataProviderKt.requirements {
+    allowedNoiseMechanisms +=
+      source.allowedNoiseMechanismsList.map { it.toNoiseMechanism() }
+  }
+}
+
+private fun DataProvider.Requirements.toInternal(): InternalDataProviderRequirements {
+  val source = this
+  return internalDataProviderRequirements {
+    allowedNoiseMechanisms += source.allowedNoiseMechanismsList.map { it.toInternal() }
   }
 }

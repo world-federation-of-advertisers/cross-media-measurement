@@ -19,6 +19,7 @@ LIBS = [
     "computation_participant",
     "crypto",
     "data_provider_capabilities",
+    "data_provider_requirements",
     "data_provider",
     "differential_privacy",
     "duchy_id_config",
@@ -188,11 +189,21 @@ proto_library(
 )
 
 proto_library(
+    name = "data_provider_requirements_proto",
+    srcs = ["data_provider_requirements.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":protocol_config_proto",
+    ],
+)
+
+proto_library(
     name = "data_provider_details_proto",
     srcs = ["data_provider_details.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":data_provider_capabilities_proto",
+        ":data_provider_requirements_proto",
         "@com_google_googleapis//google/type:interval_proto",
     ],
 )
@@ -244,6 +255,7 @@ proto_library(
     deps = [
         ":data_provider_capabilities_proto",
         ":data_provider_proto",
+        ":data_provider_requirements_proto",
         "@com_google_googleapis//google/type:interval_proto",
     ],
 )

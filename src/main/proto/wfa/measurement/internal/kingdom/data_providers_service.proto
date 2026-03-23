@@ -19,6 +19,7 @@ package wfa.measurement.internal.kingdom;
 import "google/type/interval.proto";
 import "wfa/measurement/internal/kingdom/data_provider.proto";
 import "wfa/measurement/internal/kingdom/data_provider_capabilities.proto";
+import "wfa/measurement/internal/kingdom/data_provider_requirements.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -42,6 +43,9 @@ service DataProviders {
       returns (DataProvider);
 
   rpc ReplaceDataProviderCapabilities(ReplaceDataProviderCapabilitiesRequest)
+      returns (DataProvider);
+
+  rpc ReplaceDataProviderRequirements(ReplaceDataProviderRequirementsRequest)
       returns (DataProvider);
 }
 
@@ -78,4 +82,11 @@ message ReplaceDataProviderCapabilitiesRequest {
 
   // New value for `capabilities`.
   DataProviderCapabilities capabilities = 2;
+}
+
+message ReplaceDataProviderRequirementsRequest {
+  fixed64 external_data_provider_id = 1;
+
+  // New value for `requirements`.
+  DataProviderRequirements requirements = 2;
 }

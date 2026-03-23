@@ -47,8 +47,10 @@ import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
+import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequirementsRequest
 import org.wfanet.measurement.api.v2alpha.setMessage
 import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
@@ -81,8 +83,11 @@ import org.wfanet.measurement.internal.kingdom.getDataProviderRequest as interna
 import org.wfanet.measurement.internal.kingdom.modelLineKey
 import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalRequest as internalReplaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalsRequest as internalReplaceDataAvailabilityIntervalsRequest
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
+import org.wfanet.measurement.internal.kingdom.dataProviderRequirements as internalDataProviderRequirements
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderCapabilitiesRequest as internalReplaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest as internalReplaceDataProviderRequiredDuchiesRequest
+import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequirementsRequest as internalReplaceDataProviderRequirementsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 
 private const val DATA_PROVIDER_ID = 123L
@@ -818,6 +823,181 @@ class DataProvidersServiceTest {
     assertThat(exception.errorInfo?.metadataMap).containsEntry("dataProvider", DATA_PROVIDER_NAME)
   }
 
+  @Test
+  fun `replaceDataProviderRequirements returns updated DataProvider`() {
+    val updatedRequirements = internalDataProviderRequirements {
+      allowedNoiseMechanisms += InternalProtocolConfig.NoiseMechanism.NONE
+      allowedNoiseMechanisms += InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+    }
+    val internalDataProvider =
+      INTERNAL_DATA_PROVIDER.copy {
+        details = details.copy { requirements = updatedRequirements }
+      }
+    internalServiceMock.stub {
+      onBlocking { replaceDataProviderRequirements(any()) }.thenReturn(internalDataProvider)
+    }
+    val request = replaceDataProviderRequirementsRequest {
+      name = DATA_PROVIDER_NAME
+      requirements = DataProviderKt.requirements {
+        allowedNoiseMechanisms += NoiseMechanism.NONE
+        allowedNoiseMechanisms += NoiseMechanism.CONTINUOUS_GAUSSIAN
+      }
+    }
+
+    val response: DataProvider = runBlocking {
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        service.replaceDataProviderRequirements(request)
+      }
+    }
+
+    assertThat(response).isEqualTo(DATA_PROVIDER.copy { requirements = request.requirements })
+    verifyProtoArgument(
+        internalServiceMock,
+        InternalDataProvidersService::replaceDataProviderRequirements,
+      )
+      .isEqualTo(
+        internalReplaceDataProviderRequirementsRequest {
+          externalDataProviderId = DATA_PROVIDER_ID
+          requirements = updatedRequirements
+        }
+      )
+  }
+
+  @Test
+  fun `replaceDataProviderRequirements throws PERMISSION_DENIED for incorrect principal`() {
+    val request = replaceDataProviderRequirementsRequest {
+      name = DATA_PROVIDER_NAME
+      requirements = DataProviderKt.requirements {
+        allowedNoiseMechanisms += NoiseMechanism.NONE
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
+            service.replaceDataProviderRequirements(request)
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `replaceDataProviderRequirements throws INVALID_ARGUMENT when name is invalid`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.replaceDataProviderRequirements(
+              replaceDataProviderRequirementsRequest {
+                name = "foo"
+                requirements = DataProviderKt.requirements {
+                  allowedNoiseMechanisms += NoiseMechanism.NONE
+                }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `replaceDataProviderRequirements throws UNAUTHENTICATED when no principal found`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.replaceDataProviderRequirements(
+            replaceDataProviderRequirementsRequest {
+              name = DATA_PROVIDER_NAME
+              requirements = DataProviderKt.requirements {
+                allowedNoiseMechanisms += NoiseMechanism.NONE
+              }
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `replaceDataProviderRequirements throws NOT_FOUND when data provider not found`() {
+    internalServiceMock.stub {
+      onBlocking { replaceDataProviderRequirements(any()) }
+        .thenThrow(
+          DataProviderNotFoundException(ExternalId(DATA_PROVIDER_ID))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
+        )
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.replaceDataProviderRequirements(
+              replaceDataProviderRequirementsRequest {
+                name = DATA_PROVIDER_NAME
+                requirements = DataProviderKt.requirements {
+                  allowedNoiseMechanisms += NoiseMechanism.NONE
+                }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("dataProvider", DATA_PROVIDER_NAME)
+  }
+
+  @Test
+  fun `replaceDataProviderRequirements throws PERMISSION_DENIED with mc caller`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.replaceDataProviderRequirements(
+              replaceDataProviderRequirementsRequest {
+                name = DATA_PROVIDER_NAME
+                requirements = DataProviderKt.requirements {
+                  allowedNoiseMechanisms += NoiseMechanism.NONE
+                }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `getDataProvider returns requirements with noise mechanisms`() {
+    val requirementsWithNoise = internalDataProviderRequirements {
+      allowedNoiseMechanisms += InternalProtocolConfig.NoiseMechanism.NONE
+      allowedNoiseMechanisms += InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+    }
+    val internalDataProviderWithRequirements =
+      INTERNAL_DATA_PROVIDER.copy {
+        details = details.copy { requirements = requirementsWithNoise }
+      }
+    internalServiceMock.stub {
+      onBlocking { getDataProvider(any()) }.thenReturn(internalDataProviderWithRequirements)
+    }
+
+    val dataProvider =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking {
+          service.getDataProvider(getDataProviderRequest { name = DATA_PROVIDER_NAME })
+        }
+      }
+
+    val expectedRequirements = DataProviderKt.requirements {
+      allowedNoiseMechanisms += NoiseMechanism.NONE
+      allowedNoiseMechanisms += NoiseMechanism.CONTINUOUS_GAUSSIAN
+    }
+    assertThat(dataProvider.requirements).isEqualTo(expectedRequirements)
+  }
+
   companion object {
     private val API_VERSION = Version.V2_ALPHA
 
@@ -883,6 +1063,7 @@ class DataProvidersServiceTest {
         }
       dataAvailabilityInterval = INTERNAL_DATA_PROVIDER.details.dataAvailabilityInterval
       capabilities = DataProvider.Capabilities.getDefaultInstance()
+      requirements = DataProvider.Requirements.getDefaultInstance()
     }
   }
 }

@@ -70,6 +70,8 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest as InternalCreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.DataProviderCapabilities as InternalDataProviderCapabilities
+import org.wfanet.measurement.internal.kingdom.DataProviderDetails as InternalDataProviderDetails
+import org.wfanet.measurement.internal.kingdom.DataProviderRequirements as InternalDataProviderRequirements
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
@@ -168,7 +170,7 @@ class MeasurementsService(
           }
         ApiId(key.dataProviderId).externalId
       }
-    val dataProviderCapabilities: List<InternalDataProviderCapabilities> =
+    val dataProviderDetailsList: List<InternalDataProviderDetails> =
       try {
           internalDataProvidersStub.batchGetDataProviders(
             batchGetDataProvidersRequest {
@@ -186,12 +188,18 @@ class MeasurementsService(
             .asRuntimeException()
         }
         .dataProvidersList
-        .map { it.details.capabilities }
+        .map { it.details }
+    val dataProviderCapabilities = dataProviderDetailsList.map { it.capabilities }
+    val dataProviderRequirements = dataProviderDetailsList.map { it.requirements }
 
     // TODO(@SanjayVas): Check required capabilities once we have any.
 
     val internalRequest =
-      request.buildInternalCreateMeasurementRequest(dataProviderCapabilities, parentKey)
+      request.buildInternalCreateMeasurementRequest(
+        dataProviderCapabilities,
+        dataProviderRequirements,
+        parentKey,
+      )
 
     val internalMeasurement =
       try {
@@ -323,7 +331,7 @@ class MeasurementsService(
             }
           ApiId(key.dataProviderId).externalId
         }
-    val allDataProviderCapabilities: Map<ExternalId, InternalDataProviderCapabilities> =
+    val allDataProviderDetailsMap: Map<ExternalId, InternalDataProviderDetails> =
       try {
           internalDataProvidersStub.batchGetDataProviders(
             batchGetDataProvidersRequest {
@@ -342,9 +350,7 @@ class MeasurementsService(
         }
         .dataProvidersList
         .associateBy { ExternalId(it.externalDataProviderId) }
-        .mapValues { it.value.details.capabilities }
-
-    // TODO(@SanjayVas): Check required capabilities once we have any.
+        .mapValues { it.value.details }
 
     val internalCreateMeasurementRequests = mutableListOf<InternalCreateMeasurementRequest>()
     var isParentEmpty = false
@@ -381,9 +387,12 @@ class MeasurementsService(
         createMeasurementRequest.measurement.dataProvidersList
           .map { ApiId(DataProviderKey.fromName(it.key)!!.dataProviderId).externalId }
           .toSet()
+      val filteredDetails =
+        allDataProviderDetailsMap.filterKeys { it in externalDataProviderIds }.values
       val internalCreateMeasurementRequest =
         createMeasurementRequest.buildInternalCreateMeasurementRequest(
-          allDataProviderCapabilities.filterKeys { it in externalDataProviderIds }.values,
+          filteredDetails.map { it.capabilities },
+          filteredDetails.map { it.requirements },
           parentKey,
         )
       internalCreateMeasurementRequests.add(internalCreateMeasurementRequest)
@@ -478,10 +487,12 @@ class MeasurementsService(
   private fun buildInternalProtocolConfig(
     measurementSpec: MeasurementSpec,
     dataProviderCapabilities: Collection<InternalDataProviderCapabilities>,
+    dataProviderRequirements: List<InternalDataProviderRequirements>,
     measurementConsumerName: String,
   ): InternalProtocolConfig {
     val dataProvidersCount = dataProviderCapabilities.size
-    val internalNoiseMechanisms = noiseMechanisms.map { it.toInternal() }
+    val internalNoiseMechanisms =
+      selectNoiseMechanisms(noiseMechanisms.map { it.toInternal() }, dataProviderRequirements)
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (measurementSpec.measurementTypeCase) {
       MeasurementSpec.MeasurementTypeCase.REACH -> {
@@ -609,8 +620,37 @@ class MeasurementsService(
     }
   }
 
+  companion object {
+    /**
+     * Narrows [serverNoiseMechanisms] to those allowed by all [dataProviderRequirements].
+     *
+     * An EDP with an empty `allowedNoiseMechanismsList` defaults to allowing only
+     * `CONTINUOUS_GAUSSIAN`.
+     */
+    fun selectNoiseMechanisms(
+      serverNoiseMechanisms: List<InternalProtocolConfig.NoiseMechanism>,
+      dataProviderRequirements: List<InternalDataProviderRequirements>,
+    ): List<InternalProtocolConfig.NoiseMechanism> {
+      var effectiveMechanisms = serverNoiseMechanisms.toSet()
+      for (requirements in dataProviderRequirements) {
+        val allowed =
+          if (requirements.allowedNoiseMechanismsCount > 0) {
+            requirements.allowedNoiseMechanismsList.toSet()
+          } else {
+            setOf(InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN)
+          }
+        effectiveMechanisms = effectiveMechanisms.intersect(allowed)
+      }
+      grpcRequire(effectiveMechanisms.isNotEmpty()) {
+        "No common noise mechanism supported by all DataProviders"
+      }
+      return effectiveMechanisms.toList()
+    }
+  }
+
   private fun CreateMeasurementRequest.buildInternalCreateMeasurementRequest(
     dataProviderCapabilities: Collection<InternalDataProviderCapabilities>,
+    dataProviderRequirements: List<InternalDataProviderRequirements>,
     parentKey: MeasurementConsumerKey,
   ): InternalCreateMeasurementRequest {
     val measurementConsumerCertificateKey =
@@ -654,7 +694,12 @@ class MeasurementsService(
     }
 
     val internalProtocolConfig =
-      buildInternalProtocolConfig(measurementSpec, dataProviderCapabilities, parentKey.toName())
+      buildInternalProtocolConfig(
+        measurementSpec,
+        dataProviderCapabilities,
+        dataProviderRequirements,
+        parentKey.toName(),
+      )
     validateSamplingInterval(measurementSpec, internalProtocolConfig)
 
     val internalMeasurement =
