@@ -727,25 +727,24 @@ class MeasurementsService(
     /**
      * Narrows [serverNoiseMechanisms] to those allowed by all [dataProviderRequirements].
      *
-     * An EDP with an empty `allowedNoiseMechanismsList` defaults to allowing only
-     * `CONTINUOUS_GAUSSIAN`.
+     * Both [serverNoiseMechanisms] and each EDP's `allowedNoiseMechanismsList` must be non-empty.
      */
     fun selectNoiseMechanisms(
       serverNoiseMechanisms: List<InternalProtocolConfig.NoiseMechanism>,
       dataProviderRequirements: List<InternalDataProviderRequirements>,
     ): List<InternalProtocolConfig.NoiseMechanism> {
+      require(serverNoiseMechanisms.isNotEmpty()) { "serverNoiseMechanisms must not be empty" }
+      require(dataProviderRequirements.isNotEmpty()) { "dataProviderRequirements must not be empty" }
       var effectiveMechanisms = serverNoiseMechanisms.toSet()
       for (requirements in dataProviderRequirements) {
-        val allowed =
-          if (requirements.allowedNoiseMechanismsCount > 0) {
-            requirements.allowedNoiseMechanismsList.toSet()
-          } else {
-            setOf(InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN)
-          }
-        effectiveMechanisms = effectiveMechanisms.intersect(allowed)
+        require(requirements.allowedNoiseMechanismsCount > 0) {
+          "Each DataProvider must have a non-empty allowedNoiseMechanisms"
+        }
+        effectiveMechanisms =
+          effectiveMechanisms.intersect(requirements.allowedNoiseMechanismsList.toSet())
       }
       grpcRequire(effectiveMechanisms.isNotEmpty()) {
-        "No common noise mechanism supported by all DataProviders"
+        "No common noise mechanism across all DataProviders and the server"
       }
       return effectiveMechanisms.toList()
     }

@@ -30,7 +30,7 @@ import org.wfanet.measurement.internal.kingdom.dataProviderRequirements as inter
 class SelectNoiseMechanismsTest {
 
   @Test
-  fun `EDPs with empty allowed lists default to CONTINUOUS_GAUSSIAN`() {
+  fun `throws when EDP has empty allowed noise mechanisms`() {
     val serverMechanisms =
       listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
     val requirements =
@@ -39,12 +39,13 @@ class SelectNoiseMechanismsTest {
         internalDataProviderRequirements {},
       )
 
-    val result = MeasurementsService.selectNoiseMechanisms(serverMechanisms, requirements)
-    assertEquals(listOf(InternalNoiseMechanism.CONTINUOUS_GAUSSIAN), result)
+    assertFailsWith<IllegalArgumentException> {
+      MeasurementsService.selectNoiseMechanisms(serverMechanisms, requirements)
+    }
   }
 
   @Test
-  fun `returns server mechanisms when requirements list is empty`() {
+  fun `throws when requirements list is empty`() {
     val serverMechanisms =
       listOf(
         InternalNoiseMechanism.NONE,
@@ -52,8 +53,9 @@ class SelectNoiseMechanismsTest {
         InternalNoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
 
-    val result = MeasurementsService.selectNoiseMechanisms(serverMechanisms, emptyList())
-    assertEquals(serverMechanisms.toSet(), result.toSet())
+    assertFailsWith<IllegalArgumentException> {
+      MeasurementsService.selectNoiseMechanisms(serverMechanisms, emptyList())
+    }
   }
 
   @Test
@@ -129,7 +131,7 @@ class SelectNoiseMechanismsTest {
   }
 
   @Test
-  fun `empty list defaults to CONTINUOUS_GAUSSIAN and intersects with explicit EDP`() {
+  fun `throws when one EDP has empty allowed list among explicit EDPs`() {
     val serverMechanisms =
       listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
     val requirements =
@@ -141,12 +143,13 @@ class SelectNoiseMechanismsTest {
         internalDataProviderRequirements {},
       )
 
-    val result = MeasurementsService.selectNoiseMechanisms(serverMechanisms, requirements)
-    assertEquals(listOf(InternalNoiseMechanism.CONTINUOUS_GAUSSIAN), result)
+    assertFailsWith<IllegalArgumentException> {
+      MeasurementsService.selectNoiseMechanisms(serverMechanisms, requirements)
+    }
   }
 
   @Test
-  fun `all EDPs with empty lists narrows to CONTINUOUS_GAUSSIAN`() {
+  fun `throws when all EDPs have empty allowed lists`() {
     val serverMechanisms =
       listOf(
         InternalNoiseMechanism.NONE,
@@ -160,8 +163,9 @@ class SelectNoiseMechanismsTest {
         internalDataProviderRequirements {},
       )
 
-    val result = MeasurementsService.selectNoiseMechanisms(serverMechanisms, requirements)
-    assertEquals(listOf(InternalNoiseMechanism.CONTINUOUS_GAUSSIAN), result)
+    assertFailsWith<IllegalArgumentException> {
+      MeasurementsService.selectNoiseMechanisms(serverMechanisms, requirements)
+    }
   }
 
   @Test
@@ -238,17 +242,17 @@ class SelectNoiseMechanismsTest {
   }
 
   @Test
-  fun `throws when empty list EDP defaults to CG but server only has NONE`() {
+  fun `throws when empty list EDP with server only having NONE`() {
     val serverMechanisms = listOf(InternalNoiseMechanism.NONE)
     val requirements = listOf(internalDataProviderRequirements {})
 
-    assertFailsWith<StatusRuntimeException> {
+    assertFailsWith<IllegalArgumentException> {
       MeasurementsService.selectNoiseMechanisms(serverMechanisms, requirements)
     }
   }
 
   @Test
-  fun `throws when empty list EDP conflicts with NONE-only explicit EDP`() {
+  fun `throws when empty list EDP mixed with explicit EDP`() {
     val serverMechanisms =
       listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
     val requirements =
@@ -259,7 +263,7 @@ class SelectNoiseMechanismsTest {
         internalDataProviderRequirements {},
       )
 
-    assertFailsWith<StatusRuntimeException> {
+    assertFailsWith<IllegalArgumentException> {
       MeasurementsService.selectNoiseMechanisms(serverMechanisms, requirements)
     }
   }
@@ -288,7 +292,21 @@ class SelectNoiseMechanismsTest {
   }
 
   @Test
-  fun `throws when EDP specifies invalid noise mechanism`() {
+  fun `throws when server noise mechanisms list is empty`() {
+    val requirements =
+      listOf(
+        internalDataProviderRequirements {
+          allowedNoiseMechanisms += InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
+        }
+      )
+
+    assertFailsWith<IllegalArgumentException> {
+      MeasurementsService.selectNoiseMechanisms(emptyList(), requirements)
+    }
+  }
+
+  @Test
+  fun `intersects when EDP specifies CONTINUOUS_LAPLACE`() {
     val serverMechanisms =
       listOf(
         InternalNoiseMechanism.NONE,
@@ -302,32 +320,12 @@ class SelectNoiseMechanismsTest {
         }
       )
 
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        MeasurementsService.selectNoiseMechanisms(serverMechanisms, requirements)
-      }
-    assertEquals(Status.Code.INVALID_ARGUMENT, exception.status.code)
+    val result = MeasurementsService.selectNoiseMechanisms(serverMechanisms, requirements)
+    assertEquals(listOf(InternalNoiseMechanism.CONTINUOUS_LAPLACE), result)
   }
 
   @Test
-  fun `throws when EDP specifies GEOMETRIC noise mechanism`() {
-    val serverMechanisms =
-      listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
-    val requirements =
-      listOf(
-        internalDataProviderRequirements {
-          allowedNoiseMechanisms += InternalNoiseMechanism.NONE
-          allowedNoiseMechanisms += InternalNoiseMechanism.GEOMETRIC
-        }
-      )
-
-    assertFailsWith<StatusRuntimeException> {
-      MeasurementsService.selectNoiseMechanisms(serverMechanisms, requirements)
-    }
-  }
-
-  @Test
-  fun `mixed empty and restrictive requirements narrows to CONTINUOUS_GAUSSIAN`() {
+  fun `throws when mixed empty and restrictive requirements`() {
     val serverMechanisms =
       listOf(
         InternalNoiseMechanism.NONE,
@@ -344,7 +342,8 @@ class SelectNoiseMechanismsTest {
         internalDataProviderRequirements {},
       )
 
-    val result = MeasurementsService.selectNoiseMechanisms(serverMechanisms, requirements)
-    assertEquals(listOf(InternalNoiseMechanism.CONTINUOUS_GAUSSIAN), result)
+    assertFailsWith<IllegalArgumentException> {
+      MeasurementsService.selectNoiseMechanisms(serverMechanisms, requirements)
+    }
   }
 }
