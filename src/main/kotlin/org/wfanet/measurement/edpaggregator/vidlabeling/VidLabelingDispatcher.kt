@@ -19,11 +19,17 @@ package org.wfanet.measurement.edpaggregator.vidlabeling
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
-import java.security.MessageDigest
 import java.util.logging.Logger
 import kotlin.time.TimeSource
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchFileServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionMetadataBatchFilesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionMetadataBatchFileRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionMetadataBatchRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionMetadataBatch
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionMetadataBatchFile
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
@@ -41,6 +47,8 @@ import org.wfanet.measurement.storage.StorageClient
  *
  * @param storageClient client for crawling raw impressions directory and reading file sizes.
  * @param workItemsStub gRPC stub for creating WorkItems via Secure Computation API.
+ * @param rawImpressionMetadataBatchStub gRPC stub for creating RawImpressionMetadataBatch resources.
+ * @param rawImpressionMetadataBatchFileStub gRPC stub for creating RawImpressionMetadataBatchFile resources.
  * @param dataProviderName resource name of the DataProvider.
  * @param vidLabelerParamsTemplate template [VidLabelerParams] with static fields populated.
  *   Per-batch field [VidLabelerParams.getRawImpressionMetadataBatch] is set by the dispatcher for
@@ -52,6 +60,10 @@ import org.wfanet.measurement.storage.StorageClient
 class VidLabelingDispatcher(
   private val storageClient: StorageClient,
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
+  private val rawImpressionMetadataBatchStub:
+    RawImpressionMetadataBatchServiceGrpcKt.RawImpressionMetadataBatchServiceCoroutineStub,
+  private val rawImpressionMetadataBatchFileStub:
+    RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineStub,
   private val dataProviderName: String,
   private val vidLabelerParamsTemplate: VidLabelerParams,
   private val queueName: String,
@@ -96,18 +108,12 @@ class VidLabelingDispatcher(
 
       val batches: List<List<BlobInfo>> = partitionIntoBatches(blobInfos)
 
-      for ((index, batch) in batches.withIndex()) {
+      for (batch in batches) {
         val batchBlobUris: List<String> = batch.map { buildBlobUri(doneBlobUri, it.blobKey) }
 
-        // TODO(world-federation-of-advertisers/cross-media-measurement#3584): Replace
-        //   deterministic hash with {uploadDate}-{uploadId}-{batchIndex} once the
-        //   RawImpressionMetadata API provides the upload ID.
-        val workItemBatchId: String = generateDeterministicId(batchBlobUris)
-
-        // TODO(world-federation-of-advertisers/cross-media-measurement#3584): Create batch via
-        //   RawImpressionMetadataBatch gRPC API and use the returned resource name.
-        val batchResourceName =
-          "$dataProviderName/rawImpressionMetadataBatches/$workItemBatchId"
+        val createdBatch = createBatch()
+        val batchResourceName: String = createdBatch.name
+        createBatchFiles(batchResourceName, batchBlobUris)
 
         val params = vidLabelerParams {
           dataProvider = vidLabelerParamsTemplate.dataProvider
@@ -118,7 +124,7 @@ class VidLabelingDispatcher(
           rawImpressionMetadataBatch = batchResourceName
         }
 
-        createWorkItem(workItemBatchId, params)
+        createWorkItem(batchResourceName, params)
       }
 
       metrics.batchesCreatedCounter.add(
@@ -199,13 +205,80 @@ class VidLabelingDispatcher(
   }
 
   /**
+   * Creates a [RawImpressionMetadataBatch] via the gRPC API.
+   *
+   * @return the created [RawImpressionMetadataBatch] with server-assigned name.
+   */
+  private suspend fun createBatch():
+    org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatch {
+    val request = createRawImpressionMetadataBatchRequest {
+      parent = dataProviderName
+      rawImpressionMetadataBatch = rawImpressionMetadataBatch {}
+    }
+    try {
+      return rawImpressionMetadataBatchStub.createRawImpressionMetadataBatch(request)
+    } catch (e: StatusException) {
+      metrics.rpcErrorsCounter.add(
+        1,
+        Attributes.of(
+          DATA_PROVIDER_ATTR,
+          dataProviderName,
+          RPC_METHOD_ATTR,
+          RPC_METHOD_CREATE_BATCH,
+          STATUS_CODE_ATTR,
+          e.status.code.name,
+        ),
+      )
+      throw Exception("Error creating RawImpressionMetadataBatch", e)
+    }
+  }
+
+  /**
+   * Creates [RawImpressionMetadataBatchFile] entries for each blob URI in the batch.
+   *
+   * @param batchResourceName the parent batch resource name.
+   * @param blobUris the blob URIs to register as files.
+   */
+  private suspend fun createBatchFiles(batchResourceName: String, blobUris: List<String>) {
+    val request = batchCreateRawImpressionMetadataBatchFilesRequest {
+      parent = batchResourceName
+      requests +=
+        blobUris.map { uri ->
+          createRawImpressionMetadataBatchFileRequest {
+            parent = batchResourceName
+            rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile { blobUri = uri }
+          }
+        }
+    }
+    try {
+      rawImpressionMetadataBatchFileStub.batchCreateRawImpressionMetadataBatchFiles(request)
+    } catch (e: StatusException) {
+      metrics.rpcErrorsCounter.add(
+        1,
+        Attributes.of(
+          DATA_PROVIDER_ATTR,
+          dataProviderName,
+          RPC_METHOD_ATTR,
+          RPC_METHOD_BATCH_CREATE_FILES,
+          STATUS_CODE_ATTR,
+          e.status.code.name,
+        ),
+      )
+      throw Exception(
+        "Error creating RawImpressionMetadataBatchFiles for $batchResourceName",
+        e,
+      )
+    }
+  }
+
+  /**
    * Creates a WorkItem in the Secure Computation control plane.
    *
-   * @param batchId deterministic batch identifier used to generate the work item ID.
+   * @param batchResourceName resource name of the [RawImpressionMetadataBatch].
    * @param params the [VidLabelerParams] for this batch.
    */
-  private suspend fun createWorkItem(batchId: String, params: VidLabelerParams) {
-    val workItemId = "vid-labeling-$batchId"
+  private suspend fun createWorkItem(batchResourceName: String, params: VidLabelerParams) {
+    val workItemId = "vid-labeling-$batchResourceName"
     val packedWorkItemParams =
       workItemParams { appParams = params.pack() }.pack()
 
@@ -249,19 +322,6 @@ class VidLabelingDispatcher(
     )
   }
 
-  /**
-   * Generates a deterministic ID from a sorted list of blob URIs using SHA-256.
-   *
-   * @param blobUris the blob URIs to hash.
-   * @return a 32-character hex string.
-   */
-  private fun generateDeterministicId(blobUris: List<String>): String {
-    val hash: ByteArray =
-      MessageDigest.getInstance("SHA-256")
-        .digest(blobUris.sorted().joinToString("\n").toByteArray())
-    return hash.take(16).joinToString("") { "%02x".format(it) }
-  }
-
   private fun buildBlobUri(doneBlobUri: BlobUri, blobKey: String): String {
     return when (doneBlobUri.scheme) {
       "gs" -> "${doneBlobUri.scheme}://${doneBlobUri.bucket}/$blobKey"
@@ -290,5 +350,7 @@ class VidLabelingDispatcher(
     private const val DISPATCH_STATUS_SUCCESS = "success"
     private const val DISPATCH_STATUS_FAILED = "failed"
     private const val RPC_METHOD_CREATE_WORK_ITEM = "CreateWorkItem"
+    private const val RPC_METHOD_CREATE_BATCH = "CreateRawImpressionMetadataBatch"
+    private const val RPC_METHOD_BATCH_CREATE_FILES = "BatchCreateRawImpressionMetadataBatchFiles"
   }
 }
