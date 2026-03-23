@@ -931,6 +931,11 @@ class MeasurementsServiceTest {
 
   @Test
   fun `createMeasurement with TrusTEE enabled and EDPs capable specifies trusTEE protocol`() {
+    TrusTeeProtocolConfig.setForTest(
+      TRUS_TEE_INTERNAL_PROTOCOL_CONFIG.trusTee,
+      "aggregator",
+      listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN),
+    )
     internalDataProvidersMock.stub {
       onBlocking { batchGetDataProviders(any()) }
         .thenReturn(
@@ -989,6 +994,11 @@ class MeasurementsServiceTest {
 
   @Test
   fun `createMeasurement with TrusTEE enabled using wrapping VidSamplingInterval`() {
+    TrusTeeProtocolConfig.setForTest(
+      TRUS_TEE_INTERNAL_PROTOCOL_CONFIG.trusTee,
+      "aggregator",
+      listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN),
+    )
     internalDataProvidersMock.stub {
       onBlocking { batchGetDataProviders(any()) }
         .thenReturn(
@@ -1053,6 +1063,11 @@ class MeasurementsServiceTest {
 
   @Test
   fun `createMeasurement with TrusTEE and EDPs allowing NONE selects NONE noise mechanism`() {
+    TrusTeeProtocolConfig.setForTest(
+      TRUS_TEE_INTERNAL_PROTOCOL_CONFIG.trusTee,
+      "aggregator",
+      listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN),
+    )
     internalDataProvidersMock.stub {
       onBlocking { batchGetDataProviders(any()) }
         .thenReturn(
@@ -1122,6 +1137,11 @@ class MeasurementsServiceTest {
 
   @Test
   fun `createMeasurement with TrusTEE and EDPs allowing only NONE selects NONE noise mechanism`() {
+    TrusTeeProtocolConfig.setForTest(
+      TRUS_TEE_INTERNAL_PROTOCOL_CONFIG.trusTee,
+      "aggregator",
+      listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN),
+    )
     internalDataProvidersMock.stub {
       onBlocking { batchGetDataProviders(any()) }
         .thenReturn(
@@ -1195,76 +1215,73 @@ class MeasurementsServiceTest {
       "aggregator",
       emptyList(),
     )
-    try {
-      internalDataProvidersMock.stub {
-        onBlocking { batchGetDataProviders(any()) }
-          .thenReturn(
-            internalBatchGetDataProvidersResponse {
-              for (externalDataProviderId in EXTERNAL_DATA_PROVIDER_IDS) {
-                dataProviders += internalDataProvider {
-                  this.externalDataProviderId = externalDataProviderId.value
-                  details =
-                    details.copy {
-                      capabilities = internalDataProviderCapabilities { trusTeeSupported = true }
-                      requirements = internalDataProviderRequirements {
-                        allowedNoiseMechanisms += InternalNoiseMechanism.NONE
-                        allowedNoiseMechanisms += InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
-                      }
-                    }
-                }
-              }
-            }
-          )
-      }
-      val measurement =
-        MEASUREMENT.copy {
-          clearFailure()
-          results.clear()
-          clearProtocolConfig()
-        }
-      val request = createMeasurementRequest {
-        parent = MEASUREMENT_CONSUMER_NAME
-        this.measurement = measurement
-        requestId = "foo"
-      }
-
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-        runBlocking { trusTeeEnabledService.createMeasurement(request) }
-      }
-
-      verifyProtoArgument(
-          internalMeasurementsMock,
-          MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
-        )
-        .isEqualTo(
-          internalCreateMeasurementRequest {
-            this.measurement =
-              INTERNAL_MEASUREMENT.copy {
-                clearExternalMeasurementId()
-                clearCreateTime()
-                clearUpdateTime()
-                results.clear()
+    internalDataProvidersMock.stub {
+      onBlocking { batchGetDataProviders(any()) }
+        .thenReturn(
+          internalBatchGetDataProvidersResponse {
+            for (externalDataProviderId in EXTERNAL_DATA_PROVIDER_IDS) {
+              dataProviders += internalDataProvider {
+                this.externalDataProviderId = externalDataProviderId.value
                 details =
                   details.copy {
-                    clearFailure()
-                    protocolConfig = TRUS_TEE_INTERNAL_PROTOCOL_CONFIG
-                    clearDuchyProtocolConfig()
+                    capabilities = internalDataProviderCapabilities { trusTeeSupported = true }
+                    requirements = internalDataProviderRequirements {
+                      allowedNoiseMechanisms += InternalNoiseMechanism.NONE
+                      allowedNoiseMechanisms += InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
+                    }
                   }
               }
-            requestId = request.requestId
+            }
           }
         )
-    } finally {
-      TrusTeeProtocolConfig.setForTest(
-        TRUS_TEE_INTERNAL_PROTOCOL_CONFIG.trusTee,
-        "aggregator",
-        listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN),
-      )
     }
+    val measurement =
+      MEASUREMENT.copy {
+        clearFailure()
+        results.clear()
+        clearProtocolConfig()
+      }
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      this.measurement = measurement
+      requestId = "foo"
+    }
+
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      runBlocking { trusTeeEnabledService.createMeasurement(request) }
+    }
+
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
+      )
+      .isEqualTo(
+        internalCreateMeasurementRequest {
+          this.measurement =
+            INTERNAL_MEASUREMENT.copy {
+              clearExternalMeasurementId()
+              clearCreateTime()
+              clearUpdateTime()
+              results.clear()
+              details =
+                details.copy {
+                  clearFailure()
+                  protocolConfig = TRUS_TEE_INTERNAL_PROTOCOL_CONFIG
+                  clearDuchyProtocolConfig()
+                }
+            }
+          requestId = request.requestId
+        }
+      )
   }
 
   @Test
   fun `createMeasurement with TrusTEE and EDPs allowing only CG selects CG noise mechanism`() {
+    TrusTeeProtocolConfig.setForTest(
+      TRUS_TEE_INTERNAL_PROTOCOL_CONFIG.trusTee,
+      "aggregator",
+      listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN),
+    )
     internalDataProvidersMock.stub {
       onBlocking { batchGetDataProviders(any()) }
         .thenReturn(
@@ -1332,7 +1349,94 @@ class MeasurementsServiceTest {
   }
 
   @Test
+  fun `createMeasurement with TrusTEE and EDPs with different requirements selects CG`() {
+    TrusTeeProtocolConfig.setForTest(
+      TRUS_TEE_INTERNAL_PROTOCOL_CONFIG.trusTee,
+      "aggregator",
+      listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN),
+    )
+    internalDataProvidersMock.stub {
+      onBlocking { batchGetDataProviders(any()) }
+        .thenReturn(
+          internalBatchGetDataProvidersResponse {
+            dataProviders += internalDataProvider {
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_IDS[0].value
+              details =
+                details.copy {
+                  capabilities = internalDataProviderCapabilities { trusTeeSupported = true }
+                  requirements = internalDataProviderRequirements {
+                    allowedNoiseMechanisms += InternalNoiseMechanism.NONE
+                    allowedNoiseMechanisms += InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
+                  }
+                }
+            }
+            dataProviders += internalDataProvider {
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_IDS[1].value
+              details =
+                details.copy {
+                  capabilities = internalDataProviderCapabilities { trusTeeSupported = true }
+                  requirements = internalDataProviderRequirements {
+                    allowedNoiseMechanisms += InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
+                  }
+                }
+            }
+          }
+        )
+    }
+    val measurement =
+      MEASUREMENT.copy {
+        clearFailure()
+        results.clear()
+        clearProtocolConfig()
+      }
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      this.measurement = measurement
+      requestId = "foo"
+    }
+
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      runBlocking { trusTeeEnabledService.createMeasurement(request) }
+    }
+
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
+      )
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        internalCreateMeasurementRequest {
+          this.measurement =
+            INTERNAL_MEASUREMENT.copy {
+              clearExternalMeasurementId()
+              clearCreateTime()
+              clearUpdateTime()
+              results.clear()
+              details =
+                details.copy {
+                  clearFailure()
+                  protocolConfig = internalProtocolConfig {
+                    externalProtocolConfigId = "trustee"
+                    trusTee =
+                      InternalProtocolConfigKt.trusTee {
+                        noiseMechanism = InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
+                      }
+                  }
+                  clearDuchyProtocolConfig()
+                }
+            }
+          requestId = request.requestId
+        }
+      )
+  }
+
+  @Test
   fun `createMeasurement with TrusTEE and mixed EDP requirements falls back to old config`() {
+    TrusTeeProtocolConfig.setForTest(
+      TRUS_TEE_INTERNAL_PROTOCOL_CONFIG.trusTee,
+      "aggregator",
+      listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN),
+    )
     internalDataProvidersMock.stub {
       onBlocking { batchGetDataProviders(any()) }
         .thenReturn(
@@ -1465,6 +1569,11 @@ class MeasurementsServiceTest {
 
   @Test
   fun `createMeasurement with TrusTEE throws when EDP noise requirements have empty intersection`() {
+    TrusTeeProtocolConfig.setForTest(
+      TRUS_TEE_INTERNAL_PROTOCOL_CONFIG.trusTee,
+      "aggregator",
+      listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN),
+    )
     internalDataProvidersMock.stub {
       onBlocking { batchGetDataProviders(any()) }
         .thenReturn(

@@ -281,7 +281,11 @@ class SelectNoiseMechanismsTest {
         internalDataProviderRequirements {
           allowedNoiseMechanisms += InternalNoiseMechanism.NONE
           allowedNoiseMechanisms += InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
-        }
+        },
+        internalDataProviderRequirements {
+          allowedNoiseMechanisms += InternalNoiseMechanism.NONE
+          allowedNoiseMechanisms += InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
+        },
       )
 
     val result = MeasurementsService.selectNoiseMechanisms(serverMechanisms, requirements)
@@ -317,7 +321,11 @@ class SelectNoiseMechanismsTest {
       listOf(
         internalDataProviderRequirements {
           allowedNoiseMechanisms += InternalNoiseMechanism.CONTINUOUS_LAPLACE
-        }
+        },
+        internalDataProviderRequirements {
+          allowedNoiseMechanisms += InternalNoiseMechanism.CONTINUOUS_LAPLACE
+          allowedNoiseMechanisms += InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
+        },
       )
 
     val result = MeasurementsService.selectNoiseMechanisms(serverMechanisms, requirements)
