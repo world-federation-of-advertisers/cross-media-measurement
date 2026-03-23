@@ -150,7 +150,16 @@ message ProtocolConfig {
   // Configuration for TrusTEE protocol.
   message TrusTee {
     // The mechanism to generate noise from computation.
+    //
+    // Deprecated: Use `noise_mechanisms` instead. Will be removed in a future
+    // Halo CMM release.
     NoiseMechanism noise_mechanism = 1;
+
+    // The set of mechanisms that can be used to generate noise during
+    // computation.
+    //
+    // When set, this takes precedence over `noise_mechanism`.
+    repeated NoiseMechanism noise_mechanisms = 2;
   }
 
   // Configuration for the specific protocol.

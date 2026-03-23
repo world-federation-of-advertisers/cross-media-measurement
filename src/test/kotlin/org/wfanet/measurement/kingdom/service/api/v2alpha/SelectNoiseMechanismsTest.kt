@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Cross-Media Measurement Authors
+ * Copyright 2026 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -117,7 +117,6 @@ class SelectNoiseMechanismsTest {
           allowedNoiseMechanisms += InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
         },
         internalDataProviderRequirements {
-          allowedNoiseMechanisms += InternalNoiseMechanism.CONTINUOUS_LAPLACE
           allowedNoiseMechanisms += InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
         },
         internalDataProviderRequirements {
@@ -266,7 +265,7 @@ class SelectNoiseMechanismsTest {
   }
 
   @Test
-  fun `returns multiple mechanisms when multiple are common`() {
+  fun `returns both NONE and CONTINUOUS_GAUSSIAN when both are common`() {
     val serverMechanisms =
       listOf(
         InternalNoiseMechanism.NONE,
@@ -277,20 +276,54 @@ class SelectNoiseMechanismsTest {
       listOf(
         internalDataProviderRequirements {
           allowedNoiseMechanisms += InternalNoiseMechanism.NONE
-          allowedNoiseMechanisms += InternalNoiseMechanism.CONTINUOUS_LAPLACE
           allowedNoiseMechanisms += InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
         }
       )
 
     val result = MeasurementsService.selectNoiseMechanisms(serverMechanisms, requirements)
     assertEquals(
-      setOf(
+      setOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN),
+      result.toSet(),
+    )
+  }
+
+  @Test
+  fun `throws when EDP specifies invalid noise mechanism`() {
+    val serverMechanisms =
+      listOf(
         InternalNoiseMechanism.NONE,
         InternalNoiseMechanism.CONTINUOUS_LAPLACE,
         InternalNoiseMechanism.CONTINUOUS_GAUSSIAN,
-      ),
-      result.toSet(),
-    )
+      )
+    val requirements =
+      listOf(
+        internalDataProviderRequirements {
+          allowedNoiseMechanisms += InternalNoiseMechanism.CONTINUOUS_LAPLACE
+        }
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        MeasurementsService.selectNoiseMechanisms(serverMechanisms, requirements)
+      }
+    assertEquals(Status.Code.INVALID_ARGUMENT, exception.status.code)
+  }
+
+  @Test
+  fun `throws when EDP specifies GEOMETRIC noise mechanism`() {
+    val serverMechanisms =
+      listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
+    val requirements =
+      listOf(
+        internalDataProviderRequirements {
+          allowedNoiseMechanisms += InternalNoiseMechanism.NONE
+          allowedNoiseMechanisms += InternalNoiseMechanism.GEOMETRIC
+        }
+      )
+
+    assertFailsWith<StatusRuntimeException> {
+      MeasurementsService.selectNoiseMechanisms(serverMechanisms, requirements)
+    }
   }
 
   @Test

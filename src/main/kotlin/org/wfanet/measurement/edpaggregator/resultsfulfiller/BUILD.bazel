@@ -89,7 +89,6 @@ kt_jvm_library(
     ],
 )
 
-
 kt_jvm_library(
     name = "impression_read_exception",
     srcs = ["ImpressionReadException.kt"],
