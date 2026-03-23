@@ -509,7 +509,7 @@ class MeasurementsService(
               }
           }
         } else {
-          buildMpcProtocolConfig(
+          buildMultiPartyProtocolConfig(
             dataProviderCapabilities,
             dataProviderRequirements,
             measurementConsumerName,
@@ -536,7 +536,7 @@ class MeasurementsService(
               }
           }
         } else {
-          buildMpcProtocolConfig(
+          buildMultiPartyProtocolConfig(
             dataProviderCapabilities,
             dataProviderRequirements,
             measurementConsumerName,
@@ -582,7 +582,7 @@ class MeasurementsService(
     }
   }
 
-  private fun buildMpcProtocolConfig(
+  private fun buildMultiPartyProtocolConfig(
     dataProviderCapabilities: List<InternalDataProviderCapabilities>,
     dataProviderRequirements: List<InternalDataProviderRequirements>,
     measurementConsumerName: String,
@@ -594,7 +594,7 @@ class MeasurementsService(
     ) {
       return protocolConfig {
         externalProtocolConfigId = TrusTeeProtocolConfig.NAME
-        trusTee = selectTrusTeeNoiseMechanism(dataProviderRequirements)
+        trusTee = buildTrusTeeProtocolConfig(dataProviderRequirements)
       }
     } else if (
       (measurementConsumerName in hmssEnabledMeasurementConsumers || hmssEnabled) &&
@@ -687,14 +687,14 @@ class MeasurementsService(
   }
 
   /**
-   * Selects the TrusTee noise mechanism based on server config and EDP requirements.
+   * Builds the [InternalProtocolConfig.TrusTee] based on server config and EDP requirements.
    *
    * If the server's `TrusTeeProtocolConfig.noiseMechanisms` is empty or any EDP has an empty
    * `allowedNoiseMechanisms`, falls back to `TrusTeeProtocolConfig.protocolConfig` (using the
    * existing `noise_mechanism` value). Otherwise, intersects server and EDP mechanisms and selects
-   * the preferred one (`NONE` > `CONTINUOUS_GAUSSIAN`).
+   * the preferred noise mechanism (`NONE` > `CONTINUOUS_GAUSSIAN`).
    */
-  private fun selectTrusTeeNoiseMechanism(
+  private fun buildTrusTeeProtocolConfig(
     dataProviderRequirements: List<InternalDataProviderRequirements>,
   ): InternalProtocolConfig.TrusTee {
     val serverNoiseMechanisms = TrusTeeProtocolConfig.noiseMechanisms
@@ -730,12 +730,6 @@ class MeasurementsService(
      * An EDP with an empty `allowedNoiseMechanismsList` defaults to allowing only
      * `CONTINUOUS_GAUSSIAN`.
      */
-    private val VALID_NOISE_MECHANISMS =
-      setOf(
-        InternalProtocolConfig.NoiseMechanism.NONE,
-        InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
-      )
-
     fun selectNoiseMechanisms(
       serverNoiseMechanisms: List<InternalProtocolConfig.NoiseMechanism>,
       dataProviderRequirements: List<InternalDataProviderRequirements>,
@@ -744,10 +738,6 @@ class MeasurementsService(
       for (requirements in dataProviderRequirements) {
         val allowed =
           if (requirements.allowedNoiseMechanismsCount > 0) {
-            val invalid = requirements.allowedNoiseMechanismsList.toSet() - VALID_NOISE_MECHANISMS
-            grpcRequire(invalid.isEmpty()) {
-              "DataProvider allowed_noise_mechanisms contains invalid values: $invalid"
-            }
             requirements.allowedNoiseMechanismsList.toSet()
           } else {
             setOf(InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN)
