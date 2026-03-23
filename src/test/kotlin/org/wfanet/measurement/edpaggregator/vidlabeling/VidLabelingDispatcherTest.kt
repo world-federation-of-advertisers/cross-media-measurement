@@ -37,7 +37,6 @@ import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionMetadataBatchFilesResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatch
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
@@ -57,8 +56,8 @@ class VidLabelingDispatcherTest {
     RawImpressionMetadataBatchServiceGrpcKt.RawImpressionMetadataBatchServiceCoroutineImplBase =
     mockService()
   private val rawImpressionMetadataBatchFileService:
-    RawImpressionMetadataBatchFileServiceGrpcKt
-      .RawImpressionMetadataBatchFileServiceCoroutineImplBase = mockService()
+    RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineImplBase =
+    mockService()
   private val storageClient: StorageClient = mock()
 
   @get:Rule
@@ -85,16 +84,17 @@ class VidLabelingDispatcherTest {
 
   private val vidLabelerParamsTemplate = vidLabelerParams {
     dataProvider = DATA_PROVIDER_NAME
-    storageParams = VidLabelerParamsKt.storageParams {
-      gcsProjectId = "test-project"
-      labeledImpressionsBlobPrefix = "gs://output-bucket/labeled"
-    }
+    storageParams =
+      VidLabelerParamsKt.storageParams {
+        gcsProjectId = "test-project"
+        labeledImpressionsBlobPrefix = "gs://output-bucket/labeled"
+      }
   }
 
   private var batchCounter = 0
 
   private fun createDispatcher(
-    batchMaxSizeBytes: Long = BATCH_MAX_SIZE_BYTES,
+    batchMaxSizeBytes: Long = BATCH_MAX_SIZE_BYTES
   ): VidLabelingDispatcher {
     return VidLabelingDispatcher(
       storageClient = storageClient,
@@ -115,9 +115,10 @@ class VidLabelingDispatcherTest {
         name = "$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/batch-$batchCounter"
       }
     }
-    whenever(rawImpressionMetadataBatchFileService.batchCreateRawImpressionMetadataBatchFiles(any())).thenReturn(
-      BatchCreateRawImpressionMetadataBatchFilesResponse.getDefaultInstance()
-    )
+    whenever(
+        rawImpressionMetadataBatchFileService.batchCreateRawImpressionMetadataBatchFiles(any())
+      )
+      .thenReturn(BatchCreateRawImpressionMetadataBatchFilesResponse.getDefaultInstance())
   }
 
   private fun createMockBlob(key: String, size: Long): StorageClient.Blob {
@@ -142,9 +143,7 @@ class VidLabelingDispatcherTest {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
     stubBatchCreation()
-    whenever(workItemsService.createWorkItem(any())).thenReturn(
-      WorkItem.getDefaultInstance()
-    )
+    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
     val dispatcher = createDispatcher()
     dispatcher.dispatch(DONE_BLOB_PATH)
@@ -158,7 +157,8 @@ class VidLabelingDispatcherTest {
 
     val workItemParams =
       request.workItem.workItemParams.unpack(
-        org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::class
+        org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+            .WorkItemParams::class
           .java
       )
     val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
@@ -168,15 +168,14 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
-  fun `dispatch with default batch max size creates single work item for all files`() = runBlocking {
+  fun `dispatch with default batch max size creates single work item for all files`() =
+    runBlocking {
     val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
     val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet", 2000L)
     val blob3 = createMockBlob("$FOLDER_PREFIX/file3.parquet", 3000L)
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2, blob3))
     stubBatchCreation()
-    whenever(workItemsService.createWorkItem(any())).thenReturn(
-      WorkItem.getDefaultInstance()
-    )
+    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
     val dispatcher = createDispatcher()
     dispatcher.dispatch(DONE_BLOB_PATH)
@@ -186,7 +185,8 @@ class VidLabelingDispatcherTest {
 
     val workItemParams =
       requestCaptor.firstValue.workItem.workItemParams.unpack(
-        org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::class
+        org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+            .WorkItemParams::class
           .java
       )
     val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
@@ -201,9 +201,7 @@ class VidLabelingDispatcherTest {
     val blob3 = createMockBlob("$FOLDER_PREFIX/file3.parquet", 400L)
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2, blob3))
     stubBatchCreation()
-    whenever(workItemsService.createWorkItem(any())).thenReturn(
-      WorkItem.getDefaultInstance()
-    )
+    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
     // Batch max size of 900 bytes: BFD packs file1+file2 into one batch, file3 into another.
     val dispatcher = createDispatcher(batchMaxSizeBytes = 900L)
@@ -249,9 +247,7 @@ class VidLabelingDispatcherTest {
     val doneBlob = createMockBlob("$FOLDER_PREFIX/done", 0L)
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, doneBlob))
     stubBatchCreation()
-    whenever(workItemsService.createWorkItem(any())).thenReturn(
-      WorkItem.getDefaultInstance()
-    )
+    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
     val dispatcher = createDispatcher()
     dispatcher.dispatch(DONE_BLOB_PATH)
@@ -261,7 +257,8 @@ class VidLabelingDispatcherTest {
 
     val workItemParams =
       requestCaptor.firstValue.workItem.workItemParams.unpack(
-        org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::class
+        org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+            .WorkItemParams::class
           .java
       )
     val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
@@ -278,12 +275,11 @@ class VidLabelingDispatcherTest {
         name = "$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/server-assigned-id"
       }
     )
-    whenever(rawImpressionMetadataBatchFileService.batchCreateRawImpressionMetadataBatchFiles(any())).thenReturn(
-      BatchCreateRawImpressionMetadataBatchFilesResponse.getDefaultInstance()
-    )
-    whenever(workItemsService.createWorkItem(any())).thenReturn(
-      WorkItem.getDefaultInstance()
-    )
+    whenever(
+        rawImpressionMetadataBatchFileService.batchCreateRawImpressionMetadataBatchFiles(any())
+      )
+      .thenReturn(BatchCreateRawImpressionMetadataBatchFilesResponse.getDefaultInstance())
+    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
     val dispatcher = createDispatcher()
     dispatcher.dispatch(DONE_BLOB_PATH)
@@ -302,9 +298,7 @@ class VidLabelingDispatcherTest {
     val blob4 = createMockBlob("$FOLDER_PREFIX/file4.parquet", 600L)
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2, blob3, blob4))
     stubBatchCreation()
-    whenever(workItemsService.createWorkItem(any())).thenReturn(
-      WorkItem.getDefaultInstance()
-    )
+    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
     // BFD with max 1000: sorts [600, 600, 400, 400], packs (600+400), (600+400).
     val dispatcher = createDispatcher(batchMaxSizeBytes = 1000L)
@@ -351,9 +345,7 @@ class VidLabelingDispatcherTest {
     val oversizedBlob = createMockBlob("$FOLDER_PREFIX/oversized.parquet", 1500L)
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(normalBlob, oversizedBlob))
     stubBatchCreation()
-    whenever(workItemsService.createWorkItem(any())).thenReturn(
-      WorkItem.getDefaultInstance()
-    )
+    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
     val dispatcher = createDispatcher(batchMaxSizeBytes = 1000L)
     dispatcher.dispatch(DONE_BLOB_PATH)
@@ -427,9 +419,7 @@ class VidLabelingDispatcherTest {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
     stubBatchCreation()
-    whenever(workItemsService.createWorkItem(any())).thenReturn(
-      WorkItem.getDefaultInstance()
-    )
+    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
     val dispatcher = createDispatcher()
     dispatcher.dispatch(GCS_DONE_BLOB_PATH)
@@ -439,7 +429,8 @@ class VidLabelingDispatcherTest {
 
     val workItemParams =
       requestCaptor.firstValue.workItem.workItemParams.unpack(
-        org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::class
+        org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+            .WorkItemParams::class
           .java
       )
     val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)

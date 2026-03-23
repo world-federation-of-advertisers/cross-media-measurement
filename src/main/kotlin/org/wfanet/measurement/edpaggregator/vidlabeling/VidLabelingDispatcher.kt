@@ -47,8 +47,10 @@ import org.wfanet.measurement.storage.StorageClient
  *
  * @param storageClient client for crawling raw impressions directory and reading file sizes.
  * @param workItemsStub gRPC stub for creating WorkItems via Secure Computation API.
- * @param rawImpressionMetadataBatchStub gRPC stub for creating RawImpressionMetadataBatch resources.
- * @param rawImpressionMetadataBatchFileStub gRPC stub for creating RawImpressionMetadataBatchFile resources.
+ * @param rawImpressionMetadataBatchStub gRPC stub for creating RawImpressionMetadataBatch
+ *   resources.
+ * @param rawImpressionMetadataBatchFileStub gRPC stub for creating RawImpressionMetadataBatchFile
+ *   resources.
  * @param dataProviderName resource name of the DataProvider.
  * @param vidLabelerParamsTemplate template [VidLabelerParams] with static fields populated.
  *   Per-batch field [VidLabelerParams.getRawImpressionMetadataBatch] is set by the dispatcher for
@@ -74,7 +76,8 @@ class VidLabelingDispatcher(
   private data class BlobInfo(val blobKey: String, val sizeBytes: Long)
 
   /**
-   * Dispatches VID labeling work for raw impression files in the directory containing the done blob.
+   * Dispatches VID labeling work for raw impression files in the directory containing the done
+   * blob.
    *
    * @param doneBlobPath the full storage URI of the "done" blob that triggered this dispatch.
    * @throws IllegalArgumentException if [doneBlobPath] uses an unsupported URI scheme.
@@ -143,9 +146,9 @@ class VidLabelingDispatcher(
    * Partitions blob infos into batches using Best-Fit Decreasing bin-packing.
    *
    * Files that individually exceed [batchMaxSizeBytes] are placed in their own batch and an
-   * oversized file alert is emitted. Remaining files are sorted by size descending (with blob key as
-   * tiebreaker) and each file is placed into the batch with the smallest remaining capacity that can
-   * still fit it.
+   * oversized file alert is emitted. Remaining files are sorted by size descending (with blob key
+   * as tiebreaker) and each file is placed into the batch with the smallest remaining capacity that
+   * can still fit it.
    *
    * @param blobInfos list of blob infos to partition.
    * @return list of batches, where each batch is a list of [BlobInfo].
@@ -172,9 +175,7 @@ class VidLabelingDispatcher(
 
     // Sort by size descending for Best-Fit Decreasing, with blob key as tiebreaker.
     val sortedBlobs =
-      fittingBlobs.sortedWith(
-        compareByDescending<BlobInfo> { it.sizeBytes }.thenBy { it.blobKey }
-      )
+      fittingBlobs.sortedWith(compareByDescending<BlobInfo> { it.sizeBytes }.thenBy { it.blobKey })
 
     val batches = mutableListOf<MutableList<BlobInfo>>()
     val batchSizes = mutableListOf<Long>()
@@ -264,10 +265,7 @@ class VidLabelingDispatcher(
           e.status.code.name,
         ),
       )
-      throw Exception(
-        "Error creating RawImpressionMetadataBatchFiles for $batchResourceName",
-        e,
-      )
+      throw Exception("Error creating RawImpressionMetadataBatchFiles for $batchResourceName", e)
     }
   }
 
@@ -279,8 +277,7 @@ class VidLabelingDispatcher(
    */
   private suspend fun createWorkItem(batchResourceName: String, params: VidLabelerParams) {
     val workItemId = "vid-labeling-$batchResourceName"
-    val packedWorkItemParams =
-      workItemParams { appParams = params.pack() }.pack()
+    val packedWorkItemParams = workItemParams { appParams = params.pack() }.pack()
 
     val request = createWorkItemRequest {
       this.workItemId = workItemId
@@ -292,9 +289,7 @@ class VidLabelingDispatcher(
 
     try {
       workItemsStub.createWorkItem(request)
-      logger.info(
-        "Created WorkItem $workItemId for batch ${params.rawImpressionMetadataBatch}"
-      )
+      logger.info("Created WorkItem $workItemId for batch ${params.rawImpressionMetadataBatch}")
     } catch (e: StatusException) {
       metrics.rpcErrorsCounter.add(
         1,

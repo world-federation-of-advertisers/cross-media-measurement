@@ -12,6 +12,10 @@ kt_jvm_library(
         "VidLabelingDispatcherMetrics.kt",
     ],
     deps = [
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_metadata_batch_file_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_metadata_batch_file_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_metadata_batch_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_metadata_batch_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeler_params_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
