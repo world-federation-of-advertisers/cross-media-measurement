@@ -1513,10 +1513,9 @@ class MeasurementsServiceTest {
                 this.externalDataProviderId = externalDataProviderId.value
                 details =
                   details.copy {
-                    capabilities =
-                      internalDataProviderCapabilities {
-                        honestMajorityShareShuffleSupported = true
-                      }
+                    capabilities = internalDataProviderCapabilities {
+                      honestMajorityShareShuffleSupported = true
+                    }
                     requirements = internalDataProviderRequirements {
                       allowedNoiseMechanisms += InternalNoiseMechanism.NONE
                       allowedNoiseMechanisms += InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
@@ -3623,11 +3622,6 @@ class MeasurementsServiceTest {
         "worker1",
         "worker2",
         "aggregator",
-      )
-      TrusTeeProtocolConfig.setForTest(
-        TRUS_TEE_INTERNAL_PROTOCOL_CONFIG.trusTee,
-        "aggregator",
-        listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN),
       )
     }
 

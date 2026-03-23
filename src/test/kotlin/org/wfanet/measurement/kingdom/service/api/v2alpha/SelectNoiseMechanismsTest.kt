@@ -34,10 +34,7 @@ class SelectNoiseMechanismsTest {
     val serverMechanisms =
       listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
     val requirements =
-      listOf(
-        internalDataProviderRequirements {},
-        internalDataProviderRequirements {},
-      )
+      listOf(internalDataProviderRequirements {}, internalDataProviderRequirements {})
 
     assertFailsWith<IllegalArgumentException> {
       MeasurementsService.selectNoiseMechanisms(serverMechanisms, requirements)
@@ -213,9 +210,7 @@ class SelectNoiseMechanismsTest {
       )
     val requirements =
       listOf(
-        internalDataProviderRequirements {
-          allowedNoiseMechanisms += InternalNoiseMechanism.NONE
-        },
+        internalDataProviderRequirements { allowedNoiseMechanisms += InternalNoiseMechanism.NONE },
         internalDataProviderRequirements {
           allowedNoiseMechanisms += InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
         },
@@ -257,9 +252,7 @@ class SelectNoiseMechanismsTest {
       listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
     val requirements =
       listOf(
-        internalDataProviderRequirements {
-          allowedNoiseMechanisms += InternalNoiseMechanism.NONE
-        },
+        internalDataProviderRequirements { allowedNoiseMechanisms += InternalNoiseMechanism.NONE },
         internalDataProviderRequirements {},
       )
 

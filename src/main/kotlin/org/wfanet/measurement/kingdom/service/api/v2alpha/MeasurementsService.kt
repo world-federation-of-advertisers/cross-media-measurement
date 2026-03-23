@@ -695,7 +695,7 @@ class MeasurementsService(
    * the preferred noise mechanism (`NONE` > `CONTINUOUS_GAUSSIAN`).
    */
   private fun buildTrusTeeProtocolConfig(
-    dataProviderRequirements: List<InternalDataProviderRequirements>,
+    dataProviderRequirements: List<InternalDataProviderRequirements>
   ): InternalProtocolConfig.TrusTee {
     val serverNoiseMechanisms = TrusTeeProtocolConfig.noiseMechanisms
     if (
@@ -705,8 +705,7 @@ class MeasurementsService(
       return TrusTeeProtocolConfig.protocolConfig
     }
 
-    val selected =
-      selectNoiseMechanisms(serverNoiseMechanisms, dataProviderRequirements)
+    val selected = selectNoiseMechanisms(serverNoiseMechanisms, dataProviderRequirements)
     val preferred =
       when {
         InternalProtocolConfig.NoiseMechanism.NONE in selected ->
@@ -714,8 +713,7 @@ class MeasurementsService(
         InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN in selected ->
           InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
         else ->
-          throw Status.INTERNAL
-            .withDescription(
+          throw Status.INTERNAL.withDescription(
               "Unexpected noise mechanisms after selection: $selected"
             )
             .asRuntimeException()
@@ -734,7 +732,9 @@ class MeasurementsService(
       dataProviderRequirements: List<InternalDataProviderRequirements>,
     ): List<InternalProtocolConfig.NoiseMechanism> {
       require(serverNoiseMechanisms.isNotEmpty()) { "serverNoiseMechanisms must not be empty" }
-      require(dataProviderRequirements.isNotEmpty()) { "dataProviderRequirements must not be empty" }
+      require(dataProviderRequirements.isNotEmpty()) {
+        "dataProviderRequirements must not be empty"
+      }
       var effectiveMechanisms = serverNoiseMechanisms.toSet()
       for (requirements in dataProviderRequirements) {
         require(requirements.allowedNoiseMechanismsCount > 0) {
