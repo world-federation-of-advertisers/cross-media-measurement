@@ -969,6 +969,81 @@ class DataAvailabilitySyncTest {
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
 
+  @Test
+  fun `sync skips replaceDataAvailabilityIntervals when date gaps are detected`(): Unit =
+    runBlocking {
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+      // Set up done blobs at model-line paths with a gap (missing 2026-03-14)
+      val modelLine = "modelLine1"
+      val edpPath = "edp/edpa_edp"
+      for (date in listOf("2026-03-13", "2026-03-15")) {
+        val donePath = "$edpPath/model-line/$modelLine/$date/done"
+        File(tempFolder.root, donePath).parentFile.mkdirs()
+        storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+      }
+
+      // Seed metadata in the sync trigger folder
+      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          edpPath,
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+        )
+
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+      // replaceDataAvailabilityIntervals should NOT be called due to gap
+      verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+      // But impression metadata should still be saved
+      verifyBlocking(impressionMetadataServiceMock, times(1)) {
+        batchCreateImpressionMetadata(any())
+      }
+    }
+
+  @Test
+  fun `sync calls replaceDataAvailabilityIntervals when no date gaps exist`(): Unit = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+    // Set up done blobs at model-line paths with no gaps
+    val modelLine = "modelLine1"
+    val edpPath = "edp/edpa_edp"
+    for (date in listOf("2026-03-13", "2026-03-14", "2026-03-15")) {
+      val donePath = "$edpPath/model-line/$modelLine/$date/done"
+      File(tempFolder.root, donePath).parentFile.mkdirs()
+      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+    }
+
+    // Seed metadata in the sync trigger folder
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        edpPath,
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+      )
+
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    // replaceDataAvailabilityIntervals should be called since no gaps
+    verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
   /**
    * Seeds a directory (prefix) with BlobDetails files, one per interval. Returns the blob keys
    * written.

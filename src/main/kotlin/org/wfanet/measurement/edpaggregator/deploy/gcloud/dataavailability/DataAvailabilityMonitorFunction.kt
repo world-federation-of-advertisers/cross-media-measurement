@@ -34,12 +34,11 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 /**
- * Cloud Function that monitors data availability for staleness and gaps.
+ * Cloud Function that monitors data availability for staleness.
  *
  * Designed to be invoked on a schedule (e.g., daily via Cloud Scheduler). Checks each configured
  * EDP impression path and its active model lines for:
  * - **Staleness**: No upload for more than `max_stale_days` days.
- * - **Gaps**: Missing dates between the earliest and latest uploaded dates.
  *
  * Issues are logged at SEVERE level for integration with Cloud Monitoring alerting policies.
  *
@@ -81,7 +80,7 @@ class DataAvailabilityMonitorFunction : HttpFunction {
             maxStaleDays = maxStaleDays,
           )
 
-        val result = runBlocking { monitor.check() }
+        val result = runBlocking { monitor.checkStaleness() }
 
         if (result.hasIssues) {
           hasAnyIssues = true

@@ -44,9 +44,9 @@ class DataAvailabilityMonitorTest {
     storageClient: FileSystemStorageClient,
     modelLine: String,
     date: String,
-  ) {
+  ): Unit = runBlocking {
     val path = "$EDP_IMPRESSION_PATH/model-line/$modelLine/$date/done"
-    runBlocking { storageClient.writeBlob(path, ByteString.copyFromUtf8("done")) }
+    storageClient.writeBlob(path, ByteString.copyFromUtf8("done"))
   }
 
   private fun createStorageClient(): FileSystemStorageClient {
@@ -57,6 +57,8 @@ class DataAvailabilityMonitorTest {
     val dir = File(tempFolder.root, "$EDP_IMPRESSION_PATH/model-line/$modelLine/$date")
     dir.mkdirs()
   }
+
+  // --- check() tests (both staleness and gaps) ---
 
   @Test
   fun `check returns no issues when all dates are present and recent`(): Unit = runBlocking {
@@ -89,7 +91,6 @@ class DataAvailabilityMonitorTest {
   @Test
   fun `check detects staleness when latest upload is too old`(): Unit = runBlocking {
     val storageClient = createStorageClient()
-    // Only upload through March 11 — 4 days before "today" (March 15)
     for (day in 9..11) {
       ensureDirectories(MODEL_LINE_A, "2026-03-%02d".format(day))
       createDoneBlob(storageClient, MODEL_LINE_A, "2026-03-%02d".format(day))
@@ -116,7 +117,6 @@ class DataAvailabilityMonitorTest {
   @Test
   fun `check detects gap in uploaded dates`(): Unit = runBlocking {
     val storageClient = createStorageClient()
-    // Upload March 12, 13, 15 — missing March 14
     for (day in listOf(12, 13, 15)) {
       ensureDirectories(MODEL_LINE_A, "2026-03-%02d".format(day))
       createDoneBlob(storageClient, MODEL_LINE_A, "2026-03-%02d".format(day))
@@ -142,7 +142,6 @@ class DataAvailabilityMonitorTest {
   @Test
   fun `check detects multiple gaps`(): Unit = runBlocking {
     val storageClient = createStorageClient()
-    // Upload March 10, 12, 15 — missing March 11, 13, 14
     for (day in listOf(10, 12, 15)) {
       ensureDirectories(MODEL_LINE_A, "2026-03-%02d".format(day))
       createDoneBlob(storageClient, MODEL_LINE_A, "2026-03-%02d".format(day))
@@ -172,12 +171,10 @@ class DataAvailabilityMonitorTest {
   @Test
   fun `check handles multiple model lines independently`(): Unit = runBlocking {
     val storageClient = createStorageClient()
-    // Model line A: up to date
     for (day in 13..15) {
       ensureDirectories(MODEL_LINE_A, "2026-03-%02d".format(day))
       createDoneBlob(storageClient, MODEL_LINE_A, "2026-03-%02d".format(day))
     }
-    // Model line B: stale (only up to March 11)
     for (day in 9..11) {
       ensureDirectories(MODEL_LINE_B, "2026-03-%02d".format(day))
       createDoneBlob(storageClient, MODEL_LINE_B, "2026-03-%02d".format(day))
@@ -229,7 +226,6 @@ class DataAvailabilityMonitorTest {
   @Test
   fun `check does not flag staleness when within threshold`(): Unit = runBlocking {
     val storageClient = createStorageClient()
-    // Upload through March 12 — exactly 3 days before "today" (March 15)
     for (day in 10..12) {
       ensureDirectories(MODEL_LINE_A, "2026-03-%02d".format(day))
       createDoneBlob(storageClient, MODEL_LINE_A, "2026-03-%02d".format(day))
@@ -255,7 +251,6 @@ class DataAvailabilityMonitorTest {
   @Test
   fun `check detects both staleness and gaps simultaneously`(): Unit = runBlocking {
     val storageClient = createStorageClient()
-    // Upload March 8, 10 — missing March 9, and stale (latest is March 10, 5 days ago)
     for (day in listOf(8, 10)) {
       ensureDirectories(MODEL_LINE_A, "2026-03-%02d".format(day))
       createDoneBlob(storageClient, MODEL_LINE_A, "2026-03-%02d".format(day))
@@ -277,5 +272,284 @@ class DataAvailabilityMonitorTest {
     assertThat(status.isStale).isTrue()
     assertThat(status.staleDays).isEqualTo(5)
     assertThat(status.missingDates).containsExactly(LocalDate.of(2026, 3, 9))
+  }
+
+  // --- checkGaps() tests ---
+
+  @Test
+  fun `checkGaps returns no issues when all dates are contiguous`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+    for (day in 12..15) {
+      ensureDirectories(MODEL_LINE_A, "2026-03-%02d".format(day))
+      createDoneBlob(storageClient, MODEL_LINE_A, "2026-03-%02d".format(day))
+      val dataPath =
+        "$EDP_IMPRESSION_PATH/model-line/$MODEL_LINE_A/2026-03-%02d/metadata_campaign_1.json"
+          .format(day)
+      storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+    }
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        maxStaleDays = 3,
+        clock = { TODAY },
+      )
+
+    val result = monitor.checkGaps()
+    assertThat(result.hasIssues).isFalse()
+
+    val status = result.statuses.single()
+    assertThat(status.missingDates).isEmpty()
+    assertThat(status.isStale).isFalse()
+    assertThat(status.staleDays).isEqualTo(0)
+  }
+
+  @Test
+  fun `checkGaps detects missing dates`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+    for (day in listOf(12, 15)) {
+      ensureDirectories(MODEL_LINE_A, "2026-03-%02d".format(day))
+      createDoneBlob(storageClient, MODEL_LINE_A, "2026-03-%02d".format(day))
+      val dataPath =
+        "$EDP_IMPRESSION_PATH/model-line/$MODEL_LINE_A/2026-03-%02d/metadata_campaign_1.json"
+          .format(day)
+      storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+    }
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        maxStaleDays = 3,
+        clock = { TODAY },
+      )
+
+    val result = monitor.checkGaps()
+    assertThat(result.hasIssues).isTrue()
+
+    val status = result.statuses.single()
+    assertThat(status.missingDates)
+      .containsExactly(LocalDate.of(2026, 3, 13), LocalDate.of(2026, 3, 14))
+    assertThat(status.isStale).isFalse()
+  }
+
+  @Test
+  fun `checkGaps returns no issues when model line has no uploads`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        maxStaleDays = 3,
+        clock = { TODAY },
+      )
+
+    val result = monitor.checkGaps()
+    assertThat(result.hasIssues).isFalse()
+
+    val status = result.statuses.single()
+    assertThat(status.missingDates).isEmpty()
+    assertThat(status.latestDate).isNull()
+  }
+
+  // --- checkStaleness() tests ---
+
+  @Test
+  fun `checkStaleness returns no issues when recent`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+    for (day in 13..15) {
+      ensureDirectories(MODEL_LINE_A, "2026-03-%02d".format(day))
+      createDoneBlob(storageClient, MODEL_LINE_A, "2026-03-%02d".format(day))
+    }
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        maxStaleDays = 3,
+        clock = { TODAY },
+      )
+
+    val result = monitor.checkStaleness()
+    assertThat(result.hasIssues).isFalse()
+
+    val status = result.statuses.single()
+    assertThat(status.isStale).isFalse()
+    assertThat(status.staleDays).isEqualTo(0)
+    assertThat(status.missingDates).isEmpty()
+  }
+
+  @Test
+  fun `checkStaleness detects stale model line`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+    for (day in 9..11) {
+      ensureDirectories(MODEL_LINE_A, "2026-03-%02d".format(day))
+      createDoneBlob(storageClient, MODEL_LINE_A, "2026-03-%02d".format(day))
+    }
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        maxStaleDays = 3,
+        clock = { TODAY },
+      )
+
+    val result = monitor.checkStaleness()
+    assertThat(result.hasIssues).isTrue()
+
+    val status = result.statuses.single()
+    assertThat(status.isStale).isTrue()
+    assertThat(status.staleDays).isEqualTo(4)
+    assertThat(status.missingDates).isEmpty()
+  }
+
+  @Test
+  fun `checkStaleness detects stale with no uploads`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        maxStaleDays = 3,
+        clock = { TODAY },
+      )
+
+    val result = monitor.checkStaleness()
+    assertThat(result.hasIssues).isTrue()
+
+    val status = result.statuses.single()
+    assertThat(status.isStale).isTrue()
+    assertThat(status.latestDate).isNull()
+    assertThat(status.staleDays).isEqualTo(Int.MAX_VALUE)
+  }
+
+  @Test
+  fun `checkStaleness does not report gaps`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+    // Has a gap (missing March 13, 14) but is recent
+    for (day in listOf(12, 15)) {
+      ensureDirectories(MODEL_LINE_A, "2026-03-%02d".format(day))
+      createDoneBlob(storageClient, MODEL_LINE_A, "2026-03-%02d".format(day))
+    }
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        maxStaleDays = 3,
+        clock = { TODAY },
+      )
+
+    val result = monitor.checkStaleness()
+    assertThat(result.hasIssues).isFalse()
+
+    val status = result.statuses.single()
+    assertThat(status.isStale).isFalse()
+    assertThat(status.missingDates).isEmpty()
+  }
+
+  // --- Edge case tests ---
+
+  @Test
+  fun `checkGaps detects empty date folder with done blob but no data files`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    // March 13 has done + data, March 14 has only done (empty), March 15 has done + data
+    for (day in listOf(13, 14, 15)) {
+      ensureDirectories(MODEL_LINE_A, "2026-03-%02d".format(day))
+      createDoneBlob(storageClient, MODEL_LINE_A, "2026-03-%02d".format(day))
+    }
+    // Add data files for March 13 and 15 only
+    for (day in listOf(13, 15)) {
+      val dataPath =
+        "$EDP_IMPRESSION_PATH/model-line/$MODEL_LINE_A/2026-03-%02d/metadata_campaign_1.json"
+          .format(day)
+      storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+    }
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        maxStaleDays = 3,
+        clock = { TODAY },
+      )
+
+    val result = monitor.checkGaps()
+    assertThat(result.hasIssues).isTrue()
+
+    val status = result.statuses.single()
+    assertThat(status.missingDates).isEmpty()
+    assertThat(status.emptyDateFolders).containsExactly(LocalDate.of(2026, 3, 14))
+  }
+
+  @Test
+  fun `checkGaps returns no issues when all folders have data files`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    for (day in 13..15) {
+      ensureDirectories(MODEL_LINE_A, "2026-03-%02d".format(day))
+      createDoneBlob(storageClient, MODEL_LINE_A, "2026-03-%02d".format(day))
+      val dataPath =
+        "$EDP_IMPRESSION_PATH/model-line/$MODEL_LINE_A/2026-03-%02d/metadata_campaign_1.json"
+          .format(day)
+      storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+    }
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        maxStaleDays = 3,
+        clock = { TODAY },
+      )
+
+    val result = monitor.checkGaps()
+    assertThat(result.hasIssues).isFalse()
+    assertThat(result.statuses.single().emptyDateFolders).isEmpty()
+  }
+
+  @Test
+  fun `monitor skips folders with unparseable date format`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    // Valid date folder
+    ensureDirectories(MODEL_LINE_A, "2026-03-15")
+    createDoneBlob(storageClient, MODEL_LINE_A, "2026-03-15")
+
+    // Invalid date format folders (should be skipped, not cause errors)
+    for (badDate in listOf("03-15-2026", "20260315", "March-15", "latest")) {
+      val badPath = "$EDP_IMPRESSION_PATH/model-line/$MODEL_LINE_A/$badDate/done"
+      File(tempFolder.root, badPath).parentFile.mkdirs()
+      storageClient.writeBlob(badPath, ByteString.copyFromUtf8("done"))
+    }
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        maxStaleDays = 3,
+        clock = { TODAY },
+      )
+
+    val result = monitor.check()
+    // Only the valid date should be found
+    val status = result.statuses.single()
+    assertThat(status.latestDate).isEqualTo(LocalDate.of(2026, 3, 15))
+    assertThat(status.missingDates).isEmpty()
   }
 }

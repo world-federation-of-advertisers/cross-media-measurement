@@ -204,7 +204,7 @@ class DataAvailabilitySync(
           activeModelLines = impressionMetadataMap.keys,
           maxStaleDays = Int.MAX_VALUE,
         )
-      val gapResult = gapMonitor.check()
+      val gapResult = gapMonitor.checkGaps()
       val modelLinesWithGaps = gapResult.statuses.filter { it.missingDates.isNotEmpty() }
       if (modelLinesWithGaps.isNotEmpty()) {
         for (status in modelLinesWithGaps) {

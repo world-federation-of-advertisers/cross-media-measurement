@@ -62,6 +62,7 @@ class DataAvailabilityMonitor(
     val latestDate: LocalDate?,
     val missingDates: List<LocalDate>,
     val staleDays: Int,
+    val emptyDateFolders: List<LocalDate>,
   )
 
   /** Result of a full monitoring check across all active model lines. */
@@ -74,24 +75,60 @@ class DataAvailabilityMonitor(
    */
   suspend fun check(): MonitorResult {
     val today = clock()
-    val statuses = activeModelLines.map { modelLineId -> checkModelLine(modelLineId, today) }
+    val statuses =
+      activeModelLines.map { modelLineId ->
+        val uploadedDates = getUploadedDatesForModelLine(modelLineId)
+        buildFullStatus(modelLineId, uploadedDates, today)
+      }
 
     return MonitorResult(
       statuses = statuses,
-      hasIssues = statuses.any { it.isStale || it.missingDates.isNotEmpty() },
+      hasIssues =
+        statuses.any {
+          it.isStale || it.missingDates.isNotEmpty() || it.emptyDateFolders.isNotEmpty()
+        },
     )
   }
 
   /**
-   * Checks a single model line for staleness and gaps by listing date folders in GCS.
+   * Checks all active model lines for date gaps only.
    *
-   * Date folders are discovered by listing blobs with the model line prefix and extracting unique
-   * date components from the blob keys.
+   * @return A [MonitorResult] where [ModelLineStatus.hasIssues] reflects only gap issues.
    */
-  private suspend fun checkModelLine(modelLineId: String, today: LocalDate): ModelLineStatus {
-    val prefix = "$edpImpressionPath/model-line/$modelLineId/"
-    val uploadedDates = getUploadedDates(prefix)
+  suspend fun checkGaps(): MonitorResult {
+    val statuses =
+      activeModelLines.map { modelLineId ->
+        val dateInfo = getDateInfoForModelLine(modelLineId)
+        buildGapStatus(modelLineId, dateInfo)
+      }
 
+    return MonitorResult(
+      statuses = statuses,
+      hasIssues = statuses.any { it.missingDates.isNotEmpty() || it.emptyDateFolders.isNotEmpty() },
+    )
+  }
+
+  /**
+   * Checks all active model lines for staleness only.
+   *
+   * @return A [MonitorResult] where [ModelLineStatus.hasIssues] reflects only staleness issues.
+   */
+  suspend fun checkStaleness(): MonitorResult {
+    val today = clock()
+    val statuses =
+      activeModelLines.map { modelLineId ->
+        val uploadedDates = getUploadedDatesForModelLine(modelLineId)
+        buildStalenessStatus(modelLineId, uploadedDates, today)
+      }
+
+    return MonitorResult(statuses = statuses, hasIssues = statuses.any { it.isStale })
+  }
+
+  private fun buildFullStatus(
+    modelLineId: String,
+    uploadedDates: Set<LocalDate>,
+    today: LocalDate,
+  ): ModelLineStatus {
     if (uploadedDates.isEmpty()) {
       logger.log(Level.WARNING, "No uploaded dates found for model line: $modelLineId")
       return ModelLineStatus(
@@ -100,6 +137,7 @@ class DataAvailabilityMonitor(
         latestDate = null,
         missingDates = emptyList(),
         staleDays = Int.MAX_VALUE,
+        emptyDateFolders = emptyList(),
       )
     }
 
@@ -107,8 +145,6 @@ class DataAvailabilityMonitor(
     val latestDate = sortedDates.last()
     val staleDays = (today.toEpochDay() - latestDate.toEpochDay()).toInt()
     val isStale = staleDays > maxStaleDays
-
-    // Find gaps: dates missing between earliest and latest
     val missingDates = findGaps(sortedDates)
 
     if (isStale) {
@@ -127,31 +163,124 @@ class DataAvailabilityMonitor(
       latestDate = latestDate,
       missingDates = missingDates,
       staleDays = staleDays,
+      emptyDateFolders = emptyList(),
     )
   }
 
+  private fun buildGapStatus(modelLineId: String, dateInfo: DateInfo): ModelLineStatus {
+    val uploadedDates = dateInfo.datesWithDoneBlob
+    if (uploadedDates.isEmpty()) {
+      return ModelLineStatus(
+        modelLineId = modelLineId,
+        isStale = false,
+        latestDate = null,
+        missingDates = emptyList(),
+        staleDays = 0,
+        emptyDateFolders = emptyList(),
+      )
+    }
+
+    val sortedDates = uploadedDates.sorted()
+    val missingDates = findGaps(sortedDates)
+
+    if (missingDates.isNotEmpty()) {
+      logger.log(Level.SEVERE, "Model line $modelLineId has gaps: missing dates $missingDates")
+    }
+
+    return ModelLineStatus(
+      modelLineId = modelLineId,
+      isStale = false,
+      latestDate = sortedDates.last(),
+      missingDates = missingDates,
+      staleDays = 0,
+      emptyDateFolders = dateInfo.emptyDateFolders,
+    )
+  }
+
+  private fun buildStalenessStatus(
+    modelLineId: String,
+    uploadedDates: Set<LocalDate>,
+    today: LocalDate,
+  ): ModelLineStatus {
+    if (uploadedDates.isEmpty()) {
+      logger.log(Level.WARNING, "No uploaded dates found for model line: $modelLineId")
+      return ModelLineStatus(
+        modelLineId = modelLineId,
+        isStale = true,
+        latestDate = null,
+        missingDates = emptyList(),
+        staleDays = Int.MAX_VALUE,
+        emptyDateFolders = emptyList(),
+      )
+    }
+
+    val latestDate = uploadedDates.max()
+    val staleDays = (today.toEpochDay() - latestDate.toEpochDay()).toInt()
+    val isStale = staleDays > maxStaleDays
+
+    if (isStale) {
+      logger.log(
+        Level.SEVERE,
+        "Model line $modelLineId is stale: latest upload is $latestDate ($staleDays days ago)",
+      )
+    }
+
+    return ModelLineStatus(
+      modelLineId = modelLineId,
+      isStale = isStale,
+      latestDate = latestDate,
+      missingDates = emptyList(),
+      staleDays = staleDays,
+      emptyDateFolders = emptyList(),
+    )
+  }
+
+  /** Info about uploaded dates for a model line. */
+  private data class DateInfo(
+    val datesWithDoneBlob: Set<LocalDate>,
+    val emptyDateFolders: List<LocalDate>,
+  )
+
+  private suspend fun getDateInfoForModelLine(modelLineId: String): DateInfo {
+    val prefix = "$edpImpressionPath/model-line/$modelLineId/"
+    return getDateInfo(prefix)
+  }
+
+  private suspend fun getUploadedDatesForModelLine(modelLineId: String): Set<LocalDate> {
+    return getDateInfoForModelLine(modelLineId).datesWithDoneBlob
+  }
+
   /**
-   * Lists blobs under the given prefix and extracts unique dates from paths containing a "done"
-   * blob.
+   * Lists blobs under the given prefix, extracts dates from paths containing a "done" blob, and
+   * identifies date folders that have a done blob but no other files (empty folders).
    *
-   * Expected path format: `{prefix}{date}/done`
+   * Expected path format: `{prefix}{date}/done` and `{prefix}{date}/other_files`
    */
-  private suspend fun getUploadedDates(prefix: String): Set<LocalDate> {
-    val dates = mutableSetOf<LocalDate>()
-    storageClient
-      .listBlobs(prefix)
-      .toList()
-      .filter { blob -> blob.blobKey.endsWith("/done") || blob.blobKey.endsWith("/done.txt") }
-      .forEach { blob ->
-        val relativePath = blob.blobKey.removePrefix(prefix)
-        val dateString = relativePath.substringBefore("/")
-        try {
-          dates.add(LocalDate.parse(dateString))
-        } catch (e: Exception) {
-          logger.log(Level.FINE, "Skipping non-date folder: $dateString")
+  private suspend fun getDateInfo(prefix: String): DateInfo {
+    val datesWithDone = mutableSetOf<LocalDate>()
+    val datesWithData = mutableSetOf<LocalDate>()
+
+    storageClient.listBlobs(prefix).toList().forEach { blob ->
+      val relativePath = blob.blobKey.removePrefix(prefix)
+      val dateString = relativePath.substringBefore("/")
+      try {
+        val date = LocalDate.parse(dateString)
+        if (blob.blobKey.endsWith("/done") || blob.blobKey.endsWith("/done.txt")) {
+          datesWithDone.add(date)
+        } else {
+          datesWithData.add(date)
         }
+      } catch (e: Exception) {
+        logger.log(Level.FINE, "Skipping non-date folder: $dateString")
       }
-    return dates
+    }
+
+    val emptyFolders = (datesWithDone - datesWithData).sorted()
+    for (date in emptyFolders) {
+      logger.log(Level.SEVERE, "Date folder $date has a done blob but no data files")
+    }
+
+    return DateInfo(datesWithDoneBlob = datesWithDone, emptyDateFolders = emptyFolders)
   }
 
   /** Finds dates that are missing in the sequence between the first and last date. */
