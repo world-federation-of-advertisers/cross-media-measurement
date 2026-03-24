@@ -157,8 +157,7 @@ class VidLabelingDispatcherTest {
     assertThat(request.workItemId).startsWith("vid-labeling-")
     assertThat(request.workItem.queue).isEqualTo(QUEUE_NAME)
 
-    val workItemParams =
-      request.workItem.workItemParams.unpack(WorkItemParams::class.java)
+    val workItemParams = request.workItem.workItemParams.unpack(WorkItemParams::class.java)
     val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
     assertThat(vidLabelerParams.dataProvider).isEqualTo(DATA_PROVIDER_NAME)
     assertThat(vidLabelerParams.rawImpressionMetadataBatch)
