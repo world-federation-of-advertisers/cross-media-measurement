@@ -27,6 +27,7 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse.BodyHandlers
+import java.time.Instant
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -67,6 +68,7 @@ class DataWatcher(
    */
   suspend fun receivePath(path: String, objectMetadata: Map<String, String>) {
     logger.log(Level.INFO, "Received data path for evaluation: path=$path")
+    metrics.recordDoneBlobTimestamp(Instant.now().toEpochMilli())
     for (config in dataWatcherConfigs) {
       processPathForConfig(config, path, objectMetadata)
     }

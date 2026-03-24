@@ -19,6 +19,7 @@ import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.DoubleHistogram
 import io.opentelemetry.api.metrics.LongCounter
+import io.opentelemetry.api.metrics.LongHistogram
 import io.opentelemetry.api.metrics.Meter
 import org.wfanet.measurement.config.securecomputation.WatchedPath
 
@@ -50,6 +51,14 @@ class DataWatcherMetrics(
       .setDescription("Number of work items submitted to control plane queue")
       .build()
 
+  private val doneBlobTimestampHistogram: LongHistogram =
+    meter
+      .histogramBuilder("edpa.data_watcher.done_blob_timestamp")
+      .setDescription("Unix epoch milliseconds of the .done blob event timestamp")
+      .setUnit("ms")
+      .ofLongs()
+      .build()
+
   fun recordProcessingDuration(config: WatchedPath, durationSeconds: Double) {
     processingDurationHistogram.record(
       durationSeconds,
@@ -59,5 +68,9 @@ class DataWatcherMetrics(
 
   fun recordQueueWrite(config: WatchedPath, queueName: String) {
     queueWritesCounter.add(1, Attributes.builder().put(queueKey, queueName).build())
+  }
+
+  fun recordDoneBlobTimestamp(timestampMs: Long) {
+    doneBlobTimestampHistogram.record(timestampMs)
   }
 }

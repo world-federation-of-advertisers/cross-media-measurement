@@ -202,6 +202,45 @@ class DataWatcherTest() {
   }
 
   @Test
+  fun `records done_blob_timestamp histogram metric`() {
+    runBlocking {
+      val topicId = "test-topic-id"
+      val appParams = Int32Value.newBuilder().setValue(5).build()
+
+      val config = watchedPath {
+        identifier = "test-config-done-blob"
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+        this.controlPlaneQueueSink = controlPlaneQueueSink {
+          queue = topicId
+          this.appParams = Any.pack(appParams)
+        }
+      }
+
+      val dataWatcher =
+        DataWatcher(
+          workItemsStub,
+          listOf(config),
+          workItemIdGenerator = { "test-work-item-done-blob" },
+          idTokenProvider = mockIdTokenProvider,
+        )
+
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
+
+      val metrics = getMetrics()
+      val doneBlobTimestampMetric =
+        metrics.find { it.name == "edpa.data_watcher.done_blob_timestamp" }
+      assertThat(doneBlobTimestampMetric).isNotNull()
+      assertThat(doneBlobTimestampMetric!!.description)
+        .isEqualTo("Unix epoch milliseconds of the .done blob event timestamp")
+      assertThat(doneBlobTimestampMetric.unit).isEqualTo("ms")
+
+      val histogramData = doneBlobTimestampMetric.histogramData
+      assertThat(histogramData.points).hasSize(1)
+      assertThat(histogramData.points.single().sum).isGreaterThan(0.0)
+    }
+  }
+
+  @Test
   fun `records processing_duration metric for control plane sink`() {
     runBlocking {
       val topicId = "test-topic-id"
