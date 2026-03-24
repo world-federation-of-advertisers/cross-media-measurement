@@ -215,8 +215,8 @@ class VidLabelingDispatcherTest {
         .workItem
         .workItemParams
         .unpack(
-          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::
-            class
+          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+              .WorkItemParams::class
             .java
         )
         .appParams
@@ -226,8 +226,8 @@ class VidLabelingDispatcherTest {
         .workItem
         .workItemParams
         .unpack(
-          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::
-            class
+          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+              .WorkItemParams::class
             .java
         )
         .appParams
@@ -257,8 +257,7 @@ class VidLabelingDispatcherTest {
 
     val workItemParams =
       requestCaptor.firstValue.workItem.workItemParams.unpack(
-        org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-            .WorkItemParams::class
+        org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::class
           .java
       )
     val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
@@ -270,11 +269,12 @@ class VidLabelingDispatcherTest {
   fun `dispatch uses server-assigned batch ID in work item ID`() = runBlocking {
     val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1))
-    whenever(rawImpressionMetadataBatchService.createRawImpressionMetadataBatch(any())).thenReturn(
-      rawImpressionMetadataBatch {
-        name = "$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/server-assigned-id"
-      }
-    )
+    whenever(rawImpressionMetadataBatchService.createRawImpressionMetadataBatch(any()))
+      .thenReturn(
+        rawImpressionMetadataBatch {
+          name = "$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/server-assigned-id"
+        }
+      )
     whenever(
         rawImpressionMetadataBatchFileService.batchCreateRawImpressionMetadataBatchFiles(any())
       )
@@ -312,8 +312,8 @@ class VidLabelingDispatcherTest {
         .workItem
         .workItemParams
         .unpack(
-          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::
-            class
+          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+              .WorkItemParams::class
             .java
         )
         .appParams
@@ -323,8 +323,8 @@ class VidLabelingDispatcherTest {
         .workItem
         .workItemParams
         .unpack(
-          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::
-            class
+          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+              .WorkItemParams::class
             .java
         )
         .appParams
@@ -359,8 +359,8 @@ class VidLabelingDispatcherTest {
         .workItem
         .workItemParams
         .unpack(
-          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::
-            class
+          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+              .WorkItemParams::class
             .java
         )
         .appParams
@@ -370,8 +370,8 @@ class VidLabelingDispatcherTest {
         .workItem
         .workItemParams
         .unpack(
-          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::
-            class
+          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+              .WorkItemParams::class
             .java
         )
         .appParams
@@ -408,8 +408,7 @@ class VidLabelingDispatcherTest {
       .thenThrow(StatusException(Status.UNAVAILABLE.withDescription("Service unavailable")))
 
     val dispatcher = createDispatcher()
-    val exception =
-      assertFailsWith<Exception> { dispatcher.dispatch(DONE_BLOB_PATH) }
+    val exception = assertFailsWith<Exception> { dispatcher.dispatch(DONE_BLOB_PATH) }
     assertThat(exception).hasMessageThat().contains("Error creating WorkItem")
     assertThat(exception).hasCauseThat().isInstanceOf(StatusException::class.java)
   }
@@ -429,8 +428,7 @@ class VidLabelingDispatcherTest {
 
     val workItemParams =
       requestCaptor.firstValue.workItem.workItemParams.unpack(
-        org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-            .WorkItemParams::class
+        org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::class
           .java
       )
     val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
