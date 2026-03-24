@@ -364,6 +364,26 @@ variable "requisition_fetcher_scheduler_config" {
   nullable = false
 }
 
+variable "impression_data_lag_check_scheduler_config" {
+  description = "Configuration for Cloud Scheduler to trigger ImpressionDataLagCheck"
+  type = object({
+    schedule                  = string
+    time_zone                 = string
+    name                      = string
+    function_url              = string
+    scheduler_sa_display_name = string
+    scheduler_sa_description  = string
+    scheduler_job_description = string
+  })
+  nullable = false
+}
+
+variable "impression_data_lag_check_service_account_name" {
+  description = "Name of the ImpressionDataLagCheck service account."
+  type        = string
+  nullable    = false
+}
+
 variable "private_subnetwork_cidr_range" {
   description = "The range of IP addresses belonging to this subnetwork."
   type        = string

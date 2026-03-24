@@ -126,6 +126,9 @@ locals {
   # Secrets access for data_availability_cleanup (same as data_availability_sync)
   data_availability_cleanup_secrets_access = local.data_availability_sync_secrets_access
 
+  # Secrets access for impression_data_lag_check (same as data_availability_sync)
+  impression_data_lag_check_secrets_access = local.data_availability_sync_secrets_access
+
   requisition_fetcher_secrets_access = concat(
     [
       "trusted_root_ca_collection",
@@ -142,12 +145,13 @@ locals {
   )
 
   service_accounts = {
-    "data_watcher"              = module.data_watcher_cloud_function.cloud_function_service_account.email
-    "requisition_fetcher"       = module.requisition_fetcher_cloud_function.cloud_function_service_account.email
-    "event_group_sync"          = module.event_group_sync_cloud_function.cloud_function_service_account.email
-    "data_availability_sync"    = module.data_availability_sync_cloud_function.cloud_function_service_account.email
-    "data_watcher_delete"       = module.data_watcher_delete_cloud_function.cloud_function_service_account.email
-    "data_availability_cleanup" = module.data_availability_cleanup_cloud_function.cloud_function_service_account.email
+    "data_watcher"                  = module.data_watcher_cloud_function.cloud_function_service_account.email
+    "requisition_fetcher"           = module.requisition_fetcher_cloud_function.cloud_function_service_account.email
+    "event_group_sync"              = module.event_group_sync_cloud_function.cloud_function_service_account.email
+    "data_availability_sync"        = module.data_availability_sync_cloud_function.cloud_function_service_account.email
+    "data_watcher_delete"           = module.data_watcher_delete_cloud_function.cloud_function_service_account.email
+    "data_availability_cleanup"     = module.data_availability_cleanup_cloud_function.cloud_function_service_account.email
+    "impression_data_lag_check"     = module.impression_data_lag_check_cloud_function.cloud_function_service_account.email
   }
 
   otel_metadata = {
@@ -360,6 +364,28 @@ module "data_availability_cleanup_cloud_function" {
   secrets_to_access                        = [for key in local.data_availability_cleanup_secrets_access : local.all_secrets[key].secret_id]
 }
 
+module "impression_data_lag_check_cloud_function" {
+  source = "../http-cloud-function"
+
+  depends_on = [module.secrets]
+
+  http_cloud_function_service_account_name = var.impression_data_lag_check_service_account_name
+  terraform_service_account                = var.terraform_service_account
+  function_name                            = var.cloud_function_configs.impression_data_lag_check.function_name
+  entry_point                              = var.cloud_function_configs.impression_data_lag_check.entry_point
+  extra_env_vars                           = var.cloud_function_configs.impression_data_lag_check.extra_env_vars
+  secret_mappings                          = var.cloud_function_configs.impression_data_lag_check.secret_mappings
+  uber_jar_path                            = var.cloud_function_configs.impression_data_lag_check.uber_jar_path
+  secrets_to_access                        = [for key in local.impression_data_lag_check_secrets_access : local.all_secrets[key].secret_id]
+}
+
+module "impression_data_lag_check_cloud_scheduler" {
+  source                    = "../cloud-scheduler"
+  terraform_service_account = var.terraform_service_account
+  scheduler_config          = var.impression_data_lag_check_scheduler_config
+  depends_on                = [module.impression_data_lag_check_cloud_function]
+}
+
 module "result_fulfiller_queue" {
   source = "../pubsub"
 
@@ -477,6 +503,12 @@ resource "google_storage_bucket_iam_member" "data_availability_cleanup_config_st
   bucket = module.config_files_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${module.data_availability_cleanup_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "impression_data_lag_check_config_storage_viewer" {
+  bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.impression_data_lag_check_cloud_function.cloud_function_service_account.email}"
 }
 
 resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {

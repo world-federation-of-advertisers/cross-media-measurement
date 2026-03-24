@@ -33,7 +33,7 @@ resource "google_project_iam_member" "scheduler_function_invoker" {
 }
 
 resource "google_cloud_scheduler_job" "scheduler_job" {
-  name        = "${var.scheduler_config.name}-requisition-fetcher"
+  name        = var.scheduler_config.name
   description = var.scheduler_config.scheduler_job_description
   schedule    = var.scheduler_config.schedule
   time_zone   = var.scheduler_config.time_zone

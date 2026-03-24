@@ -244,6 +244,11 @@ variable "data_availability_cleanup_uber_jar_path" {
   type = string
 }
 
+variable "impression_data_lag_check_uber_jar_path" {
+  description = "Path to ImpressionDataLagCheck uber jar."
+  type = string
+}
+
 
 variable "results_fulfiller_event_proto_descriptor_path" {
   description = "Serialized FileDescriptorSet path for EventTemplate metadata types."

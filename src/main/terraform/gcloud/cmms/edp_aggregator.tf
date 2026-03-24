@@ -168,6 +168,16 @@ locals {
     scheduler_job_description   = "Scheduled job to fetch unfulfilled requisitions from the Kingdom"
   }
 
+  impression_data_lag_check_scheduler_config = {
+    schedule                  = "0 8 * * *"  # Daily at 08:00 UTC
+    time_zone                 = "UTC"
+    name                      = "edpa-lag-check-scheduler"
+    function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/impression-data-lag-check"
+    scheduler_sa_display_name = "Impression Data Lag Check Scheduler"
+    scheduler_sa_description  = "Service account for Cloud Scheduler to trigger the impression data lag check"
+    scheduler_job_description = "Scheduled daily job to detect EDPs whose impression data is lagging more than 3 days"
+  }
+
   data_watcher_config = {
     local_path  = var.data_watcher_config_file_path
     destination = "data-watcher-config.textproto"
@@ -251,6 +261,13 @@ locals {
       secret_mappings     = var.data_availability_cleanup_secret_mapping
       uber_jar_path       = var.data_availability_cleanup_uber_jar_path
     }
+    impression_data_lag_check = {
+      function_name       = "impression-data-lag-check"
+      entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.ImpressionDataLagCheckFunction"
+      extra_env_vars      = "${var.data_availability_env_var},CONFIG_BLOB_KEY=${local.data_availability_sync_config.destination},EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}"
+      secret_mappings     = var.data_availability_secret_mapping
+      uber_jar_path       = var.impression_data_lag_check_uber_jar_path
+    }
   }
 
 }
@@ -296,6 +313,8 @@ module "edp_aggregator" {
   trusted_root_ca_collection                    = local.trusted_root_ca_collection
   edps_certs                                    = local.edps_certs
   requisition_fetcher_scheduler_config          = local.requisition_fetcher_scheduler_config
+  impression_data_lag_check_service_account_name = "edpa-impression-data-lag-check"
+  impression_data_lag_check_scheduler_config    = local.impression_data_lag_check_scheduler_config
   cloud_function_configs                        = local.cloud_function_configs
   results_fulfiller_disk_image_family           = "confidential-space"
   dns_managed_zone_name                         = "googleapis-private"
