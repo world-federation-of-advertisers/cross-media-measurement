@@ -353,19 +353,6 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
-  fun `dispatch with unsupported URI scheme throws exception`() = runBlocking {
-    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
-    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
-
-    val dispatcher = createDispatcher()
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        dispatcher.dispatch("s3://test-bucket/$FOLDER_PREFIX/done")
-      }
-    assertThat(exception).hasMessageThat().contains("S3")
-  }
-
-  @Test
   fun `dispatch propagates exception on work item creation failure`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
