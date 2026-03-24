@@ -109,7 +109,7 @@ class VidLabelingDispatcherTest {
     )
   }
 
-  private fun stubBatchCreation() = runBlocking {
+  private suspend fun stubBatchCreation() {
     whenever(rawImpressionMetadataBatchService.createRawImpressionMetadataBatch(any())).thenAnswer {
       batchCounter++
       rawImpressionMetadataBatch {
