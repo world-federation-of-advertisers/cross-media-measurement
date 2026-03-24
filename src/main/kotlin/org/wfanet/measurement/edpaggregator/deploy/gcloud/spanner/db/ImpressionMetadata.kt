@@ -228,12 +228,14 @@ suspend fun AsyncDatabaseClient.ReadContext.resolveRawImpressionInternalKey(
 ): RawImpressionInternalKey {
   val sql =
     """
-    SELECT RawImpressionMetadataBatch.BatchId, RawImpressionMetadataBatchFile.FileId
-    FROM RawImpressionMetadataBatch
-    JOIN RawImpressionMetadataBatchFile
-      ON RawImpressionMetadataBatch.DataProviderResourceId = RawImpressionMetadataBatchFile.DataProviderResourceId
-      AND RawImpressionMetadataBatch.BatchId = RawImpressionMetadataBatchFile.BatchId
-    WHERE RawImpressionMetadataBatch.DataProviderResourceId = @dataProviderResourceId
+    SELECT
+      RawImpressionMetadataBatch.BatchId,
+      RawImpressionMetadataBatchFile.FileId,
+    FROM
+      RawImpressionMetadataBatch
+      JOIN RawImpressionMetadataBatchFile USING (DataProviderResourceId, BatchId)
+    WHERE
+      RawImpressionMetadataBatch.DataProviderResourceId = @dataProviderResourceId
       AND RawImpressionMetadataBatch.BatchResourceId = @batchResourceId
       AND RawImpressionMetadataBatchFile.FileResourceId = @fileResourceId
     """
@@ -527,15 +529,12 @@ private object ImpressionMetadataEntity {
       RawImpressionMetadataBatchFile.FileResourceId AS RawImpressionFileResourceId,
     FROM
       ImpressionMetadata
-    LEFT JOIN
+    LEFT JOIN (
       RawImpressionMetadataBatchFile
-      ON ImpressionMetadata.DataProviderResourceId = RawImpressionMetadataBatchFile.DataProviderResourceId
+      JOIN RawImpressionMetadataBatch USING (DataProviderResourceId, BatchId)
+    ) ON ImpressionMetadata.DataProviderResourceId = RawImpressionMetadataBatchFile.DataProviderResourceId
       AND ImpressionMetadata.RawImpressionBatchId = RawImpressionMetadataBatchFile.BatchId
       AND ImpressionMetadata.RawImpressionFileId = RawImpressionMetadataBatchFile.FileId
-    LEFT JOIN
-      RawImpressionMetadataBatch
-      ON RawImpressionMetadataBatchFile.DataProviderResourceId = RawImpressionMetadataBatch.DataProviderResourceId
-      AND RawImpressionMetadataBatchFile.BatchId = RawImpressionMetadataBatch.BatchId
     """
       .trimIndent()
 
