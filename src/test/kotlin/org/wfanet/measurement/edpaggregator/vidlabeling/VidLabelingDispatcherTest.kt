@@ -108,7 +108,7 @@ class VidLabelingDispatcherTest {
     )
   }
 
-  private fun stubBatchCreation() {
+  private fun stubBatchCreation() = runBlocking {
     whenever(rawImpressionMetadataBatchService.createRawImpressionMetadataBatch(any())).thenAnswer {
       batchCounter++
       rawImpressionMetadataBatch {
@@ -170,29 +170,29 @@ class VidLabelingDispatcherTest {
   @Test
   fun `dispatch with default batch max size creates single work item for all files`() =
     runBlocking {
-    val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
-    val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet", 2000L)
-    val blob3 = createMockBlob("$FOLDER_PREFIX/file3.parquet", 3000L)
-    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2, blob3))
-    stubBatchCreation()
-    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
+      val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
+      val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet", 2000L)
+      val blob3 = createMockBlob("$FOLDER_PREFIX/file3.parquet", 3000L)
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2, blob3))
+      stubBatchCreation()
+      whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
-    val dispatcher = createDispatcher()
-    dispatcher.dispatch(DONE_BLOB_PATH)
+      val dispatcher = createDispatcher()
+      dispatcher.dispatch(DONE_BLOB_PATH)
 
-    val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
-    verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
+      val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
 
-    val workItemParams =
-      requestCaptor.firstValue.workItem.workItemParams.unpack(
-        org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-            .WorkItemParams::class
-          .java
-      )
-    val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
-    assertThat(vidLabelerParams.rawImpressionMetadataBatch)
-      .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
-  }
+      val workItemParams =
+        requestCaptor.firstValue.workItem.workItemParams.unpack(
+          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+              .WorkItemParams::class
+            .java
+        )
+      val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
+      assertThat(vidLabelerParams.rawImpressionMetadataBatch)
+        .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
+    }
 
   @Test
   fun `dispatch with batch max size partitions files into multiple work items`() = runBlocking {
