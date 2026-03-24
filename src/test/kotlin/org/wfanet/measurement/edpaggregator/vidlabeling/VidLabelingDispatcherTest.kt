@@ -242,9 +242,7 @@ class VidLabelingDispatcherTest {
     verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
 
     val workItemParams =
-      requestCaptor.firstValue.workItem.workItemParams.unpack(
-        WorkItemParams::class.java
-      )
+      requestCaptor.firstValue.workItem.workItemParams.unpack(WorkItemParams::class.java)
     val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
     assertThat(vidLabelerParams.rawImpressionMetadataBatch)
       .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
@@ -396,9 +394,7 @@ class VidLabelingDispatcherTest {
     verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
 
     val workItemParams =
-      requestCaptor.firstValue.workItem.workItemParams.unpack(
-        WorkItemParams::class.java
-      )
+      requestCaptor.firstValue.workItem.workItemParams.unpack(WorkItemParams::class.java)
     val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
     assertThat(vidLabelerParams.rawImpressionMetadataBatch)
       .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
