@@ -196,6 +196,27 @@ class DataAvailabilitySync(
           }
         }
 
+      // Check for date gaps before updating availability intervals
+      val gapMonitor =
+        DataAvailabilityMonitor(
+          storageClient = storageClient,
+          edpImpressionPath = edpImpressionPath,
+          activeModelLines = impressionMetadataMap.keys,
+          maxStaleDays = Int.MAX_VALUE,
+        )
+      val gapResult = gapMonitor.check()
+      val modelLinesWithGaps = gapResult.statuses.filter { it.missingDates.isNotEmpty() }
+      if (modelLinesWithGaps.isNotEmpty()) {
+        for (status in modelLinesWithGaps) {
+          logger.severe(
+            "Model line ${status.modelLineId} in $edpImpressionPath has date gaps: " +
+              "${status.missingDates}. Skipping replaceDataAvailabilityIntervals."
+          )
+        }
+        recordSyncDuration(syncStartTime, SYNC_STATUS_SUCCESS)
+        return
+      }
+
       if (availabilityEntries.isNotEmpty()) {
         throttler.onReady {
           try {

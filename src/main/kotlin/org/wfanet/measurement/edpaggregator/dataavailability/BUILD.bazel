@@ -15,6 +15,7 @@ kt_jvm_library(
         "DataAvailabilitySyncMetrics.kt",
     ],
     deps = [
+        ":data_availability_monitor",
         "//imports/java/io/opentelemetry/api:context",
         "//imports/java/io/opentelemetry/extension:kotlin",
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
