@@ -706,12 +706,17 @@ class MeasurementsService(
     }
 
     val selected = selectNoiseMechanisms(serverNoiseMechanisms, dataProviderRequirements)
+    val selectedSet = selected.toSet()
     val preferred =
-      when {
-        InternalProtocolConfig.NoiseMechanism.NONE in selected ->
+      when (selectedSet) {
+        setOf(InternalProtocolConfig.NoiseMechanism.NONE) ->
           InternalProtocolConfig.NoiseMechanism.NONE
-        InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN in selected ->
+        setOf(InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN) ->
           InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+        setOf(
+          InternalProtocolConfig.NoiseMechanism.NONE,
+          InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
+        ) -> InternalProtocolConfig.NoiseMechanism.NONE
         else ->
           throw Status.INTERNAL.withDescription(
               "Unexpected noise mechanisms after selection: $selected"

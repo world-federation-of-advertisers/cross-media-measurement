@@ -395,8 +395,7 @@ private fun DataProvider.Capabilities.toInternal(): InternalDataProviderCapabili
 private fun InternalDataProviderRequirements.toRequirements(): DataProvider.Requirements {
   val source = this
   return DataProviderKt.requirements {
-    allowedNoiseMechanisms +=
-      source.allowedNoiseMechanismsList.map { it.toNoiseMechanism() }
+    allowedNoiseMechanisms += source.allowedNoiseMechanismsList.map { it.toNoiseMechanism() }
   }
 }
 

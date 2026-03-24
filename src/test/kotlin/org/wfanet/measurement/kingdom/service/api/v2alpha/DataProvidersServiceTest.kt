@@ -42,12 +42,12 @@ import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DuchyKey
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequirementsRequest
@@ -74,17 +74,17 @@ import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvi
 import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as InternalDataProvidersService
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersClient
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.certificateDetails
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.dataProviderDetails
+import org.wfanet.measurement.internal.kingdom.dataProviderRequirements as internalDataProviderRequirements
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest as internalGetDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.modelLineKey
 import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalRequest as internalReplaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalsRequest as internalReplaceDataAvailabilityIntervalsRequest
-import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
-import org.wfanet.measurement.internal.kingdom.dataProviderRequirements as internalDataProviderRequirements
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderCapabilitiesRequest as internalReplaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest as internalReplaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequirementsRequest as internalReplaceDataProviderRequirementsRequest
@@ -830,18 +830,17 @@ class DataProvidersServiceTest {
       allowedNoiseMechanisms += InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
     }
     val internalDataProvider =
-      INTERNAL_DATA_PROVIDER.copy {
-        details = details.copy { requirements = updatedRequirements }
-      }
+      INTERNAL_DATA_PROVIDER.copy { details = details.copy { requirements = updatedRequirements } }
     internalServiceMock.stub {
       onBlocking { replaceDataProviderRequirements(any()) }.thenReturn(internalDataProvider)
     }
     val request = replaceDataProviderRequirementsRequest {
       name = DATA_PROVIDER_NAME
-      requirements = DataProviderKt.requirements {
-        allowedNoiseMechanisms += NoiseMechanism.NONE
-        allowedNoiseMechanisms += NoiseMechanism.CONTINUOUS_GAUSSIAN
-      }
+      requirements =
+        DataProviderKt.requirements {
+          allowedNoiseMechanisms += NoiseMechanism.NONE
+          allowedNoiseMechanisms += NoiseMechanism.CONTINUOUS_GAUSSIAN
+        }
     }
 
     val response: DataProvider = runBlocking {
@@ -867,9 +866,7 @@ class DataProvidersServiceTest {
   fun `replaceDataProviderRequirements throws PERMISSION_DENIED for incorrect principal`() {
     val request = replaceDataProviderRequirementsRequest {
       name = DATA_PROVIDER_NAME
-      requirements = DataProviderKt.requirements {
-        allowedNoiseMechanisms += NoiseMechanism.NONE
-      }
+      requirements = DataProviderKt.requirements { allowedNoiseMechanisms += NoiseMechanism.NONE }
     }
 
     val exception =
@@ -893,9 +890,8 @@ class DataProvidersServiceTest {
             service.replaceDataProviderRequirements(
               replaceDataProviderRequirementsRequest {
                 name = "foo"
-                requirements = DataProviderKt.requirements {
-                  allowedNoiseMechanisms += NoiseMechanism.NONE
-                }
+                requirements =
+                  DataProviderKt.requirements { allowedNoiseMechanisms += NoiseMechanism.NONE }
               }
             )
           }
@@ -912,9 +908,8 @@ class DataProvidersServiceTest {
           service.replaceDataProviderRequirements(
             replaceDataProviderRequirementsRequest {
               name = DATA_PROVIDER_NAME
-              requirements = DataProviderKt.requirements {
-                allowedNoiseMechanisms += NoiseMechanism.NONE
-              }
+              requirements =
+                DataProviderKt.requirements { allowedNoiseMechanisms += NoiseMechanism.NONE }
             }
           )
         }
@@ -938,9 +933,8 @@ class DataProvidersServiceTest {
             service.replaceDataProviderRequirements(
               replaceDataProviderRequirementsRequest {
                 name = DATA_PROVIDER_NAME
-                requirements = DataProviderKt.requirements {
-                  allowedNoiseMechanisms += NoiseMechanism.NONE
-                }
+                requirements =
+                  DataProviderKt.requirements { allowedNoiseMechanisms += NoiseMechanism.NONE }
               }
             )
           }
@@ -959,9 +953,8 @@ class DataProvidersServiceTest {
             service.replaceDataProviderRequirements(
               replaceDataProviderRequirementsRequest {
                 name = DATA_PROVIDER_NAME
-                requirements = DataProviderKt.requirements {
-                  allowedNoiseMechanisms += NoiseMechanism.NONE
-                }
+                requirements =
+                  DataProviderKt.requirements { allowedNoiseMechanisms += NoiseMechanism.NONE }
               }
             )
           }
@@ -991,10 +984,11 @@ class DataProvidersServiceTest {
         }
       }
 
-    val expectedRequirements = DataProviderKt.requirements {
-      allowedNoiseMechanisms += NoiseMechanism.NONE
-      allowedNoiseMechanisms += NoiseMechanism.CONTINUOUS_GAUSSIAN
-    }
+    val expectedRequirements =
+      DataProviderKt.requirements {
+        allowedNoiseMechanisms += NoiseMechanism.NONE
+        allowedNoiseMechanisms += NoiseMechanism.CONTINUOUS_GAUSSIAN
+      }
     assertThat(dataProvider.requirements).isEqualTo(expectedRequirements)
   }
 
