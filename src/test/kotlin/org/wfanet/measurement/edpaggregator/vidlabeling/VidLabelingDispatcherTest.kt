@@ -362,7 +362,7 @@ class VidLabelingDispatcherTest {
       assertFailsWith<IllegalArgumentException> {
         dispatcher.dispatch("s3://test-bucket/$FOLDER_PREFIX/done")
       }
-    assertThat(exception).hasMessageThat().contains("Unsupported scheme")
+    assertThat(exception).hasMessageThat().contains("S3")
   }
 
   @Test
@@ -370,8 +370,9 @@ class VidLabelingDispatcherTest {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
     stubBatchCreation()
-    whenever(workItemsService.createWorkItem(any()))
-      .thenThrow(StatusException(Status.UNAVAILABLE.withDescription("Service unavailable")))
+    whenever(workItemsService.createWorkItem(any())).thenAnswer {
+      throw StatusException(Status.UNAVAILABLE.withDescription("Service unavailable"))
+    }
 
     val dispatcher = createDispatcher()
     val exception = assertFailsWith<Exception> { dispatcher.dispatch(DONE_BLOB_PATH) }
