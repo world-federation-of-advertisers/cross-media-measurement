@@ -45,7 +45,7 @@ CREATE TABLE RawImpressionMetadataBatch (
   State `wfa.measurement.internal.edpaggregator.RawImpressionBatchState` NOT NULL,
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
-  DeleteTime TIMESTAMP,
+  DeleteTime TIMESTAMP OPTIONS (allow_commit_timestamp=true),
 ) PRIMARY KEY (DataProviderResourceId, BatchId);
 
 -- Resource pattern: dataProviders/{data_provider}/rawImpressionMetadataBatches/{batch}/files/{file}
@@ -58,7 +58,7 @@ CREATE TABLE RawImpressionMetadataBatchFile (
   BlobUri STRING(MAX) NOT NULL,
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
-  DeleteTime TIMESTAMP,
+  DeleteTime TIMESTAMP OPTIONS (allow_commit_timestamp=true),
 ) PRIMARY KEY (DataProviderResourceId, BatchId, FileId),
   INTERLEAVE IN PARENT RawImpressionMetadataBatch ON DELETE CASCADE;
 
