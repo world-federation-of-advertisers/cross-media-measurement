@@ -78,8 +78,9 @@ class VidLabelingDispatcherTest {
   }
 
   private val rawImpressionMetadataBatchFileStub by lazy {
-    RawImpressionMetadataBatchFileServiceGrpcKt
-      .RawImpressionMetadataBatchFileServiceCoroutineStub(grpcTestServerRule.channel)
+    RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineStub(
+      grpcTestServerRule.channel
+    )
   }
 
   private val vidLabelerParamsTemplate = vidLabelerParams {
@@ -157,8 +158,7 @@ class VidLabelingDispatcherTest {
 
     val workItemParams =
       request.workItem.workItemParams.unpack(
-        org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-            .WorkItemParams::class
+        org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::class
           .java
       )
     val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
