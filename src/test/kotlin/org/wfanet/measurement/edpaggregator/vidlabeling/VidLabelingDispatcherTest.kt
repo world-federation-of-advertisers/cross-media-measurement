@@ -158,9 +158,7 @@ class VidLabelingDispatcherTest {
     assertThat(request.workItem.queue).isEqualTo(QUEUE_NAME)
 
     val workItemParams =
-      request.workItem.workItemParams.unpack(
-        WorkItemParams::class.java
-      )
+      request.workItem.workItemParams.unpack(WorkItemParams::class.java)
     val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
     assertThat(vidLabelerParams.dataProvider).isEqualTo(DATA_PROVIDER_NAME)
     assertThat(vidLabelerParams.rawImpressionMetadataBatch)
@@ -184,9 +182,7 @@ class VidLabelingDispatcherTest {
       verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
 
       val workItemParams =
-        requestCaptor.firstValue.workItem.workItemParams.unpack(
-          WorkItemParams::class.java
-        )
+        requestCaptor.firstValue.workItem.workItemParams.unpack(WorkItemParams::class.java)
       val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
       assertThat(vidLabelerParams.rawImpressionMetadataBatch)
         .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
@@ -212,18 +208,14 @@ class VidLabelingDispatcherTest {
       requestCaptor.allValues[0]
         .workItem
         .workItemParams
-        .unpack(
-          WorkItemParams::class.java
-        )
+        .unpack(WorkItemParams::class.java)
         .appParams
         .unpack(VidLabelerParams::class.java)
     val batch2Params =
       requestCaptor.allValues[1]
         .workItem
         .workItemParams
-        .unpack(
-          WorkItemParams::class.java
-        )
+        .unpack(WorkItemParams::class.java)
         .appParams
         .unpack(VidLabelerParams::class.java)
 
@@ -304,18 +296,14 @@ class VidLabelingDispatcherTest {
       requestCaptor.allValues[0]
         .workItem
         .workItemParams
-        .unpack(
-          WorkItemParams::class.java
-        )
+        .unpack(WorkItemParams::class.java)
         .appParams
         .unpack(VidLabelerParams::class.java)
     val batch2Params =
       requestCaptor.allValues[1]
         .workItem
         .workItemParams
-        .unpack(
-          WorkItemParams::class.java
-        )
+        .unpack(WorkItemParams::class.java)
         .appParams
         .unpack(VidLabelerParams::class.java)
 
@@ -347,18 +335,14 @@ class VidLabelingDispatcherTest {
       requestCaptor.allValues[0]
         .workItem
         .workItemParams
-        .unpack(
-          WorkItemParams::class.java
-        )
+        .unpack(WorkItemParams::class.java)
         .appParams
         .unpack(VidLabelerParams::class.java)
     val normalBatchParams =
       requestCaptor.allValues[1]
         .workItem
         .workItemParams
-        .unpack(
-          WorkItemParams::class.java
-        )
+        .unpack(WorkItemParams::class.java)
         .appParams
         .unpack(VidLabelerParams::class.java)
 
