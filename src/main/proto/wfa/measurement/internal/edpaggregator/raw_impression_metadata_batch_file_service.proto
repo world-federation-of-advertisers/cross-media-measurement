@@ -118,9 +118,7 @@ message DeleteRawImpressionMetadataBatchFileRequest {
 }
 
 message BatchDeleteRawImpressionMetadataBatchFilesRequest {
-  string data_provider_resource_id = 1;
-  string batch_resource_id = 2;
-  repeated string file_resource_ids = 3;
+  repeated DeleteRawImpressionMetadataBatchFileRequest requests = 1;
 }
 
 message BatchDeleteRawImpressionMetadataBatchFilesResponse {
