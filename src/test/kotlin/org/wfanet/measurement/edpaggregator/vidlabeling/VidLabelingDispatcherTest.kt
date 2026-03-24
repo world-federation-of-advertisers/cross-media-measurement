@@ -45,6 +45,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionMetadataBatch
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.storage.StorageClient
 
@@ -158,8 +159,7 @@ class VidLabelingDispatcherTest {
 
     val workItemParams =
       request.workItem.workItemParams.unpack(
-        org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::class
-          .java
+        WorkItemParams::class.java
       )
     val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
     assertThat(vidLabelerParams.dataProvider).isEqualTo(DATA_PROVIDER_NAME)
@@ -185,9 +185,7 @@ class VidLabelingDispatcherTest {
 
       val workItemParams =
         requestCaptor.firstValue.workItem.workItemParams.unpack(
-          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-              .WorkItemParams::class
-            .java
+          WorkItemParams::class.java
         )
       val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
       assertThat(vidLabelerParams.rawImpressionMetadataBatch)
@@ -215,9 +213,7 @@ class VidLabelingDispatcherTest {
         .workItem
         .workItemParams
         .unpack(
-          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-              .WorkItemParams::class
-            .java
+          WorkItemParams::class.java
         )
         .appParams
         .unpack(VidLabelerParams::class.java)
@@ -226,9 +222,7 @@ class VidLabelingDispatcherTest {
         .workItem
         .workItemParams
         .unpack(
-          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-              .WorkItemParams::class
-            .java
+          WorkItemParams::class.java
         )
         .appParams
         .unpack(VidLabelerParams::class.java)
@@ -257,8 +251,7 @@ class VidLabelingDispatcherTest {
 
     val workItemParams =
       requestCaptor.firstValue.workItem.workItemParams.unpack(
-        org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::class
-          .java
+        WorkItemParams::class.java
       )
     val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
     assertThat(vidLabelerParams.rawImpressionMetadataBatch)
@@ -312,9 +305,7 @@ class VidLabelingDispatcherTest {
         .workItem
         .workItemParams
         .unpack(
-          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-              .WorkItemParams::class
-            .java
+          WorkItemParams::class.java
         )
         .appParams
         .unpack(VidLabelerParams::class.java)
@@ -323,9 +314,7 @@ class VidLabelingDispatcherTest {
         .workItem
         .workItemParams
         .unpack(
-          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-              .WorkItemParams::class
-            .java
+          WorkItemParams::class.java
         )
         .appParams
         .unpack(VidLabelerParams::class.java)
@@ -359,9 +348,7 @@ class VidLabelingDispatcherTest {
         .workItem
         .workItemParams
         .unpack(
-          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-              .WorkItemParams::class
-            .java
+          WorkItemParams::class.java
         )
         .appParams
         .unpack(VidLabelerParams::class.java)
@@ -370,9 +357,7 @@ class VidLabelingDispatcherTest {
         .workItem
         .workItemParams
         .unpack(
-          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-              .WorkItemParams::class
-            .java
+          WorkItemParams::class.java
         )
         .appParams
         .unpack(VidLabelerParams::class.java)
@@ -428,8 +413,7 @@ class VidLabelingDispatcherTest {
 
     val workItemParams =
       requestCaptor.firstValue.workItem.workItemParams.unpack(
-        org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::class
-          .java
+        WorkItemParams::class.java
       )
     val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
     assertThat(vidLabelerParams.rawImpressionMetadataBatch)
