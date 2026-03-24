@@ -201,14 +201,14 @@ class RawImpressionMetadataBatchService(
             if (internalPageToken != null) {
               pageToken = internalPageToken
             }
-            if (request.hasFilter() &&
-              request.filter.state != RawImpressionMetadataBatch.State.STATE_UNSPECIFIED
+            if (
+              request.hasFilter() &&
+                request.filter.state != RawImpressionMetadataBatch.State.STATE_UNSPECIFIED
             ) {
               filter =
                 org.wfanet.measurement.internal.edpaggregator
-                  .ListRawImpressionMetadataBatchesRequestKt.filter {
-                    state = request.filter.state.toInternal()
-                  }
+                  .ListRawImpressionMetadataBatchesRequestKt
+                  .filter { state = request.filter.state.toInternal() }
             }
             showDeleted = request.showDeleted
           }
@@ -395,7 +395,9 @@ fun InternalRawImpressionMetadataBatch.toPublic(): RawImpressionMetadataBatch {
   }
 }
 
-/** Converts an internal [RawImpressionBatchState] to a public [RawImpressionMetadataBatch.State]. */
+/**
+ * Converts an internal [RawImpressionBatchState] to a public [RawImpressionMetadataBatch.State].
+ */
 internal fun RawImpressionBatchState.toPublic(): RawImpressionMetadataBatch.State {
   return when (this) {
     RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_CREATED ->
@@ -410,7 +412,9 @@ internal fun RawImpressionBatchState.toPublic(): RawImpressionMetadataBatch.Stat
   }
 }
 
-/** Converts a public [RawImpressionMetadataBatch.State] to an internal [RawImpressionBatchState]. */
+/**
+ * Converts a public [RawImpressionMetadataBatch.State] to an internal [RawImpressionBatchState].
+ */
 internal fun RawImpressionMetadataBatch.State.toInternal(): RawImpressionBatchState {
   return when (this) {
     RawImpressionMetadataBatch.State.CREATED ->
