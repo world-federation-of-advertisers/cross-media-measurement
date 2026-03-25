@@ -100,18 +100,18 @@ class DataAvailabilityMonitorFunction : HttpFunction {
                   "(${status.staleDays} days ago, threshold: $maxStaleDays)",
               )
             }
-            if (!status.missingDates.isNullOrEmpty()) {
+            if (!status.gapDates.isNullOrEmpty()) {
               logger.log(
                 Level.SEVERE,
                 "ALERT: Model line ${status.modelLineKey.toName()} in ${config.edpImpressionPath} " +
-                  "has missing dates: ${status.missingDates}",
+                  "has gap dates: ${status.gapDates}",
               )
             }
-            if (!status.incompleteDates.isNullOrEmpty()) {
+            if (!status.zeroImpressionDates.isNullOrEmpty()) {
               logger.log(
                 Level.SEVERE,
                 "ALERT: Model line ${status.modelLineKey.toName()} in ${config.edpImpressionPath} " +
-                  "has incomplete dates (done blob but no data): ${status.incompleteDates}",
+                  "has zero impression dates (done blob but no data): ${status.zeroImpressionDates}",
               )
             }
             if (!status.datesWithoutDoneBlob.isNullOrEmpty()) {

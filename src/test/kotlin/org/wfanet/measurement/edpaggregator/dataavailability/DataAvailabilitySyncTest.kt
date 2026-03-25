@@ -97,7 +97,7 @@ class DataAvailabilitySyncTest {
     private const val RECORDS_SYNCED_METRIC = "edpa.data_availability.records_synced"
     private const val CMMS_RPC_ERRORS_METRIC = "edpa.data_availability.cmms_rpc_errors"
     private const val GAPS_METRIC = "edpa.data_availability.gaps"
-    private const val INCOMPLETE_DATES_METRIC = "edpa.data_availability.incomplete_dates"
+    private const val INCOMPLETE_DATES_METRIC = "edpa.data_availability.zero_impression_dates"
     private const val DATES_WITHOUT_DONE_BLOB_METRIC =
       "edpa.data_availability.dates_without_done_blob"
     private const val DEFAULT_BATCH_SIZE = 100
@@ -1115,7 +1115,7 @@ class DataAvailabilitySyncTest {
       val gapPoint = metricByName.getValue(GAPS_METRIC).longSumData.points.single()
       assertThat(gapPoint.value).isEqualTo(1)
 
-      // No incomplete dates or dates without done blob
+      // No zero impression dates or dates without done blob
       assertThat(metricByName).doesNotContainKey(INCOMPLETE_DATES_METRIC)
       assertThat(metricByName).doesNotContainKey(DATES_WITHOUT_DONE_BLOB_METRIC)
     } finally {

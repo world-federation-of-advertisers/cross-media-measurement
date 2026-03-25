@@ -34,7 +34,7 @@ class DataAvailabilityMonitorMetricsTest {
   companion object {
     private const val STALE_DAYS_METRIC = "edpa.data_availability.stale_days"
     private const val GAPS_METRIC = "edpa.data_availability.gaps"
-    private const val INCOMPLETE_DATES_METRIC = "edpa.data_availability.incomplete_dates"
+    private const val INCOMPLETE_DATES_METRIC = "edpa.data_availability.zero_impression_dates"
     private const val DATES_WITHOUT_DONE_BLOB_METRIC =
       "edpa.data_availability.dates_without_done_blob"
     private const val MODEL_LINE_NAME = "modelProviders/p1/modelSuites/s1/modelLines/ml1"
@@ -111,10 +111,10 @@ class DataAvailabilityMonitorMetricsTest {
   }
 
   @Test
-  fun `incompleteDatesCounter records incomplete date count`() {
+  fun `zeroImpressionDatesCounter records incomplete date count`() {
     val metricsEnv = createMetricsEnvironment()
     try {
-      metricsEnv.metrics.incompleteDatesCounter.add(
+      metricsEnv.metrics.zeroImpressionDatesCounter.add(
         2L,
         Attributes.of(MODEL_LINE_ATTR, MODEL_LINE_NAME, EDP_IMPRESSION_PATH_ATTR, EDP_IMPRESSION_PATH),
       )
@@ -163,7 +163,7 @@ class DataAvailabilityMonitorMetricsTest {
         Attributes.of(MODEL_LINE_ATTR, MODEL_LINE_NAME, EDP_IMPRESSION_PATH_ATTR, EDP_IMPRESSION_PATH)
       metricsEnv.metrics.staleDaysGauge.set(4L, attrs)
       metricsEnv.metrics.gapCounter.add(2L, attrs)
-      metricsEnv.metrics.incompleteDatesCounter.add(1L, attrs)
+      metricsEnv.metrics.zeroImpressionDatesCounter.add(1L, attrs)
       metricsEnv.metrics.datesWithoutDoneBlobCounter.add(3L, attrs)
 
       metricsEnv.metricReader.forceFlush()

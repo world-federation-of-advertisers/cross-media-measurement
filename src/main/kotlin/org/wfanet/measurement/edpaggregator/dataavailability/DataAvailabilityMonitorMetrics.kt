@@ -36,9 +36,9 @@ class DataAvailabilityMonitorMetrics(meter: Meter = Instrumentation.meter) {
       .setDescription("Number of missing date gaps detected for a model line")
       .build()
 
-  val incompleteDatesCounter: LongCounter =
+  val zeroImpressionDatesCounter: LongCounter =
     meter
-      .counterBuilder("edpa.data_availability.incomplete_dates")
+      .counterBuilder("edpa.data_availability.zero_impression_dates")
       .setDescription("Number of dates with done blob but no data files")
       .build()
 

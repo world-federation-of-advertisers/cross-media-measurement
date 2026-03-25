@@ -49,7 +49,7 @@ class DataAvailabilityMonitorTest {
 
     private const val STALE_DAYS_METRIC = "edpa.data_availability.stale_days"
     private const val GAPS_METRIC = "edpa.data_availability.gaps"
-    private const val INCOMPLETE_DATES_METRIC = "edpa.data_availability.incomplete_dates"
+    private const val INCOMPLETE_DATES_METRIC = "edpa.data_availability.zero_impression_dates"
     private const val DATES_WITHOUT_DONE_BLOB_METRIC =
       "edpa.data_availability.dates_without_done_blob"
   }
@@ -130,8 +130,8 @@ class DataAvailabilityMonitorTest {
     val status = result.statuses.single()
     assertThat(status.modelLineKey).isEqualTo(MODEL_LINE_A)
     assertThat(status.isStale).isFalse()
-    assertThat(status.missingDates).isEmpty()
-    assertThat(status.incompleteDates).isEmpty()
+    assertThat(status.gapDates).isEmpty()
+    assertThat(status.zeroImpressionDates).isEmpty()
     assertThat(status.datesWithoutDoneBlob).isEmpty()
     assertThat(status.latestDate).isEqualTo(LocalDate.of(2026, 3, 15))
     assertThat(status.staleDays).isEqualTo(0)
@@ -183,7 +183,7 @@ class DataAvailabilityMonitorTest {
 
     val status = result.statuses.single()
     assertThat(status.isStale).isFalse()
-    assertThat(status.missingDates).containsExactly(LocalDate.of(2026, 3, 14))
+    assertThat(status.gapDates).containsExactly(LocalDate.of(2026, 3, 14))
   }
 
   @Test
@@ -206,7 +206,7 @@ class DataAvailabilityMonitorTest {
     assertThat(result.hasIssues).isTrue()
 
     val status = result.statuses.single()
-    assertThat(status.missingDates)
+    assertThat(status.gapDates)
       .containsExactly(
         LocalDate.of(2026, 3, 11),
         LocalDate.of(2026, 3, 13),
@@ -240,7 +240,7 @@ class DataAvailabilityMonitorTest {
 
     val statusA = result.statuses.first { it.modelLineKey == MODEL_LINE_A }
     assertThat(statusA.isStale).isFalse()
-    assertThat(statusA.missingDates).isEmpty()
+    assertThat(statusA.gapDates).isEmpty()
 
     val statusB = result.statuses.first { it.modelLineKey == MODEL_LINE_B }
     assertThat(statusB.isStale).isTrue()
@@ -307,7 +307,7 @@ class DataAvailabilityMonitorTest {
     val status = result.statuses.single()
     assertThat(status.isStale).isTrue()
     assertThat(status.staleDays).isEqualTo(5)
-    assertThat(status.missingDates).containsExactly(LocalDate.of(2026, 3, 9))
+    assertThat(status.gapDates).containsExactly(LocalDate.of(2026, 3, 9))
   }
 
   // --- checkGaps() tests ---
@@ -335,15 +335,15 @@ class DataAvailabilityMonitorTest {
     assertThat(result.hasIssues).isFalse()
 
     val status = result.statuses.single()
-    assertThat(status.missingDates).isEmpty()
-    assertThat(status.incompleteDates).isEmpty()
+    assertThat(status.gapDates).isEmpty()
+    assertThat(status.zeroImpressionDates).isEmpty()
     assertThat(status.datesWithoutDoneBlob).isEmpty()
     assertThat(status.isStale).isNull()
     assertThat(status.staleDays).isNull()
   }
 
   @Test
-  fun `checkGaps detects missing dates`(): Unit = runBlocking {
+  fun `checkGaps detects gap dates`(): Unit = runBlocking {
     val storageClient = createStorageClient()
     for (day in listOf(12, 15)) {
       ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
@@ -365,7 +365,7 @@ class DataAvailabilityMonitorTest {
     assertThat(result.hasIssues).isTrue()
 
     val status = result.statuses.single()
-    assertThat(status.missingDates)
+    assertThat(status.gapDates)
       .containsExactly(LocalDate.of(2026, 3, 13), LocalDate.of(2026, 3, 14))
     assertThat(status.isStale).isNull()
   }
@@ -414,8 +414,8 @@ class DataAvailabilityMonitorTest {
     assertThat(result.hasIssues).isTrue()
 
     val status = result.statuses.single()
-    assertThat(status.missingDates).isEmpty()
-    assertThat(status.incompleteDates).containsExactly(LocalDate.of(2026, 3, 14))
+    assertThat(status.gapDates).isEmpty()
+    assertThat(status.zeroImpressionDates).containsExactly(LocalDate.of(2026, 3, 14))
   }
 
   @Test
@@ -440,7 +440,7 @@ class DataAvailabilityMonitorTest {
 
     val result = monitor.checkGaps()
     assertThat(result.hasIssues).isFalse()
-    assertThat(result.statuses.single().incompleteDates).isEmpty()
+    assertThat(result.statuses.single().zeroImpressionDates).isEmpty()
   }
 
 
@@ -519,8 +519,8 @@ class DataAvailabilityMonitorTest {
     assertThat(result.hasIssues).isTrue()
 
     val status = result.statuses.single()
-    assertThat(status.missingDates).isEmpty()
-    assertThat(status.incompleteDates).containsExactly(LocalDate.of(2026, 3, 14))
+    assertThat(status.gapDates).isEmpty()
+    assertThat(status.zeroImpressionDates).containsExactly(LocalDate.of(2026, 3, 14))
   }
 
   @Test
@@ -573,8 +573,8 @@ class DataAvailabilityMonitorTest {
     assertThat(result.hasIssues).isFalse()
 
     val status = result.statuses.single()
-    assertThat(status.missingDates).isEmpty()
-    assertThat(status.incompleteDates).isEmpty()
+    assertThat(status.gapDates).isEmpty()
+    assertThat(status.zeroImpressionDates).isEmpty()
     assertThat(status.datesWithoutDoneBlob).isEmpty()
     assertThat(status.staleDays).isEqualTo(0)
   }
@@ -597,8 +597,8 @@ class DataAvailabilityMonitorTest {
     assertThat(result.hasIssues).isFalse()
 
     val status = result.statuses.single()
-    assertThat(status.missingDates).isEmpty()
-    assertThat(status.incompleteDates).isEmpty()
+    assertThat(status.gapDates).isEmpty()
+    assertThat(status.zeroImpressionDates).isEmpty()
     assertThat(status.datesWithoutDoneBlob).isEmpty()
     assertThat(status.isStale).isNull()
     assertThat(status.staleDays).isNull()
@@ -629,8 +629,8 @@ class DataAvailabilityMonitorTest {
 
     val status = result.statuses.single()
     assertThat(status.datesWithoutDoneBlob).containsExactly(LocalDate.of(2026, 3, 14))
-    assertThat(status.missingDates).containsExactly(LocalDate.of(2026, 3, 14))
-    assertThat(status.incompleteDates).isEmpty()
+    assertThat(status.gapDates).containsExactly(LocalDate.of(2026, 3, 14))
+    assertThat(status.zeroImpressionDates).isEmpty()
   }
 
   @Test
@@ -658,8 +658,8 @@ class DataAvailabilityMonitorTest {
 
     val status = result.statuses.single()
     assertThat(status.datesWithoutDoneBlob).containsExactly(LocalDate.of(2026, 3, 14))
-    assertThat(status.missingDates).containsExactly(LocalDate.of(2026, 3, 14))
-    assertThat(status.incompleteDates).isEmpty()
+    assertThat(status.gapDates).containsExactly(LocalDate.of(2026, 3, 14))
+    assertThat(status.zeroImpressionDates).isEmpty()
   }
 
   @Test
@@ -696,8 +696,8 @@ class DataAvailabilityMonitorTest {
     // But gaps and other issues exist
     assertThat(status.staleDays).isEqualTo(3)
     assertThat(status.isStale).isFalse()
-    assertThat(status.missingDates).containsExactly(LocalDate.of(2026, 3, 11))
-    assertThat(status.incompleteDates).containsExactly(LocalDate.of(2026, 3, 12))
+    assertThat(status.gapDates).containsExactly(LocalDate.of(2026, 3, 11))
+    assertThat(status.zeroImpressionDates).containsExactly(LocalDate.of(2026, 3, 12))
     assertThat(status.datesWithoutDoneBlob).containsExactly(LocalDate.of(2026, 3, 13))
   }
 

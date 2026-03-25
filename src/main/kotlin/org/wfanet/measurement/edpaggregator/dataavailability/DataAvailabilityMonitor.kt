@@ -60,9 +60,9 @@ class DataAvailabilityMonitor(
     val modelLineKey: ModelLineKey,
     val isStale: Boolean?,
     val latestDate: LocalDate,
-    val missingDates: List<LocalDate>?,
+    val gapDates: List<LocalDate>?,
     val staleDays: Int?,
-    val incompleteDates: List<LocalDate>?,
+    val zeroImpressionDates: List<LocalDate>?,
     val datesWithoutDoneBlob: List<LocalDate>?,
   )
 
@@ -93,8 +93,8 @@ class DataAvailabilityMonitor(
       hasIssues =
         statuses.any {
           it.isStale == true ||
-            !it.missingDates.isNullOrEmpty() ||
-            !it.incompleteDates.isNullOrEmpty() ||
+            !it.gapDates.isNullOrEmpty() ||
+            !it.zeroImpressionDates.isNullOrEmpty() ||
             !it.datesWithoutDoneBlob.isNullOrEmpty()
         },
     )
@@ -117,8 +117,8 @@ class DataAvailabilityMonitor(
     return MonitorResult(
       statuses = statuses,
       hasIssues = statuses.any {
-        !it.missingDates.isNullOrEmpty() ||
-          !it.incompleteDates.isNullOrEmpty() ||
+        !it.gapDates.isNullOrEmpty() ||
+          !it.zeroImpressionDates.isNullOrEmpty() ||
           !it.datesWithoutDoneBlob.isNullOrEmpty()
       },
     )
@@ -140,12 +140,12 @@ class DataAvailabilityMonitor(
     val latestDate = sortedDates.last()
     val staleDays = (today.toEpochDay() - latestDate.toEpochDay()).toInt()
     val isStale = staleDays > maxStaleDays
-    val missingDates = findGaps(sortedDates)
+    val gapDates = findGaps(sortedDates)
 
     logger.log(
       Level.INFO,
-      "Model line $modelLineName metrics: staleDays=$staleDays, gaps=${missingDates.size}, " +
-        "incompleteDates=${dateInfo.incompleteDates.size}, " +
+      "Model line $modelLineName metrics: staleDays=$staleDays, gaps=${gapDates.size}, " +
+        "zeroImpressionDates=${dateInfo.zeroImpressionDates.size}, " +
         "datesWithoutDoneBlob=${dateInfo.datesWithoutDoneBlob.size}",
     )
     if (isStale) {
@@ -154,14 +154,14 @@ class DataAvailabilityMonitor(
         "Model line $modelLineName is stale: latest upload is $latestDate ($staleDays days ago)",
       )
     }
-    if (missingDates.isNotEmpty()) {
-      logger.log(Level.SEVERE, "Model line $modelLineName has gaps: missing dates $missingDates")
+    if (gapDates.isNotEmpty()) {
+      logger.log(Level.SEVERE, "Model line $modelLineName has gaps: gap dates $gapDates")
     }
-    if (dateInfo.incompleteDates.isNotEmpty()) {
+    if (dateInfo.zeroImpressionDates.isNotEmpty()) {
       logger.log(
         Level.SEVERE,
-        "Model line $modelLineName has incomplete dates (done blob but no data): " +
-          "${dateInfo.incompleteDates}",
+        "Model line $modelLineName has zero impression dates (done blob but no data): " +
+          "${dateInfo.zeroImpressionDates}",
       )
     }
     if (dateInfo.datesWithoutDoneBlob.isNotEmpty()) {
@@ -175,9 +175,9 @@ class DataAvailabilityMonitor(
       modelLineKey = modelLineKey,
       isStale = isStale,
       latestDate = latestDate,
-      missingDates = missingDates,
+      gapDates = gapDates,
       staleDays = staleDays,
-      incompleteDates = dateInfo.incompleteDates,
+      zeroImpressionDates = dateInfo.zeroImpressionDates,
       datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
     )
   }
@@ -190,22 +190,22 @@ class DataAvailabilityMonitor(
     }
 
     val sortedDates = uploadedDates.sorted()
-    val missingDates = findGaps(sortedDates)
+    val gapDates = findGaps(sortedDates)
 
     logger.log(
       Level.INFO,
-      "Model line $modelLineName metrics: gaps=${missingDates.size}, " +
-        "incompleteDates=${dateInfo.incompleteDates.size}, " +
+      "Model line $modelLineName metrics: gaps=${gapDates.size}, " +
+        "zeroImpressionDates=${dateInfo.zeroImpressionDates.size}, " +
         "datesWithoutDoneBlob=${dateInfo.datesWithoutDoneBlob.size}",
     )
-    if (missingDates.isNotEmpty()) {
-      logger.log(Level.SEVERE, "Model line $modelLineName has gaps: missing dates $missingDates")
+    if (gapDates.isNotEmpty()) {
+      logger.log(Level.SEVERE, "Model line $modelLineName has gaps: gap dates $gapDates")
     }
-    if (dateInfo.incompleteDates.isNotEmpty()) {
+    if (dateInfo.zeroImpressionDates.isNotEmpty()) {
       logger.log(
         Level.SEVERE,
-        "Model line $modelLineName has incomplete dates (done blob but no data): " +
-          "${dateInfo.incompleteDates}",
+        "Model line $modelLineName has zero impression dates (done blob but no data): " +
+          "${dateInfo.zeroImpressionDates}",
       )
     }
     if (dateInfo.datesWithoutDoneBlob.isNotEmpty()) {
@@ -219,9 +219,9 @@ class DataAvailabilityMonitor(
       modelLineKey = modelLineKey,
       isStale = null,
       latestDate = sortedDates.last(),
-      missingDates = missingDates,
+      gapDates = gapDates,
       staleDays = null,
-      incompleteDates = dateInfo.incompleteDates,
+      zeroImpressionDates = dateInfo.zeroImpressionDates,
       datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
     )
   }
@@ -229,7 +229,7 @@ class DataAvailabilityMonitor(
   /** Info about uploaded dates for a model line. */
   private data class DateInfo(
     val datesWithDoneBlob: Set<LocalDate>,
-    val incompleteDates: List<LocalDate>,
+    val zeroImpressionDates: List<LocalDate>,
     val datesWithoutDoneBlob: List<LocalDate>,
   )
 
@@ -253,7 +253,7 @@ class DataAvailabilityMonitor(
    */
   private suspend fun getDateInfo(prefix: String): DateInfo {
     val datesWithDone = mutableSetOf<LocalDate>()
-    val incompleteDatesList = mutableListOf<LocalDate>()
+    val zeroImpressionDatesList = mutableListOf<LocalDate>()
     val datesWithoutDoneBlobList = mutableListOf<LocalDate>()
 
     val datePrefixes = storageClient.listBlobKeys(prefix, "/").toList()
@@ -270,7 +270,7 @@ class DataAvailabilityMonitor(
         val hasData = storageClient.listBlobs("${prefix}$dateString/")
           .firstOrNull { !it.blobKey.endsWith("/done") } != null
         if (!hasData) {
-          incompleteDatesList.add(date)
+          zeroImpressionDatesList.add(date)
         }
       } else {
         datesWithoutDoneBlobList.add(date)
@@ -279,7 +279,7 @@ class DataAvailabilityMonitor(
 
     return DateInfo(
       datesWithDoneBlob = datesWithDone,
-      incompleteDates = incompleteDatesList.sorted(),
+      zeroImpressionDates = zeroImpressionDatesList.sorted(),
       datesWithoutDoneBlob = datesWithoutDoneBlobList.sorted(),
     )
   }
@@ -314,11 +314,11 @@ class DataAvailabilityMonitor(
     if (status.staleDays != null) {
       metrics.staleDaysGauge.set(status.staleDays.toLong(), attrs)
     }
-    if (!status.missingDates.isNullOrEmpty()) {
-      metrics.gapCounter.add(status.missingDates.size.toLong(), attrs)
+    if (!status.gapDates.isNullOrEmpty()) {
+      metrics.gapCounter.add(status.gapDates.size.toLong(), attrs)
     }
-    if (!status.incompleteDates.isNullOrEmpty()) {
-      metrics.incompleteDatesCounter.add(status.incompleteDates.size.toLong(), attrs)
+    if (!status.zeroImpressionDates.isNullOrEmpty()) {
+      metrics.zeroImpressionDatesCounter.add(status.zeroImpressionDates.size.toLong(), attrs)
     }
     if (!status.datesWithoutDoneBlob.isNullOrEmpty()) {
       metrics.datesWithoutDoneBlobCounter.add(status.datesWithoutDoneBlob.size.toLong(), attrs)
