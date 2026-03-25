@@ -71,7 +71,6 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest as InternalCreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.DataProviderCapabilities as InternalDataProviderCapabilities
 import org.wfanet.measurement.internal.kingdom.DataProviderDetails as InternalDataProviderDetails
-import org.wfanet.measurement.internal.kingdom.DataProviderRequirements as InternalDataProviderRequirements
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
@@ -190,16 +189,11 @@ class MeasurementsService(
         .dataProvidersList
         .map { it.details }
     val dataProviderCapabilities = dataProviderDetailsList.map { it.capabilities }
-    val dataProviderRequirements = dataProviderDetailsList.map { it.requirements }
 
     // TODO(@SanjayVas): Check required capabilities once we have any.
 
     val internalRequest =
-      request.buildInternalCreateMeasurementRequest(
-        dataProviderCapabilities,
-        dataProviderRequirements,
-        parentKey,
-      )
+      request.buildInternalCreateMeasurementRequest(dataProviderCapabilities, parentKey)
 
     val internalMeasurement =
       try {
@@ -392,7 +386,6 @@ class MeasurementsService(
       val internalCreateMeasurementRequest =
         createMeasurementRequest.buildInternalCreateMeasurementRequest(
           filteredDetails.map { it.capabilities },
-          filteredDetails.map { it.requirements },
           parentKey,
         )
       internalCreateMeasurementRequests.add(internalCreateMeasurementRequest)
@@ -487,7 +480,6 @@ class MeasurementsService(
   private fun buildInternalProtocolConfig(
     measurementSpec: MeasurementSpec,
     dataProviderCapabilities: List<InternalDataProviderCapabilities>,
-    dataProviderRequirements: List<InternalDataProviderRequirements>,
     measurementConsumerName: String,
   ): InternalProtocolConfig {
     val dataProvidersCount = dataProviderCapabilities.size
@@ -511,7 +503,6 @@ class MeasurementsService(
         } else {
           buildMultiPartyProtocolConfig(
             dataProviderCapabilities,
-            dataProviderRequirements,
             measurementConsumerName,
             reachOnly = true,
           )
@@ -538,7 +529,6 @@ class MeasurementsService(
         } else {
           buildMultiPartyProtocolConfig(
             dataProviderCapabilities,
-            dataProviderRequirements,
             measurementConsumerName,
             reachOnly = false,
           )
@@ -584,7 +574,6 @@ class MeasurementsService(
 
   private fun buildMultiPartyProtocolConfig(
     dataProviderCapabilities: List<InternalDataProviderCapabilities>,
-    dataProviderRequirements: List<InternalDataProviderRequirements>,
     measurementConsumerName: String,
     reachOnly: Boolean,
   ): InternalProtocolConfig {
@@ -594,7 +583,7 @@ class MeasurementsService(
     ) {
       return protocolConfig {
         externalProtocolConfigId = TrusTeeProtocolConfig.NAME
-        trusTee = buildTrusTeeProtocolConfig(dataProviderRequirements)
+        trusTee = buildTrusTeeProtocolConfig(dataProviderCapabilities)
       }
     } else if (
       (measurementConsumerName in hmssEnabledMeasurementConsumers || hmssEnabled) &&
@@ -619,7 +608,6 @@ class MeasurementsService(
 
   private fun CreateMeasurementRequest.buildInternalCreateMeasurementRequest(
     dataProviderCapabilities: List<InternalDataProviderCapabilities>,
-    dataProviderRequirements: List<InternalDataProviderRequirements>,
     parentKey: MeasurementConsumerKey,
   ): InternalCreateMeasurementRequest {
     val measurementConsumerCertificateKey =
@@ -663,12 +651,7 @@ class MeasurementsService(
     }
 
     val internalProtocolConfig =
-      buildInternalProtocolConfig(
-        measurementSpec,
-        dataProviderCapabilities,
-        dataProviderRequirements,
-        parentKey.toName(),
-      )
+      buildInternalProtocolConfig(measurementSpec, dataProviderCapabilities, parentKey.toName())
     validateSamplingInterval(measurementSpec, internalProtocolConfig)
 
     val internalMeasurement =
@@ -687,7 +670,7 @@ class MeasurementsService(
   }
 
   /**
-   * Builds the [InternalProtocolConfig.TrusTee] based on server config and EDP requirements.
+   * Builds the [InternalProtocolConfig.TrusTee] based on server config and EDP capabilities.
    *
    * If the server's `TrusTeeProtocolConfig.noiseMechanisms` is empty or any EDP has an empty
    * `allowedNoiseMechanisms`, falls back to `TrusTeeProtocolConfig.protocolConfig` (using the
@@ -695,17 +678,17 @@ class MeasurementsService(
    * the preferred noise mechanism (`NONE` > `CONTINUOUS_GAUSSIAN`).
    */
   private fun buildTrusTeeProtocolConfig(
-    dataProviderRequirements: List<InternalDataProviderRequirements>
+    dataProviderCapabilities: List<InternalDataProviderCapabilities>
   ): InternalProtocolConfig.TrusTee {
     val serverNoiseMechanisms = TrusTeeProtocolConfig.noiseMechanisms
     if (
       serverNoiseMechanisms.isEmpty() ||
-        dataProviderRequirements.any { it.allowedNoiseMechanismsCount == 0 }
+        dataProviderCapabilities.any { it.allowedNoiseMechanismsCount == 0 }
     ) {
       return TrusTeeProtocolConfig.protocolConfig
     }
 
-    val selected = selectNoiseMechanisms(serverNoiseMechanisms, dataProviderRequirements)
+    val selected = selectNoiseMechanisms(serverNoiseMechanisms, dataProviderCapabilities)
     val selectedSet = selected.toSet()
     val preferred =
       when (selectedSet) {
@@ -728,25 +711,25 @@ class MeasurementsService(
 
   companion object {
     /**
-     * Narrows [serverNoiseMechanisms] to those allowed by all [dataProviderRequirements].
+     * Narrows [serverNoiseMechanisms] to those allowed by all [dataProviderCapabilities].
      *
      * Both [serverNoiseMechanisms] and each EDP's `allowedNoiseMechanismsList` must be non-empty.
      */
     fun selectNoiseMechanisms(
       serverNoiseMechanisms: List<InternalProtocolConfig.NoiseMechanism>,
-      dataProviderRequirements: List<InternalDataProviderRequirements>,
+      dataProviderCapabilities: List<InternalDataProviderCapabilities>,
     ): List<InternalProtocolConfig.NoiseMechanism> {
       require(serverNoiseMechanisms.isNotEmpty()) { "serverNoiseMechanisms must not be empty" }
-      require(dataProviderRequirements.isNotEmpty()) {
-        "dataProviderRequirements must not be empty"
+      require(dataProviderCapabilities.isNotEmpty()) {
+        "dataProviderCapabilities must not be empty"
       }
       var effectiveMechanisms = serverNoiseMechanisms.toSet()
-      for (requirements in dataProviderRequirements) {
-        require(requirements.allowedNoiseMechanismsCount > 0) {
+      for (capabilities in dataProviderCapabilities) {
+        require(capabilities.allowedNoiseMechanismsCount > 0) {
           "Each DataProvider must have a non-empty allowedNoiseMechanisms"
         }
         effectiveMechanisms =
-          effectiveMechanisms.intersect(requirements.allowedNoiseMechanismsList.toSet())
+          effectiveMechanisms.intersect(capabilities.allowedNoiseMechanismsList.toSet())
       }
       grpcRequire(effectiveMechanisms.isNotEmpty()) {
         "No common noise mechanism across all DataProviders and the server"

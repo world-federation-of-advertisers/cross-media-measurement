@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "wfa/measurement/internal/kingdom/protocol_config.proto";
+
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
@@ -24,4 +26,8 @@ message DataProviderCapabilities {
   bool honest_majority_share_shuffle_supported = 1;
   // Whether the TrusTEE protocol is supported.
   bool trus_tee_supported = 2;
+
+  // The set of noise mechanisms that this DataProvider allows.
+  // Currently only used for TrusTEE protocol noise mechanism selection.
+  repeated ProtocolConfig.NoiseMechanism allowed_noise_mechanisms = 3;
 }

@@ -18,7 +18,6 @@ package wfa.measurement.internal.kingdom;
 
 import "google/type/interval.proto";
 import "wfa/measurement/internal/kingdom/data_provider_capabilities.proto";
-import "wfa/measurement/internal/kingdom/data_provider_requirements.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -34,5 +33,4 @@ message DataProviderDetails {
 
   google.type.Interval data_availability_interval = 5;
   DataProviderCapabilities capabilities = 6;
-  DataProviderRequirements requirements = 7;
 }
