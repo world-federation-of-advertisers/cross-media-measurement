@@ -106,7 +106,7 @@ class VidLabelerAppTest {
           gcsProjectId = "test-project"
           impressionsBlobPrefix = "gs://output-bucket/labeled"
         }
-      rawImpressionMetadataBatch = "$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/batch-1"
+      inputBlobUris += "gs://bucket/edp1/2024-01-15/file1.parquet"
     }
 
     app.runWork(buildMessage(params))
@@ -126,8 +126,8 @@ class VidLabelerAppTest {
     }
 
     assertThat(paramsCaptor.firstValue.dataProvider).isEqualTo(DATA_PROVIDER_NAME)
-    assertThat(paramsCaptor.firstValue.rawImpressionMetadataBatch)
-      .isEqualTo("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/batch-1")
+    assertThat(paramsCaptor.firstValue.inputBlobUrisList)
+      .containsExactly("gs://bucket/edp1/2024-01-15/file1.parquet")
     assertThat(storageConfigCaptor.firstValue.projectId).isEqualTo("test-project")
     assertThat(decryptCaptor.firstValue).isSameInstanceAs(mockDecryptKmsClient)
     assertThat(encryptCaptor.firstValue).isSameInstanceAs(mockEncryptKmsClient)
@@ -148,7 +148,7 @@ class VidLabelerAppTest {
           gcsProjectId = "test-project"
           impressionsBlobPrefix = "gs://output-bucket/labeled"
         }
-      rawImpressionMetadataBatch = "$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/batch-1"
+      inputBlobUris += "gs://bucket/edp1/2024-01-15/file1.parquet"
     }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
@@ -171,7 +171,7 @@ class VidLabelerAppTest {
           gcsProjectId = "test-project"
           impressionsBlobPrefix = "gs://output-bucket/labeled"
         }
-      rawImpressionMetadataBatch = "$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/batch-1"
+      inputBlobUris += "gs://bucket/edp1/2024-01-15/file1.parquet"
     }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
@@ -205,7 +205,7 @@ class VidLabelerAppTest {
     val app = createApp()
     val params = vidLabelerParams {
       dataProvider = DATA_PROVIDER_NAME
-      rawImpressionMetadataBatch = "$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/batch-1"
+      inputBlobUris += "gs://bucket/edp1/2024-01-15/file1.parquet"
     }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
@@ -213,7 +213,7 @@ class VidLabelerAppTest {
   }
 
   @Test
-  fun `runWork throws when raw_impression_metadata_batch is empty`() = runBlocking {
+  fun `runWork throws when input_blob_uris is empty`() = runBlocking {
     val app = createApp()
     val params = vidLabelerParams {
       dataProvider = DATA_PROVIDER_NAME
@@ -230,9 +230,7 @@ class VidLabelerAppTest {
     }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("raw_impression_metadata_batch must not be empty")
+    assertThat(exception).hasMessageThat().contains("input_blob_uris must not be empty")
   }
 
   companion object {
