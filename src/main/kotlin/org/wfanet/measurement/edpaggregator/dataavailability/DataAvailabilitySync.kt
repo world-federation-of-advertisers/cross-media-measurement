@@ -32,8 +32,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
-import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
@@ -209,12 +209,11 @@ class DataAvailabilitySync(
       val gapResult = gapMonitor.checkGaps()
       val modelLinesWithGaps = gapResult.statuses.filter { !it.gapDates.isNullOrEmpty() }
       if (modelLinesWithGaps.isNotEmpty()) {
-        val gapDetails = modelLinesWithGaps.joinToString("; ") { status ->
-          "Model line ${status.modelLineKey.toName()} gap dates: ${status.gapDates}"
-        }
-        throw IllegalStateException(
-          "Date gaps detected in $edpImpressionPath. $gapDetails"
-        )
+        val gapDetails =
+          modelLinesWithGaps.joinToString("; ") { status ->
+            "Model line ${status.modelLineKey.toName()} gap dates: ${status.gapDates}"
+          }
+        throw IllegalStateException("Date gaps detected in $edpImpressionPath. $gapDetails")
       }
 
       if (availabilityEntries.isNotEmpty()) {
@@ -359,7 +358,8 @@ class DataAvailabilitySync(
     impressionMetadataBlobs: Flow<StorageClient.Blob>,
     doneBlobUri: BlobUri,
   ): Map<ModelLineKey, List<ImpressionMetadataWithBlobKey>> {
-    val impressionMetadataMap = mutableMapOf<ModelLineKey, MutableList<ImpressionMetadataWithBlobKey>>()
+    val impressionMetadataMap =
+      mutableMapOf<ModelLineKey, MutableList<ImpressionMetadataWithBlobKey>>()
     impressionMetadataBlobs
       .filter { impressionMetadataBlob ->
         val fileName = impressionMetadataBlob.blobKey.substringAfterLast("/").lowercase()
@@ -409,7 +409,8 @@ class DataAvailabilitySync(
             modelLine = blobDetails.modelLine
             interval = blobDetails.interval
           }
-          val modelLineKey = requireNotNull(ModelLineKey.fromName(blobDetails.modelLine)) {
+          val modelLineKey =
+            requireNotNull(ModelLineKey.fromName(blobDetails.modelLine)) {
               "Invalid model line resource name: ${blobDetails.modelLine}"
             }
           impressionMetadataMap

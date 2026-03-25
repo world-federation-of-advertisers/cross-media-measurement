@@ -24,8 +24,6 @@ import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
-import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.MODEL_LINE_ATTR
-import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.EDP_IMPRESSION_PATH_ATTR
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.metrics.data.MetricData
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
@@ -97,7 +95,7 @@ class DataAvailabilitySyncTest {
     private const val RECORDS_SYNCED_METRIC = "edpa.data_availability.records_synced"
     private const val CMMS_RPC_ERRORS_METRIC = "edpa.data_availability.cmms_rpc_errors"
     private const val GAPS_METRIC = "edpa.data_availability.gaps"
-    private const val INCOMPLETE_DATES_METRIC = "edpa.data_availability.zero_impression_dates"
+    private const val ZERO_IMPRESSION_DATES_METRIC = "edpa.data_availability.zero_impression_dates"
     private const val DATES_WITHOUT_DONE_BLOB_METRIC =
       "edpa.data_availability.dates_without_done_blob"
     private const val DEFAULT_BATCH_SIZE = 100
@@ -364,11 +362,7 @@ class DataAvailabilitySyncTest {
         replaceDataAvailabilityIntervals(requestCaptor.capture())
       }
       val availabilityKeys = requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key }
-      assertThat(availabilityKeys)
-        .containsExactly(
-          "$existingModelLine",
-          "$newModelLine",
-        )
+      assertThat(availabilityKeys).containsExactly("$existingModelLine", "$newModelLine")
     }
   }
 
@@ -983,53 +977,49 @@ class DataAvailabilitySyncTest {
   @Test
   fun `sync throws IllegalStateException when date gaps are detected but still saves impressions`():
     Unit = runBlocking {
-      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
-      // Set up done blobs at model-line paths with a gap (missing 2026-03-14)
-      val modelLineId = "modelLine1"
-      val edpPath = "edp/edpa_edp"
-      for (date in listOf("2026-03-13", "2026-03-15")) {
-        val donePath = "$edpPath/model-line/$modelLineId/$date/done"
-        File(tempFolder.root, donePath).parentFile.mkdirs()
-        storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
-        // Add a data file so the folder is not empty
-        val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
-        storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
-      }
-
-      // Seed metadata in the sync trigger folder
-      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
-
-      val dataAvailabilitySync =
-        DataAvailabilitySync(
-          edpPath,
-          storageClient,
-          dataProvidersStub,
-          impressionMetadataStub,
-          "dataProviders/dataProvider123",
-          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
-          modelLineMap = emptyMap(),
-        )
-
-      assertFailsWith<IllegalStateException> {
-        dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
-      }
-
-      // Impression metadata should still be saved to the metadata store
-      verifyBlocking(impressionMetadataServiceMock, times(1)) {
-        batchCreateImpressionMetadata(any())
-      }
-
-      // Model line bounds should still be computed
-      verifyBlocking(impressionMetadataServiceMock, times(1)) {
-        computeModelLineBounds(any())
-      }
-
-      // replaceDataAvailabilityIntervals should NOT be called due to gap
-      verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    // Set up done blobs at model-line paths with a gap (missing 2026-03-14)
+    val modelLineId = "modelLine1"
+    val edpPath = "edp/edpa_edp"
+    for (date in listOf("2026-03-13", "2026-03-15")) {
+      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+      File(tempFolder.root, donePath).parentFile.mkdirs()
+      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+      // Add a data file so the folder is not empty
+      val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+      storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
     }
+
+    // Seed metadata in the sync trigger folder
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        edpPath,
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+      )
+
+    assertFailsWith<IllegalStateException> {
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    }
+
+    // Impression metadata should still be saved to the metadata store
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
+
+    // Model line bounds should still be computed
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
+
+    // replaceDataAvailabilityIntervals should NOT be called due to gap
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+  }
 
   @Test
   fun `sync calls replaceDataAvailabilityIntervals when no date gaps exist`(): Unit = runBlocking {
@@ -1116,7 +1106,7 @@ class DataAvailabilitySyncTest {
       assertThat(gapPoint.value).isEqualTo(1)
 
       // No zero impression dates or dates without done blob
-      assertThat(metricByName).doesNotContainKey(INCOMPLETE_DATES_METRIC)
+      assertThat(metricByName).doesNotContainKey(ZERO_IMPRESSION_DATES_METRIC)
       assertThat(metricByName).doesNotContainKey(DATES_WITHOUT_DONE_BLOB_METRIC)
     } finally {
       metricsEnv.close()
@@ -1164,7 +1154,7 @@ class DataAvailabilitySyncTest {
 
       // No gap, incomplete, or missing done blob metrics should be emitted
       assertThat(metricByName).doesNotContainKey(GAPS_METRIC)
-      assertThat(metricByName).doesNotContainKey(INCOMPLETE_DATES_METRIC)
+      assertThat(metricByName).doesNotContainKey(ZERO_IMPRESSION_DATES_METRIC)
       assertThat(metricByName).doesNotContainKey(DATES_WITHOUT_DONE_BLOB_METRIC)
     } finally {
       metricsEnv.close()
@@ -1175,7 +1165,6 @@ class DataAvailabilitySyncTest {
    * Seeds a directory (prefix) with BlobDetails files, one per interval. Returns the blob keys
    * written.
    */
-
   suspend fun seedBlobDetails(
     storageClient: StorageClient,
     prefix: String,
@@ -1349,7 +1338,6 @@ class DataAvailabilitySyncTest {
       // Create the impressions file at the custom path
       storageClient.writeBlob(impressionsBlobKey, emptyFlow())
     }
-
 
     // Create done blob and data file at model-line path for gap checking
     val edpImpPath = "edp/edpa_edp"

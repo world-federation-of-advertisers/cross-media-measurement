@@ -17,23 +17,23 @@
 package org.wfanet.measurement.edpaggregator.dataavailability
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.ByteString
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.metrics.data.MetricData
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
-import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.MODEL_LINE_ATTR
-import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.EDP_IMPRESSION_PATH_ATTR
-import com.google.protobuf.ByteString
 import java.io.File
 import java.time.LocalDate
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.EDP_IMPRESSION_PATH_ATTR
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.MODEL_LINE_ATTR
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)
@@ -49,7 +49,7 @@ class DataAvailabilityMonitorTest {
 
     private const val STALE_DAYS_METRIC = "edpa.data_availability.stale_days"
     private const val GAPS_METRIC = "edpa.data_availability.gaps"
-    private const val INCOMPLETE_DATES_METRIC = "edpa.data_availability.zero_impression_dates"
+    private const val ZERO_IMPRESSION_DATES_METRIC = "edpa.data_availability.zero_impression_dates"
     private const val DATES_WITHOUT_DONE_BLOB_METRIC =
       "edpa.data_availability.dates_without_done_blob"
   }
@@ -104,8 +104,6 @@ class DataAvailabilityMonitorTest {
     val dir = File(tempFolder.root, "$EDP_IMPRESSION_PATH/model-line/$modelLine/$date")
     dir.mkdirs()
   }
-
-  // --- check() tests (both staleness and gaps) ---
 
   @Test
   fun `check returns no issues when all dates are present and recent`(): Unit = runBlocking {
@@ -253,7 +251,9 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    assertFailsWith<IllegalArgumentException> { monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY }) }
+    assertFailsWith<IllegalArgumentException> {
+      monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    }
   }
 
   @Test
@@ -302,8 +302,6 @@ class DataAvailabilityMonitorTest {
     assertThat(status.staleDays).isEqualTo(5)
     assertThat(status.gapDates).containsExactly(LocalDate.of(2026, 3, 9))
   }
-
-  // --- checkGaps() tests ---
 
   @Test
   fun `checkGaps returns no issues when all dates are contiguous`(): Unit = runBlocking {
@@ -375,8 +373,6 @@ class DataAvailabilityMonitorTest {
     assertFailsWith<IllegalArgumentException> { monitor.checkGaps() }
   }
 
-  // --- Edge case tests ---
-
   @Test
   fun `checkGaps detects empty date folder with done blob but no data files`(): Unit = runBlocking {
     val storageClient = createStorageClient()
@@ -432,7 +428,6 @@ class DataAvailabilityMonitorTest {
     assertThat(result.statuses.single().zeroImpressionDates).isEmpty()
   }
 
-
   @Test
   fun `checkFullStatus throws when folder name is not a valid date`(): Unit = runBlocking {
     val storageClient = createStorageClient()
@@ -479,9 +474,7 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    assertFailsWith<java.time.format.DateTimeParseException> {
-      monitor.checkGaps()
-    }
+    assertFailsWith<java.time.format.DateTimeParseException> { monitor.checkGaps() }
   }
 
   @Test
@@ -763,23 +756,17 @@ class DataAvailabilityMonitorTest {
         .isEqualTo(3)
 
       assertThat(metricByName).containsKey(GAPS_METRIC)
-      assertThat(metricByName.getValue(GAPS_METRIC).longSumData.points.single().value)
-        .isEqualTo(1)
+      assertThat(metricByName.getValue(GAPS_METRIC).longSumData.points.single().value).isEqualTo(1)
 
-      assertThat(metricByName).containsKey(INCOMPLETE_DATES_METRIC)
+      assertThat(metricByName).containsKey(ZERO_IMPRESSION_DATES_METRIC)
       assertThat(
-          metricByName.getValue(INCOMPLETE_DATES_METRIC).longSumData.points.single().value
+          metricByName.getValue(ZERO_IMPRESSION_DATES_METRIC).longSumData.points.single().value
         )
         .isEqualTo(1)
 
       assertThat(metricByName).containsKey(DATES_WITHOUT_DONE_BLOB_METRIC)
       assertThat(
-          metricByName
-            .getValue(DATES_WITHOUT_DONE_BLOB_METRIC)
-            .longSumData
-            .points
-            .single()
-            .value
+          metricByName.getValue(DATES_WITHOUT_DONE_BLOB_METRIC).longSumData.points.single().value
         )
         .isEqualTo(1)
     } finally {
@@ -854,7 +841,7 @@ class DataAvailabilityMonitorTest {
 
       // No gaps, incomplete, or missing done blob metrics should be emitted
       assertThat(metricByName).doesNotContainKey(GAPS_METRIC)
-      assertThat(metricByName).doesNotContainKey(INCOMPLETE_DATES_METRIC)
+      assertThat(metricByName).doesNotContainKey(ZERO_IMPRESSION_DATES_METRIC)
       assertThat(metricByName).doesNotContainKey(DATES_WITHOUT_DONE_BLOB_METRIC)
     } finally {
       metricsEnv.close()

@@ -34,7 +34,7 @@ class DataAvailabilityMonitorMetricsTest {
   companion object {
     private const val STALE_DAYS_METRIC = "edpa.data_availability.stale_days"
     private const val GAPS_METRIC = "edpa.data_availability.gaps"
-    private const val INCOMPLETE_DATES_METRIC = "edpa.data_availability.zero_impression_dates"
+    private const val ZERO_IMPRESSION_DATES_METRIC = "edpa.data_availability.zero_impression_dates"
     private const val DATES_WITHOUT_DONE_BLOB_METRIC =
       "edpa.data_availability.dates_without_done_blob"
     private const val MODEL_LINE_NAME = "modelProviders/p1/modelSuites/s1/modelLines/ml1"
@@ -71,7 +71,12 @@ class DataAvailabilityMonitorMetricsTest {
     try {
       metricsEnv.metrics.staleDaysGauge.set(
         5L,
-        Attributes.of(MODEL_LINE_ATTR, MODEL_LINE_NAME, EDP_IMPRESSION_PATH_ATTR, EDP_IMPRESSION_PATH),
+        Attributes.of(
+          MODEL_LINE_ATTR,
+          MODEL_LINE_NAME,
+          EDP_IMPRESSION_PATH_ATTR,
+          EDP_IMPRESSION_PATH,
+        ),
       )
 
       metricsEnv.metricReader.forceFlush()
@@ -94,7 +99,12 @@ class DataAvailabilityMonitorMetricsTest {
     try {
       metricsEnv.metrics.gapCounter.add(
         3L,
-        Attributes.of(MODEL_LINE_ATTR, MODEL_LINE_NAME, EDP_IMPRESSION_PATH_ATTR, EDP_IMPRESSION_PATH),
+        Attributes.of(
+          MODEL_LINE_ATTR,
+          MODEL_LINE_NAME,
+          EDP_IMPRESSION_PATH_ATTR,
+          EDP_IMPRESSION_PATH,
+        ),
       )
 
       metricsEnv.metricReader.forceFlush()
@@ -116,15 +126,20 @@ class DataAvailabilityMonitorMetricsTest {
     try {
       metricsEnv.metrics.zeroImpressionDatesCounter.add(
         2L,
-        Attributes.of(MODEL_LINE_ATTR, MODEL_LINE_NAME, EDP_IMPRESSION_PATH_ATTR, EDP_IMPRESSION_PATH),
+        Attributes.of(
+          MODEL_LINE_ATTR,
+          MODEL_LINE_NAME,
+          EDP_IMPRESSION_PATH_ATTR,
+          EDP_IMPRESSION_PATH,
+        ),
       )
 
       metricsEnv.metricReader.forceFlush()
       val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
       val metricByName = metricData.associateBy { it.name }
 
-      assertThat(metricByName).containsKey(INCOMPLETE_DATES_METRIC)
-      val point = metricByName.getValue(INCOMPLETE_DATES_METRIC).longSumData.points.single()
+      assertThat(metricByName).containsKey(ZERO_IMPRESSION_DATES_METRIC)
+      val point = metricByName.getValue(ZERO_IMPRESSION_DATES_METRIC).longSumData.points.single()
       assertThat(point.value).isEqualTo(2)
       assertThat(point.attributes.get(MODEL_LINE_ATTR)).isEqualTo(MODEL_LINE_NAME)
     } finally {
@@ -138,7 +153,12 @@ class DataAvailabilityMonitorMetricsTest {
     try {
       metricsEnv.metrics.datesWithoutDoneBlobCounter.add(
         1L,
-        Attributes.of(MODEL_LINE_ATTR, MODEL_LINE_NAME, EDP_IMPRESSION_PATH_ATTR, EDP_IMPRESSION_PATH),
+        Attributes.of(
+          MODEL_LINE_ATTR,
+          MODEL_LINE_NAME,
+          EDP_IMPRESSION_PATH_ATTR,
+          EDP_IMPRESSION_PATH,
+        ),
       )
 
       metricsEnv.metricReader.forceFlush()
@@ -146,8 +166,7 @@ class DataAvailabilityMonitorMetricsTest {
       val metricByName = metricData.associateBy { it.name }
 
       assertThat(metricByName).containsKey(DATES_WITHOUT_DONE_BLOB_METRIC)
-      val point =
-        metricByName.getValue(DATES_WITHOUT_DONE_BLOB_METRIC).longSumData.points.single()
+      val point = metricByName.getValue(DATES_WITHOUT_DONE_BLOB_METRIC).longSumData.points.single()
       assertThat(point.value).isEqualTo(1)
       assertThat(point.attributes.get(MODEL_LINE_ATTR)).isEqualTo(MODEL_LINE_NAME)
     } finally {
@@ -160,7 +179,12 @@ class DataAvailabilityMonitorMetricsTest {
     val metricsEnv = createMetricsEnvironment()
     try {
       val attrs =
-        Attributes.of(MODEL_LINE_ATTR, MODEL_LINE_NAME, EDP_IMPRESSION_PATH_ATTR, EDP_IMPRESSION_PATH)
+        Attributes.of(
+          MODEL_LINE_ATTR,
+          MODEL_LINE_NAME,
+          EDP_IMPRESSION_PATH_ATTR,
+          EDP_IMPRESSION_PATH,
+        )
       metricsEnv.metrics.staleDaysGauge.set(4L, attrs)
       metricsEnv.metrics.gapCounter.add(2L, attrs)
       metricsEnv.metrics.zeroImpressionDatesCounter.add(1L, attrs)
@@ -172,24 +196,16 @@ class DataAvailabilityMonitorMetricsTest {
 
       assertThat(metricByName).containsKey(STALE_DAYS_METRIC)
       assertThat(metricByName).containsKey(GAPS_METRIC)
-      assertThat(metricByName).containsKey(INCOMPLETE_DATES_METRIC)
+      assertThat(metricByName).containsKey(ZERO_IMPRESSION_DATES_METRIC)
       assertThat(metricByName).containsKey(DATES_WITHOUT_DONE_BLOB_METRIC)
 
       assertThat(metricByName.getValue(STALE_DAYS_METRIC).longGaugeData.points.single().value)
         .isEqualTo(4)
-      assertThat(metricByName.getValue(GAPS_METRIC).longSumData.points.single().value)
-        .isEqualTo(2)
-      assertThat(
-          metricByName.getValue(INCOMPLETE_DATES_METRIC).longSumData.points.single().value
-        )
+      assertThat(metricByName.getValue(GAPS_METRIC).longSumData.points.single().value).isEqualTo(2)
+      assertThat(metricByName.getValue(ZERO_IMPRESSION_DATES_METRIC).longSumData.points.single().value)
         .isEqualTo(1)
       assertThat(
-          metricByName
-            .getValue(DATES_WITHOUT_DONE_BLOB_METRIC)
-            .longSumData
-            .points
-            .single()
-            .value
+          metricByName.getValue(DATES_WITHOUT_DONE_BLOB_METRIC).longSumData.points.single().value
         )
         .isEqualTo(3)
     } finally {

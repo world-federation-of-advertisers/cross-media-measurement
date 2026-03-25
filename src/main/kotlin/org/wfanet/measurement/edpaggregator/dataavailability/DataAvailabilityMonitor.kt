@@ -19,11 +19,11 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import java.time.LocalDate
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.storage.StorageClient
 
 /**
@@ -219,7 +219,9 @@ class DataAvailabilityMonitor(
 
   private suspend fun getDateInfoForModelLine(modelLineKey: ModelLineKey): DateInfo {
     val modelLineId = modelLineKey.modelLineId
-    val prefix = if (edpImpressionPath.isEmpty()) "model-line/$modelLineId/" else "$edpImpressionPath/model-line/$modelLineId/"
+    val prefix =
+      if (edpImpressionPath.isEmpty()) "model-line/$modelLineId/"
+      else "$edpImpressionPath/model-line/$modelLineId/"
     return getDateInfo(prefix)
   }
 
@@ -251,8 +253,10 @@ class DataAvailabilityMonitor(
         datesWithDone.add(date)
 
         // Check if there is at least one non-done file
-        val hasData = storageClient.listBlobs("${prefix}$dateString/")
-          .firstOrNull { !it.blobKey.endsWith("/done") } != null
+        val hasData =
+          storageClient.listBlobs("${prefix}$dateString/").firstOrNull {
+            !it.blobKey.endsWith("/done")
+          } != null
         if (!hasData) {
           zeroImpressionDatesList.add(date)
         }
@@ -288,12 +292,8 @@ class DataAvailabilityMonitor(
 
   private fun recordMetrics(status: ModelLineStatus) {
     val modelLineName = status.modelLineKey.toName()
-    val attrs = Attributes.of(
-      MODEL_LINE_ATTR,
-      modelLineName,
-      EDP_IMPRESSION_PATH_ATTR,
-      edpImpressionPath,
-    )
+    val attrs =
+      Attributes.of(MODEL_LINE_ATTR, modelLineName, EDP_IMPRESSION_PATH_ATTR, edpImpressionPath)
 
     if (status.staleDays != null) {
       metrics.staleDaysGauge.set(status.staleDays.toLong(), attrs)

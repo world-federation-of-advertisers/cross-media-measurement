@@ -62,11 +62,12 @@ class DataAvailabilityMonitorFunction : HttpFunction {
 
       for (config in monitorConfigs.configsList) {
         val storageClient = createStorageClient(config)
-        val activeModelLines = config.activeModelLinesList.map {
-          requireNotNull(ModelLineKey.fromName(it)) {
-            "Invalid Model Line resource name: $it"
-          }
-        }.toSet()
+        val activeModelLines =
+          config.activeModelLinesList
+            .map {
+              requireNotNull(ModelLineKey.fromName(it)) { "Invalid Model Line resource name: $it" }
+            }
+            .toSet()
 
         if (activeModelLines.isEmpty()) {
           logger.warning(
@@ -92,13 +93,17 @@ class DataAvailabilityMonitorFunction : HttpFunction {
           )
 
         val result = runBlocking {
-          monitor.checkFullStatus(
-            maxStaleDays = maxStaleDays,
-            clock = { LocalDate.now(timeZone) },
-          )
+          monitor.checkFullStatus(maxStaleDays = maxStaleDays, clock = { LocalDate.now(timeZone) })
         }
 
-        if (result.statuses.any { it.isStale == true || !it.gapDates.isNullOrEmpty() || !it.zeroImpressionDates.isNullOrEmpty() || !it.datesWithoutDoneBlob.isNullOrEmpty() }) {
+        if (
+          result.statuses.any {
+            it.isStale == true ||
+              !it.gapDates.isNullOrEmpty() ||
+              !it.zeroImpressionDates.isNullOrEmpty() ||
+              !it.datesWithoutDoneBlob.isNullOrEmpty()
+          }
+        ) {
           hasAnyIssues = true
           for (status in result.statuses) {
             if (status.isStale == true) {
