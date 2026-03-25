@@ -17,14 +17,14 @@ name: Draft new release
 on:
   workflow_dispatch:
     inputs:
+      # DO_NOT_SUBMIT: set the latest release git tag as the default.
       existing-release-tag:
         type: string
-        description: "Existing release tag (e.g. v0.5.35)"
+        description: "Existing release git tag (e.g. v0.5.35)"
         required: true
       milestone-name:
         type: string
         description: "Milestone name. Default: stable version of the existing-release-tag (i.e. non-RC version)"
-      # DO_NOT_SUBMIT: default to the second-to-last? (logic/description)
       notes-start-commitish:
         type: string
         description: "Start tag / full commit SHA for getting release notes. Default: latest final release (no RC, no draft, no pre-release)."
@@ -82,12 +82,12 @@ jobs:
         shell: bash
         env:
           MILESTONE_NAME: ${{ inputs.milestone-name }}
-          NEW_RELEASE_TAG: ${{ inputs.existing-release-tag }}
+          RELEASE_TAG: ${{ inputs.existing-release-tag }}
         run: |
           name="${MILESTONE_NAME}"
           if [ -z "${name}" ]; then
             # remove potential suffix (e.g. "-rc1")
-            name="${NEW_RELEASE_TAG%%-*}"
+            name="${RELEASE_TAG%%-*}"
           fi
           echo "name=${name}" | tee -a $GITHUB_OUTPUT
           
