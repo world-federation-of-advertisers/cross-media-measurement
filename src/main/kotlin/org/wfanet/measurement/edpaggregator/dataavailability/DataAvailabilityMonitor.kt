@@ -58,11 +58,11 @@ class DataAvailabilityMonitor(
   /** Result of monitoring a single model line. */
   data class ModelLineStatus(
     val modelLineId: String,
-    val isStale: Boolean,
-    val latestDate: LocalDate?,
-    val missingDates: List<LocalDate>,
-    val staleDays: Int,
-    val emptyDateFolders: List<LocalDate>,
+    val isStale: Boolean?,
+    val latestDate: LocalDate,
+    val missingDates: List<LocalDate>?,
+    val staleDays: Int?,
+    val emptyDateFolders: List<LocalDate>?,
   )
 
   /** Result of a full monitoring check across all active model lines. */
@@ -85,7 +85,7 @@ class DataAvailabilityMonitor(
       statuses = statuses,
       hasIssues =
         statuses.any {
-          it.isStale || it.missingDates.isNotEmpty() || it.emptyDateFolders.isNotEmpty()
+          it.isStale == true || !it.missingDates.isNullOrEmpty() || !it.emptyDateFolders.isNullOrEmpty()
         },
     )
   }
@@ -104,24 +104,8 @@ class DataAvailabilityMonitor(
 
     return MonitorResult(
       statuses = statuses,
-      hasIssues = statuses.any { it.missingDates.isNotEmpty() || it.emptyDateFolders.isNotEmpty() },
+      hasIssues = statuses.any { !it.missingDates.isNullOrEmpty() || !it.emptyDateFolders.isNullOrEmpty() },
     )
-  }
-
-  /**
-   * Checks all active model lines for staleness only.
-   *
-   * @return A [MonitorResult] where [ModelLineStatus.hasIssues] reflects only staleness issues.
-   */
-  suspend fun checkStaleness(): MonitorResult {
-    val today = clock()
-    val statuses =
-      activeModelLines.map { modelLineId ->
-        val uploadedDates = getUploadedDatesForModelLine(modelLineId)
-        buildStalenessStatus(modelLineId, uploadedDates, today)
-      }
-
-    return MonitorResult(statuses = statuses, hasIssues = statuses.any { it.isStale })
   }
 
   private fun buildFullStatus(
@@ -129,16 +113,8 @@ class DataAvailabilityMonitor(
     uploadedDates: Set<LocalDate>,
     today: LocalDate,
   ): ModelLineStatus {
-    if (uploadedDates.isEmpty()) {
-      logger.log(Level.WARNING, "No uploaded dates found for model line: $modelLineId")
-      return ModelLineStatus(
-        modelLineId = modelLineId,
-        isStale = true,
-        latestDate = null,
-        missingDates = emptyList(),
-        staleDays = Int.MAX_VALUE,
-        emptyDateFolders = emptyList(),
-      )
+    require(uploadedDates.isNotEmpty()) {
+      "No uploaded dates found for model line: $modelLineId. Check configuration."
     }
 
     val sortedDates = uploadedDates.sorted()
@@ -169,15 +145,8 @@ class DataAvailabilityMonitor(
 
   private fun buildGapStatus(modelLineId: String, dateInfo: DateInfo): ModelLineStatus {
     val uploadedDates = dateInfo.datesWithDoneBlob
-    if (uploadedDates.isEmpty()) {
-      return ModelLineStatus(
-        modelLineId = modelLineId,
-        isStale = false,
-        latestDate = null,
-        missingDates = emptyList(),
-        staleDays = 0,
-        emptyDateFolders = emptyList(),
-      )
+    require(uploadedDates.isNotEmpty()) {
+      "No uploaded dates found for model line: $modelLineId. Check configuration."
     }
 
     val sortedDates = uploadedDates.sorted()
@@ -189,49 +158,11 @@ class DataAvailabilityMonitor(
 
     return ModelLineStatus(
       modelLineId = modelLineId,
-      isStale = false,
+      isStale = null,
       latestDate = sortedDates.last(),
       missingDates = missingDates,
-      staleDays = 0,
+      staleDays = null,
       emptyDateFolders = dateInfo.emptyDateFolders,
-    )
-  }
-
-  private fun buildStalenessStatus(
-    modelLineId: String,
-    uploadedDates: Set<LocalDate>,
-    today: LocalDate,
-  ): ModelLineStatus {
-    if (uploadedDates.isEmpty()) {
-      logger.log(Level.WARNING, "No uploaded dates found for model line: $modelLineId")
-      return ModelLineStatus(
-        modelLineId = modelLineId,
-        isStale = true,
-        latestDate = null,
-        missingDates = emptyList(),
-        staleDays = Int.MAX_VALUE,
-        emptyDateFolders = emptyList(),
-      )
-    }
-
-    val latestDate = uploadedDates.max()
-    val staleDays = (today.toEpochDay() - latestDate.toEpochDay()).toInt()
-    val isStale = staleDays > maxStaleDays
-
-    if (isStale) {
-      logger.log(
-        Level.SEVERE,
-        "Model line $modelLineId is stale: latest upload is $latestDate ($staleDays days ago)",
-      )
-    }
-
-    return ModelLineStatus(
-      modelLineId = modelLineId,
-      isStale = isStale,
-      latestDate = latestDate,
-      missingDates = emptyList(),
-      staleDays = staleDays,
-      emptyDateFolders = emptyList(),
     )
   }
 
@@ -242,7 +173,7 @@ class DataAvailabilityMonitor(
   )
 
   private suspend fun getDateInfoForModelLine(modelLineId: String): DateInfo {
-    val prefix = "$edpImpressionPath/model-line/$modelLineId/"
+    val prefix = if (edpImpressionPath.isEmpty()) "model-line/$modelLineId/" else "$edpImpressionPath/model-line/$modelLineId/"
     return getDateInfo(prefix)
   }
 

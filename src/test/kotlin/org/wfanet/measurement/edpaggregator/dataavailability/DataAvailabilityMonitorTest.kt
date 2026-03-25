@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import java.io.File
 import java.time.LocalDate
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -202,7 +203,7 @@ class DataAvailabilityMonitorTest {
   }
 
   @Test
-  fun `check handles model line with no uploads`(): Unit = runBlocking {
+  fun `check throws when model line has no uploads`(): Unit = runBlocking {
     val storageClient = createStorageClient()
 
     val monitor =
@@ -214,13 +215,7 @@ class DataAvailabilityMonitorTest {
         clock = { TODAY },
       )
 
-    val result = monitor.check()
-    assertThat(result.hasIssues).isTrue()
-
-    val status = result.statuses.single()
-    assertThat(status.isStale).isTrue()
-    assertThat(status.latestDate).isNull()
-    assertThat(status.staleDays).isEqualTo(Int.MAX_VALUE)
+    assertFailsWith<IllegalArgumentException> { monitor.check() }
   }
 
   @Test
@@ -302,8 +297,8 @@ class DataAvailabilityMonitorTest {
 
     val status = result.statuses.single()
     assertThat(status.missingDates).isEmpty()
-    assertThat(status.isStale).isFalse()
-    assertThat(status.staleDays).isEqualTo(0)
+    assertThat(status.isStale).isNull()
+    assertThat(status.staleDays).isNull()
   }
 
   @Test
@@ -333,11 +328,11 @@ class DataAvailabilityMonitorTest {
     val status = result.statuses.single()
     assertThat(status.missingDates)
       .containsExactly(LocalDate.of(2026, 3, 13), LocalDate.of(2026, 3, 14))
-    assertThat(status.isStale).isFalse()
+    assertThat(status.isStale).isNull()
   }
 
   @Test
-  fun `checkGaps returns no issues when model line has no uploads`(): Unit = runBlocking {
+  fun `checkGaps throws when model line has no uploads`(): Unit = runBlocking {
     val storageClient = createStorageClient()
 
     val monitor =
@@ -349,114 +344,7 @@ class DataAvailabilityMonitorTest {
         clock = { TODAY },
       )
 
-    val result = monitor.checkGaps()
-    assertThat(result.hasIssues).isFalse()
-
-    val status = result.statuses.single()
-    assertThat(status.missingDates).isEmpty()
-    assertThat(status.latestDate).isNull()
-  }
-
-  // --- checkStaleness() tests ---
-
-  @Test
-  fun `checkStaleness returns no issues when recent`(): Unit = runBlocking {
-    val storageClient = createStorageClient()
-    for (day in 13..15) {
-      ensureDirectories(MODEL_LINE_A, "2026-03-%02d".format(day))
-      createDoneBlob(storageClient, MODEL_LINE_A, "2026-03-%02d".format(day))
-    }
-
-    val monitor =
-      DataAvailabilityMonitor(
-        storageClient = storageClient,
-        edpImpressionPath = EDP_IMPRESSION_PATH,
-        activeModelLines = setOf(MODEL_LINE_A),
-        maxStaleDays = 3,
-        clock = { TODAY },
-      )
-
-    val result = monitor.checkStaleness()
-    assertThat(result.hasIssues).isFalse()
-
-    val status = result.statuses.single()
-    assertThat(status.isStale).isFalse()
-    assertThat(status.staleDays).isEqualTo(0)
-    assertThat(status.missingDates).isEmpty()
-  }
-
-  @Test
-  fun `checkStaleness detects stale model line`(): Unit = runBlocking {
-    val storageClient = createStorageClient()
-    for (day in 9..11) {
-      ensureDirectories(MODEL_LINE_A, "2026-03-%02d".format(day))
-      createDoneBlob(storageClient, MODEL_LINE_A, "2026-03-%02d".format(day))
-    }
-
-    val monitor =
-      DataAvailabilityMonitor(
-        storageClient = storageClient,
-        edpImpressionPath = EDP_IMPRESSION_PATH,
-        activeModelLines = setOf(MODEL_LINE_A),
-        maxStaleDays = 3,
-        clock = { TODAY },
-      )
-
-    val result = monitor.checkStaleness()
-    assertThat(result.hasIssues).isTrue()
-
-    val status = result.statuses.single()
-    assertThat(status.isStale).isTrue()
-    assertThat(status.staleDays).isEqualTo(4)
-    assertThat(status.missingDates).isEmpty()
-  }
-
-  @Test
-  fun `checkStaleness detects stale with no uploads`(): Unit = runBlocking {
-    val storageClient = createStorageClient()
-
-    val monitor =
-      DataAvailabilityMonitor(
-        storageClient = storageClient,
-        edpImpressionPath = EDP_IMPRESSION_PATH,
-        activeModelLines = setOf(MODEL_LINE_A),
-        maxStaleDays = 3,
-        clock = { TODAY },
-      )
-
-    val result = monitor.checkStaleness()
-    assertThat(result.hasIssues).isTrue()
-
-    val status = result.statuses.single()
-    assertThat(status.isStale).isTrue()
-    assertThat(status.latestDate).isNull()
-    assertThat(status.staleDays).isEqualTo(Int.MAX_VALUE)
-  }
-
-  @Test
-  fun `checkStaleness does not report gaps`(): Unit = runBlocking {
-    val storageClient = createStorageClient()
-    // Has a gap (missing March 13, 14) but is recent
-    for (day in listOf(12, 15)) {
-      ensureDirectories(MODEL_LINE_A, "2026-03-%02d".format(day))
-      createDoneBlob(storageClient, MODEL_LINE_A, "2026-03-%02d".format(day))
-    }
-
-    val monitor =
-      DataAvailabilityMonitor(
-        storageClient = storageClient,
-        edpImpressionPath = EDP_IMPRESSION_PATH,
-        activeModelLines = setOf(MODEL_LINE_A),
-        maxStaleDays = 3,
-        clock = { TODAY },
-      )
-
-    val result = monitor.checkStaleness()
-    assertThat(result.hasIssues).isFalse()
-
-    val status = result.statuses.single()
-    assertThat(status.isStale).isFalse()
-    assertThat(status.missingDates).isEmpty()
+    assertFailsWith<IllegalArgumentException> { monitor.checkGaps() }
   }
 
   // --- Edge case tests ---

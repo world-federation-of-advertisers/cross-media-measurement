@@ -205,16 +205,14 @@ class DataAvailabilitySync(
           maxStaleDays = Int.MAX_VALUE,
         )
       val gapResult = gapMonitor.checkGaps()
-      val modelLinesWithGaps = gapResult.statuses.filter { it.missingDates.isNotEmpty() }
+      val modelLinesWithGaps = gapResult.statuses.filter { !it.missingDates.isNullOrEmpty() }
       if (modelLinesWithGaps.isNotEmpty()) {
-        for (status in modelLinesWithGaps) {
-          logger.severe(
-            "Model line ${status.modelLineId} in $edpImpressionPath has date gaps: " +
-              "${status.missingDates}. Skipping replaceDataAvailabilityIntervals."
-          )
+        val gapDetails = modelLinesWithGaps.joinToString("; ") { status ->
+          "Model line ${status.modelLineId} missing dates: ${status.missingDates}"
         }
-        recordSyncDuration(syncStartTime, SYNC_STATUS_SUCCESS)
-        return
+        throw IllegalStateException(
+          "Date gaps detected in $edpImpressionPath. $gapDetails"
+        )
       }
 
       if (availabilityEntries.isNotEmpty()) {

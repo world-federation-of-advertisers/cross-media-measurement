@@ -928,6 +928,7 @@ class DataAvailabilitySyncTest {
       "edp/edpa_edp/model-line/some-model-line/timestamp/",
       listOf(300L to 400L, 400L to 500L, 500L to 600L),
       BlobEncoding.JSON,
+      edpImpressionPath = "",
     )
 
     val dataAvailabilitySync =
@@ -970,7 +971,7 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
-  fun `sync skips replaceDataAvailabilityIntervals when date gaps are detected`(): Unit =
+  fun `sync throws IllegalStateException when date gaps are detected`(): Unit =
     runBlocking {
       val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
       val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
@@ -982,6 +983,9 @@ class DataAvailabilitySyncTest {
         val donePath = "$edpPath/model-line/$modelLine/$date/done"
         File(tempFolder.root, donePath).parentFile.mkdirs()
         storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+        // Add a data file so the folder is not empty
+        val dataPath = "$edpPath/model-line/$modelLine/$date/data_campaign_1"
+        storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
       }
 
       // Seed metadata in the sync trigger folder
@@ -999,14 +1003,12 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
         )
 
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      assertFailsWith<IllegalStateException> {
+        dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      }
 
       // replaceDataAvailabilityIntervals should NOT be called due to gap
       verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
-      // But impression metadata should still be saved
-      verifyBlocking(impressionMetadataServiceMock, times(1)) {
-        batchCreateImpressionMetadata(any())
-      }
     }
 
   @Test
@@ -1048,12 +1050,14 @@ class DataAvailabilitySyncTest {
    * Seeds a directory (prefix) with BlobDetails files, one per interval. Returns the blob keys
    * written.
    */
+
   suspend fun seedBlobDetails(
     storageClient: StorageClient,
     prefix: String,
     intervals: List<Pair<Long?, Long?>>,
     encoding: BlobEncoding = BlobEncoding.PROTO,
     createImpressionFile: Boolean = true,
+    edpImpressionPath: String = "edp/edpa_edp",
   ): List<String> {
     require(prefix.isEmpty() || prefix.endsWith("/")) { "prefix should end with '/'" }
 
@@ -1098,6 +1102,13 @@ class DataAvailabilitySyncTest {
 
       written += key
     }
+
+    // Create done blob and data file at model-line path for gap checking
+    val donePrefix = if (edpImpressionPath.isEmpty()) "" else "$edpImpressionPath/"
+    val donePath = "${donePrefix}model-line/modelLine1/2026-03-15/done"
+    val dataPath = "${donePrefix}model-line/modelLine1/2026-03-15/data_campaign_1"
+    storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+    storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
 
     return written
   }
@@ -1149,6 +1160,13 @@ class DataAvailabilitySyncTest {
         storageClient.writeBlob(objectKey, emptyFlow())
       }
     }
+
+    // Create done blob and data file at model-line path for gap checking
+    val edpImpressionPath = "edp/edpa_edp"
+    val donePath = "$edpImpressionPath/model-line/$modelLine/2026-03-15/done"
+    val dataPath = "$edpImpressionPath/model-line/$modelLine/2026-03-15/data_campaign_1"
+    storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+    storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
   }
 
   private fun BlobDetails.serialize(encoding: BlobEncoding): ByteString =
@@ -1205,6 +1223,14 @@ class DataAvailabilitySyncTest {
       // Create the impressions file at the custom path
       storageClient.writeBlob(impressionsBlobKey, emptyFlow())
     }
+
+
+    // Create done blob and data file at model-line path for gap checking
+    val edpImpPath = "edp/edpa_edp"
+    val donePath = "$edpImpPath/model-line/modelLine1/2026-03-15/done"
+    val dataPath = "$edpImpPath/model-line/modelLine1/2026-03-15/data_campaign_1"
+    storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+    storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
   }
 
   private class RecordingThrottler : Throttler {

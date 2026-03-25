@@ -80,12 +80,12 @@ class DataAvailabilityMonitorFunction : HttpFunction {
             maxStaleDays = maxStaleDays,
           )
 
-        val result = runBlocking { monitor.checkStaleness() }
+        val result = runBlocking { monitor.check() }
 
         if (result.hasIssues) {
           hasAnyIssues = true
           for (status in result.statuses) {
-            if (status.isStale) {
+            if (status.isStale == true) {
               logger.log(
                 Level.SEVERE,
                 "ALERT: Model line ${status.modelLineId} in ${config.edpImpressionPath} " +
@@ -93,7 +93,7 @@ class DataAvailabilityMonitorFunction : HttpFunction {
                   "(${status.staleDays} days ago, threshold: $maxStaleDays)",
               )
             }
-            if (status.missingDates.isNotEmpty()) {
+            if (!status.missingDates.isNullOrEmpty()) {
               logger.log(
                 Level.SEVERE,
                 "ALERT: Model line ${status.modelLineId} in ${config.edpImpressionPath} " +
