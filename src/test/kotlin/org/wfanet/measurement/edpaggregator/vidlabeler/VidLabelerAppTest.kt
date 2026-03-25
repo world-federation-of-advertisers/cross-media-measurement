@@ -69,8 +69,7 @@ class VidLabelerAppTest {
 
   private fun createApp(
     kmsClients: Map<String, KmsClient> = mapOf(DATA_PROVIDER_NAME to mockDecryptKmsClient),
-    encryptKmsClients: Map<String, KmsClient> =
-      mapOf(DATA_PROVIDER_NAME to mockEncryptKmsClient),
+    encryptKmsClients: Map<String, KmsClient> = mapOf(DATA_PROVIDER_NAME to mockEncryptKmsClient),
   ): VidLabelerApp {
     return VidLabelerApp(
       subscriptionId = "test-subscription",
@@ -81,9 +80,7 @@ class VidLabelerAppTest {
       vidLabeler = mockVidLabeler,
       kmsClients = kmsClients,
       encryptKmsClients = encryptKmsClients,
-      getStorageConfig = { storageParams ->
-        StorageConfig(projectId = storageParams.gcsProjectId)
-      },
+      getStorageConfig = { storageParams -> StorageConfig(projectId = storageParams.gcsProjectId) },
     )
   }
 
@@ -173,7 +170,7 @@ class VidLabelerAppTest {
           gcsProjectId = "test-project"
           labeledImpressionsBlobPrefix = "gs://output-bucket/labeled"
         }
-      rawImpressionMetadataBatch = "batches/batch-1"
+      inputBlobUris += "gs://bucket/edp1/2024-01-15/file1.parquet"
     }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
