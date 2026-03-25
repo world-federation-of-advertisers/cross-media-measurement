@@ -70,7 +70,6 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest as InternalCreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.DataProviderCapabilities as InternalDataProviderCapabilities
-import org.wfanet.measurement.internal.kingdom.DataProviderDetails as InternalDataProviderDetails
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
@@ -169,7 +168,7 @@ class MeasurementsService(
           }
         ApiId(key.dataProviderId).externalId
       }
-    val dataProviderDetailsList: List<InternalDataProviderDetails> =
+    val dataProviderCapabilities: List<InternalDataProviderCapabilities> =
       try {
           internalDataProvidersStub.batchGetDataProviders(
             batchGetDataProvidersRequest {
@@ -187,8 +186,7 @@ class MeasurementsService(
             .asRuntimeException()
         }
         .dataProvidersList
-        .map { it.details }
-    val dataProviderCapabilities = dataProviderDetailsList.map { it.capabilities }
+        .map { it.details.capabilities }
 
     // TODO(@SanjayVas): Check required capabilities once we have any.
 
@@ -325,7 +323,7 @@ class MeasurementsService(
             }
           ApiId(key.dataProviderId).externalId
         }
-    val allDataProviderDetailsMap: Map<ExternalId, InternalDataProviderDetails> =
+    val allDataProviderCapabilities: Map<ExternalId, InternalDataProviderCapabilities> =
       try {
           internalDataProvidersStub.batchGetDataProviders(
             batchGetDataProvidersRequest {
@@ -344,7 +342,9 @@ class MeasurementsService(
         }
         .dataProvidersList
         .associateBy { ExternalId(it.externalDataProviderId) }
-        .mapValues { it.value.details }
+        .mapValues { it.value.details.capabilities }
+
+    // TODO(@SanjayVas): Check required capabilities once we have any.
 
     val internalCreateMeasurementRequests = mutableListOf<InternalCreateMeasurementRequest>()
     var isParentEmpty = false
@@ -381,11 +381,9 @@ class MeasurementsService(
         createMeasurementRequest.measurement.dataProvidersList
           .map { ApiId(DataProviderKey.fromName(it.key)!!.dataProviderId).externalId }
           .toSet()
-      val filteredDetails =
-        allDataProviderDetailsMap.filterKeys { it in externalDataProviderIds }.values
       val internalCreateMeasurementRequest =
         createMeasurementRequest.buildInternalCreateMeasurementRequest(
-          filteredDetails.map { it.capabilities },
+          allDataProviderCapabilities.filterKeys { it in externalDataProviderIds }.values,
           parentKey,
         )
       internalCreateMeasurementRequests.add(internalCreateMeasurementRequest)
@@ -479,7 +477,7 @@ class MeasurementsService(
 
   private fun buildInternalProtocolConfig(
     measurementSpec: MeasurementSpec,
-    dataProviderCapabilities: List<InternalDataProviderCapabilities>,
+    dataProviderCapabilities: Collection<InternalDataProviderCapabilities>,
     measurementConsumerName: String,
   ): InternalProtocolConfig {
     val dataProvidersCount = dataProviderCapabilities.size
@@ -573,7 +571,7 @@ class MeasurementsService(
   }
 
   private fun buildMultiPartyProtocolConfig(
-    dataProviderCapabilities: List<InternalDataProviderCapabilities>,
+    dataProviderCapabilities: Collection<InternalDataProviderCapabilities>,
     measurementConsumerName: String,
     reachOnly: Boolean,
   ): InternalProtocolConfig {
@@ -607,7 +605,7 @@ class MeasurementsService(
   }
 
   private fun CreateMeasurementRequest.buildInternalCreateMeasurementRequest(
-    dataProviderCapabilities: List<InternalDataProviderCapabilities>,
+    dataProviderCapabilities: Collection<InternalDataProviderCapabilities>,
     parentKey: MeasurementConsumerKey,
   ): InternalCreateMeasurementRequest {
     val measurementConsumerCertificateKey =
@@ -678,7 +676,7 @@ class MeasurementsService(
    * the preferred noise mechanism (`NONE` > `CONTINUOUS_GAUSSIAN`).
    */
   private fun buildTrusTeeProtocolConfig(
-    dataProviderCapabilities: List<InternalDataProviderCapabilities>
+    dataProviderCapabilities: Collection<InternalDataProviderCapabilities>
   ): InternalProtocolConfig.TrusTee {
     val serverNoiseMechanisms = TrusTeeProtocolConfig.noiseMechanisms
     if (
@@ -688,7 +686,7 @@ class MeasurementsService(
       return TrusTeeProtocolConfig.protocolConfig
     }
 
-    val selected = selectNoiseMechanisms(serverNoiseMechanisms, dataProviderCapabilities)
+    val selected = selectNoiseMechanisms(serverNoiseMechanisms, dataProviderCapabilities.toList())
     val selectedSet = selected.toSet()
     val preferred =
       when (selectedSet) {

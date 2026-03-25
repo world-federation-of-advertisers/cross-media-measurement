@@ -79,4 +79,3 @@ message ReplaceDataProviderCapabilitiesRequest {
   // New value for `capabilities`.
   DataProviderCapabilities capabilities = 2;
 }
-
