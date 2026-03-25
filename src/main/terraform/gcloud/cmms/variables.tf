@@ -321,3 +321,12 @@ variable "trusted_image_signing_fingerprint" {
   type        = string
   nullable    = false
 }
+variable "event_group_sync_config_file_path" {
+  description = "Path to EventGroupSync config file."
+  type        = string
+}
+
+variable "data_availability_sync_config_file_path" {
+  description = "Path to DataAvailabilitySync config file."
+  type        = string
+}

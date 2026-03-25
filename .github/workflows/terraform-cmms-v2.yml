@@ -65,6 +65,8 @@ jobs:
       DATA_WATCHER_DELETE_CONFIG_CONTENT: ${{ vars.DATA_WATCHER_DELETE_CONFIG_CONTENT }}
       REQUISITION_FETCHER_CONFIG_CONTENT: ${{ vars.REQUISITION_FETCHER_CONFIG_CONTENT }}
       EDPA_EDPS_CONFIG: ${{ vars.EDPA_EDPS_CONFIG }}
+      EVENT_GROUP_SYNC_CONFIG_CONTENT: ${{ vars.EVENT_GROUP_SYNC_CONFIG_CONTENT }}
+      DATA_AVAILABILITY_SYNC_CONFIG_CONTENT: ${{ vars.DATA_AVAILABILITY_SYNC_CONFIG_CONTENT }}
       RESULTS_FULFILLER_POPULATION_SPEC_CONTENT: ${{ vars.RESULTS_FULFILLER_POPULATION_SPEC_CONTENT }}
       RESULTS_FULFILLER_TRUSTED_CA_CONTENT: ${{ secrets.RESULTS_FULFILLER_TRUSTED_CA_CONTENT }}
       EDP_SIMULATOR_NAMES: '["edp1-simulator", "edp2-simulator", "edp3-simulator", "edp4-simulator", "edp5-simulator", "edp6-simulator"]'
@@ -131,6 +133,8 @@ jobs:
         echo "$DATA_WATCHER_DELETE_CONFIG_CONTENT" > "$CONFIG_DIR/data-watcher-delete-config.textproto"
         echo "$REQUISITION_FETCHER_CONFIG_CONTENT" > "$CONFIG_DIR/requisition-fetcher-config.textproto"
         echo "$EDPA_EDPS_CONFIG" > "$CONFIG_DIR/event-data-provider-configs.textproto"
+        echo "$EVENT_GROUP_SYNC_CONFIG_CONTENT" > "$CONFIG_DIR/event-group-sync-config.textproto"
+        echo "$DATA_AVAILABILITY_SYNC_CONFIG_CONTENT" > "$CONFIG_DIR/data-availability-sync-config.textproto"
         echo "$RESULTS_FULFILLER_POPULATION_SPEC_CONTENT" > "$CONFIG_DIR/results-fulfiller-population-spec.textproto"
         echo "$RESULTS_FULFILLER_TRUSTED_CA_CONTENT" > "$CONFIG_DIR/results-fulfiller-trusted-root-ca.pem"
 
@@ -283,6 +287,8 @@ jobs:
         -var="data_watcher_delete_config_file_path=$CONFIG_DIR/data-watcher-delete-config.textproto"
         -var="requisition_fetcher_config_file_path=$CONFIG_DIR/requisition-fetcher-config.textproto"
         -var="event_data_provider_configs_file_path=$CONFIG_DIR/event-data-provider-configs.textproto"
+        -var="event_group_sync_config_file_path=$CONFIG_DIR/event-group-sync-config.textproto"
+        -var="data_availability_sync_config_file_path=$CONFIG_DIR/data-availability-sync-config.textproto"
         -var="kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         -var="secure_computation_public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"
         -var="metadata_storage_public_api_target=$METADATA_STORAGE_PUBLIC_API_TARGET"
