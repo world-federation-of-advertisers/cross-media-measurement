@@ -24,6 +24,8 @@ import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.MODEL_LINE_ATTR
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.EDP_IMPRESSION_PATH_ATTR
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.metrics.data.MetricData
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
@@ -94,6 +96,10 @@ class DataAvailabilitySyncTest {
     private const val SYNC_DURATION_METRIC = "edpa.data_availability.sync_duration"
     private const val RECORDS_SYNCED_METRIC = "edpa.data_availability.records_synced"
     private const val CMMS_RPC_ERRORS_METRIC = "edpa.data_availability.cmms_rpc_errors"
+    private const val GAPS_METRIC = "edpa.data_availability.gaps"
+    private const val INCOMPLETE_DATES_METRIC = "edpa.data_availability.incomplete_dates"
+    private const val DATES_WITHOUT_DONE_BLOB_METRIC =
+      "edpa.data_availability.dates_without_done_blob"
     private const val DEFAULT_BATCH_SIZE = 100
   }
 
@@ -175,6 +181,7 @@ class DataAvailabilitySyncTest {
 
   private data class MetricsTestEnvironment(
     val metrics: DataAvailabilitySyncMetrics,
+    val monitorMetrics: DataAvailabilityMonitorMetrics,
     val metricExporter: InMemoryMetricExporter,
     val metricReader: PeriodicMetricReader,
     val meterProvider: SdkMeterProvider,
@@ -191,6 +198,7 @@ class DataAvailabilitySyncTest {
     val meter = meterProvider.get("data-availability-sync-test")
     return MetricsTestEnvironment(
       DataAvailabilitySyncMetrics(meter),
+      DataAvailabilityMonitorMetrics(meter),
       metricExporter,
       metricReader,
       meterProvider,
@@ -582,6 +590,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
           metrics = metricsEnv.metrics,
+          monitorMetrics = metricsEnv.monitorMetrics,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -625,6 +634,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
           metrics = metricsEnv.metrics,
+          monitorMetrics = metricsEnv.monitorMetrics,
         )
 
       wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
@@ -1056,6 +1066,109 @@ class DataAvailabilitySyncTest {
 
     // replaceDataAvailabilityIntervals should be called since no gaps
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
+  @Test
+  fun `sync emits monitor gap metrics when date gaps are detected`(): Unit = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+    val modelLineId = "modelLine1"
+    val edpPath = "edp/edpa_edp"
+    // Set up done blobs with a gap (missing 2026-03-14)
+    for (date in listOf("2026-03-13", "2026-03-15")) {
+      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+      File(tempFolder.root, donePath).parentFile.mkdirs()
+      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+      val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+      storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+    }
+
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    val metricsEnv = createMetricsEnvironment()
+    try {
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          edpPath,
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+          metrics = metricsEnv.metrics,
+          monitorMetrics = metricsEnv.monitorMetrics,
+        )
+
+      assertFailsWith<IllegalStateException> {
+        dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      }
+
+      metricsEnv.metricReader.forceFlush()
+      val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+      val metricByName = metricData.associateBy { it.name }
+
+      // Should have gap metrics with 1 missing date
+      assertThat(metricByName).containsKey(GAPS_METRIC)
+      val gapPoint = metricByName.getValue(GAPS_METRIC).longSumData.points.single()
+      assertThat(gapPoint.value).isEqualTo(1)
+
+      // No incomplete dates or dates without done blob
+      assertThat(metricByName).doesNotContainKey(INCOMPLETE_DATES_METRIC)
+      assertThat(metricByName).doesNotContainKey(DATES_WITHOUT_DONE_BLOB_METRIC)
+    } finally {
+      metricsEnv.close()
+    }
+  }
+
+  @Test
+  fun `sync does not emit gap metrics when no issues exist`(): Unit = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+    val modelLineId = "modelLine1"
+    val edpPath = "edp/edpa_edp"
+    for (date in listOf("2026-03-13", "2026-03-14", "2026-03-15")) {
+      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+      File(tempFolder.root, donePath).parentFile.mkdirs()
+      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+      val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+      storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+    }
+
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    val metricsEnv = createMetricsEnvironment()
+    try {
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          edpPath,
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+          metrics = metricsEnv.metrics,
+          monitorMetrics = metricsEnv.monitorMetrics,
+        )
+
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+      metricsEnv.metricReader.forceFlush()
+      val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+      val metricByName = metricData.associateBy { it.name }
+
+      // No gap, incomplete, or missing done blob metrics should be emitted
+      assertThat(metricByName).doesNotContainKey(GAPS_METRIC)
+      assertThat(metricByName).doesNotContainKey(INCOMPLETE_DATES_METRIC)
+      assertThat(metricByName).doesNotContainKey(DATES_WITHOUT_DONE_BLOB_METRIC)
+    } finally {
+      metricsEnv.close()
+    }
   }
 
   /**

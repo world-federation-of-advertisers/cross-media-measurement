@@ -17,6 +17,12 @@
 package org.wfanet.measurement.edpaggregator.dataavailability
 
 import com.google.common.truth.Truth.assertThat
+import io.opentelemetry.sdk.metrics.SdkMeterProvider
+import io.opentelemetry.sdk.metrics.data.MetricData
+import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.MODEL_LINE_ATTR
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.EDP_IMPRESSION_PATH_ATTR
 import com.google.protobuf.ByteString
 import java.io.File
 import java.time.LocalDate
@@ -40,6 +46,36 @@ class DataAvailabilityMonitorTest {
     private val MODEL_LINE_A = ModelLineKey("provider1", "suite1", "modelLineA")
     private val MODEL_LINE_B = ModelLineKey("provider1", "suite1", "modelLineB")
     private val TODAY = LocalDate.of(2026, 3, 15)
+
+    private const val STALE_DAYS_METRIC = "edpa.data_availability.stale_days"
+    private const val GAPS_METRIC = "edpa.data_availability.gaps"
+    private const val INCOMPLETE_DATES_METRIC = "edpa.data_availability.incomplete_dates"
+    private const val DATES_WITHOUT_DONE_BLOB_METRIC =
+      "edpa.data_availability.dates_without_done_blob"
+  }
+
+  private data class MetricsTestEnvironment(
+    val metrics: DataAvailabilityMonitorMetrics,
+    val metricExporter: InMemoryMetricExporter,
+    val metricReader: PeriodicMetricReader,
+    val meterProvider: SdkMeterProvider,
+  ) {
+    fun close() {
+      meterProvider.close()
+    }
+  }
+
+  private fun createMetricsEnvironment(): MetricsTestEnvironment {
+    val metricExporter = InMemoryMetricExporter.create()
+    val metricReader = PeriodicMetricReader.create(metricExporter)
+    val meterProvider = SdkMeterProvider.builder().registerMetricReader(metricReader).build()
+    val meter = meterProvider.get("data-availability-monitor-test")
+    return MetricsTestEnvironment(
+      DataAvailabilityMonitorMetrics(meter),
+      metricExporter,
+      metricReader,
+      meterProvider,
+    )
   }
 
   private fun createDoneBlob(
@@ -663,5 +699,182 @@ class DataAvailabilityMonitorTest {
     assertThat(status.missingDates).containsExactly(LocalDate.of(2026, 3, 11))
     assertThat(status.incompleteDates).containsExactly(LocalDate.of(2026, 3, 12))
     assertThat(status.datesWithoutDoneBlob).containsExactly(LocalDate.of(2026, 3, 13))
+  }
+
+  @Test
+  fun `checkFullStatus emits stale days and gap metrics`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+    val metricsEnv = createMetricsEnvironment()
+    try {
+      // Create dates with a gap: 10, 12 (missing 11), stale by 5 days
+      for (day in listOf(8, 10)) {
+        ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+        createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+        createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+      }
+
+      val monitor =
+        DataAvailabilityMonitor(
+          storageClient = storageClient,
+          edpImpressionPath = EDP_IMPRESSION_PATH,
+          activeModelLines = setOf(MODEL_LINE_A),
+          metrics = metricsEnv.metrics,
+        )
+
+      monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+
+      metricsEnv.metricReader.forceFlush()
+      val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+      val metricByName = metricData.associateBy { it.name }
+
+      assertThat(metricByName).containsKey(STALE_DAYS_METRIC)
+      val stalePoint = metricByName.getValue(STALE_DAYS_METRIC).longGaugeData.points.single()
+      assertThat(stalePoint.value).isEqualTo(5)
+      assertThat(stalePoint.attributes.get(MODEL_LINE_ATTR)).isEqualTo(MODEL_LINE_A.toName())
+
+      assertThat(metricByName).containsKey(GAPS_METRIC)
+      val gapPoint = metricByName.getValue(GAPS_METRIC).longSumData.points.single()
+      assertThat(gapPoint.value).isEqualTo(1)
+      assertThat(gapPoint.attributes.get(MODEL_LINE_ATTR)).isEqualTo(MODEL_LINE_A.toName())
+    } finally {
+      metricsEnv.close()
+    }
+  }
+
+  @Test
+  fun `checkFullStatus emits all metrics for combined issues`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+    val metricsEnv = createMetricsEnvironment()
+    try {
+      // March 10: done + data (good)
+      ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-10")
+      createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-10")
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-10")
+
+      // March 11: gap (missing entirely)
+
+      // March 12: done but no data (incomplete)
+      ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-12")
+      createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-12")
+
+      // March 13: data but no done blob (datesWithoutDoneBlob)
+      ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-13")
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-13")
+
+      val monitor =
+        DataAvailabilityMonitor(
+          storageClient = storageClient,
+          edpImpressionPath = EDP_IMPRESSION_PATH,
+          activeModelLines = setOf(MODEL_LINE_A),
+          metrics = metricsEnv.metrics,
+        )
+
+      monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+
+      metricsEnv.metricReader.forceFlush()
+      val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+      val metricByName = metricData.associateBy { it.name }
+
+      assertThat(metricByName).containsKey(STALE_DAYS_METRIC)
+      assertThat(metricByName.getValue(STALE_DAYS_METRIC).longGaugeData.points.single().value)
+        .isEqualTo(3)
+
+      assertThat(metricByName).containsKey(GAPS_METRIC)
+      assertThat(metricByName.getValue(GAPS_METRIC).longSumData.points.single().value)
+        .isEqualTo(1)
+
+      assertThat(metricByName).containsKey(INCOMPLETE_DATES_METRIC)
+      assertThat(
+          metricByName.getValue(INCOMPLETE_DATES_METRIC).longSumData.points.single().value
+        )
+        .isEqualTo(1)
+
+      assertThat(metricByName).containsKey(DATES_WITHOUT_DONE_BLOB_METRIC)
+      assertThat(
+          metricByName
+            .getValue(DATES_WITHOUT_DONE_BLOB_METRIC)
+            .longSumData
+            .points
+            .single()
+            .value
+        )
+        .isEqualTo(1)
+    } finally {
+      metricsEnv.close()
+    }
+  }
+
+  @Test
+  fun `checkGaps emits gap metrics`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+    val metricsEnv = createMetricsEnvironment()
+    try {
+      for (day in listOf(12, 15)) {
+        ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+        createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+        createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+      }
+
+      val monitor =
+        DataAvailabilityMonitor(
+          storageClient = storageClient,
+          edpImpressionPath = EDP_IMPRESSION_PATH,
+          activeModelLines = setOf(MODEL_LINE_A),
+          metrics = metricsEnv.metrics,
+        )
+
+      monitor.checkGaps()
+
+      metricsEnv.metricReader.forceFlush()
+      val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+      val metricByName = metricData.associateBy { it.name }
+
+      assertThat(metricByName).containsKey(GAPS_METRIC)
+      val gapPoint = metricByName.getValue(GAPS_METRIC).longSumData.points.single()
+      assertThat(gapPoint.value).isEqualTo(2)
+      assertThat(gapPoint.attributes.get(MODEL_LINE_ATTR)).isEqualTo(MODEL_LINE_A.toName())
+      assertThat(gapPoint.attributes.get(EDP_IMPRESSION_PATH_ATTR)).isEqualTo(EDP_IMPRESSION_PATH)
+    } finally {
+      metricsEnv.close()
+    }
+  }
+
+  @Test
+  fun `checkFullStatus does not emit gap or issue metrics when healthy`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+    val metricsEnv = createMetricsEnvironment()
+    try {
+      for (day in 13..15) {
+        ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+        createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+        createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+      }
+
+      val monitor =
+        DataAvailabilityMonitor(
+          storageClient = storageClient,
+          edpImpressionPath = EDP_IMPRESSION_PATH,
+          activeModelLines = setOf(MODEL_LINE_A),
+          metrics = metricsEnv.metrics,
+        )
+
+      monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+
+      metricsEnv.metricReader.forceFlush()
+      val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+      val metricByName = metricData.associateBy { it.name }
+
+      // staleDays gauge should still be emitted (value 0)
+      assertThat(metricByName).containsKey(STALE_DAYS_METRIC)
+      assertThat(metricByName.getValue(STALE_DAYS_METRIC).longGaugeData.points.single().value)
+        .isEqualTo(0)
+
+      // No gaps, incomplete, or missing done blob metrics should be emitted
+      assertThat(metricByName).doesNotContainKey(GAPS_METRIC)
+      assertThat(metricByName).doesNotContainKey(INCOMPLETE_DATES_METRIC)
+      assertThat(metricByName).doesNotContainKey(DATES_WITHOUT_DONE_BLOB_METRIC)
+    } finally {
+      metricsEnv.close()
+    }
   }
 }

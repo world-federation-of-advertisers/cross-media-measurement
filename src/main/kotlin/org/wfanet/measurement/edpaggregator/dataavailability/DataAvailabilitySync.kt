@@ -102,6 +102,7 @@ class DataAvailabilitySync(
   private val impressionMetadataBatchSize: Int,
   private val modelLineMap: Map<String, List<String>>,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
+  private val monitorMetrics: DataAvailabilityMonitorMetrics = DataAvailabilityMonitorMetrics(),
 ) {
   private val validImpressionPathRegex: Regex = Regex("^$edpImpressionPath/[^/]+(/.*)?$")
 
@@ -203,6 +204,7 @@ class DataAvailabilitySync(
           storageClient = storageClient,
           edpImpressionPath = edpImpressionPath,
           activeModelLines = impressionMetadataMap.keys,
+          metrics = monitorMetrics,
         )
       val gapResult = gapMonitor.checkGaps()
       if (gapResult.hasIssues) {

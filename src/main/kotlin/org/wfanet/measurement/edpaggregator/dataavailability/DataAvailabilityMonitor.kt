@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.edpaggregator.dataavailability
 
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
 import java.time.LocalDate
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import java.util.logging.Level
@@ -45,6 +47,7 @@ class DataAvailabilityMonitor(
   private val storageClient: StorageClient,
   private val edpImpressionPath: String,
   private val activeModelLines: Set<ModelLineKey>,
+  private val metrics: DataAvailabilityMonitorMetrics = DataAvailabilityMonitorMetrics(),
 ) {
   init {
     require(!edpImpressionPath.startsWith("/")) { "edpImpressionPath cannot start with a slash" }
@@ -83,6 +86,8 @@ class DataAvailabilityMonitor(
         buildFullStatus(modelLineKey, dateInfo, today, maxStaleDays)
       }
 
+    statuses.forEach { recordMetrics(it) }
+
     return MonitorResult(
       statuses = statuses,
       hasIssues =
@@ -106,6 +111,8 @@ class DataAvailabilityMonitor(
         val dateInfo = getDateInfoForModelLine(modelLineKey)
         buildGapStatus(modelLineKey, dateInfo)
       }
+
+    statuses.forEach { recordMetrics(it) }
 
     return MonitorResult(
       statuses = statuses,
@@ -295,8 +302,36 @@ class DataAvailabilityMonitor(
     return missing
   }
 
+  private fun recordMetrics(status: ModelLineStatus) {
+    val modelLineName = status.modelLineKey.toName()
+    val attrs = Attributes.of(
+      MODEL_LINE_ATTR,
+      modelLineName,
+      EDP_IMPRESSION_PATH_ATTR,
+      edpImpressionPath,
+    )
+
+    if (status.staleDays != null) {
+      metrics.staleDaysGauge.set(status.staleDays.toLong(), attrs)
+    }
+    if (!status.missingDates.isNullOrEmpty()) {
+      metrics.gapCounter.add(status.missingDates.size.toLong(), attrs)
+    }
+    if (!status.incompleteDates.isNullOrEmpty()) {
+      metrics.incompleteDatesCounter.add(status.incompleteDates.size.toLong(), attrs)
+    }
+    if (!status.datesWithoutDoneBlob.isNullOrEmpty()) {
+      metrics.datesWithoutDoneBlobCounter.add(status.datesWithoutDoneBlob.size.toLong(), attrs)
+    }
+  }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     const val DEFAULT_MAX_STALE_DAYS = 3
+
+    val MODEL_LINE_ATTR: AttributeKey<String> =
+      AttributeKey.stringKey("edpa.data_availability_monitor.model_line")
+    val EDP_IMPRESSION_PATH_ATTR: AttributeKey<String> =
+      AttributeKey.stringKey("edpa.data_availability_monitor.edp_impression_path")
   }
 }
