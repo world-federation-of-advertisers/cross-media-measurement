@@ -38,7 +38,7 @@ class DataAvailabilityMonitorMetricsTest {
     private const val DATES_WITHOUT_DONE_BLOB_METRIC =
       "edpa.data_availability.dates_without_done_blob"
     private const val MODEL_LINE_NAME = "modelProviders/p1/modelSuites/s1/modelLines/ml1"
-    private const val EDP_IMPRESSION_PATH = "edp/meta/vid-labeled-impressions"
+    private const val EDP_IMPRESSION_PATH = "edp/edp1/vid-labeled-impressions"
   }
 
   private data class MetricsTestEnvironment(

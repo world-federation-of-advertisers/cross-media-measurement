@@ -40,7 +40,7 @@ import org.wfanet.measurement.storage.StorageClient
  *
  * @property storageClient Client for accessing Cloud Storage blobs.
  * @property edpImpressionPath Base path for EDP impressions (e.g.,
- *   "edp/meta/vid-labeled-impressions").
+ *   "edp/edp1/vid-labeled-impressions").
  * @property activeModelLines Set of model line IDs that are expected to upload daily.
  */
 class DataAvailabilityMonitor(

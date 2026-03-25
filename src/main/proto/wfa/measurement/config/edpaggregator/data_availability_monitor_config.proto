@@ -28,7 +28,7 @@ message DataAvailabilityMonitorConfig {
   StorageParams storage = 1;
 
   // Base path for EDP impressions
-  // (e.g., "edp/meta/vid-labeled-impressions").
+  // (e.g., "edp/edp1/vid-labeled-impressions").
   string edp_impression_path = 2;
 
   // Model Line resource names that are expected to upload daily. Only these

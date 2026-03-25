@@ -42,7 +42,7 @@ class DataAvailabilityMonitorTest {
   @get:Rule val tempFolder = TemporaryFolder()
 
   companion object {
-    private const val EDP_IMPRESSION_PATH = "edp/meta/vid-labeled-impressions"
+    private const val EDP_IMPRESSION_PATH = "edp/edp1/vid-labeled-impressions"
     private val MODEL_LINE_A = ModelLineKey("provider1", "suite1", "modelLineA")
     private val MODEL_LINE_B = ModelLineKey("provider1", "suite1", "modelLineB")
     private val TODAY = LocalDate.of(2026, 3, 15)
