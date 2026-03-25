@@ -70,9 +70,7 @@ class VidLabelerApp(
     val dataProvider = vidLabelerParams.dataProvider
     require(dataProvider.isNotEmpty()) { "data_provider must not be empty" }
     require(vidLabelerParams.hasStorageParams()) { "storage_params must be set" }
-    require(vidLabelerParams.rawImpressionMetadataBatch.isNotEmpty()) {
-      "raw_impression_metadata_batch must not be empty"
-    }
+    require(vidLabelerParams.inputBlobUrisCount > 0) { "input_blob_uris must not be empty" }
 
     val decryptKmsClient =
       requireNotNull(kmsClients[dataProvider]) {
