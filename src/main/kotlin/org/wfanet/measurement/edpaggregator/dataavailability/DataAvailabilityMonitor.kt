@@ -67,7 +67,7 @@ class DataAvailabilityMonitor(
   )
 
   /** Result of a full monitoring check across all active model lines. */
-  data class MonitorResult(val statuses: List<ModelLineStatus>, val hasIssues: Boolean)
+  data class MonitorResult(val statuses: List<ModelLineStatus>)
 
   /**
    * Checks all active model lines for staleness and gaps.
@@ -88,22 +88,13 @@ class DataAvailabilityMonitor(
 
     statuses.forEach { recordMetrics(it) }
 
-    return MonitorResult(
-      statuses = statuses,
-      hasIssues =
-        statuses.any {
-          it.isStale == true ||
-            !it.gapDates.isNullOrEmpty() ||
-            !it.zeroImpressionDates.isNullOrEmpty() ||
-            !it.datesWithoutDoneBlob.isNullOrEmpty()
-        },
-    )
+    return MonitorResult(statuses = statuses)
   }
 
   /**
    * Checks all active model lines for date gaps only.
    *
-   * @return A [MonitorResult] where [ModelLineStatus.hasIssues] reflects only gap issues.
+   * @return A [MonitorResult] containing the status of each active model line.
    */
   suspend fun checkGaps(): MonitorResult {
     val statuses =
@@ -114,14 +105,7 @@ class DataAvailabilityMonitor(
 
     statuses.forEach { recordMetrics(it) }
 
-    return MonitorResult(
-      statuses = statuses,
-      hasIssues = statuses.any {
-        !it.gapDates.isNullOrEmpty() ||
-          !it.zeroImpressionDates.isNullOrEmpty() ||
-          !it.datesWithoutDoneBlob.isNullOrEmpty()
-      },
-    )
+    return MonitorResult(statuses = statuses)
   }
 
   private fun buildFullStatus(

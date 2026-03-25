@@ -124,7 +124,6 @@ class DataAvailabilityMonitorTest {
       )
 
     val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
-    assertThat(result.hasIssues).isFalse()
     assertThat(result.statuses).hasSize(1)
 
     val status = result.statuses.single()
@@ -154,7 +153,6 @@ class DataAvailabilityMonitorTest {
       )
 
     val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
-    assertThat(result.hasIssues).isTrue()
 
     val status = result.statuses.single()
     assertThat(status.isStale).isTrue()
@@ -179,7 +177,6 @@ class DataAvailabilityMonitorTest {
       )
 
     val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
-    assertThat(result.hasIssues).isTrue()
 
     val status = result.statuses.single()
     assertThat(status.isStale).isFalse()
@@ -203,7 +200,6 @@ class DataAvailabilityMonitorTest {
       )
 
     val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
-    assertThat(result.hasIssues).isTrue()
 
     val status = result.statuses.single()
     assertThat(status.gapDates)
@@ -236,7 +232,6 @@ class DataAvailabilityMonitorTest {
       )
 
     val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
-    assertThat(result.hasIssues).isTrue()
 
     val statusA = result.statuses.first { it.modelLineKey == MODEL_LINE_A }
     assertThat(statusA.isStale).isFalse()
@@ -278,7 +273,6 @@ class DataAvailabilityMonitorTest {
       )
 
     val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
-    assertThat(result.hasIssues).isFalse()
 
     val status = result.statuses.single()
     assertThat(status.isStale).isFalse()
@@ -302,7 +296,6 @@ class DataAvailabilityMonitorTest {
       )
 
     val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
-    assertThat(result.hasIssues).isTrue()
 
     val status = result.statuses.single()
     assertThat(status.isStale).isTrue()
@@ -332,7 +325,6 @@ class DataAvailabilityMonitorTest {
       )
 
     val result = monitor.checkGaps()
-    assertThat(result.hasIssues).isFalse()
 
     val status = result.statuses.single()
     assertThat(status.gapDates).isEmpty()
@@ -362,7 +354,6 @@ class DataAvailabilityMonitorTest {
       )
 
     val result = monitor.checkGaps()
-    assertThat(result.hasIssues).isTrue()
 
     val status = result.statuses.single()
     assertThat(status.gapDates)
@@ -411,7 +402,6 @@ class DataAvailabilityMonitorTest {
       )
 
     val result = monitor.checkGaps()
-    assertThat(result.hasIssues).isTrue()
 
     val status = result.statuses.single()
     assertThat(status.gapDates).isEmpty()
@@ -439,7 +429,6 @@ class DataAvailabilityMonitorTest {
       )
 
     val result = monitor.checkGaps()
-    assertThat(result.hasIssues).isFalse()
     assertThat(result.statuses.single().zeroImpressionDates).isEmpty()
   }
 
@@ -516,7 +505,6 @@ class DataAvailabilityMonitorTest {
       )
 
     val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
-    assertThat(result.hasIssues).isTrue()
 
     val status = result.statuses.single()
     assertThat(status.gapDates).isEmpty()
@@ -570,7 +558,6 @@ class DataAvailabilityMonitorTest {
       )
 
     val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
-    assertThat(result.hasIssues).isFalse()
 
     val status = result.statuses.single()
     assertThat(status.gapDates).isEmpty()
@@ -594,7 +581,6 @@ class DataAvailabilityMonitorTest {
       )
 
     val result = monitor.checkGaps()
-    assertThat(result.hasIssues).isFalse()
 
     val status = result.statuses.single()
     assertThat(status.gapDates).isEmpty()
@@ -625,7 +611,6 @@ class DataAvailabilityMonitorTest {
       )
 
     val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
-    assertThat(result.hasIssues).isTrue()
 
     val status = result.statuses.single()
     assertThat(status.datesWithoutDoneBlob).containsExactly(LocalDate.of(2026, 3, 14))
@@ -654,7 +639,6 @@ class DataAvailabilityMonitorTest {
       )
 
     val result = monitor.checkGaps()
-    assertThat(result.hasIssues).isTrue()
 
     val status = result.statuses.single()
     assertThat(status.datesWithoutDoneBlob).containsExactly(LocalDate.of(2026, 3, 14))
@@ -689,7 +673,6 @@ class DataAvailabilityMonitorTest {
       )
 
     val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
-    assertThat(result.hasIssues).isTrue()
 
     val status = result.statuses.single()
     // Stale: latest done date is March 12, today is March 15 = 3 days, not > 3

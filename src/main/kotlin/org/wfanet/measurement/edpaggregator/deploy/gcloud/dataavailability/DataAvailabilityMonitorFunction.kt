@@ -89,7 +89,7 @@ class DataAvailabilityMonitorFunction : HttpFunction {
           )
         }
 
-        if (result.hasIssues) {
+        if (result.statuses.any { it.isStale == true || !it.gapDates.isNullOrEmpty() || !it.zeroImpressionDates.isNullOrEmpty() || !it.datesWithoutDoneBlob.isNullOrEmpty() }) {
           hasAnyIssues = true
           for (status in result.statuses) {
             if (status.isStale == true) {
