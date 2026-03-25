@@ -39,6 +39,10 @@ message DataAvailabilityMonitorConfig {
   // Maximum number of days a model line can go without an upload before
   // being considered stale. Defaults to 3 if not set.
   int32 max_stale_days = 4;
+
+  // IANA time zone ID used to determine "today" for staleness checks
+  // (e.g., "UTC", "America/New_York"). Required.
+  string time_zone = 5;
 }
 
 // Wrapper containing monitor configurations. Loaded at startup from the

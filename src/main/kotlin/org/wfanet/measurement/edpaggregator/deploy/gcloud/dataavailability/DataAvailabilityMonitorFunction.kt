@@ -22,7 +22,7 @@ import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
 import java.io.File
 import java.time.LocalDate
-import java.time.ZoneOffset
+import java.time.ZoneId
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
@@ -75,6 +75,11 @@ class DataAvailabilityMonitorFunction : HttpFunction {
           continue
         }
 
+        require(config.timeZone.isNotEmpty()) {
+          "time_zone must be set in DataAvailabilityMonitorConfig for path: ${config.edpImpressionPath}"
+        }
+        val timeZone = ZoneId.of(config.timeZone)
+
         val maxStaleDays =
           if (config.maxStaleDays > 0) config.maxStaleDays
           else DataAvailabilityMonitor.DEFAULT_MAX_STALE_DAYS
@@ -89,7 +94,7 @@ class DataAvailabilityMonitorFunction : HttpFunction {
         val result = runBlocking {
           monitor.checkFullStatus(
             maxStaleDays = maxStaleDays,
-            clock = { LocalDate.now(ZoneOffset.UTC) },
+            clock = { LocalDate.now(timeZone) },
           )
         }
 
