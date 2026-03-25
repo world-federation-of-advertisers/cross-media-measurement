@@ -65,8 +65,8 @@ message VidLabelingConfig {
   TransportLayerSecurityParams raw_impression_metadata_storage_connection = 6
       [(google.api.field_behavior) = REQUIRED];
 
-  // Maximum batch size in bytes. If unset, all files go into a single batch.
-  // Uses `optional` to distinguish unset (single batch) from an explicit value.
+  // Maximum batch size in bytes for partitioning raw impression files.
+  // Must be positive if set. If unset, defaults to 10 GB (10000000000 bytes).
   optional int64 max_batch_size_bytes = 7 [(google.api.field_behavior) = OPTIONAL];
 }
 
