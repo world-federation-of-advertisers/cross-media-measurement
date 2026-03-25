@@ -62,7 +62,11 @@ class DataAvailabilityMonitorFunction : HttpFunction {
 
       for (config in monitorConfigs.configsList) {
         val storageClient = createStorageClient(config)
-        val activeModelLines = config.activeModelLinesList.mapNotNull { ModelLineKey.fromName(it) }.toSet()
+        val activeModelLines = config.activeModelLinesList.map {
+          requireNotNull(ModelLineKey.fromName(it)) {
+            "Invalid Model Line resource name: $it"
+          }
+        }.toSet()
 
         if (activeModelLines.isEmpty()) {
           logger.warning(

@@ -31,8 +31,9 @@ message DataAvailabilityMonitorConfig {
   // (e.g., "edp/meta/vid-labeled-impressions").
   string edp_impression_path = 2;
 
-  // Model line IDs that are expected to upload daily. Only these model lines
-  // will be checked for staleness and gaps.
+  // Model Line resource names that are expected to upload daily. Only these
+  // model lines will be checked for staleness and gaps.
+  // Format: "modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}"
   repeated string active_model_lines = 3;
 
   // Maximum number of days a model line can go without an upload before
