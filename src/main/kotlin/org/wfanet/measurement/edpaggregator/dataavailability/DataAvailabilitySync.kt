@@ -149,7 +149,7 @@ class DataAvailabilitySync(
         storageClient.listBlobs(doneBlobFolderPath)
 
       // 1. Retrieve blob details from storage and build a map and validate them
-      val impressionMetadataMap: Map<String, List<ImpressionMetadataWithBlobKey>> =
+      val impressionMetadataMap: Map<ModelLineKey, List<ImpressionMetadataWithBlobKey>> =
         createModelLineToImpressionMetadataMap(impressionMetadataBlobs, doneBlobUri)
 
       if (impressionMetadataMap.isEmpty()) {
@@ -202,7 +202,7 @@ class DataAvailabilitySync(
         DataAvailabilityMonitor(
           storageClient = storageClient,
           edpImpressionPath = edpImpressionPath,
-          activeModelLines = impressionMetadataMap.keys.map { ModelLineKey.fromName(it)!! }.toSet(),
+          activeModelLines = impressionMetadataMap.keys,
         )
       val gapResult = gapMonitor.checkGaps()
       val modelLinesWithGaps = gapResult.statuses.filter { !it.missingDates.isNullOrEmpty() }
@@ -356,8 +356,8 @@ class DataAvailabilitySync(
   private suspend fun createModelLineToImpressionMetadataMap(
     impressionMetadataBlobs: Flow<StorageClient.Blob>,
     doneBlobUri: BlobUri,
-  ): Map<String, List<ImpressionMetadataWithBlobKey>> {
-    val impressionMetadataMap = mutableMapOf<String, MutableList<ImpressionMetadataWithBlobKey>>()
+  ): Map<ModelLineKey, List<ImpressionMetadataWithBlobKey>> {
+    val impressionMetadataMap = mutableMapOf<ModelLineKey, MutableList<ImpressionMetadataWithBlobKey>>()
     impressionMetadataBlobs
       .filter { impressionMetadataBlob ->
         val fileName = impressionMetadataBlob.blobKey.substringAfterLast("/").lowercase()
@@ -407,8 +407,11 @@ class DataAvailabilitySync(
             modelLine = blobDetails.modelLine
             interval = blobDetails.interval
           }
+          val modelLineKey = requireNotNull(ModelLineKey.fromName(blobDetails.modelLine)) {
+              "Invalid model line resource name: ${blobDetails.modelLine}"
+            }
           impressionMetadataMap
-            .getOrPut(blobDetails.modelLine) { mutableListOf() }
+            .getOrPut(modelLineKey) { mutableListOf() }
             .add(
               ImpressionMetadataWithBlobKey(
                 impressionMetadata = impressionMetadata,
