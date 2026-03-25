@@ -193,7 +193,7 @@ class VidLabelerAppTest {
           gcsProjectId = "test-project"
           impressionsBlobPrefix = "gs://output-bucket/labeled"
         }
-      rawImpressionMetadataBatch = "batches/batch-1"
+      inputBlobUris += "gs://bucket/edp1/2024-01-15/file1.parquet"
     }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
