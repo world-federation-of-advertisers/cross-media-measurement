@@ -41,7 +41,12 @@ jobs:
       with:
         fetch-depth: 0
 
-    # DO_NOT_SUBMIT: TODO: precondition on new-git-tag: vX.Y.Z (optional suffix, e.g. "-rc1")
+    - name: Validate tag to create
+      env:
+        RELEASE_TAG: ${{ inputs.new-git-tag }}
+      run: |
+        # Accept tags like v0.5.35 and v0.5.35-rc1
+        echo ${RELEASE_TAG} | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9]+)?$" || (echo "Invalid tag: ${RELEASE_TAG}" && exit 1)
 
     - name: Get nightly build sha
       id: get-nightly-build-sha
