@@ -21,6 +21,7 @@ import "wfa/measurement/internal/edpaggregator/raw_impression_batch_state.proto"
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
+option java_outer_classname = "RawImpressionMetadataBatchProto";
 
 // Internal representation of a RawImpressionMetadataBatch.
 message RawImpressionMetadataBatch {
@@ -29,9 +30,7 @@ message RawImpressionMetadataBatch {
 
   RawImpressionBatchState state = 3;
 
-  string create_request_id = 4;
-
-  google.protobuf.Timestamp create_time = 5;
-  google.protobuf.Timestamp update_time = 6;
-  google.protobuf.Timestamp delete_time = 7;
+  google.protobuf.Timestamp create_time = 4;
+  google.protobuf.Timestamp update_time = 5;
+  google.protobuf.Timestamp delete_time = 6;
 }
