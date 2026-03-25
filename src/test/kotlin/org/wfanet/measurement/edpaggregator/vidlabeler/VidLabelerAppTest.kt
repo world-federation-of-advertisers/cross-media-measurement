@@ -24,7 +24,10 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
@@ -58,6 +61,7 @@ class VidLabelerAppTest {
     WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
   }
 
+  private val mockVidLabeler: VidLabeler = mock()
   private val mockDecryptKmsClient: KmsClient = mock()
   private val mockEncryptKmsClient: KmsClient = mock()
   private val mockQueueSubscriber: QueueSubscriber = mock()
@@ -74,9 +78,12 @@ class VidLabelerAppTest {
       parser = WorkItem.parser(),
       workItemsClient = workItemsStub,
       workItemAttemptsClient = workItemAttemptsStub,
+      vidLabeler = mockVidLabeler,
       rawImpressionsKmsClient = rawImpressionsKmsClient,
       vidLabeledImpressionsKmsClient = vidLabeledImpressionsKmsClient,
-      getStorageConfig = { storageParams -> StorageConfig(projectId = storageParams.gcsProjectId) },
+      getStorageConfig = { storageParams ->
+        StorageConfig(projectId = storageParams.gcsProjectId)
+      },
     )
   }
 
@@ -85,7 +92,7 @@ class VidLabelerAppTest {
   }
 
   @Test
-  fun `runWork correctly unpacks VidLabelerParams and completes without error`() = runBlocking {
+  fun `runWork correctly unpacks VidLabelerParams and delegates to VidLabeler`() = runBlocking {
     val app = createApp()
     val params = vidLabelerParams {
       dataProvider = DATA_PROVIDER_NAME
@@ -99,9 +106,31 @@ class VidLabelerAppTest {
           gcsProjectId = "test-project"
           impressionsBlobPrefix = "gs://output-bucket/labeled"
         }
+      rawImpressionMetadataBatch = "$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/batch-1"
     }
 
     app.runWork(buildMessage(params))
+
+    val paramsCaptor = argumentCaptor<VidLabelerParams>()
+    val storageConfigCaptor = argumentCaptor<StorageConfig>()
+    val decryptCaptor = argumentCaptor<KmsClient>()
+    val encryptCaptor = argumentCaptor<KmsClient>()
+
+    verifyBlocking(mockVidLabeler, times(1)) {
+      labelBatch(
+        paramsCaptor.capture(),
+        storageConfigCaptor.capture(),
+        decryptCaptor.capture(),
+        encryptCaptor.capture(),
+      )
+    }
+
+    assertThat(paramsCaptor.firstValue.dataProvider).isEqualTo(DATA_PROVIDER_NAME)
+    assertThat(paramsCaptor.firstValue.rawImpressionMetadataBatch)
+      .isEqualTo("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/batch-1")
+    assertThat(storageConfigCaptor.firstValue.projectId).isEqualTo("test-project")
+    assertThat(decryptCaptor.firstValue).isSameInstanceAs(mockDecryptKmsClient)
+    assertThat(encryptCaptor.firstValue).isSameInstanceAs(mockEncryptKmsClient)
   }
 
   @Test
@@ -119,6 +148,7 @@ class VidLabelerAppTest {
           gcsProjectId = "test-project"
           impressionsBlobPrefix = "gs://output-bucket/labeled"
         }
+      rawImpressionMetadataBatch = "$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/batch-1"
     }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
@@ -141,6 +171,7 @@ class VidLabelerAppTest {
           gcsProjectId = "test-project"
           impressionsBlobPrefix = "gs://output-bucket/labeled"
         }
+      rawImpressionMetadataBatch = "$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/batch-1"
     }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
@@ -162,6 +193,7 @@ class VidLabelerAppTest {
           gcsProjectId = "test-project"
           impressionsBlobPrefix = "gs://output-bucket/labeled"
         }
+      rawImpressionMetadataBatch = "batches/batch-1"
     }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
@@ -171,10 +203,36 @@ class VidLabelerAppTest {
   @Test
   fun `runWork throws when raw_impressions_storage_params is not set`() = runBlocking {
     val app = createApp()
-    val params = vidLabelerParams { dataProvider = DATA_PROVIDER_NAME }
+    val params = vidLabelerParams {
+      dataProvider = DATA_PROVIDER_NAME
+      rawImpressionMetadataBatch = "$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/batch-1"
+    }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
     assertThat(exception).hasMessageThat().contains("raw_impressions_storage_params must be set")
+  }
+
+  @Test
+  fun `runWork throws when raw_impression_metadata_batch is empty`() = runBlocking {
+    val app = createApp()
+    val params = vidLabelerParams {
+      dataProvider = DATA_PROVIDER_NAME
+      rawImpressionsStorageParams =
+        VidLabelerParamsKt.storageParams {
+          gcsProjectId = "test-project"
+          impressionsBlobPrefix = "gs://raw-bucket/impressions"
+        }
+      vidLabeledImpressionsStorageParams =
+        VidLabelerParamsKt.storageParams {
+          gcsProjectId = "test-project"
+          impressionsBlobPrefix = "gs://output-bucket/labeled"
+        }
+    }
+
+    val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("raw_impression_metadata_batch must not be empty")
   }
 
   companion object {
