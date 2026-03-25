@@ -56,7 +56,7 @@ class DataAvailabilityMonitor(
     val latestDate: LocalDate,
     val missingDates: List<LocalDate>?,
     val staleDays: Int?,
-    val emptyDateFolders: List<LocalDate>?,
+    val emptyDates: List<LocalDate>?,
   )
 
   /** Result of a full monitoring check across all active model lines. */
@@ -75,15 +75,15 @@ class DataAvailabilityMonitor(
     val today = clock()
     val statuses =
       activeModelLines.map { modelLineKey ->
-        val uploadedDates = getUploadedDatesForModelLine(modelLineKey.modelLineId)
-        buildFullStatus(modelLineKey, uploadedDates, today, maxStaleDays)
+        val dateInfo = getDateInfoForModelLine(modelLineKey.modelLineId)
+        buildFullStatus(modelLineKey, dateInfo, today, maxStaleDays)
       }
 
     return MonitorResult(
       statuses = statuses,
       hasIssues =
         statuses.any {
-          it.isStale == true || !it.missingDates.isNullOrEmpty() || !it.emptyDateFolders.isNullOrEmpty()
+          it.isStale == true || !it.missingDates.isNullOrEmpty() || !it.emptyDates.isNullOrEmpty()
         },
     )
   }
@@ -102,17 +102,18 @@ class DataAvailabilityMonitor(
 
     return MonitorResult(
       statuses = statuses,
-      hasIssues = statuses.any { !it.missingDates.isNullOrEmpty() || !it.emptyDateFolders.isNullOrEmpty() },
+      hasIssues = statuses.any { !it.missingDates.isNullOrEmpty() || !it.emptyDates.isNullOrEmpty() },
     )
   }
 
   private fun buildFullStatus(
     modelLineKey: ModelLineKey,
-    uploadedDates: Set<LocalDate>,
+    dateInfo: DateInfo,
     today: LocalDate,
     maxStaleDays: Int,
   ): ModelLineStatus {
     val modelLineId = modelLineKey.toName()
+    val uploadedDates = dateInfo.datesWithDoneBlob
     require(uploadedDates.isNotEmpty()) {
       "No uploaded dates found for model line: $modelLineId. Check configuration."
     }
@@ -139,7 +140,7 @@ class DataAvailabilityMonitor(
       latestDate = latestDate,
       missingDates = missingDates,
       staleDays = staleDays,
-      emptyDateFolders = emptyList(),
+      emptyDates = dateInfo.emptyDates,
     )
   }
 
@@ -163,23 +164,19 @@ class DataAvailabilityMonitor(
       latestDate = sortedDates.last(),
       missingDates = missingDates,
       staleDays = null,
-      emptyDateFolders = dateInfo.emptyDateFolders,
+      emptyDates = dateInfo.emptyDates,
     )
   }
 
   /** Info about uploaded dates for a model line. */
   private data class DateInfo(
     val datesWithDoneBlob: Set<LocalDate>,
-    val emptyDateFolders: List<LocalDate>,
+    val emptyDates: List<LocalDate>,
   )
 
   private suspend fun getDateInfoForModelLine(modelLineId: String): DateInfo {
     val prefix = if (edpImpressionPath.isEmpty()) "model-line/$modelLineId/" else "$edpImpressionPath/model-line/$modelLineId/"
     return getDateInfo(prefix)
-  }
-
-  private suspend fun getUploadedDatesForModelLine(modelLineId: String): Set<LocalDate> {
-    return getDateInfoForModelLine(modelLineId).datesWithDoneBlob
   }
 
   /**
@@ -208,7 +205,7 @@ class DataAvailabilityMonitor(
       logger.log(Level.SEVERE, "Date folder $date has a done blob but no data files")
     }
 
-    return DateInfo(datesWithDoneBlob = datesWithDone, emptyDateFolders = emptyFolders)
+    return DateInfo(datesWithDoneBlob = datesWithDone, emptyDates = emptyFolders)
   }
 
   /** Finds dates that are missing in the sequence between the first and last date. */

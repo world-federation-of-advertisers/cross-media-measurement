@@ -971,8 +971,8 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
-  fun `sync throws IllegalStateException when date gaps are detected`(): Unit =
-    runBlocking {
+  fun `sync throws IllegalStateException when date gaps are detected but still saves impressions`():
+    Unit = runBlocking {
       val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
       val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
@@ -1005,6 +1005,16 @@ class DataAvailabilitySyncTest {
 
       assertFailsWith<IllegalStateException> {
         dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      }
+
+      // Impression metadata should still be saved to the metadata store
+      verifyBlocking(impressionMetadataServiceMock, times(1)) {
+        batchCreateImpressionMetadata(any())
+      }
+
+      // Model line bounds should still be computed
+      verifyBlocking(impressionMetadataServiceMock, times(1)) {
+        computeModelLineBounds(any())
       }
 
       // replaceDataAvailabilityIntervals should NOT be called due to gap

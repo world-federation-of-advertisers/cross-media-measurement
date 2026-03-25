@@ -51,6 +51,15 @@ class DataAvailabilityMonitorTest {
     storageClient.writeBlob(path, ByteString.copyFromUtf8("done"))
   }
 
+  private fun createDataFile(
+    storageClient: FileSystemStorageClient,
+    modelLine: String,
+    date: String,
+  ): Unit = runBlocking {
+    val path = "$EDP_IMPRESSION_PATH/model-line/$modelLine/$date/data_campaign_1"
+    storageClient.writeBlob(path, ByteString.copyFromUtf8("data"))
+  }
+
   private fun createStorageClient(): FileSystemStorageClient {
     return FileSystemStorageClient(tempFolder.root)
   }
@@ -68,6 +77,7 @@ class DataAvailabilityMonitorTest {
     for (day in 12..15) {
       ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
       createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
     }
 
     val monitor =
@@ -94,6 +104,7 @@ class DataAvailabilityMonitorTest {
     for (day in 9..11) {
       ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
       createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
     }
 
     val monitor =
@@ -118,6 +129,7 @@ class DataAvailabilityMonitorTest {
     for (day in listOf(12, 13, 15)) {
       ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
       createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
     }
 
     val monitor =
@@ -141,6 +153,7 @@ class DataAvailabilityMonitorTest {
     for (day in listOf(10, 12, 15)) {
       ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
       createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
     }
 
     val monitor =
@@ -168,10 +181,12 @@ class DataAvailabilityMonitorTest {
     for (day in 13..15) {
       ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
       createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
     }
     for (day in 9..11) {
       ensureDirectories(MODEL_LINE_B.modelLineId, "2026-03-%02d".format(day))
       createDoneBlob(storageClient, MODEL_LINE_B.modelLineId, "2026-03-%02d".format(day))
+      createDataFile(storageClient, MODEL_LINE_B.modelLineId, "2026-03-%02d".format(day))
     }
 
     val monitor =
@@ -213,6 +228,7 @@ class DataAvailabilityMonitorTest {
     for (day in 10..12) {
       ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
       createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
     }
 
     val monitor =
@@ -236,6 +252,7 @@ class DataAvailabilityMonitorTest {
     for (day in listOf(8, 10)) {
       ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
       createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
     }
 
     val monitor =
@@ -357,7 +374,7 @@ class DataAvailabilityMonitorTest {
 
     val status = result.statuses.single()
     assertThat(status.missingDates).isEmpty()
-    assertThat(status.emptyDateFolders).containsExactly(LocalDate.of(2026, 3, 14))
+    assertThat(status.emptyDates).containsExactly(LocalDate.of(2026, 3, 14))
   }
 
   @Test
@@ -382,7 +399,7 @@ class DataAvailabilityMonitorTest {
 
     val result = monitor.checkGaps()
     assertThat(result.hasIssues).isFalse()
-    assertThat(result.statuses.single().emptyDateFolders).isEmpty()
+    assertThat(result.statuses.single().emptyDates).isEmpty()
   }
 
 
@@ -393,6 +410,7 @@ class DataAvailabilityMonitorTest {
     // Valid date folder
     ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
     createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
 
     // Invalid date format folder
     val badPath = "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/not-a-date/done"
