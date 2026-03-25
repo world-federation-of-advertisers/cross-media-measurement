@@ -443,7 +443,9 @@ single_version_override(
     version = BORINGSSL_VERSION,
 )
 
-local_path_override(
+# DO_NOT_SUBMIT(common-jvm#376)
+git_override(
     module_name = "common-jvm",
-    path = "/data/home/stevenwjones/common-jvm",
+    commit = "709b6343749449192c1f6962f36321792179160b",
+    remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )
