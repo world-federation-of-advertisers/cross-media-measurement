@@ -95,7 +95,7 @@ class DataAvailabilityMonitorFunction : HttpFunction {
             if (status.isStale == true) {
               logger.log(
                 Level.SEVERE,
-                "ALERT: Model line ${status.modelLineId} in ${config.edpImpressionPath} " +
+                "ALERT: Model line ${status.modelLineKey.toName()} in ${config.edpImpressionPath} " +
                   "is stale. Latest upload: ${status.latestDate} " +
                   "(${status.staleDays} days ago, threshold: $maxStaleDays)",
               )
@@ -103,8 +103,22 @@ class DataAvailabilityMonitorFunction : HttpFunction {
             if (!status.missingDates.isNullOrEmpty()) {
               logger.log(
                 Level.SEVERE,
-                "ALERT: Model line ${status.modelLineId} in ${config.edpImpressionPath} " +
+                "ALERT: Model line ${status.modelLineKey.toName()} in ${config.edpImpressionPath} " +
                   "has missing dates: ${status.missingDates}",
+              )
+            }
+            if (!status.incompleteDates.isNullOrEmpty()) {
+              logger.log(
+                Level.SEVERE,
+                "ALERT: Model line ${status.modelLineKey.toName()} in ${config.edpImpressionPath} " +
+                  "has incomplete dates (done blob but no data): ${status.incompleteDates}",
+              )
+            }
+            if (!status.datesWithoutDoneBlob.isNullOrEmpty()) {
+              logger.log(
+                Level.SEVERE,
+                "ALERT: Model line ${status.modelLineKey.toName()} in ${config.edpImpressionPath} " +
+                  "has dates without done blob: ${status.datesWithoutDoneBlob}",
               )
             }
           }

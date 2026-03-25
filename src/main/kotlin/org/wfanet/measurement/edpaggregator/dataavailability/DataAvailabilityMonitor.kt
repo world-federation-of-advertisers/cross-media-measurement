@@ -20,6 +20,7 @@ import java.time.LocalDate
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.storage.StorageClient
 
@@ -46,17 +47,20 @@ class DataAvailabilityMonitor(
   private val activeModelLines: Set<ModelLineKey>,
 ) {
   init {
+    require(!edpImpressionPath.startsWith("/")) { "edpImpressionPath cannot start with a slash" }
+    require(!edpImpressionPath.endsWith("/")) { "edpImpressionPath cannot end with a slash" }
     require(activeModelLines.isNotEmpty()) { "activeModelLines must not be empty" }
   }
 
   /** Result of monitoring a single model line. */
   data class ModelLineStatus(
-    val modelLineId: String,
+    val modelLineKey: ModelLineKey,
     val isStale: Boolean?,
     val latestDate: LocalDate,
     val missingDates: List<LocalDate>?,
     val staleDays: Int?,
     val incompleteDates: List<LocalDate>?,
+    val datesWithoutDoneBlob: List<LocalDate>?,
   )
 
   /** Result of a full monitoring check across all active model lines. */
@@ -75,7 +79,7 @@ class DataAvailabilityMonitor(
     val today = clock()
     val statuses =
       activeModelLines.map { modelLineKey ->
-        val dateInfo = getDateInfoForModelLine(modelLineKey.modelLineId)
+        val dateInfo = getDateInfoForModelLine(modelLineKey)
         buildFullStatus(modelLineKey, dateInfo, today, maxStaleDays)
       }
 
@@ -83,7 +87,10 @@ class DataAvailabilityMonitor(
       statuses = statuses,
       hasIssues =
         statuses.any {
-          it.isStale == true || !it.missingDates.isNullOrEmpty() || !it.incompleteDates.isNullOrEmpty()
+          it.isStale == true ||
+            !it.missingDates.isNullOrEmpty() ||
+            !it.incompleteDates.isNullOrEmpty() ||
+            !it.datesWithoutDoneBlob.isNullOrEmpty()
         },
     )
   }
@@ -96,13 +103,17 @@ class DataAvailabilityMonitor(
   suspend fun checkGaps(): MonitorResult {
     val statuses =
       activeModelLines.map { modelLineKey ->
-        val dateInfo = getDateInfoForModelLine(modelLineKey.modelLineId)
+        val dateInfo = getDateInfoForModelLine(modelLineKey)
         buildGapStatus(modelLineKey, dateInfo)
       }
 
     return MonitorResult(
       statuses = statuses,
-      hasIssues = statuses.any { !it.missingDates.isNullOrEmpty() || !it.incompleteDates.isNullOrEmpty() },
+      hasIssues = statuses.any {
+        !it.missingDates.isNullOrEmpty() ||
+          !it.incompleteDates.isNullOrEmpty() ||
+          !it.datesWithoutDoneBlob.isNullOrEmpty()
+      },
     )
   }
 
@@ -112,10 +123,10 @@ class DataAvailabilityMonitor(
     today: LocalDate,
     maxStaleDays: Int,
   ): ModelLineStatus {
-    val modelLineId = modelLineKey.toName()
+    val modelLineName = modelLineKey.toName()
     val uploadedDates = dateInfo.datesWithDoneBlob
     require(uploadedDates.isNotEmpty()) {
-      "No uploaded dates found for model line: $modelLineId. Check configuration."
+      "No uploaded dates found for model line: $modelLineName. Check configuration."
     }
 
     val sortedDates = uploadedDates.sorted()
@@ -124,47 +135,87 @@ class DataAvailabilityMonitor(
     val isStale = staleDays > maxStaleDays
     val missingDates = findGaps(sortedDates)
 
+    logger.log(
+      Level.INFO,
+      "Model line $modelLineName metrics: staleDays=$staleDays, gaps=${missingDates.size}, " +
+        "incompleteDates=${dateInfo.incompleteDates.size}, " +
+        "datesWithoutDoneBlob=${dateInfo.datesWithoutDoneBlob.size}",
+    )
     if (isStale) {
       logger.log(
         Level.SEVERE,
-        "Model line $modelLineId is stale: latest upload is $latestDate ($staleDays days ago)",
+        "Model line $modelLineName is stale: latest upload is $latestDate ($staleDays days ago)",
       )
     }
     if (missingDates.isNotEmpty()) {
-      logger.log(Level.SEVERE, "Model line $modelLineId has gaps: missing dates $missingDates")
+      logger.log(Level.SEVERE, "Model line $modelLineName has gaps: missing dates $missingDates")
+    }
+    if (dateInfo.incompleteDates.isNotEmpty()) {
+      logger.log(
+        Level.SEVERE,
+        "Model line $modelLineName has incomplete dates (done blob but no data): " +
+          "${dateInfo.incompleteDates}",
+      )
+    }
+    if (dateInfo.datesWithoutDoneBlob.isNotEmpty()) {
+      logger.log(
+        Level.SEVERE,
+        "Model line $modelLineName has dates without done blob: ${dateInfo.datesWithoutDoneBlob}",
+      )
     }
 
     return ModelLineStatus(
-      modelLineId = modelLineId,
+      modelLineKey = modelLineKey,
       isStale = isStale,
       latestDate = latestDate,
       missingDates = missingDates,
       staleDays = staleDays,
       incompleteDates = dateInfo.incompleteDates,
+      datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
     )
   }
 
   private fun buildGapStatus(modelLineKey: ModelLineKey, dateInfo: DateInfo): ModelLineStatus {
-    val modelLineId = modelLineKey.toName()
+    val modelLineName = modelLineKey.toName()
     val uploadedDates = dateInfo.datesWithDoneBlob
     require(uploadedDates.isNotEmpty()) {
-      "No uploaded dates found for model line: $modelLineId. Check configuration."
+      "No uploaded dates found for model line: $modelLineName. Check configuration."
     }
 
     val sortedDates = uploadedDates.sorted()
     val missingDates = findGaps(sortedDates)
 
+    logger.log(
+      Level.INFO,
+      "Model line $modelLineName metrics: gaps=${missingDates.size}, " +
+        "incompleteDates=${dateInfo.incompleteDates.size}, " +
+        "datesWithoutDoneBlob=${dateInfo.datesWithoutDoneBlob.size}",
+    )
     if (missingDates.isNotEmpty()) {
-      logger.log(Level.SEVERE, "Model line $modelLineId has gaps: missing dates $missingDates")
+      logger.log(Level.SEVERE, "Model line $modelLineName has gaps: missing dates $missingDates")
+    }
+    if (dateInfo.incompleteDates.isNotEmpty()) {
+      logger.log(
+        Level.SEVERE,
+        "Model line $modelLineName has incomplete dates (done blob but no data): " +
+          "${dateInfo.incompleteDates}",
+      )
+    }
+    if (dateInfo.datesWithoutDoneBlob.isNotEmpty()) {
+      logger.log(
+        Level.SEVERE,
+        "Model line $modelLineName has dates without done blob: ${dateInfo.datesWithoutDoneBlob}",
+      )
     }
 
     return ModelLineStatus(
-      modelLineId = modelLineId,
+      modelLineKey = modelLineKey,
       isStale = null,
       latestDate = sortedDates.last(),
       missingDates = missingDates,
       staleDays = null,
       incompleteDates = dateInfo.incompleteDates,
+      datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
     )
   }
 
@@ -172,9 +223,11 @@ class DataAvailabilityMonitor(
   private data class DateInfo(
     val datesWithDoneBlob: Set<LocalDate>,
     val incompleteDates: List<LocalDate>,
+    val datesWithoutDoneBlob: List<LocalDate>,
   )
 
-  private suspend fun getDateInfoForModelLine(modelLineId: String): DateInfo {
+  private suspend fun getDateInfoForModelLine(modelLineKey: ModelLineKey): DateInfo {
+    val modelLineId = modelLineKey.modelLineId
     val prefix = if (edpImpressionPath.isEmpty()) "model-line/$modelLineId/" else "$edpImpressionPath/model-line/$modelLineId/"
     return getDateInfo(prefix)
   }
@@ -194,6 +247,7 @@ class DataAvailabilityMonitor(
   private suspend fun getDateInfo(prefix: String): DateInfo {
     val datesWithDone = mutableSetOf<LocalDate>()
     val incompleteDatesList = mutableListOf<LocalDate>()
+    val datesWithoutDoneBlobList = mutableListOf<LocalDate>()
 
     val datePrefixes = storageClient.listBlobKeys(prefix, "/").toList()
 
@@ -206,20 +260,21 @@ class DataAvailabilityMonitor(
         datesWithDone.add(date)
 
         // Check if there is at least one non-done file
-        var hasData = false
-        storageClient.listBlobs("${prefix}$dateString/").toList().forEach { blob ->
-          if (!blob.blobKey.endsWith("/done")) {
-            hasData = true
-          }
-        }
+        val hasData = storageClient.listBlobs("${prefix}$dateString/")
+          .firstOrNull { !it.blobKey.endsWith("/done") } != null
         if (!hasData) {
           incompleteDatesList.add(date)
-          logger.log(Level.SEVERE, "Date folder $date has a done blob but no data files")
         }
+      } else {
+        datesWithoutDoneBlobList.add(date)
       }
     }
 
-    return DateInfo(datesWithDoneBlob = datesWithDone, incompleteDates = incompleteDatesList.sorted())
+    return DateInfo(
+      datesWithDoneBlob = datesWithDone,
+      incompleteDates = incompleteDatesList.sorted(),
+      datesWithoutDoneBlob = datesWithoutDoneBlobList.sorted(),
+    )
   }
 
   /** Finds dates that are missing in the sequence between the first and last date. */

@@ -205,13 +205,26 @@ class DataAvailabilitySync(
           activeModelLines = impressionMetadataMap.keys,
         )
       val gapResult = gapMonitor.checkGaps()
-      val modelLinesWithGaps = gapResult.statuses.filter { !it.missingDates.isNullOrEmpty() }
-      if (modelLinesWithGaps.isNotEmpty()) {
-        val gapDetails = modelLinesWithGaps.joinToString("; ") { status ->
-          "Model line ${status.modelLineId} missing dates: ${status.missingDates}"
+      if (gapResult.hasIssues) {
+        val issueDetails = gapResult.statuses.filter {
+          !it.missingDates.isNullOrEmpty() ||
+            !it.incompleteDates.isNullOrEmpty() ||
+            !it.datesWithoutDoneBlob.isNullOrEmpty()
+        }.joinToString("; ") { status ->
+          val parts = mutableListOf<String>()
+          if (!status.missingDates.isNullOrEmpty()) {
+            parts.add("missing dates: ${status.missingDates}")
+          }
+          if (!status.incompleteDates.isNullOrEmpty()) {
+            parts.add("incomplete dates: ${status.incompleteDates}")
+          }
+          if (!status.datesWithoutDoneBlob.isNullOrEmpty()) {
+            parts.add("dates without done blob: ${status.datesWithoutDoneBlob}")
+          }
+          "Model line ${status.modelLineKey.toName()} ${parts.joinToString(", ")}"
         }
         throw IllegalStateException(
-          "Date gaps detected in $edpImpressionPath. $gapDetails"
+          "Data availability issues detected in $edpImpressionPath. $issueDetails"
         )
       }
 

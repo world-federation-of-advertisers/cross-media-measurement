@@ -92,10 +92,13 @@ class DataAvailabilityMonitorTest {
     assertThat(result.statuses).hasSize(1)
 
     val status = result.statuses.single()
-    assertThat(status.modelLineId).isEqualTo(MODEL_LINE_A.toName())
+    assertThat(status.modelLineKey).isEqualTo(MODEL_LINE_A)
     assertThat(status.isStale).isFalse()
     assertThat(status.missingDates).isEmpty()
+    assertThat(status.incompleteDates).isEmpty()
+    assertThat(status.datesWithoutDoneBlob).isEmpty()
     assertThat(status.latestDate).isEqualTo(LocalDate.of(2026, 3, 15))
+    assertThat(status.staleDays).isEqualTo(0)
   }
 
   @Test
@@ -199,11 +202,11 @@ class DataAvailabilityMonitorTest {
     val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
     assertThat(result.hasIssues).isTrue()
 
-    val statusA = result.statuses.first { it.modelLineId == MODEL_LINE_A.toName() }
+    val statusA = result.statuses.first { it.modelLineKey == MODEL_LINE_A }
     assertThat(statusA.isStale).isFalse()
     assertThat(statusA.missingDates).isEmpty()
 
-    val statusB = result.statuses.first { it.modelLineId == MODEL_LINE_B.toName() }
+    val statusB = result.statuses.first { it.modelLineKey == MODEL_LINE_B }
     assertThat(statusB.isStale).isTrue()
     assertThat(statusB.staleDays).isEqualTo(4)
   }
@@ -297,6 +300,8 @@ class DataAvailabilityMonitorTest {
 
     val status = result.statuses.single()
     assertThat(status.missingDates).isEmpty()
+    assertThat(status.incompleteDates).isEmpty()
+    assertThat(status.datesWithoutDoneBlob).isEmpty()
     assertThat(status.isStale).isNull()
     assertThat(status.staleDays).isNull()
   }
@@ -534,6 +539,7 @@ class DataAvailabilityMonitorTest {
     val status = result.statuses.single()
     assertThat(status.missingDates).isEmpty()
     assertThat(status.incompleteDates).isEmpty()
+    assertThat(status.datesWithoutDoneBlob).isEmpty()
     assertThat(status.staleDays).isEqualTo(0)
   }
 
@@ -557,7 +563,105 @@ class DataAvailabilityMonitorTest {
     val status = result.statuses.single()
     assertThat(status.missingDates).isEmpty()
     assertThat(status.incompleteDates).isEmpty()
+    assertThat(status.datesWithoutDoneBlob).isEmpty()
     assertThat(status.isStale).isNull()
     assertThat(status.staleDays).isNull()
+  }
+
+  @Test
+  fun `checkFullStatus detects date folders without done blob`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    // March 13 and 15 have done + data, March 14 has data but no done blob
+    for (day in listOf(13, 14, 15)) {
+      ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+    }
+    for (day in listOf(13, 15)) {
+      createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+    }
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+      )
+
+    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    assertThat(result.hasIssues).isTrue()
+
+    val status = result.statuses.single()
+    assertThat(status.datesWithoutDoneBlob).containsExactly(LocalDate.of(2026, 3, 14))
+    assertThat(status.missingDates).containsExactly(LocalDate.of(2026, 3, 14))
+    assertThat(status.incompleteDates).isEmpty()
+  }
+
+  @Test
+  fun `checkGaps detects date folders without done blob`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    // March 13 and 15 have done + data, March 14 has data but no done blob
+    for (day in listOf(13, 14, 15)) {
+      ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+    }
+    for (day in listOf(13, 15)) {
+      createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+    }
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+      )
+
+    val result = monitor.checkGaps()
+    assertThat(result.hasIssues).isTrue()
+
+    val status = result.statuses.single()
+    assertThat(status.datesWithoutDoneBlob).containsExactly(LocalDate.of(2026, 3, 14))
+    assertThat(status.missingDates).containsExactly(LocalDate.of(2026, 3, 14))
+    assertThat(status.incompleteDates).isEmpty()
+  }
+
+  @Test
+  fun `checkFullStatus reports all metrics together`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    // March 10: done + data (good)
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-10")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-10")
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-10")
+
+    // March 11: gap (missing entirely)
+
+    // March 12: done but no data (incomplete)
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-12")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-12")
+
+    // March 13: data but no done blob (datesWithoutDoneBlob)
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-13")
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-13")
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+      )
+
+    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    assertThat(result.hasIssues).isTrue()
+
+    val status = result.statuses.single()
+    // Stale: latest done date is March 12, today is March 15 = 3 days, not > 3
+    // But gaps and other issues exist
+    assertThat(status.staleDays).isEqualTo(3)
+    assertThat(status.isStale).isFalse()
+    assertThat(status.missingDates).containsExactly(LocalDate.of(2026, 3, 11))
+    assertThat(status.incompleteDates).containsExactly(LocalDate.of(2026, 3, 12))
+    assertThat(status.datesWithoutDoneBlob).containsExactly(LocalDate.of(2026, 3, 13))
   }
 }
