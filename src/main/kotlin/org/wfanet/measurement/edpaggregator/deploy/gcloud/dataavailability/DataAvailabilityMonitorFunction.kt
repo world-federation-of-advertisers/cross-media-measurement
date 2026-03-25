@@ -21,6 +21,8 @@ import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
 import java.io.File
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
@@ -78,10 +80,14 @@ class DataAvailabilityMonitorFunction : HttpFunction {
             storageClient = storageClient,
             edpImpressionPath = config.edpImpressionPath,
             activeModelLines = activeModelLines,
-            maxStaleDays = maxStaleDays,
           )
 
-        val result = runBlocking { monitor.check() }
+        val result = runBlocking {
+          monitor.checkFullStatus(
+            maxStaleDays = maxStaleDays,
+            clock = { LocalDate.now(ZoneOffset.UTC) },
+          )
+        }
 
         if (result.hasIssues) {
           hasAnyIssues = true

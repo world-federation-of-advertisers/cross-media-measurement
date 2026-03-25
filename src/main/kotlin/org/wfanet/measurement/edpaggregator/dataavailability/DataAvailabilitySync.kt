@@ -203,7 +203,6 @@ class DataAvailabilitySync(
           storageClient = storageClient,
           edpImpressionPath = edpImpressionPath,
           activeModelLines = impressionMetadataMap.keys.map { ModelLineKey.fromName(it)!! }.toSet(),
-          maxStaleDays = Int.MAX_VALUE,
         )
       val gapResult = gapMonitor.checkGaps()
       val modelLinesWithGaps = gapResult.statuses.filter { !it.missingDates.isNullOrEmpty() }

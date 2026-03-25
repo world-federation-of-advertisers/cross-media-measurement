@@ -75,11 +75,9 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
-        maxStaleDays = 3,
-        clock = { TODAY },
       )
 
-    val result = monitor.check()
+    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
     assertThat(result.hasIssues).isFalse()
     assertThat(result.statuses).hasSize(1)
 
@@ -103,11 +101,9 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
-        maxStaleDays = 3,
-        clock = { TODAY },
       )
 
-    val result = monitor.check()
+    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
     assertThat(result.hasIssues).isTrue()
 
     val status = result.statuses.single()
@@ -129,11 +125,9 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
-        maxStaleDays = 3,
-        clock = { TODAY },
       )
 
-    val result = monitor.check()
+    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
     assertThat(result.hasIssues).isTrue()
 
     val status = result.statuses.single()
@@ -154,11 +148,9 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
-        maxStaleDays = 3,
-        clock = { TODAY },
       )
 
-    val result = monitor.check()
+    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
     assertThat(result.hasIssues).isTrue()
 
     val status = result.statuses.single()
@@ -187,11 +179,9 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A, MODEL_LINE_B),
-        maxStaleDays = 3,
-        clock = { TODAY },
       )
 
-    val result = monitor.check()
+    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
     assertThat(result.hasIssues).isTrue()
 
     val statusA = result.statuses.first { it.modelLineId == MODEL_LINE_A.toName() }
@@ -212,11 +202,9 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
-        maxStaleDays = 3,
-        clock = { TODAY },
       )
 
-    assertFailsWith<IllegalArgumentException> { monitor.check() }
+    assertFailsWith<IllegalArgumentException> { monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY }) }
   }
 
   @Test
@@ -232,11 +220,9 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
-        maxStaleDays = 3,
-        clock = { TODAY },
       )
 
-    val result = monitor.check()
+    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
     assertThat(result.hasIssues).isFalse()
 
     val status = result.statuses.single()
@@ -257,11 +243,9 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
-        maxStaleDays = 3,
-        clock = { TODAY },
       )
 
-    val result = monitor.check()
+    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
     assertThat(result.hasIssues).isTrue()
 
     val status = result.statuses.single()
@@ -289,8 +273,6 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
-        maxStaleDays = 3,
-        clock = { TODAY },
       )
 
     val result = monitor.checkGaps()
@@ -319,8 +301,6 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
-        maxStaleDays = 3,
-        clock = { TODAY },
       )
 
     val result = monitor.checkGaps()
@@ -341,8 +321,6 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
-        maxStaleDays = 3,
-        clock = { TODAY },
       )
 
     assertFailsWith<IllegalArgumentException> { monitor.checkGaps() }
@@ -372,8 +350,6 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
-        maxStaleDays = 3,
-        clock = { TODAY },
       )
 
     val result = monitor.checkGaps()
@@ -402,8 +378,6 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
-        maxStaleDays = 3,
-        clock = { TODAY },
       )
 
     val result = monitor.checkGaps()
@@ -411,34 +385,54 @@ class DataAvailabilityMonitorTest {
     assertThat(result.statuses.single().emptyDateFolders).isEmpty()
   }
 
+
   @Test
-  fun `monitor skips folders with unparseable date format`(): Unit = runBlocking {
+  fun `checkFullStatus throws when folder name is not a valid date`(): Unit = runBlocking {
     val storageClient = createStorageClient()
 
     // Valid date folder
     ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
     createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
 
-    // Invalid date format folders (should be skipped, not cause errors)
-    for (badDate in listOf("03-15-2026", "20260315", "March-15", "latest")) {
-      val badPath = "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/$badDate/done"
-      File(tempFolder.root, badPath).parentFile.mkdirs()
-      storageClient.writeBlob(badPath, ByteString.copyFromUtf8("done"))
-    }
+    // Invalid date format folder
+    val badPath = "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/not-a-date/done"
+    File(tempFolder.root, badPath).parentFile.mkdirs()
+    storageClient.writeBlob(badPath, ByteString.copyFromUtf8("done"))
 
     val monitor =
       DataAvailabilityMonitor(
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
-        maxStaleDays = 3,
-        clock = { TODAY },
       )
 
-    val result = monitor.check()
-    // Only the valid date should be found
-    val status = result.statuses.single()
-    assertThat(status.latestDate).isEqualTo(LocalDate.of(2026, 3, 15))
-    assertThat(status.missingDates).isEmpty()
+    assertFailsWith<java.time.format.DateTimeParseException> {
+      monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    }
+  }
+
+  @Test
+  fun `checkGaps throws when folder name is not a valid date`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    // Valid date folder
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+    // Invalid date format folder
+    val badPath = "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/not-a-date/done"
+    File(tempFolder.root, badPath).parentFile.mkdirs()
+    storageClient.writeBlob(badPath, ByteString.copyFromUtf8("done"))
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+      )
+
+    assertFailsWith<java.time.format.DateTimeParseException> {
+      monitor.checkGaps()
+    }
   }
 }

@@ -18,10 +18,9 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 
 import java.time.LocalDate
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
-import java.time.ZoneOffset
 import java.util.logging.Level
 import java.util.logging.Logger
-import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.collect
 import org.wfanet.measurement.storage.StorageClient
 
 /**
@@ -40,20 +39,14 @@ import org.wfanet.measurement.storage.StorageClient
  * @property edpImpressionPath Base path for EDP impressions (e.g.,
  *   "edp/meta/vid-labeled-impressions").
  * @property activeModelLines Set of model line IDs that are expected to upload daily.
- * @property maxStaleDays Maximum number of days a model line can go without an upload before
- *   alerting.
- * @property clock Provides the current date for staleness checks.
  */
 class DataAvailabilityMonitor(
   private val storageClient: StorageClient,
   private val edpImpressionPath: String,
   private val activeModelLines: Set<ModelLineKey>,
-  private val maxStaleDays: Int = DEFAULT_MAX_STALE_DAYS,
-  private val clock: () -> LocalDate = { LocalDate.now(ZoneOffset.UTC) },
 ) {
   init {
     require(activeModelLines.isNotEmpty()) { "activeModelLines must not be empty" }
-    require(maxStaleDays > 0) { "maxStaleDays must be greater than zero" }
   }
 
   /** Result of monitoring a single model line. */
@@ -72,14 +65,18 @@ class DataAvailabilityMonitor(
   /**
    * Checks all active model lines for staleness and gaps.
    *
+   * @param maxStaleDays Maximum number of days a model line can go without an upload before
+   *   alerting.
+   * @param clock Provides the current date for staleness checks.
    * @return A [MonitorResult] containing the status of each active model line.
    */
-  suspend fun check(): MonitorResult {
+  suspend fun checkFullStatus(maxStaleDays: Int, clock: () -> LocalDate): MonitorResult {
+    require(maxStaleDays > 0) { "maxStaleDays must be greater than zero" }
     val today = clock()
     val statuses =
       activeModelLines.map { modelLineKey ->
         val uploadedDates = getUploadedDatesForModelLine(modelLineKey.modelLineId)
-        buildFullStatus(modelLineKey, uploadedDates, today)
+        buildFullStatus(modelLineKey, uploadedDates, today, maxStaleDays)
       }
 
     return MonitorResult(
@@ -113,6 +110,7 @@ class DataAvailabilityMonitor(
     modelLineKey: ModelLineKey,
     uploadedDates: Set<LocalDate>,
     today: LocalDate,
+    maxStaleDays: Int,
   ): ModelLineStatus {
     val modelLineId = modelLineKey.toName()
     require(uploadedDates.isNotEmpty()) {
@@ -194,18 +192,14 @@ class DataAvailabilityMonitor(
     val datesWithDone = mutableSetOf<LocalDate>()
     val datesWithData = mutableSetOf<LocalDate>()
 
-    storageClient.listBlobs(prefix).toList().forEach { blob ->
+    storageClient.listBlobs(prefix).collect { blob ->
       val relativePath = blob.blobKey.removePrefix(prefix)
       val dateString = relativePath.substringBefore("/")
-      try {
-        val date = LocalDate.parse(dateString)
-        if (blob.blobKey.endsWith("/done") || blob.blobKey.endsWith("/done.txt")) {
-          datesWithDone.add(date)
-        } else {
-          datesWithData.add(date)
-        }
-      } catch (e: Exception) {
-        logger.log(Level.FINE, "Skipping non-date folder: $dateString")
+      val date = LocalDate.parse(dateString)
+      if (blob.blobKey.endsWith("/done")) {
+        datesWithDone.add(date)
+      } else {
+        datesWithData.add(date)
       }
     }
 
