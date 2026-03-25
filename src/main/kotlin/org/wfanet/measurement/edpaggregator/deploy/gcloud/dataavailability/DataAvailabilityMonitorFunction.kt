@@ -24,6 +24,7 @@ import java.io.File
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilityMonitorConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilityMonitorConfigs
@@ -59,7 +60,7 @@ class DataAvailabilityMonitorFunction : HttpFunction {
 
       for (config in monitorConfigs.configsList) {
         val storageClient = createStorageClient(config)
-        val activeModelLines = config.activeModelLinesList.toSet()
+        val activeModelLines = config.activeModelLinesList.mapNotNull { ModelLineKey.fromName(it) }.toSet()
 
         if (activeModelLines.isEmpty()) {
           logger.warning(

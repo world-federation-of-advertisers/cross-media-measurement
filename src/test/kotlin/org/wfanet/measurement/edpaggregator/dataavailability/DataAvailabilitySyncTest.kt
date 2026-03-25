@@ -155,7 +155,7 @@ class DataAvailabilitySyncTest {
           // Build some fake proto data for the response
           computeModelLineBoundsResponse {
             modelLineBounds += modelLineBoundMapEntry {
-              key = "${request.parent}/modelLines/modelLineA"
+              key = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLineA"
               value = interval {
                 startTime = timestamp { seconds = 100 }
                 endTime = timestamp { seconds = 200 }
@@ -275,10 +275,10 @@ class DataAvailabilitySyncTest {
 
       seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
-      val modelLineKey = "dataProviders/dataProvider123/modelLines/modelLineA"
+      val modelLineKey = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLineA"
       val mappedLines =
         listOf(
-          "dataProviders/dataProvider123/modelLines/modelLineB",
+          "modelProviders/provider1/modelSuites/suite1/modelLines/modelLineB",
           "dataProviders/dataProvider123/modelLines/modelLineC",
         )
 
@@ -311,8 +311,8 @@ class DataAvailabilitySyncTest {
       val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
       val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
-      val existingModelLine = "modelLineA"
-      val newModelLine = "modelLineB"
+      val existingModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLineA"
+      val newModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLineB"
 
       seedBlobDetailsWithModelLine(storageClient, folderPrefix, listOf(300L to 400L), newModelLine)
 
@@ -321,14 +321,14 @@ class DataAvailabilitySyncTest {
           val request = invocation.getArgument<ComputeModelLineBoundsRequest>(0)
           computeModelLineBoundsResponse {
             modelLineBounds += modelLineBoundMapEntry {
-              key = "${request.parent}/modelLines/$existingModelLine"
+              key = existingModelLine
               value = interval {
                 startTime = timestamp { seconds = 100 }
                 endTime = timestamp { seconds = 200 }
               }
             }
             modelLineBounds += modelLineBoundMapEntry {
-              key = "${request.parent}/modelLines/$newModelLine"
+              key = newModelLine
               value = interval {
                 startTime = timestamp { seconds = 300 }
                 endTime = timestamp { seconds = 400 }
@@ -358,8 +358,8 @@ class DataAvailabilitySyncTest {
       val availabilityKeys = requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key }
       assertThat(availabilityKeys)
         .containsExactly(
-          "dataProviders/dataProvider123/modelLines/$existingModelLine",
-          "dataProviders/dataProvider123/modelLines/$newModelLine",
+          "$existingModelLine",
+          "$newModelLine",
         )
     }
   }
@@ -799,7 +799,7 @@ class DataAvailabilitySyncTest {
           blobTypeUrl =
             "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
           eventGroupReferenceId = "event${index+1}"
-          modelLine = "modelLine1"
+          modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
           this.interval = interval {
             startTime = timestamp { seconds = times.first }
             endTime = timestamp { seconds = times.second }
@@ -953,7 +953,7 @@ class DataAvailabilitySyncTest {
           blobTypeUrl =
             "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
           eventGroupReferenceId = "event${index+1}"
-          modelLine = "modelLine1"
+          modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
           this.interval = interval {
             startTime = timestamp { seconds = times.first }
             endTime = timestamp { seconds = times.second }
@@ -977,14 +977,14 @@ class DataAvailabilitySyncTest {
       val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
       // Set up done blobs at model-line paths with a gap (missing 2026-03-14)
-      val modelLine = "modelLine1"
+      val modelLineId = "modelLine1"
       val edpPath = "edp/edpa_edp"
       for (date in listOf("2026-03-13", "2026-03-15")) {
-        val donePath = "$edpPath/model-line/$modelLine/$date/done"
+        val donePath = "$edpPath/model-line/$modelLineId/$date/done"
         File(tempFolder.root, donePath).parentFile.mkdirs()
         storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
         // Add a data file so the folder is not empty
-        val dataPath = "$edpPath/model-line/$modelLine/$date/data_campaign_1"
+        val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
         storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
       }
 
@@ -1017,12 +1017,14 @@ class DataAvailabilitySyncTest {
     val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
     // Set up done blobs at model-line paths with no gaps
-    val modelLine = "modelLine1"
+    val modelLineId = "modelLine1"
     val edpPath = "edp/edpa_edp"
     for (date in listOf("2026-03-13", "2026-03-14", "2026-03-15")) {
-      val donePath = "$edpPath/model-line/$modelLine/$date/done"
+      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
       File(tempFolder.root, donePath).parentFile.mkdirs()
       storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+      val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+      storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
     }
 
     // Seed metadata in the sync trigger folder
@@ -1069,7 +1071,7 @@ class DataAvailabilitySyncTest {
       val details = blobDetails {
         this.blobUri = blobUri
         eventGroupReferenceId = "event${index + 1}"
-        modelLine = "modelLine1"
+        modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
         interval = interval {
           if (startSeconds != null) {
             startTime = timestamp {
@@ -1163,8 +1165,9 @@ class DataAvailabilitySyncTest {
 
     // Create done blob and data file at model-line path for gap checking
     val edpImpressionPath = "edp/edpa_edp"
-    val donePath = "$edpImpressionPath/model-line/$modelLine/2026-03-15/done"
-    val dataPath = "$edpImpressionPath/model-line/$modelLine/2026-03-15/data_campaign_1"
+    val modelLineId = modelLine.substringAfterLast("/")
+    val donePath = "$edpImpressionPath/model-line/$modelLineId/2026-03-15/done"
+    val dataPath = "$edpImpressionPath/model-line/$modelLineId/2026-03-15/data_campaign_1"
     storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
     storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
   }
@@ -1197,7 +1200,7 @@ class DataAvailabilitySyncTest {
       val details = blobDetails {
         this.blobUri = blobUri
         eventGroupReferenceId = "event${index + 1}"
-        modelLine = "modelLine1"
+        modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
         interval = interval {
           startTime = timestamp {
             seconds = startSeconds

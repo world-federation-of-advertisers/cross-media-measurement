@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.filter
 import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
@@ -201,7 +202,7 @@ class DataAvailabilitySync(
         DataAvailabilityMonitor(
           storageClient = storageClient,
           edpImpressionPath = edpImpressionPath,
-          activeModelLines = impressionMetadataMap.keys,
+          activeModelLines = impressionMetadataMap.keys.map { ModelLineKey.fromName(it)!! }.toSet(),
           maxStaleDays = Int.MAX_VALUE,
         )
       val gapResult = gapMonitor.checkGaps()

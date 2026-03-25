@@ -16,6 +16,7 @@ kt_jvm_library(
     ],
     deps = [
         ":data_availability_monitor",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//imports/java/io/opentelemetry/api:context",
         "//imports/java/io/opentelemetry/extension:kotlin",
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
@@ -38,6 +39,7 @@ kt_jvm_library(
     name = "data_availability_monitor",
     srcs = ["DataAvailabilityMonitor.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],
 )

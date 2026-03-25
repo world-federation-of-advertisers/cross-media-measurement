@@ -61,6 +61,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitorTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_monitor",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",

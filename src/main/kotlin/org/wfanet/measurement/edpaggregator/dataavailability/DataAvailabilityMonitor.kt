@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.dataavailability
 
 import java.time.LocalDate
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import java.time.ZoneOffset
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -46,7 +47,7 @@ import org.wfanet.measurement.storage.StorageClient
 class DataAvailabilityMonitor(
   private val storageClient: StorageClient,
   private val edpImpressionPath: String,
-  private val activeModelLines: Set<String>,
+  private val activeModelLines: Set<ModelLineKey>,
   private val maxStaleDays: Int = DEFAULT_MAX_STALE_DAYS,
   private val clock: () -> LocalDate = { LocalDate.now(ZoneOffset.UTC) },
 ) {
@@ -76,9 +77,9 @@ class DataAvailabilityMonitor(
   suspend fun check(): MonitorResult {
     val today = clock()
     val statuses =
-      activeModelLines.map { modelLineId ->
-        val uploadedDates = getUploadedDatesForModelLine(modelLineId)
-        buildFullStatus(modelLineId, uploadedDates, today)
+      activeModelLines.map { modelLineKey ->
+        val uploadedDates = getUploadedDatesForModelLine(modelLineKey.modelLineId)
+        buildFullStatus(modelLineKey, uploadedDates, today)
       }
 
     return MonitorResult(
@@ -97,9 +98,9 @@ class DataAvailabilityMonitor(
    */
   suspend fun checkGaps(): MonitorResult {
     val statuses =
-      activeModelLines.map { modelLineId ->
-        val dateInfo = getDateInfoForModelLine(modelLineId)
-        buildGapStatus(modelLineId, dateInfo)
+      activeModelLines.map { modelLineKey ->
+        val dateInfo = getDateInfoForModelLine(modelLineKey.modelLineId)
+        buildGapStatus(modelLineKey, dateInfo)
       }
 
     return MonitorResult(
@@ -109,10 +110,11 @@ class DataAvailabilityMonitor(
   }
 
   private fun buildFullStatus(
-    modelLineId: String,
+    modelLineKey: ModelLineKey,
     uploadedDates: Set<LocalDate>,
     today: LocalDate,
   ): ModelLineStatus {
+    val modelLineId = modelLineKey.toName()
     require(uploadedDates.isNotEmpty()) {
       "No uploaded dates found for model line: $modelLineId. Check configuration."
     }
@@ -143,7 +145,8 @@ class DataAvailabilityMonitor(
     )
   }
 
-  private fun buildGapStatus(modelLineId: String, dateInfo: DateInfo): ModelLineStatus {
+  private fun buildGapStatus(modelLineKey: ModelLineKey, dateInfo: DateInfo): ModelLineStatus {
+    val modelLineId = modelLineKey.toName()
     val uploadedDates = dateInfo.datesWithDoneBlob
     require(uploadedDates.isNotEmpty()) {
       "No uploaded dates found for model line: $modelLineId. Check configuration."
