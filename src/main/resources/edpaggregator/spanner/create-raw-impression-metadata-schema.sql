@@ -15,6 +15,7 @@
 -- limitations under the License.
 
 -- changeset jojijacob:6 dbms:cloudspanner
+-- validCheckSum: 9:cab047e97cf9f44fb19a181ddeddada8
 -- comment: Create RawImpressionMetadata table to track raw impression files grouped into batches for VID labeling.
 
 -- Set protobuf FileDescriptorSet as a base64 string.
