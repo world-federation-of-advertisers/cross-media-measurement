@@ -374,7 +374,7 @@ class DataAvailabilityMonitorTest {
 
     val status = result.statuses.single()
     assertThat(status.missingDates).isEmpty()
-    assertThat(status.emptyDates).containsExactly(LocalDate.of(2026, 3, 14))
+    assertThat(status.incompleteDates).containsExactly(LocalDate.of(2026, 3, 14))
   }
 
   @Test
@@ -399,7 +399,7 @@ class DataAvailabilityMonitorTest {
 
     val result = monitor.checkGaps()
     assertThat(result.hasIssues).isFalse()
-    assertThat(result.statuses.single().emptyDates).isEmpty()
+    assertThat(result.statuses.single().incompleteDates).isEmpty()
   }
 
 
@@ -452,5 +452,112 @@ class DataAvailabilityMonitorTest {
     assertFailsWith<java.time.format.DateTimeParseException> {
       monitor.checkGaps()
     }
+  }
+
+  @Test
+  fun `checkFullStatus detects empty dates with done blob but no data files`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    // March 13 has done + data, March 14 has only done (empty), March 15 has done + data
+    for (day in listOf(13, 14, 15)) {
+      ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+      createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+    }
+    for (day in listOf(13, 15)) {
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+    }
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+      )
+
+    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    assertThat(result.hasIssues).isTrue()
+
+    val status = result.statuses.single()
+    assertThat(status.missingDates).isEmpty()
+    assertThat(status.incompleteDates).containsExactly(LocalDate.of(2026, 3, 14))
+  }
+
+  @Test
+  fun `checkFullStatus throws when maxStaleDays is zero`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+      )
+
+    assertFailsWith<IllegalArgumentException> {
+      monitor.checkFullStatus(maxStaleDays = 0, clock = { TODAY })
+    }
+  }
+
+  @Test
+  fun `constructor throws when activeModelLines is empty`() {
+    val storageClient = createStorageClient()
+
+    assertFailsWith<IllegalArgumentException> {
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = emptySet(),
+      )
+    }
+  }
+
+  @Test
+  fun `checkFullStatus returns no gaps when only one date exists`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+      )
+
+    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    assertThat(result.hasIssues).isFalse()
+
+    val status = result.statuses.single()
+    assertThat(status.missingDates).isEmpty()
+    assertThat(status.incompleteDates).isEmpty()
+    assertThat(status.staleDays).isEqualTo(0)
+  }
+
+  @Test
+  fun `checkGaps returns no gaps when only one date exists`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+      )
+
+    val result = monitor.checkGaps()
+    assertThat(result.hasIssues).isFalse()
+
+    val status = result.statuses.single()
+    assertThat(status.missingDates).isEmpty()
+    assertThat(status.incompleteDates).isEmpty()
+    assertThat(status.isStale).isNull()
+    assertThat(status.staleDays).isNull()
   }
 }

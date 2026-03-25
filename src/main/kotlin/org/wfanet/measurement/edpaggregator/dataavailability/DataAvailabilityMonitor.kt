@@ -20,7 +20,7 @@ import java.time.LocalDate
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import java.util.logging.Level
 import java.util.logging.Logger
-import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.storage.StorageClient
 
 /**
@@ -56,7 +56,7 @@ class DataAvailabilityMonitor(
     val latestDate: LocalDate,
     val missingDates: List<LocalDate>?,
     val staleDays: Int?,
-    val emptyDates: List<LocalDate>?,
+    val incompleteDates: List<LocalDate>?,
   )
 
   /** Result of a full monitoring check across all active model lines. */
@@ -83,7 +83,7 @@ class DataAvailabilityMonitor(
       statuses = statuses,
       hasIssues =
         statuses.any {
-          it.isStale == true || !it.missingDates.isNullOrEmpty() || !it.emptyDates.isNullOrEmpty()
+          it.isStale == true || !it.missingDates.isNullOrEmpty() || !it.incompleteDates.isNullOrEmpty()
         },
     )
   }
@@ -102,7 +102,7 @@ class DataAvailabilityMonitor(
 
     return MonitorResult(
       statuses = statuses,
-      hasIssues = statuses.any { !it.missingDates.isNullOrEmpty() || !it.emptyDates.isNullOrEmpty() },
+      hasIssues = statuses.any { !it.missingDates.isNullOrEmpty() || !it.incompleteDates.isNullOrEmpty() },
     )
   }
 
@@ -140,7 +140,7 @@ class DataAvailabilityMonitor(
       latestDate = latestDate,
       missingDates = missingDates,
       staleDays = staleDays,
-      emptyDates = dateInfo.emptyDates,
+      incompleteDates = dateInfo.incompleteDates,
     )
   }
 
@@ -164,14 +164,14 @@ class DataAvailabilityMonitor(
       latestDate = sortedDates.last(),
       missingDates = missingDates,
       staleDays = null,
-      emptyDates = dateInfo.emptyDates,
+      incompleteDates = dateInfo.incompleteDates,
     )
   }
 
   /** Info about uploaded dates for a model line. */
   private data class DateInfo(
     val datesWithDoneBlob: Set<LocalDate>,
-    val emptyDates: List<LocalDate>,
+    val incompleteDates: List<LocalDate>,
   )
 
   private suspend fun getDateInfoForModelLine(modelLineId: String): DateInfo {
@@ -180,32 +180,46 @@ class DataAvailabilityMonitor(
   }
 
   /**
-   * Lists blobs under the given prefix, extracts dates from paths containing a "done" blob, and
-   * identifies date folders that have a done blob but no other files (empty folders).
+   * Discovers date folders under the given prefix using delimiter-based listing, then checks each
+   * date folder for a "done" blob and at least one data file.
+   *
+   * This avoids enumerating all blobs in every date folder, which can be slow when folders contain
+   * thousands of files. Instead, it:
+   * 1. Lists date-level prefixes using [StorageClient.listBlobKeys] with delimiter "/".
+   * 2. For each date, checks for the "done" blob via [StorageClient.getBlob].
+   * 3. For dates with a done blob, checks for at least one data file via [StorageClient.listBlobs].
    *
    * Expected path format: `{prefix}{date}/done` and `{prefix}{date}/other_files`
    */
   private suspend fun getDateInfo(prefix: String): DateInfo {
     val datesWithDone = mutableSetOf<LocalDate>()
-    val datesWithData = mutableSetOf<LocalDate>()
+    val incompleteDatesList = mutableListOf<LocalDate>()
 
-    storageClient.listBlobs(prefix).collect { blob ->
-      val relativePath = blob.blobKey.removePrefix(prefix)
-      val dateString = relativePath.substringBefore("/")
+    val datePrefixes = storageClient.listBlobKeys(prefix, "/").toList()
+
+    for (datePrefix in datePrefixes) {
+      val dateString = datePrefix.removePrefix(prefix).trimEnd('/')
       val date = LocalDate.parse(dateString)
-      if (blob.blobKey.endsWith("/done")) {
+
+      val doneBlob = storageClient.getBlob("${prefix}$dateString/done")
+      if (doneBlob != null) {
         datesWithDone.add(date)
-      } else {
-        datesWithData.add(date)
+
+        // Check if there is at least one non-done file
+        var hasData = false
+        storageClient.listBlobs("${prefix}$dateString/").toList().forEach { blob ->
+          if (!blob.blobKey.endsWith("/done")) {
+            hasData = true
+          }
+        }
+        if (!hasData) {
+          incompleteDatesList.add(date)
+          logger.log(Level.SEVERE, "Date folder $date has a done blob but no data files")
+        }
       }
     }
 
-    val emptyFolders = (datesWithDone - datesWithData).sorted()
-    for (date in emptyFolders) {
-      logger.log(Level.SEVERE, "Date folder $date has a done blob but no data files")
-    }
-
-    return DateInfo(datesWithDoneBlob = datesWithDone, emptyDates = emptyFolders)
+    return DateInfo(datesWithDoneBlob = datesWithDone, incompleteDates = incompleteDatesList.sorted())
   }
 
   /** Finds dates that are missing in the sequence between the first and last date. */
