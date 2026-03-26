@@ -110,6 +110,26 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       )
     }
 
+  @Test
+  fun `create a TrusTee reach-only measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      mcSimulator.testReachOnly(
+        "1237",
+        ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
+        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_HMSS,
+      )
+    }
+
+  @Test
+  fun `create a TrusTee RF measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      mcSimulator.testReachAndFrequency(
+        "1238",
+        ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
+        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_HMSS,
+      )
+    }
+
   interface MeasurementSystem {
     val runId: String
     val mcSimulator: MeasurementConsumerSimulator
