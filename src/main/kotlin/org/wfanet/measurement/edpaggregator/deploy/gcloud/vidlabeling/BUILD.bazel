@@ -30,6 +30,8 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc:channel",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
