@@ -42,7 +42,6 @@ import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DuchyKey
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
@@ -70,10 +69,10 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
+import org.wfanet.measurement.internal.kingdom.DataProviderCapabilitiesKt.noiseMechanisms as internalNoiseMechanisms
 import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as InternalDataProvidersService
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersClient
-import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.certificateDetails
 import org.wfanet.measurement.internal.kingdom.copy
@@ -824,8 +823,10 @@ class DataProvidersServiceTest {
   @Test
   fun `getDataProvider returns capabilities with noise mechanisms`() {
     val capabilitiesWithNoise = internalDataProviderCapabilities {
-      allowedNoiseMechanisms += InternalProtocolConfig.NoiseMechanism.NONE
-      allowedNoiseMechanisms += InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+      noiseMechanisms = internalNoiseMechanisms {
+        none = true
+        continuousGaussian = true
+      }
     }
     val internalDataProviderWithCapabilities =
       INTERNAL_DATA_PROVIDER.copy {
@@ -844,8 +845,11 @@ class DataProvidersServiceTest {
 
     val expectedCapabilities =
       DataProviderKt.capabilities {
-        allowedNoiseMechanisms += NoiseMechanism.NONE
-        allowedNoiseMechanisms += NoiseMechanism.CONTINUOUS_GAUSSIAN
+        noiseMechanisms =
+          DataProviderKt.CapabilitiesKt.noiseMechanisms {
+            none = true
+            continuousGaussian = true
+          }
       }
     assertThat(dataProvider.capabilities).isEqualTo(expectedCapabilities)
   }

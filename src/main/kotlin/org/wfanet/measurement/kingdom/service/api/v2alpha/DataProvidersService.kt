@@ -53,6 +53,7 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProviderCapabilities as InternalDataProviderCapabilities
+import org.wfanet.measurement.internal.kingdom.DataProviderCapabilitiesKt as InternalDataProviderCapabilitiesKt
 import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelLineKey as InternalModelLineKey
@@ -342,7 +343,13 @@ private fun InternalDataProviderCapabilities.toCapabilities(): DataProvider.Capa
   return DataProviderKt.capabilities {
     honestMajorityShareShuffleSupported = source.honestMajorityShareShuffleSupported
     trusTeeSupported = source.trusTeeSupported
-    allowedNoiseMechanisms += source.allowedNoiseMechanismsList.map { it.toNoiseMechanism() }
+    if (source.hasNoiseMechanisms()) {
+      noiseMechanisms =
+        DataProviderKt.CapabilitiesKt.noiseMechanisms {
+          none = source.noiseMechanisms.none
+          continuousGaussian = source.noiseMechanisms.continuousGaussian
+        }
+    }
   }
 }
 
@@ -351,6 +358,12 @@ private fun DataProvider.Capabilities.toInternal(): InternalDataProviderCapabili
   return internalDataProviderCapabilities {
     honestMajorityShareShuffleSupported = source.honestMajorityShareShuffleSupported
     trusTeeSupported = source.trusTeeSupported
-    allowedNoiseMechanisms += source.allowedNoiseMechanismsList.map { it.toInternal() }
+    if (source.hasNoiseMechanisms()) {
+      noiseMechanisms =
+        InternalDataProviderCapabilitiesKt.noiseMechanisms {
+          none = source.noiseMechanisms.none
+          continuousGaussian = source.noiseMechanisms.continuousGaussian
+        }
+    }
   }
 }

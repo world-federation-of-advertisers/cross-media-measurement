@@ -61,7 +61,7 @@ message TrusTeeProtocolConfigConfig {
   // computations.
   //
   // When specified, the Kingdom will intersect these with each
-  // `DataProvider`'s `allowed_noise_mechanisms` to select the noise mechanism
+  // `DataProvider`'s `noise_mechanisms` to select the noise mechanism
   // for a `Measurement`. If not specified, falls back to
   // `protocol_config.noise_mechanism`. This field is planned to become REQUIRED
   // in a future Halo CMM release.

@@ -185,9 +185,6 @@ proto_library(
     name = "data_provider_capabilities_proto",
     srcs = ["data_provider_capabilities.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        ":protocol_config_proto",
-    ],
 )
 
 proto_library(
