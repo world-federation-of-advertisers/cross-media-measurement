@@ -231,7 +231,7 @@ class DataAvailabilityMonitor(
    *
    * This avoids enumerating all blobs in every date folder, which can be slow when folders contain
    * thousands of files. Instead, it:
-   * 1. Lists date-level prefixes using [StorageClient.listBlobKeys] with delimiter "/".
+   * 1. Lists date-level prefixes using [StorageClient.listDelimitedBlobKeys].
    * 2. For each date, checks for the "done" blob via [StorageClient.getBlob].
    * 3. For dates with a done blob, checks for at least one data file via [StorageClient.listBlobs].
    *
@@ -242,7 +242,7 @@ class DataAvailabilityMonitor(
     val zeroImpressionDatesList = mutableListOf<LocalDate>()
     val datesWithoutDoneBlobList = mutableListOf<LocalDate>()
 
-    val datePrefixes = storageClient.listBlobKeys(prefix, "/").toList()
+    val datePrefixes = storageClient.listDelimitedBlobKeys(prefix).toList()
 
     for (datePrefix in datePrefixes) {
       val dateString = datePrefix.removePrefix(prefix).trimEnd('/')
