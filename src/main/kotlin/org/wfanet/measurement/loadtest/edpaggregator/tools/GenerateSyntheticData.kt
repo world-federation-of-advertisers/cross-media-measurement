@@ -144,7 +144,7 @@ class GenerateSyntheticData : Runnable {
     description = ["Base path where to store the Impressions files"],
     required = false,
   )
-  lateinit var impressionMetadataBasePath: String
+  var impressionMetadataBasePath: String? = null
     private set
 
   @Option(
