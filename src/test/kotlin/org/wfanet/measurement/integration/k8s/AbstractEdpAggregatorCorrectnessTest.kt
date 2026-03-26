@@ -116,7 +116,6 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       mcSimulator.testReachOnly(
         "1237",
         ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
-        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_HMSS,
       )
     }
 
@@ -126,7 +125,6 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       mcSimulator.testReachAndFrequency(
         "1238",
         ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
-        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_HMSS,
       )
     }
 
