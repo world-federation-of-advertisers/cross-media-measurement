@@ -56,7 +56,6 @@ jobs:
 
   compute-notes-start-commitish:
     runs-on: ubuntu-22.04
-    needs: [compute-existing-release-tag]
     outputs:
       commitish: ${{ steps.compute-notes-start-commitish.outputs.commitish }}
     steps:
@@ -64,7 +63,6 @@ jobs:
         id: compute-notes-start-commitish
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         env:
-          EXISTING_RELEASE_TAG: ${{ needs.compute-existing-release-tag.outputs.tag }}
           NOTES_START_COMMITISH: ${{ inputs.notes-start-commitish }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -113,7 +111,7 @@ jobs:
             name="${RELEASE_TAG%%-*}"
           fi
           echo "name=${name}" | tee -a $GITHUB_OUTPUT
-          
+
   compute-release-target:
     runs-on: ubuntu-22.04
     needs: [compute-existing-release-tag]

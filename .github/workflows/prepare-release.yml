@@ -46,15 +46,15 @@ jobs:
         RELEASE_TAG: ${{ inputs.new-git-tag }}
       run: |
         # Accept tags like v0.5.35 and v0.5.35-rc1
-        echo ${RELEASE_TAG} | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9]+)?$" || (echo "Invalid tag: ${RELEASE_TAG}" && exit 1)
+        printf '%s\n' "${RELEASE_TAG}" | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9]+)?$" || (echo "Invalid tag: ${RELEASE_TAG}" && exit 1)
 
     - name: Get nightly build sha
       id: get-nightly-build-sha
       env:
         NIGHTLY_BUILD_TAG: refs/tags/${{ inputs.existing-nightly-build }}
       run: |
-        sha=$(git rev-list -n 1 ${NIGHTLY_BUILD_TAG})
-        echo "sha=$sha" | tee -a $GITHUB_OUTPUT
+        sha=$(git rev-list -n 1 "${NIGHTLY_BUILD_TAG}")
+        echo "sha=$sha" | tee -a "$GITHUB_OUTPUT"
 
     - name: Create release tag
       uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
@@ -65,7 +65,7 @@ jobs:
         script: |
           const tag = process.env['RELEASE_TAG'];
           const sha = process.env['NIGHTLY_BUILD_SHA'];
-          github.rest.git.createRef({
+          await github.rest.git.createRef({
             owner: context.repo.owner,
             repo: context.repo.repo,
             ref: `refs/tags/${tag}`,
@@ -80,7 +80,7 @@ jobs:
       with:
         script: |
           const tag = process.env['RELEASE_TAG'];
-          github.rest.actions.createWorkflowDispatch({
+          await github.rest.actions.createWorkflowDispatch({
             owner: context.repo.owner,
             repo: context.repo.repo,
             workflow_id: 'update-cmms.yml',
