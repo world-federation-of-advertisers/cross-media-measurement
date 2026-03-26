@@ -269,7 +269,7 @@ class GenerateSyntheticData : Runnable {
       impressionWriter.writeLabeledImpressionData(
         events,
         modelLine,
-        impressionMetadataBasePath = impressionMetadataBasePath,
+        impressionsBasePath = impressionMetadataBasePath,
         flatOutputBasePath = flatOutputBasePath,
       )
     }
