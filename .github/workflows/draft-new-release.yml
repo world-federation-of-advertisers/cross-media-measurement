@@ -163,11 +163,13 @@ jobs:
           EXISTING_RELEASE_TAG: ${{ needs.compute-existing-release-tag.outputs.tag }}
           RELEASE_TARGET: ${{ needs.compute-release-target.outputs.sha }}
           EXTRA_NOTES: ${{ needs.compute-release-notes.outputs.summary }}
-        run: >
-          gh release create --draft
-          --target "${RELEASE_TARGET}"
-          --verify-tag
-          --generate-notes
-          --notes-start-tag "${NOTES_START_TAG}"
-          --notes "${EXTRA_NOTES}"
-          "${EXISTING_RELEASE_TAG}"
+        run: |
+          release_link=$(gh release create --draft \
+            --target "${RELEASE_TARGET}" \
+            --verify-tag \
+            --generate-notes \
+            --notes-start-tag "${NOTES_START_TAG}" \
+            --notes "${EXTRA_NOTES}" \
+            "${EXISTING_RELEASE_TAG}")
+          echo "## Draft release" | tee -a $GITHUB_STEP_SUMMARY
+          echo "Draft release available at ${release_link}" | tee -a $GITHUB_STEP_SUMMARY
