@@ -263,11 +263,14 @@ class GenerateSyntheticData : Runnable {
           storagePath,
           schema,
         )
+      require(flatOutputBasePath == null || impressionMetadataBasePath == null) {
+        "Cannot specify both --impression-metadata-base-path and --flat-output-base-path; set exactly one or neither"
+      }
       impressionWriter.writeLabeledImpressionData(
         events,
         modelLine,
-        impressionMetadataBasePath,
-        flatOutputBasePath,
+        impressionMetadataBasePath = impressionMetadataBasePath,
+        flatOutputBasePath = flatOutputBasePath,
       )
     }
   }
