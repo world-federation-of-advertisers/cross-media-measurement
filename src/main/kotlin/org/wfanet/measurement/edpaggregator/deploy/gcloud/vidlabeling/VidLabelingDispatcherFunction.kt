@@ -213,9 +213,9 @@ class VidLabelingDispatcherFunction : HttpFunction {
     /**
      * Creates a [StorageClient] for listing raw impression files.
      *
-     * Uses [FileSystemStorageClient] when the `VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH` environment
-     * variable is set (testing only), otherwise creates a [GcsStorageClient] using the bucket from
-     * the done blob URI.
+     * Uses [FileSystemStorageClient] when the `VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH`
+     * environment variable is set (testing only), otherwise creates a [GcsStorageClient] using the
+     * bucket from the done blob URI.
      *
      * @param doneBlobPath the full storage URI of the "done" blob.
      * @return a [StorageClient] configured for the appropriate storage backend.
