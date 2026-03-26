@@ -93,8 +93,6 @@ class VidLabelingDispatcherTest {
       }
   }
 
-  private var batchCounter = 0
-
   private fun createDispatcher(
     batchMaxSizeBytes: Long = BATCH_MAX_SIZE_BYTES
   ): VidLabelingDispatcher {
@@ -112,9 +110,8 @@ class VidLabelingDispatcherTest {
 
   private suspend fun stubBatchCreation() {
     whenever(rawImpressionMetadataBatchService.createRawImpressionMetadataBatch(any())).thenAnswer {
-      batchCounter++
       rawImpressionMetadataBatch {
-        name = "$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/batch-$batchCounter"
+        name = "$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/${java.util.UUID.randomUUID()}"
       }
     }
     whenever(
@@ -150,6 +147,10 @@ class VidLabelingDispatcherTest {
     val dispatcher = createDispatcher()
     dispatcher.dispatch(DONE_BLOB_PATH)
 
+    verifyBlocking(rawImpressionMetadataBatchService, times(1)) {
+      createRawImpressionMetadataBatch(any())
+    }
+
     val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
     verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
 
@@ -177,6 +178,10 @@ class VidLabelingDispatcherTest {
       val dispatcher = createDispatcher()
       dispatcher.dispatch(DONE_BLOB_PATH)
 
+      verifyBlocking(rawImpressionMetadataBatchService, times(1)) {
+        createRawImpressionMetadataBatch(any())
+      }
+
       val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
       verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
 
@@ -199,6 +204,10 @@ class VidLabelingDispatcherTest {
     // Batch max size of 900 bytes: BFD packs file1+file2 into one batch, file3 into another.
     val dispatcher = createDispatcher(batchMaxSizeBytes = 900L)
     dispatcher.dispatch(DONE_BLOB_PATH)
+
+    verifyBlocking(rawImpressionMetadataBatchService, times(2)) {
+      createRawImpressionMetadataBatch(any())
+    }
 
     val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
     verifyBlocking(workItemsService, times(2)) { createWorkItem(requestCaptor.capture()) }
@@ -236,6 +245,10 @@ class VidLabelingDispatcherTest {
 
     val dispatcher = createDispatcher()
     dispatcher.dispatch(DONE_BLOB_PATH)
+
+    verifyBlocking(rawImpressionMetadataBatchService, times(1)) {
+      createRawImpressionMetadataBatch(any())
+    }
 
     val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
     verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
@@ -286,6 +299,10 @@ class VidLabelingDispatcherTest {
     val dispatcher = createDispatcher(batchMaxSizeBytes = 1000L)
     dispatcher.dispatch(DONE_BLOB_PATH)
 
+    verifyBlocking(rawImpressionMetadataBatchService, times(2)) {
+      createRawImpressionMetadataBatch(any())
+    }
+
     val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
     verifyBlocking(workItemsService, times(2)) { createWorkItem(requestCaptor.capture()) }
 
@@ -323,6 +340,10 @@ class VidLabelingDispatcherTest {
 
     val dispatcher = createDispatcher(batchMaxSizeBytes = 1000L)
     dispatcher.dispatch(DONE_BLOB_PATH)
+
+    verifyBlocking(rawImpressionMetadataBatchService, times(2)) {
+      createRawImpressionMetadataBatch(any())
+    }
 
     val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
     verifyBlocking(workItemsService, times(2)) { createWorkItem(requestCaptor.capture()) }
@@ -362,9 +383,8 @@ class VidLabelingDispatcherTest {
     }
 
     val dispatcher = createDispatcher()
-    val exception = assertFailsWith<Exception> { dispatcher.dispatch(DONE_BLOB_PATH) }
-    assertThat(exception).hasMessageThat().contains("Error creating WorkItem")
-    assertThat(exception).hasCauseThat().isInstanceOf(StatusException::class.java)
+    val exception = assertFailsWith<StatusException> { dispatcher.dispatch(DONE_BLOB_PATH) }
+    assertThat(exception.status.code).isEqualTo(Status.UNAVAILABLE.code)
   }
 
   @Test

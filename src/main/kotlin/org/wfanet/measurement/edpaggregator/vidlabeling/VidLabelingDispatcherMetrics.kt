@@ -55,11 +55,4 @@ class VidLabelingDispatcherMetrics(meter: Meter = Instrumentation.meter) {
       .counterBuilder("edpa.vid_labeling_dispatcher.oversized_file_alerts")
       .setDescription("Number of files exceeding the batch max size")
       .build()
-
-  /** Counter for the number of Secure Computation API call errors. */
-  val rpcErrorsCounter: LongCounter =
-    meter
-      .counterBuilder("edpa.vid_labeling_dispatcher.rpc_errors")
-      .setDescription("Number of Secure Computation API call errors")
-      .build()
 }

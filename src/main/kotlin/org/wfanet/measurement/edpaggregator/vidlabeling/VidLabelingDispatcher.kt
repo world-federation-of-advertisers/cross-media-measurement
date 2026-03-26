@@ -16,19 +16,18 @@
 
 package org.wfanet.measurement.edpaggregator.vidlabeling
 
-import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import java.util.logging.Logger
 import kotlin.time.TimeSource
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatch
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionMetadataBatchFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionMetadataBatchFileRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionMetadataBatchRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionMetadataBatch
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionMetadataBatchFile
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
@@ -210,28 +209,12 @@ class VidLabelingDispatcher(
    *
    * @return the created [RawImpressionMetadataBatch] with server-assigned name.
    */
-  private suspend fun createBatch():
-    org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatch {
+  private suspend fun createBatch(): RawImpressionMetadataBatch {
     val request = createRawImpressionMetadataBatchRequest {
       parent = dataProviderName
-      rawImpressionMetadataBatch = rawImpressionMetadataBatch {}
+      rawImpressionMetadataBatch = RawImpressionMetadataBatch.getDefaultInstance()
     }
-    try {
-      return rawImpressionMetadataBatchStub.createRawImpressionMetadataBatch(request)
-    } catch (e: StatusException) {
-      metrics.rpcErrorsCounter.add(
-        1,
-        Attributes.of(
-          DATA_PROVIDER_ATTR,
-          dataProviderName,
-          RPC_METHOD_ATTR,
-          RPC_METHOD_CREATE_BATCH,
-          STATUS_CODE_ATTR,
-          e.status.code.name,
-        ),
-      )
-      throw Exception("Error creating RawImpressionMetadataBatch", e)
-    }
+    return rawImpressionMetadataBatchStub.createRawImpressionMetadataBatch(request)
   }
 
   /**
@@ -251,22 +234,7 @@ class VidLabelingDispatcher(
           }
         }
     }
-    try {
-      rawImpressionMetadataBatchFileStub.batchCreateRawImpressionMetadataBatchFiles(request)
-    } catch (e: StatusException) {
-      metrics.rpcErrorsCounter.add(
-        1,
-        Attributes.of(
-          DATA_PROVIDER_ATTR,
-          dataProviderName,
-          RPC_METHOD_ATTR,
-          RPC_METHOD_BATCH_CREATE_FILES,
-          STATUS_CODE_ATTR,
-          e.status.code.name,
-        ),
-      )
-      throw Exception("Error creating RawImpressionMetadataBatchFiles for $batchResourceName", e)
-    }
+    rawImpressionMetadataBatchFileStub.batchCreateRawImpressionMetadataBatchFiles(request)
   }
 
   /**
@@ -287,23 +255,8 @@ class VidLabelingDispatcher(
       }
     }
 
-    try {
-      workItemsStub.createWorkItem(request)
-      logger.info("Created WorkItem $workItemId for batch ${params.rawImpressionMetadataBatch}")
-    } catch (e: StatusException) {
-      metrics.rpcErrorsCounter.add(
-        1,
-        Attributes.of(
-          DATA_PROVIDER_ATTR,
-          dataProviderName,
-          RPC_METHOD_ATTR,
-          RPC_METHOD_CREATE_WORK_ITEM,
-          STATUS_CODE_ATTR,
-          e.status.code.name,
-        ),
-      )
-      throw Exception("Error creating WorkItem $workItemId", e)
-    }
+    workItemsStub.createWorkItem(request)
+    logger.info("Created WorkItem $workItemId for batch ${params.rawImpressionMetadataBatch}")
   }
 
   private fun recordDispatchDuration(
@@ -338,14 +291,7 @@ class VidLabelingDispatcher(
       AttributeKey.stringKey("edpa.vid_labeling_dispatcher.data_provider")
     private val DISPATCH_STATUS_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("edpa.vid_labeling_dispatcher.dispatch_status")
-    private val RPC_METHOD_ATTR: AttributeKey<String> =
-      AttributeKey.stringKey("edpa.vid_labeling_dispatcher.rpc_method")
-    private val STATUS_CODE_ATTR: AttributeKey<String> =
-      AttributeKey.stringKey("edpa.vid_labeling_dispatcher.status_code")
     private const val DISPATCH_STATUS_SUCCESS = "success"
     private const val DISPATCH_STATUS_FAILED = "failed"
-    private const val RPC_METHOD_CREATE_WORK_ITEM = "CreateWorkItem"
-    private const val RPC_METHOD_CREATE_BATCH = "CreateRawImpressionMetadataBatch"
-    private const val RPC_METHOD_BATCH_CREATE_FILES = "BatchCreateRawImpressionMetadataBatchFiles"
   }
 }
