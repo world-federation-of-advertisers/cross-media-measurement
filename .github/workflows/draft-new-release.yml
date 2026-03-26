@@ -17,11 +17,9 @@ name: Draft new release
 on:
   workflow_dispatch:
     inputs:
-      # DO_NOT_SUBMIT: set the latest release git tag as the default.
       existing-release-tag:
         type: string
-        description: "Existing release git tag (e.g. v0.5.35)"
-        required: true
+        description: "Existing release git tag (e.g. v0.5.35). Default: latest release git tag"
       milestone-name:
         type: string
         description: "Milestone name. Default: stable version of the existing-release-tag (i.e. non-RC version)"
@@ -33,8 +31,26 @@ permissions:
   contents: read
 
 jobs:
+  compute-existing-release-tag:
+    runs-on: ubuntu-22.04
+    outputs:
+      commitish: ${{ steps.compute-tag.outputs.tag }}
+    steps:
+      - name: Compute tag
+        id: compute-tag
+        env:
+          EXISTING_RELEASE_TAG: ${{ inputs.existing-release-tag }}
+        run: |
+          tag="${EXISTING_RELEASE_TAG}"
+          if [ -z "${tag}" ]; then
+            # get the latest release git tag
+            tag=$(git tag -l "v*" | sed "s/v//" | sort -n | tail -n1 | sed "s/^/v/")
+          fi
+          echo "tag=${tag}" | tee -a $GITHUB_OUTPUT
+
   compute-notes-start-commitish:
     runs-on: ubuntu-22.04
+    needs: [compute-existing-release-tag]
     outputs:
       commitish: ${{ steps.compute-notes-start-commitish.outputs.commitish }}
     steps:
@@ -42,7 +58,7 @@ jobs:
         id: compute-notes-start-commitish
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         env:
-          EXISTING_RELEASE_TAG: ${{ inputs.existing-release-tag }}
+          EXISTING_RELEASE_TAG: ${{ needs.compute-existing-release-tag.outputs.tag }}
           NOTES_START_COMMITISH: ${{ inputs.notes-start-commitish }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -74,6 +90,7 @@ jobs:
 
   compute-milestone-name:
     runs-on: ubuntu-22.04
+    needs: [compute-existing-release-tag]
     outputs:
       name: ${{ steps.compute-milestone-name.outputs.name }}
     steps:
@@ -82,7 +99,7 @@ jobs:
         shell: bash
         env:
           MILESTONE_NAME: ${{ inputs.milestone-name }}
-          RELEASE_TAG: ${{ inputs.existing-release-tag }}
+          RELEASE_TAG: ${{ needs.compute-existing-release-tag.outputs.tag }}
         run: |
           name="${MILESTONE_NAME}"
           if [ -z "${name}" ]; then
@@ -93,6 +110,7 @@ jobs:
           
   compute-release-target:
     runs-on: ubuntu-22.04
+    needs: [compute-existing-release-tag]
     outputs:
       sha: ${{ steps.compute-release-target.outputs.sha }}
     steps:
@@ -106,7 +124,7 @@ jobs:
         id: compute-release-target
         shell: bash
         env:
-          RELEASE_TARGET_COMMITISH: ${{ inputs.existing-release-tag }}
+          RELEASE_TARGET_COMMITISH: ${{ needs.compute-existing-release-tag.outputs.tag }}
         run: |
           sha=$(git rev-parse --verify "${target}")
           echo "sha=${sha}" | tee -a $GITHUB_OUTPUT
@@ -126,7 +144,7 @@ jobs:
   draft-release:
     name: Draft new release
     runs-on: ubuntu-latest
-    needs: [compute-notes-start-commitish, compute-release-target, compute-release-notes]
+    needs: [compute-existing-release-tag, compute-notes-start-commitish, compute-release-target, compute-release-notes]
     permissions:
       contents: write
     steps:
@@ -138,7 +156,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NOTES_START_TAG: ${{ needs.compute-notes-start-commitish.outputs.commitish }}
-          EXISTING_RELEASE_TAG: ${{ inputs.existing-release-tag }}
+          EXISTING_RELEASE_TAG: ${{ needs.compute-existing-release-tag.outputs.tag }}
           RELEASE_TARGET: ${{ needs.compute-release-target.outputs.sha }}
           EXTRA_NOTES: ${{ needs.compute-release-notes.outputs.summary }}
         run: >
