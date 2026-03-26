@@ -269,8 +269,8 @@ class VidLabelingDispatcherFunction : HttpFunction {
     /**
      * Gets or creates a cached gRPC channel for the Secure Computation control plane.
      *
-     * Uses the [VidLabelingConfig]'s `raw_impression_metadata_storage_connection` TLS parameters for
-     * channel creation, since the Cloud Function uses the same client identity for all outgoing
+     * Uses the [VidLabelingConfig]'s `raw_impression_metadata_storage_connection` TLS parameters
+     * for channel creation, since the Cloud Function uses the same client identity for all outgoing
      * connections.
      *
      * @param config the [VidLabelingConfig] providing TLS connection parameters.
@@ -330,10 +330,11 @@ class VidLabelingDispatcherFunction : HttpFunction {
 
       return vidLabelerParams {
         dataProvider = config.dataProvider
-        storageParams = VidLabelerParamsKt.storageParams {
-          gcsProjectId = config.storageParams.gcs.projectId
-          labeledImpressionsBlobPrefix = "gs://${config.storageParams.gcs.bucketName}"
-        }
+        storageParams =
+          VidLabelerParamsKt.storageParams {
+            gcsProjectId = config.storageParams.gcs.projectId
+            labeledImpressionsBlobPrefix = "gs://${config.storageParams.gcs.bucketName}"
+          }
         vidRepoConnection = transportLayerSecurityParams {
           clientCertResourcePath = config.vidRepoConnection.certFilePath
           clientPrivateKeyResourcePath = config.vidRepoConnection.privateKeyFilePath
@@ -346,8 +347,8 @@ class VidLabelingDispatcherFunction : HttpFunction {
     /**
      * Converts model line configs from config package types to v1alpha package types.
      *
-     * Both [VidLabelingConfig.ModelLineConfig] and [VidLabelerParams.ModelLineConfig] have identical
-     * fields but are different generated types.
+     * Both [VidLabelingConfig.ModelLineConfig] and [VidLabelerParams.ModelLineConfig] have
+     * identical fields but are different generated types.
      *
      * @param configModelLines the config-layer model line map.
      * @return the v1alpha model line map.
