@@ -19,7 +19,7 @@ on:
     inputs:
       existing-release-tag:
         type: string
-        description: "Existing release git tag (e.g. v0.5.35). Default: latest release git tag"
+        description: "Existing release tag (e.g. v0.5.35). Default: latest release tag"
       milestone-name:
         type: string
         description: "Milestone name. Default: stable version of the existing-release-tag (i.e. non-RC version)"
@@ -43,7 +43,7 @@ jobs:
         run: |
           tag="${EXISTING_RELEASE_TAG}"
           if [ -z "${tag}" ]; then
-            # get the latest release git tag
+            # get the latest release tag
             tag=$(git tag -l "v*" | sed "s/v//" | sort -n | tail -n1 | sed "s/^/v/")
           fi
           echo "tag=${tag}" | tee -a $GITHUB_OUTPUT
@@ -124,9 +124,9 @@ jobs:
         id: compute-release-target
         shell: bash
         env:
-          RELEASE_TARGET_COMMITISH: ${{ needs.compute-existing-release-tag.outputs.tag }}
+          EXISTING_RELEASE_TAG: ${{ needs.compute-existing-release-tag.outputs.tag }}
         run: |
-          sha=$(git rev-parse --verify "${target}")
+          sha=$(git rev-parse --verify "${EXISTING_RELEASE_TAG}")
           echo "sha=${sha}" | tee -a $GITHUB_OUTPUT
 
   compute-release-notes:
