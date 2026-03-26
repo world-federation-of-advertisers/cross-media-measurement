@@ -148,6 +148,17 @@ class GenerateSyntheticData : Runnable {
     private set
 
   @Option(
+    names = ["--flat-output-base-path"],
+    description =
+      [
+        "Optional. When set, outputs files directly under <base-path>/<date>/ without model-line and event-group-reference-id path segments."
+      ],
+    required = false,
+  )
+  var flatOutputBasePath: String? = null
+    private set
+
+  @Option(
     names = ["--aws-role-arn"],
     description =
       ["AWS IAM role ARN for STS AssumeRoleWithWebIdentity. Required when --kms-type=AWS."],
@@ -252,7 +263,12 @@ class GenerateSyntheticData : Runnable {
           storagePath,
           schema,
         )
-      impressionWriter.writeLabeledImpressionData(events, modelLine, impressionMetadataBasePath)
+      impressionWriter.writeLabeledImpressionData(
+        events,
+        modelLine,
+        impressionMetadataBasePath,
+        flatOutputBasePath,
+      )
     }
   }
 
