@@ -60,7 +60,7 @@ data class ImpressionMetadataResult(
 data class ModelLineBoundResult(val cmmsModelLine: String, val bound: Interval)
 
 /** Resolved internal Spanner IDs for a RawImpressionMetadata FK reference. */
-data class RawImpressionInternalKey(val uploadId: Long, val batchIndex: Long, val fileId: Long)
+data class RawImpressionInternalKey(val batchId: Long, val fileId: Long)
 
 /** Returns whether the [ImpressionMetadata] with the specified [impressionMetadataId] exists. */
 suspend fun AsyncDatabaseClient.ReadContext.impressionMetadataExists(
@@ -228,12 +228,16 @@ suspend fun AsyncDatabaseClient.ReadContext.resolveRawImpressionInternalKey(
 ): RawImpressionInternalKey {
   val sql =
     """
-    SELECT UploadId, BatchIndex, FileId
-    FROM RawImpressionMetadata@{FORCE_INDEX=RawImpressionMetadataByFileResourceId}
-    WHERE DataProviderResourceId = @dataProviderResourceId
-      AND UploadResourceId = @uploadResourceId
-      AND BatchIndex = @batchIndex
-      AND FileResourceId = @fileResourceId
+    SELECT
+      RawImpressionMetadataBatch.BatchId,
+      RawImpressionMetadataBatchFile.FileId,
+    FROM
+      RawImpressionMetadataBatch
+      JOIN RawImpressionMetadataBatchFile USING (DataProviderResourceId, BatchId)
+    WHERE
+      RawImpressionMetadataBatch.DataProviderResourceId = @dataProviderResourceId
+      AND RawImpressionMetadataBatch.BatchResourceId = @batchResourceId
+      AND RawImpressionMetadataBatchFile.FileResourceId = @fileResourceId
     """
       .trimIndent()
 
@@ -241,24 +245,18 @@ suspend fun AsyncDatabaseClient.ReadContext.resolveRawImpressionInternalKey(
     executeQuery(
         statement(sql) {
           bind("dataProviderResourceId").to(dataProviderResourceId)
-          bind("uploadResourceId").to(key.rawImpressionUploadResourceId)
-          bind("batchIndex").to(key.batchIndex)
+          bind("batchResourceId").to(key.batchResourceId)
           bind("fileResourceId").to(key.fileResourceId)
         }
       )
       .singleOrNullIfEmpty()
       ?: throw RawImpressionMetadataNotFoundException(
         dataProviderResourceId,
-        key.rawImpressionUploadResourceId,
-        key.batchIndex,
+        key.batchResourceId,
         key.fileResourceId,
       )
 
-  return RawImpressionInternalKey(
-    uploadId = row.getLong("UploadId"),
-    batchIndex = row.getLong("BatchIndex"),
-    fileId = row.getLong("FileId"),
-  )
+  return RawImpressionInternalKey(batchId = row.getLong("BatchId"), fileId = row.getLong("FileId"))
 }
 
 /** Buffers an insert mutation for a [ImpressionMetadata] row. */
@@ -283,8 +281,7 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
     set("IntervalEndTime").to(impressionMetadata.interval.endTime.toGcloudTimestamp())
     set("State").to(impressionMetadata.state)
     if (rawImpressionInternalKey != null) {
-      set("RawImpressionUploadId").to(rawImpressionInternalKey.uploadId)
-      set("RawImpressionBatchIndex").to(rawImpressionInternalKey.batchIndex)
+      set("RawImpressionBatchId").to(rawImpressionInternalKey.batchId)
       set("RawImpressionFileId").to(rawImpressionInternalKey.fileId)
     }
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
@@ -528,17 +525,16 @@ private object ImpressionMetadataEntity {
       ImpressionMetadata.State,
       ImpressionMetadata.CreateTime,
       ImpressionMetadata.UpdateTime,
-      RawImpressionMetadata.UploadResourceId AS RawImpressionUploadResourceId,
-      ImpressionMetadata.RawImpressionBatchIndex,
-      RawImpressionMetadata.FileResourceId AS RawImpressionFileResourceId,
+      RawImpressionMetadataBatch.BatchResourceId AS RawImpressionBatchResourceId,
+      RawImpressionMetadataBatchFile.FileResourceId AS RawImpressionFileResourceId,
     FROM
       ImpressionMetadata
-    LEFT JOIN
-      RawImpressionMetadata
-      ON ImpressionMetadata.DataProviderResourceId = RawImpressionMetadata.DataProviderResourceId
-      AND ImpressionMetadata.RawImpressionUploadId = RawImpressionMetadata.UploadId
-      AND ImpressionMetadata.RawImpressionBatchIndex = RawImpressionMetadata.BatchIndex
-      AND ImpressionMetadata.RawImpressionFileId = RawImpressionMetadata.FileId
+    LEFT JOIN (
+      RawImpressionMetadataBatchFile
+      JOIN RawImpressionMetadataBatch USING (DataProviderResourceId, BatchId)
+    ) ON ImpressionMetadata.DataProviderResourceId = RawImpressionMetadataBatchFile.DataProviderResourceId
+      AND ImpressionMetadata.RawImpressionBatchId = RawImpressionMetadataBatchFile.BatchId
+      AND ImpressionMetadata.RawImpressionFileId = RawImpressionMetadataBatchFile.FileId
     """
       .trimIndent()
 
@@ -560,10 +556,9 @@ private object ImpressionMetadataEntity {
         createTime = struct.getTimestamp("CreateTime").toProto()
         updateTime = struct.getTimestamp("UpdateTime").toProto()
         etag = ETags.computeETag(updateTime.toInstant())
-        if (!struct.isNull("RawImpressionUploadResourceId")) {
+        if (!struct.isNull("RawImpressionBatchResourceId")) {
           rawImpressionMetadataKey = rawImpressionMetadataKey {
-            rawImpressionUploadResourceId = struct.getString("RawImpressionUploadResourceId")
-            batchIndex = struct.getLong("RawImpressionBatchIndex")
+            batchResourceId = struct.getString("RawImpressionBatchResourceId")
             fileResourceId = struct.getString("RawImpressionFileResourceId")
           }
         }

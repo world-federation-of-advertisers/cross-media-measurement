@@ -34,3 +34,6 @@ databaseChangeLog:
   - include:
       file: add-raw-impression-fk.sql
       relativeToChangeLogFile: true
+  - include:
+      file: refactor-raw-impression-schema.sql
+      relativeToChangeLogFile: true
