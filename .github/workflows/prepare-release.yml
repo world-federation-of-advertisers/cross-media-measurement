@@ -86,7 +86,7 @@ jobs:
             workflow_id: 'update-cmms.yml',
             ref: tag,
             inputs: {
-              environment: 'QA',
+              environment: 'qa',
               apply: true,
             },
           });

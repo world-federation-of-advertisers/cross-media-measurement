@@ -34,8 +34,14 @@ jobs:
   compute-existing-release-tag:
     runs-on: ubuntu-22.04
     outputs:
-      commitish: ${{ steps.compute-tag.outputs.tag }}
+      tag: ${{ steps.compute-tag.outputs.tag }}
     steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
       - name: Compute tag
         id: compute-tag
         env:
@@ -44,7 +50,7 @@ jobs:
           tag="${EXISTING_RELEASE_TAG}"
           if [ -z "${tag}" ]; then
             # get the latest release tag
-            tag=$(git tag -l "v*" | sed "s/v//" | sort -n | tail -n1 | sed "s/^/v/")
+            tag=$(git tag -l "v*" | sort -V | tail -n1)
           fi
           echo "tag=${tag}" | tee -a $GITHUB_OUTPUT
 
