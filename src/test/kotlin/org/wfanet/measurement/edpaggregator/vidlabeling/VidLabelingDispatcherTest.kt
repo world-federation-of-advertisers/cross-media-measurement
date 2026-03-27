@@ -36,6 +36,7 @@ import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionMetadataBatchFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionMetadataBatchFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchServiceGrpcKt
@@ -423,24 +424,15 @@ class VidLabelingDispatcherTest {
     val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
     verifyBlocking(workItemsService, times(2)) { createWorkItem(requestCaptor.capture()) }
 
-    val batch1Params =
-      requestCaptor.allValues[0]
-        .workItem
-        .workItemParams
-        .unpack(WorkItemParams::class.java)
-        .appParams
-        .unpack(VidLabelerParams::class.java)
-    val batch2Params =
-      requestCaptor.allValues[1]
-        .workItem
-        .workItemParams
-        .unpack(WorkItemParams::class.java)
-        .appParams
-        .unpack(VidLabelerParams::class.java)
+    val batchFileCaptor =
+      argumentCaptor<BatchCreateRawImpressionMetadataBatchFilesRequest>()
+    verifyBlocking(rawImpressionMetadataBatchFileService, times(2)) {
+      batchCreateRawImpressionMetadataBatchFiles(batchFileCaptor.capture())
+    }
 
     // Each batch should contain exactly 2 files (one 600 + one 400).
-    assertThat(batch1Params.inputBlobUrisList).hasSize(2)
-    assertThat(batch2Params.inputBlobUrisList).hasSize(2)
+    assertThat(batchFileCaptor.allValues[0].requestsCount).isEqualTo(2)
+    assertThat(batchFileCaptor.allValues[1].requestsCount).isEqualTo(2)
   }
 
   @Test
@@ -456,28 +448,21 @@ class VidLabelingDispatcherTest {
     val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
     verifyBlocking(workItemsService, times(2)) { createWorkItem(requestCaptor.capture()) }
 
-    // Oversized batches come first in the output.
-    val oversizedBatchParams =
-      requestCaptor.allValues[0]
-        .workItem
-        .workItemParams
-        .unpack(WorkItemParams::class.java)
-        .appParams
-        .unpack(VidLabelerParams::class.java)
-    val normalBatchParams =
-      requestCaptor.allValues[1]
-        .workItem
-        .workItemParams
-        .unpack(WorkItemParams::class.java)
-        .appParams
-        .unpack(VidLabelerParams::class.java)
+    val batchFileCaptor =
+      argumentCaptor<BatchCreateRawImpressionMetadataBatchFilesRequest>()
+    verifyBlocking(rawImpressionMetadataBatchFileService, times(2)) {
+      batchCreateRawImpressionMetadataBatchFiles(batchFileCaptor.capture())
+    }
 
+    // Oversized batches come first in the output.
     // Oversized file is alone in its batch.
-    assertThat(oversizedBatchParams.inputBlobUrisList).hasSize(1)
-    assertThat(oversizedBatchParams.inputBlobUrisList[0]).contains("oversized.parquet")
+    assertThat(batchFileCaptor.allValues[0].requestsCount).isEqualTo(1)
+    assertThat(batchFileCaptor.allValues[0].requestsList[0].rawImpressionMetadataBatchFile.blobUri)
+      .contains("oversized.parquet")
     // Normal file is in its own batch.
-    assertThat(normalBatchParams.inputBlobUrisList).hasSize(1)
-    assertThat(normalBatchParams.inputBlobUrisList[0]).contains("normal.parquet")
+    assertThat(batchFileCaptor.allValues[1].requestsCount).isEqualTo(1)
+    assertThat(batchFileCaptor.allValues[1].requestsList[0].rawImpressionMetadataBatchFile.blobUri)
+      .contains("normal.parquet")
   }
 
   @Test
@@ -518,10 +503,12 @@ class VidLabelingDispatcherTest {
     val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
     verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
 
-    val workItemParams =
-      requestCaptor.firstValue.workItem.workItemParams.unpack(WorkItemParams::class.java)
-    val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
-    assertThat(vidLabelerParams.inputBlobUrisList[0])
+    val batchFileCaptor =
+      argumentCaptor<BatchCreateRawImpressionMetadataBatchFilesRequest>()
+    verifyBlocking(rawImpressionMetadataBatchFileService, times(1)) {
+      batchCreateRawImpressionMetadataBatchFiles(batchFileCaptor.capture())
+    }
+    assertThat(batchFileCaptor.firstValue.requestsList[0].rawImpressionMetadataBatchFile.blobUri)
       .isEqualTo("gs://test-bucket/$FOLDER_PREFIX/file1.parquet")
   }
 
