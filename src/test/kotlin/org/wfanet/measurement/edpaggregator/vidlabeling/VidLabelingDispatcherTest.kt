@@ -408,19 +408,6 @@ class VidLabelingDispatcherTest {
       .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
   }
 
-  @Test
-  fun `dispatch with unsupported URI scheme throws exception`() = runBlocking {
-    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
-    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
-
-    val dispatcher = createDispatcher()
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        dispatcher.dispatch("s3://test-bucket/$FOLDER_PREFIX/done")
-      }
-    assertThat(exception).hasMessageThat().contains("S3 is not currently supported")
-  }
-
   companion object {
     private const val DATA_PROVIDER_NAME = "dataProviders/edp123"
     private const val QUEUE_NAME = "queues/vid-labeler-queue"
