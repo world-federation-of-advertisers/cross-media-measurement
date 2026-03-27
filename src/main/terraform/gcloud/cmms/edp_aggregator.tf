@@ -154,6 +154,8 @@ locals {
                                           "--duchy-target", var.duchy_worker1_target,
                                           "--duchy-id", var.duchy_worker2_id,
                                           "--duchy-target", var.duchy_worker2_target,
+                                          "--duchy-id", var.duchy_aggregator_id,
+                                          "--duchy-target", var.duchy_aggregator_target,
                                         ]
     }
   }
