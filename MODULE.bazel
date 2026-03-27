@@ -446,6 +446,6 @@ single_version_override(
 # DO_NOT_SUBMIT(common-jvm#376)
 git_override(
     module_name = "common-jvm",
-    commit = "20cc17d8fb2a797a3947778fc52852ff95bb9259",
+    commit = "c17c918a1b341ae9c8343cdd875d7e209d296666",
     remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )
