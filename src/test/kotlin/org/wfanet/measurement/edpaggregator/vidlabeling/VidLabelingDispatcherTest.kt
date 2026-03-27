@@ -418,7 +418,7 @@ class VidLabelingDispatcherTest {
       assertFailsWith<IllegalArgumentException> {
         dispatcher.dispatch("s3://test-bucket/$FOLDER_PREFIX/done")
       }
-    assertThat(exception).hasMessageThat().contains("Unsupported scheme")
+    assertThat(exception).hasMessageThat().contains("S3 is not currently supported")
   }
 
   companion object {
