@@ -414,9 +414,7 @@ class VidLabelingDispatcherTest {
     val blob3 = createMockBlob("$FOLDER_PREFIX/file3.parquet", 600L)
     val blob4 = createMockBlob("$FOLDER_PREFIX/file4.parquet", 600L)
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2, blob3, blob4))
-    whenever(workItemsService.createWorkItem(any())).thenReturn(
-      WorkItem.getDefaultInstance()
-    )
+    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
     // BFD with max 1000: sorts [600, 600, 400, 400], packs (600+400), (600+400).
     val dispatcher = createDispatcher(batchMaxSizeBytes = 1000L)
@@ -429,22 +427,14 @@ class VidLabelingDispatcherTest {
       requestCaptor.allValues[0]
         .workItem
         .workItemParams
-        .unpack(
-          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::
-            class
-            .java
-        )
+        .unpack(WorkItemParams::class.java)
         .appParams
         .unpack(VidLabelerParams::class.java)
     val batch2Params =
       requestCaptor.allValues[1]
         .workItem
         .workItemParams
-        .unpack(
-          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::
-            class
-            .java
-        )
+        .unpack(WorkItemParams::class.java)
         .appParams
         .unpack(VidLabelerParams::class.java)
 
@@ -458,9 +448,7 @@ class VidLabelingDispatcherTest {
     val normalBlob = createMockBlob("$FOLDER_PREFIX/normal.parquet", 400L)
     val oversizedBlob = createMockBlob("$FOLDER_PREFIX/oversized.parquet", 1500L)
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(normalBlob, oversizedBlob))
-    whenever(workItemsService.createWorkItem(any())).thenReturn(
-      WorkItem.getDefaultInstance()
-    )
+    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
     val dispatcher = createDispatcher(batchMaxSizeBytes = 1000L)
     dispatcher.dispatch(DONE_BLOB_PATH)
@@ -473,22 +461,14 @@ class VidLabelingDispatcherTest {
       requestCaptor.allValues[0]
         .workItem
         .workItemParams
-        .unpack(
-          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::
-            class
-            .java
-        )
+        .unpack(WorkItemParams::class.java)
         .appParams
         .unpack(VidLabelerParams::class.java)
     val normalBatchParams =
       requestCaptor.allValues[1]
         .workItem
         .workItemParams
-        .unpack(
-          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::
-            class
-            .java
-        )
+        .unpack(WorkItemParams::class.java)
         .appParams
         .unpack(VidLabelerParams::class.java)
 
@@ -521,8 +501,7 @@ class VidLabelingDispatcherTest {
       .thenThrow(StatusException(Status.UNAVAILABLE.withDescription("Service unavailable")))
 
     val dispatcher = createDispatcher()
-    val exception =
-      assertFailsWith<Exception> { dispatcher.dispatch(DONE_BLOB_PATH) }
+    val exception = assertFailsWith<Exception> { dispatcher.dispatch(DONE_BLOB_PATH) }
     assertThat(exception).hasMessageThat().contains("Error creating WorkItem")
     assertThat(exception).hasCauseThat().isInstanceOf(StatusException::class.java)
   }
@@ -531,9 +510,7 @@ class VidLabelingDispatcherTest {
   fun `dispatch with gs scheme constructs correct blob URIs`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
-    whenever(workItemsService.createWorkItem(any())).thenReturn(
-      WorkItem.getDefaultInstance()
-    )
+    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
     val dispatcher = createDispatcher()
     dispatcher.dispatch(GCS_DONE_BLOB_PATH)
@@ -542,10 +519,7 @@ class VidLabelingDispatcherTest {
     verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
 
     val workItemParams =
-      requestCaptor.firstValue.workItem.workItemParams.unpack(
-        org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::class
-          .java
-      )
+      requestCaptor.firstValue.workItem.workItemParams.unpack(WorkItemParams::class.java)
     val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
     assertThat(vidLabelerParams.inputBlobUrisList[0])
       .isEqualTo("gs://test-bucket/$FOLDER_PREFIX/file1.parquet")
