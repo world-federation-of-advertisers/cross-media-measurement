@@ -47,4 +47,10 @@ class DataAvailabilityMonitorMetrics(meter: Meter = Instrumentation.meter) {
       .counterBuilder("edpa.data_availability.dates_without_done_blob")
       .setDescription("Number of date folders missing a done blob")
       .build()
+
+  val lateArrivingDatesCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.data_availability.late_arriving_dates")
+      .setDescription("Number of dates with files updated after the done blob")
+      .build()
 }

@@ -52,6 +52,7 @@ class DataAvailabilityMonitorTest {
     private const val ZERO_IMPRESSION_DATES_METRIC = "edpa.data_availability.zero_impression_dates"
     private const val DATES_WITHOUT_DONE_BLOB_METRIC =
       "edpa.data_availability.dates_without_done_blob"
+    private const val LATE_ARRIVING_DATES_METRIC = "edpa.data_availability.late_arriving_dates"
   }
 
   private data class MetricsTestEnvironment(
@@ -843,6 +844,121 @@ class DataAvailabilityMonitorTest {
       assertThat(metricByName).doesNotContainKey(GAPS_METRIC)
       assertThat(metricByName).doesNotContainKey(ZERO_IMPRESSION_DATES_METRIC)
       assertThat(metricByName).doesNotContainKey(DATES_WITHOUT_DONE_BLOB_METRIC)
+    } finally {
+      metricsEnv.close()
+    }
+  }
+
+  @Test
+  fun `checkFullStatus detects late-arriving data after done blob`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    // Write done blob first
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+    // Wait to ensure the data file has a later updateTime than the done blob
+    Thread.sleep(1100)
+
+    // Write data file after done blob (late arrival)
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+      )
+
+    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+
+    val status = result.statuses.single()
+    assertThat(status.lateArrivingDates).containsExactly(LocalDate.of(2026, 3, 15))
+  }
+
+  @Test
+  fun `checkFullStatus reports no late-arriving data when files arrive before done blob`(): Unit =
+    runBlocking {
+      val storageClient = createStorageClient()
+
+      ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+      // Write data file first
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+      // Wait to ensure the done blob has a later updateTime
+      Thread.sleep(1100)
+
+      // Write done blob after data (normal case)
+      createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+      val monitor =
+        DataAvailabilityMonitor(
+          storageClient = storageClient,
+          edpImpressionPath = EDP_IMPRESSION_PATH,
+          activeModelLines = setOf(MODEL_LINE_A),
+        )
+
+      val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+
+      val status = result.statuses.single()
+      assertThat(status.lateArrivingDates).isEmpty()
+    }
+
+  @Test
+  fun `checkGaps detects late-arriving data after done blob`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+    Thread.sleep(1100)
+
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+      )
+
+    val result = monitor.checkGaps()
+
+    val status = result.statuses.single()
+    assertThat(status.lateArrivingDates).containsExactly(LocalDate.of(2026, 3, 15))
+  }
+
+  @Test
+  fun `checkFullStatus emits late-arriving dates metric`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+    val metricsEnv = createMetricsEnvironment()
+    try {
+      ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+      createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+      Thread.sleep(1100)
+
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+      val monitor =
+        DataAvailabilityMonitor(
+          storageClient = storageClient,
+          edpImpressionPath = EDP_IMPRESSION_PATH,
+          activeModelLines = setOf(MODEL_LINE_A),
+          metrics = metricsEnv.metrics,
+        )
+
+      monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+
+      metricsEnv.metricReader.forceFlush()
+      val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+      val metricByName = metricData.associateBy { it.name }
+
+      assertThat(metricByName).containsKey(LATE_ARRIVING_DATES_METRIC)
+      assertThat(
+          metricByName.getValue(LATE_ARRIVING_DATES_METRIC).longSumData.points.single().value
+        )
+        .isEqualTo(1)
     } finally {
       metricsEnv.close()
     }

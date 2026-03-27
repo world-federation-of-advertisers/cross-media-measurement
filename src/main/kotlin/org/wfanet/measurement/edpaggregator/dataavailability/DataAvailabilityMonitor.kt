@@ -64,6 +64,7 @@ class DataAvailabilityMonitor(
     val staleDays: Int?,
     val zeroImpressionDates: List<LocalDate>?,
     val datesWithoutDoneBlob: List<LocalDate>?,
+    val lateArrivingDates: List<LocalDate>?,
   )
 
   /** Result of a full monitoring check across all active model lines. */
@@ -155,6 +156,14 @@ class DataAvailabilityMonitor(
       )
     }
 
+    if (dateInfo.lateArrivingDates.isNotEmpty()) {
+      logger.log(
+        Level.SEVERE,
+        "Model line $modelLineName has late-arriving data after done blob: " +
+          "${dateInfo.lateArrivingDates}",
+      )
+    }
+
     return ModelLineStatus(
       modelLineKey = modelLineKey,
       isStale = isStale,
@@ -163,6 +172,7 @@ class DataAvailabilityMonitor(
       staleDays = staleDays,
       zeroImpressionDates = dateInfo.zeroImpressionDates,
       datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
+      lateArrivingDates = dateInfo.lateArrivingDates,
     )
   }
 
@@ -199,6 +209,14 @@ class DataAvailabilityMonitor(
       )
     }
 
+    if (dateInfo.lateArrivingDates.isNotEmpty()) {
+      logger.log(
+        Level.SEVERE,
+        "Model line $modelLineName has late-arriving data after done blob: " +
+          "${dateInfo.lateArrivingDates}",
+      )
+    }
+
     return ModelLineStatus(
       modelLineKey = modelLineKey,
       isStale = null,
@@ -207,6 +225,7 @@ class DataAvailabilityMonitor(
       staleDays = null,
       zeroImpressionDates = dateInfo.zeroImpressionDates,
       datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
+      lateArrivingDates = dateInfo.lateArrivingDates,
     )
   }
 
@@ -215,6 +234,7 @@ class DataAvailabilityMonitor(
     val datesWithDoneBlob: Set<LocalDate>,
     val zeroImpressionDates: List<LocalDate>,
     val datesWithoutDoneBlob: List<LocalDate>,
+    val lateArrivingDates: List<LocalDate>,
   )
 
   private suspend fun getDateInfoForModelLine(modelLineKey: ModelLineKey): DateInfo {
@@ -241,6 +261,7 @@ class DataAvailabilityMonitor(
     val datesWithDone = mutableSetOf<LocalDate>()
     val zeroImpressionDatesList = mutableListOf<LocalDate>()
     val datesWithoutDoneBlobList = mutableListOf<LocalDate>()
+    val lateArrivingDatesList = mutableListOf<LocalDate>()
 
     val datePrefixes = storageClient.listBlobKeysAndPrefixes(prefix).toList()
 
@@ -260,6 +281,15 @@ class DataAvailabilityMonitor(
         if (!hasData) {
           zeroImpressionDatesList.add(date)
         }
+
+        // Check if any file was updated after the done blob, indicating late-arriving data.
+        val hasLateArrivals =
+          storageClient
+            .listBlobsUpdatedAfter("${prefix}$dateString/", doneBlob.updateTime)
+            .firstOrNull { !it.blobKey.endsWith("/done") } != null
+        if (hasLateArrivals) {
+          lateArrivingDatesList.add(date)
+        }
       } else {
         datesWithoutDoneBlobList.add(date)
       }
@@ -269,6 +299,7 @@ class DataAvailabilityMonitor(
       datesWithDoneBlob = datesWithDone,
       zeroImpressionDates = zeroImpressionDatesList.sorted(),
       datesWithoutDoneBlob = datesWithoutDoneBlobList.sorted(),
+      lateArrivingDates = lateArrivingDatesList.sorted(),
     )
   }
 
@@ -306,6 +337,9 @@ class DataAvailabilityMonitor(
     }
     if (!status.datesWithoutDoneBlob.isNullOrEmpty()) {
       metrics.datesWithoutDoneBlobCounter.add(status.datesWithoutDoneBlob.size.toLong(), attrs)
+    }
+    if (!status.lateArrivingDates.isNullOrEmpty()) {
+      metrics.lateArrivingDatesCounter.add(status.lateArrivingDates.size.toLong(), attrs)
     }
   }
 
