@@ -63,9 +63,11 @@ class DataAvailabilityMonitorFunction : HttpFunction {
       for (config in monitorConfigs.configsList) {
         val storageClient = createStorageClient(config)
         val activeModelLines =
-          config.activeModelLinesList
-            .map {
-              requireNotNull(ModelLineKey.fromName(it)) { "Invalid Model Line resource name: $it" }
+          config.modelLineConfigsList
+            .map { modelLineConfig ->
+              requireNotNull(ModelLineKey.fromName(modelLineConfig.modelLine)) {
+                "Invalid Model Line resource name: ${modelLineConfig.modelLine}"
+              }
             }
             .toSet()
 
@@ -96,12 +98,14 @@ class DataAvailabilityMonitorFunction : HttpFunction {
           monitor.checkFullStatus(maxStaleDays = maxStaleDays, clock = { LocalDate.now(timeZone) })
         }
 
+        val checks = config.enabledChecks
         if (
           result.statuses.any {
             it.isStale == true ||
               !it.gapDates.isNullOrEmpty() ||
               !it.zeroImpressionDates.isNullOrEmpty() ||
-              !it.datesWithoutDoneBlob.isNullOrEmpty()
+              !it.datesWithoutDoneBlob.isNullOrEmpty() ||
+              (checks.lateArrivingFiles && !it.lateArrivingDates.isNullOrEmpty())
           }
         ) {
           hasAnyIssues = true
@@ -133,6 +137,13 @@ class DataAvailabilityMonitorFunction : HttpFunction {
                 Level.SEVERE,
                 "ALERT: Model line ${status.modelLineKey.toName()} in ${config.edpImpressionPath} " +
                   "has dates without done blob: ${status.datesWithoutDoneBlob}",
+              )
+            }
+            if (checks.lateArrivingFiles && !status.lateArrivingDates.isNullOrEmpty()) {
+              logger.log(
+                Level.SEVERE,
+                "ALERT: Model line ${status.modelLineKey.toName()} in ${config.edpImpressionPath} " +
+                  "has late-arriving data after done blob: ${status.lateArrivingDates}",
               )
             }
           }

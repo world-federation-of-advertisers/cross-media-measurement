@@ -137,6 +137,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           dataAvailabilitySyncConfig.dataProvider,
           globalThrottler,
           impressionMetadataBatchSize = impressionMetadataBatchSize,
+          errorIfGapsExist = dataAvailabilitySyncConfig.errorIfGapsExist,
           modelLineMap =
             dataAvailabilitySyncConfig.modelLineMapMap.mapValues { it.value.modelLinesList },
         )

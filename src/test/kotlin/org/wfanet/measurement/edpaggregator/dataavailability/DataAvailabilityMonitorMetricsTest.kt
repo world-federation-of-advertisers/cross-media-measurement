@@ -202,7 +202,9 @@ class DataAvailabilityMonitorMetricsTest {
       assertThat(metricByName.getValue(STALE_DAYS_METRIC).longGaugeData.points.single().value)
         .isEqualTo(4)
       assertThat(metricByName.getValue(GAPS_METRIC).longSumData.points.single().value).isEqualTo(2)
-      assertThat(metricByName.getValue(ZERO_IMPRESSION_DATES_METRIC).longSumData.points.single().value)
+      assertThat(
+          metricByName.getValue(ZERO_IMPRESSION_DATES_METRIC).longSumData.points.single().value
+        )
         .isEqualTo(1)
       assertThat(
           metricByName.getValue(DATES_WITHOUT_DONE_BLOB_METRIC).longSumData.points.single().value

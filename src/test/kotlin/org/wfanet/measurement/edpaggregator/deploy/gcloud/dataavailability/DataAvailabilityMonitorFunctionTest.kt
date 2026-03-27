@@ -35,6 +35,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemStorage
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilityMonitorConfig
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilityMonitorConfigs
+import org.wfanet.measurement.config.edpaggregator.modelLineConfig
 import org.wfanet.measurement.config.edpaggregator.storageParams
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -87,16 +88,22 @@ class DataAvailabilityMonitorFunctionTest {
     val storageClient = FileSystemStorageClient(tempFolder.root)
     val edpPath = "edp/test/impressions"
 
-    // Create recent done blobs (today-ish dates)
+    // Create recent done blobs and data files (today-ish dates)
     for (day in 22..24) {
       createDoneBlob(storageClient, edpPath, "modelLineA", "2026-03-%02d".format(day))
+      val dataPath = "$edpPath/model-line/modelLineA/2026-03-%02d/data_campaign_1".format(day)
+      File(tempFolder.root, dataPath).parentFile.mkdirs()
+      runBlocking { storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data")) }
     }
 
     val config = dataAvailabilityMonitorConfigs {
       configs += dataAvailabilityMonitorConfig {
         storage = storageParams { fileSystem = fileSystemStorage {} }
         edpImpressionPath = edpPath
-        activeModelLines += "modelLineA"
+        modelLineConfigs += modelLineConfig {
+          modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLineA"
+        }
+        timeZone = "UTC"
         maxStaleDays = 3
       }
     }
@@ -116,16 +123,22 @@ class DataAvailabilityMonitorFunctionTest {
     val storageClient = FileSystemStorageClient(tempFolder.root)
     val edpPath = "edp/test/impressions"
 
-    // Create old done blobs (more than 3 days ago from a reasonable date)
+    // Create old done blobs and data files (more than 3 days ago from a reasonable date)
     for (day in 1..3) {
       createDoneBlob(storageClient, edpPath, "modelLineA", "2026-03-%02d".format(day))
+      val dataPath = "$edpPath/model-line/modelLineA/2026-03-%02d/data_campaign_1".format(day)
+      File(tempFolder.root, dataPath).parentFile.mkdirs()
+      runBlocking { storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data")) }
     }
 
     val config = dataAvailabilityMonitorConfigs {
       configs += dataAvailabilityMonitorConfig {
         storage = storageParams { fileSystem = fileSystemStorage {} }
         edpImpressionPath = edpPath
-        activeModelLines += "modelLineA"
+        modelLineConfigs += modelLineConfig {
+          modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLineA"
+        }
+        timeZone = "UTC"
         maxStaleDays = 3
       }
     }

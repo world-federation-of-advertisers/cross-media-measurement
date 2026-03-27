@@ -589,6 +589,7 @@ class DataAvailabilitySyncFunctionTest {
       dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
       edpImpressionPath = "edp/edp_name"
       modelLineMap[modelLineResourceName] = modelLineList { modelLines += "some-model-line-mapped" }
+      errorIfGapsExist = true
     }
 
     // Write runtime config to the config bucket
