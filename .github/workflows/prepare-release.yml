@@ -76,7 +76,7 @@ jobs:
         script: |
           const tag = process.env['RELEASE_TAG'];
           const sha = process.env['NIGHTLY_BUILD_SHA'];
-          await github.rest.git.createRef({
+          github.rest.git.createRef({
             owner: context.repo.owner,
             repo: context.repo.repo,
             ref: `refs/tags/${tag}`,
@@ -91,7 +91,7 @@ jobs:
       with:
         script: |
           const tag = process.env['RELEASE_TAG'];
-          await github.rest.actions.createWorkflowDispatch({
+          github.rest.actions.createWorkflowDispatch({
             owner: context.repo.owner,
             repo: context.repo.repo,
             workflow_id: 'update-cmms.yml',
