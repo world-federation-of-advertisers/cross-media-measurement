@@ -228,6 +228,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -261,6 +262,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -298,6 +300,7 @@ class DataAvailabilitySyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = mapOf(modelLineKey to mappedLines),
+          errorIfGapsExist = true,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -353,6 +356,7 @@ class DataAvailabilitySyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -383,6 +387,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -413,6 +418,7 @@ class DataAvailabilitySyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -445,6 +451,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -475,6 +482,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     try {
@@ -502,6 +510,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     try {
@@ -529,6 +538,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     try {
@@ -556,6 +566,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -583,6 +594,7 @@ class DataAvailabilitySyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
           metrics = metricsEnv.metrics,
           monitorMetrics = metricsEnv.monitorMetrics,
         )
@@ -627,6 +639,7 @@ class DataAvailabilitySyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
           metrics = metricsEnv.metrics,
           monitorMetrics = metricsEnv.monitorMetrics,
         )
@@ -685,6 +698,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -725,6 +739,7 @@ class DataAvailabilitySyncTest {
           recordingThrottler,
           impressionMetadataBatchSize = 2,
           modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -762,6 +777,7 @@ class DataAvailabilitySyncTest {
         recordingThrottler,
         impressionMetadataBatchSize = 2,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     assertFailsWith<IllegalArgumentException> {
@@ -791,6 +807,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     dataAvailabilitySync.sync("$bucket/edp/edpa_edp/model-line/some-model-line/timestamp/done")
@@ -837,6 +854,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -890,6 +908,7 @@ class DataAvailabilitySyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -945,6 +964,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     dataAvailabilitySync.sync("$bucket/edp/edpa_edp/model-line/some-model-line/timestamp/done")
@@ -1005,6 +1025,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     assertFailsWith<IllegalStateException> {
@@ -1017,7 +1038,7 @@ class DataAvailabilitySyncTest {
     // Model line bounds should still be computed
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
 
-    // replaceDataAvailabilityIntervals should NOT be called due to gap
+    // replaceDataAvailabilityIntervals should NOT be called because exception was thrown
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
   }
 
@@ -1050,6 +1071,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -1088,6 +1110,7 @@ class DataAvailabilitySyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
           metrics = metricsEnv.metrics,
           monitorMetrics = metricsEnv.monitorMetrics,
         )
@@ -1142,6 +1165,7 @@ class DataAvailabilitySyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
           metrics = metricsEnv.metrics,
           monitorMetrics = metricsEnv.monitorMetrics,
         )
@@ -1160,6 +1184,146 @@ class DataAvailabilitySyncTest {
       metricsEnv.close()
     }
   }
+
+  @Test
+  fun `sync does not throw when errorIfGapsExist is false and gaps exist`(): Unit = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+    // Set up done blobs at model-line paths with a gap (missing 2026-03-14)
+    val modelLineId = "modelLine1"
+    val edpPath = "edp/edpa_edp"
+    for (date in listOf("2026-03-13", "2026-03-15")) {
+      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+      File(tempFolder.root, donePath).parentFile.mkdirs()
+      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+      val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+      storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+    }
+
+    // Seed metadata in the sync trigger folder
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        edpPath,
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = false,
+      )
+
+    // Should NOT throw despite gaps
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    // Impression metadata should still be saved
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
+
+    // Model line bounds should still be computed
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
+
+    // replaceDataAvailabilityIntervals should still be called despite gaps
+    verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
+  @Test
+  fun `sync calls replaceDataAvailabilityIntervals when errorIfGapsExist is false and no gaps exist`():
+    Unit = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+    // Set up done blobs at model-line paths with no gaps
+    val modelLineId = "modelLine1"
+    val edpPath = "edp/edpa_edp"
+    for (date in listOf("2026-03-13", "2026-03-14", "2026-03-15")) {
+      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+      File(tempFolder.root, donePath).parentFile.mkdirs()
+      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+      val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+      storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+    }
+
+    // Seed metadata in the sync trigger folder
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        edpPath,
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = false,
+      )
+
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    // replaceDataAvailabilityIntervals should be called since no gaps
+    verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
+  @Test
+  fun `sync emits success metrics when errorIfGapsExist is false and gaps exist`(): Unit =
+    runBlocking {
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+      // Set up done blobs with a gap (missing 2026-03-14)
+      val modelLineId = "modelLine1"
+      val edpPath = "edp/edpa_edp"
+      for (date in listOf("2026-03-13", "2026-03-15")) {
+        val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+        File(tempFolder.root, donePath).parentFile.mkdirs()
+        storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+        val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+        storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+      }
+
+      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+      val metricsEnv = createMetricsEnvironment()
+      try {
+        val dataAvailabilitySync =
+          DataAvailabilitySync(
+            edpPath,
+            storageClient,
+            dataProvidersStub,
+            impressionMetadataStub,
+            "dataProviders/dataProvider123",
+            MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+            impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+            modelLineMap = emptyMap(),
+            errorIfGapsExist = false,
+            metrics = metricsEnv.metrics,
+            monitorMetrics = metricsEnv.monitorMetrics,
+          )
+
+        dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+        metricsEnv.metricReader.forceFlush()
+        val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+        val metricByName = metricData.associateBy { it.name }
+
+        // Should record success (not failure) since errorIfGapsExist=false prevents the throw
+        val durationPoint =
+          metricByName.getValue(SYNC_DURATION_METRIC).histogramData.points.single()
+        assertThat(durationPoint.attributes.get(syncStatusAttributeKey)).isEqualTo("success")
+
+        // Gap metrics should still be emitted
+        assertThat(metricByName).containsKey(GAPS_METRIC)
+        assertThat(metricByName.getValue(GAPS_METRIC).longSumData.points.single().value)
+          .isEqualTo(1)
+      } finally {
+        metricsEnv.close()
+      }
+    }
 
   /**
    * Seeds a directory (prefix) with BlobDetails files, one per interval. Returns the blob keys

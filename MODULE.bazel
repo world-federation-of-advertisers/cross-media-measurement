@@ -443,9 +443,9 @@ single_version_override(
     version = BORINGSSL_VERSION,
 )
 
-# DO_NOT_SUBMIT(common-jvm#376)
+# DO_NOT_SUBMIT(common-jvm#377)
 git_override(
     module_name = "common-jvm",
-    commit = "c17c918a1b341ae9c8343cdd875d7e209d296666",
+    commit = "3a0f6626823e2b4433097ea8a898f2077a5dad87",
     remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )

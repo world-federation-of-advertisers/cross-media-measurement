@@ -17,7 +17,6 @@
 package org.wfanet.measurement.edpaggregator.dataavailability
 
 import com.google.protobuf.ByteString
-import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
 import com.google.type.interval
 import io.grpc.StatusException
@@ -62,7 +61,7 @@ import org.wfanet.measurement.storage.StorageClient
  * - Validating and storing impression metadata records via the
  *   [ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub].
  * - Computing model line availability intervals using the impression metadata service.
- * - Updating the kingdom data provider’s availability intervals through
+ * - Updating the kingdom data provider's availability intervals through
  *   [DataProvidersGrpcKt.DataProvidersCoroutineStub].
  *
  * The synchronization process is throttled via the provided [Throttler] to prevent overwhelming
@@ -73,7 +72,7 @@ import org.wfanet.measurement.storage.StorageClient
  * 2. Metadata blobs in the same folder are discovered and parsed into [ImpressionMetadata].
  * 3. Valid impression metadata are persisted.
  * 4. Model line availability intervals are computed from the persisted metadata.
- * 5. The data provider’s availability intervals are updated accordingly.
+ * 5. The data provider's availability intervals are updated accordingly.
  *
  * @property edpImpressionPath a string name assigned to the EDP. All impressions for this edp will
  *   be within a subfolder with that name.
@@ -89,6 +88,9 @@ import org.wfanet.measurement.storage.StorageClient
  *   request.
  * @property modelLineMap Mapping from a source model line to additional model lines that should
  *   receive the same availability interval updates.
+ * @property errorIfGapsExist If true (default), throw an error when date gaps are detected. If
+ *   false, log a warning and skip replacing data availability intervals. Gap dates are always
+ *   logged.
  * @property metrics Metrics recorder for telemetry.
  */
 class DataAvailabilitySync(
@@ -101,6 +103,7 @@ class DataAvailabilitySync(
   private val throttler: Throttler,
   private val impressionMetadataBatchSize: Int,
   private val modelLineMap: Map<String, List<String>>,
+  private val errorIfGapsExist: Boolean,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
   private val monitorMetrics: DataAvailabilityMonitorMetrics = DataAvailabilityMonitorMetrics(),
 ) {
@@ -213,9 +216,11 @@ class DataAvailabilitySync(
           modelLinesWithGaps.joinToString("; ") { status ->
             "Model line ${status.modelLineKey.toName()} gap dates: ${status.gapDates}"
           }
-        throw IllegalStateException("Date gaps detected in $edpImpressionPath. $gapDetails")
+        logger.warning("Date gaps detected in $edpImpressionPath. $gapDetails")
+        if (errorIfGapsExist) {
+          throw IllegalStateException("Date gaps detected in $edpImpressionPath. $gapDetails")
+        }
       }
-
       if (availabilityEntries.isNotEmpty()) {
         throttler.onReady {
           try {
@@ -426,14 +431,6 @@ class DataAvailabilitySync(
     return impressionMetadataMap
   }
 
-  /**
-   * Generates a deterministic UUIDv4 string from a blob path.
-   *
-   * This function ensures idempotency when the same path is used repeatedly:
-   *
-   * @param metadataBlobUri The input path (e.g., a Google Cloud Storage blob URI).
-   * @return A UUIDv4-compliant string that is stable for the given path.
-   */
   private fun uuidV4FromPath(metadataBlobUri: String): String {
     val hash = MessageDigest.getInstance("SHA-256").digest(metadataBlobUri.toByteArray())
     val bytes = hash.copyOf(16)
@@ -469,10 +466,6 @@ class DataAvailabilitySync(
     private const val BLOB_TYPE_URL =
       "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
 
-    /**
-     * GCS custom metadata key for storing ImpressionMetadata resource name. Will appear as
-     * x-goog-meta-impression-metadata-resource-id in GCS.
-     */
     const val IMPRESSION_METADATA_RESOURCE_ID_KEY = "impression-metadata-resource-id"
   }
 }

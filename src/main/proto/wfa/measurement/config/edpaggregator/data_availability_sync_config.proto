@@ -60,6 +60,11 @@ message DataAvailabilitySyncConfig {
   // replacement model line that the kingdom recognizes.
   map<string, ModelLineList> model_line_map = 6;
 
+  // If true (default), throw an error when date gaps are
+  // detected. If false, log a warning and skip replacing data availability
+  // intervals. Gap dates are always logged.
+  bool error_if_gaps_exist = 7;
+
   // List of model lines to use for a single mapping entry.
   message ModelLineList {
     repeated string model_lines = 1;
