@@ -137,6 +137,18 @@ jobs:
         echo "$DATA_AVAILABILITY_SYNC_CONFIG_CONTENT" > "$CONFIG_DIR/data-availability-sync-config.textproto"
         echo "$RESULTS_FULFILLER_POPULATION_SPEC_CONTENT" > "$CONFIG_DIR/results-fulfiller-population-spec.textproto"
         echo "$RESULTS_FULFILLER_TRUSTED_CA_CONTENT" > "$CONFIG_DIR/results-fulfiller-trusted-root-ca.pem"
+    - name: Debug - Print trusted CA cert subjects
+      run: |
+        echo "Number of certs in RESULTS_FULFILLER_TRUSTED_CA_CONTENT:"
+        echo "$RESULTS_FULFILLER_TRUSTED_CA_CONTENT" | grep -c "BEGIN CERTIFICATE" || echo "0"
+        echo "Certificate subjects:"
+        echo "$RESULTS_FULFILLER_TRUSTED_CA_CONTENT" | csplit -z -f /tmp/cert- -b '%02d.pem' - '/-----BEGIN CERTIFICATE-----/' '{*}' 2>/dev/null
+        for f in /tmp/cert-*.pem; do
+          openssl x509 -noout -subject -issuer -in "$f" 2>/dev/null
+          echo "---"
+        done
+      env:
+        RESULTS_FULFILLER_TRUSTED_CA_CONTENT: ${{ secrets.RESULTS_FULFILLER_TRUSTED_CA_CONTENT }}
 
     - name: Set up Maven GitHub Packages auth
       run: |
