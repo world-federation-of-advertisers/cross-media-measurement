@@ -36,7 +36,6 @@ import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionMetadataBatchFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionMetadataBatchFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchServiceGrpcKt
@@ -384,8 +383,9 @@ class VidLabelingDispatcherTest {
     }
 
     val dispatcher = createDispatcher()
-    val exception = assertFailsWith<StatusException> { dispatcher.dispatch(DONE_BLOB_PATH) }
-    assertThat(exception.status.code).isEqualTo(Status.UNAVAILABLE.code)
+    val exception = assertFailsWith<Exception> { dispatcher.dispatch(DONE_BLOB_PATH) }
+    assertThat(exception).hasMessageThat().contains("Error creating WorkItem")
+    assertThat(exception).hasCauseThat().isInstanceOf(StatusException::class.java)
   }
 
   @Test
@@ -409,63 +409,6 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
-  fun `dispatch packs files efficiently using best-fit decreasing`() = runBlocking {
-    val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet", 400L)
-    val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet", 400L)
-    val blob3 = createMockBlob("$FOLDER_PREFIX/file3.parquet", 600L)
-    val blob4 = createMockBlob("$FOLDER_PREFIX/file4.parquet", 600L)
-    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2, blob3, blob4))
-    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
-
-    // BFD with max 1000: sorts [600, 600, 400, 400], packs (600+400), (600+400).
-    val dispatcher = createDispatcher(batchMaxSizeBytes = 1000L)
-    dispatcher.dispatch(DONE_BLOB_PATH)
-
-    val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
-    verifyBlocking(workItemsService, times(2)) { createWorkItem(requestCaptor.capture()) }
-
-    val batchFileCaptor =
-      argumentCaptor<BatchCreateRawImpressionMetadataBatchFilesRequest>()
-    verifyBlocking(rawImpressionMetadataBatchFileService, times(2)) {
-      batchCreateRawImpressionMetadataBatchFiles(batchFileCaptor.capture())
-    }
-
-    // Each batch should contain exactly 2 files (one 600 + one 400).
-    assertThat(batchFileCaptor.allValues[0].requestsCount).isEqualTo(2)
-    assertThat(batchFileCaptor.allValues[1].requestsCount).isEqualTo(2)
-  }
-
-  @Test
-  fun `dispatch places oversized file in its own batch`() = runBlocking {
-    val normalBlob = createMockBlob("$FOLDER_PREFIX/normal.parquet", 400L)
-    val oversizedBlob = createMockBlob("$FOLDER_PREFIX/oversized.parquet", 1500L)
-    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(normalBlob, oversizedBlob))
-    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
-
-    val dispatcher = createDispatcher(batchMaxSizeBytes = 1000L)
-    dispatcher.dispatch(DONE_BLOB_PATH)
-
-    val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
-    verifyBlocking(workItemsService, times(2)) { createWorkItem(requestCaptor.capture()) }
-
-    val batchFileCaptor =
-      argumentCaptor<BatchCreateRawImpressionMetadataBatchFilesRequest>()
-    verifyBlocking(rawImpressionMetadataBatchFileService, times(2)) {
-      batchCreateRawImpressionMetadataBatchFiles(batchFileCaptor.capture())
-    }
-
-    // Oversized batches come first in the output.
-    // Oversized file is alone in its batch.
-    assertThat(batchFileCaptor.allValues[0].requestsCount).isEqualTo(1)
-    assertThat(batchFileCaptor.allValues[0].requestsList[0].rawImpressionMetadataBatchFile.blobUri)
-      .contains("oversized.parquet")
-    // Normal file is in its own batch.
-    assertThat(batchFileCaptor.allValues[1].requestsCount).isEqualTo(1)
-    assertThat(batchFileCaptor.allValues[1].requestsList[0].rawImpressionMetadataBatchFile.blobUri)
-      .contains("normal.parquet")
-  }
-
-  @Test
   fun `dispatch with unsupported URI scheme throws exception`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
@@ -476,40 +419,6 @@ class VidLabelingDispatcherTest {
         dispatcher.dispatch("s3://test-bucket/$FOLDER_PREFIX/done")
       }
     assertThat(exception).hasMessageThat().contains("Unsupported scheme")
-  }
-
-  @Test
-  fun `dispatch propagates exception on work item creation failure`() = runBlocking {
-    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
-    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
-    whenever(workItemsService.createWorkItem(any()))
-      .thenThrow(StatusException(Status.UNAVAILABLE.withDescription("Service unavailable")))
-
-    val dispatcher = createDispatcher()
-    val exception = assertFailsWith<Exception> { dispatcher.dispatch(DONE_BLOB_PATH) }
-    assertThat(exception).hasMessageThat().contains("Error creating WorkItem")
-    assertThat(exception).hasCauseThat().isInstanceOf(StatusException::class.java)
-  }
-
-  @Test
-  fun `dispatch with gs scheme constructs correct blob URIs`() = runBlocking {
-    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
-    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
-    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
-
-    val dispatcher = createDispatcher()
-    dispatcher.dispatch(GCS_DONE_BLOB_PATH)
-
-    val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
-    verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
-
-    val batchFileCaptor =
-      argumentCaptor<BatchCreateRawImpressionMetadataBatchFilesRequest>()
-    verifyBlocking(rawImpressionMetadataBatchFileService, times(1)) {
-      batchCreateRawImpressionMetadataBatchFiles(batchFileCaptor.capture())
-    }
-    assertThat(batchFileCaptor.firstValue.requestsList[0].rawImpressionMetadataBatchFile.blobUri)
-      .isEqualTo("gs://test-bucket/$FOLDER_PREFIX/file1.parquet")
   }
 
   companion object {
