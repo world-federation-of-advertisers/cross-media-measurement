@@ -383,8 +383,9 @@ class VidLabelingDispatcherTest {
     }
 
     val dispatcher = createDispatcher()
-    val exception = assertFailsWith<StatusException> { dispatcher.dispatch(DONE_BLOB_PATH) }
-    assertThat(exception.status.code).isEqualTo(Status.UNAVAILABLE.code)
+    val exception = assertFailsWith<Exception> { dispatcher.dispatch(DONE_BLOB_PATH) }
+    assertThat(exception).hasMessageThat().contains("Error creating WorkItem")
+    assertThat(exception).hasCauseThat().isInstanceOf(StatusException::class.java)
   }
 
   @Test

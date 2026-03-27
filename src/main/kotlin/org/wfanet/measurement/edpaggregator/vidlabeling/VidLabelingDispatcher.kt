@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.vidlabeling
 
+import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import java.util.logging.Logger
@@ -73,6 +74,22 @@ class VidLabelingDispatcher(
 ) {
   /** Holds a blob key and its size for batching. */
   private data class BlobInfo(val blobKey: String, val sizeBytes: Long)
+
+  /** A batch of blobs with tracked total size. */
+  private class Batch {
+    private val mutableBlobs = mutableListOf<BlobInfo>()
+
+    val blobs: List<BlobInfo>
+      get() = mutableBlobs
+
+    var sizeBytes: Long = 0L
+      private set
+
+    fun addBlob(blob: BlobInfo) {
+      mutableBlobs.add(blob)
+      sizeBytes += blob.sizeBytes
+    }
+  }
 
   /**
    * Dispatches VID labeling work for raw impression files in the directory containing the done
@@ -176,8 +193,7 @@ class VidLabelingDispatcher(
     val sortedBlobs =
       fittingBlobs.sortedWith(compareByDescending<BlobInfo> { it.sizeBytes }.thenBy { it.blobKey })
 
-    val batches = mutableListOf<MutableList<BlobInfo>>()
-    val batchSizes = mutableListOf<Long>()
+    val batches = mutableListOf<Batch>()
 
     for (blobInfo in sortedBlobs) {
       // Find the batch with the smallest remaining capacity that can fit this file.
@@ -185,7 +201,7 @@ class VidLabelingDispatcher(
       var bestFitRemaining = Long.MAX_VALUE
 
       for (i in batches.indices) {
-        val remaining = batchMaxSizeBytes - batchSizes[i]
+        val remaining = batchMaxSizeBytes - batches[i].sizeBytes
         if (blobInfo.sizeBytes <= remaining && remaining < bestFitRemaining) {
           bestFitIndex = i
           bestFitRemaining = remaining
@@ -193,15 +209,15 @@ class VidLabelingDispatcher(
       }
 
       if (bestFitIndex >= 0) {
-        batches[bestFitIndex].add(blobInfo)
-        batchSizes[bestFitIndex] += blobInfo.sizeBytes
+        batches[bestFitIndex].addBlob(blobInfo)
       } else {
-        batches.add(mutableListOf(blobInfo))
-        batchSizes.add(blobInfo.sizeBytes)
+        val batch = Batch()
+        batch.addBlob(blobInfo)
+        batches.add(batch)
       }
     }
 
-    return oversizedBatches + batches
+    return oversizedBatches + batches.map { it.blobs }
   }
 
   /**
@@ -214,7 +230,11 @@ class VidLabelingDispatcher(
       parent = dataProviderName
       rawImpressionMetadataBatch = RawImpressionMetadataBatch.getDefaultInstance()
     }
-    return rawImpressionMetadataBatchStub.createRawImpressionMetadataBatch(request)
+    try {
+      return rawImpressionMetadataBatchStub.createRawImpressionMetadataBatch(request)
+    } catch (e: StatusException) {
+      throw Exception("Error creating RawImpressionMetadataBatch for $dataProviderName", e)
+    }
   }
 
   /**
@@ -234,7 +254,14 @@ class VidLabelingDispatcher(
           }
         }
     }
-    rawImpressionMetadataBatchFileStub.batchCreateRawImpressionMetadataBatchFiles(request)
+    try {
+      rawImpressionMetadataBatchFileStub.batchCreateRawImpressionMetadataBatchFiles(request)
+    } catch (e: StatusException) {
+      throw Exception(
+        "Error creating RawImpressionMetadataBatchFiles for batch $batchResourceName",
+        e,
+      )
+    }
   }
 
   /**
@@ -255,7 +282,11 @@ class VidLabelingDispatcher(
       }
     }
 
-    workItemsStub.createWorkItem(request)
+    try {
+      workItemsStub.createWorkItem(request)
+    } catch (e: StatusException) {
+      throw Exception("Error creating WorkItem $workItemId for batch $batchResourceName", e)
+    }
     logger.info("Created WorkItem $workItemId for batch ${params.rawImpressionMetadataBatch}")
   }
 

@@ -65,8 +65,9 @@ message VidLabelingConfig {
   TransportLayerSecurityParams raw_impression_metadata_storage_connection = 6
       [(google.api.field_behavior) = REQUIRED];
 
-  // Maximum batch size in bytes. If unset, treated as a single batch.
-  optional fixed64 batch_max_size = 7 [(google.api.field_behavior) = OPTIONAL];
+  // Maximum batch size in bytes for partitioning raw impression files.
+  // If unset, defaults to 10 GB (10000000000 bytes).
+  int64 max_batch_size_bytes = 7 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Wrapper containing VID Labeling configurations for all EDPs.
