@@ -25,14 +25,8 @@ message DataProviderCapabilities {
   // Whether the TrusTEE protocol is supported.
   bool trus_tee_supported = 2;
 
-  // Noise mechanisms that this DataProvider allows.
-  message NoiseMechanisms {
-    // Whether no-noise (NONE) is allowed.
-    bool none = 1;
-    // Whether Continuous Gaussian noise is allowed.
-    bool continuous_gaussian = 2;
-  }
-
-  // Noise mechanisms allowed by this DataProvider.
-  NoiseMechanisms noise_mechanisms = 3;
+  // Whether the no-noise (NONE) mechanism is supported.
+  optional bool no_noise_mechanism_supported = 3;
+  // Whether the Continuous Gaussian noise mechanism is supported.
+  optional bool continuous_gaussian_noise_mechanism_supported = 4;
 }

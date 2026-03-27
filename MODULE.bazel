@@ -56,7 +56,7 @@ bazel_dep(
 git_override(
     module_name = "cross-media-measurement-api",
     remote = "https://github.com/world-federation-of-advertisers/cross-media-measurement-api.git",
-    commit = "1ae49acb9207669ddd8bc04898603dfacfcbc8d7",
+    commit = "3f03e20436ba5050be3bd985c9e974aa02e17f78",
 )
 bazel_dep(
     name = "consent-signaling-client",

@@ -106,7 +106,6 @@ import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.BatchGetDataProvidersRequest
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
-import org.wfanet.measurement.internal.kingdom.DataProviderCapabilitiesKt.noiseMechanisms
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement.State as InternalState
@@ -1079,10 +1078,8 @@ class MeasurementsServiceTest {
                   details.copy {
                     capabilities = internalDataProviderCapabilities {
                       trusTeeSupported = true
-                      noiseMechanisms = noiseMechanisms {
-                        none = true
-                        continuousGaussian = true
-                      }
+                      noNoiseMechanismSupported = true
+                      continuousGaussianNoiseMechanismSupported = true
                     }
                   }
               }
@@ -1155,7 +1152,7 @@ class MeasurementsServiceTest {
                   details.copy {
                     capabilities = internalDataProviderCapabilities {
                       trusTeeSupported = true
-                      noiseMechanisms = noiseMechanisms { none = true }
+                      noNoiseMechanismSupported = true
                     }
                   }
               }
@@ -1211,7 +1208,7 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `createMeasurement with TrusTEE and empty server noiseMechanisms falls back to old config`() {
+  fun `createMeasurement with TrusTEE and empty server noise mechanisms falls back to old config`() {
     TrusTeeProtocolConfig.setForTest(
       TRUS_TEE_INTERNAL_PROTOCOL_CONFIG.trusTee,
       "aggregator",
@@ -1228,10 +1225,8 @@ class MeasurementsServiceTest {
                   details.copy {
                     capabilities = internalDataProviderCapabilities {
                       trusTeeSupported = true
-                      noiseMechanisms = noiseMechanisms {
-                        none = true
-                        continuousGaussian = true
-                      }
+                      noNoiseMechanismSupported = true
+                      continuousGaussianNoiseMechanismSupported = true
                     }
                   }
               }
@@ -1297,7 +1292,7 @@ class MeasurementsServiceTest {
                   details.copy {
                     capabilities = internalDataProviderCapabilities {
                       trusTeeSupported = true
-                      noiseMechanisms = noiseMechanisms { continuousGaussian = true }
+                      continuousGaussianNoiseMechanismSupported = true
                     }
                   }
               }
@@ -1369,10 +1364,8 @@ class MeasurementsServiceTest {
                 details.copy {
                   capabilities = internalDataProviderCapabilities {
                     trusTeeSupported = true
-                    noiseMechanisms = noiseMechanisms {
-                      none = true
-                      continuousGaussian = true
-                    }
+                    noNoiseMechanismSupported = true
+                    continuousGaussianNoiseMechanismSupported = true
                   }
                 }
             }
@@ -1382,7 +1375,7 @@ class MeasurementsServiceTest {
                 details.copy {
                   capabilities = internalDataProviderCapabilities {
                     trusTeeSupported = true
-                    noiseMechanisms = noiseMechanisms { continuousGaussian = true }
+                    continuousGaussianNoiseMechanismSupported = true
                   }
                 }
             }
@@ -1453,10 +1446,8 @@ class MeasurementsServiceTest {
                 details.copy {
                   capabilities = internalDataProviderCapabilities {
                     trusTeeSupported = true
-                    noiseMechanisms = noiseMechanisms {
-                      none = true
-                      continuousGaussian = true
-                    }
+                    noNoiseMechanismSupported = true
+                    continuousGaussianNoiseMechanismSupported = true
                   }
                 }
             }
@@ -1523,10 +1514,8 @@ class MeasurementsServiceTest {
                   details.copy {
                     capabilities = internalDataProviderCapabilities {
                       honestMajorityShareShuffleSupported = true
-                      noiseMechanisms = noiseMechanisms {
-                        none = true
-                        continuousGaussian = true
-                      }
+                      noNoiseMechanismSupported = true
+                      continuousGaussianNoiseMechanismSupported = true
                     }
                   }
               }
@@ -1591,7 +1580,7 @@ class MeasurementsServiceTest {
                 details.copy {
                   capabilities = internalDataProviderCapabilities {
                     trusTeeSupported = true
-                    noiseMechanisms = noiseMechanisms { none = true }
+                    noNoiseMechanismSupported = true
                   }
                 }
             }
@@ -1601,7 +1590,7 @@ class MeasurementsServiceTest {
                 details.copy {
                   capabilities = internalDataProviderCapabilities {
                     trusTeeSupported = true
-                    noiseMechanisms = noiseMechanisms { continuousGaussian = true }
+                    continuousGaussianNoiseMechanismSupported = true
                   }
                 }
             }

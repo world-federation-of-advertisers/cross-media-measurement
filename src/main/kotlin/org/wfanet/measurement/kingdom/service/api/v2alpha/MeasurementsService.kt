@@ -670,17 +670,18 @@ class MeasurementsService(
   /**
    * Builds the [InternalProtocolConfig.TrusTee] based on server config and EDP capabilities.
    *
-   * If the server's `TrusTeeProtocolConfig.noiseMechanisms` is empty or any EDP has no
-   * `noiseMechanisms` set, falls back to `TrusTeeProtocolConfig.protocolConfig` (using the existing
-   * `noise_mechanism` value). Otherwise, intersects server and EDP mechanisms and selects the
-   * preferred noise mechanism (`NONE` > `CONTINUOUS_GAUSSIAN`).
+   * If the server's `TrusTeeProtocolConfig.noiseMechanisms` is empty or any EDP has no noise
+   * mechanism capability set, falls back to `TrusTeeProtocolConfig.protocolConfig` (using the
+   * existing `noise_mechanism` value). Otherwise, intersects server and EDP mechanisms and selects
+   * the preferred noise mechanism (`NONE` > `CONTINUOUS_GAUSSIAN`).
    */
   private fun buildTrusTeeProtocolConfig(
     dataProviderCapabilities: Collection<InternalDataProviderCapabilities>
   ): InternalProtocolConfig.TrusTee {
     val serverNoiseMechanisms = TrusTeeProtocolConfig.noiseMechanisms
     if (
-      serverNoiseMechanisms.isEmpty() || dataProviderCapabilities.any { !it.hasNoiseMechanisms() }
+      serverNoiseMechanisms.isEmpty() ||
+        dataProviderCapabilities.any { !it.hasAnyNoiseMechanismSet() }
     ) {
       return TrusTeeProtocolConfig.protocolConfig
     }
@@ -708,21 +709,29 @@ class MeasurementsService(
 
   companion object {
     /**
-     * Converts [InternalDataProviderCapabilities.NoiseMechanisms] booleans to a set of
+     * Whether any noise mechanism capability field is set on this
+     * [InternalDataProviderCapabilities].
+     */
+    private fun InternalDataProviderCapabilities.hasAnyNoiseMechanismSet(): Boolean =
+      hasNoNoiseMechanismSupported() || hasContinuousGaussianNoiseMechanismSupported()
+
+    /**
+     * Converts the noise mechanism optional bools on [InternalDataProviderCapabilities] to a set of
      * [InternalProtocolConfig.NoiseMechanism] enum values.
      */
-    private fun InternalDataProviderCapabilities.NoiseMechanisms.toNoiseMechanismSet():
+    private fun InternalDataProviderCapabilities.toNoiseMechanismSet():
       Set<InternalProtocolConfig.NoiseMechanism> {
       return buildSet {
-        if (none) add(InternalProtocolConfig.NoiseMechanism.NONE)
-        if (continuousGaussian) add(InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN)
+        if (noNoiseMechanismSupported) add(InternalProtocolConfig.NoiseMechanism.NONE)
+        if (continuousGaussianNoiseMechanismSupported)
+          add(InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN)
       }
     }
 
     /**
      * Narrows [serverNoiseMechanisms] to those allowed by all [dataProviderCapabilities].
      *
-     * Both [serverNoiseMechanisms] and each EDP's `noiseMechanisms` must be non-empty.
+     * Both [serverNoiseMechanisms] and each EDP's noise mechanism capabilities must be non-empty.
      */
     fun selectNoiseMechanisms(
       serverNoiseMechanisms: List<InternalProtocolConfig.NoiseMechanism>,
@@ -734,10 +743,10 @@ class MeasurementsService(
       }
       var effectiveMechanisms = serverNoiseMechanisms.toSet()
       for (capabilities in dataProviderCapabilities) {
-        require(capabilities.hasNoiseMechanisms()) {
-          "Each DataProvider must have noiseMechanisms set"
+        require(capabilities.hasAnyNoiseMechanismSet()) {
+          "Each DataProvider must have at least one noise mechanism capability set"
         }
-        val edpMechanisms = capabilities.noiseMechanisms.toNoiseMechanismSet()
+        val edpMechanisms = capabilities.toNoiseMechanismSet()
         require(edpMechanisms.isNotEmpty()) {
           "Each DataProvider must have at least one noise mechanism enabled"
         }

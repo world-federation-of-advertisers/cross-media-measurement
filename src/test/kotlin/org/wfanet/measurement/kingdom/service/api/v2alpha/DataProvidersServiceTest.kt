@@ -69,7 +69,6 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
-import org.wfanet.measurement.internal.kingdom.DataProviderCapabilitiesKt.noiseMechanisms as internalNoiseMechanisms
 import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as InternalDataProvidersService
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersClient
@@ -823,10 +822,8 @@ class DataProvidersServiceTest {
   @Test
   fun `getDataProvider returns capabilities with noise mechanisms`() {
     val capabilitiesWithNoise = internalDataProviderCapabilities {
-      noiseMechanisms = internalNoiseMechanisms {
-        none = true
-        continuousGaussian = true
-      }
+      noNoiseMechanismSupported = true
+      continuousGaussianNoiseMechanismSupported = true
     }
     val internalDataProviderWithCapabilities =
       INTERNAL_DATA_PROVIDER.copy {
@@ -845,11 +842,8 @@ class DataProvidersServiceTest {
 
     val expectedCapabilities =
       DataProviderKt.capabilities {
-        noiseMechanisms =
-          DataProviderKt.CapabilitiesKt.noiseMechanisms {
-            none = true
-            continuousGaussian = true
-          }
+        noNoiseMechanismSupported = true
+        continuousGaussianNoiseMechanismSupported = true
       }
     assertThat(dataProvider.capabilities).isEqualTo(expectedCapabilities)
   }
