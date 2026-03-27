@@ -61,8 +61,11 @@ service RawImpressionMetadataBatchFileService {
 }
 
 message CreateRawImpressionMetadataBatchFileRequest {
-  RawImpressionMetadataBatchFile raw_impression_metadata_batch_file = 1;
-  string request_id = 2;
+  string data_provider_resource_id = 1;
+  string batch_resource_id = 2;
+  string file_resource_id = 3;
+  RawImpressionMetadataBatchFile raw_impression_metadata_batch_file = 4;
+  string request_id = 5;
 }
 
 message BatchCreateRawImpressionMetadataBatchFilesRequest {
