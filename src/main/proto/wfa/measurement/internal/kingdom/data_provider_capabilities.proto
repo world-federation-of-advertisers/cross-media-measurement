@@ -26,7 +26,6 @@ message DataProviderCapabilities {
   bool trus_tee_supported = 2;
 
   // Whether the no-noise (NONE) mechanism is supported.
-  optional bool no_noise_mechanism_supported = 3;
-  // Whether the Continuous Gaussian noise mechanism is supported.
-  optional bool continuous_gaussian_noise_mechanism_supported = 4;
+  // CONTINUOUS_GAUSSIAN is always assumed to be supported.
+  bool no_noise_mechanism_supported = 3;
 }

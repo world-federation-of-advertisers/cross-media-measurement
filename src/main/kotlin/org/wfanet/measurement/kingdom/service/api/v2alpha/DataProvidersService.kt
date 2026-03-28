@@ -342,12 +342,7 @@ private fun InternalDataProviderCapabilities.toCapabilities(): DataProvider.Capa
   return DataProviderKt.capabilities {
     honestMajorityShareShuffleSupported = source.honestMajorityShareShuffleSupported
     trusTeeSupported = source.trusTeeSupported
-    if (source.hasNoNoiseMechanismSupported()) {
-      noNoiseMechanismSupported = source.noNoiseMechanismSupported
-    }
-    if (source.hasContinuousGaussianNoiseMechanismSupported()) {
-      continuousGaussianNoiseMechanismSupported = source.continuousGaussianNoiseMechanismSupported
-    }
+    noNoiseMechanismSupported = source.noNoiseMechanismSupported
   }
 }
 
@@ -356,11 +351,6 @@ private fun DataProvider.Capabilities.toInternal(): InternalDataProviderCapabili
   return internalDataProviderCapabilities {
     honestMajorityShareShuffleSupported = source.honestMajorityShareShuffleSupported
     trusTeeSupported = source.trusTeeSupported
-    if (source.hasNoNoiseMechanismSupported()) {
-      noNoiseMechanismSupported = source.noNoiseMechanismSupported
-    }
-    if (source.hasContinuousGaussianNoiseMechanismSupported()) {
-      continuousGaussianNoiseMechanismSupported = source.continuousGaussianNoiseMechanismSupported
-    }
+    noNoiseMechanismSupported = source.noNoiseMechanismSupported
   }
 }

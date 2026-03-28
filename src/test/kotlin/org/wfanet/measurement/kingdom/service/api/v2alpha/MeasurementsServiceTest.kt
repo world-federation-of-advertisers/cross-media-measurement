@@ -944,7 +944,10 @@ class MeasurementsServiceTest {
                 this.externalDataProviderId = externalDataProviderId.value
                 details =
                   details.copy {
-                    capabilities = internalDataProviderCapabilities { trusTeeSupported = true }
+                    capabilities = internalDataProviderCapabilities {
+                      trusTeeSupported = true
+                      noNoiseMechanismSupported = true
+                    }
                   }
               }
             }
@@ -982,7 +985,13 @@ class MeasurementsServiceTest {
               details =
                 details.copy {
                   clearFailure()
-                  protocolConfig = TRUS_TEE_INTERNAL_PROTOCOL_CONFIG
+                  protocolConfig = internalProtocolConfig {
+                    externalProtocolConfigId = "trustee"
+                    trusTee =
+                      InternalProtocolConfigKt.trusTee {
+                        noiseMechanism = InternalNoiseMechanism.NONE
+                      }
+                  }
                   clearDuchyProtocolConfig()
                 }
             }
@@ -1007,7 +1016,10 @@ class MeasurementsServiceTest {
                 this.externalDataProviderId = externalDataProviderId.value
                 details =
                   details.copy {
-                    capabilities = internalDataProviderCapabilities { trusTeeSupported = true }
+                    capabilities = internalDataProviderCapabilities {
+                      trusTeeSupported = true
+                      noNoiseMechanismSupported = true
+                    }
                   }
               }
             }
@@ -1050,7 +1062,13 @@ class MeasurementsServiceTest {
               details =
                 details.copy {
                   clearFailure()
-                  protocolConfig = TRUS_TEE_INTERNAL_PROTOCOL_CONFIG
+                  protocolConfig = internalProtocolConfig {
+                    externalProtocolConfigId = "trustee"
+                    trusTee =
+                      InternalProtocolConfigKt.trusTee {
+                        noiseMechanism = InternalNoiseMechanism.NONE
+                      }
+                  }
                   clearDuchyProtocolConfig()
                   measurementSpec = WRAPPING_INTERVAL_MEASUREMENT_SPEC.pack().value
                 }
@@ -1079,7 +1097,6 @@ class MeasurementsServiceTest {
                     capabilities = internalDataProviderCapabilities {
                       trusTeeSupported = true
                       noNoiseMechanismSupported = true
-                      continuousGaussianNoiseMechanismSupported = true
                     }
                   }
               }
@@ -1226,7 +1243,6 @@ class MeasurementsServiceTest {
                     capabilities = internalDataProviderCapabilities {
                       trusTeeSupported = true
                       noNoiseMechanismSupported = true
-                      continuousGaussianNoiseMechanismSupported = true
                     }
                   }
               }
@@ -1290,10 +1306,7 @@ class MeasurementsServiceTest {
                 this.externalDataProviderId = externalDataProviderId.value
                 details =
                   details.copy {
-                    capabilities = internalDataProviderCapabilities {
-                      trusTeeSupported = true
-                      continuousGaussianNoiseMechanismSupported = true
-                    }
+                    capabilities = internalDataProviderCapabilities { trusTeeSupported = true }
                   }
               }
             }
@@ -1365,7 +1378,6 @@ class MeasurementsServiceTest {
                   capabilities = internalDataProviderCapabilities {
                     trusTeeSupported = true
                     noNoiseMechanismSupported = true
-                    continuousGaussianNoiseMechanismSupported = true
                   }
                 }
             }
@@ -1373,10 +1385,7 @@ class MeasurementsServiceTest {
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_IDS[1].value
               details =
                 details.copy {
-                  capabilities = internalDataProviderCapabilities {
-                    trusTeeSupported = true
-                    continuousGaussianNoiseMechanismSupported = true
-                  }
+                  capabilities = internalDataProviderCapabilities { trusTeeSupported = true }
                 }
             }
           }
@@ -1430,7 +1439,7 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `createMeasurement with TrusTEE and mixed EDP capabilities falls back to old config`() {
+  fun `createMeasurement with TrusTEE and mixed EDP capabilities selects CG`() {
     TrusTeeProtocolConfig.setForTest(
       TRUS_TEE_INTERNAL_PROTOCOL_CONFIG.trusTee,
       "aggregator",
@@ -1447,7 +1456,6 @@ class MeasurementsServiceTest {
                   capabilities = internalDataProviderCapabilities {
                     trusTeeSupported = true
                     noNoiseMechanismSupported = true
-                    continuousGaussianNoiseMechanismSupported = true
                   }
                 }
             }
@@ -1492,7 +1500,13 @@ class MeasurementsServiceTest {
               details =
                 details.copy {
                   clearFailure()
-                  protocolConfig = TRUS_TEE_INTERNAL_PROTOCOL_CONFIG
+                  protocolConfig = internalProtocolConfig {
+                    externalProtocolConfigId = "trustee"
+                    trusTee =
+                      InternalProtocolConfigKt.trusTee {
+                        noiseMechanism = InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
+                      }
+                  }
                   clearDuchyProtocolConfig()
                 }
             }
@@ -1515,7 +1529,6 @@ class MeasurementsServiceTest {
                     capabilities = internalDataProviderCapabilities {
                       honestMajorityShareShuffleSupported = true
                       noNoiseMechanismSupported = true
-                      continuousGaussianNoiseMechanismSupported = true
                     }
                   }
               }
@@ -1564,35 +1577,24 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `createMeasurement with TrusTEE throws when EDP noise capabilities have empty intersection`() {
+  fun `createMeasurement with TrusTEE throws when server only supports NONE but EDP does not`() {
     TrusTeeProtocolConfig.setForTest(
       TRUS_TEE_INTERNAL_PROTOCOL_CONFIG.trusTee,
       "aggregator",
-      listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN),
+      listOf(InternalNoiseMechanism.NONE),
     )
     internalDataProvidersMock.stub {
       onBlocking { batchGetDataProviders(any()) }
         .thenReturn(
           internalBatchGetDataProvidersResponse {
-            dataProviders += internalDataProvider {
-              externalDataProviderId = EXTERNAL_DATA_PROVIDER_IDS[0].value
-              details =
-                details.copy {
-                  capabilities = internalDataProviderCapabilities {
-                    trusTeeSupported = true
-                    noNoiseMechanismSupported = true
+            for (externalDataProviderId in EXTERNAL_DATA_PROVIDER_IDS) {
+              dataProviders += internalDataProvider {
+                this.externalDataProviderId = externalDataProviderId.value
+                details =
+                  details.copy {
+                    capabilities = internalDataProviderCapabilities { trusTeeSupported = true }
                   }
-                }
-            }
-            dataProviders += internalDataProvider {
-              externalDataProviderId = EXTERNAL_DATA_PROVIDER_IDS[1].value
-              details =
-                details.copy {
-                  capabilities = internalDataProviderCapabilities {
-                    trusTeeSupported = true
-                    continuousGaussianNoiseMechanismSupported = true
-                  }
-                }
+              }
             }
           }
         )
