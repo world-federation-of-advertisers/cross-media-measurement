@@ -242,7 +242,7 @@ class DataAvailabilityMonitorTest {
   }
 
   @Test
-  fun `check throws when model line has no uploads`(): Unit = runBlocking {
+  fun `check returns null fields when model line has no uploads`(): Unit = runBlocking {
     val storageClient = createStorageClient()
 
     val monitor =
@@ -252,9 +252,11 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    assertFailsWith<IllegalArgumentException> {
-      monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
-    }
+    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val status = result.statuses.single()
+    assertThat(status.isStale).isNull()
+    assertThat(status.gapDates).isNull()
+    assertThat(status.staleDays).isNull()
   }
 
   @Test
@@ -361,7 +363,7 @@ class DataAvailabilityMonitorTest {
   }
 
   @Test
-  fun `checkGaps throws when model line has no uploads`(): Unit = runBlocking {
+  fun `checkGaps returns null fields when model line has no uploads`(): Unit = runBlocking {
     val storageClient = createStorageClient()
 
     val monitor =
@@ -371,7 +373,10 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    assertFailsWith<IllegalArgumentException> { monitor.checkGaps() }
+    val result = monitor.checkGaps()
+    val status = result.statuses.single()
+    assertThat(status.gapDates).isNull()
+    assertThat(status.isStale).isNull()
   }
 
   @Test
@@ -430,7 +435,7 @@ class DataAvailabilityMonitorTest {
   }
 
   @Test
-  fun `checkFullStatus throws when folder name is not a valid date`(): Unit = runBlocking {
+  fun `checkFullStatus skips non-date folder names`(): Unit = runBlocking {
     val storageClient = createStorageClient()
 
     // Valid date folder
@@ -438,7 +443,7 @@ class DataAvailabilityMonitorTest {
     createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
     createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
 
-    // Invalid date format folder
+    // Invalid date format folder - should be skipped
     val badPath = "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/not-a-date/done"
     File(tempFolder.root, badPath).parentFile.mkdirs()
     storageClient.writeBlob(badPath, ByteString.copyFromUtf8("done"))
@@ -450,20 +455,22 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    assertFailsWith<java.time.format.DateTimeParseException> {
-      monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
-    }
+    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val status = result.statuses.single()
+    assertThat(status.latestDate).isEqualTo(LocalDate.of(2026, 3, 15))
+    assertThat(status.gapDates).isEmpty()
   }
 
   @Test
-  fun `checkGaps throws when folder name is not a valid date`(): Unit = runBlocking {
+  fun `checkGaps skips non-date folder names`(): Unit = runBlocking {
     val storageClient = createStorageClient()
 
     // Valid date folder
     ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
     createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
 
-    // Invalid date format folder
+    // Invalid date format folder - should be skipped
     val badPath = "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/not-a-date/done"
     File(tempFolder.root, badPath).parentFile.mkdirs()
     storageClient.writeBlob(badPath, ByteString.copyFromUtf8("done"))
@@ -475,7 +482,10 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    assertFailsWith<java.time.format.DateTimeParseException> { monitor.checkGaps() }
+    val result = monitor.checkGaps()
+    val status = result.statuses.single()
+    assertThat(status.latestDate).isEqualTo(LocalDate.of(2026, 3, 15))
+    assertThat(status.gapDates).isEmpty()
   }
 
   @Test

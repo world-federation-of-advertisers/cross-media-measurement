@@ -19,9 +19,10 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import java.time.LocalDate
+import java.time.format.DateTimeParseException
 import java.util.logging.Level
 import java.util.logging.Logger
-import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.storage.StorageClient
@@ -65,6 +66,7 @@ class DataAvailabilityMonitor(
     val zeroImpressionDates: List<LocalDate>?,
     val datesWithoutDoneBlob: List<LocalDate>?,
     val lateArrivingDates: List<LocalDate>?,
+    val healthyDates: List<LocalDate>?,
   )
 
   /** Result of a full monitoring check across all active model lines. */
@@ -117,8 +119,19 @@ class DataAvailabilityMonitor(
   ): ModelLineStatus {
     val modelLineName = modelLineKey.toName()
     val uploadedDates = dateInfo.datesWithDoneBlob
-    require(uploadedDates.isNotEmpty()) {
-      "No uploaded dates found for model line: $modelLineName. Check configuration."
+    if (uploadedDates.isEmpty()) {
+      logger.warning("No uploaded dates found for model line: $modelLineName. Check configuration.")
+      return ModelLineStatus(
+        modelLineKey = modelLineKey,
+        isStale = null,
+        latestDate = today,
+        gapDates = null,
+        staleDays = null,
+        zeroImpressionDates = null,
+        datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
+        lateArrivingDates = null,
+        healthyDates = null,
+      )
     }
 
     val sortedDates = uploadedDates.sorted()
@@ -173,14 +186,26 @@ class DataAvailabilityMonitor(
       zeroImpressionDates = dateInfo.zeroImpressionDates,
       datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
       lateArrivingDates = dateInfo.lateArrivingDates,
+      healthyDates = dateInfo.healthyDates,
     )
   }
 
   private fun buildGapStatus(modelLineKey: ModelLineKey, dateInfo: DateInfo): ModelLineStatus {
     val modelLineName = modelLineKey.toName()
     val uploadedDates = dateInfo.datesWithDoneBlob
-    require(uploadedDates.isNotEmpty()) {
-      "No uploaded dates found for model line: $modelLineName. Check configuration."
+    if (uploadedDates.isEmpty()) {
+      logger.warning("No uploaded dates found for model line: $modelLineName. Check configuration.")
+      return ModelLineStatus(
+        modelLineKey = modelLineKey,
+        isStale = null,
+        latestDate = LocalDate.MIN,
+        gapDates = null,
+        staleDays = null,
+        zeroImpressionDates = null,
+        datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
+        lateArrivingDates = null,
+        healthyDates = null,
+      )
     }
 
     val sortedDates = uploadedDates.sorted()
@@ -226,6 +251,7 @@ class DataAvailabilityMonitor(
       zeroImpressionDates = dateInfo.zeroImpressionDates,
       datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
       lateArrivingDates = dateInfo.lateArrivingDates,
+      healthyDates = dateInfo.healthyDates,
     )
   }
 
@@ -235,6 +261,7 @@ class DataAvailabilityMonitor(
     val zeroImpressionDates: List<LocalDate>,
     val datesWithoutDoneBlob: List<LocalDate>,
     val lateArrivingDates: List<LocalDate>,
+    val healthyDates: List<LocalDate>,
   )
 
   private suspend fun getDateInfoForModelLine(modelLineKey: ModelLineKey): DateInfo {
@@ -262,22 +289,29 @@ class DataAvailabilityMonitor(
     val zeroImpressionDatesList = mutableListOf<LocalDate>()
     val datesWithoutDoneBlobList = mutableListOf<LocalDate>()
     val lateArrivingDatesList = mutableListOf<LocalDate>()
+    val healthyDatesList = mutableListOf<LocalDate>()
 
     val datePrefixes = storageClient.listBlobKeysAndPrefixes(prefix).toList()
 
     for (datePrefix in datePrefixes) {
       val dateString = datePrefix.removePrefix(prefix).trimEnd('/')
-      val date = LocalDate.parse(dateString)
+      val date =
+        try {
+          LocalDate.parse(dateString)
+        } catch (e: DateTimeParseException) {
+          logger.warning("Skipping non-date folder: $dateString")
+          continue
+        }
 
       val doneBlob = storageClient.getBlob("${prefix}$dateString/done")
       if (doneBlob != null) {
         datesWithDone.add(date)
 
-        // Check if there is at least one non-done file
+        // Check if there is at least one non-done file with content
         val hasData =
-          storageClient.listBlobs("${prefix}$dateString/").firstOrNull {
-            !it.blobKey.endsWith("/done")
-          } != null
+          storageClient.listBlobs("${prefix}$dateString/").take(2).toList().any {
+            !it.blobKey.endsWith("/done") && it.size > 0
+          }
         if (!hasData) {
           zeroImpressionDatesList.add(date)
         }
@@ -286,9 +320,15 @@ class DataAvailabilityMonitor(
         val hasLateArrivals =
           storageClient
             .listBlobsUpdatedAfter("${prefix}$dateString/", doneBlob.updateTime)
-            .firstOrNull { !it.blobKey.endsWith("/done") } != null
+            .take(2)
+            .toList()
+            .any { !it.blobKey.endsWith("/done") && it.size > 0 }
         if (hasLateArrivals) {
           lateArrivingDatesList.add(date)
+        }
+
+        if (hasData && !hasLateArrivals) {
+          healthyDatesList.add(date)
         }
       } else {
         datesWithoutDoneBlobList.add(date)
@@ -300,6 +340,7 @@ class DataAvailabilityMonitor(
       zeroImpressionDates = zeroImpressionDatesList.sorted(),
       datesWithoutDoneBlob = datesWithoutDoneBlobList.sorted(),
       lateArrivingDates = lateArrivingDatesList.sorted(),
+      healthyDates = healthyDatesList.sorted(),
     )
   }
 
@@ -340,6 +381,9 @@ class DataAvailabilityMonitor(
     }
     if (!status.lateArrivingDates.isNullOrEmpty()) {
       metrics.lateArrivingDatesCounter.add(status.lateArrivingDates.size.toLong(), attrs)
+    }
+    if (!status.healthyDates.isNullOrEmpty()) {
+      metrics.healthyDatesCounter.add(status.healthyDates.size.toLong(), attrs)
     }
   }
 

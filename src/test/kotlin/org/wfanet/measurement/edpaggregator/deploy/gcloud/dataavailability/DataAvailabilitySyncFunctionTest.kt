@@ -648,7 +648,7 @@ class DataAvailabilitySyncFunctionTest {
     logger.info("Gap detection response status: ${response.statusCode()}")
     logger.info("Gap detection response body: ${response.body()}")
 
-    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.statusCode()).isEqualTo(200)
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
   }
 

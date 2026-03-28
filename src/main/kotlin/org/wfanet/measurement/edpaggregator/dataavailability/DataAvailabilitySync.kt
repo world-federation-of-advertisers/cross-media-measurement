@@ -88,9 +88,9 @@ import org.wfanet.measurement.storage.StorageClient
  *   request.
  * @property modelLineMap Mapping from a source model line to additional model lines that should
  *   receive the same availability interval updates.
- * @property errorIfGapsExist If true (default), throw an error when date gaps are detected. If
- *   false, log a warning and skip replacing data availability intervals. Gap dates are always
- *   logged.
+ * @property errorIfGapsExist If true (default), skip replacing data availability intervals when
+ *   date gaps are detected. If false, log a warning and update data availability per normal
+ *   behavior. Gap dates are always logged.
  * @property metrics Metrics recorder for telemetry.
  */
 class DataAvailabilitySync(
@@ -218,7 +218,11 @@ class DataAvailabilitySync(
           }
         logger.warning("Date gaps detected in $edpImpressionPath. $gapDetails")
         if (errorIfGapsExist) {
-          throw IllegalStateException("Date gaps detected in $edpImpressionPath. $gapDetails")
+          logger.warning(
+            "Skipping replaceDataAvailabilityIntervals due to date gaps in $edpImpressionPath."
+          )
+          recordSyncDuration(syncStartTime, SYNC_STATUS_SUCCESS)
+          return
         }
       }
       if (availabilityEntries.isNotEmpty()) {
@@ -431,6 +435,14 @@ class DataAvailabilitySync(
     return impressionMetadataMap
   }
 
+  /**
+   * Generates a deterministic UUIDv4 string from a blob path.
+   *
+   * This function ensures idempotency when the same path is used repeatedly:
+   *
+   * @param metadataBlobUri The input path (e.g., a Google Cloud Storage blob URI).
+   * @return A UUIDv4-compliant string that is stable for the given path.
+   */
   private fun uuidV4FromPath(metadataBlobUri: String): String {
     val hash = MessageDigest.getInstance("SHA-256").digest(metadataBlobUri.toByteArray())
     val bytes = hash.copyOf(16)

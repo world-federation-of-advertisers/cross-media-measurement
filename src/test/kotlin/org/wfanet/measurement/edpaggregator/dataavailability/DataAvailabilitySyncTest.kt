@@ -995,52 +995,50 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
-  fun `sync throws IllegalStateException when date gaps are detected but still saves impressions`():
-    Unit = runBlocking {
-    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+  fun `sync skips replaceDataAvailabilityIntervals when date gaps are detected`(): Unit =
+    runBlocking {
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
-    // Set up done blobs at model-line paths with a gap (missing 2026-03-14)
-    val modelLineId = "modelLine1"
-    val edpPath = "edp/edpa_edp"
-    for (date in listOf("2026-03-13", "2026-03-15")) {
-      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
-      File(tempFolder.root, donePath).parentFile.mkdirs()
-      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
-      // Add a data file so the folder is not empty
-      val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
-      storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
-    }
+      // Set up done blobs at model-line paths with a gap (missing 2026-03-14)
+      val modelLineId = "modelLine1"
+      val edpPath = "edp/edpa_edp"
+      for (date in listOf("2026-03-13", "2026-03-15")) {
+        val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+        File(tempFolder.root, donePath).parentFile.mkdirs()
+        storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+        val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+        storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+      }
 
-    // Seed metadata in the sync trigger folder
-    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
-    val dataAvailabilitySync =
-      DataAvailabilitySync(
-        edpPath,
-        storageClient,
-        dataProvidersStub,
-        impressionMetadataStub,
-        "dataProviders/dataProvider123",
-        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
-        modelLineMap = emptyMap(),
-        errorIfGapsExist = true,
-      )
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          edpPath,
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
+        )
 
-    assertFailsWith<IllegalStateException> {
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+      // Impression metadata should still be saved
+      verifyBlocking(impressionMetadataServiceMock, times(1)) {
+        batchCreateImpressionMetadata(any())
+      }
+
+      // Model line bounds should still be computed
+      verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
+
+      // replaceDataAvailabilityIntervals should NOT be called due to gaps
+      verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
     }
-
-    // Impression metadata should still be saved to the metadata store
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
-
-    // Model line bounds should still be computed
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
-
-    // replaceDataAvailabilityIntervals should NOT be called because exception was thrown
-    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
-  }
 
   @Test
   fun `sync calls replaceDataAvailabilityIntervals when no date gaps exist`(): Unit = runBlocking {
@@ -1115,9 +1113,7 @@ class DataAvailabilitySyncTest {
           monitorMetrics = metricsEnv.monitorMetrics,
         )
 
-      assertFailsWith<IllegalStateException> {
-        dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
-      }
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
 
       metricsEnv.metricReader.forceFlush()
       val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems

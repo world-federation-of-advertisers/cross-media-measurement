@@ -53,4 +53,10 @@ class DataAvailabilityMonitorMetrics(meter: Meter = Instrumentation.meter) {
       .counterBuilder("edpa.data_availability.late_arriving_dates")
       .setDescription("Number of dates with files updated after the done blob")
       .build()
+
+  val healthyDatesCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.data_availability.healthy_dates")
+      .setDescription("Number of dates with done blob, impressions, and no late arrivals")
+      .build()
 }
