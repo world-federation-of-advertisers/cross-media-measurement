@@ -16,19 +16,21 @@ syntax = "proto3";
 
 package wfa.measurement.internal.edpaggregator;
 
+import "google/protobuf/timestamp.proto";
+
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
-option java_outer_classname = "RawImpressionStateProto";
+option java_outer_classname = "RawImpressionMetadataBatchFileProto";
 
-// The lifecycle state of a raw impression metadata record (used for soft
-// delete).
-enum RawImpressionState {
-  // Default, unspecified state.
-  RAW_IMPRESSION_STATE_UNSPECIFIED = 0;
-  // The record is active.
-  RAW_IMPRESSION_STATE_ACTIVE = 1;
-  // The record has been soft-deleted and will not be used.
-  RAW_IMPRESSION_STATE_DELETED = 2;
-  // The impression could not be processed due to an unrecoverable error.
-  RAW_IMPRESSION_STATE_INVALID = 3;
+// Internal representation of a RawImpressionMetadataBatchFile.
+message RawImpressionMetadataBatchFile {
+  string data_provider_resource_id = 1;
+  string batch_resource_id = 2;
+  string file_resource_id = 3;
+
+  string blob_uri = 4;
+
+  google.protobuf.Timestamp create_time = 5;
+  google.protobuf.Timestamp update_time = 6;
+  google.protobuf.Timestamp delete_time = 7;
 }
