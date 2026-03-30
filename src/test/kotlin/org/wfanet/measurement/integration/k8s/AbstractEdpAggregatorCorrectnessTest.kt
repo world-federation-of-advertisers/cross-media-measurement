@@ -41,6 +41,8 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
     ((EventGroup) -> Boolean)?
   protected abstract val EVENT_GROUP_FILTERING_LAMBDA_CROSS_PUB: ((EventGroup) -> Boolean)?
 
+  // TODO(@marcopremier): Enable HMMS tests by adding a new EDP
+
   @Test
   fun `create a direct RF measurement and check the result is equal to the expected result`() =
     runBlocking {
