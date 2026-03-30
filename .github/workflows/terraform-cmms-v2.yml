@@ -137,6 +137,7 @@ jobs:
         echo "$DATA_AVAILABILITY_SYNC_CONFIG_CONTENT" > "$CONFIG_DIR/data-availability-sync-config.textproto"
         echo "$RESULTS_FULFILLER_POPULATION_SPEC_CONTENT" > "$CONFIG_DIR/results-fulfiller-population-spec.textproto"
         echo "$RESULTS_FULFILLER_TRUSTED_CA_CONTENT" > "$CONFIG_DIR/results-fulfiller-trusted-root-ca.pem"
+        
     - name: Set up Maven GitHub Packages auth
       run: |
         mkdir -p ~/.m2
