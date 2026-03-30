@@ -488,16 +488,10 @@ abstract class MeasurementConsumerSimulator(
 
     onMeasurementsCreated?.invoke()
 
-    // Get the CMMS computed result and compare it with the expected result.
-    var reachOnlyResult = getReachResult(measurementName)
-    var attemptCount = 0
-    while (reachOnlyResult == null && (attemptCount < 6)) {
-      attemptCount++
-      logger.info("Computation not done yet, wait for another 30 seconds.  Attempt $attemptCount")
-      delay(Duration.ofSeconds(30))
-      reachOnlyResult = getReachResult(measurementName)
+    val reachOnlyResult: Result = pollForResult {
+      getReachResult(measurementName)
     }
-    checkNotNull(reachOnlyResult) { "Timed out waiting for response to reach-only request" }
+    logger.info("Got reach-only result from Kingdom: $reachOnlyResult")
 
     val expectedResult: Result = getExpectedResult(measurementInfo)
     return ExecutionResult(reachOnlyResult, expectedResult, measurementInfo)
@@ -525,18 +519,10 @@ abstract class MeasurementConsumerSimulator(
 
     onMeasurementsCreated?.invoke()
 
-    // Get the CMMS computed result and compare it with the expected result.
-    var reachAndFrequencyResult = getReachAndFrequencyResult(measurementName)
-    var attemptCount = 0
-    while (reachAndFrequencyResult == null && (attemptCount < 4)) {
-      attemptCount++
-      logger.info("Computation not done yet, wait for another 30 seconds.  Attempt $attemptCount")
-      delay(Duration.ofSeconds(30))
-      reachAndFrequencyResult = getReachAndFrequencyResult(measurementName)
+    val reachAndFrequencyResult: Result = pollForResult {
+      getReachAndFrequencyResult(measurementName)
     }
-    checkNotNull(reachAndFrequencyResult) {
-      "Timed out waiting for response to reach-and-frequency request"
-    }
+    logger.info("Got reach-and-frequency result from Kingdom: $reachAndFrequencyResult")
 
     val expectedResult: Result = getExpectedResult(measurementInfo)
     return ExecutionResult(reachAndFrequencyResult, expectedResult, measurementInfo)
