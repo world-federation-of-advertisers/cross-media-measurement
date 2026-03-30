@@ -713,7 +713,7 @@ class MeasurementsService(
       Set<InternalProtocolConfig.NoiseMechanism> {
       return buildSet {
         add(InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN)
-        if (noNoiseMechanismSupported) add(InternalProtocolConfig.NoiseMechanism.NONE)
+        if (noiseMechanismNoneSupported) add(InternalProtocolConfig.NoiseMechanism.NONE)
       }
     }
 

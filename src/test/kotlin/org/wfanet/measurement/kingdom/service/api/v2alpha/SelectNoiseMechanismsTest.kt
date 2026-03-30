@@ -41,7 +41,8 @@ class SelectNoiseMechanismsTest {
 
   @Test
   fun `throws when server noise mechanisms list is empty`() {
-    val capabilities = listOf(internalDataProviderCapabilities { noNoiseMechanismSupported = true })
+    val capabilities =
+      listOf(internalDataProviderCapabilities { noiseMechanismNoneSupported = true })
 
     assertFailsWith<IllegalArgumentException> {
       MeasurementsService.selectNoiseMechanisms(emptyList(), capabilities)
@@ -59,10 +60,11 @@ class SelectNoiseMechanismsTest {
   }
 
   @Test
-  fun `EDP with no_noise_mechanism_supported returns both NONE and CONTINUOUS_GAUSSIAN`() {
+  fun `EDP with noise_mechanism_none_supported returns both NONE and CONTINUOUS_GAUSSIAN`() {
     val serverMechanisms =
       listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
-    val capabilities = listOf(internalDataProviderCapabilities { noNoiseMechanismSupported = true })
+    val capabilities =
+      listOf(internalDataProviderCapabilities { noiseMechanismNoneSupported = true })
 
     val result = MeasurementsService.selectNoiseMechanisms(serverMechanisms, capabilities)
     assertEquals(
@@ -77,7 +79,7 @@ class SelectNoiseMechanismsTest {
       listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
     val capabilities =
       listOf(
-        internalDataProviderCapabilities { noNoiseMechanismSupported = true },
+        internalDataProviderCapabilities { noiseMechanismNoneSupported = true },
         internalDataProviderCapabilities {},
       )
 
@@ -91,9 +93,9 @@ class SelectNoiseMechanismsTest {
       listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
     val capabilities =
       listOf(
-        internalDataProviderCapabilities { noNoiseMechanismSupported = true },
+        internalDataProviderCapabilities { noiseMechanismNoneSupported = true },
         internalDataProviderCapabilities {},
-        internalDataProviderCapabilities { noNoiseMechanismSupported = true },
+        internalDataProviderCapabilities { noiseMechanismNoneSupported = true },
       )
 
     val result = MeasurementsService.selectNoiseMechanisms(serverMechanisms, capabilities)
@@ -106,8 +108,8 @@ class SelectNoiseMechanismsTest {
       listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
     val capabilities =
       listOf(
-        internalDataProviderCapabilities { noNoiseMechanismSupported = true },
-        internalDataProviderCapabilities { noNoiseMechanismSupported = true },
+        internalDataProviderCapabilities { noiseMechanismNoneSupported = true },
+        internalDataProviderCapabilities { noiseMechanismNoneSupported = true },
       )
 
     val result = MeasurementsService.selectNoiseMechanisms(serverMechanisms, capabilities)
@@ -122,7 +124,7 @@ class SelectNoiseMechanismsTest {
     val serverMechanisms = listOf(InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
     val capabilities =
       listOf(
-        internalDataProviderCapabilities { noNoiseMechanismSupported = true },
+        internalDataProviderCapabilities { noiseMechanismNoneSupported = true },
         internalDataProviderCapabilities {},
       )
 
@@ -145,7 +147,8 @@ class SelectNoiseMechanismsTest {
   @Test
   fun `server only supports NONE and EDP supports NONE`() {
     val serverMechanisms = listOf(InternalNoiseMechanism.NONE)
-    val capabilities = listOf(internalDataProviderCapabilities { noNoiseMechanismSupported = true })
+    val capabilities =
+      listOf(internalDataProviderCapabilities { noiseMechanismNoneSupported = true })
 
     val result = MeasurementsService.selectNoiseMechanisms(serverMechanisms, capabilities)
     assertEquals(listOf(InternalNoiseMechanism.NONE), result)

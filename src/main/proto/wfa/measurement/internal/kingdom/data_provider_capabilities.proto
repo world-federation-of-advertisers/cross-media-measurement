@@ -27,5 +27,5 @@ message DataProviderCapabilities {
 
   // Whether the no-noise (NONE) mechanism is supported.
   // CONTINUOUS_GAUSSIAN is always assumed to be supported.
-  bool no_noise_mechanism_supported = 3;
+  bool noise_mechanism_none_supported = 3;
 }

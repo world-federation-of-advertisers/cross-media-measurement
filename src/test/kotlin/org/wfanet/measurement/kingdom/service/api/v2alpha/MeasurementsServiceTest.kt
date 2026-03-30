@@ -946,7 +946,7 @@ class MeasurementsServiceTest {
                   details.copy {
                     capabilities = internalDataProviderCapabilities {
                       trusTeeSupported = true
-                      noNoiseMechanismSupported = true
+                      noiseMechanismNoneSupported = true
                     }
                   }
               }
@@ -1018,7 +1018,7 @@ class MeasurementsServiceTest {
                   details.copy {
                     capabilities = internalDataProviderCapabilities {
                       trusTeeSupported = true
-                      noNoiseMechanismSupported = true
+                      noiseMechanismNoneSupported = true
                     }
                   }
               }
@@ -1096,7 +1096,7 @@ class MeasurementsServiceTest {
                   details.copy {
                     capabilities = internalDataProviderCapabilities {
                       trusTeeSupported = true
-                      noNoiseMechanismSupported = true
+                      noiseMechanismNoneSupported = true
                     }
                   }
               }
@@ -1169,7 +1169,7 @@ class MeasurementsServiceTest {
                   details.copy {
                     capabilities = internalDataProviderCapabilities {
                       trusTeeSupported = true
-                      noNoiseMechanismSupported = true
+                      noiseMechanismNoneSupported = true
                     }
                   }
               }
@@ -1242,7 +1242,7 @@ class MeasurementsServiceTest {
                   details.copy {
                     capabilities = internalDataProviderCapabilities {
                       trusTeeSupported = true
-                      noNoiseMechanismSupported = true
+                      noiseMechanismNoneSupported = true
                     }
                   }
               }
@@ -1377,7 +1377,7 @@ class MeasurementsServiceTest {
                 details.copy {
                   capabilities = internalDataProviderCapabilities {
                     trusTeeSupported = true
-                    noNoiseMechanismSupported = true
+                    noiseMechanismNoneSupported = true
                   }
                 }
             }
@@ -1455,7 +1455,7 @@ class MeasurementsServiceTest {
                 details.copy {
                   capabilities = internalDataProviderCapabilities {
                     trusTeeSupported = true
-                    noNoiseMechanismSupported = true
+                    noiseMechanismNoneSupported = true
                   }
                 }
             }
@@ -1528,7 +1528,7 @@ class MeasurementsServiceTest {
                   details.copy {
                     capabilities = internalDataProviderCapabilities {
                       honestMajorityShareShuffleSupported = true
-                      noNoiseMechanismSupported = true
+                      noiseMechanismNoneSupported = true
                     }
                   }
               }

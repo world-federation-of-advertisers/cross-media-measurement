@@ -822,7 +822,7 @@ class DataProvidersServiceTest {
   @Test
   fun `getDataProvider returns capabilities with noise mechanisms`() {
     val capabilitiesWithNoise = internalDataProviderCapabilities {
-      noNoiseMechanismSupported = true
+      noiseMechanismNoneSupported = true
     }
     val internalDataProviderWithCapabilities =
       INTERNAL_DATA_PROVIDER.copy {
@@ -839,7 +839,7 @@ class DataProvidersServiceTest {
         }
       }
 
-    val expectedCapabilities = DataProviderKt.capabilities { noNoiseMechanismSupported = true }
+    val expectedCapabilities = DataProviderKt.capabilities { noiseMechanismNoneSupported = true }
     assertThat(dataProvider.capabilities).isEqualTo(expectedCapabilities)
   }
 
