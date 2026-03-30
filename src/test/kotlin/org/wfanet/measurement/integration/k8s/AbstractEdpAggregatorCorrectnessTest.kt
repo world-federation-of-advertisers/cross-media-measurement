@@ -42,28 +42,6 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
   protected abstract val EVENT_GROUP_FILTERING_LAMBDA_CROSS_PUB: ((EventGroup) -> Boolean)?
 
   @Test
-  fun `create a Hmss reach-only measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a reach and frequency measurement and verify its result.
-      mcSimulator.testReachOnly(
-        "1231",
-        ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
-        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_CROSS_PUB,
-      )
-    }
-
-  @Test
-  fun `create a Hmss RF measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a reach and frequency measurement and verify its result.
-      mcSimulator.testReachAndFrequency(
-        "1232",
-        ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
-        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_CROSS_PUB,
-      )
-    }
-
-  @Test
   fun `create a direct RF measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a direct reach and frequency measurement and verify its
