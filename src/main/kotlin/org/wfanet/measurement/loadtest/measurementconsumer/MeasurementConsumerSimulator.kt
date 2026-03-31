@@ -488,9 +488,7 @@ abstract class MeasurementConsumerSimulator(
 
     onMeasurementsCreated?.invoke()
 
-    val reachOnlyResult: Result = pollForResult {
-      getReachResult(measurementName)
-    }
+    val reachOnlyResult: Result = pollForResult { getReachResult(measurementName) }
     logger.info("Got reach-only result from Kingdom: $reachOnlyResult")
 
     val expectedResult: Result = getExpectedResult(measurementInfo)
