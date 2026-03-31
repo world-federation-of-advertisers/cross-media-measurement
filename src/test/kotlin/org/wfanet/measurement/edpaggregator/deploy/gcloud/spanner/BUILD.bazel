@@ -37,3 +37,28 @@ spanner_emulator_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )
+
+spanner_emulator_test(
+    name = "SpannerRawImpressionMetadataBatchServiceTest",
+    srcs = ["SpannerRawImpressionMetadataBatchServiceTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.SpannerRawImpressionMetadataBatchServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:spanner_raw_impression_metadata_batch_service",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/testing:schemata",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal/testing:raw_impression_metadata_batch_service_test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
+
+spanner_emulator_test(
+    name = "SpannerRawImpressionMetadataBatchFileServiceTest",
+    srcs = ["SpannerRawImpressionMetadataBatchFileServiceTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.SpannerRawImpressionMetadataBatchFileServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:spanner_raw_impression_metadata_batch_file_service",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:spanner_raw_impression_metadata_batch_service",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/testing:schemata",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal/testing:raw_impression_metadata_batch_file_service_test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
