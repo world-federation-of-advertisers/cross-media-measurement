@@ -39,29 +39,9 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
 
   protected abstract val EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS:
     ((EventGroup) -> Boolean)?
-  protected abstract val EVENT_GROUP_FILTERING_LAMBDA_HMSS: ((EventGroup) -> Boolean)?
+  protected abstract val EVENT_GROUP_FILTERING_LAMBDA_CROSS_PUB: ((EventGroup) -> Boolean)?
 
-  @Test
-  fun `create a Hmss reach-only measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a reach and frequency measurement and verify its result.
-      mcSimulator.testReachOnly(
-        "1231",
-        ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
-        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_HMSS,
-      )
-    }
-
-  @Test
-  fun `create a Hmss RF measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a reach and frequency measurement and verify its result.
-      mcSimulator.testReachAndFrequency(
-        "1232",
-        ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
-        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_HMSS,
-      )
-    }
+  // TODO(@marcopremier): Enable HMMS tests by adding a new EDP
 
   @Test
   fun `create a direct RF measurement and check the result is equal to the expected result`() =
@@ -107,6 +87,26 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       mcSimulator.testImpression(
         "1236",
         eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS,
+      )
+    }
+
+  @Test
+  fun `create a TrusTee reach-only measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      mcSimulator.testReachOnly(
+        "1237",
+        ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
+        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_CROSS_PUB,
+      )
+    }
+
+  @Test
+  fun `create a TrusTee RF measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      mcSimulator.testReachAndFrequency(
+        "1238",
+        ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
+        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_CROSS_PUB,
       )
     }
 
