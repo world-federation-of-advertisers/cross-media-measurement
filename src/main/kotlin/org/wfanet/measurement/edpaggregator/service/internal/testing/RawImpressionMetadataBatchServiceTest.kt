@@ -502,7 +502,7 @@ abstract class RawImpressionMetadataBatchServiceTest {
       service.createRawImpressionMetadataBatch(
         createRawImpressionMetadataBatchRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          batchResourceId = BATCH_RESOURCE_ID
+          batchResourceId = "batch-2"
         }
       )
 
