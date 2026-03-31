@@ -366,7 +366,7 @@ class DataAvailabilitySyncTest {
         replaceDataAvailabilityIntervals(requestCaptor.capture())
       }
       val availabilityKeys = requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key }
-      assertThat(availabilityKeys).containsExactly("$existingModelLine", "$newModelLine")
+      assertThat(availabilityKeys).containsExactly(existingModelLine, newModelLine)
     }
   }
 

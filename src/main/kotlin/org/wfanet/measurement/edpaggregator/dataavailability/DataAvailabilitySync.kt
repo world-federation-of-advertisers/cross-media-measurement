@@ -358,7 +358,7 @@ class DataAvailabilitySync(
    *
    * @param impressionMetadataBlobs the flow of [StorageClient.Blob] objects to read and parse.
    * @param doneBlobUri the blob uri.
-   * @return a map where each key is a `modelLine` string and each value is the list of
+   * @return a map where each key is a [ModelLineKey] and each value is the list of
    *   [ImpressionMetadataWithBlobKey] objects associated with that model line.
    * @throws InvalidProtocolBufferException if a blob cannot be parsed as either binary or JSON
    *   `BlobDetails`.
@@ -479,6 +479,10 @@ class DataAvailabilitySync(
     private const val BLOB_TYPE_URL =
       "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
 
+    /**
+     * GCS custom metadata key for storing ImpressionMetadata resource name. Will appear as
+     * x-goog-meta-impression-metadata-resource-id in GCS.
+     */
     const val IMPRESSION_METADATA_RESOURCE_ID_KEY = "impression-metadata-resource-id"
   }
 }
