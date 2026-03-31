@@ -24,7 +24,6 @@ import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.generateNewId
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RawImpressionMetadataBatchResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findExistingBatchByRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionMetadataBatchByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionMetadataBatch
@@ -82,16 +81,11 @@ class SpannerRawImpressionMetadataBatchService(
     }
 
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
-      databaseClient.readWriteTransaction(
-        Options.tag("action=createRawImpressionMetadataBatch")
-      )
+      databaseClient.readWriteTransaction(Options.tag("action=createRawImpressionMetadataBatch"))
 
     val result: RawImpressionMetadataBatch =
       transactionRunner.run { txn ->
-        val existing = txn.findExistingBatchByRequestId(
-          request.dataProviderResourceId,
-          requestId,
-        )
+        val existing = txn.findExistingBatchByRequestId(request.dataProviderResourceId, requestId)
         if (existing != null) {
           if (existing.rawImpressionMetadataBatch.batchResourceId != request.batchResourceId) {
             throw InvalidFieldValueException("request_id") {
@@ -226,9 +220,7 @@ class SpannerRawImpressionMetadataBatchService(
     }
 
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
-      databaseClient.readWriteTransaction(
-        Options.tag("action=deleteRawImpressionMetadataBatch")
-      )
+      databaseClient.readWriteTransaction(Options.tag("action=deleteRawImpressionMetadataBatch"))
 
     val deletedBatch =
       try {
@@ -246,10 +238,7 @@ class SpannerRawImpressionMetadataBatchService(
             )
           }
 
-          txn.softDeleteRawImpressionMetadataBatch(
-            request.dataProviderResourceId,
-            result.batchId,
-          )
+          txn.softDeleteRawImpressionMetadataBatch(request.dataProviderResourceId, result.batchId)
 
           result.rawImpressionMetadataBatch.copy {
             clearUpdateTime()
@@ -314,10 +303,7 @@ class SpannerRawImpressionMetadataBatchService(
       try {
         transactionRunner.run { txn ->
           val result =
-            txn.getRawImpressionMetadataBatchByResourceId(
-              dataProviderResourceId,
-              batchResourceId,
-            )
+            txn.getRawImpressionMetadataBatchByResourceId(dataProviderResourceId, batchResourceId)
 
           if (result.rawImpressionMetadataBatch.state !in expectedStates) {
             throw RawImpressionMetadataBatchStateInvalidException(

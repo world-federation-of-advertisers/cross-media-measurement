@@ -31,8 +31,7 @@ data class Services(
   val rawImpressionMetadataBatch:
     RawImpressionMetadataBatchServiceGrpcKt.RawImpressionMetadataBatchServiceCoroutineImplBase,
   val rawImpressionMetadataBatchFile:
-    RawImpressionMetadataBatchFileServiceGrpcKt
-      .RawImpressionMetadataBatchFileServiceCoroutineImplBase,
+    RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineImplBase,
 ) {
   fun toList(): List<BindableService> =
     listOf(

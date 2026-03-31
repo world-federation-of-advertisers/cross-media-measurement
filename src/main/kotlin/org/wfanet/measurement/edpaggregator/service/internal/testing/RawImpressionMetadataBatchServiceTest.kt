@@ -31,14 +31,13 @@ import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.service.internal.Errors
+import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionMetadataBatchesRequestKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionBatchState
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatch
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchServiceGrpcKt.RawImpressionMetadataBatchServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionMetadataBatchRequest
 import org.wfanet.measurement.internal.edpaggregator.deleteRawImpressionMetadataBatchRequest
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionMetadataBatchRequest
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionMetadataBatchesRequest
-import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionMetadataBatchesRequestKt
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionMetadataBatchFailedRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionMetadataBatchProcessedRequest
 
@@ -70,8 +69,7 @@ abstract class RawImpressionMetadataBatchServiceTest {
 
     assertThat(batch.dataProviderResourceId).isEqualTo(DATA_PROVIDER_RESOURCE_ID)
     assertThat(batch.batchResourceId).isEqualTo(BATCH_RESOURCE_ID)
-    assertThat(batch.state)
-      .isEqualTo(RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_CREATED)
+    assertThat(batch.state).isEqualTo(RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_CREATED)
     assertThat(batch.createTime.toInstant()).isGreaterThan(startTime)
     assertThat(batch.updateTime).isEqualTo(batch.createTime)
   }
@@ -127,16 +125,14 @@ abstract class RawImpressionMetadataBatchServiceTest {
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     }
-    
+
   @Test
   fun `createRawImpressionMetadataBatch throws INVALID_ARGUMENT if data_provider_resource_id not set`() =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
           service.createRawImpressionMetadataBatch(
-            createRawImpressionMetadataBatchRequest {
-              batchResourceId = BATCH_RESOURCE_ID
-            }
+            createRawImpressionMetadataBatchRequest { batchResourceId = BATCH_RESOURCE_ID }
           )
         }
 
@@ -185,8 +181,7 @@ abstract class RawImpressionMetadataBatchServiceTest {
 
     assertThat(batch.dataProviderResourceId).isEqualTo(DATA_PROVIDER_RESOURCE_ID)
     assertThat(batch.batchResourceId).isEqualTo(BATCH_RESOURCE_ID)
-    assertThat(batch.state)
-      .isEqualTo(RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_CREATED)
+    assertThat(batch.state).isEqualTo(RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_CREATED)
   }
 
   @Test
@@ -381,8 +376,7 @@ abstract class RawImpressionMetadataBatchServiceTest {
         }
       )
 
-    assertThat(batch.state)
-      .isEqualTo(RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_PROCESSED)
+    assertThat(batch.state).isEqualTo(RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_PROCESSED)
   }
 
   @Test
@@ -402,8 +396,7 @@ abstract class RawImpressionMetadataBatchServiceTest {
         }
       )
 
-    assertThat(batch.state)
-      .isEqualTo(RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_FAILED)
+    assertThat(batch.state).isEqualTo(RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_FAILED)
   }
 
   @Test

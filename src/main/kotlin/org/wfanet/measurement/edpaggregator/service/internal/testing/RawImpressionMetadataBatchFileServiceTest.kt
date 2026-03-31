@@ -16,7 +16,6 @@ package org.wfanet.measurement.edpaggregator.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -28,10 +27,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.IdGenerator
-import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.edpaggregator.service.internal.Errors
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchFile
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchServiceGrpcKt.RawImpressionMetadataBatchServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.batchCreateRawImpressionMetadataBatchFilesRequest
@@ -85,9 +81,7 @@ abstract class RawImpressionMetadataBatchFileServiceTest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           batchResourceId = BATCH_RESOURCE_ID
           fileResourceId = FILE_RESOURCE_ID
-          rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile {
-            blobUri = BLOB_URI
-          }
+          rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile { blobUri = BLOB_URI }
           requestId = UUID.randomUUID().toString()
         }
       )
@@ -111,9 +105,7 @@ abstract class RawImpressionMetadataBatchFileServiceTest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           batchResourceId = BATCH_RESOURCE_ID
           fileResourceId = FILE_RESOURCE_ID
-          rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile {
-            blobUri = BLOB_URI
-          }
+          rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile { blobUri = BLOB_URI }
           this.requestId = requestId
         }
       )
@@ -144,9 +136,7 @@ abstract class RawImpressionMetadataBatchFileServiceTest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           batchResourceId = BATCH_RESOURCE_ID
           fileResourceId = FILE_RESOURCE_ID
-          rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile {
-            blobUri = BLOB_URI
-          }
+          rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile { blobUri = BLOB_URI }
         }
       )
 
@@ -157,9 +147,7 @@ abstract class RawImpressionMetadataBatchFileServiceTest {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               batchResourceId = BATCH_RESOURCE_ID
               fileResourceId = "file-2"
-              rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile {
-                blobUri = BLOB_URI
-              }
+              rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile { blobUri = BLOB_URI }
             }
           )
         }
@@ -168,24 +156,21 @@ abstract class RawImpressionMetadataBatchFileServiceTest {
     }
 
   @Test
-  fun `createRawImpressionMetadataBatchFile throws NOT_FOUND when batch not found`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          fileService.createRawImpressionMetadataBatchFile(
-            createRawImpressionMetadataBatchFileRequest {
-              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-              batchResourceId = "nonexistent-batch"
-              fileResourceId = FILE_RESOURCE_ID
-              rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile {
-                blobUri = BLOB_URI
-              }
-            }
-          )
-        }
+  fun `createRawImpressionMetadataBatchFile throws NOT_FOUND when batch not found`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        fileService.createRawImpressionMetadataBatchFile(
+          createRawImpressionMetadataBatchFileRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            batchResourceId = "nonexistent-batch"
+            fileResourceId = FILE_RESOURCE_ID
+            rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile { blobUri = BLOB_URI }
+          }
+        )
+      }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
 
   @Test
   fun `createRawImpressionMetadataBatchFile throws INVALID_ARGUMENT if blob_uri not set`() =
@@ -216,24 +201,22 @@ abstract class RawImpressionMetadataBatchFileServiceTest {
         batchCreateRawImpressionMetadataBatchFilesRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           batchResourceId = BATCH_RESOURCE_ID
-          requests +=
-            createRawImpressionMetadataBatchFileRequest {
-              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-              batchResourceId = BATCH_RESOURCE_ID
-              fileResourceId = "file-1"
-              rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile {
-                blobUri = "gs://bucket/file1"
-              }
+          requests += createRawImpressionMetadataBatchFileRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            batchResourceId = BATCH_RESOURCE_ID
+            fileResourceId = "file-1"
+            rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile {
+              blobUri = "gs://bucket/file1"
             }
-          requests +=
-            createRawImpressionMetadataBatchFileRequest {
-              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-              batchResourceId = BATCH_RESOURCE_ID
-              fileResourceId = "file-2"
-              rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile {
-                blobUri = "gs://bucket/file2"
-              }
+          }
+          requests += createRawImpressionMetadataBatchFileRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            batchResourceId = BATCH_RESOURCE_ID
+            fileResourceId = "file-2"
+            rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile {
+              blobUri = "gs://bucket/file2"
             }
+          }
         }
       )
 
@@ -251,24 +234,22 @@ abstract class RawImpressionMetadataBatchFileServiceTest {
             batchCreateRawImpressionMetadataBatchFilesRequest {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               batchResourceId = BATCH_RESOURCE_ID
-              requests +=
-                createRawImpressionMetadataBatchFileRequest {
-                  dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-                  batchResourceId = BATCH_RESOURCE_ID
-                  fileResourceId = "file-1"
-                  rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile {
-                    blobUri = BLOB_URI
-                  }
+              requests += createRawImpressionMetadataBatchFileRequest {
+                dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+                batchResourceId = BATCH_RESOURCE_ID
+                fileResourceId = "file-1"
+                rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile {
+                  blobUri = BLOB_URI
                 }
-              requests +=
-                createRawImpressionMetadataBatchFileRequest {
-                  dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-                  batchResourceId = BATCH_RESOURCE_ID
-                  fileResourceId = "file-2"
-                  rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile {
-                    blobUri = BLOB_URI
-                  }
+              }
+              requests += createRawImpressionMetadataBatchFileRequest {
+                dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+                batchResourceId = BATCH_RESOURCE_ID
+                fileResourceId = "file-2"
+                rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile {
+                  blobUri = BLOB_URI
                 }
+              }
             }
           )
         }
@@ -285,9 +266,7 @@ abstract class RawImpressionMetadataBatchFileServiceTest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         batchResourceId = BATCH_RESOURCE_ID
         fileResourceId = FILE_RESOURCE_ID
-        rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile {
-          blobUri = BLOB_URI
-        }
+        rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile { blobUri = BLOB_URI }
       }
     )
 
@@ -399,9 +378,7 @@ abstract class RawImpressionMetadataBatchFileServiceTest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         batchResourceId = BATCH_RESOURCE_ID
         fileResourceId = FILE_RESOURCE_ID
-        rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile {
-          blobUri = BLOB_URI
-        }
+        rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile { blobUri = BLOB_URI }
       }
     )
 
@@ -445,9 +422,7 @@ abstract class RawImpressionMetadataBatchFileServiceTest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           batchResourceId = BATCH_RESOURCE_ID
           fileResourceId = FILE_RESOURCE_ID
-          rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile {
-            blobUri = BLOB_URI
-          }
+          rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile { blobUri = BLOB_URI }
         }
       )
 
@@ -501,25 +476,21 @@ abstract class RawImpressionMetadataBatchFileServiceTest {
     val response =
       fileService.batchDeleteRawImpressionMetadataBatchFiles(
         batchDeleteRawImpressionMetadataBatchFilesRequest {
-          requests +=
-            deleteRawImpressionMetadataBatchFileRequest {
-              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-              batchResourceId = BATCH_RESOURCE_ID
-              fileResourceId = "file-1"
-            }
-          requests +=
-            deleteRawImpressionMetadataBatchFileRequest {
-              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-              batchResourceId = BATCH_RESOURCE_ID
-              fileResourceId = "file-2"
-            }
+          requests += deleteRawImpressionMetadataBatchFileRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            batchResourceId = BATCH_RESOURCE_ID
+            fileResourceId = "file-1"
+          }
+          requests += deleteRawImpressionMetadataBatchFileRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            batchResourceId = BATCH_RESOURCE_ID
+            fileResourceId = "file-2"
+          }
         }
       )
 
     assertThat(response.rawImpressionMetadataBatchFilesList).hasSize(2)
-    response.rawImpressionMetadataBatchFilesList.forEach {
-      assertThat(it.hasDeleteTime()).isTrue()
-    }
+    response.rawImpressionMetadataBatchFilesList.forEach { assertThat(it.hasDeleteTime()).isTrue() }
   }
 
   @Test
@@ -531,12 +502,11 @@ abstract class RawImpressionMetadataBatchFileServiceTest {
         assertFailsWith<StatusRuntimeException> {
           fileService.batchDeleteRawImpressionMetadataBatchFiles(
             batchDeleteRawImpressionMetadataBatchFilesRequest {
-              requests +=
-                deleteRawImpressionMetadataBatchFileRequest {
-                  dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-                  batchResourceId = BATCH_RESOURCE_ID
-                  fileResourceId = "nonexistent-file"
-                }
+              requests += deleteRawImpressionMetadataBatchFileRequest {
+                dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+                batchResourceId = BATCH_RESOURCE_ID
+                fileResourceId = "nonexistent-file"
+              }
             }
           )
         }
@@ -589,7 +559,6 @@ abstract class RawImpressionMetadataBatchFileServiceTest {
     assertThat(response.rawImpressionMetadataBatchFilesList.first().fileResourceId)
       .isEqualTo("file-2")
   }
-
 
   @Test
   fun `listRawImpressionMetadataBatchFiles returns remaining files using page token`() =
@@ -680,6 +649,7 @@ abstract class RawImpressionMetadataBatchFileServiceTest {
 
       assertThat(response.rawImpressionMetadataBatchFilesList).hasSize(2)
     }
+
   companion object {
     private const val DATA_PROVIDER_RESOURCE_ID = "data-provider-1"
     private const val BATCH_RESOURCE_ID = "batch-1"

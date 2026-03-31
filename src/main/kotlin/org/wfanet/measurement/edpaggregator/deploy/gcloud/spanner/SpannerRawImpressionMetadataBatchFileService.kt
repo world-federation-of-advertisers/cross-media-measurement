@@ -195,9 +195,7 @@ class SpannerRawImpressionMetadataBatchFileService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
       if (!subRequest.hasRawImpressionMetadataBatchFile()) {
-        throw RequiredFieldNotSetException(
-            "requests.$index.raw_impression_metadata_batch_file"
-          )
+        throw RequiredFieldNotSetException("requests.$index.raw_impression_metadata_batch_file")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
       if (subRequest.rawImpressionMetadataBatchFile.blobUri.isEmpty()) {
@@ -209,7 +207,9 @@ class SpannerRawImpressionMetadataBatchFileService(
       if (!blobUriSet.add(subRequest.rawImpressionMetadataBatchFile.blobUri)) {
         throw InvalidFieldValueException(
             "requests.$index.raw_impression_metadata_batch_file.blob_uri"
-          ) { "blob uri is duplicate in the batch of requests" }
+          ) {
+            "blob uri is duplicate in the batch of requests"
+          }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
       if (subRequest.fileResourceId.isEmpty()) {
@@ -257,8 +257,10 @@ class SpannerRawImpressionMetadataBatchFileService(
             )
           val resultsByIndex = mutableMapOf<Int, RawImpressionMetadataBatchFile>()
           request.requestsList.forEachIndexed { index, subRequest ->
-            if (subRequest.requestId.isNotEmpty() &&
-                existingByRequestId.containsKey(subRequest.requestId)) {
+            if (
+              subRequest.requestId.isNotEmpty() &&
+                existingByRequestId.containsKey(subRequest.requestId)
+            ) {
               resultsByIndex[index] =
                 existingByRequestId.getValue(subRequest.requestId).rawImpressionMetadataBatchFile
               return@forEachIndexed
@@ -283,13 +285,12 @@ class SpannerRawImpressionMetadataBatchFileService(
               blobUri,
               subRequest.requestId,
             )
-            resultsByIndex[index] =
-              rawImpressionMetadataBatchFile {
-                dataProviderResourceId = request.dataProviderResourceId
-                batchResourceId = request.batchResourceId
-                fileResourceId = subRequest.fileResourceId
-                this.blobUri = blobUri
-              }
+            resultsByIndex[index] = rawImpressionMetadataBatchFile {
+              dataProviderResourceId = request.dataProviderResourceId
+              batchResourceId = request.batchResourceId
+              fileResourceId = subRequest.fileResourceId
+              this.blobUri = blobUri
+            }
           }
           request.requestsList.indices.map { resultsByIndex.getValue(it) }
         }
@@ -387,8 +388,7 @@ class SpannerRawImpressionMetadataBatchFileService(
               this.after =
                 ListRawImpressionMetadataBatchFilesPageTokenKt.after {
                   fileResourceId =
-                    this@listRawImpressionMetadataBatchFilesResponse
-                      .rawImpressionMetadataBatchFiles
+                    this@listRawImpressionMetadataBatchFilesResponse.rawImpressionMetadataBatchFiles
                       .last()
                       .fileResourceId
                 }
@@ -475,7 +475,10 @@ class SpannerRawImpressionMetadataBatchFileService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
       if (subRequest.dataProviderResourceId != dataProviderResourceId) {
-        throw DataProviderMismatchException(dataProviderResourceId, subRequest.dataProviderResourceId)
+        throw DataProviderMismatchException(
+            dataProviderResourceId,
+            subRequest.dataProviderResourceId,
+          )
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
       if (subRequest.batchResourceId.isEmpty()) {
