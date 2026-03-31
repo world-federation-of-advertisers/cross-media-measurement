@@ -47,11 +47,6 @@ message ModelLineConfig {
   // Format:
   //   "modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}"
   string model_line = 1;
-
-  // Storage path prefix for this model line's date folders, relative to
-  // `DataAvailabilityMonitorConfig.edp_impression_path`. If not set,
-  // defaults to "model-line/{model_line_id}".
-  string path_prefix = 2;
 }
 
 // Configuration for a single monitored EDP impression path.

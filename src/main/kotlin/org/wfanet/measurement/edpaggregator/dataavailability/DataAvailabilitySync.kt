@@ -88,9 +88,9 @@ import org.wfanet.measurement.storage.StorageClient
  *   request.
  * @property modelLineMap Mapping from a source model line to additional model lines that should
  *   receive the same availability interval updates.
- * @property errorIfGapsExist If true (default), skip replacing data availability intervals when
- *   date gaps are detected. If false, log a warning and update data availability per normal
- *   behavior. Gap dates are always logged.
+ * @property errorIfGapsExist If true, skip replacing data availability intervals when date gaps
+ *   are detected and log a warning. If false (default), log a warning but proceed with replacing
+ *   data availability intervals normally. Gap dates are always logged regardless of this setting.
  * @property metrics Metrics recorder for telemetry.
  */
 class DataAvailabilitySync(
@@ -221,7 +221,7 @@ class DataAvailabilitySync(
           logger.warning(
             "Skipping replaceDataAvailabilityIntervals due to date gaps in $edpImpressionPath."
           )
-          recordSyncDuration(syncStartTime, SYNC_STATUS_SUCCESS)
+          recordSyncDuration(syncStartTime, SYNC_STATUS_SKIPPED_GAPS)
           return
         }
       }
@@ -470,6 +470,7 @@ class DataAvailabilitySync(
       AttributeKey.stringKey("edpa.data_availability_sync.status_code")
     private const val SYNC_STATUS_SUCCESS = "success"
     private const val SYNC_STATUS_FAILED = "failed"
+    private const val SYNC_STATUS_SKIPPED_GAPS = "skipped_gaps"
     private const val RPC_METHOD_REPLACE_DATA_AVAILABILITY_INTERVALS =
       "ReplaceDataAvailabilityIntervals"
     private const val METADATA_FILE_NAME = "metadata"

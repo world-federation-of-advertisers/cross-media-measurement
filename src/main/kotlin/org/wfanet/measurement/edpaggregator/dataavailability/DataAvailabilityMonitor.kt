@@ -152,30 +152,8 @@ class DataAvailabilityMonitor(
         "Model line $modelLineName is stale: latest upload is $latestDate ($staleDays days ago)",
       )
     }
-    if (gapDates.isNotEmpty()) {
-      logger.log(Level.SEVERE, "Model line $modelLineName has gaps: gap dates $gapDates")
-    }
-    if (dateInfo.zeroImpressionDates.isNotEmpty()) {
-      logger.log(
-        Level.SEVERE,
-        "Model line $modelLineName has zero impression dates (done blob but no data): " +
-          "${dateInfo.zeroImpressionDates}",
-      )
-    }
-    if (dateInfo.datesWithoutDoneBlob.isNotEmpty()) {
-      logger.log(
-        Level.SEVERE,
-        "Model line $modelLineName has dates without done blob: ${dateInfo.datesWithoutDoneBlob}",
-      )
-    }
 
-    if (dateInfo.lateArrivingDates.isNotEmpty()) {
-      logger.log(
-        Level.SEVERE,
-        "Model line $modelLineName has late-arriving data after done blob: " +
-          "${dateInfo.lateArrivingDates}",
-      )
-    }
+    logDateInfoIssues(modelLineName, gapDates, dateInfo)
 
     return ModelLineStatus(
       modelLineKey = modelLineKey,
@@ -217,6 +195,27 @@ class DataAvailabilityMonitor(
         "zeroImpressionDates=${dateInfo.zeroImpressionDates.size}, " +
         "datesWithoutDoneBlob=${dateInfo.datesWithoutDoneBlob.size}",
     )
+
+    logDateInfoIssues(modelLineName, gapDates, dateInfo)
+
+    return ModelLineStatus(
+      modelLineKey = modelLineKey,
+      isStale = null,
+      latestDate = sortedDates.last(),
+      gapDates = gapDates,
+      staleDays = null,
+      zeroImpressionDates = dateInfo.zeroImpressionDates,
+      datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
+      lateArrivingDates = dateInfo.lateArrivingDates,
+      healthyDates = dateInfo.healthyDates,
+    )
+  }
+
+  private fun logDateInfoIssues(
+    modelLineName: String,
+    gapDates: List<LocalDate>,
+    dateInfo: DateInfo,
+  ) {
     if (gapDates.isNotEmpty()) {
       logger.log(Level.SEVERE, "Model line $modelLineName has gaps: gap dates $gapDates")
     }
@@ -233,7 +232,6 @@ class DataAvailabilityMonitor(
         "Model line $modelLineName has dates without done blob: ${dateInfo.datesWithoutDoneBlob}",
       )
     }
-
     if (dateInfo.lateArrivingDates.isNotEmpty()) {
       logger.log(
         Level.SEVERE,
@@ -241,18 +239,6 @@ class DataAvailabilityMonitor(
           "${dateInfo.lateArrivingDates}",
       )
     }
-
-    return ModelLineStatus(
-      modelLineKey = modelLineKey,
-      isStale = null,
-      latestDate = sortedDates.last(),
-      gapDates = gapDates,
-      staleDays = null,
-      zeroImpressionDates = dateInfo.zeroImpressionDates,
-      datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
-      lateArrivingDates = dateInfo.lateArrivingDates,
-      healthyDates = dateInfo.healthyDates,
-    )
   }
 
   /** Info about uploaded dates for a model line. */

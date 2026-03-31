@@ -33,6 +33,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemStorage
+import org.wfanet.measurement.config.edpaggregator.dataAvailabilityChecks
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilityMonitorConfig
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilityMonitorConfigs
 import org.wfanet.measurement.config.edpaggregator.modelLineConfig
@@ -105,6 +106,12 @@ class DataAvailabilityMonitorFunctionTest {
         }
         timeZone = "UTC"
         maxStaleDays = 3
+        enabledChecks = dataAvailabilityChecks {
+          staleness = true
+          gaps = true
+          missingDays = true
+          lateArrivingFiles = true
+        }
       }
     }
     val port = startFunction(TextFormat.printer().printToString(config))
@@ -140,6 +147,12 @@ class DataAvailabilityMonitorFunctionTest {
         }
         timeZone = "UTC"
         maxStaleDays = 3
+        enabledChecks = dataAvailabilityChecks {
+          staleness = true
+          gaps = true
+          missingDays = true
+          lateArrivingFiles = true
+        }
       }
     }
     val port = startFunction(TextFormat.printer().printToString(config))

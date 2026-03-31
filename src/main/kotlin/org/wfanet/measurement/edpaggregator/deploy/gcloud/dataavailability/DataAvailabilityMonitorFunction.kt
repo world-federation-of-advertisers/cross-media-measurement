@@ -101,16 +101,17 @@ class DataAvailabilityMonitorFunction : HttpFunction {
         val checks = config.enabledChecks
         if (
           result.statuses.any {
-            it.isStale == true ||
-              !it.gapDates.isNullOrEmpty() ||
-              !it.zeroImpressionDates.isNullOrEmpty() ||
-              !it.datesWithoutDoneBlob.isNullOrEmpty() ||
+            (checks.staleness && it.isStale == true) ||
+              (checks.gaps && !it.gapDates.isNullOrEmpty()) ||
+              (checks.missingDays &&
+                (!it.zeroImpressionDates.isNullOrEmpty() ||
+                  !it.datesWithoutDoneBlob.isNullOrEmpty())) ||
               (checks.lateArrivingFiles && !it.lateArrivingDates.isNullOrEmpty())
           }
         ) {
           hasAnyIssues = true
           for (status in result.statuses) {
-            if (status.isStale == true) {
+            if (checks.staleness && status.isStale == true) {
               logger.log(
                 Level.SEVERE,
                 "ALERT: Model line ${status.modelLineKey.toName()} in ${config.edpImpressionPath} " +
@@ -118,21 +119,21 @@ class DataAvailabilityMonitorFunction : HttpFunction {
                   "(${status.staleDays} days ago, threshold: $maxStaleDays)",
               )
             }
-            if (!status.gapDates.isNullOrEmpty()) {
+            if (checks.gaps && !status.gapDates.isNullOrEmpty()) {
               logger.log(
                 Level.SEVERE,
                 "ALERT: Model line ${status.modelLineKey.toName()} in ${config.edpImpressionPath} " +
                   "has gap dates: ${status.gapDates}",
               )
             }
-            if (!status.zeroImpressionDates.isNullOrEmpty()) {
+            if (checks.missingDays && !status.zeroImpressionDates.isNullOrEmpty()) {
               logger.log(
                 Level.SEVERE,
                 "ALERT: Model line ${status.modelLineKey.toName()} in ${config.edpImpressionPath} " +
                   "has zero impression dates (done blob but no data): ${status.zeroImpressionDates}",
               )
             }
-            if (!status.datesWithoutDoneBlob.isNullOrEmpty()) {
+            if (checks.missingDays && !status.datesWithoutDoneBlob.isNullOrEmpty()) {
               logger.log(
                 Level.SEVERE,
                 "ALERT: Model line ${status.modelLineKey.toName()} in ${config.edpImpressionPath} " +
