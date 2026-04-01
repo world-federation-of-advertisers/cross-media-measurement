@@ -17,3 +17,15 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
 )
+
+kt_jvm_test(
+    name = "InProcessEdpAggregatorComponentsTest",
+    srcs = ["InProcessEdpAggregatorComponentsTest.kt"],
+    associates = ["//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_edp_aggregator_components"],
+    test_class = "org.wfanet.measurement.integration.common.InProcessEdpAggregatorComponentsTest",
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)

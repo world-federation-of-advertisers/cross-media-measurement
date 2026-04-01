@@ -71,11 +71,8 @@ class DataAvailabilityMonitorFunction : HttpFunction {
             }
             .toSet()
 
-        if (activeModelLines.isEmpty()) {
-          logger.warning(
-            "No active model lines configured for path: ${config.edpImpressionPath}. Skipping."
-          )
-          continue
+        require(activeModelLines.isNotEmpty()) {
+          "No active model lines configured for path: ${config.edpImpressionPath}"
         }
 
         require(config.timeZone.isNotEmpty()) {

@@ -81,8 +81,9 @@ class ImpressionsWriter(
   ) {
     val modelLineName =
       requireNotNull(ModelLineKey.fromName(blobModelLine)) {
-        "blobModelLine must be a full ModelLine resource name: $blobModelLine"
-      }.toName()
+          "blobModelLine must be a full ModelLine resource name: $blobModelLine"
+        }
+        .toName()
     val serializedEncryptionKey =
       EncryptedStorage.generateSerializedEncryptionKey(kmsClient, kekUri, "AES128_GCM_HKDF_1MB")
     val encryptedDek =

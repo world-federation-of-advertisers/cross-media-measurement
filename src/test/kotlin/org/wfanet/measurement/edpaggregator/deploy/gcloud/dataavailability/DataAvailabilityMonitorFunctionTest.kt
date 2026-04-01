@@ -24,9 +24,9 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.nio.file.Paths
 import java.time.LocalDate
 import java.time.ZoneId
-import java.nio.file.Paths
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -135,26 +135,25 @@ class DataAvailabilityMonitorFunctionTest {
     gaps: Boolean = true,
     missingDays: Boolean = true,
     lateArrivingFiles: Boolean = true,
-  ) =
-    dataAvailabilityMonitorConfigs {
-      configs += dataAvailabilityMonitorConfig {
-        storage = storageParams { fileSystem = fileSystemStorage {} }
-        edpImpressionPath = edpPath
-        modelLines.forEach { modelLineName ->
-          modelLineConfigs += modelLineConfig { modelLine = modelLineName }
-        }
-        timeZone = "UTC"
-        if (maxStaleDays != null) {
-          this.maxStaleDays = maxStaleDays
-        }
-        enabledChecks = dataAvailabilityChecks {
-          this.staleness = staleness
-          this.gaps = gaps
-          this.missingDays = missingDays
-          this.lateArrivingFiles = lateArrivingFiles
-        }
+  ) = dataAvailabilityMonitorConfigs {
+    configs += dataAvailabilityMonitorConfig {
+      storage = storageParams { fileSystem = fileSystemStorage {} }
+      edpImpressionPath = edpPath
+      modelLines.forEach { modelLineName ->
+        modelLineConfigs += modelLineConfig { modelLine = modelLineName }
+      }
+      timeZone = "UTC"
+      if (maxStaleDays != null) {
+        this.maxStaleDays = maxStaleDays
+      }
+      enabledChecks = dataAvailabilityChecks {
+        this.staleness = staleness
+        this.gaps = gaps
+        this.missingDays = missingDays
+        this.lateArrivingFiles = lateArrivingFiles
       }
     }
+  }
 
   private fun invokeFunction(port: Int): HttpResponse<String> {
     val client = HttpClient.newHttpClient()
@@ -319,7 +318,7 @@ class DataAvailabilityMonitorFunctionTest {
   }
 
   @Test
-  fun `returns 200 when no model lines are configured`() {
+  fun `returns 500 when no model lines are configured`() {
     val edpPath = "edp/test/impressions"
     val config =
       createConfig(
@@ -333,8 +332,8 @@ class DataAvailabilityMonitorFunctionTest {
     val port = startFunction(TextFormat.printer().printToString(config))
     val response = invokeFunction(port)
 
-    assertThat(response.statusCode()).isEqualTo(200)
-    assertThat(response.body()).contains("healthy")
+    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.body()).contains("No active model lines configured")
   }
 
   companion object {

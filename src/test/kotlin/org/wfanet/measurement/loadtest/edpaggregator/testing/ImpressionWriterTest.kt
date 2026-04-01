@@ -25,9 +25,9 @@ import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
-import kotlin.test.assertFailsWith
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -53,8 +53,7 @@ class ImpressionWriterTest {
 
   @Test
   fun `writeLabeledImpressionData writes labeled impressions by date`() {
-    val modelLineName =
-      "modelProviders/provider1/modelSuites/suite1/modelLines/some-model-line"
+    val modelLineName = "modelProviders/provider1/modelSuites/suite1/modelLines/some-model-line"
     val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
     val kmsClient = run {
       val client = FakeKmsClient()
