@@ -37,17 +37,31 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 /**
- * Cloud Function that monitors data availability for staleness.
+ * Cloud Function that monitors data availability for staleness, gaps, missing days, and
+ * late-arriving files.
  *
  * Designed to be invoked on a schedule (e.g., daily via Cloud Scheduler). Checks each configured
  * EDP impression path and its active model lines for:
  * - **Staleness**: No upload for more than `max_stale_days` days.
+ * - **Gaps**: Missing dates between the earliest and latest uploaded dates.
+ * - **Missing days**: Date folders with a "done" blob but no data files, or date folders without a
+ *   "done" blob.
+ * - **Late-arriving files**: Data files updated after the "done" blob was written.
+ *
+ * Which checks are active is controlled by the `enabled_checks` field in each
+ * [DataAvailabilityMonitorConfig].
  *
  * Issues are logged at SEVERE level for integration with Cloud Monitoring alerting policies.
  *
  * ## Environment Variables
  * - `CONFIG_BLOB_KEY`: Required. GCS path to the [DataAvailabilityMonitorConfigs] proto.
+ * - `EDPA_CONFIG_STORAGE_BUCKET`: Required. GCS bucket containing the config blob.
  * - `DATA_AVAILABILITY_FILE_SYSTEM_PATH`: Optional. If set, uses local filesystem instead of GCS.
+ * - OpenTelemetry variables (e.g. `OTEL_EXPORTER_OTLP_ENDPOINT`): Optional. Configures telemetry
+ *   export for metrics recorded by [DataAvailabilityMonitor].
+ *
+ * Configuration is loaded eagerly at class initialization via [runBlocking]. If the config blob is
+ * unavailable at startup, the Cloud Function class will fail to load (fail-fast).
  */
 class DataAvailabilityMonitorFunction : HttpFunction {
   init {
@@ -195,6 +209,10 @@ class DataAvailabilityMonitorFunction : HttpFunction {
         "CONFIG_BLOB_KEY environment variable must be set"
       }
 
+    /**
+     * Eagerly loaded at class init. If the config blob is unavailable, the class will fail to load,
+     * causing the Cloud Function to reject all requests with a load error (fail-fast).
+     */
     private val monitorConfigs: DataAvailabilityMonitorConfigs = runBlocking {
       EdpAggregatorConfig.getConfigAsProtoMessage(
         configBlobKey,

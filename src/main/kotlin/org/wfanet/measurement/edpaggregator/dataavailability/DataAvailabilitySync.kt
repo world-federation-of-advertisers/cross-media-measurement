@@ -201,7 +201,11 @@ class DataAvailabilitySync(
           }
         }
 
-      // Check for date gaps before updating availability intervals
+      // Check for date gaps before updating availability intervals.
+      // A new monitor is created per sync call because activeModelLines is derived from the
+      // metadata in this sync batch, which may vary between invocations. This intentionally only
+      // checks model lines present in the current trigger; model lines without metadata in this
+      // batch are not covered here.
       val gapMonitor =
         DataAvailabilityMonitor(
           storageClient = storageClient,
@@ -337,31 +341,26 @@ class DataAvailabilitySync(
    * Reads impression metadata blobs from a given flow of storage objects and groups them by model
    * line.
    *
-   * This function iterates over each blob in [impressionMetadataBlobs], filtering out those that
-   * does not have the string "metadata" in the file name.
+   * This function iterates over each blob in [impressionMetadataBlobs], filtering out those that do
+   * not have the string "metadata" in the file name.
    *
-   * For each blob:
+   * For each matching blob:
    * - Determines the format based on the file extension:
-   *     - If the file name ends with `.binpb`, parses the content as a binary `BlobDetails`
-   *       protobuf.
-   *     - If the file name ends with `.json`, parses the content as JSON using [JsonFormat.parser]
-   *       with `ignoringUnknownFields()`
-   *     - Ignore otherwise
-   * - Reads the full blob content into a [ByteString] via [StorageClient.Blob.read] and [flatten].
-   * - Attempts to parse the content as a binary `BlobDetails` protobuf.
-   * - If binary parsing fails with [InvalidProtocolBufferException], falls back to parsing as JSON
-   *   using [JsonFormat.parser] with `ignoringUnknownFields()`.
-   * - Constructs an [ImpressionMetadata] object using:
-   *     - `blobUri` set to the URI built from [bucket] and the blob's key
-   *     - `eventGroupReferenceId`, `modelLine`, and `interval` from the parsed `BlobDetails`
-   * - Adds the [ImpressionMetadataWithBlobKey] to a list in a map keyed by `modelLine`.
+   *     - `.binpb`: parses the content as a binary `BlobDetails` protobuf.
+   *     - `.json`: parses the content as JSON using [JsonFormat.parser] with
+   *       `ignoringUnknownFields()`.
+   *     - Other extensions: throws [IllegalArgumentException].
+   * - Validates that the parsed `BlobDetails` has both a start and end time in its interval.
+   * - Verifies that the referenced encrypted impressions blob exists in storage.
+   * - Constructs an [ImpressionMetadata] and groups it by [ModelLineKey].
    *
    * @param impressionMetadataBlobs the flow of [StorageClient.Blob] objects to read and parse.
-   * @param doneBlobUri the blob uri.
+   * @param doneBlobUri the URI of the "done" blob, used to derive the storage scheme and bucket.
    * @return a map where each key is a [ModelLineKey] and each value is the list of
    *   [ImpressionMetadataWithBlobKey] objects associated with that model line.
-   * @throws InvalidProtocolBufferException if a blob cannot be parsed as either binary or JSON
-   *   `BlobDetails`.
+   * @throws com.google.protobuf.InvalidProtocolBufferException if a binary `.binpb` blob cannot be
+   *   parsed as `BlobDetails`.
+   * @throws IllegalArgumentException if a blob has an unsupported file extension.
    */
   private suspend fun createModelLineToImpressionMetadataMap(
     impressionMetadataBlobs: Flow<StorageClient.Blob>,

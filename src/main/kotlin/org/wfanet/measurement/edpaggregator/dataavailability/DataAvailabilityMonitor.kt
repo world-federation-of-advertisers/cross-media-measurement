@@ -28,11 +28,14 @@ import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.storage.StorageClient
 
 /**
- * Monitors impression data availability for staleness and gaps.
+ * Monitors impression data availability for staleness, gaps, missing days, and late-arriving files.
  *
  * This class checks each active model line's GCS folder structure for:
  * - **Staleness**: The most recent uploaded date is more than [maxStaleDays] days behind today.
  * - **Gaps**: A date is missing between the earliest and latest uploaded dates.
+ * - **Zero-impression dates**: A date folder has a "done" blob but no data files.
+ * - **Missing done blobs**: A date folder exists but has no "done" blob.
+ * - **Late-arriving files**: Data files were updated after the "done" blob was written.
  *
  * The folder structure is expected to be:
  * ```
@@ -43,6 +46,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @property edpImpressionPath Base path for EDP impressions (e.g.,
  *   "edp/edp1/vid-labeled-impressions").
  * @property activeModelLines Set of model line keys that are expected to upload daily.
+ * @property metrics OpenTelemetry instruments for recording monitoring metrics.
  */
 class DataAvailabilityMonitor(
   private val storageClient: StorageClient,
@@ -56,7 +60,26 @@ class DataAvailabilityMonitor(
     require(activeModelLines.isNotEmpty()) { "activeModelLines must not be empty" }
   }
 
-  /** Result of monitoring a single model line. */
+  /**
+   * Result of monitoring a single model line.
+   *
+   * @property modelLineKey Identifies the model line that was checked.
+   * @property isStale `true` if the model line exceeds [maxStaleDays], `false` if within threshold,
+   *   or `null` when staleness was not checked (e.g., gap-only mode or no uploaded dates found).
+   * @property latestDate The most recent date with a completed upload ("done" blob). Set to the
+   *   current date when no uploads are found (staleness mode) or [LocalDate.MIN] in gap-only mode.
+   * @property gapDates Dates missing between the earliest and latest uploaded dates, or `null` when
+   *   no uploaded dates were found.
+   * @property staleDays Number of days between today and [latestDate], or `null` when staleness was
+   *   not checked.
+   * @property zeroImpressionDates Dates with a "done" blob but no data files, or `null` when no
+   *   uploaded dates were found.
+   * @property datesWithoutDoneBlob Date folders that exist but have no "done" blob.
+   * @property lateArrivingDates Dates where data files were updated after the "done" blob, or `null`
+   *   when no uploaded dates were found.
+   * @property healthyDates Dates with a "done" blob, data files, and no late arrivals, or `null`
+   *   when no uploaded dates were found.
+   */
   data class ModelLineStatus(
     val modelLineKey: ModelLineKey,
     val isStale: Boolean?,
@@ -69,16 +92,22 @@ class DataAvailabilityMonitor(
     val healthyDates: List<LocalDate>?,
   )
 
-  /** Result of a full monitoring check across all active model lines. */
+  /**
+   * Result of a monitoring check across all active model lines.
+   *
+   * @property statuses One [ModelLineStatus] per model line in [activeModelLines], in the same
+   *   iteration order. The list has a 1:1 correspondence with [activeModelLines].
+   */
   data class MonitorResult(val statuses: List<ModelLineStatus>)
 
   /**
-   * Checks all active model lines for staleness and gaps.
+   * Checks all active model lines for staleness, gaps, and data quality issues.
    *
-   * @param maxStaleDays Maximum number of days a model line can go without an upload before
-   *   alerting.
+   * @param maxStaleDays Maximum number of days a model line can go without an upload before being
+   *   considered stale.
    * @param clock Provides the current date for staleness checks.
-   * @return A [MonitorResult] containing the status of each active model line.
+   * @return A [MonitorResult] with one [ModelLineStatus] per model line in [activeModelLines], in
+   *   the same iteration order.
    */
   suspend fun checkFullStatus(maxStaleDays: Int, clock: () -> LocalDate): MonitorResult {
     require(maxStaleDays > 0) { "maxStaleDays must be greater than zero" }
@@ -95,9 +124,13 @@ class DataAvailabilityMonitor(
   }
 
   /**
-   * Checks all active model lines for date gaps only.
+   * Checks all active model lines for date gaps and data quality issues only (no staleness).
    *
-   * @return A [MonitorResult] containing the status of each active model line.
+   * Staleness-related fields ([ModelLineStatus.isStale] and [ModelLineStatus.staleDays]) are `null`
+   * in the returned statuses.
+   *
+   * @return A [MonitorResult] with one [ModelLineStatus] per model line in [activeModelLines], in
+   *   the same iteration order.
    */
   suspend fun checkGaps(): MonitorResult {
     val statuses =
@@ -148,7 +181,7 @@ class DataAvailabilityMonitor(
     )
     if (isStale) {
       logger.log(
-        Level.SEVERE,
+        Level.WARNING,
         "Model line $modelLineName is stale: latest upload is $latestDate ($staleDays days ago)",
       )
     }
@@ -217,24 +250,24 @@ class DataAvailabilityMonitor(
     dateInfo: DateInfo,
   ) {
     if (gapDates.isNotEmpty()) {
-      logger.log(Level.SEVERE, "Model line $modelLineName has gaps: gap dates $gapDates")
+      logger.log(Level.WARNING, "Model line $modelLineName has gaps: gap dates $gapDates")
     }
     if (dateInfo.zeroImpressionDates.isNotEmpty()) {
       logger.log(
-        Level.SEVERE,
+        Level.WARNING,
         "Model line $modelLineName has zero impression dates (done blob but no data): " +
           "${dateInfo.zeroImpressionDates}",
       )
     }
     if (dateInfo.datesWithoutDoneBlob.isNotEmpty()) {
       logger.log(
-        Level.SEVERE,
+        Level.WARNING,
         "Model line $modelLineName has dates without done blob: ${dateInfo.datesWithoutDoneBlob}",
       )
     }
     if (dateInfo.lateArrivingDates.isNotEmpty()) {
       logger.log(
-        Level.SEVERE,
+        Level.WARNING,
         "Model line $modelLineName has late-arriving data after done blob: " +
           "${dateInfo.lateArrivingDates}",
       )
@@ -375,6 +408,10 @@ class DataAvailabilityMonitor(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    /**
+     * Default staleness threshold in days. Set to 3 to allow for weekend gaps (Friday upload
+     * checked on Monday) plus one day of buffer for processing delays.
+     */
     const val DEFAULT_MAX_STALE_DAYS = 3
 
     val MODEL_LINE_ATTR: AttributeKey<String> =
