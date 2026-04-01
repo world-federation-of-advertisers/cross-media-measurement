@@ -79,7 +79,7 @@ class GenerateSyntheticData : Runnable {
 
   @Option(
     names = ["--model-line"],
-    description = ["The model line for this campaign."],
+    description = ["The full model line resource name for this campaign."],
     required = true,
   )
   lateinit var modelLine: String

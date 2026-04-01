@@ -532,7 +532,7 @@ class InProcessEdpAggregatorComponents(
           storagePath.toFile(),
           "file:///",
         )
-      impressionWriter.writeLabeledImpressionData(events, "some-model-line", null)
+      impressionWriter.writeLabeledImpressionData(events, modelLineName, null)
     }
   }
 

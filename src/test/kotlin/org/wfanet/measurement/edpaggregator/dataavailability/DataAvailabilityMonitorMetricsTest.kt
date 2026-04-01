@@ -37,6 +37,8 @@ class DataAvailabilityMonitorMetricsTest {
     private const val ZERO_IMPRESSION_DATES_METRIC = "edpa.data_availability.zero_impression_dates"
     private const val DATES_WITHOUT_DONE_BLOB_METRIC =
       "edpa.data_availability.dates_without_done_blob"
+    private const val LATE_ARRIVING_DATES_METRIC = "edpa.data_availability.late_arriving_dates"
+    private const val HEALTHY_DATES_METRIC = "edpa.data_availability.healthy_dates"
     private const val MODEL_LINE_NAME = "modelProviders/p1/modelSuites/s1/modelLines/ml1"
     private const val EDP_IMPRESSION_PATH = "edp/edp1/vid-labeled-impressions"
   }
@@ -175,6 +177,60 @@ class DataAvailabilityMonitorMetricsTest {
   }
 
   @Test
+  fun `lateArrivingDatesCounter records count`() {
+    val metricsEnv = createMetricsEnvironment()
+    try {
+      metricsEnv.metrics.lateArrivingDatesCounter.add(
+        4L,
+        Attributes.of(
+          MODEL_LINE_ATTR,
+          MODEL_LINE_NAME,
+          EDP_IMPRESSION_PATH_ATTR,
+          EDP_IMPRESSION_PATH,
+        ),
+      )
+
+      metricsEnv.metricReader.forceFlush()
+      val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+      val metricByName = metricData.associateBy { it.name }
+
+      assertThat(metricByName).containsKey(LATE_ARRIVING_DATES_METRIC)
+      val point = metricByName.getValue(LATE_ARRIVING_DATES_METRIC).longSumData.points.single()
+      assertThat(point.value).isEqualTo(4)
+      assertThat(point.attributes.get(MODEL_LINE_ATTR)).isEqualTo(MODEL_LINE_NAME)
+    } finally {
+      metricsEnv.close()
+    }
+  }
+
+  @Test
+  fun `healthyDatesCounter records count`() {
+    val metricsEnv = createMetricsEnvironment()
+    try {
+      metricsEnv.metrics.healthyDatesCounter.add(
+        6L,
+        Attributes.of(
+          MODEL_LINE_ATTR,
+          MODEL_LINE_NAME,
+          EDP_IMPRESSION_PATH_ATTR,
+          EDP_IMPRESSION_PATH,
+        ),
+      )
+
+      metricsEnv.metricReader.forceFlush()
+      val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+      val metricByName = metricData.associateBy { it.name }
+
+      assertThat(metricByName).containsKey(HEALTHY_DATES_METRIC)
+      val point = metricByName.getValue(HEALTHY_DATES_METRIC).longSumData.points.single()
+      assertThat(point.value).isEqualTo(6)
+      assertThat(point.attributes.get(MODEL_LINE_ATTR)).isEqualTo(MODEL_LINE_NAME)
+    } finally {
+      metricsEnv.close()
+    }
+  }
+
+  @Test
   fun `all metrics are recorded together`() {
     val metricsEnv = createMetricsEnvironment()
     try {
@@ -189,6 +245,8 @@ class DataAvailabilityMonitorMetricsTest {
       metricsEnv.metrics.gapCounter.add(2L, attrs)
       metricsEnv.metrics.zeroImpressionDatesCounter.add(1L, attrs)
       metricsEnv.metrics.datesWithoutDoneBlobCounter.add(3L, attrs)
+      metricsEnv.metrics.lateArrivingDatesCounter.add(5L, attrs)
+      metricsEnv.metrics.healthyDatesCounter.add(7L, attrs)
 
       metricsEnv.metricReader.forceFlush()
       val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
@@ -198,6 +256,8 @@ class DataAvailabilityMonitorMetricsTest {
       assertThat(metricByName).containsKey(GAPS_METRIC)
       assertThat(metricByName).containsKey(ZERO_IMPRESSION_DATES_METRIC)
       assertThat(metricByName).containsKey(DATES_WITHOUT_DONE_BLOB_METRIC)
+      assertThat(metricByName).containsKey(LATE_ARRIVING_DATES_METRIC)
+      assertThat(metricByName).containsKey(HEALTHY_DATES_METRIC)
 
       assertThat(metricByName.getValue(STALE_DAYS_METRIC).longGaugeData.points.single().value)
         .isEqualTo(4)
@@ -210,6 +270,12 @@ class DataAvailabilityMonitorMetricsTest {
           metricByName.getValue(DATES_WITHOUT_DONE_BLOB_METRIC).longSumData.points.single().value
         )
         .isEqualTo(3)
+      assertThat(
+          metricByName.getValue(LATE_ARRIVING_DATES_METRIC).longSumData.points.single().value
+        )
+        .isEqualTo(5)
+      assertThat(metricByName.getValue(HEALTHY_DATES_METRIC).longSumData.points.single().value)
+        .isEqualTo(7)
     } finally {
       metricsEnv.close()
     }

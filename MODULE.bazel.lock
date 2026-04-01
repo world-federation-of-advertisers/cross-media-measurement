@@ -2353,7 +2353,7 @@
     "@@rules_oci~//oci:extensions.bzl%oci": {
       "general": {
         "bzlTransitiveDigest": "yyTvBSVukHEf+iGms4+jq+/Zy1xLOGnxYiCLJFatSUE=",
-        "usagesDigest": "2raFZNIM8eGpwKkMxUCgMdZPbM1arChS2y7Qi+fzyYQ=",
+        "usagesDigest": "4E/4dTcxs49ICBBwlqUQfn2hKgmFq66IosshSNgYft0=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},

@@ -24,9 +24,12 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.time.LocalDate
+import java.time.ZoneId
 import java.nio.file.Paths
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -48,15 +51,55 @@ class DataAvailabilityMonitorFunctionTest {
 
   @get:Rule val tempFolder = TemporaryFolder()
 
-  private fun createDoneBlob(
+  @After
+  fun tearDown() {
+    if (::functionProcess.isInitialized) {
+      functionProcess.close()
+    }
+  }
+
+  private fun writeCompletedDate(
     storageClient: FileSystemStorageClient,
     edpPath: String,
     modelLine: String,
-    date: String,
+    date: LocalDate,
   ): Unit = runBlocking {
-    val path = "$edpPath/model-line/$modelLine/$date/done"
-    File(tempFolder.root, path).parentFile.mkdirs()
-    storageClient.writeBlob(path, ByteString.copyFromUtf8("done"))
+    val dateString = date.toString()
+    val dataPath = "$edpPath/model-line/$modelLine/$dateString/data_campaign_1"
+    File(tempFolder.root, dataPath).parentFile.mkdirs()
+    storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+
+    val donePath = "$edpPath/model-line/$modelLine/$dateString/done"
+    storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+  }
+
+  private fun writeDoneOnlyDate(
+    storageClient: FileSystemStorageClient,
+    edpPath: String,
+    modelLine: String,
+    date: LocalDate,
+  ): Unit = runBlocking {
+    val dateString = date.toString()
+    val donePath = "$edpPath/model-line/$modelLine/$dateString/done"
+    File(tempFolder.root, donePath).parentFile.mkdirs()
+    storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+  }
+
+  private fun writeLateArrivingDate(
+    storageClient: FileSystemStorageClient,
+    edpPath: String,
+    modelLine: String,
+    date: LocalDate,
+  ): Unit = runBlocking {
+    val dateString = date.toString()
+    val donePath = "$edpPath/model-line/$modelLine/$dateString/done"
+    File(tempFolder.root, donePath).parentFile.mkdirs()
+    storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+
+    Thread.sleep(1100)
+
+    val dataPath = "$edpPath/model-line/$modelLine/$dateString/data_campaign_1"
+    storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
   }
 
   private fun startFunction(configText: String): Int {
@@ -84,89 +127,220 @@ class DataAvailabilityMonitorFunctionTest {
     }
   }
 
+  private fun createConfig(
+    edpPath: String,
+    modelLines: List<String> = listOf(MODEL_LINE_RESOURCE_NAME),
+    maxStaleDays: Int? = 3,
+    staleness: Boolean = true,
+    gaps: Boolean = true,
+    missingDays: Boolean = true,
+    lateArrivingFiles: Boolean = true,
+  ) =
+    dataAvailabilityMonitorConfigs {
+      configs += dataAvailabilityMonitorConfig {
+        storage = storageParams { fileSystem = fileSystemStorage {} }
+        edpImpressionPath = edpPath
+        modelLines.forEach { modelLineName ->
+          modelLineConfigs += modelLineConfig { modelLine = modelLineName }
+        }
+        timeZone = "UTC"
+        if (maxStaleDays != null) {
+          this.maxStaleDays = maxStaleDays
+        }
+        enabledChecks = dataAvailabilityChecks {
+          this.staleness = staleness
+          this.gaps = gaps
+          this.missingDays = missingDays
+          this.lateArrivingFiles = lateArrivingFiles
+        }
+      }
+    }
+
+  private fun invokeFunction(port: Int): HttpResponse<String> {
+    val client = HttpClient.newHttpClient()
+    val request = HttpRequest.newBuilder().uri(URI.create("http://localhost:$port")).GET().build()
+    return client.send(request, HttpResponse.BodyHandlers.ofString())
+  }
+
   @Test
   fun `returns 200 when all model lines are healthy`() {
     val storageClient = FileSystemStorageClient(tempFolder.root)
     val edpPath = "edp/test/impressions"
+    val today = LocalDate.now(ZoneId.of("UTC"))
 
-    // Create recent done blobs and data files (today-ish dates)
-    for (day in 22..24) {
-      createDoneBlob(storageClient, edpPath, "modelLineA", "2026-03-%02d".format(day))
-      val dataPath = "$edpPath/model-line/modelLineA/2026-03-%02d/data_campaign_1".format(day)
-      File(tempFolder.root, dataPath).parentFile.mkdirs()
-      runBlocking { storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data")) }
+    // Keep the latest upload comfortably within the staleness threshold.
+    for (daysAgo in 2 downTo 0) {
+      writeCompletedDate(storageClient, edpPath, MODEL_LINE_ID, today.minusDays(daysAgo.toLong()))
     }
 
-    val config = dataAvailabilityMonitorConfigs {
-      configs += dataAvailabilityMonitorConfig {
-        storage = storageParams { fileSystem = fileSystemStorage {} }
-        edpImpressionPath = edpPath
-        modelLineConfigs += modelLineConfig {
-          modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLineA"
-        }
-        timeZone = "UTC"
-        maxStaleDays = 3
-        enabledChecks = dataAvailabilityChecks {
-          staleness = true
-          gaps = true
-          missingDays = true
-          lateArrivingFiles = true
-        }
-      }
-    }
+    val config = createConfig(edpPath)
     val port = startFunction(TextFormat.printer().printToString(config))
-
-    val client = HttpClient.newHttpClient()
-    val request = HttpRequest.newBuilder().uri(URI.create("http://localhost:$port")).GET().build()
-    val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+    val response = invokeFunction(port)
 
     assertThat(response.statusCode()).isEqualTo(200)
     assertThat(response.body()).contains("healthy")
-    functionProcess.close()
   }
 
   @Test
   fun `returns 500 when model line is stale`() {
     val storageClient = FileSystemStorageClient(tempFolder.root)
     val edpPath = "edp/test/impressions"
+    val today = LocalDate.now(ZoneId.of("UTC"))
 
-    // Create old done blobs and data files (more than 3 days ago from a reasonable date)
-    for (day in 1..3) {
-      createDoneBlob(storageClient, edpPath, "modelLineA", "2026-03-%02d".format(day))
-      val dataPath = "$edpPath/model-line/modelLineA/2026-03-%02d/data_campaign_1".format(day)
-      File(tempFolder.root, dataPath).parentFile.mkdirs()
-      runBlocking { storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data")) }
+    // Leave a large margin so the assertion stays valid even if the date changes mid-test.
+    for (daysAgo in 10 downTo 8) {
+      writeCompletedDate(storageClient, edpPath, MODEL_LINE_ID, today.minusDays(daysAgo.toLong()))
     }
 
-    val config = dataAvailabilityMonitorConfigs {
-      configs += dataAvailabilityMonitorConfig {
-        storage = storageParams { fileSystem = fileSystemStorage {} }
-        edpImpressionPath = edpPath
-        modelLineConfigs += modelLineConfig {
-          modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLineA"
-        }
-        timeZone = "UTC"
-        maxStaleDays = 3
-        enabledChecks = dataAvailabilityChecks {
-          staleness = true
-          gaps = true
-          missingDays = true
-          lateArrivingFiles = true
-        }
-      }
-    }
+    val config = createConfig(edpPath)
     val port = startFunction(TextFormat.printer().printToString(config))
-
-    val client = HttpClient.newHttpClient()
-    val request = HttpRequest.newBuilder().uri(URI.create("http://localhost:$port")).GET().build()
-    val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+    val response = invokeFunction(port)
 
     assertThat(response.statusCode()).isEqualTo(500)
     assertThat(response.body()).contains("issues detected")
-    functionProcess.close()
+  }
+
+  @Test
+  fun `returns 500 when model line has gap and gaps check is enabled`() {
+    val storageClient = FileSystemStorageClient(tempFolder.root)
+    val edpPath = "edp/test/impressions"
+    val today = LocalDate.now(ZoneId.of("UTC"))
+
+    writeCompletedDate(storageClient, edpPath, MODEL_LINE_ID, today.minusDays(2))
+    writeCompletedDate(storageClient, edpPath, MODEL_LINE_ID, today)
+
+    val config =
+      createConfig(
+        edpPath = edpPath,
+        staleness = false,
+        gaps = true,
+        missingDays = false,
+        lateArrivingFiles = false,
+      )
+    val port = startFunction(TextFormat.printer().printToString(config))
+    val response = invokeFunction(port)
+
+    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.body()).contains("issues detected")
+  }
+
+  @Test
+  fun `returns 200 when model line has gap but gaps check is disabled`() {
+    val storageClient = FileSystemStorageClient(tempFolder.root)
+    val edpPath = "edp/test/impressions"
+    val today = LocalDate.now(ZoneId.of("UTC"))
+
+    writeCompletedDate(storageClient, edpPath, MODEL_LINE_ID, today.minusDays(2))
+    writeCompletedDate(storageClient, edpPath, MODEL_LINE_ID, today)
+
+    val config =
+      createConfig(
+        edpPath = edpPath,
+        staleness = false,
+        gaps = false,
+        missingDays = false,
+        lateArrivingFiles = false,
+      )
+    val port = startFunction(TextFormat.printer().printToString(config))
+    val response = invokeFunction(port)
+
+    assertThat(response.statusCode()).isEqualTo(200)
+    assertThat(response.body()).contains("healthy")
+  }
+
+  @Test
+  fun `returns 500 when missing days check is enabled`() {
+    val storageClient = FileSystemStorageClient(tempFolder.root)
+    val edpPath = "edp/test/impressions"
+    val today = LocalDate.now(ZoneId.of("UTC"))
+
+    writeDoneOnlyDate(storageClient, edpPath, MODEL_LINE_ID, today)
+
+    val config =
+      createConfig(
+        edpPath = edpPath,
+        staleness = false,
+        gaps = false,
+        missingDays = true,
+        lateArrivingFiles = false,
+      )
+    val port = startFunction(TextFormat.printer().printToString(config))
+    val response = invokeFunction(port)
+
+    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.body()).contains("issues detected")
+  }
+
+  @Test
+  fun `returns 500 when late arriving files check is enabled`() {
+    val storageClient = FileSystemStorageClient(tempFolder.root)
+    val edpPath = "edp/test/impressions"
+    val today = LocalDate.now(ZoneId.of("UTC"))
+
+    writeLateArrivingDate(storageClient, edpPath, MODEL_LINE_ID, today)
+
+    val config =
+      createConfig(
+        edpPath = edpPath,
+        staleness = false,
+        gaps = false,
+        missingDays = false,
+        lateArrivingFiles = true,
+      )
+    val port = startFunction(TextFormat.printer().printToString(config))
+    val response = invokeFunction(port)
+
+    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.body()).contains("issues detected")
+  }
+
+  @Test
+  fun `uses default max stale days when config does not set it`() {
+    val storageClient = FileSystemStorageClient(tempFolder.root)
+    val edpPath = "edp/test/impressions"
+    val today = LocalDate.now(ZoneId.of("UTC"))
+
+    writeCompletedDate(storageClient, edpPath, MODEL_LINE_ID, today.minusDays(4))
+
+    val config =
+      createConfig(
+        edpPath = edpPath,
+        maxStaleDays = null,
+        staleness = true,
+        gaps = false,
+        missingDays = false,
+        lateArrivingFiles = false,
+      )
+    val port = startFunction(TextFormat.printer().printToString(config))
+    val response = invokeFunction(port)
+
+    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.body()).contains("issues detected")
+  }
+
+  @Test
+  fun `returns 200 when no model lines are configured`() {
+    val edpPath = "edp/test/impressions"
+    val config =
+      createConfig(
+        edpPath = edpPath,
+        modelLines = emptyList(),
+        staleness = true,
+        gaps = true,
+        missingDays = true,
+        lateArrivingFiles = true,
+      )
+    val port = startFunction(TextFormat.printer().printToString(config))
+    val response = invokeFunction(port)
+
+    assertThat(response.statusCode()).isEqualTo(200)
+    assertThat(response.body()).contains("healthy")
   }
 
   companion object {
+    private const val MODEL_LINE_ID = "modelLineA"
+    private const val MODEL_LINE_RESOURCE_NAME =
+      "modelProviders/provider1/modelSuites/suite1/modelLines/modelLineA"
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     private val FUNCTION_BINARY_PATH =

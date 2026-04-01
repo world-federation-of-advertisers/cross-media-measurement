@@ -23,6 +23,7 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.asFlow
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
@@ -69,12 +70,19 @@ class ImpressionsWriter(
    * Takes a Flow<DateShardedLabeledImpression<T>>, encrypts that data with a KMS,
    * and outputs the data to storage along with the necessary metadata for the ResultsFulfiller
    * to be able to find and read the contents.
+   *
+   * blobModelLine must be a full ModelLine resource name because downstream services validate and
+   * persist the value as such.
    */
   suspend fun <T : Message> writeLabeledImpressionData(
     events: Sequence<LabeledEventDateShard<T>>,
     blobModelLine: String,
     impressionsBasePath: String? = null,
   ) {
+    val modelLineName =
+      requireNotNull(ModelLineKey.fromName(blobModelLine)) {
+        "blobModelLine must be a full ModelLine resource name: $blobModelLine"
+      }.toName()
     val serializedEncryptionKey =
       EncryptedStorage.generateSerializedEncryptionKey(kmsClient, kekUri, "AES128_GCM_HKDF_1MB")
     val encryptedDek =
@@ -145,7 +153,7 @@ class ImpressionsWriter(
           startTime = startOfDay
           endTime = endOfDay
         }
-        this.modelLine = blobModelLine
+        this.modelLine = modelLineName
       }
       impressionsMetadataStorageClient.writeBlob(
         impressionsMetaDataBlobKey,

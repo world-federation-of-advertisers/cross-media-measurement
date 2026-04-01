@@ -53,6 +53,7 @@ class DataAvailabilityMonitorTest {
     private const val DATES_WITHOUT_DONE_BLOB_METRIC =
       "edpa.data_availability.dates_without_done_blob"
     private const val LATE_ARRIVING_DATES_METRIC = "edpa.data_availability.late_arriving_dates"
+    private const val HEALTHY_DATES_METRIC = "edpa.data_availability.healthy_dates"
   }
 
   private data class MetricsTestEnvironment(
@@ -111,8 +112,8 @@ class DataAvailabilityMonitorTest {
     val storageClient = createStorageClient()
     for (day in 12..15) {
       ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
-      createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
       createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+      createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
     }
 
     val monitor =
@@ -131,6 +132,13 @@ class DataAvailabilityMonitorTest {
     assertThat(status.gapDates).isEmpty()
     assertThat(status.zeroImpressionDates).isEmpty()
     assertThat(status.datesWithoutDoneBlob).isEmpty()
+    assertThat(status.healthyDates)
+      .containsExactly(
+        LocalDate.of(2026, 3, 12),
+        LocalDate.of(2026, 3, 13),
+        LocalDate.of(2026, 3, 14),
+        LocalDate.of(2026, 3, 15),
+      )
     assertThat(status.latestDate).isEqualTo(LocalDate.of(2026, 3, 15))
     assertThat(status.staleDays).isEqualTo(0)
   }
@@ -548,6 +556,32 @@ class DataAvailabilityMonitorTest {
   }
 
   @Test
+  fun `constructor throws when edpImpressionPath starts with slash`() {
+    val storageClient = createStorageClient()
+
+    assertFailsWith<IllegalArgumentException> {
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = "/$EDP_IMPRESSION_PATH",
+        activeModelLines = setOf(MODEL_LINE_A),
+      )
+    }
+  }
+
+  @Test
+  fun `constructor throws when edpImpressionPath ends with slash`() {
+    val storageClient = createStorageClient()
+
+    assertFailsWith<IllegalArgumentException> {
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = "$EDP_IMPRESSION_PATH/",
+        activeModelLines = setOf(MODEL_LINE_A),
+      )
+    }
+  }
+
+  @Test
   fun `checkFullStatus returns no gaps when only one date exists`(): Unit = runBlocking {
     val storageClient = createStorageClient()
     ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
@@ -827,8 +861,8 @@ class DataAvailabilityMonitorTest {
     try {
       for (day in 13..15) {
         ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
-        createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
         createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
+        createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
       }
 
       val monitor =
@@ -850,10 +884,15 @@ class DataAvailabilityMonitorTest {
       assertThat(metricByName.getValue(STALE_DAYS_METRIC).longGaugeData.points.single().value)
         .isEqualTo(0)
 
+      assertThat(metricByName).containsKey(HEALTHY_DATES_METRIC)
+      assertThat(metricByName.getValue(HEALTHY_DATES_METRIC).longSumData.points.single().value)
+        .isEqualTo(3)
+
       // No gaps, incomplete, or missing done blob metrics should be emitted
       assertThat(metricByName).doesNotContainKey(GAPS_METRIC)
       assertThat(metricByName).doesNotContainKey(ZERO_IMPRESSION_DATES_METRIC)
       assertThat(metricByName).doesNotContainKey(DATES_WITHOUT_DONE_BLOB_METRIC)
+      assertThat(metricByName).doesNotContainKey(LATE_ARRIVING_DATES_METRIC)
     } finally {
       metricsEnv.close()
     }
