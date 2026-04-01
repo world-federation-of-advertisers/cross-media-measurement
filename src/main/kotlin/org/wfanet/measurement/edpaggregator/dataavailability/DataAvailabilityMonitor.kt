@@ -368,17 +368,10 @@ class DataAvailabilityMonitor(
     if (sortedDates.size <= 1) return emptyList()
 
     val dateSet = sortedDates.toSet()
-    val missing = mutableListOf<LocalDate>()
-    var current = sortedDates.first().plusDays(1)
-    val last = sortedDates.last()
-
-    while (current.isBefore(last)) {
-      if (current !in dateSet) {
-        missing.add(current)
-      }
-      current = current.plusDays(1)
-    }
-    return missing
+    return generateSequence(sortedDates.first().plusDays(1)) { it.plusDays(1) }
+      .takeWhile { it.isBefore(sortedDates.last()) }
+      .filter { it !in dateSet }
+      .toList()
   }
 
   private fun recordMetrics(status: ModelLineStatus) {
