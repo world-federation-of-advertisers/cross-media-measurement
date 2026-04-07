@@ -32,14 +32,13 @@ import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
  * TEE application for VID labeling that processes WorkItems from a Pub/Sub queue.
  *
  * Receives WorkItems containing [VidLabelerParams], resolves required dependencies (KMS clients,
- * storage config), and delegates to a [VidLabeler] for the actual labeling work.
+ * storage config), and delegates to a VidLabeler for the actual labeling work.
  *
  * @param subscriptionId Pub/Sub subscription for VID labeling queue.
  * @param queueSubscriber handles Pub/Sub pull.
  * @param parser protobuf [Parser] for [WorkItem] messages.
  * @param workItemsClient gRPC stub for WorkItems service.
  * @param workItemAttemptsClient gRPC stub for WorkItemAttempts service.
- * @param vidLabeler core VID labeling logic.
  * @param rawImpressionsKmsClient decrypt-only KMS clients keyed by data provider resource name.
  * @param vidLabeledImpressionsKmsClient encrypt/decrypt KMS clients keyed by data provider resource
  *   name.
@@ -51,7 +50,6 @@ class VidLabelerApp(
   parser: Parser<WorkItem>,
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
-  private val vidLabeler: VidLabeler,
   private val rawImpressionsKmsClient: Map<String, KmsClient>,
   private val vidLabeledImpressionsKmsClient: Map<String, KmsClient>,
   private val getStorageConfig: (VidLabelerParams.StorageParams) -> StorageConfig,
@@ -89,6 +87,6 @@ class VidLabelerApp(
 
     val storageConfig = getStorageConfig(vidLabelerParams.rawImpressionsStorageParams)
 
-    vidLabeler.labelBatch(vidLabelerParams, storageConfig, decryptKmsClient, encryptKmsClient)
+    // TODO: Call VidLabeler.labelBatch() once VidLabeler implementation is available.
   }
 }

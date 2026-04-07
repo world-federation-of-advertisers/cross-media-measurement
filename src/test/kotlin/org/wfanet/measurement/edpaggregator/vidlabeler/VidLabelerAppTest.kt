@@ -24,10 +24,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
-import org.mockito.kotlin.times
-import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
@@ -61,7 +58,6 @@ class VidLabelerAppTest {
     WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
   }
 
-  private val mockVidLabeler: VidLabeler = mock()
   private val mockDecryptKmsClient: KmsClient = mock()
   private val mockEncryptKmsClient: KmsClient = mock()
   private val mockQueueSubscriber: QueueSubscriber = mock()
@@ -78,7 +74,6 @@ class VidLabelerAppTest {
       parser = WorkItem.parser(),
       workItemsClient = workItemsStub,
       workItemAttemptsClient = workItemAttemptsStub,
-      vidLabeler = mockVidLabeler,
       rawImpressionsKmsClient = rawImpressionsKmsClient,
       vidLabeledImpressionsKmsClient = vidLabeledImpressionsKmsClient,
       getStorageConfig = { storageParams ->
@@ -92,7 +87,7 @@ class VidLabelerAppTest {
   }
 
   @Test
-  fun `runWork correctly unpacks VidLabelerParams and delegates to VidLabeler`() = runBlocking {
+  fun `runWork correctly unpacks VidLabelerParams and completes without error`() = runBlocking {
     val app = createApp()
     val params = vidLabelerParams {
       dataProvider = DATA_PROVIDER_NAME
@@ -110,27 +105,6 @@ class VidLabelerAppTest {
     }
 
     app.runWork(buildMessage(params))
-
-    val paramsCaptor = argumentCaptor<VidLabelerParams>()
-    val storageConfigCaptor = argumentCaptor<StorageConfig>()
-    val decryptCaptor = argumentCaptor<KmsClient>()
-    val encryptCaptor = argumentCaptor<KmsClient>()
-
-    verifyBlocking(mockVidLabeler, times(1)) {
-      labelBatch(
-        paramsCaptor.capture(),
-        storageConfigCaptor.capture(),
-        decryptCaptor.capture(),
-        encryptCaptor.capture(),
-      )
-    }
-
-    assertThat(paramsCaptor.firstValue.dataProvider).isEqualTo(DATA_PROVIDER_NAME)
-    assertThat(paramsCaptor.firstValue.inputBlobUrisList)
-      .containsExactly("gs://bucket/edp1/2024-01-15/file1.parquet")
-    assertThat(storageConfigCaptor.firstValue.projectId).isEqualTo("test-project")
-    assertThat(decryptCaptor.firstValue).isSameInstanceAs(mockDecryptKmsClient)
-    assertThat(encryptCaptor.firstValue).isSameInstanceAs(mockEncryptKmsClient)
   }
 
   @Test
