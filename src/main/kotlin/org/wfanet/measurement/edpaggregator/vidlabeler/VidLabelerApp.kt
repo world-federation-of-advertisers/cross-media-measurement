@@ -32,16 +32,16 @@ import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
  * TEE application for VID labeling that processes WorkItems from a Pub/Sub queue.
  *
  * Receives WorkItems containing [VidLabelerParams], resolves required dependencies (KMS clients,
- * storage config), and delegates to a [VidLabeler] for the actual labeling work.
+ * storage config), and delegates to a VidLabeler for the actual labeling work.
  *
  * @param subscriptionId Pub/Sub subscription for VID labeling queue.
  * @param queueSubscriber handles Pub/Sub pull.
  * @param parser protobuf [Parser] for [WorkItem] messages.
  * @param workItemsClient gRPC stub for WorkItems service.
  * @param workItemAttemptsClient gRPC stub for WorkItemAttempts service.
- * @param vidLabeler core VID labeling logic.
- * @param kmsClients decrypt-only KMS clients keyed by data provider resource name.
- * @param encryptKmsClients encrypt/decrypt KMS clients keyed by data provider resource name.
+ * @param rawImpressionsKmsClient decrypt-only KMS clients keyed by data provider resource name.
+ * @param vidLabeledImpressionsKmsClient encrypt/decrypt KMS clients keyed by data provider resource
+ *   name.
  * @param getStorageConfig builds a [StorageConfig] from [VidLabelerParams.StorageParams].
  */
 class VidLabelerApp(
@@ -50,9 +50,8 @@ class VidLabelerApp(
   parser: Parser<WorkItem>,
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
-  private val vidLabeler: VidLabeler,
-  private val kmsClients: Map<String, KmsClient>,
-  private val encryptKmsClients: Map<String, KmsClient>,
+  private val rawImpressionsKmsClient: Map<String, KmsClient>,
+  private val vidLabeledImpressionsKmsClient: Map<String, KmsClient>,
   private val getStorageConfig: (VidLabelerParams.StorageParams) -> StorageConfig,
 ) :
   BaseTeeApplication(
@@ -69,20 +68,22 @@ class VidLabelerApp(
 
     val dataProvider = vidLabelerParams.dataProvider
     require(dataProvider.isNotEmpty()) { "data_provider must not be empty" }
-    require(vidLabelerParams.hasStorageParams()) { "storage_params must be set" }
+    require(vidLabelerParams.hasVidLabeledImpressionsStorageParams()) {
+      "vid_labeled_impressions_storage_params must be set"
+    }
     require(vidLabelerParams.inputBlobUrisCount > 0) { "input_blob_uris must not be empty" }
 
     val decryptKmsClient =
-      requireNotNull(kmsClients[dataProvider]) {
+      requireNotNull(rawImpressionsKmsClient[dataProvider]) {
         "Decrypt KMS client not found for $dataProvider"
       }
     val encryptKmsClient =
-      requireNotNull(encryptKmsClients[dataProvider]) {
+      requireNotNull(vidLabeledImpressionsKmsClient[dataProvider]) {
         "Encrypt KMS client not found for $dataProvider"
       }
 
-    val storageConfig = getStorageConfig(vidLabelerParams.storageParams)
+    val storageConfig = getStorageConfig(vidLabelerParams.vidLabeledImpressionsStorageParams)
 
-    vidLabeler.labelBatch(vidLabelerParams, storageConfig, decryptKmsClient, encryptKmsClient)
+    // TODO: Call VidLabeler.labelBatch() once VidLabeler implementation is available.
   }
 }
