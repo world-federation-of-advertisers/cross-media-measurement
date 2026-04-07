@@ -330,10 +330,15 @@ class VidLabelingDispatcherFunction : HttpFunction {
 
       return vidLabelerParams {
         dataProvider = config.dataProvider
-        storageParams =
+        vidLabeledImpressionsStorageParams =
           VidLabelerParamsKt.storageParams {
             gcsProjectId = config.storageParams.gcs.projectId
-            labeledImpressionsBlobPrefix = "gs://${config.storageParams.gcs.bucketName}"
+            impressionsBlobPrefix = "gs://${config.storageParams.gcs.bucketName}"
+          }
+        rawImpressionsStorageParams =
+          VidLabelerParamsKt.storageParams {
+            gcsProjectId = config.storageParams.gcs.projectId
+            impressionsBlobPrefix = "gs://${config.storageParams.gcs.bucketName}"
           }
         vidRepoConnection = transportLayerSecurityParams {
           clientCertResourcePath = config.vidRepoConnection.certFilePath
