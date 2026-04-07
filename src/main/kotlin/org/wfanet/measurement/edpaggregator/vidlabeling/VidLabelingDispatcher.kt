@@ -138,8 +138,7 @@ class VidLabelingDispatcher(
           dataProvider = vidLabelerParamsTemplate.dataProvider
           vidLabeledImpressionsStorageParams =
             vidLabelerParamsTemplate.vidLabeledImpressionsStorageParams
-          rawImpressionsStorageParams =
-            vidLabelerParamsTemplate.rawImpressionsStorageParams
+          rawImpressionsStorageParams = vidLabelerParamsTemplate.rawImpressionsStorageParams
           vidRepoConnection = vidLabelerParamsTemplate.vidRepoConnection
           modelLineConfigs.putAll(vidLabelerParamsTemplate.modelLineConfigsMap)
           overrideModelLines += vidLabelerParamsTemplate.overrideModelLinesList
