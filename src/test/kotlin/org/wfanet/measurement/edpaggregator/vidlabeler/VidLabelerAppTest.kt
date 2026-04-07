@@ -35,15 +35,14 @@ import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 
 @RunWith(JUnit4::class)
 class VidLabelerAppTest {
 
   private val workItemsService: WorkItemsGrpcKt.WorkItemsCoroutineImplBase = mockService()
-  private val workItemAttemptsService:
-    WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase =
+  private val workItemAttemptsService: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase =
     mockService()
 
   @get:Rule
@@ -90,12 +89,11 @@ class VidLabelerAppTest {
     val app = createApp()
     val params = vidLabelerParams {
       dataProvider = DATA_PROVIDER_NAME
-      vidLabeledImpressionsStorageParams =
+      storageParams =
         VidLabelerParamsKt.storageParams {
           gcsProjectId = "test-project"
-          impressionsBlobPrefix = "gs://output-bucket/labeled"
+          labeledImpressionsBlobPrefix = "gs://output-bucket/labeled"
         }
-      inputBlobUris += "gs://bucket/edp1/2024-01-15/file1.parquet"
     }
 
     app.runWork(buildMessage(params))
@@ -106,12 +104,11 @@ class VidLabelerAppTest {
     val app = createApp(rawImpressionsKmsClient = emptyMap())
     val params = vidLabelerParams {
       dataProvider = DATA_PROVIDER_NAME
-      vidLabeledImpressionsStorageParams =
+      storageParams =
         VidLabelerParamsKt.storageParams {
           gcsProjectId = "test-project"
-          impressionsBlobPrefix = "gs://output-bucket/labeled"
+          labeledImpressionsBlobPrefix = "gs://output-bucket/labeled"
         }
-      inputBlobUris += "gs://bucket/edp1/2024-01-15/file1.parquet"
     }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
@@ -124,12 +121,11 @@ class VidLabelerAppTest {
     val app = createApp(vidLabeledImpressionsKmsClient = emptyMap())
     val params = vidLabelerParams {
       dataProvider = DATA_PROVIDER_NAME
-      vidLabeledImpressionsStorageParams =
+      storageParams =
         VidLabelerParamsKt.storageParams {
           gcsProjectId = "test-project"
-          impressionsBlobPrefix = "gs://output-bucket/labeled"
+          labeledImpressionsBlobPrefix = "gs://output-bucket/labeled"
         }
-      inputBlobUris += "gs://bucket/edp1/2024-01-15/file1.parquet"
     }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
@@ -141,12 +137,11 @@ class VidLabelerAppTest {
   fun `runWork throws when data_provider is empty`() = runBlocking {
     val app = createApp()
     val params = vidLabelerParams {
-      vidLabeledImpressionsStorageParams =
+      storageParams =
         VidLabelerParamsKt.storageParams {
           gcsProjectId = "test-project"
-          impressionsBlobPrefix = "gs://output-bucket/labeled"
+          labeledImpressionsBlobPrefix = "gs://output-bucket/labeled"
         }
-      inputBlobUris += "gs://bucket/edp1/2024-01-15/file1.parquet"
     }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
@@ -154,32 +149,12 @@ class VidLabelerAppTest {
   }
 
   @Test
-  fun `runWork throws when vid_labeled_impressions_storage_params is not set`() = runBlocking {
+  fun `runWork throws when storage_params is not set`() = runBlocking {
     val app = createApp()
-    val params = vidLabelerParams {
-      dataProvider = DATA_PROVIDER_NAME
-      inputBlobUris += "gs://bucket/edp1/2024-01-15/file1.parquet"
-    }
+    val params = vidLabelerParams { dataProvider = DATA_PROVIDER_NAME }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
-    assertThat(exception).hasMessageThat()
-      .contains("vid_labeled_impressions_storage_params must be set")
-  }
-
-  @Test
-  fun `runWork throws when input_blob_uris is empty`() = runBlocking {
-    val app = createApp()
-    val params = vidLabelerParams {
-      dataProvider = DATA_PROVIDER_NAME
-      vidLabeledImpressionsStorageParams =
-        VidLabelerParamsKt.storageParams {
-          gcsProjectId = "test-project"
-          impressionsBlobPrefix = "gs://output-bucket/labeled"
-        }
-    }
-
-    val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
-    assertThat(exception).hasMessageThat().contains("input_blob_uris must not be empty")
+    assertThat(exception).hasMessageThat().contains("storage_params must be set")
   }
 
   companion object {

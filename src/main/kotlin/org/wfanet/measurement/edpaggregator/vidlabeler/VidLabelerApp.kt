@@ -68,10 +68,7 @@ class VidLabelerApp(
 
     val dataProvider = vidLabelerParams.dataProvider
     require(dataProvider.isNotEmpty()) { "data_provider must not be empty" }
-    require(vidLabelerParams.hasVidLabeledImpressionsStorageParams()) {
-      "vid_labeled_impressions_storage_params must be set"
-    }
-    require(vidLabelerParams.inputBlobUrisCount > 0) { "input_blob_uris must not be empty" }
+    require(vidLabelerParams.hasStorageParams()) { "storage_params must be set" }
 
     val decryptKmsClient =
       requireNotNull(rawImpressionsKmsClient[dataProvider]) {
@@ -82,7 +79,7 @@ class VidLabelerApp(
         "Encrypt KMS client not found for $dataProvider"
       }
 
-    val storageConfig = getStorageConfig(vidLabelerParams.vidLabeledImpressionsStorageParams)
+    val storageConfig = getStorageConfig(vidLabelerParams.storageParams)
 
     // TODO: Call VidLabeler.labelBatch() once VidLabeler implementation is available.
   }
