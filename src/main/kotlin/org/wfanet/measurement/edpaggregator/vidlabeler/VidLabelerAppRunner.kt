@@ -229,8 +229,8 @@ class VidLabelerAppRunner : Runnable {
   }
 
   private fun buildKmsClient(kmsConfig: VidLabelingConfig.KmsConfig): KmsClient {
-    return when (kmsConfig.providerCase) {
-      VidLabelingConfig.KmsConfig.ProviderCase.GCP -> {
+    return when (kmsConfig.providerConfigCase) {
+      VidLabelingConfig.KmsConfig.ProviderConfigCase.GCP -> {
         val gcp = kmsConfig.gcp
         val credentials =
           GCloudWifCredentials(
@@ -243,7 +243,7 @@ class VidLabelerAppRunner : Runnable {
           )
         GCloudKmsClientFactory().getKmsClient(credentials)
       }
-      VidLabelingConfig.KmsConfig.ProviderCase.AWS -> {
+      VidLabelingConfig.KmsConfig.ProviderConfigCase.AWS -> {
         val aws = kmsConfig.aws
         val credentials =
           GCloudToAwsWifCredentials(
@@ -260,7 +260,7 @@ class VidLabelerAppRunner : Runnable {
           )
         GCloudToAwsKmsClientFactory().getKmsClient(credentials)
       }
-      VidLabelingConfig.KmsConfig.ProviderCase.PROVIDER_NOT_SET,
+      VidLabelingConfig.KmsConfig.ProviderConfigCase.PROVIDERCONFIG_NOT_SET,
       null ->
         error("KmsConfig provider must be set")
     }

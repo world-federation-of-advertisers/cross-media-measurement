@@ -103,7 +103,7 @@ message VidLabelingConfig {
       string audience = 5 [(google.api.field_behavior) = REQUIRED];
     }
 
-    oneof provider {
+    oneof provider_config {
       GcpKmsConfig gcp = 2;
       AwsKmsConfig aws = 3;
     }
