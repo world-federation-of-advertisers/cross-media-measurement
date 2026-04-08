@@ -63,6 +63,7 @@ jobs:
       packages: write
     with:
       existing-image-tag: ${{ inputs.existing-image-tag }}
+      use-release-key: ${{ inputs.environment == 'qa' && github.actor == 'github-actions[bot]' }}
 
   scan-images:
     uses: ./.github/workflows/scan-images.yml
