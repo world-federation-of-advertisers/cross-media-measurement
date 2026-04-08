@@ -18,11 +18,13 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
+import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionMetadataBatchFileNotFoundException
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
@@ -91,7 +93,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingBatchFilesByRequestIds(
   batchId: Long,
   requestIds: List<String>,
 ): Map<String, RawImpressionMetadataBatchFileResult> {
-  val nonEmptyRequestIds = requestIds.filter { it.isNotEmpty() }
+  val nonEmptyRequestIds = requestIds.filter { it.isNotBlank() }
   if (nonEmptyRequestIds.isEmpty()) return emptyMap()
 
   val sql =
@@ -241,12 +243,13 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionMetadataBatchFile(
   blobUri: String,
   createRequestId: String,
 ) {
+  val resolvedFileResourceId = fileResourceId.ifBlank { "file-${UUID.randomUUID()}" }
   bufferInsertMutation("RawImpressionMetadataBatchFile") {
     set("DataProviderResourceId").to(dataProviderResourceId)
     set("BatchId").to(batchId)
     set("FileId").to(fileId)
-    set("FileResourceId").to(fileResourceId)
-    if (createRequestId.isNotEmpty()) {
+    set("FileResourceId").to(resolvedFileResourceId)
+    if (createRequestId.isNotBlank()) {
       set("CreateRequestId").to(createRequestId)
     }
     set("BlobUri").to(blobUri)
@@ -315,11 +318,23 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionMetadataBatchFiles(
     }
 
     if (after != null) {
-      conjuncts.add("RawImpressionMetadataBatchFile.FileResourceId > @afterFileResourceId")
+      conjuncts.add(
+        """
+        (RawImpressionMetadataBatchFile.CreateTime > @afterCreateTime)
+        OR (RawImpressionMetadataBatchFile.CreateTime = @afterCreateTime
+            AND RawImpressionMetadataBatch.BatchResourceId > @afterBatchResourceId)
+        OR (RawImpressionMetadataBatchFile.CreateTime = @afterCreateTime
+            AND RawImpressionMetadataBatch.BatchResourceId = @afterBatchResourceId
+            AND RawImpressionMetadataBatchFile.FileResourceId > @afterFileResourceId)
+        """
+          .trimIndent()
+      )
     }
 
     appendLine("WHERE " + conjuncts.joinToString(" AND "))
-    appendLine("ORDER BY RawImpressionMetadataBatchFile.FileResourceId ASC")
+    appendLine(
+      "ORDER BY RawImpressionMetadataBatchFile.CreateTime ASC, RawImpressionMetadataBatch.BatchResourceId ASC, RawImpressionMetadataBatchFile.FileResourceId ASC"
+    )
     appendLine("LIMIT @limit")
   }
 
@@ -334,6 +349,8 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionMetadataBatchFiles(
       }
 
       if (after != null) {
+        bind("afterCreateTime").to(after.createTime.toGcloudTimestamp())
+        bind("afterBatchResourceId").to(after.batchResourceId)
         bind("afterFileResourceId").to(after.fileResourceId)
       }
     }

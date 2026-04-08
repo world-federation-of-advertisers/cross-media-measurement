@@ -65,11 +65,6 @@ class SpannerRawImpressionMetadataBatchService(
       throw RequiredFieldNotSetException("data_provider_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    if (request.batchResourceId.isEmpty()) {
-      throw RequiredFieldNotSetException("batch_resource_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
     val requestId = request.requestId
     if (requestId.isNotEmpty()) {
       try {
@@ -193,6 +188,10 @@ class SpannerRawImpressionMetadataBatchService(
             nextPageToken = listRawImpressionMetadataBatchesPageToken {
               this.after =
                 ListRawImpressionMetadataBatchesPageTokenKt.after {
+                  createTime =
+                    this@listRawImpressionMetadataBatchesResponse.rawImpressionMetadataBatches
+                      .last()
+                      .createTime
                   batchResourceId =
                     this@listRawImpressionMetadataBatchesResponse.rawImpressionMetadataBatches
                       .last()

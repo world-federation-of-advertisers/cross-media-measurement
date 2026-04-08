@@ -591,6 +591,11 @@ abstract class RawImpressionMetadataBatchServiceTest {
 
       assertThat(firstPage.rawImpressionMetadataBatchesList).hasSize(2)
       assertThat(firstPage.hasNextPageToken()).isTrue()
+      assertThat(firstPage.nextPageToken.after.batchResourceId)
+        .isEqualTo(firstPage.rawImpressionMetadataBatchesList.last().batchResourceId)
+      assertThat(firstPage.nextPageToken.after.hasCreateTime()).isTrue()
+      assertThat(firstPage.nextPageToken.after.createTime)
+        .isEqualTo(firstPage.rawImpressionMetadataBatchesList.last().createTime)
 
       val secondPage =
         service.listRawImpressionMetadataBatches(
@@ -603,6 +608,58 @@ abstract class RawImpressionMetadataBatchServiceTest {
 
       assertThat(secondPage.rawImpressionMetadataBatchesList).hasSize(1)
       assertThat(secondPage.hasNextPageToken()).isFalse()
+    }
+
+  @Test
+  fun `createRawImpressionMetadataBatch throws INVALID_ARGUMENT for malformed request_id`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRawImpressionMetadataBatch(
+            createRawImpressionMetadataBatchRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              batchResourceId = BATCH_RESOURCE_ID
+              requestId = "not-a-valid-uuid"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+          }
+        )
+    }
+
+  @Test
+  fun `listRawImpressionMetadataBatches page token contains create_time and batch_resource_id`() =
+    runBlocking {
+      for (i in 1..3) {
+        service.createRawImpressionMetadataBatch(
+          createRawImpressionMetadataBatchRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            batchResourceId = "batch-$i"
+          }
+        )
+      }
+
+      val firstPage =
+        service.listRawImpressionMetadataBatches(
+          listRawImpressionMetadataBatchesRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            pageSize = 2
+          }
+        )
+
+      assertThat(firstPage.nextPageToken.after.batchResourceId)
+        .isEqualTo(firstPage.rawImpressionMetadataBatchesList.last().batchResourceId)
+      assertThat(firstPage.nextPageToken.after.hasCreateTime()).isTrue()
+      assertThat(firstPage.nextPageToken.after.createTime)
+        .isEqualTo(firstPage.rawImpressionMetadataBatchesList.last().createTime)
     }
 
   companion object {

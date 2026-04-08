@@ -77,10 +77,6 @@ class SpannerRawImpressionMetadataBatchFileService(
       throw RequiredFieldNotSetException("batch_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    if (request.fileResourceId.isEmpty()) {
-      throw RequiredFieldNotSetException("file_resource_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
     if (!request.hasRawImpressionMetadataBatchFile()) {
       throw RequiredFieldNotSetException("raw_impression_metadata_batch_file")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -387,6 +383,14 @@ class SpannerRawImpressionMetadataBatchFileService(
             nextPageToken = listRawImpressionMetadataBatchFilesPageToken {
               this.after =
                 ListRawImpressionMetadataBatchFilesPageTokenKt.after {
+                  createTime =
+                    this@listRawImpressionMetadataBatchFilesResponse.rawImpressionMetadataBatchFiles
+                      .last()
+                      .createTime
+                  batchResourceId =
+                    this@listRawImpressionMetadataBatchFilesResponse.rawImpressionMetadataBatchFiles
+                      .last()
+                      .batchResourceId
                   fileResourceId =
                     this@listRawImpressionMetadataBatchFilesResponse.rawImpressionMetadataBatchFiles
                       .last()

@@ -18,10 +18,12 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
+import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionMetadataBatchNotFoundException
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
@@ -79,7 +81,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingBatchByRequestId(
   dataProviderResourceId: String,
   requestId: String,
 ): RawImpressionMetadataBatchResult? {
-  if (requestId.isEmpty()) return null
+  if (requestId.isBlank()) return null
 
   val sql =
     """
@@ -131,11 +133,12 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionMetadataBatch(
   batchResourceId: String,
   createRequestId: String,
 ) {
+  val resolvedBatchResourceId = batchResourceId.ifBlank { "batch-${UUID.randomUUID()}" }
   bufferInsertMutation("RawImpressionMetadataBatch") {
     set("DataProviderResourceId").to(dataProviderResourceId)
     set("BatchId").to(batchId)
-    set("BatchResourceId").to(batchResourceId)
-    if (createRequestId.isNotEmpty()) {
+    set("BatchResourceId").to(resolvedBatchResourceId)
+    if (createRequestId.isNotBlank()) {
       set("CreateRequestId").to(createRequestId)
     }
     set("State").to(RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_CREATED)
@@ -208,11 +211,13 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionMetadataBatches(
     }
 
     if (after != null) {
-      conjuncts.add("BatchResourceId > @afterBatchResourceId")
+      conjuncts.add(
+        "(CreateTime > @afterCreateTime) OR (CreateTime = @afterCreateTime AND BatchResourceId > @afterBatchResourceId)"
+      )
     }
 
     appendLine("WHERE " + conjuncts.joinToString(" AND "))
-    appendLine("ORDER BY BatchResourceId ASC")
+    appendLine("ORDER BY CreateTime ASC, BatchResourceId ASC")
     appendLine("LIMIT @limit")
   }
 
@@ -227,6 +232,7 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionMetadataBatches(
 
       if (after != null) {
         bind("afterBatchResourceId").to(after.batchResourceId)
+        bind("afterCreateTime").to(after.createTime.toGcloudTimestamp())
       }
     }
 
