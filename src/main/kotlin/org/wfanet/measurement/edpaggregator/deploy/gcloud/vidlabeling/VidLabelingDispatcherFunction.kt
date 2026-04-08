@@ -346,8 +346,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
         }
         modelLineConfigs.putAll(convertModelLineConfigs(config.modelLineConfigsMap))
         overrideModelLines += config.overrideModelLinesList
-        // TODO: Populate vid_labeled_impressions_kek_uri from VidLabelingConfig once the
-        //  config proto is updated with a KEK URI field.
+        vidLabeledImpressionsKekUri = config.vidLabeledImpressionsKekUri
       }
     }
 
