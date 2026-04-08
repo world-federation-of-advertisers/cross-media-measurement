@@ -144,7 +144,18 @@ class GenerateSyntheticData : Runnable {
     description = ["Base path where to store the Impressions files"],
     required = false,
   )
-  lateinit var impressionMetadataBasePath: String
+  var impressionMetadataBasePath: String? = null
+    private set
+
+  @Option(
+    names = ["--flat-output-base-path"],
+    description =
+      [
+        "Optional. When set, outputs files directly under <base-path>/<date>/ without model-line and event-group-reference-id path segments."
+      ],
+    required = false,
+  )
+  var flatOutputBasePath: String? = null
     private set
 
   @Option(
@@ -252,7 +263,15 @@ class GenerateSyntheticData : Runnable {
           storagePath,
           schema,
         )
-      impressionWriter.writeLabeledImpressionData(events, modelLine, impressionMetadataBasePath)
+      require(flatOutputBasePath == null || impressionMetadataBasePath == null) {
+        "Cannot specify both --impression-metadata-base-path and --flat-output-base-path; set exactly one or neither"
+      }
+      impressionWriter.writeLabeledImpressionData(
+        events,
+        modelLine,
+        impressionsBasePath = impressionMetadataBasePath,
+        flatOutputBasePath = flatOutputBasePath,
+      )
     }
   }
 

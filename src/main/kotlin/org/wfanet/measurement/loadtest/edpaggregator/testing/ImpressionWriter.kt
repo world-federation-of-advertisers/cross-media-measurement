@@ -78,6 +78,7 @@ class ImpressionsWriter(
     events: Sequence<LabeledEventDateShard<T>>,
     blobModelLine: String,
     impressionsBasePath: String? = null,
+    flatOutputBasePath: String? = null,
   ) {
     val modelLineName =
       requireNotNull(ModelLineKey.fromName(blobModelLine)) {
@@ -106,7 +107,9 @@ class ImpressionsWriter(
       logger.info("Writing Date: $ds")
 
       val impressionsBlobKey =
-        if (impressionsBasePath != null) {
+        if (flatOutputBasePath != null) {
+          "$flatOutputBasePath/$ds/impressions"
+        } else if (impressionsBasePath != null) {
           "$impressionsBasePath/ds/$ds/$eventGroupPath/impressions"
         } else {
           "ds/$ds/$eventGroupPath/impressions"
@@ -127,7 +130,9 @@ class ImpressionsWriter(
         labeledImpressions.map { it.toByteString() }.asFlow(),
       )
       val impressionsMetaDataBlobKey =
-        if (impressionsBasePath != null) {
+        if (flatOutputBasePath != null) {
+          "$flatOutputBasePath/$ds/metadata.binpb"
+        } else if (impressionsBasePath != null) {
           "$impressionsBasePath/ds/$ds/$eventGroupPath/metadata.binpb"
         } else {
           "ds/$ds/$eventGroupPath/metadata.binpb"

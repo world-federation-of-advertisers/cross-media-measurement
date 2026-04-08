@@ -205,6 +205,100 @@ class ImpressionWriterTest {
     }
   }
 
+  @Test
+  fun `writeLabeledImpressionData with flatOutputBasePath writes to flat layout`() {
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
+    val kmsClient = run {
+      val client = FakeKmsClient()
+      val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+      client.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+      client
+    }
+    val bucket = "flat-bucket"
+    tempFolder.root.resolve(bucket).mkdirs()
+    val impressionWriter =
+      ImpressionsWriter(
+        "some-event-group-ref",
+        "some-event-group-path",
+        kekUri,
+        kmsClient,
+        bucket,
+        bucket,
+        tempFolder.root,
+        "file:///",
+      )
+    val events: Sequence<LabeledEventDateShard<TestEvent>> =
+      sequenceOf(
+        LabeledEventDateShard(
+          LocalDate.parse("2020-01-01"),
+          sequenceOf(
+            LabeledEvent(
+              vid = 1,
+              message = TestEvent.getDefaultInstance(),
+              timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+            ),
+            LabeledEvent(
+              vid = 2,
+              message = TestEvent.getDefaultInstance(),
+              timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+            ),
+          ),
+        ),
+        LabeledEventDateShard(
+          LocalDate.parse("2020-01-02"),
+          sequenceOf(
+            LabeledEvent(
+              vid = 3,
+              message = TestEvent.getDefaultInstance(),
+              timestamp = LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+            )
+          ),
+        ),
+      )
+
+    val flatBase = "my/flat/base"
+    runBlocking {
+      impressionWriter.writeLabeledImpressionData(
+        events,
+        "some-model-line",
+        flatOutputBasePath = flatBase,
+      )
+    }
+
+    val storageClient = FileSystemStorageClient(tempFolder.root)
+    runBlocking {
+      listOf("2020-01-01" to 2, "2020-01-02" to 1).forEach { (date, expectedCount) ->
+        val metadataKey = "$bucket/$flatBase/$date/metadata.binpb"
+        val blobDetails =
+          BlobDetails.parseFrom(storageClient.getBlob(metadataKey)!!.read().flatten())
+
+        assertThat(blobDetails.blobUri).isEqualTo("file:///$bucket/$flatBase/$date/impressions")
+
+        val encryptedDek = blobDetails.encryptedDek
+        assertThat(encryptedDek.kekUri).isEqualTo(kekUri)
+
+        val selectedStorageClient = SelectedStorageClient(blobDetails.blobUri, tempFolder.root)
+        val decryptionClient =
+          selectedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, encryptedDek.ciphertext)
+        val impressions =
+          MesosRecordIoStorageClient(decryptionClient)
+            .getBlob("$flatBase/$date/impressions")!!
+            .read()
+            .toList()
+        assertThat(impressions).hasSize(expectedCount)
+        impressions.forEach { bytes: ByteString ->
+          val event = LabeledImpression.parseFrom(bytes)
+          assertThat(event.event.unpack(TestEvent::class.java))
+            .isEqualTo(TestEvent.getDefaultInstance())
+          assertThat(event.eventTime)
+            .isEqualTo(
+              LocalDate.parse(date).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+            )
+        }
+      }
+    }
+  }
+
   companion object {
     init {
       AeadConfig.register()

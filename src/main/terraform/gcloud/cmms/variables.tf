@@ -290,6 +290,16 @@ variable "duchy_worker2_target" {
   type = string
 }
 
+variable "duchy_aggregator_id" {
+  description = "ID of aggregator duchy."
+  type = string
+}
+
+variable "duchy_aggregator_target" {
+  description = "Public API target of aggregator duchy."
+  type = string
+}
+
 variable "results_fulfiller_trusted_root_ca_collection_file_path" {
   description = "Trusted root CA used by the Results Fulfiller."
   type = string

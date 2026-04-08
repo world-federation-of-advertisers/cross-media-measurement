@@ -152,8 +152,13 @@ locals {
                                           "--event-template-type-name", var.results_fulfiller_event_template_type_name,
                                           "--duchy-id", var.duchy_worker1_id,
                                           "--duchy-target", var.duchy_worker1_target,
+                                          "--duchy-cert-host", "localhost",
                                           "--duchy-id", var.duchy_worker2_id,
                                           "--duchy-target", var.duchy_worker2_target,
+                                          "--duchy-cert-host", "localhost",
+                                          "--duchy-id", var.duchy_aggregator_id,
+                                          "--duchy-target", var.duchy_aggregator_target,
+                                          "--duchy-cert-host", "localhost",
                                         ]
     }
   }
