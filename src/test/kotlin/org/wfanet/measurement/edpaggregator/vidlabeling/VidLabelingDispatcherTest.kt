@@ -89,12 +89,12 @@ class VidLabelingDispatcherTest {
     vidLabeledImpressionsStorageParams =
       VidLabelerParamsKt.storageParams {
         gcsProjectId = "test-project"
-        blobUriPrefix = "gs://output-bucket/labeled"
+        impressionsBlobPrefix = "gs://output-bucket/labeled"
       }
     rawImpressionsStorageParams =
       VidLabelerParamsKt.storageParams {
         gcsProjectId = "test-project"
-        blobUriPrefix = "gs://input-bucket/raw"
+        impressionsBlobPrefix = "gs://input-bucket/raw"
       }
   }
 
