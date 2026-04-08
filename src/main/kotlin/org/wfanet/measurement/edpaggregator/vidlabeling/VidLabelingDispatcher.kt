@@ -143,6 +143,8 @@ class VidLabelingDispatcher(
           modelLineConfigs.putAll(vidLabelerParamsTemplate.modelLineConfigsMap)
           overrideModelLines += vidLabelerParamsTemplate.overrideModelLinesList
           rawImpressionMetadataBatch = batchResourceName
+          vidLabeledImpressionsKekUri =
+            vidLabelerParamsTemplate.vidLabeledImpressionsKekUri
         }
 
         createWorkItem(batchResourceName, params)
