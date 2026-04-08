@@ -75,8 +75,8 @@ class DataAvailabilityMonitor(
    * @property zeroImpressionDates Dates with a "done" blob but no data files, or `null` when no
    *   uploaded dates were found.
    * @property datesWithoutDoneBlob Date folders that exist but have no "done" blob.
-   * @property lateArrivingDates Dates where data files were updated after the "done" blob, or `null`
-   *   when no uploaded dates were found.
+   * @property lateArrivingDates Dates where data files were updated after the "done" blob, or
+   *   `null` when no uploaded dates were found.
    * @property healthyDates Dates with a "done" blob, data files, and no late arrivals, or `null`
    *   when no uploaded dates were found.
    */
@@ -386,17 +386,15 @@ class DataAvailabilityMonitor(
     fun addDateCount(count: Int, statusValue: String) {
       if (count > 0) {
         val attrs =
-          baseAttrs.toBuilder()
+          baseAttrs
+            .toBuilder()
             .put(DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR, statusValue)
             .build()
         metrics.dateStatusCounter.add(count.toLong(), attrs)
       }
     }
 
-    addDateCount(
-      status.gapDates?.size ?: 0,
-      DataAvailabilityMonitorMetrics.STATUS_GAP,
-    )
+    addDateCount(status.gapDates?.size ?: 0, DataAvailabilityMonitorMetrics.STATUS_GAP)
     addDateCount(
       status.zeroImpressionDates?.size ?: 0,
       DataAvailabilityMonitorMetrics.STATUS_ZERO_IMPRESSION,
@@ -409,10 +407,7 @@ class DataAvailabilityMonitor(
       status.lateArrivingDates?.size ?: 0,
       DataAvailabilityMonitorMetrics.STATUS_LATE_ARRIVING,
     )
-    addDateCount(
-      status.healthyDates?.size ?: 0,
-      DataAvailabilityMonitorMetrics.STATUS_HEALTHY,
-    )
+    addDateCount(status.healthyDates?.size ?: 0, DataAvailabilityMonitorMetrics.STATUS_HEALTHY)
   }
 
   companion object {

@@ -95,9 +95,7 @@ class DataAvailabilityMonitorFunction : HttpFunction {
    *
    * @return `true` if any issues were detected for this config.
    */
-  private suspend fun checkAndLogConfigIssues(
-    config: DataAvailabilityMonitorConfig,
-  ): Boolean {
+  private suspend fun checkAndLogConfigIssues(config: DataAvailabilityMonitorConfig): Boolean {
     val storageClient = createStorageClient(config)
     val activeModelLines =
       config.modelLineConfigsList

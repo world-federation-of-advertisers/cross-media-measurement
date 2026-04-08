@@ -88,9 +88,9 @@ import org.wfanet.measurement.storage.StorageClient
  *   request.
  * @property modelLineMap Mapping from a source model line to additional model lines that should
  *   receive the same availability interval updates.
- * @property errorIfGapsExist If true, skip replacing data availability intervals when date gaps
- *   are detected and log a warning. If false (default), log a warning but proceed with replacing
- *   data availability intervals normally. Gap dates are always logged regardless of this setting.
+ * @property errorIfGapsExist If true, skip replacing data availability intervals when date gaps are
+ *   detected and log a warning. If false (default), log a warning but proceed with replacing data
+ *   availability intervals normally. Gap dates are always logged regardless of this setting.
  * @property metrics Metrics recorder for telemetry.
  */
 class DataAvailabilitySync(

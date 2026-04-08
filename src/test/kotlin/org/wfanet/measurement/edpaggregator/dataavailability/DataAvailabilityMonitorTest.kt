@@ -90,9 +90,7 @@ class DataAvailabilityMonitorTest {
   private fun getDateStatusCount(metrics: List<MetricData>, status: String): Long? {
     val dateCountMetric = metrics.find { it.name == DATE_COUNT_METRIC } ?: return null
     return dateCountMetric.longSumData.points
-      .find {
-        it.attributes.get(DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR) == status
-      }
+      .find { it.attributes.get(DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR) == status }
       ?.value
   }
 
@@ -810,9 +808,7 @@ class DataAvailabilityMonitorTest {
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_GAP)).isEqualTo(1)
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_ZERO_IMPRESSION))
       .isEqualTo(1)
-    assertThat(
-        getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_WITHOUT_DONE_BLOB)
-      )
+    assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_WITHOUT_DONE_BLOB))
       .isEqualTo(1)
   }
 
@@ -881,9 +877,7 @@ class DataAvailabilityMonitorTest {
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_GAP)).isNull()
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_ZERO_IMPRESSION))
       .isNull()
-    assertThat(
-        getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_WITHOUT_DONE_BLOB)
-      )
+    assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_WITHOUT_DONE_BLOB))
       .isNull()
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_LATE_ARRIVING))
       .isNull()

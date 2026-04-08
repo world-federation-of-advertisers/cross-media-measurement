@@ -197,7 +197,8 @@ class DataAvailabilitySyncTest {
     val metricExporter = InMemoryMetricExporter.create()
     val metricReader = PeriodicMetricReader.create(metricExporter)
     val meterProvider = SdkMeterProvider.builder().registerMetricReader(metricReader).build()
-    val openTelemetry = OpenTelemetrySdk.builder().setMeterProvider(meterProvider).buildAndRegisterGlobal()
+    val openTelemetry =
+      OpenTelemetrySdk.builder().setMeterProvider(meterProvider).buildAndRegisterGlobal()
     val meter = meterProvider.get("data-availability-sync-test")
     return MetricsTestEnvironment(
       DataAvailabilitySyncMetrics(meter),
@@ -211,9 +212,7 @@ class DataAvailabilitySyncTest {
   private fun getDateStatusCount(metrics: List<MetricData>, status: String): Long? {
     val dateCountMetric = metrics.find { it.name == DATE_COUNT_METRIC } ?: return null
     return dateCountMetric.longSumData.points
-      .find {
-        it.attributes.get(DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR) == status
-      }
+      .find { it.attributes.get(DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR) == status }
       ?.value
   }
 
@@ -1188,8 +1187,7 @@ class DataAvailabilitySyncTest {
 
       assertThat(getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_HEALTHY))
         .isEqualTo(3)
-      assertThat(getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_GAP))
-        .isNull()
+      assertThat(getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_GAP)).isNull()
       assertThat(
           getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_ZERO_IMPRESSION)
         )
@@ -1330,7 +1328,12 @@ class DataAvailabilitySyncTest {
 
         // Should record success (not failure) since errorIfGapsExist=false prevents the throw
         val durationPoint =
-          metricData.associateBy { it.name }.getValue(SYNC_DURATION_METRIC).histogramData.points.single()
+          metricData
+            .associateBy { it.name }
+            .getValue(SYNC_DURATION_METRIC)
+            .histogramData
+            .points
+            .single()
         assertThat(durationPoint.attributes.get(syncStatusAttributeKey)).isEqualTo("success")
 
         // Gap metrics should still be emitted

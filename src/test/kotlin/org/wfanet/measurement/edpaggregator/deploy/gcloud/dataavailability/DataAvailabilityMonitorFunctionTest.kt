@@ -272,11 +272,7 @@ class DataAvailabilityMonitorFunctionTest {
 
     writeCompletedDate(storageClient, edpPath, MODEL_LINE_ID, today.minusDays(4))
 
-    val config =
-      createConfig(
-        edpPath = edpPath,
-        maxStaleDays = null,
-      )
+    val config = createConfig(edpPath = edpPath, maxStaleDays = null)
     val port = startFunction(TextFormat.printer().printToString(config))
     val response = invokeFunction(port)
 
@@ -287,11 +283,7 @@ class DataAvailabilityMonitorFunctionTest {
   @Test
   fun `returns 500 when no model lines are configured`() {
     val edpPath = "edp/test/impressions"
-    val config =
-      createConfig(
-        edpPath = edpPath,
-        modelLines = emptyList(),
-      )
+    val config = createConfig(edpPath = edpPath, modelLines = emptyList())
     val port = startFunction(TextFormat.printer().printToString(config))
     val response = invokeFunction(port)
 
