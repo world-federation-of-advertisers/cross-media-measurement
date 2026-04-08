@@ -1064,6 +1064,26 @@ abstract class RawImpressionMetadataBatchFileServiceTest {
       assertThat(firstPage.nextPageToken.after.hasCreateTime()).isTrue()
     }
 
+  @Test
+  fun `createRawImpressionMetadataBatchFile auto-generates fileResourceId when not provided`() =
+    runBlocking {
+      createBatch()
+
+      val response =
+        fileService.createRawImpressionMetadataBatchFile(
+          createRawImpressionMetadataBatchFileRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            batchResourceId = BATCH_RESOURCE_ID
+            rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile {
+              blobUri = "gs://bucket/auto-gen-test"
+            }
+          }
+        )
+
+      assertThat(response.fileResourceId).isNotEmpty()
+      assertThat(response.fileResourceId).startsWith("file-")
+    }
+
   companion object {
     private const val DATA_PROVIDER_RESOURCE_ID = "data-provider-1"
     private const val BATCH_RESOURCE_ID = "batch-1"
