@@ -22,25 +22,6 @@ option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
 option java_outer_classname = "DataAvailabilityMonitorConfigProto";
 
-// Which monitoring checks to enable.
-message DataAvailabilityChecks {
-  // Check whether the most recent upload exceeds
-  // `DataAvailabilityMonitorConfig.max_stale_days`.
-  bool staleness = 1;
-
-  // Check for missing dates between the earliest and latest uploads.
-  bool gaps = 2;
-
-  // Check for dates with a done blob but no data files, or date folders
-  // missing a done blob.
-  bool missing_days = 3;
-
-  // Check that the done blob is the last file written in each date folder.
-  // Files uploaded after the done blob indicate a race condition and will
-  // not be processed by the sync workflow.
-  bool late_arriving_files = 4;
-}
-
 // Configuration for a monitored model line.
 message ModelLineConfig {
   // Model line resource name.
@@ -68,9 +49,6 @@ message DataAvailabilityMonitorConfig {
   // IANA time zone ID used to determine "today" for staleness checks
   // (e.g., "UTC", "America/New_York").
   string time_zone = 5;
-
-  // Which checks to run.
-  DataAvailabilityChecks enabled_checks = 6;
 }
 
 // Wrapper containing monitor configurations. Loaded at startup from the

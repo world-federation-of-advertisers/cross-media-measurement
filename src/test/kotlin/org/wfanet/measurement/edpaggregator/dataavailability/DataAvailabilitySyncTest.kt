@@ -23,7 +23,9 @@ import com.google.protobuf.util.JsonFormat
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.metrics.data.MetricData
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
@@ -49,6 +51,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalsRequest
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -94,10 +97,7 @@ class DataAvailabilitySyncTest {
     private const val SYNC_DURATION_METRIC = "edpa.data_availability.sync_duration"
     private const val RECORDS_SYNCED_METRIC = "edpa.data_availability.records_synced"
     private const val CMMS_RPC_ERRORS_METRIC = "edpa.data_availability.cmms_rpc_errors"
-    private const val GAPS_METRIC = "edpa.data_availability.gaps"
-    private const val ZERO_IMPRESSION_DATES_METRIC = "edpa.data_availability.zero_impression_dates"
-    private const val DATES_WITHOUT_DONE_BLOB_METRIC =
-      "edpa.data_availability.dates_without_done_blob"
+    private const val DATE_COUNT_METRIC = "edpa.data_availability.date_count"
     private const val DEFAULT_BATCH_SIZE = 100
   }
 
@@ -182,25 +182,39 @@ class DataAvailabilitySyncTest {
     val monitorMetrics: DataAvailabilityMonitorMetrics,
     val metricExporter: InMemoryMetricExporter,
     val metricReader: PeriodicMetricReader,
-    val meterProvider: SdkMeterProvider,
+    val openTelemetry: OpenTelemetrySdk,
   ) {
     fun close() {
-      meterProvider.close()
+      openTelemetry.close()
+      GlobalOpenTelemetry.resetForTest()
+      Instrumentation.resetForTest()
     }
   }
 
   private fun createMetricsEnvironment(): MetricsTestEnvironment {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
     val metricExporter = InMemoryMetricExporter.create()
     val metricReader = PeriodicMetricReader.create(metricExporter)
     val meterProvider = SdkMeterProvider.builder().registerMetricReader(metricReader).build()
+    val openTelemetry = OpenTelemetrySdk.builder().setMeterProvider(meterProvider).buildAndRegisterGlobal()
     val meter = meterProvider.get("data-availability-sync-test")
     return MetricsTestEnvironment(
       DataAvailabilitySyncMetrics(meter),
-      DataAvailabilityMonitorMetrics(meter),
+      DataAvailabilityMonitorMetrics(),
       metricExporter,
       metricReader,
-      meterProvider,
+      openTelemetry,
     )
+  }
+
+  private fun getDateStatusCount(metrics: List<MetricData>, status: String): Long? {
+    val dateCountMetric = metrics.find { it.name == DATE_COUNT_METRIC } ?: return null
+    return dateCountMetric.longSumData.points
+      .find {
+        it.attributes.get(DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR) == status
+      }
+      ?.value
   }
 
   @get:Rule
@@ -1004,11 +1018,11 @@ class DataAvailabilitySyncTest {
       val modelLineId = "modelLine1"
       val edpPath = "edp/edpa_edp"
       for (date in listOf("2026-03-13", "2026-03-15")) {
-        val donePath = "$edpPath/model-line/$modelLineId/$date/done"
-        File(tempFolder.root, donePath).parentFile.mkdirs()
-        storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
         val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+        File(tempFolder.root, dataPath).parentFile.mkdirs()
         storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+        val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+        storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
       }
 
       seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
@@ -1049,11 +1063,11 @@ class DataAvailabilitySyncTest {
     val modelLineId = "modelLine1"
     val edpPath = "edp/edpa_edp"
     for (date in listOf("2026-03-13", "2026-03-14", "2026-03-15")) {
-      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
-      File(tempFolder.root, donePath).parentFile.mkdirs()
-      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
       val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+      File(tempFolder.root, dataPath).parentFile.mkdirs()
       storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
     }
 
     // Seed metadata in the sync trigger folder
@@ -1087,11 +1101,11 @@ class DataAvailabilitySyncTest {
     val edpPath = "edp/edpa_edp"
     // Set up done blobs with a gap (missing 2026-03-14)
     for (date in listOf("2026-03-13", "2026-03-15")) {
-      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
-      File(tempFolder.root, donePath).parentFile.mkdirs()
-      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
       val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+      File(tempFolder.root, dataPath).parentFile.mkdirs()
       storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
     }
 
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
@@ -1117,16 +1131,17 @@ class DataAvailabilitySyncTest {
 
       metricsEnv.metricReader.forceFlush()
       val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
-      val metricByName = metricData.associateBy { it.name }
 
-      // Should have gap metrics with 1 missing date
-      assertThat(metricByName).containsKey(GAPS_METRIC)
-      val gapPoint = metricByName.getValue(GAPS_METRIC).longSumData.points.single()
-      assertThat(gapPoint.value).isEqualTo(1)
-
-      // No zero impression dates or dates without done blob
-      assertThat(metricByName).doesNotContainKey(ZERO_IMPRESSION_DATES_METRIC)
-      assertThat(metricByName).doesNotContainKey(DATES_WITHOUT_DONE_BLOB_METRIC)
+      assertThat(getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_GAP))
+        .isEqualTo(1)
+      assertThat(
+          getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_ZERO_IMPRESSION)
+        )
+        .isNull()
+      assertThat(
+          getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_WITHOUT_DONE_BLOB)
+        )
+        .isNull()
     } finally {
       metricsEnv.close()
     }
@@ -1140,11 +1155,11 @@ class DataAvailabilitySyncTest {
     val modelLineId = "modelLine1"
     val edpPath = "edp/edpa_edp"
     for (date in listOf("2026-03-13", "2026-03-14", "2026-03-15")) {
-      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
-      File(tempFolder.root, donePath).parentFile.mkdirs()
-      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
       val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+      File(tempFolder.root, dataPath).parentFile.mkdirs()
       storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
     }
 
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
@@ -1170,12 +1185,19 @@ class DataAvailabilitySyncTest {
 
       metricsEnv.metricReader.forceFlush()
       val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
-      val metricByName = metricData.associateBy { it.name }
 
-      // No gap, incomplete, or missing done blob metrics should be emitted
-      assertThat(metricByName).doesNotContainKey(GAPS_METRIC)
-      assertThat(metricByName).doesNotContainKey(ZERO_IMPRESSION_DATES_METRIC)
-      assertThat(metricByName).doesNotContainKey(DATES_WITHOUT_DONE_BLOB_METRIC)
+      assertThat(getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_HEALTHY))
+        .isEqualTo(3)
+      assertThat(getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_GAP))
+        .isNull()
+      assertThat(
+          getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_ZERO_IMPRESSION)
+        )
+        .isNull()
+      assertThat(
+          getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_WITHOUT_DONE_BLOB)
+        )
+        .isNull()
     } finally {
       metricsEnv.close()
     }
@@ -1190,11 +1212,11 @@ class DataAvailabilitySyncTest {
     val modelLineId = "modelLine1"
     val edpPath = "edp/edpa_edp"
     for (date in listOf("2026-03-13", "2026-03-15")) {
-      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
-      File(tempFolder.root, donePath).parentFile.mkdirs()
-      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
       val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+      File(tempFolder.root, dataPath).parentFile.mkdirs()
       storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
     }
 
     // Seed metadata in the sync trigger folder
@@ -1236,11 +1258,11 @@ class DataAvailabilitySyncTest {
     val modelLineId = "modelLine1"
     val edpPath = "edp/edpa_edp"
     for (date in listOf("2026-03-13", "2026-03-14", "2026-03-15")) {
-      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
-      File(tempFolder.root, donePath).parentFile.mkdirs()
-      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
       val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+      File(tempFolder.root, dataPath).parentFile.mkdirs()
       storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
     }
 
     // Seed metadata in the sync trigger folder
@@ -1275,11 +1297,11 @@ class DataAvailabilitySyncTest {
       val modelLineId = "modelLine1"
       val edpPath = "edp/edpa_edp"
       for (date in listOf("2026-03-13", "2026-03-15")) {
-        val donePath = "$edpPath/model-line/$modelLineId/$date/done"
-        File(tempFolder.root, donePath).parentFile.mkdirs()
-        storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
         val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+        File(tempFolder.root, dataPath).parentFile.mkdirs()
         storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+        val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+        storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
       }
 
       seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
@@ -1305,16 +1327,14 @@ class DataAvailabilitySyncTest {
 
         metricsEnv.metricReader.forceFlush()
         val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
-        val metricByName = metricData.associateBy { it.name }
 
         // Should record success (not failure) since errorIfGapsExist=false prevents the throw
         val durationPoint =
-          metricByName.getValue(SYNC_DURATION_METRIC).histogramData.points.single()
+          metricData.associateBy { it.name }.getValue(SYNC_DURATION_METRIC).histogramData.points.single()
         assertThat(durationPoint.attributes.get(syncStatusAttributeKey)).isEqualTo("success")
 
         // Gap metrics should still be emitted
-        assertThat(metricByName).containsKey(GAPS_METRIC)
-        assertThat(metricByName.getValue(GAPS_METRIC).longSumData.points.single().value)
+        assertThat(getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_GAP))
           .isEqualTo(1)
       } finally {
         metricsEnv.close()
@@ -1381,8 +1401,8 @@ class DataAvailabilitySyncTest {
     val donePrefix = if (edpImpressionPath.isEmpty()) "" else "$edpImpressionPath/"
     val donePath = "${donePrefix}model-line/modelLine1/2026-03-15/done"
     val dataPath = "${donePrefix}model-line/modelLine1/2026-03-15/data_campaign_1"
-    storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
     storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+    storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
 
     return written
   }
@@ -1440,8 +1460,8 @@ class DataAvailabilitySyncTest {
     val modelLineId = modelLine.substringAfterLast("/")
     val donePath = "$edpImpressionPath/model-line/$modelLineId/2026-03-15/done"
     val dataPath = "$edpImpressionPath/model-line/$modelLineId/2026-03-15/data_campaign_1"
-    storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
     storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+    storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
   }
 
   private fun BlobDetails.serialize(encoding: BlobEncoding): ByteString =
@@ -1503,8 +1523,8 @@ class DataAvailabilitySyncTest {
     val edpImpPath = "edp/edpa_edp"
     val donePath = "$edpImpPath/model-line/modelLine1/2026-03-15/done"
     val dataPath = "$edpImpPath/model-line/modelLine1/2026-03-15/data_campaign_1"
-    storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
     storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+    storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
   }
 
   private class RecordingThrottler : Throttler {

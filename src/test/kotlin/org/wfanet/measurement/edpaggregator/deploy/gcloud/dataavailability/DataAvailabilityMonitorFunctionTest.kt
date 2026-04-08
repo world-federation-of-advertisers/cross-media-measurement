@@ -27,7 +27,6 @@ import java.net.http.HttpResponse
 import java.nio.file.Paths
 import java.time.LocalDate
 import java.time.ZoneId
-import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Rule
@@ -36,7 +35,6 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemStorage
-import org.wfanet.measurement.config.edpaggregator.dataAvailabilityChecks
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilityMonitorConfig
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilityMonitorConfigs
 import org.wfanet.measurement.config.edpaggregator.modelLineConfig
@@ -85,6 +83,18 @@ class DataAvailabilityMonitorFunctionTest {
     storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
   }
 
+  private fun writeDataOnlyDate(
+    storageClient: FileSystemStorageClient,
+    edpPath: String,
+    modelLine: String,
+    date: LocalDate,
+  ): Unit = runBlocking {
+    val dateString = date.toString()
+    val dataPath = "$edpPath/model-line/$modelLine/$dateString/data_campaign_1"
+    File(tempFolder.root, dataPath).parentFile.mkdirs()
+    storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+  }
+
   private fun writeLateArrivingDate(
     storageClient: FileSystemStorageClient,
     edpPath: String,
@@ -131,10 +141,6 @@ class DataAvailabilityMonitorFunctionTest {
     edpPath: String,
     modelLines: List<String> = listOf(MODEL_LINE_RESOURCE_NAME),
     maxStaleDays: Int? = 3,
-    staleness: Boolean = true,
-    gaps: Boolean = true,
-    missingDays: Boolean = true,
-    lateArrivingFiles: Boolean = true,
   ) = dataAvailabilityMonitorConfigs {
     configs += dataAvailabilityMonitorConfig {
       storage = storageParams { fileSystem = fileSystemStorage {} }
@@ -145,12 +151,6 @@ class DataAvailabilityMonitorFunctionTest {
       timeZone = "UTC"
       if (maxStaleDays != null) {
         this.maxStaleDays = maxStaleDays
-      }
-      enabledChecks = dataAvailabilityChecks {
-        this.staleness = staleness
-        this.gaps = gaps
-        this.missingDays = missingDays
-        this.lateArrivingFiles = lateArrivingFiles
       }
     }
   }
@@ -200,7 +200,7 @@ class DataAvailabilityMonitorFunctionTest {
   }
 
   @Test
-  fun `returns 500 when model line has gap and gaps check is enabled`() {
+  fun `returns 500 when model line has gap`() {
     val storageClient = FileSystemStorageClient(tempFolder.root)
     val edpPath = "edp/test/impressions"
     val today = LocalDate.now(ZoneId.of("UTC"))
@@ -208,14 +208,7 @@ class DataAvailabilityMonitorFunctionTest {
     writeCompletedDate(storageClient, edpPath, MODEL_LINE_ID, today.minusDays(2))
     writeCompletedDate(storageClient, edpPath, MODEL_LINE_ID, today)
 
-    val config =
-      createConfig(
-        edpPath = edpPath,
-        staleness = false,
-        gaps = true,
-        missingDays = false,
-        lateArrivingFiles = false,
-      )
+    val config = createConfig(edpPath = edpPath)
     val port = startFunction(TextFormat.printer().printToString(config))
     val response = invokeFunction(port)
 
@@ -224,45 +217,30 @@ class DataAvailabilityMonitorFunctionTest {
   }
 
   @Test
-  fun `returns 200 when model line has gap but gaps check is disabled`() {
+  fun `returns 500 when date folder is missing done blob`() {
     val storageClient = FileSystemStorageClient(tempFolder.root)
     val edpPath = "edp/test/impressions"
     val today = LocalDate.now(ZoneId.of("UTC"))
 
-    writeCompletedDate(storageClient, edpPath, MODEL_LINE_ID, today.minusDays(2))
-    writeCompletedDate(storageClient, edpPath, MODEL_LINE_ID, today)
+    writeDataOnlyDate(storageClient, edpPath, MODEL_LINE_ID, today)
 
-    val config =
-      createConfig(
-        edpPath = edpPath,
-        staleness = false,
-        gaps = false,
-        missingDays = false,
-        lateArrivingFiles = false,
-      )
+    val config = createConfig(edpPath = edpPath)
     val port = startFunction(TextFormat.printer().printToString(config))
     val response = invokeFunction(port)
 
-    assertThat(response.statusCode()).isEqualTo(200)
-    assertThat(response.body()).contains("healthy")
+    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.body()).contains("issues detected")
   }
 
   @Test
-  fun `returns 500 when missing days check is enabled`() {
+  fun `returns 500 when done blob has no corresponding data`() {
     val storageClient = FileSystemStorageClient(tempFolder.root)
     val edpPath = "edp/test/impressions"
     val today = LocalDate.now(ZoneId.of("UTC"))
 
     writeDoneOnlyDate(storageClient, edpPath, MODEL_LINE_ID, today)
 
-    val config =
-      createConfig(
-        edpPath = edpPath,
-        staleness = false,
-        gaps = false,
-        missingDays = true,
-        lateArrivingFiles = false,
-      )
+    val config = createConfig(edpPath = edpPath)
     val port = startFunction(TextFormat.printer().printToString(config))
     val response = invokeFunction(port)
 
@@ -271,21 +249,14 @@ class DataAvailabilityMonitorFunctionTest {
   }
 
   @Test
-  fun `returns 500 when late arriving files check is enabled`() {
+  fun `returns 500 when late arriving files are detected`() {
     val storageClient = FileSystemStorageClient(tempFolder.root)
     val edpPath = "edp/test/impressions"
     val today = LocalDate.now(ZoneId.of("UTC"))
 
     writeLateArrivingDate(storageClient, edpPath, MODEL_LINE_ID, today)
 
-    val config =
-      createConfig(
-        edpPath = edpPath,
-        staleness = false,
-        gaps = false,
-        missingDays = false,
-        lateArrivingFiles = true,
-      )
+    val config = createConfig(edpPath = edpPath)
     val port = startFunction(TextFormat.printer().printToString(config))
     val response = invokeFunction(port)
 
@@ -305,10 +276,6 @@ class DataAvailabilityMonitorFunctionTest {
       createConfig(
         edpPath = edpPath,
         maxStaleDays = null,
-        staleness = true,
-        gaps = false,
-        missingDays = false,
-        lateArrivingFiles = false,
       )
     val port = startFunction(TextFormat.printer().printToString(config))
     val response = invokeFunction(port)
@@ -324,10 +291,6 @@ class DataAvailabilityMonitorFunctionTest {
       createConfig(
         edpPath = edpPath,
         modelLines = emptyList(),
-        staleness = true,
-        gaps = true,
-        missingDays = true,
-        lateArrivingFiles = true,
       )
     val port = startFunction(TextFormat.printer().printToString(config))
     val response = invokeFunction(port)
@@ -340,7 +303,6 @@ class DataAvailabilityMonitorFunctionTest {
     private const val MODEL_LINE_ID = "modelLineA"
     private const val MODEL_LINE_RESOURCE_NAME =
       "modelProviders/provider1/modelSuites/suite1/modelLines/modelLineA"
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     private val FUNCTION_BINARY_PATH =
       Paths.get(

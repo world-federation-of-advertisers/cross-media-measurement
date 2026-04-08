@@ -66,13 +66,13 @@ class ImpressionsWriter(
   private val schema: String = "file:///",
 ) {
 
-  /*
-   * Takes a Flow<DateShardedLabeledImpression<T>>, encrypts that data with a KMS,
-   * and outputs the data to storage along with the necessary metadata for the ResultsFulfiller
-   * to be able to find and read the contents.
+  /**
+   * Takes a sequence of [LabeledEventDateShard]s, encrypts the data with a KMS, and outputs the
+   * data to storage along with the necessary metadata for the ResultsFulfiller to be able to find
+   * and read the contents.
    *
-   * blobModelLine must be a full ModelLine resource name because downstream services validate and
-   * persist the value as such.
+   * @param blobModelLine full ModelLine resource name. Must be a valid resource name because
+   *   downstream services validate and persist the value as such.
    */
   suspend fun <T : Message> writeLabeledImpressionData(
     events: Sequence<LabeledEventDateShard<T>>,

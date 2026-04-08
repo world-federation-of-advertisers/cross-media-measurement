@@ -376,27 +376,43 @@ class DataAvailabilityMonitor(
 
   private fun recordMetrics(status: ModelLineStatus) {
     val modelLineName = status.modelLineKey.toName()
-    val attrs =
+    val baseAttrs =
       Attributes.of(MODEL_LINE_ATTR, modelLineName, EDP_IMPRESSION_PATH_ATTR, edpImpressionPath)
 
     if (status.staleDays != null) {
-      metrics.staleDaysGauge.set(status.staleDays.toLong(), attrs)
+      metrics.staleDaysGauge.set(status.staleDays.toLong(), baseAttrs)
     }
-    if (!status.gapDates.isNullOrEmpty()) {
-      metrics.gapCounter.add(status.gapDates.size.toLong(), attrs)
+
+    fun addDateCount(count: Int, statusValue: String) {
+      if (count > 0) {
+        val attrs =
+          baseAttrs.toBuilder()
+            .put(DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR, statusValue)
+            .build()
+        metrics.dateStatusCounter.add(count.toLong(), attrs)
+      }
     }
-    if (!status.zeroImpressionDates.isNullOrEmpty()) {
-      metrics.zeroImpressionDatesCounter.add(status.zeroImpressionDates.size.toLong(), attrs)
-    }
-    if (!status.datesWithoutDoneBlob.isNullOrEmpty()) {
-      metrics.datesWithoutDoneBlobCounter.add(status.datesWithoutDoneBlob.size.toLong(), attrs)
-    }
-    if (!status.lateArrivingDates.isNullOrEmpty()) {
-      metrics.lateArrivingDatesCounter.add(status.lateArrivingDates.size.toLong(), attrs)
-    }
-    if (!status.healthyDates.isNullOrEmpty()) {
-      metrics.healthyDatesCounter.add(status.healthyDates.size.toLong(), attrs)
-    }
+
+    addDateCount(
+      status.gapDates?.size ?: 0,
+      DataAvailabilityMonitorMetrics.STATUS_GAP,
+    )
+    addDateCount(
+      status.zeroImpressionDates?.size ?: 0,
+      DataAvailabilityMonitorMetrics.STATUS_ZERO_IMPRESSION,
+    )
+    addDateCount(
+      status.datesWithoutDoneBlob?.size ?: 0,
+      DataAvailabilityMonitorMetrics.STATUS_WITHOUT_DONE_BLOB,
+    )
+    addDateCount(
+      status.lateArrivingDates?.size ?: 0,
+      DataAvailabilityMonitorMetrics.STATUS_LATE_ARRIVING,
+    )
+    addDateCount(
+      status.healthyDates?.size ?: 0,
+      DataAvailabilityMonitorMetrics.STATUS_HEALTHY,
+    )
   }
 
   companion object {

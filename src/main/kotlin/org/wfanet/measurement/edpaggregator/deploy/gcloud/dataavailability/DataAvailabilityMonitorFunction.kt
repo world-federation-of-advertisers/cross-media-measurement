@@ -28,7 +28,6 @@ import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
-import org.wfanet.measurement.config.edpaggregator.DataAvailabilityChecks
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilityMonitorConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilityMonitorConfigs
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor
@@ -48,9 +47,6 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  * - **Missing days**: Date folders with a "done" blob but no data files, or date folders without a
  *   "done" blob.
  * - **Late-arriving files**: Data files updated after the "done" blob was written.
- *
- * Which checks are active is controlled by the `enabled_checks` field in each
- * [DataAvailabilityMonitorConfig].
  *
  * Issues are logged at SEVERE level for integration with Cloud Monitoring alerting policies.
  *
@@ -135,26 +131,24 @@ class DataAvailabilityMonitorFunction : HttpFunction {
     val result =
       monitor.checkFullStatus(maxStaleDays = maxStaleDays, clock = { LocalDate.now(timeZone) })
 
-    val checks = config.enabledChecks
-    if (result.statuses.none { hasEnabledIssues(it, checks) }) {
+    if (result.statuses.none { hasIssues(it) }) {
       logger.info("All model lines healthy for path: ${config.edpImpressionPath}")
       return false
     }
 
     for (status in result.statuses) {
-      logStatusIssues(status, checks, config.edpImpressionPath, maxStaleDays)
+      logStatusIssues(status, config.edpImpressionPath, maxStaleDays)
     }
     return true
   }
 
   private fun logStatusIssues(
     status: DataAvailabilityMonitor.ModelLineStatus,
-    checks: DataAvailabilityChecks,
     edpImpressionPath: String,
     maxStaleDays: Int,
   ) {
     val modelLineName = status.modelLineKey.toName()
-    if (checks.staleness && status.isStale == true) {
+    if (status.isStale == true) {
       logger.log(
         Level.SEVERE,
         "ALERT: Model line $modelLineName in $edpImpressionPath " +
@@ -162,28 +156,28 @@ class DataAvailabilityMonitorFunction : HttpFunction {
           "(${status.staleDays} days ago, threshold: $maxStaleDays)",
       )
     }
-    if (checks.gaps && !status.gapDates.isNullOrEmpty()) {
+    if (!status.gapDates.isNullOrEmpty()) {
       logger.log(
         Level.SEVERE,
         "ALERT: Model line $modelLineName in $edpImpressionPath " +
           "has gap dates: ${status.gapDates}",
       )
     }
-    if (checks.missingDays && !status.zeroImpressionDates.isNullOrEmpty()) {
+    if (!status.zeroImpressionDates.isNullOrEmpty()) {
       logger.log(
         Level.SEVERE,
         "ALERT: Model line $modelLineName in $edpImpressionPath " +
           "has zero impression dates (done blob but no data): ${status.zeroImpressionDates}",
       )
     }
-    if (checks.missingDays && !status.datesWithoutDoneBlob.isNullOrEmpty()) {
+    if (!status.datesWithoutDoneBlob.isNullOrEmpty()) {
       logger.log(
         Level.SEVERE,
         "ALERT: Model line $modelLineName in $edpImpressionPath " +
           "has dates without done blob: ${status.datesWithoutDoneBlob}",
       )
     }
-    if (checks.lateArrivingFiles && !status.lateArrivingDates.isNullOrEmpty()) {
+    if (!status.lateArrivingDates.isNullOrEmpty()) {
       logger.log(
         Level.SEVERE,
         "ALERT: Model line $modelLineName in $edpImpressionPath " +
@@ -234,16 +228,11 @@ class DataAvailabilityMonitorFunction : HttpFunction {
       )
     }
 
-    /** Whether [status] has any issues that are enabled in [checks]. */
-    private fun hasEnabledIssues(
-      status: DataAvailabilityMonitor.ModelLineStatus,
-      checks: DataAvailabilityChecks,
-    ): Boolean =
-      (checks.staleness && status.isStale == true) ||
-        (checks.gaps && !status.gapDates.isNullOrEmpty()) ||
-        (checks.missingDays &&
-          (!status.zeroImpressionDates.isNullOrEmpty() ||
-            !status.datesWithoutDoneBlob.isNullOrEmpty())) ||
-        (checks.lateArrivingFiles && !status.lateArrivingDates.isNullOrEmpty())
+    private fun hasIssues(status: DataAvailabilityMonitor.ModelLineStatus): Boolean =
+      status.isStale == true ||
+        !status.gapDates.isNullOrEmpty() ||
+        !status.zeroImpressionDates.isNullOrEmpty() ||
+        !status.datesWithoutDoneBlob.isNullOrEmpty() ||
+        !status.lateArrivingDates.isNullOrEmpty()
   }
 }
