@@ -34,8 +34,13 @@ message VidLabelingConfig {
     (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
   ];
 
-  // The storage used by the TEE app.
-  StorageParams storage_params = 2 [(google.api.field_behavior) = REQUIRED];
+  // Storage for raw impressions read by the TEE app.
+  StorageParams raw_impressions_storage_params = 2
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Storage for VID-labeled impressions written by the TEE app.
+  StorageParams vid_labeled_impressions_storage_params = 9
+      [(google.api.field_behavior) = REQUIRED];
 
   // Connection used by TEE App to access the VID Repo.
   TransportLayerSecurityParams vid_repo_connection = 3
