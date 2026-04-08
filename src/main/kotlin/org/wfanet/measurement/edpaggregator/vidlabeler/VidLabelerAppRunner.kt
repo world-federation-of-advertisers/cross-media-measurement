@@ -229,24 +229,9 @@ class VidLabelerAppRunner : Runnable {
   }
 
   private fun buildKmsClient(kmsConfig: VidLabelingConfig.KmsConfig): KmsClient {
-    return when (kmsConfig.kmsType) {
-      VidLabelingConfig.KmsConfig.KmsType.AWS -> {
-        val credentials =
-          GCloudToAwsWifCredentials(
-            gcloudAudience = kmsConfig.kmsAudience,
-            subjectTokenType = SUBJECT_TOKEN_TYPE,
-            tokenUrl = TOKEN_URL,
-            credentialSourceFilePath = CREDENTIAL_SOURCE_FILE_PATH,
-            serviceAccountImpersonationUrl =
-              EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(kmsConfig.serviceAccount),
-            roleArn = kmsConfig.awsRoleArn,
-            roleSessionName = kmsConfig.awsRoleSessionName,
-            region = kmsConfig.awsRegion,
-            awsAudience = kmsConfig.awsAudience,
-          )
-        GCloudToAwsKmsClientFactory().getKmsClient(credentials)
-      }
-      VidLabelingConfig.KmsConfig.KmsType.GCP -> {
+    return when (kmsConfig.providerCase) {
+      VidLabelingConfig.KmsConfig.ProviderCase.GCP -> {
+        val gcp = kmsConfig.gcp
         val credentials =
           GCloudWifCredentials(
             audience = kmsConfig.kmsAudience,
@@ -254,13 +239,30 @@ class VidLabelerAppRunner : Runnable {
             tokenUrl = TOKEN_URL,
             credentialSourceFilePath = CREDENTIAL_SOURCE_FILE_PATH,
             serviceAccountImpersonationUrl =
-              EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(kmsConfig.serviceAccount),
+              EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(gcp.serviceAccount),
           )
         GCloudKmsClientFactory().getKmsClient(credentials)
       }
-      VidLabelingConfig.KmsConfig.KmsType.KMS_TYPE_UNSPECIFIED,
-      VidLabelingConfig.KmsConfig.KmsType.UNRECOGNIZED ->
-        error("Unsupported KMS type: ${kmsConfig.kmsType}")
+      VidLabelingConfig.KmsConfig.ProviderCase.AWS -> {
+        val aws = kmsConfig.aws
+        val credentials =
+          GCloudToAwsWifCredentials(
+            gcloudAudience = kmsConfig.kmsAudience,
+            subjectTokenType = SUBJECT_TOKEN_TYPE,
+            tokenUrl = TOKEN_URL,
+            credentialSourceFilePath = CREDENTIAL_SOURCE_FILE_PATH,
+            serviceAccountImpersonationUrl =
+              EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(aws.serviceAccount),
+            roleArn = aws.roleArn,
+            roleSessionName = aws.roleSessionName,
+            region = aws.region,
+            awsAudience = aws.audience,
+          )
+        GCloudToAwsKmsClientFactory().getKmsClient(credentials)
+      }
+      VidLabelingConfig.KmsConfig.ProviderCase.PROVIDER_NOT_SET,
+      null ->
+        error("KmsConfig provider must be set")
     }
   }
 
