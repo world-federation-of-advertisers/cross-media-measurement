@@ -132,7 +132,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionMetadataBatch(
   dataProviderResourceId: String,
   batchResourceId: String,
   createRequestId: String,
-) {
+): String {
   val resolvedBatchResourceId = batchResourceId.ifBlank { "batch-${UUID.randomUUID()}" }
   bufferInsertMutation("RawImpressionMetadataBatch") {
     set("DataProviderResourceId").to(dataProviderResourceId)
@@ -145,6 +145,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionMetadataBatch(
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
+  return resolvedBatchResourceId
 }
 
 /** Buffers an update to a [RawImpressionMetadataBatch] row's state. */

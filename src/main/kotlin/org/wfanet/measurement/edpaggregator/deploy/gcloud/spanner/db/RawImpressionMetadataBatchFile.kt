@@ -242,7 +242,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionMetadataBatchFile(
   fileResourceId: String,
   blobUri: String,
   createRequestId: String,
-) {
+): String {
   val resolvedFileResourceId = fileResourceId.ifBlank { "file-${UUID.randomUUID()}" }
   bufferInsertMutation("RawImpressionMetadataBatchFile") {
     set("DataProviderResourceId").to(dataProviderResourceId)
@@ -256,6 +256,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionMetadataBatchFile(
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
+  return resolvedFileResourceId
 }
 
 /** Soft-deletes a [RawImpressionMetadataBatchFile] by setting DeleteTime. */

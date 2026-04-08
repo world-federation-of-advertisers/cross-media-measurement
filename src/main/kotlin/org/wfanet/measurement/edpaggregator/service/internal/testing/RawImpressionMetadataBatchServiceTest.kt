@@ -148,18 +148,17 @@ abstract class RawImpressionMetadataBatchServiceTest {
     }
 
   @Test
-  fun `createRawImpressionMetadataBatch throws INVALID_ARGUMENT if batch_resource_id not set`() =
+  fun `createRawImpressionMetadataBatch auto-generates batchResourceId when not provided`() =
     runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.createRawImpressionMetadataBatch(
-            createRawImpressionMetadataBatchRequest {
-              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-            }
-          )
-        }
+      val response =
+        service.createRawImpressionMetadataBatch(
+          createRawImpressionMetadataBatchRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          }
+        )
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(response.batchResourceId).isNotEmpty()
+      assertThat(response.batchResourceId).startsWith("batch-")
     }
 
   @Test

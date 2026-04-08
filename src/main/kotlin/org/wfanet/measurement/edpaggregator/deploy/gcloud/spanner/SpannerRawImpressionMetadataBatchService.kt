@@ -96,16 +96,17 @@ class SpannerRawImpressionMetadataBatchService(
             txn.rawImpressionMetadataBatchExists(request.dataProviderResourceId, id)
           }
 
-        txn.insertRawImpressionMetadataBatch(
-          batchId,
-          request.dataProviderResourceId,
-          request.batchResourceId,
-          requestId,
-        )
+        val resolvedBatchResourceId =
+          txn.insertRawImpressionMetadataBatch(
+            batchId,
+            request.dataProviderResourceId,
+            request.batchResourceId,
+            requestId,
+          )
 
         rawImpressionMetadataBatch {
           dataProviderResourceId = request.dataProviderResourceId
-          batchResourceId = request.batchResourceId
+          batchResourceId = resolvedBatchResourceId
           state = RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_CREATED
         }
       }

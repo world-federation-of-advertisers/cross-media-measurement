@@ -133,18 +133,19 @@ class SpannerRawImpressionMetadataBatchFileService(
                 id,
               )
             }
-          txn.insertRawImpressionMetadataBatchFile(
-            fileId,
-            request.dataProviderResourceId,
-            batchResult.batchId,
-            request.fileResourceId,
-            request.rawImpressionMetadataBatchFile.blobUri,
-            requestId,
-          )
+          val resolvedFileResourceId =
+            txn.insertRawImpressionMetadataBatchFile(
+              fileId,
+              request.dataProviderResourceId,
+              batchResult.batchId,
+              request.fileResourceId,
+              request.rawImpressionMetadataBatchFile.blobUri,
+              requestId,
+            )
           rawImpressionMetadataBatchFile {
             dataProviderResourceId = request.dataProviderResourceId
             batchResourceId = request.batchResourceId
-            fileResourceId = request.fileResourceId
+            fileResourceId = resolvedFileResourceId
             blobUri = request.rawImpressionMetadataBatchFile.blobUri
           }
         }
@@ -273,18 +274,19 @@ class SpannerRawImpressionMetadataBatchFileService(
                   id,
                 )
               }
-            txn.insertRawImpressionMetadataBatchFile(
-              fileId,
-              request.dataProviderResourceId,
-              batchResult.batchId,
-              subRequest.fileResourceId,
-              blobUri,
-              subRequest.requestId,
-            )
+            val resolvedFileResourceId =
+              txn.insertRawImpressionMetadataBatchFile(
+                fileId,
+                request.dataProviderResourceId,
+                batchResult.batchId,
+                subRequest.fileResourceId,
+                blobUri,
+                subRequest.requestId,
+              )
             resultsByIndex[index] = rawImpressionMetadataBatchFile {
               dataProviderResourceId = request.dataProviderResourceId
               batchResourceId = request.batchResourceId
-              fileResourceId = subRequest.fileResourceId
+              fileResourceId = resolvedFileResourceId
               this.blobUri = blobUri
             }
           }
