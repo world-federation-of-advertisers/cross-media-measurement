@@ -22,7 +22,7 @@ import io.opentelemetry.api.metrics.LongGauge
 import org.wfanet.measurement.common.Instrumentation
 
 /** Encapsulates the OpenTelemetry instruments used by [DataAvailabilityMonitor]. */
-class DataAvailabilityMonitorMetrics {
+object DataAvailabilityMonitorMetrics {
   /**
    * Number of days since the latest upload for a model line.
    *
@@ -52,14 +52,12 @@ class DataAvailabilityMonitorMetrics {
       .setUnit("{date}")
       .build()
 
-  companion object {
-    val DATE_STATUS_ATTR: AttributeKey<String> =
-      AttributeKey.stringKey("edpa.data_availability_monitor.date_status")
+  val DATE_STATUS_ATTR: AttributeKey<String> =
+    AttributeKey.stringKey("edpa.data_availability_monitor.date_status")
 
-    const val STATUS_GAP = "gap"
-    const val STATUS_ZERO_IMPRESSION = "zero_impression"
-    const val STATUS_WITHOUT_DONE_BLOB = "without_done_blob"
-    const val STATUS_LATE_ARRIVING = "late_arriving"
-    const val STATUS_HEALTHY = "healthy"
-  }
+  const val STATUS_GAP = "gap"
+  const val STATUS_ZERO_IMPRESSION = "zero_impression"
+  const val STATUS_WITHOUT_DONE_BLOB = "without_done_blob"
+  const val STATUS_LATE_ARRIVING = "late_arriving"
+  const val STATUS_HEALTHY = "healthy"
 }

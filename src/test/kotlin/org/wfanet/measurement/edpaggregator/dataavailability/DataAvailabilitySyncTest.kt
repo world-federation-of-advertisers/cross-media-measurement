@@ -179,7 +179,6 @@ class DataAvailabilitySyncTest {
 
   private data class MetricsTestEnvironment(
     val metrics: DataAvailabilitySyncMetrics,
-    val monitorMetrics: DataAvailabilityMonitorMetrics,
     val metricExporter: InMemoryMetricExporter,
     val metricReader: PeriodicMetricReader,
     val openTelemetry: OpenTelemetrySdk,
@@ -202,7 +201,6 @@ class DataAvailabilitySyncTest {
     val meter = meterProvider.get("data-availability-sync-test")
     return MetricsTestEnvironment(
       DataAvailabilitySyncMetrics(meter),
-      DataAvailabilityMonitorMetrics(),
       metricExporter,
       metricReader,
       openTelemetry,
@@ -609,7 +607,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           metrics = metricsEnv.metrics,
-          monitorMetrics = metricsEnv.monitorMetrics,
+
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -654,7 +652,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           metrics = metricsEnv.metrics,
-          monitorMetrics = metricsEnv.monitorMetrics,
+
         )
 
       wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
@@ -1123,7 +1121,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           metrics = metricsEnv.metrics,
-          monitorMetrics = metricsEnv.monitorMetrics,
+
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -1177,7 +1175,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           metrics = metricsEnv.metrics,
-          monitorMetrics = metricsEnv.monitorMetrics,
+
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -1318,7 +1316,7 @@ class DataAvailabilitySyncTest {
             modelLineMap = emptyMap(),
             errorIfGapsExist = false,
             metrics = metricsEnv.metrics,
-            monitorMetrics = metricsEnv.monitorMetrics,
+  
           )
 
         dataAvailabilitySync.sync("$bucket/${folderPrefix}done")

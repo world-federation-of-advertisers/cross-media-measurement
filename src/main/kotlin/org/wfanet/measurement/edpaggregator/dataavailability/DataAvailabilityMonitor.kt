@@ -46,13 +46,11 @@ import org.wfanet.measurement.storage.StorageClient
  * @property edpImpressionPath Base path for EDP impressions (e.g.,
  *   "edp/edp1/vid-labeled-impressions").
  * @property activeModelLines Set of model line keys that are expected to upload daily.
- * @property metrics OpenTelemetry instruments for recording monitoring metrics.
  */
 class DataAvailabilityMonitor(
   private val storageClient: StorageClient,
   private val edpImpressionPath: String,
   private val activeModelLines: Set<ModelLineKey>,
-  private val metrics: DataAvailabilityMonitorMetrics = DataAvailabilityMonitorMetrics(),
 ) {
   init {
     require(!edpImpressionPath.startsWith("/")) { "edpImpressionPath cannot start with a slash" }
@@ -380,7 +378,7 @@ class DataAvailabilityMonitor(
       Attributes.of(MODEL_LINE_ATTR, modelLineName, EDP_IMPRESSION_PATH_ATTR, edpImpressionPath)
 
     if (status.staleDays != null) {
-      metrics.staleDaysGauge.set(status.staleDays.toLong(), baseAttrs)
+      DataAvailabilityMonitorMetrics.staleDaysGauge.set(status.staleDays.toLong(), baseAttrs)
     }
 
     fun addDateCount(count: Int, statusValue: String) {
@@ -390,7 +388,7 @@ class DataAvailabilityMonitor(
             .toBuilder()
             .put(DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR, statusValue)
             .build()
-        metrics.dateStatusCounter.add(count.toLong(), attrs)
+        DataAvailabilityMonitorMetrics.dateStatusCounter.add(count.toLong(), attrs)
       }
     }
 
