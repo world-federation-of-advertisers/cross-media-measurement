@@ -598,13 +598,7 @@ class ModelRepositoryTest {
   @Test
   fun `modelLines set-type calls SetModelLineType with valid request`() {
     val args =
-      commonArgs +
-        arrayOf(
-          "model-lines",
-          "set-type",
-          "--name=$MODEL_LINE_NAME",
-          "--type=PROD",
-        )
+      commonArgs + arrayOf("model-lines", "set-type", "--name=$MODEL_LINE_NAME", "--type=PROD")
 
     val output = callCli(args)
 
