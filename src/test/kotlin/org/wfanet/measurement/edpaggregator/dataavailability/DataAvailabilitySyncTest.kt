@@ -607,7 +607,6 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           metrics = metricsEnv.metrics,
-
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -652,7 +651,6 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           metrics = metricsEnv.metrics,
-
         )
 
       wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
@@ -1121,7 +1119,6 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           metrics = metricsEnv.metrics,
-
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -1175,7 +1172,6 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           metrics = metricsEnv.metrics,
-
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -1316,7 +1312,6 @@ class DataAvailabilitySyncTest {
             modelLineMap = emptyMap(),
             errorIfGapsExist = false,
             metrics = metricsEnv.metrics,
-  
           )
 
         dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
