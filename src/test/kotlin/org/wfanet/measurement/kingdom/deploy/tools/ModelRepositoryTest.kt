@@ -76,6 +76,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpcKt
 import org.wfanet.measurement.api.v2alpha.SetModelLineActiveEndTimeRequest
+import org.wfanet.measurement.api.v2alpha.SetModelLineTypeRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
@@ -99,6 +100,7 @@ import org.wfanet.measurement.api.v2alpha.listPopulationsPageToken
 import org.wfanet.measurement.api.v2alpha.listPopulationsRequest
 import org.wfanet.measurement.api.v2alpha.listPopulationsResponse
 import org.wfanet.measurement.api.v2alpha.modelLine
+import org.wfanet.measurement.api.v2alpha.setModelLineTypeRequest
 import org.wfanet.measurement.api.v2alpha.modelProvider
 import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelRollout
@@ -175,6 +177,8 @@ class ModelRepositoryTest {
     onBlocking { createModelLine(any()) }.thenReturn(MODEL_LINE)
     onBlocking { setModelLineActiveEndTime(any()) }
       .thenReturn(MODEL_LINE.copy { activeEndTime = Timestamps.parse(ACTIVE_END_TIME_2) })
+    onBlocking { setModelLineType(any()) }
+      .thenReturn(MODEL_LINE.copy { type = ModelLine.Type.PROD })
     onBlocking { getModelLine(any()) }.thenReturn(MODEL_LINE)
     onBlocking { listModelLines(any()) }
       .thenReturn(
@@ -589,6 +593,34 @@ class ModelRepositoryTest {
       )
     assertThat(parseTextProto(output.reader(), ModelLine.getDefaultInstance()))
       .isEqualTo(MODEL_LINE.copy { activeEndTime = Timestamps.parse(ACTIVE_END_TIME_2) })
+  }
+
+  @Test
+  fun `modelLines set-type calls SetModelLineType with valid request`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-lines",
+          "set-type",
+          "--name=$MODEL_LINE_NAME",
+          "--type=PROD",
+        )
+
+    val output = callCli(args)
+
+    val request: SetModelLineTypeRequest = captureFirst {
+      runBlocking { verify(modelLinesServiceMock).setModelLineType(capture()) }
+    }
+
+    assertThat(request)
+      .isEqualTo(
+        setModelLineTypeRequest {
+          name = MODEL_LINE_NAME
+          type = ModelLine.Type.PROD
+        }
+      )
+    assertThat(parseTextProto(output.reader(), ModelLine.getDefaultInstance()))
+      .isEqualTo(MODEL_LINE.copy { type = ModelLine.Type.PROD })
   }
 
   private val commonArgs: Array<String>
