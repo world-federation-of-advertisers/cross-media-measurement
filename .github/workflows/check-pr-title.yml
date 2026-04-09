@@ -24,19 +24,19 @@ jobs:
   check-pr-title:
     runs-on: ubuntu-22.04
     steps:
+      - name: Set up commitlint
+        run: |
+          npm install -D @commitlint/cli@20.5.1 @commitlint/config-conventional@20.5.1
+          echo "export default { extends: ['@commitlint/config-conventional'] };" > commitlint.config.js
+          echo '{"type": "module"}' > package.json
+          git --version
+          node --version
+          npm --version
+          npx commitlint --version
+
       - name: Check PR title
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           echo "Checking PR title: $PR_TITLE"
-
-          # Adapted regex from: https://docs.github.com/en/enterprise-cloud@latest/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/creating-rulesets-for-a-repository#enforce-conventional-commits
-          REGEX='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([[:alnum:]._-]+\))?(!)?: .+$'
-
-          if [[ ! "$PR_TITLE" =~ $REGEX ]]; then
-            echo "Error: PR title must follow Conventional Commits:"
-            echo "    ${REGEX}"
-            echo "Example:"
-            echo "    feat: Log exception info when BasicReport post-processing failed"
-            exit 1
-          fi
+          echo "${PR_TITLE}" | npx commitlint
