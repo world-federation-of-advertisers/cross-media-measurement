@@ -135,8 +135,7 @@ class SpannerRawImpressionMetadataBatchFileService(
                 id,
               )
             }
-          val resolvedFileResourceId: String =
-            "file-${UUID.randomUUID()}"
+          val resolvedFileResourceId: String = "file-${UUID.randomUUID()}"
           txn.insertRawImpressionMetadataBatchFile(
             fileId,
             request.dataProviderResourceId,
@@ -274,8 +273,7 @@ class SpannerRawImpressionMetadataBatchFileService(
                   id,
                 )
               }
-            val resolvedFileResourceId: String =
-              "file-${UUID.randomUUID()}"
+            val resolvedFileResourceId: String = "file-${UUID.randomUUID()}"
             txn.insertRawImpressionMetadataBatchFile(
               fileId,
               request.dataProviderResourceId,

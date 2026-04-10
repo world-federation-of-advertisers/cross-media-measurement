@@ -94,8 +94,7 @@ class SpannerRawImpressionMetadataBatchService(
             txn.rawImpressionMetadataBatchExists(request.dataProviderResourceId, id)
           }
 
-        val resolvedBatchResourceId: String =
-          "batch-${UUID.randomUUID()}"
+        val resolvedBatchResourceId: String = "batch-${UUID.randomUUID()}"
 
         txn.insertRawImpressionMetadataBatch(
           batchId,

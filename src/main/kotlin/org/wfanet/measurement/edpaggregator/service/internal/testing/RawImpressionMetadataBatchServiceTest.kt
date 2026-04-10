@@ -98,15 +98,12 @@ abstract class RawImpressionMetadataBatchServiceTest {
     assertThat(batch2).isEqualTo(batch1)
   }
 
-
   @Test
   fun `createRawImpressionMetadataBatch throws INVALID_ARGUMENT if data_provider_resource_id not set`() =
     runBlocking {
       val exception: StatusRuntimeException =
         assertFailsWith<StatusRuntimeException> {
-          service.createRawImpressionMetadataBatch(
-            createRawImpressionMetadataBatchRequest {}
-          )
+          service.createRawImpressionMetadataBatch(createRawImpressionMetadataBatchRequest {})
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -183,14 +180,10 @@ abstract class RawImpressionMetadataBatchServiceTest {
   @Test
   fun `listRawImpressionMetadataBatches returns batches`() = runBlocking {
     service.createRawImpressionMetadataBatch(
-      createRawImpressionMetadataBatchRequest {
-        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-      }
+      createRawImpressionMetadataBatchRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
     )
     service.createRawImpressionMetadataBatch(
-      createRawImpressionMetadataBatchRequest {
-        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-      }
+      createRawImpressionMetadataBatchRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
     )
 
     val response: ListRawImpressionMetadataBatchesResponse =
@@ -234,9 +227,7 @@ abstract class RawImpressionMetadataBatchServiceTest {
         }
       )
     service.createRawImpressionMetadataBatch(
-      createRawImpressionMetadataBatchRequest {
-        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-      }
+      createRawImpressionMetadataBatchRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
     )
 
     service.markRawImpressionMetadataBatchProcessed(

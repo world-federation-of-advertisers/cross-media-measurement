@@ -67,7 +67,7 @@ abstract class RawImpressionMetadataBatchFileServiceTest {
   }
 
   private suspend fun createBatch(
-    dataProviderResourceId: String = DATA_PROVIDER_RESOURCE_ID,
+    dataProviderResourceId: String = DATA_PROVIDER_RESOURCE_ID
   ): RawImpressionMetadataBatch {
     return batchService.createRawImpressionMetadataBatch(
       createRawImpressionMetadataBatchRequest {
