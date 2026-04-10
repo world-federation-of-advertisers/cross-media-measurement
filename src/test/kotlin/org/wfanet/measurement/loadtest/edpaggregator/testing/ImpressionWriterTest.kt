@@ -256,11 +256,12 @@ class ImpressionWriterTest {
         ),
       )
 
+    val modelLineName = "modelProviders/provider1/modelSuites/suite1/modelLines/some-model-line"
     val flatBase = "my/flat/base"
     runBlocking {
       impressionWriter.writeLabeledImpressionData(
         events,
-        "some-model-line",
+        modelLineName,
         flatOutputBasePath = flatBase,
       )
     }

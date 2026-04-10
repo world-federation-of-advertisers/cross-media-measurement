@@ -30,12 +30,13 @@ object DataAvailabilityMonitorMetrics {
    * `edpa.data_availability_monitor.edp_impression_path`. The gauge value is the number of days
    * between the current date and the most recent date with a completed upload.
    */
-  val staleDaysGauge: LongGauge =
-    Instrumentation.meter
-      .gaugeBuilder("edpa.data_availability.stale_days")
-      .setDescription("Number of days since the latest upload for a model line")
-      .ofLongs()
-      .build()
+  val staleDaysGauge: LongGauge
+    get() =
+      Instrumentation.meter
+        .gaugeBuilder("edpa.data_availability.stale_days")
+        .setDescription("Number of days since the latest upload for a model line")
+        .ofLongs()
+        .build()
 
   /**
    * Cumulative count of dates by availability status for a model line.
@@ -45,12 +46,13 @@ object DataAvailabilityMonitorMetrics {
    * adds the number of dates found in that check run. Use `rate()` or `increase()` in queries to
    * isolate per-run values.
    */
-  val dateStatusCounter: LongCounter =
-    Instrumentation.meter
-      .counterBuilder("edpa.data_availability.date_count")
-      .setDescription("Number of dates by availability status")
-      .setUnit("{date}")
-      .build()
+  val dateStatusCounter: LongCounter
+    get() =
+      Instrumentation.meter
+        .counterBuilder("edpa.data_availability.date_count")
+        .setDescription("Number of dates by availability status")
+        .setUnit("{date}")
+        .build()
 
   val DATE_STATUS_ATTR: AttributeKey<String> =
     AttributeKey.stringKey("edpa.data_availability_monitor.date_status")
