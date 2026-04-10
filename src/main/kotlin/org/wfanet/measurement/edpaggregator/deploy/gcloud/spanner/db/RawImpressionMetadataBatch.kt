@@ -16,9 +16,9 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Options
+import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
-import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.singleOrNullIfEmpty
@@ -44,7 +44,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionMetadataBatchByResou
   dataProviderResourceId: String,
   batchResourceId: String,
 ): RawImpressionMetadataBatchResult {
-  val sql =
+  val sql: String =
     """
     SELECT
       DataProviderResourceId,
@@ -81,9 +81,9 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingBatchByRequestId(
   dataProviderResourceId: String,
   requestId: String,
 ): RawImpressionMetadataBatchResult? {
-  if (requestId.isBlank()) return null
+  if (requestId.isEmpty()) return null
 
-  val sql =
+  val sql: String =
     """
     SELECT
       DataProviderResourceId,
@@ -132,20 +132,18 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionMetadataBatch(
   dataProviderResourceId: String,
   batchResourceId: String,
   createRequestId: String,
-): String {
-  val resolvedBatchResourceId = batchResourceId.ifBlank { "batch-${UUID.randomUUID()}" }
+) {
   bufferInsertMutation("RawImpressionMetadataBatch") {
     set("DataProviderResourceId").to(dataProviderResourceId)
     set("BatchId").to(batchId)
-    set("BatchResourceId").to(resolvedBatchResourceId)
-    if (createRequestId.isNotBlank()) {
+    set("BatchResourceId").to(batchResourceId)
+    if (createRequestId.isNotEmpty()) {
       set("CreateRequestId").to(createRequestId)
     }
     set("State").to(RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_CREATED)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
-  return resolvedBatchResourceId
 }
 
 /** Buffers an update to a [RawImpressionMetadataBatch] row's state. */
@@ -183,7 +181,7 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionMetadataBatches(
   showDeleted: Boolean,
   after: ListRawImpressionMetadataBatchesPageToken.After? = null,
 ): Flow<RawImpressionMetadataBatchResult> {
-  val sql = buildString {
+  val sql: String = buildString {
     appendLine(
       """
       SELECT
@@ -201,7 +199,8 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionMetadataBatches(
         .trimIndent()
     )
 
-    val conjuncts = mutableListOf("DataProviderResourceId = @dataProviderResourceId")
+    val conjuncts: MutableList<String> =
+      mutableListOf("DataProviderResourceId = @dataProviderResourceId")
 
     if (!showDeleted) {
       conjuncts.add("DeleteTime IS NULL")
@@ -222,7 +221,7 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionMetadataBatches(
     appendLine("LIMIT @limit")
   }
 
-  val query =
+  val query: Statement =
     statement(sql) {
       bind("dataProviderResourceId").to(dataProviderResourceId)
       bind("limit").to(limit.toLong())

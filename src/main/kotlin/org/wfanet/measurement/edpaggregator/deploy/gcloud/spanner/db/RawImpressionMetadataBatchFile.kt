@@ -16,9 +16,9 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Options
+import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
-import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
@@ -46,7 +46,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionMetadataBatchFileByR
   batchResourceId: String,
   fileResourceId: String,
 ): RawImpressionMetadataBatchFileResult {
-  val sql =
+  val sql: String =
     """
     SELECT
       RawImpressionMetadataBatchFile.DataProviderResourceId,
@@ -93,10 +93,10 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingBatchFilesByRequestIds(
   batchId: Long,
   requestIds: List<String>,
 ): Map<String, RawImpressionMetadataBatchFileResult> {
-  val nonEmptyRequestIds = requestIds.filter { it.isNotBlank() }
+  val nonEmptyRequestIds: List<String> = requestIds.filter { it.isNotEmpty() }
   if (nonEmptyRequestIds.isEmpty()) return emptyMap()
 
-  val sql =
+  val sql: String =
     """
     SELECT
       RawImpressionMetadataBatchFile.DataProviderResourceId,
@@ -119,7 +119,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingBatchFilesByRequestIds(
     """
       .trimIndent()
 
-  val query =
+  val query: Statement =
     statement(sql) {
       bind("dataProviderResourceId").to(dataProviderResourceId)
       bind("batchId").to(batchId)
@@ -128,7 +128,8 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingBatchFilesByRequestIds(
 
   return buildMap {
     executeQuery(query, Options.tag("action=findExistingBatchFilesByRequestIds")).collect { row ->
-      val result = buildRawImpressionMetadataBatchFileResult(row)
+      val result: RawImpressionMetadataBatchFileResult =
+        buildRawImpressionMetadataBatchFileResult(row)
       if (!row.isNull("CreateRequestId")) {
         put(row.getString("CreateRequestId"), result)
       }
@@ -143,7 +144,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingBatchFilesByBlobUris(
 ): Map<String, RawImpressionMetadataBatchFileResult> {
   if (blobUris.isEmpty()) return emptyMap()
 
-  val sql =
+  val sql: String =
     """
     SELECT
       RawImpressionMetadataBatchFile.DataProviderResourceId,
@@ -165,7 +166,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingBatchFilesByBlobUris(
     """
       .trimIndent()
 
-  val query =
+  val query: Statement =
     statement(sql) {
       bind("dataProviderResourceId").to(dataProviderResourceId)
       bind("blobUris").toStringArray(blobUris)
@@ -183,7 +184,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getBatchFilesByResourceIds(
   batchResourceId: String,
   fileResourceIds: List<String>,
 ): Map<String, RawImpressionMetadataBatchFileResult> {
-  val sql =
+  val sql: String =
     """
     SELECT
       RawImpressionMetadataBatchFile.DataProviderResourceId,
@@ -206,7 +207,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getBatchFilesByResourceIds(
     """
       .trimIndent()
 
-  val query =
+  val query: Statement =
     statement(sql) {
       bind("dataProviderResourceId").to(dataProviderResourceId)
       bind("batchResourceId").to(batchResourceId)
@@ -215,7 +216,8 @@ suspend fun AsyncDatabaseClient.ReadContext.getBatchFilesByResourceIds(
 
   return buildMap {
     executeQuery(query, Options.tag("action=getBatchFilesByResourceIds")).collect { row ->
-      val result = buildRawImpressionMetadataBatchFileResult(row)
+      val result: RawImpressionMetadataBatchFileResult =
+        buildRawImpressionMetadataBatchFileResult(row)
       put(row.getString("FileResourceId"), result)
     }
   }
@@ -242,21 +244,19 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionMetadataBatchFile(
   fileResourceId: String,
   blobUri: String,
   createRequestId: String,
-): String {
-  val resolvedFileResourceId = fileResourceId.ifBlank { "file-${UUID.randomUUID()}" }
+) {
   bufferInsertMutation("RawImpressionMetadataBatchFile") {
     set("DataProviderResourceId").to(dataProviderResourceId)
     set("BatchId").to(batchId)
     set("FileId").to(fileId)
-    set("FileResourceId").to(resolvedFileResourceId)
-    if (createRequestId.isNotBlank()) {
+    set("FileResourceId").to(fileResourceId)
+    if (createRequestId.isNotEmpty()) {
       set("CreateRequestId").to(createRequestId)
     }
     set("BlobUri").to(blobUri)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
-  return resolvedFileResourceId
 }
 
 /** Soft-deletes a [RawImpressionMetadataBatchFile] by setting DeleteTime. */
@@ -283,7 +283,7 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionMetadataBatchFiles(
   showDeleted: Boolean,
   after: ListRawImpressionMetadataBatchFilesPageToken.After? = null,
 ): Flow<RawImpressionMetadataBatchFileResult> {
-  val sql = buildString {
+  val sql: String = buildString {
     appendLine(
       """
       SELECT
@@ -304,7 +304,7 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionMetadataBatchFiles(
         .trimIndent()
     )
 
-    val conjuncts =
+    val conjuncts: MutableList<String> =
       mutableListOf(
         "RawImpressionMetadataBatchFile.DataProviderResourceId = @dataProviderResourceId",
         "RawImpressionMetadataBatch.BatchResourceId = @batchResourceId",
@@ -339,7 +339,7 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionMetadataBatchFiles(
     appendLine("LIMIT @limit")
   }
 
-  val query =
+  val query: Statement =
     statement(sql) {
       bind("dataProviderResourceId").to(dataProviderResourceId)
       bind("batchResourceId").to(batchResourceId)

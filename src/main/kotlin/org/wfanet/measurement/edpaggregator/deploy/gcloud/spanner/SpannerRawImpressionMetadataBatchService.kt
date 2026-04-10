@@ -20,10 +20,12 @@ import io.grpc.Status
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.generateNewId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RawImpressionMetadataBatchResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findExistingBatchByRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionMetadataBatchByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionMetadataBatch
@@ -39,6 +41,7 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.edpaggregator.CreateRawImpressionMetadataBatchRequest
 import org.wfanet.measurement.internal.edpaggregator.DeleteRawImpressionMetadataBatchRequest
 import org.wfanet.measurement.internal.edpaggregator.GetRawImpressionMetadataBatchRequest
+import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionMetadataBatchesPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionMetadataBatchesPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionMetadataBatchesRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionMetadataBatchesResponse
@@ -65,7 +68,7 @@ class SpannerRawImpressionMetadataBatchService(
       throw RequiredFieldNotSetException("data_provider_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    val requestId = request.requestId
+    val requestId: String = request.requestId
     if (requestId.isNotEmpty()) {
       try {
         UUID.fromString(requestId)
@@ -80,29 +83,26 @@ class SpannerRawImpressionMetadataBatchService(
 
     val result: RawImpressionMetadataBatch =
       transactionRunner.run { txn ->
-        val existing = txn.findExistingBatchByRequestId(request.dataProviderResourceId, requestId)
+        val existing: RawImpressionMetadataBatchResult? =
+          txn.findExistingBatchByRequestId(request.dataProviderResourceId, requestId)
         if (existing != null) {
-          if (existing.rawImpressionMetadataBatch.batchResourceId != request.batchResourceId) {
-            throw InvalidFieldValueException("request_id") {
-                "request_id already used for a different batch_resource_id"
-              }
-              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-          }
           return@run existing.rawImpressionMetadataBatch
         }
 
-        val batchId =
+        val batchId: Long =
           idGenerator.generateNewId { id ->
             txn.rawImpressionMetadataBatchExists(request.dataProviderResourceId, id)
           }
 
-        val resolvedBatchResourceId =
-          txn.insertRawImpressionMetadataBatch(
-            batchId,
-            request.dataProviderResourceId,
-            request.batchResourceId,
-            requestId,
-          )
+        val resolvedBatchResourceId: String =
+          "batch-${UUID.randomUUID()}"
+
+        txn.insertRawImpressionMetadataBatch(
+          batchId,
+          request.dataProviderResourceId,
+          resolvedBatchResourceId,
+          requestId,
+        )
 
         rawImpressionMetadataBatch {
           dataProviderResourceId = request.dataProviderResourceId
@@ -163,17 +163,18 @@ class SpannerRawImpressionMetadataBatchService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val pageSize =
+    val pageSize: Int =
       if (request.pageSize == 0) {
         DEFAULT_PAGE_SIZE
       } else {
         request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
       }
 
-    val after = if (request.hasPageToken()) request.pageToken.after else null
+    val after: ListRawImpressionMetadataBatchesPageToken.After? =
+      if (request.hasPageToken()) request.pageToken.after else null
 
     databaseClient.singleUse().use { txn ->
-      val batchFlow =
+      val batchFlow: Flow<RawImpressionMetadataBatch> =
         txn
           .readRawImpressionMetadataBatches(
             request.dataProviderResourceId,
@@ -222,10 +223,10 @@ class SpannerRawImpressionMetadataBatchService(
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=deleteRawImpressionMetadataBatch"))
 
-    val deletedBatch =
+    val deletedBatch: RawImpressionMetadataBatch =
       try {
         transactionRunner.run { txn ->
-          val result =
+          val result: RawImpressionMetadataBatchResult =
             txn.getRawImpressionMetadataBatchByResourceId(
               request.dataProviderResourceId,
               request.batchResourceId,
@@ -259,25 +260,41 @@ class SpannerRawImpressionMetadataBatchService(
   override suspend fun markRawImpressionMetadataBatchProcessed(
     request: MarkRawImpressionMetadataBatchProcessedRequest
   ): RawImpressionMetadataBatch {
-    return transitionBatchState(
-      request.dataProviderResourceId,
-      request.batchResourceId,
-      RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_PROCESSED,
-      setOf(RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_CREATED),
-      "markRawImpressionMetadataBatchProcessed",
-    )
+    try {
+      return transitionBatchState(
+        request.dataProviderResourceId,
+        request.batchResourceId,
+        RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_PROCESSED,
+        setOf(RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_CREATED),
+        "markRawImpressionMetadataBatchProcessed",
+      )
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: RawImpressionMetadataBatchNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: RawImpressionMetadataBatchStateInvalidException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
   }
 
   override suspend fun markRawImpressionMetadataBatchFailed(
     request: MarkRawImpressionMetadataBatchFailedRequest
   ): RawImpressionMetadataBatch {
-    return transitionBatchState(
-      request.dataProviderResourceId,
-      request.batchResourceId,
-      RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_FAILED,
-      setOf(RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_CREATED),
-      "markRawImpressionMetadataBatchFailed",
-    )
+    try {
+      return transitionBatchState(
+        request.dataProviderResourceId,
+        request.batchResourceId,
+        RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_FAILED,
+        setOf(RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_CREATED),
+        "markRawImpressionMetadataBatchFailed",
+      )
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: RawImpressionMetadataBatchNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: RawImpressionMetadataBatchStateInvalidException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
   }
 
   private suspend fun transitionBatchState(
@@ -289,46 +306,38 @@ class SpannerRawImpressionMetadataBatchService(
   ): RawImpressionMetadataBatch {
     if (dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("data_provider_resource_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     if (batchResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("batch_resource_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=$action"))
 
-    val updatedBatch =
-      try {
-        transactionRunner.run { txn ->
-          val result =
-            txn.getRawImpressionMetadataBatchByResourceId(dataProviderResourceId, batchResourceId)
+    val updatedBatch: RawImpressionMetadataBatch =
+      transactionRunner.run { txn ->
+        val result: RawImpressionMetadataBatchResult =
+          txn.getRawImpressionMetadataBatchByResourceId(dataProviderResourceId, batchResourceId)
 
-          if (result.rawImpressionMetadataBatch.state !in expectedStates) {
-            throw RawImpressionMetadataBatchStateInvalidException(
-              dataProviderResourceId,
-              batchResourceId,
-              result.rawImpressionMetadataBatch.state,
-              expectedStates,
-            )
-          }
-
-          txn.updateRawImpressionMetadataBatchState(
+        if (result.rawImpressionMetadataBatch.state !in expectedStates) {
+          throw RawImpressionMetadataBatchStateInvalidException(
             dataProviderResourceId,
-            result.batchId,
-            targetState,
+            batchResourceId,
+            result.rawImpressionMetadataBatch.state,
+            expectedStates,
           )
-
-          result.rawImpressionMetadataBatch.copy {
-            state = targetState
-            clearUpdateTime()
-          }
         }
-      } catch (e: RawImpressionMetadataBatchNotFoundException) {
-        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
-      } catch (e: RawImpressionMetadataBatchStateInvalidException) {
-        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+
+        txn.updateRawImpressionMetadataBatchState(
+          dataProviderResourceId,
+          result.batchId,
+          targetState,
+        )
+
+        result.rawImpressionMetadataBatch.copy {
+          state = targetState
+          clearUpdateTime()
+        }
       }
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()

@@ -20,6 +20,7 @@ import io.grpc.Status
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
@@ -48,6 +49,7 @@ import org.wfanet.measurement.internal.edpaggregator.BatchDeleteRawImpressionMet
 import org.wfanet.measurement.internal.edpaggregator.CreateRawImpressionMetadataBatchFileRequest
 import org.wfanet.measurement.internal.edpaggregator.DeleteRawImpressionMetadataBatchFileRequest
 import org.wfanet.measurement.internal.edpaggregator.GetRawImpressionMetadataBatchFileRequest
+import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionMetadataBatchFilesPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionMetadataBatchFilesPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionMetadataBatchFilesRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionMetadataBatchFilesResponse
@@ -85,7 +87,7 @@ class SpannerRawImpressionMetadataBatchFileService(
       throw RequiredFieldNotSetException("raw_impression_metadata_batch_file.blob_uri")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    val requestId = request.requestId
+    val requestId: String = request.requestId
     if (requestId.isNotEmpty()) {
       try {
         UUID.fromString(requestId)
@@ -106,7 +108,7 @@ class SpannerRawImpressionMetadataBatchFileService(
               request.dataProviderResourceId,
               request.batchResourceId,
             )
-          val existingByRequestId =
+          val existingByRequestId: Map<String, RawImpressionMetadataBatchFileResult> =
             txn.findExistingBatchFilesByRequestIds(
               request.dataProviderResourceId,
               batchResult.batchId,
@@ -115,7 +117,7 @@ class SpannerRawImpressionMetadataBatchFileService(
           if (existingByRequestId.containsKey(requestId)) {
             return@run existingByRequestId.getValue(requestId).rawImpressionMetadataBatchFile
           }
-          val existingByBlobUri =
+          val existingByBlobUri: Map<String, RawImpressionMetadataBatchFileResult> =
             txn.findExistingBatchFilesByBlobUris(
               request.dataProviderResourceId,
               listOf(request.rawImpressionMetadataBatchFile.blobUri),
@@ -125,7 +127,7 @@ class SpannerRawImpressionMetadataBatchFileService(
               request.rawImpressionMetadataBatchFile.blobUri
             )
           }
-          val fileId =
+          val fileId: Long =
             idGenerator.generateNewId { id ->
               txn.rawImpressionMetadataBatchFileExists(
                 request.dataProviderResourceId,
@@ -133,15 +135,16 @@ class SpannerRawImpressionMetadataBatchFileService(
                 id,
               )
             }
-          val resolvedFileResourceId =
-            txn.insertRawImpressionMetadataBatchFile(
-              fileId,
-              request.dataProviderResourceId,
-              batchResult.batchId,
-              request.fileResourceId,
-              request.rawImpressionMetadataBatchFile.blobUri,
-              requestId,
-            )
+          val resolvedFileResourceId: String =
+            "file-${UUID.randomUUID()}"
+          txn.insertRawImpressionMetadataBatchFile(
+            fileId,
+            request.dataProviderResourceId,
+            batchResult.batchId,
+            resolvedFileResourceId,
+            request.rawImpressionMetadataBatchFile.blobUri,
+            requestId,
+          )
           rawImpressionMetadataBatchFile {
             dataProviderResourceId = request.dataProviderResourceId
             batchResourceId = request.batchResourceId
@@ -209,11 +212,8 @@ class SpannerRawImpressionMetadataBatchFileService(
           }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
-      if (subRequest.fileResourceId.isEmpty()) {
-        throw RequiredFieldNotSetException("requests.$index.file_resource_id")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-      val subRequestId = subRequest.requestId
+
+      val subRequestId: String = subRequest.requestId
       if (subRequestId.isNotEmpty()) {
         if (!requestIdSet.add(subRequestId)) {
           throw InvalidFieldValueException("requests.$index.request_id") {
@@ -241,13 +241,13 @@ class SpannerRawImpressionMetadataBatchFileService(
               request.dataProviderResourceId,
               request.batchResourceId,
             )
-          val existingByRequestId =
+          val existingByRequestId: Map<String, RawImpressionMetadataBatchFileResult> =
             txn.findExistingBatchFilesByRequestIds(
               request.dataProviderResourceId,
               batchResult.batchId,
               request.requestsList.map { it.requestId },
             )
-          val existingByBlobUri =
+          val existingByBlobUri: Map<String, RawImpressionMetadataBatchFileResult> =
             txn.findExistingBatchFilesByBlobUris(
               request.dataProviderResourceId,
               request.requestsList.map { it.rawImpressionMetadataBatchFile.blobUri },
@@ -262,11 +262,11 @@ class SpannerRawImpressionMetadataBatchFileService(
                 existingByRequestId.getValue(subRequest.requestId).rawImpressionMetadataBatchFile
               return@forEachIndexed
             }
-            val blobUri = subRequest.rawImpressionMetadataBatchFile.blobUri
+            val blobUri: String = subRequest.rawImpressionMetadataBatchFile.blobUri
             if (existingByBlobUri.containsKey(blobUri)) {
               throw RawImpressionMetadataBatchFileAlreadyExistsException(blobUri)
             }
-            val fileId =
+            val fileId: Long =
               idGenerator.generateNewId { id ->
                 txn.rawImpressionMetadataBatchFileExists(
                   request.dataProviderResourceId,
@@ -274,15 +274,16 @@ class SpannerRawImpressionMetadataBatchFileService(
                   id,
                 )
               }
-            val resolvedFileResourceId =
-              txn.insertRawImpressionMetadataBatchFile(
-                fileId,
-                request.dataProviderResourceId,
-                batchResult.batchId,
-                subRequest.fileResourceId,
-                blobUri,
-                subRequest.requestId,
-              )
+            val resolvedFileResourceId: String =
+              "file-${UUID.randomUUID()}"
+            txn.insertRawImpressionMetadataBatchFile(
+              fileId,
+              request.dataProviderResourceId,
+              batchResult.batchId,
+              resolvedFileResourceId,
+              blobUri,
+              subRequest.requestId,
+            )
             resultsByIndex[index] = rawImpressionMetadataBatchFile {
               dataProviderResourceId = request.dataProviderResourceId
               batchResourceId = request.batchResourceId
@@ -360,15 +361,16 @@ class SpannerRawImpressionMetadataBatchFileService(
         }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    val pageSize =
+    val pageSize: Int =
       if (request.pageSize == 0) {
         DEFAULT_PAGE_SIZE
       } else {
         request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
       }
-    val after = if (request.hasPageToken()) request.pageToken.after else null
+    val after: ListRawImpressionMetadataBatchFilesPageToken.After? =
+      if (request.hasPageToken()) request.pageToken.after else null
     databaseClient.singleUse().use { txn ->
-      val fileFlow =
+      val fileFlow: Flow<RawImpressionMetadataBatchFile> =
         txn
           .readRawImpressionMetadataBatchFiles(
             request.dataProviderResourceId,
@@ -426,10 +428,10 @@ class SpannerRawImpressionMetadataBatchFileService(
       databaseClient.readWriteTransaction(
         Options.tag("action=deleteRawImpressionMetadataBatchFile")
       )
-    val deletedFile =
+    val deletedFile: RawImpressionMetadataBatchFile =
       try {
         transactionRunner.run { txn ->
-          val result =
+          val result: RawImpressionMetadataBatchFileResult =
             txn.getRawImpressionMetadataBatchFileByResourceId(
               request.dataProviderResourceId,
               request.batchResourceId,
@@ -468,12 +470,12 @@ class SpannerRawImpressionMetadataBatchFileService(
     if (request.requestsList.isEmpty()) {
       return BatchDeleteRawImpressionMetadataBatchFilesResponse.getDefaultInstance()
     }
-    val dataProviderResourceId = request.requestsList.first().dataProviderResourceId
+    val dataProviderResourceId: String = request.requestsList.first().dataProviderResourceId
     if (dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("requests.0.data_provider_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    val batchResourceId = request.requestsList.first().batchResourceId
+    val batchResourceId: String = request.requestsList.first().batchResourceId
     val fileResourceIdSet = mutableSetOf<String>()
     request.requestsList.forEachIndexed { index, subRequest ->
       if (subRequest.dataProviderResourceId.isEmpty()) {
@@ -497,10 +499,7 @@ class SpannerRawImpressionMetadataBatchFileService(
           }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
-      if (subRequest.fileResourceId.isEmpty()) {
-        throw RequiredFieldNotSetException("requests.$index.file_resource_id")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
+
       if (!fileResourceIdSet.add(subRequest.fileResourceId)) {
         throw InvalidFieldValueException("requests.$index.file_resource_id")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -513,7 +512,7 @@ class SpannerRawImpressionMetadataBatchFileService(
     val deletedList: List<RawImpressionMetadataBatchFile> =
       try {
         transactionRunner.run { txn ->
-          val existingByResourceId =
+          val existingByResourceId: Map<String, RawImpressionMetadataBatchFileResult> =
             txn.getBatchFilesByResourceIds(
               dataProviderResourceId,
               batchResourceId,
