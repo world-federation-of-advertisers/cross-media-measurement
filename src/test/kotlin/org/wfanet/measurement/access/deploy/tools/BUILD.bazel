@@ -2,7 +2,10 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 filegroup(
     name = "textproto_files",
-    srcs = glob(["*.textproto"]),
+    srcs = glob(
+        ["*.textproto"],
+        allow_empty = True,
+    ),
 )
 
 kt_jvm_test(
