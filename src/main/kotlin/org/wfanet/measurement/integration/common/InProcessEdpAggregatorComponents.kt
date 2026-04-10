@@ -121,6 +121,7 @@ class InProcessEdpAggregatorComponents(
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val externalKmsClient: FakeKmsClient,
 ) : TestRule {
+  private val modelLineName: String = requireSingleModelLineName(modelLineInfoMap.keys)
 
   private val storageClient: StorageClient = FileSystemStorageClient(storagePath.toFile())
 
@@ -360,16 +361,15 @@ class InProcessEdpAggregatorComponents(
 
         val eventGroupReferenceId = mappedEventGroup.eventGroupReferenceId
         val eventGroupPath =
-          "model-line/${modelLineInfoMap.keys.first()}/event-group-reference-id/$eventGroupReferenceId"
+          "model-line/$modelLineName/event-group-reference-id/$eventGroupReferenceId"
         val impressionsMetadataBucket = "$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName"
-        val modelLine = modelLineInfoMap.keys.first()
 
         val impressionsMetadata: List<ImpressionMetadata> =
           buildImpressionMetadataForDateRange(
             startInclusive = startDate,
             endExclusive = endExclusive,
             eventGroupPath = eventGroupPath,
-            modelLine = modelLine,
+            modelLine = modelLineName,
             eventGroupReferenceId = eventGroupReferenceId,
             impressionsMetadataBucket = impressionsMetadataBucket,
           )
@@ -520,7 +520,6 @@ class InProcessEdpAggregatorComponents(
           syntheticPopulationSpec,
           syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
         )
-      val modelLineName = modelLineInfoMap.keys.first()
       val impressionWriter =
         ImpressionsWriter(
           mappedEventGroup.eventGroupReferenceId,
@@ -532,7 +531,7 @@ class InProcessEdpAggregatorComponents(
           storagePath.toFile(),
           "file:///",
         )
-      impressionWriter.writeLabeledImpressionData(events, "some-model-line", null)
+      impressionWriter.writeLabeledImpressionData(events, modelLineName, null)
     }
   }
 
@@ -550,6 +549,14 @@ class InProcessEdpAggregatorComponents(
   }
 
   companion object {
+    internal fun requireSingleModelLineName(modelLineNames: Set<String>): String {
+      require(modelLineNames.size == 1) {
+        "InProcessEdpAggregatorComponents supports exactly one model line, found: " +
+          modelLineNames.sorted()
+      }
+      return modelLineNames.single()
+    }
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val BLOB_TYPE_URL =
       "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
