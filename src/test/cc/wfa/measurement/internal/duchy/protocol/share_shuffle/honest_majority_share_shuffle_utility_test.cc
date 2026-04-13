@@ -120,6 +120,10 @@ class ShufflePhaseTestData {
     request_.set_order(order);
   }
 
+  void SetNoiseMechanism(NoiseMechanism noise_mechanism) {
+    request_.set_noise_mechanism(noise_mechanism);
+  }
+
   void SetFrequencyVectorParams(int register_count,
                                 int maximum_combined_frequency,
                                 int ring_modulus) {
@@ -145,6 +149,7 @@ class ShufflePhaseTestData {
   void ClearDifferentialPrivacyParams() {
     request_.clear_reach_dp_params();
     request_.clear_frequency_dp_params();
+    request_.set_noise_mechanism(NoiseMechanism::NONE);
   }
 
   void AddSeedToFrequencyVectorShares(const std::string& seed) {
@@ -247,6 +252,59 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   EXPECT_THAT(test_data.RunReachAndFrequencyShufflePhase().status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
+}
+
+TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
+     NoiseMechanismNoneWithBothDpParamsFails) {
+  ShufflePhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::NONE);
+  test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
+  std::vector<uint32_t> share_data(kRegisterCount, 1);
+  test_data.AddShareToFrequencyVectorShares(share_data);
+  EXPECT_THAT(
+      test_data.RunReachAndFrequencyShufflePhase().status(),
+      StatusIs(absl::StatusCode::kInvalidArgument, "must not be set"));
+}
+
+TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
+     NoiseMechanismNoneWithOnlyReachDpParamsFails) {
+  ShufflePhaseTestData test_data;
+  test_data.ClearDifferentialPrivacyParams();
+  test_data.SetNoiseMechanism(NoiseMechanism::NONE);
+  test_data.SetReachOnlyDifferentialPrivacyParams(kEpsilon, kDelta);
+  test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
+  std::vector<uint32_t> share_data(kRegisterCount, 1);
+  test_data.AddShareToFrequencyVectorShares(share_data);
+  EXPECT_THAT(
+      test_data.RunReachAndFrequencyShufflePhase().status(),
+      StatusIs(absl::StatusCode::kInvalidArgument, "must not be set"));
+}
+
+TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
+     NoiseMechanismNotNoneWithoutDpParamsFails) {
+  ShufflePhaseTestData test_data;
+  test_data.ClearDifferentialPrivacyParams();
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
+  std::vector<uint32_t> share_data(kRegisterCount, 1);
+  test_data.AddShareToFrequencyVectorShares(share_data);
+  EXPECT_THAT(
+      test_data.RunReachAndFrequencyShufflePhase().status(),
+      StatusIs(absl::StatusCode::kInvalidArgument, "required"));
+}
+
+TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
+     NoiseMechanismNotNoneWithOnlyReachDpParamsFails) {
+  ShufflePhaseTestData test_data;
+  test_data.ClearDifferentialPrivacyParams();
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetReachOnlyDifferentialPrivacyParams(kEpsilon, kDelta);
+  test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
+  std::vector<uint32_t> share_data(kRegisterCount, 1);
+  test_data.AddShareToFrequencyVectorShares(share_data);
+  EXPECT_THAT(
+      test_data.RunReachAndFrequencyShufflePhase().status(),
+      StatusIs(absl::StatusCode::kInvalidArgument, "required"));
 }
 
 TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
@@ -676,6 +734,31 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator, EmptyFrequencyVectorSharesFails) {
 }
 
 TEST(ReachOnlyShufflePhaseAtNonAggregator,
+     NoiseMechanismNoneWithReachDpParamsFails) {
+  ShufflePhaseTestData test_data;
+  test_data.ClearDifferentialPrivacyParams();
+  test_data.SetNoiseMechanism(NoiseMechanism::NONE);
+  test_data.SetReachOnlyDifferentialPrivacyParams(kEpsilon, kDelta);
+  test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
+  std::vector<uint32_t> share_data(kRegisterCount, 1);
+  test_data.AddShareToFrequencyVectorShares(share_data);
+  EXPECT_THAT(test_data.RunReachOnlyShufflePhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "must not be set"));
+}
+
+TEST(ReachOnlyShufflePhaseAtNonAggregator,
+     NoiseMechanismNotNoneWithoutReachDpParamsFails) {
+  ShufflePhaseTestData test_data;
+  test_data.ClearDifferentialPrivacyParams();
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
+  std::vector<uint32_t> share_data(kRegisterCount, 1);
+  test_data.AddShareToFrequencyVectorShares(share_data);
+  EXPECT_THAT(test_data.RunReachOnlyShufflePhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "required"));
+}
+
+TEST(ReachOnlyShufflePhaseAtNonAggregator,
      NonAggregatorOrderNotSpecifiedAndDpParamsNotSpecifiedSucceeds) {
   ShufflePhaseTestData test_data;
   test_data.ClearDifferentialPrivacyParams();
@@ -1093,6 +1176,10 @@ class AggregationPhaseTestData {
     request_.set_maximum_frequency(maximum_frequency);
   }
 
+  void SetNoiseMechanism(NoiseMechanism noise_mechanism) {
+    request_.set_noise_mechanism(noise_mechanism);
+  }
+
   void SetFrequencyVectorParams(int register_count,
                                 int maximum_combined_frequency,
                                 int ring_modulus) {
@@ -1106,6 +1193,7 @@ class AggregationPhaseTestData {
   void ClearDifferentialPrivacyParams() {
     request_.clear_reach_dp_params();
     request_.clear_frequency_dp_params();
+    request_.set_noise_mechanism(NoiseMechanism::NONE);
   }
 
   void SetReachOnlyDifferentialPrivacyParams(double eps, double delta) {
@@ -1182,6 +1270,63 @@ TEST(ReachAndFrequencyAggregationPhase,
                                      /*ring_modulus=*/5);
   EXPECT_THAT(test_data.RunReachAndFrequencyAggregationPhase().status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "plus one"));
+}
+
+TEST(ReachAndFrequencyAggregationPhase,
+     NoiseMechanismNoneWithBothDpParamsFails) {
+  AggregationPhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::NONE);
+  std::vector<uint32_t> share_vector_1(kRegisterCount, 0);
+  std::vector<uint32_t> share_vector_2(kRegisterCount, 0);
+  test_data.AddShareToFrequencyVectorShares(share_vector_1);
+  test_data.AddShareToFrequencyVectorShares(share_vector_2);
+  EXPECT_THAT(
+      test_data.RunReachAndFrequencyAggregationPhase().status(),
+      StatusIs(absl::StatusCode::kInvalidArgument, "must not be set"));
+}
+
+TEST(ReachAndFrequencyAggregationPhase,
+     NoiseMechanismNoneWithOnlyReachDpParamsFails) {
+  AggregationPhaseTestData test_data;
+  test_data.ClearDifferentialPrivacyParams();
+  test_data.SetNoiseMechanism(NoiseMechanism::NONE);
+  test_data.SetReachOnlyDifferentialPrivacyParams(kEpsilon, kDelta);
+  std::vector<uint32_t> share_vector_1(kRegisterCount, 0);
+  std::vector<uint32_t> share_vector_2(kRegisterCount, 0);
+  test_data.AddShareToFrequencyVectorShares(share_vector_1);
+  test_data.AddShareToFrequencyVectorShares(share_vector_2);
+  EXPECT_THAT(
+      test_data.RunReachAndFrequencyAggregationPhase().status(),
+      StatusIs(absl::StatusCode::kInvalidArgument, "must not be set"));
+}
+
+TEST(ReachAndFrequencyAggregationPhase,
+     NoiseMechanismNotNoneWithoutDpParamsFails) {
+  AggregationPhaseTestData test_data;
+  test_data.ClearDifferentialPrivacyParams();
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  std::vector<uint32_t> share_vector_1(kRegisterCount, 0);
+  std::vector<uint32_t> share_vector_2(kRegisterCount, 0);
+  test_data.AddShareToFrequencyVectorShares(share_vector_1);
+  test_data.AddShareToFrequencyVectorShares(share_vector_2);
+  EXPECT_THAT(
+      test_data.RunReachAndFrequencyAggregationPhase().status(),
+      StatusIs(absl::StatusCode::kInvalidArgument, "required"));
+}
+
+TEST(ReachAndFrequencyAggregationPhase,
+     NoiseMechanismNotNoneWithOnlyReachDpParamsFails) {
+  AggregationPhaseTestData test_data;
+  test_data.ClearDifferentialPrivacyParams();
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetReachOnlyDifferentialPrivacyParams(kEpsilon, kDelta);
+  std::vector<uint32_t> share_vector_1(kRegisterCount, 0);
+  std::vector<uint32_t> share_vector_2(kRegisterCount, 0);
+  test_data.AddShareToFrequencyVectorShares(share_vector_1);
+  test_data.AddShareToFrequencyVectorShares(share_vector_2);
+  EXPECT_THAT(
+      test_data.RunReachAndFrequencyAggregationPhase().status(),
+      StatusIs(absl::StatusCode::kInvalidArgument, "required"));
 }
 
 TEST(ReachAndFrequencyAggregationPhase,
@@ -1350,6 +1495,32 @@ TEST(ReachOnlyAggregationPhase, InvalidRingModulusAndMaxFrequencyPairFails) {
                                      /*ring_modulus=*/5);
   EXPECT_THAT(test_data.RunReachOnlyAggregationPhase().status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "plus one"));
+}
+
+TEST(ReachOnlyAggregationPhase, NoiseMechanismNoneWithReachDpParamsFails) {
+  AggregationPhaseTestData test_data;
+  test_data.ClearDifferentialPrivacyParams();
+  test_data.SetNoiseMechanism(NoiseMechanism::NONE);
+  test_data.SetReachOnlyDifferentialPrivacyParams(kEpsilon, kDelta);
+  std::vector<uint32_t> share_vector_1(kRegisterCount, 0);
+  std::vector<uint32_t> share_vector_2(kRegisterCount, 0);
+  test_data.AddShareToFrequencyVectorShares(share_vector_1);
+  test_data.AddShareToFrequencyVectorShares(share_vector_2);
+  EXPECT_THAT(test_data.RunReachOnlyAggregationPhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "must not be set"));
+}
+
+TEST(ReachOnlyAggregationPhase,
+     NoiseMechanismNotNoneWithoutReachDpParamsFails) {
+  AggregationPhaseTestData test_data;
+  test_data.ClearDifferentialPrivacyParams();
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  std::vector<uint32_t> share_vector_1(kRegisterCount, 0);
+  std::vector<uint32_t> share_vector_2(kRegisterCount, 0);
+  test_data.AddShareToFrequencyVectorShares(share_vector_1);
+  test_data.AddShareToFrequencyVectorShares(share_vector_2);
+  EXPECT_THAT(test_data.RunReachOnlyAggregationPhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "required"));
 }
 
 TEST(ReachOnlyAggregationPhase, InvalidNumberOfFrequencyVectorSharesFails) {
