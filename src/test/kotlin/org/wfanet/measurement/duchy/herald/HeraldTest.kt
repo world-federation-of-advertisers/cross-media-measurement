@@ -199,6 +199,10 @@ private val PUBLIC_API_REACH_ONLY_MEASUREMENT_SPEC = measurementSpec {
       delta = 1.2
     }
   }
+  vidSamplingInterval = vidSamplingInterval {
+    start = 0.1f
+    width = 0.5f
+  }
   nonceHashes += REACH_ONLY_REQUISITION_1.nonceHash
   nonceHashes += REACH_ONLY_REQUISITION_2.nonceHash
 }

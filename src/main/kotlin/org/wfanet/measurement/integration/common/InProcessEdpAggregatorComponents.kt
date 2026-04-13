@@ -121,7 +121,7 @@ class InProcessEdpAggregatorComponents(
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val externalKmsClient: FakeKmsClient,
 ) : TestRule {
-  private val modelLineName: String = requireSingleModelLineName(modelLineInfoMap.keys)
+  private val modelLineName: String by lazy { requireSingleModelLineName(modelLineInfoMap.keys) }
 
   private val storageClient: StorageClient = FileSystemStorageClient(storagePath.toFile())
 
