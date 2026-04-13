@@ -14,6 +14,7 @@
 
 #include "wfa/measurement/internal/duchy/protocol/common/noise_parameters_computation.h"
 
+#include <memory>
 #include <utility>
 
 #include "absl/log/absl_check.h"
