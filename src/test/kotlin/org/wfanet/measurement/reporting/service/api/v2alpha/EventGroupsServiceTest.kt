@@ -93,8 +93,7 @@ class EventGroupsServiceTest {
           nextPageToken = ""
         }
       )
-    onBlocking { getEventGroup(any()) }
-      .thenReturn(CMMS_EVENT_GROUP)
+    onBlocking { getEventGroup(any()) }.thenReturn(CMMS_EVENT_GROUP)
   }
 
   private val permissionsServiceMock: PermissionsGrpcKt.PermissionsCoroutineImplBase = mockService {
@@ -389,13 +388,7 @@ class EventGroupsServiceTest {
   fun `getEventGroup returns expected EventGroup`() {
     val response =
       withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        runBlocking {
-          service.getEventGroup(
-            getEventGroupRequest {
-              name = EVENT_GROUP.name
-            }
-          )
-        }
+        runBlocking { service.getEventGroup(getEventGroupRequest { name = EVENT_GROUP.name }) }
       }
 
     assertThat(response).isEqualTo(EVENT_GROUP)
@@ -411,13 +404,7 @@ class EventGroupsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-          runBlocking {
-            service.getEventGroup(
-              getEventGroupRequest {
-                name = EVENT_GROUP.name
-              }
-            )
-          }
+          runBlocking { service.getEventGroup(getEventGroupRequest { name = EVENT_GROUP.name }) }
         }
       }
 
