@@ -123,7 +123,7 @@ class DataAvailabilitySyncFunctionTest {
         .thenAnswer { invocation ->
           computeModelLineBoundsResponse {
             modelLineBounds += modelLineBoundMapEntry {
-              key = "some-model-line"
+              key = "modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line"
               value = interval {
                 startTime = timestamp { seconds = 1735689600 } // 2025-01-01T00:00:00Z
                 endTime = timestamp { seconds = 1736467200 } // 2025-01-10T00:00:00Z
@@ -191,7 +191,7 @@ class DataAvailabilitySyncFunctionTest {
     val blobDetails = blobDetails {
       blobUri = localImpressionBlobUri
       eventGroupReferenceId = "reference-id"
-      modelLine = "some-model-line"
+      modelLine = "modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line"
       interval = interval {
         startTime = timestamp { seconds = 1735689600 }
         endTime = timestamp { seconds = 1736467200 }
@@ -228,6 +228,15 @@ class DataAvailabilitySyncFunctionTest {
 
     val url = "http://localhost:$port"
     logger.info("Testing Cloud Function at: $url")
+
+    // Set up model-line date paths for gap monitor (single date = no gaps)
+    val modelLineDatePath = "edp/edp_name/model-line/some-model-line/2025-01-05"
+    File(tempFolder.root, "$modelLineDatePath/").mkdirs()
+    runBlocking {
+      val fsClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      fsClient.writeBlob("$modelLineDatePath/done", emptyFlow())
+      fsClient.writeBlob("$modelLineDatePath/data_file", emptyFlow())
+    }
 
     val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
     runBlocking {
@@ -267,7 +276,7 @@ class DataAvailabilitySyncFunctionTest {
     val blobDetails = blobDetails {
       blobUri = localImpressionBlobUri
       eventGroupReferenceId = "reference-id"
-      modelLine = "some-model-line"
+      modelLine = "modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line"
       interval = interval {
         startTime = timestamp { seconds = 1735689600 }
         endTime = timestamp { seconds = 1736467200 }
@@ -300,6 +309,15 @@ class DataAvailabilitySyncFunctionTest {
           "OTEL_PROPAGATORS" to "tracecontext,baggage",
         )
       )
+    }
+
+    // Set up model-line date paths for gap monitor (single date = no gaps)
+    val modelLineDatePath = "edp/edp_name/model-line/some-model-line/2025-01-05"
+    File(tempFolder.root, "$modelLineDatePath/").mkdirs()
+    runBlocking {
+      val fsClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      fsClient.writeBlob("$modelLineDatePath/done", emptyFlow())
+      fsClient.writeBlob("$modelLineDatePath/data_file", emptyFlow())
     }
 
     val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
@@ -360,7 +378,7 @@ class DataAvailabilitySyncFunctionTest {
     val blobDetails = blobDetails {
       blobUri = localImpressionBlobUri
       eventGroupReferenceId = "reference-id"
-      modelLine = "some-model-line"
+      modelLine = "modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line"
       interval = interval {
         startTime = timestamp { seconds = 1735689600 }
         endTime = timestamp { seconds = 1736467200 }
@@ -404,6 +422,15 @@ class DataAvailabilitySyncFunctionTest {
 
     val url = "http://localhost:$port"
     logger.info("Testing Cloud Function at: $url")
+
+    // Set up model-line date paths for gap monitor (single date = no gaps)
+    val modelLineDatePath = "edp/edp_name/model-line/some-model-line/2025-01-05"
+    File(tempFolder.root, "$modelLineDatePath/").mkdirs()
+    runBlocking {
+      val fsClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      fsClient.writeBlob("$modelLineDatePath/done", emptyFlow())
+      fsClient.writeBlob("$modelLineDatePath/data_file", emptyFlow())
+    }
 
     val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
     runBlocking {
@@ -528,6 +555,103 @@ class DataAvailabilitySyncFunctionTest {
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
   }
 
+  @Test
+  fun `sync returns error when date gaps are detected`() {
+    val modelLineResourceName = "modelProviders/mp1/modelSuites/ms1/modelLines/modelLine1"
+    val modelLineId = "modelLine1"
+    val localImpressionBlobKey = "edp/edp_name/timestamp/impressions"
+    val localImpressionBlobUri = "file:////edp/edp_name/timestamp/impressions"
+    val localMetadataBlobKey = "edp/edp_name/timestamp/metadata.binpb"
+    val localDoneBlobUri = "file:////edp/edp_name/timestamp/done"
+
+    val blobDetails = blobDetails {
+      blobUri = localImpressionBlobUri
+      eventGroupReferenceId = "reference-id"
+      modelLine = modelLineResourceName
+      interval = interval {
+        startTime = timestamp { seconds = 1735689600 }
+        endTime = timestamp { seconds = 1736467200 }
+      }
+    }
+
+    val dataAvailabilitySyncConfig = dataAvailabilitySyncConfig {
+      dataProvider = "dataProviders/edp123"
+      cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      impressionMetadataStorageConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
+      edpImpressionPath = "edp/edp_name"
+      modelLineMap[modelLineResourceName] = modelLineList { modelLines += "some-model-line-mapped" }
+      errorIfGapsExist = true
+    }
+
+    // Write runtime config to the config bucket
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = dataAvailabilitySyncConfigs { configs += dataAvailabilitySyncConfig }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+
+    // Set up model-line date paths with a gap (missing 2026-03-14)
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    for (date in listOf("2026-03-13", "2026-03-15")) {
+      val donePath = "edp/edp_name/model-line/$modelLineId/$date/done"
+      File(tempFolder.root, donePath).parentFile.mkdirs()
+      runBlocking {
+        storageClient.writeBlob(donePath, emptyFlow())
+        storageClient.writeBlob(
+          "edp/edp_name/model-line/$modelLineId/$date/data_campaign_1",
+          emptyFlow(),
+        )
+      }
+    }
+
+    File("${tempFolder.root}/edp/edp_name/timestamp").mkdirs()
+    val port = runBlocking {
+      functionProcess.start(
+        mapOf(
+          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+          "KINGDOM_CERT_HOST" to "localhost",
+          "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
+          "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
+          "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+          "OTEL_METRICS_EXPORTER" to "none",
+          "OTEL_TRACES_EXPORTER" to "none",
+          "OTEL_LOGS_EXPORTER" to "none",
+          "OTEL_PROPAGATORS" to "tracecontext,baggage",
+        )
+      )
+    }
+
+    runBlocking {
+      storageClient.writeBlob(localImpressionBlobKey, emptyFlow())
+      storageClient.writeBlob(localMetadataBlobKey, flowOf(blobDetails.toByteString()))
+    }
+
+    val client = HttpClient.newHttpClient()
+    val request =
+      HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:$port"))
+        .header("X-DataWatcher-Path", localDoneBlobUri)
+        .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
+        .build()
+    val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+    logger.info("Gap detection response status: ${response.statusCode()}")
+    logger.info("Gap detection response body: ${response.body()}")
+
+    assertThat(response.statusCode()).isEqualTo(200)
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
   private fun fileSystemDataAvailabilitySyncConfig(): DataAvailabilitySyncConfig =
     dataAvailabilitySyncConfig {
       dataProvider = "dataProviders/edp123"
@@ -544,7 +668,10 @@ class DataAvailabilitySyncFunctionTest {
       }
       dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
       edpImpressionPath = "edp/edp_name"
-      modelLineMap["some-model-line"] = modelLineList { modelLines += "some-model-line-mapped" }
+      modelLineMap["modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line"] =
+        modelLineList {
+          modelLines += "some-model-line-mapped"
+        }
     }
 
   private fun parseTraceparentTraceId(header: String?): String? {

@@ -26,3 +26,21 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
     ],
 )
+
+kt_jvm_test(
+    name = "DataAvailabilityMonitorFunctionTest",
+    srcs = ["DataAvailabilityMonitorFunctionTest.kt"],
+    data = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability/testing:InvokeDataAvailabilityMonitorFunction",
+    ],
+    test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilityMonitorFunctionTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:data_availability_monitor_function",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/testing",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:data_availability_monitor_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
+    ],
+)
