@@ -16,9 +16,6 @@
 
 package org.wfanet.measurement.integration.common
 
-import com.google.crypto.tink.Aead
-import com.google.crypto.tink.KeyTemplates
-import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
@@ -50,8 +47,9 @@ import kotlinx.coroutines.withContext
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -83,6 +81,7 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValid
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerApp
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerMetrics
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.TrusTeeConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -120,7 +119,9 @@ class InProcessEdpAggregatorComponents(
   private val syntheticPopulationSpec: SyntheticPopulationSpec,
   private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec>,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
+  private val externalKmsClient: FakeKmsClient,
 ) : TestRule {
+  private val modelLineName: String = requireSingleModelLineName(modelLineInfoMap.keys)
 
   private val storageClient: StorageClient = FileSystemStorageClient(storagePath.toFile())
 
@@ -169,12 +170,8 @@ class InProcessEdpAggregatorComponents(
 
   private val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
 
-  private val kmsClient by lazy {
-    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-    val kmsClient = FakeKmsClient()
-    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
-    kmsClient
-  }
+  private val kmsClient: FakeKmsClient
+    get() = externalKmsClient
 
   private lateinit var kmsClients: Map<String, KmsClient>
 
@@ -199,15 +196,21 @@ class InProcessEdpAggregatorComponents(
         WorkItemAttemptsCoroutineStub(secureComputationPublicApi.publicApiChannel),
       queueSubscriber = subscriber,
       kmsClients = kmsClients.toMutableMap(),
+      trusTeeConfigs =
+        kmsClients.mapValues { (_, kmsClient) ->
+          TrusTeeConfig(
+            kmsClient = kmsClient,
+            workloadIdentityProvider = "test-wip",
+            impersonatedServiceAccount = "test-sa@example.com",
+            awsKmsParams = null,
+          )
+        },
       requisitionMetadataStub = requisitionMetadataClient,
       impressionMetadataStub = impressionMetadataClient,
       requisitionStubFactory = requisitionStubFactory,
       getImpressionsMetadataStorageConfig = getStorageConfig,
       getImpressionsStorageConfig = getStorageConfig,
       getRequisitionsStorageConfig = getStorageConfig,
-      trusTeeConfigs =
-        emptyMap(), // TODO(world-federation-of-advertisers/cross-media-measurement#3394): Test
-      // TrusTee protocol in integration tests.
       modelLineInfoMap = modelLineInfoMap,
       metrics = ResultsFulfillerMetrics.create(),
     )
@@ -239,13 +242,13 @@ class InProcessEdpAggregatorComponents(
     kingdomChannel: Channel,
     measurementConsumerData: MeasurementConsumerData,
     edpDisplayNameToResourceMap: Map<String, Resource>,
-    edpAggregatorShortNames: List<String>,
+    edpCapabilities: Map<String, DataProvider.Capabilities>,
     duchyMap: Map<String, Channel>,
   ) = runBlocking {
     publicApiChannel = kingdomChannel
     duchyChannelMap = duchyMap
     edpResourceNameMap =
-      edpAggregatorShortNames.associateWith { edpAggregatorShortName ->
+      edpCapabilities.keys.associateWith { edpAggregatorShortName ->
         edpDisplayNameToResourceMap.getValue(edpAggregatorShortName).name
       }
     edpResourceNameMap.toList().forEach { (edpAggregatorShortName, edpResourceName) ->
@@ -254,7 +257,7 @@ class InProcessEdpAggregatorComponents(
       dataProvidersStub.replaceDataProviderCapabilities(
         replaceDataProviderCapabilitiesRequest {
           name = edpResourceName
-          capabilities = DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true }
+          capabilities = edpCapabilities.getValue(edpAggregatorShortName)
         }
       )
     }
@@ -296,6 +299,8 @@ class InProcessEdpAggregatorComponents(
 
       val eventGroupsClient: EventGroupsCoroutineStub =
         EventGroupsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
+      val clientAccountsClient: ClientAccountsCoroutineStub =
+        ClientAccountsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
       val edpPrivateKey = getDataProviderPrivateEncryptionKey(edpAggregatorShortName)
 
       val requisitionsValidator = RequisitionsValidator(edpPrivateKey)
@@ -330,7 +335,14 @@ class InProcessEdpAggregatorComponents(
       }
       val eventGroups = buildEventGroups(measurementConsumerData)
       eventGroupSync =
-        EventGroupSync(edpResourceName, eventGroupsClient, eventGroups.asFlow(), throttler, 500)
+        EventGroupSync(
+          edpResourceName,
+          eventGroupsClient,
+          clientAccountsClient,
+          eventGroups.asFlow(),
+          throttler,
+          listEventGroupPageSize = 500,
+        )
       val mappedEventGroups: List<MappedEventGroup> = runBlocking { eventGroupSync.sync().toList() }
       logger.info("Received mappedEventGroups: $mappedEventGroups")
       runBlocking { writeImpressionData(mappedEventGroups, edpAggregatorShortName) }
@@ -349,16 +361,15 @@ class InProcessEdpAggregatorComponents(
 
         val eventGroupReferenceId = mappedEventGroup.eventGroupReferenceId
         val eventGroupPath =
-          "model-line/${modelLineInfoMap.keys.first()}/event-group-reference-id/$eventGroupReferenceId"
+          "model-line/$modelLineName/event-group-reference-id/$eventGroupReferenceId"
         val impressionsMetadataBucket = "$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName"
-        val modelLine = modelLineInfoMap.keys.first()
 
         val impressionsMetadata: List<ImpressionMetadata> =
           buildImpressionMetadataForDateRange(
             startInclusive = startDate,
             endExclusive = endExclusive,
             eventGroupPath = eventGroupPath,
-            modelLine = modelLine,
+            modelLine = modelLineName,
             eventGroupReferenceId = eventGroupReferenceId,
             impressionsMetadataBucket = impressionsMetadataBucket,
           )
@@ -509,7 +520,6 @@ class InProcessEdpAggregatorComponents(
           syntheticPopulationSpec,
           syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
         )
-      val modelLineName = modelLineInfoMap.keys.first()
       val impressionWriter =
         ImpressionsWriter(
           mappedEventGroup.eventGroupReferenceId,
@@ -521,7 +531,7 @@ class InProcessEdpAggregatorComponents(
           storagePath.toFile(),
           "file:///",
         )
-      impressionWriter.writeLabeledImpressionData(events, "some-model-line", null)
+      impressionWriter.writeLabeledImpressionData(events, modelLineName, null)
     }
   }
 
@@ -539,6 +549,14 @@ class InProcessEdpAggregatorComponents(
   }
 
   companion object {
+    internal fun requireSingleModelLineName(modelLineNames: Set<String>): String {
+      require(modelLineNames.size == 1) {
+        "InProcessEdpAggregatorComponents supports exactly one model line, found: " +
+          modelLineNames.sorted()
+      }
+      return modelLineNames.single()
+    }
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val BLOB_TYPE_URL =
       "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"

@@ -30,7 +30,9 @@ import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.aws.kms.AwsKmsClientFactory
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.crypto.tink.AwsWebIdentityCredentials
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
@@ -43,6 +45,8 @@ import picocli.CommandLine.Option
 enum class KmsType {
   FAKE,
   GCP,
+  AWS,
+  GCP_TO_AWS,
 }
 
 @Command(
@@ -75,7 +79,7 @@ class GenerateSyntheticData : Runnable {
 
   @Option(
     names = ["--model-line"],
-    description = ["The model line for this campaign."],
+    description = ["The full model line resource name for this campaign."],
     required = true,
   )
   lateinit var modelLine: String
@@ -140,7 +144,55 @@ class GenerateSyntheticData : Runnable {
     description = ["Base path where to store the Impressions files"],
     required = false,
   )
-  lateinit var impressionMetadataBasePath: String
+  var impressionMetadataBasePath: String? = null
+    private set
+
+  @Option(
+    names = ["--flat-output-base-path"],
+    description =
+      [
+        "Optional. When set, outputs files directly under <base-path>/<date>/ without model-line and event-group-reference-id path segments."
+      ],
+    required = false,
+  )
+  var flatOutputBasePath: String? = null
+    private set
+
+  @Option(
+    names = ["--aws-role-arn"],
+    description =
+      ["AWS IAM role ARN for STS AssumeRoleWithWebIdentity. Required when --kms-type=AWS."],
+    required = false,
+    defaultValue = "",
+  )
+  lateinit var awsRoleArn: String
+    private set
+
+  @Option(
+    names = ["--aws-web-identity-token-file"],
+    description = ["AWS web identity token file path. Required when --kms-type=AWS."],
+    required = false,
+    defaultValue = "",
+  )
+  lateinit var awsWebIdentityTokenFile: String
+    private set
+
+  @Option(
+    names = ["--aws-role-session-name"],
+    description = ["AWS STS role session name. Required when --kms-type=AWS."],
+    required = false,
+    defaultValue = "generate-synthetic-data",
+  )
+  lateinit var awsRoleSessionName: String
+    private set
+
+  @Option(
+    names = ["--aws-region"],
+    description = ["AWS region for STS and KMS. Required when --kms-type=AWS."],
+    required = false,
+    defaultValue = "",
+  )
+  lateinit var awsRegion: String
     private set
 
   @kotlin.io.path.ExperimentalPathApi
@@ -175,6 +227,26 @@ class GenerateSyntheticData : Runnable {
         KmsType.GCP -> {
           GcpKmsClient().withDefaultCredentials()
         }
+        KmsType.AWS -> {
+          require(awsRoleArn.isNotEmpty()) { "--aws-role-arn is required when --kms-type=AWS" }
+          require(awsWebIdentityTokenFile.isNotEmpty()) {
+            "--aws-web-identity-token-file is required when --kms-type=AWS"
+          }
+          require(awsRegion.isNotEmpty()) { "--aws-region is required when --kms-type=AWS" }
+          val awsConfig =
+            AwsWebIdentityCredentials(
+              roleArn = awsRoleArn,
+              webIdentityTokenFilePath = awsWebIdentityTokenFile,
+              roleSessionName = awsRoleSessionName,
+              region = awsRegion,
+            )
+          AwsKmsClientFactory().getKmsClient(awsConfig)
+        }
+        KmsType.GCP_TO_AWS -> {
+          throw UnsupportedOperationException(
+            "GCP_TO_AWS is not yet supported in GenerateSyntheticData. Use VerifySyntheticData."
+          )
+        }
       }
     }
     val modelLineName = ModelLineKey.fromName(modelLine)?.modelLineId
@@ -191,7 +263,15 @@ class GenerateSyntheticData : Runnable {
           storagePath,
           schema,
         )
-      impressionWriter.writeLabeledImpressionData(events, modelLine, impressionMetadataBasePath)
+      require(flatOutputBasePath == null || impressionMetadataBasePath == null) {
+        "Cannot specify both --impression-metadata-base-path and --flat-output-base-path; set exactly one or neither"
+      }
+      impressionWriter.writeLabeledImpressionData(
+        events,
+        modelLine,
+        impressionsBasePath = impressionMetadataBasePath,
+        flatOutputBasePath = flatOutputBasePath,
+      )
     }
   }
 

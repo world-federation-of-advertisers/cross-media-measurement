@@ -28,3 +28,12 @@ databaseChangeLog:
   - include:
       file: add-blob-uri-prefix-index.sql
       relativeToChangeLogFile: true
+  - include:
+      file: create-raw-impression-metadata-schema.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: add-raw-impression-fk.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: refactor-raw-impression-schema.sql
+      relativeToChangeLogFile: true

@@ -30,7 +30,7 @@ module "reporting_internal" {
 }
 
 resource "google_project_iam_member" "reporting_internal_metric_writer" {
-  project = data.google_project.project.name
+  project = data.google_project.project.id
   role    = "roles/monitoring.metricWriter"
   member  = module.reporting_internal.iam_service_account.member
 }
@@ -42,13 +42,13 @@ resource "google_sql_user" "reporting_internal" {
 }
 
 resource "google_project_iam_member" "sql_user" {
-  project = data.google_project.project.name
+  project = data.google_project.project.id
   role    = "roles/cloudsql.instanceUser"
   member  = module.reporting_internal.iam_service_account.member
 }
 
 resource "google_project_iam_member" "sql_client" {
-  project = data.google_project.project.name
+  project = data.google_project.project.id
   role    = "roles/cloudsql.client"
   member  = module.reporting_internal.iam_service_account.member
 }
@@ -97,6 +97,5 @@ resource "google_monitoring_dashboard" "dashboards" {
   for_each = toset(var.dashboard_json_files)
 
   dashboard_json = file("${path.module}/${each.value}")
-  project        = data.google_project.project.project_id
 }
 

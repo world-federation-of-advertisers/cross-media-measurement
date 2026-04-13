@@ -109,7 +109,6 @@ package k8s
 	_impressionQualificationFilterConfigFileFlag: "--impression-qualification-filter-config-file=/etc/\(#AppName)/config-files/impression_qualification_filter_config.textproto"
 	_metricSpecConfigFileFlag:                    "--metric-spec-config-file=/etc/\(#AppName)/config-files/metric_spec_config.textproto"
 	_basicReportMetricSpecConfigFileFlag:         "--basic-report-metric-spec-config-file=/etc/\(#AppName)/config-files/basic_report_metric_spec_config.textproto"
-	_knownEventGroupMetadataTypeFlag:             "--known-event-group-metadata-type=/etc/\(#AppName)/config-files/known_event_group_metadata_type_set.pb"
 	_debugVerboseGrpcClientLoggingFlag:           "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
 	_debugVerboseGrpcServerLoggingFlag:           "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
 
@@ -190,7 +189,6 @@ package k8s
 						_encryptionKeyPairConfigFileFlag,
 						_metricSpecConfigFileFlag,
 						_basicReportMetricSpecConfigFileFlag,
-						_knownEventGroupMetadataTypeFlag,
 						"--open-id-providers-config-file=/etc/\(#AppName)/config-files/open_id_providers_config.json",
 						"--require-client-auth=false",
 						"--event-group-metadata-descriptor-cache-duration=1h",

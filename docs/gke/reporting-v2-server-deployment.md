@@ -249,9 +249,6 @@ configuration uses one named `config-files`.
 *   `event_message_descriptor_set.pb`
     *   Serialized Protobuf `FileDescriptorSet` containing Event Message and its
         dependencies.
-*   `known_event_group_metadata_type_set.pb`
-    *   Protobuf `FileDescriptorSet` containing known `EventGroup` metadata
-        types.
 *   `impression_qualification_filter_config.textproto`
     *   [`ImpressionQualificationFilterConfig`](../../src/main/proto/wfa/measurement/config/reporting/impression_qualification_filter_config.proto)
         *   This is unused if the `basic_reports_enabled` variable was set to

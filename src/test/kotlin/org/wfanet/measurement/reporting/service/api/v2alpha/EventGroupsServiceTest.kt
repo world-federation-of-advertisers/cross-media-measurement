@@ -18,32 +18,23 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.Any
 import com.google.type.date
 import com.google.type.interval
 import io.grpc.Deadline
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import java.nio.file.Path
-import java.nio.file.Paths
-import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
-import java.util.concurrent.TimeUnit
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
-import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
-import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.stub
-import org.mockito.kotlin.times
-import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.access.client.v1alpha.Authorization
@@ -56,9 +47,6 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroupKt
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorKey
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt as CmmsEventGroupMetadataKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -70,30 +58,17 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.dateInterval as cmmsDateInterval
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
-import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse as cmmsListEventGroupsResponse
-import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.base64UrlEncode
-import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
-import org.wfanet.measurement.common.crypto.tink.loadPublicKey
-import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
-import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
-import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
-import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
-import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupKt
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequest
@@ -118,17 +93,6 @@ class EventGroupsServiceTest {
       )
   }
 
-  private val cmmsEventGroupMetadataDescriptorsMock:
-    EventGroupMetadataDescriptorsCoroutineImplBase =
-    mockService {
-      onBlocking { listEventGroupMetadataDescriptors(any()) }
-        .thenReturn(
-          listEventGroupMetadataDescriptorsResponse {
-            eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
-          }
-        )
-    }
-
   private val permissionsServiceMock: PermissionsGrpcKt.PermissionsCoroutineImplBase = mockService {
     onBlocking { checkPermissions(any()) } doReturn
       checkPermissionsResponse {
@@ -139,12 +103,10 @@ class EventGroupsServiceTest {
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(cmmsEventGroupsMock)
-    addService(cmmsEventGroupMetadataDescriptorsMock)
     addService(permissionsServiceMock)
   }
 
   private lateinit var authorization: Authorization
-  private lateinit var celEnvCacheProvider: CelEnvCacheProvider
   private lateinit var service: EventGroupsService
   private val fakeTicker = SettableSystemTicker()
 
@@ -153,28 +115,13 @@ class EventGroupsServiceTest {
     authorization =
       Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel))
 
-    celEnvCacheProvider =
-      CelEnvCacheProvider(
-        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
-        EventGroup.getDescriptor(),
-        Duration.ofSeconds(5),
-        emptyList(),
-      )
-
     service =
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
         authorization,
-        celEnvCacheProvider,
         MEASUREMENT_CONSUMER_CONFIGS,
-        ENCRYPTION_KEY_PAIR_STORE,
         ticker = fakeTicker,
       )
-  }
-
-  @After
-  fun closeCelEnvCacheProvider() {
-    celEnvCacheProvider.close()
   }
 
   @Test
@@ -381,94 +328,6 @@ class EventGroupsServiceTest {
   }
 
   @Test
-  fun `listEventGroups returns events groups after multiple calls to CMMS API with legacy filter`() =
-    runBlocking {
-      val testMessage = testMetadataMessage { publisherId = 5 }
-      val cmmsEventGroup2 =
-        CMMS_EVENT_GROUP.copy {
-          encryptedMetadata =
-            encryptMetadata(
-              CmmsEventGroupKt.metadata {
-                eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-                metadata = Any.pack(testMessage)
-              },
-              ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey(),
-            )
-        }
-      whenever(cmmsEventGroupsMock.listEventGroups(any()))
-        .thenReturn(
-          cmmsListEventGroupsResponse {
-            eventGroups += cmmsEventGroup2
-            nextPageToken = "1"
-          }
-        )
-        .thenReturn(
-          cmmsListEventGroupsResponse {
-            eventGroups += CMMS_EVENT_GROUP
-            nextPageToken = "2"
-          }
-        )
-
-      val response =
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-          runBlocking {
-            service.listEventGroups(
-              listEventGroupsRequest {
-                parent = MEASUREMENT_CONSUMER_NAME
-                filter = "metadata.metadata.publisher_id > 5"
-                pageSize = 1
-              }
-            )
-          }
-        }
-
-      assertThat(response.eventGroupsList).containsExactly(EVENT_GROUP)
-      assertThat(response.nextPageToken).isEqualTo("2")
-
-      with(argumentCaptor<CmmsListEventGroupsRequest>()) {
-        verify(cmmsEventGroupsMock, times(2)).listEventGroups(capture())
-        assertThat(allValues[0].pageToken).isEmpty()
-        assertThat(allValues[1].pageToken).isEqualTo("1")
-      }
-    }
-
-  @Test
-  fun `listEventGroups returns no events groups after deadline almost reached with legacy filter`() =
-    runBlocking {
-      whenever(cmmsEventGroupsMock.listEventGroups(any()))
-        .thenReturn(
-          cmmsListEventGroupsResponse {
-            nextPageToken = "1"
-            eventGroups += CMMS_EVENT_GROUP
-          }
-        )
-        .thenReturn(
-          cmmsListEventGroupsResponse {
-            nextPageToken = "2"
-            eventGroups += CMMS_EVENT_GROUP
-          }
-        )
-        .then {
-          // Advance time.
-          fakeTicker.setNanoTime(fakeTicker.nanoTime() + TimeUnit.SECONDS.toNanos(30))
-        }
-      val response =
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-          runBlocking {
-            service.listEventGroups(
-              listEventGroupsRequest {
-                parent = MEASUREMENT_CONSUMER_NAME
-                filter = "metadata.metadata.publisher_id > 100"
-              }
-            )
-          }
-        }
-
-      assertThat(response.eventGroupsList).isEmpty()
-      assertThat(response.nextPageToken).isEqualTo("2")
-    }
-
-  @Test
   fun `listEventGroups returns all event groups as is when no filter`() = runBlocking {
     val response =
       withPrincipalAndScopes(PRINCIPAL, SCOPES) {
@@ -478,161 +337,6 @@ class EventGroupsServiceTest {
       }
 
     assertThat(response.eventGroupsList).containsExactly(EVENT_GROUP, EVENT_GROUP_2).inOrder()
-
-    verifyProtoArgument(cmmsEventGroupsMock, EventGroupsCoroutineImplBase::listEventGroups)
-      .ignoringRepeatedFieldOrder()
-      .isEqualTo(
-        cmmsListEventGroupsRequest {
-          parent = MEASUREMENT_CONSUMER_NAME
-          pageSize = DEFAULT_PAGE_SIZE
-        }
-      )
-  }
-
-  @Test
-  fun `listEventGroups returns only event groups that match legacy filter when filter has metadata`() {
-    val testMessage = testMetadataMessage { publisherId = 5 }
-
-    val cmmsEventGroup2 =
-      CMMS_EVENT_GROUP.copy {
-        encryptedMetadata =
-          encryptMetadata(
-            CmmsEventGroupKt.metadata {
-              eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-              metadata = Any.pack(testMessage)
-            },
-            ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey(),
-          )
-      }
-
-    runBlocking {
-      whenever(cmmsEventGroupsMock.listEventGroups(any()))
-        .thenReturn(
-          cmmsListEventGroupsResponse { eventGroups += listOf(CMMS_EVENT_GROUP, cmmsEventGroup2) }
-        )
-    }
-
-    val response =
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        runBlocking {
-          service.listEventGroups(
-            listEventGroupsRequest {
-              parent = MEASUREMENT_CONSUMER_NAME
-              filter = "metadata.metadata.publisher_id > 5"
-            }
-          )
-        }
-      }
-
-    assertThat(response.eventGroupsList).containsExactly(EVENT_GROUP)
-
-    verifyProtoArgument(cmmsEventGroupsMock, EventGroupsCoroutineImplBase::listEventGroups)
-      .ignoringRepeatedFieldOrder()
-      .isEqualTo(
-        cmmsListEventGroupsRequest {
-          parent = MEASUREMENT_CONSUMER_NAME
-          pageSize = DEFAULT_PAGE_SIZE
-        }
-      )
-  }
-
-  @Test
-  fun `listEventGroups returns only event groups that match legacy filter when filter has metadata using a known type`() {
-    celEnvCacheProvider.close()
-    celEnvCacheProvider =
-      CelEnvCacheProvider(
-        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
-        EventGroup.getDescriptor(),
-        Duration.ofSeconds(5),
-        listOf(TestMetadataMessage.getDescriptor().file),
-      )
-    service =
-      EventGroupsService(
-        EventGroupsCoroutineStub(grpcTestServerRule.channel),
-        authorization,
-        celEnvCacheProvider,
-        MEASUREMENT_CONSUMER_CONFIGS,
-        ENCRYPTION_KEY_PAIR_STORE,
-      )
-    cmmsEventGroupMetadataDescriptorsMock.stub {
-      onBlocking { listEventGroupMetadataDescriptors(any()) }
-        .thenReturn(
-          listEventGroupMetadataDescriptorsResponse {
-            eventGroupMetadataDescriptors +=
-              EVENT_GROUP_METADATA_DESCRIPTOR.copy { clearDescriptorSet() }
-          }
-        )
-    }
-    val testMessage = testMetadataMessage { publisherId = 5 }
-
-    val cmmsEventGroup2 =
-      CMMS_EVENT_GROUP.copy {
-        encryptedMetadata =
-          encryptMetadata(
-            CmmsEventGroupKt.metadata {
-              eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-              metadata = Any.pack(testMessage)
-            },
-            ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey(),
-          )
-      }
-
-    runBlocking {
-      whenever(cmmsEventGroupsMock.listEventGroups(any()))
-        .thenReturn(
-          cmmsListEventGroupsResponse { eventGroups += listOf(CMMS_EVENT_GROUP, cmmsEventGroup2) }
-        )
-    }
-
-    val response =
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        runBlocking {
-          service.listEventGroups(
-            listEventGroupsRequest {
-              parent = MEASUREMENT_CONSUMER_NAME
-              filter = "metadata.metadata.publisher_id > 5"
-            }
-          )
-        }
-      }
-
-    assertThat(response.eventGroupsList).containsExactly(EVENT_GROUP)
-
-    verifyProtoArgument(cmmsEventGroupsMock, EventGroupsCoroutineImplBase::listEventGroups)
-      .ignoringRepeatedFieldOrder()
-      .isEqualTo(
-        cmmsListEventGroupsRequest {
-          parent = MEASUREMENT_CONSUMER_NAME
-          pageSize = DEFAULT_PAGE_SIZE
-        }
-      )
-  }
-
-  @Test
-  fun `listEventGroups returns only event groups that match legacy filter when filter has no metadata`() {
-    val cmmsEventGroup2 =
-      CMMS_EVENT_GROUP.copy { eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID + 2 }
-
-    runBlocking {
-      whenever(cmmsEventGroupsMock.listEventGroups(any()))
-        .thenReturn(
-          cmmsListEventGroupsResponse { eventGroups += listOf(CMMS_EVENT_GROUP, cmmsEventGroup2) }
-        )
-    }
-
-    val response =
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        runBlocking {
-          service.listEventGroups(
-            listEventGroupsRequest {
-              parent = MEASUREMENT_CONSUMER_NAME
-              filter = "event_group_reference_id == \"$EVENT_GROUP_REFERENCE_ID\""
-            }
-          )
-        }
-      }
-
-    assertThat(response.eventGroupsList).containsExactly(EVENT_GROUP)
 
     verifyProtoArgument(cmmsEventGroupsMock, EventGroupsCoroutineImplBase::listEventGroups)
       .ignoringRepeatedFieldOrder()
@@ -858,106 +562,6 @@ class EventGroupsServiceTest {
   }
 
   @Test
-  fun `listEventGroups throws INVALID_ARGUMENT when operator overload in legacy filter doesn't exist`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-          runBlocking {
-            service.listEventGroups(
-              listEventGroupsRequest {
-                parent = MEASUREMENT_CONSUMER_NAME
-                filter = "name > 5"
-              }
-            )
-          }
-        }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("not a valid CEL expression")
-  }
-
-  @Test
-  fun `listEventGroups throws INVALID_ARGUMENT when operator in legacy filter doesn't exist`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-          runBlocking {
-            service.listEventGroups(
-              listEventGroupsRequest {
-                parent = MEASUREMENT_CONSUMER_NAME
-                filter = "name >>> 5"
-              }
-            )
-          }
-        }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("not a valid CEL expression")
-  }
-
-  @Test
-  fun `listEventGroups throws INVALID_ARGUMENT when legacy filter eval doesn't result in boolean`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-          runBlocking {
-            service.listEventGroups(
-              listEventGroupsRequest {
-                parent = MEASUREMENT_CONSUMER_NAME
-                filter = "name"
-              }
-            )
-          }
-        }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("boolean")
-  }
-
-  @Test
-  fun `listEventGroups throws FAILED_PRECONDITION when store doesn't have private key`() {
-    service =
-      EventGroupsService(
-        EventGroupsCoroutineStub(grpcTestServerRule.channel),
-        authorization,
-        celEnvCacheProvider,
-        MEASUREMENT_CONSUMER_CONFIGS,
-        InMemoryEncryptionKeyPairStore(mapOf()),
-      )
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-          runBlocking {
-            service.listEventGroups(listEventGroupsRequest { parent = MEASUREMENT_CONSUMER_NAME })
-          }
-        }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception.message).contains("private key")
-  }
-
-  @Test
-  fun `listEventGroups throws RUNTIME_EXCEPTION when event group doesn't have legacy filter field`() {
-    assertFailsWith<RuntimeException> {
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        runBlocking {
-          service.listEventGroups(
-            listEventGroupsRequest {
-              parent = MEASUREMENT_CONSUMER_NAME
-              filter = "field_that_doesnt_exist == 10"
-            }
-          )
-        }
-      }
-    }
-  }
-
-  @Test
   fun `listEventGroups throws INVALID_ARGUMENT when activity_contains has invalid date`() {
     val request = listEventGroupsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
@@ -1056,34 +660,8 @@ class EventGroupsServiceTest {
     private val PRINCIPAL = principal { name = "principals/${MEASUREMENT_CONSUMER_ID}-user" }
     private val SCOPES = EventGroupsService.LIST_EVENT_GROUPS_PERMISSIONS
 
-    private val SECRET_FILES_PATH: Path =
-      checkNotNull(
-        getRuntimePath(
-          Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
-        )
-      )
-    private val ENCRYPTION_PRIVATE_KEY =
-      loadPrivateKey(SECRET_FILES_PATH.resolve("mc_enc_private.tink").toFile())
-    private val ENCRYPTION_PUBLIC_KEY =
-      loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())
-    private val ENCRYPTION_KEY_PAIR_STORE =
-      InMemoryEncryptionKeyPairStore(
-        mapOf(
-          MEASUREMENT_CONSUMER_NAME to
-            listOf(ENCRYPTION_PUBLIC_KEY.toByteString() to ENCRYPTION_PRIVATE_KEY)
-        )
-      )
-
     private const val DATA_PROVIDER_ID = "1235"
     private val DATA_PROVIDER_NAME = DataProviderKey(DATA_PROVIDER_ID).toName()
-
-    private val TEST_MESSAGE = testMetadataMessage { publisherId = 15 }
-    private val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =
-      EventGroupMetadataDescriptorKey(DATA_PROVIDER_ID, "1236").toName()
-    private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {
-      name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-      descriptorSet = ProtoReflection.buildFileDescriptorSet(TEST_MESSAGE.descriptorForType)
-    }
 
     private const val EVENT_GROUP_REFERENCE_ID = "ref"
     private const val EVENT_GROUP_ID = "1237"
@@ -1092,7 +670,6 @@ class EventGroupsServiceTest {
       name = CMMS_EVENT_GROUP_NAME
       measurementConsumer = MEASUREMENT_CONSUMER_NAME
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
-      measurementConsumerPublicKey = ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey().pack()
       eventTemplates += CmmsEventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
       dataAvailabilityInterval = interval {
         startTime = LocalDate.of(2025, 1, 11).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
@@ -1109,14 +686,6 @@ class EventGroupsServiceTest {
               }
           }
       }
-      encryptedMetadata =
-        encryptMetadata(
-          CmmsEventGroupKt.metadata {
-            eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-            metadata = Any.pack(TEST_MESSAGE)
-          },
-          ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey(),
-        )
       state = CmmsEventGroup.State.ACTIVE
     }
 
@@ -1128,16 +697,7 @@ class EventGroupsServiceTest {
       name = CMMS_EVENT_GROUP_NAME_2
       measurementConsumer = MEASUREMENT_CONSUMER_NAME
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID_2
-      measurementConsumerPublicKey = ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey().pack()
       eventTemplates += CmmsEventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
-      encryptedMetadata =
-        encryptMetadata(
-          CmmsEventGroupKt.metadata {
-            eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-            metadata = Any.pack(TEST_MESSAGE)
-          },
-          ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey(),
-        )
       state = CmmsEventGroup.State.ACTIVE
     }
 
@@ -1162,11 +722,6 @@ class EventGroupsServiceTest {
                 }
             }
         }
-      metadata =
-        EventGroupKt.metadata {
-          eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-          metadata = Any.pack(TEST_MESSAGE)
-        }
     }
 
     private val EVENT_GROUP_2 = eventGroup {
@@ -1175,11 +730,6 @@ class EventGroupsServiceTest {
       cmmsDataProvider = DATA_PROVIDER_NAME
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID_2
       eventTemplates += EventGroupKt.eventTemplate { type = TestEvent.getDescriptor().fullName }
-      metadata =
-        EventGroupKt.metadata {
-          eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-          metadata = Any.pack(TEST_MESSAGE)
-        }
     }
   }
 

@@ -19,6 +19,7 @@ package wfa.measurement.internal.edpaggregator;
 import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/internal/edpaggregator/impression_metadata_state.proto";
+import "wfa/measurement/internal/edpaggregator/raw_impression_metadata_key.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
@@ -45,4 +46,8 @@ message ImpressionMetadata {
 
   // The etag of ImpressionMetadata
   string etag = 11;
+
+  // External key reference to the source RawImpressionMetadata.
+  // Optional; unset when there is no source raw impression.
+  RawImpressionMetadataKey raw_impression_metadata_key = 12;
 }

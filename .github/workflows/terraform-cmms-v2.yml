@@ -65,12 +65,31 @@ jobs:
       DATA_WATCHER_DELETE_CONFIG_CONTENT: ${{ vars.DATA_WATCHER_DELETE_CONFIG_CONTENT }}
       REQUISITION_FETCHER_CONFIG_CONTENT: ${{ vars.REQUISITION_FETCHER_CONFIG_CONTENT }}
       EDPA_EDPS_CONFIG: ${{ vars.EDPA_EDPS_CONFIG }}
+      EVENT_GROUP_SYNC_CONFIG_CONTENT: ${{ vars.EVENT_GROUP_SYNC_CONFIG_CONTENT }}
+      DATA_AVAILABILITY_SYNC_CONFIG_CONTENT: ${{ vars.DATA_AVAILABILITY_SYNC_CONFIG_CONTENT }}
       RESULTS_FULFILLER_POPULATION_SPEC_CONTENT: ${{ vars.RESULTS_FULFILLER_POPULATION_SPEC_CONTENT }}
       RESULTS_FULFILLER_TRUSTED_CA_CONTENT: ${{ secrets.RESULTS_FULFILLER_TRUSTED_CA_CONTENT }}
       EDP_SIMULATOR_NAMES: '["edp1-simulator", "edp2-simulator", "edp3-simulator", "edp4-simulator", "edp5-simulator", "edp6-simulator"]'
 
     steps:
     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+    - name: Compute commit age
+      id: compute-commit-age
+      env:
+        COMMIT_SHA: ${{ github.sha }}
+      run: |
+        commit_ts=$(git show --no-patch --pretty="%ct" "${COMMIT_SHA}")
+        now_ts=$(date -u +%s)
+        days_diff=$(( (now_ts - commit_ts) / 86400 ))
+        echo "commit-age-days=${days_diff}" | tee -a "$GITHUB_OUTPUT"
+
+    - name: Check commit age
+      if: ${{ fromJSON(steps.compute-commit-age.outputs.commit-age-days) > 5 }}
+      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+      with:
+        script: |
+          core.setFailed('This workflow cannot be run from a commit older than 5 days. Commit ${{ github.sha }} was committed ${{ steps.compute-commit-age.outputs.commit-age-days }} days ago')
 
     - name: Write auth.bazelrc
       env:
@@ -114,9 +133,11 @@ jobs:
         echo "$DATA_WATCHER_DELETE_CONFIG_CONTENT" > "$CONFIG_DIR/data-watcher-delete-config.textproto"
         echo "$REQUISITION_FETCHER_CONFIG_CONTENT" > "$CONFIG_DIR/requisition-fetcher-config.textproto"
         echo "$EDPA_EDPS_CONFIG" > "$CONFIG_DIR/event-data-provider-configs.textproto"
+        echo "$EVENT_GROUP_SYNC_CONFIG_CONTENT" > "$CONFIG_DIR/event-group-sync-config.textproto"
+        echo "$DATA_AVAILABILITY_SYNC_CONFIG_CONTENT" > "$CONFIG_DIR/data-availability-sync-config.textproto"
         echo "$RESULTS_FULFILLER_POPULATION_SPEC_CONTENT" > "$CONFIG_DIR/results-fulfiller-population-spec.textproto"
         echo "$RESULTS_FULFILLER_TRUSTED_CA_CONTENT" > "$CONFIG_DIR/results-fulfiller-trusted-root-ca.pem"
-
+        
     - name: Set up Maven GitHub Packages auth
       run: |
         mkdir -p ~/.m2
@@ -245,6 +266,8 @@ jobs:
         DUCHY_WORKER1_TARGET: ${{ vars.WORKER1_PUBLIC_API_TARGET }}
         DUCHY_WORKER2_ID: ${{ vars.WORKER2_DUCHY_ID }}
         DUCHY_WORKER2_TARGET: ${{ vars.WORKER2_PUBLIC_API_TARGET }}
+        DUCHY_AGGREGATOR_ID: ${{ vars.AGGREGATOR_DUCHY_ID }}
+        DUCHY_AGGREGATOR_TARGET: ${{ vars.AGGREGATOR_PUBLIC_API_TARGET }}
         DUCHY_AGGREGATOR_INTERNAL_API_TARGET: ${{ vars.AGGREGATOR_INTERNAL_API_TARGET }}
         KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
         AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
@@ -266,6 +289,8 @@ jobs:
         -var="data_watcher_delete_config_file_path=$CONFIG_DIR/data-watcher-delete-config.textproto"
         -var="requisition_fetcher_config_file_path=$CONFIG_DIR/requisition-fetcher-config.textproto"
         -var="event_data_provider_configs_file_path=$CONFIG_DIR/event-data-provider-configs.textproto"
+        -var="event_group_sync_config_file_path=$CONFIG_DIR/event-group-sync-config.textproto"
+        -var="data_availability_sync_config_file_path=$CONFIG_DIR/data-availability-sync-config.textproto"
         -var="kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         -var="secure_computation_public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"
         -var="metadata_storage_public_api_target=$METADATA_STORAGE_PUBLIC_API_TARGET"
@@ -297,6 +322,8 @@ jobs:
         -var="duchy_worker1_target=$DUCHY_WORKER1_TARGET"
         -var="duchy_worker2_id=$DUCHY_WORKER2_ID"
         -var="duchy_worker2_target=$DUCHY_WORKER2_TARGET"
+        -var="duchy_aggregator_id=$DUCHY_AGGREGATOR_ID"
+        -var="duchy_aggregator_target=$DUCHY_AGGREGATOR_TARGET"
         -var="results_fulfiller_trusted_root_ca_collection_file_path=$CONFIG_DIR/results-fulfiller-trusted-root-ca.pem"
         -var="duchy_aggregator_computations_service_target=$DUCHY_AGGREGATOR_INTERNAL_API_TARGET"
         -var="kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET"

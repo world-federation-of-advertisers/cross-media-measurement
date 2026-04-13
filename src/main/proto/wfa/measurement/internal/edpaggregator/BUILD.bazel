@@ -18,6 +18,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":impression_metadata_state_proto",
+        ":raw_impression_metadata_key_proto",
         "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
@@ -98,10 +99,93 @@ kt_jvm_grpc_proto_library(
     deps = [":requisition_metadata_service_proto"],
 )
 
+proto_library(
+    name = "raw_impression_metadata_key_proto",
+    srcs = ["raw_impression_metadata_key.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "raw_impression_metadata_key_kt_jvm_proto",
+    deps = [":raw_impression_metadata_key_proto"],
+)
+
+proto_library(
+    name = "raw_impression_batch_state_proto",
+    srcs = ["raw_impression_batch_state.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "raw_impression_batch_state_kt_jvm_proto",
+    deps = [":raw_impression_batch_state_proto"],
+)
+
 proto_descriptor_set(
     name = "descriptor_set",
     deps = [
         ":impression_metadata_state_proto",
+        ":raw_impression_batch_state_proto",
         ":requisition_metadata_state_proto",
     ],
+)
+
+proto_library(
+    name = "raw_impression_metadata_batch_proto",
+    srcs = ["raw_impression_metadata_batch.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":raw_impression_batch_state_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "raw_impression_metadata_batch_kt_jvm_proto",
+    deps = [":raw_impression_metadata_batch_proto"],
+)
+
+proto_library(
+    name = "raw_impression_metadata_batch_file_proto",
+    srcs = ["raw_impression_metadata_batch_file.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "raw_impression_metadata_batch_file_kt_jvm_proto",
+    deps = [":raw_impression_metadata_batch_file_proto"],
+)
+
+proto_library(
+    name = "raw_impression_metadata_batch_service_proto",
+    srcs = ["raw_impression_metadata_batch_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":raw_impression_batch_state_proto",
+        ":raw_impression_metadata_batch_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "raw_impression_metadata_batch_service_kt_jvm_grpc_proto",
+    deps = [":raw_impression_metadata_batch_service_proto"],
+)
+
+proto_library(
+    name = "raw_impression_metadata_batch_file_service_proto",
+    srcs = ["raw_impression_metadata_batch_file_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":raw_impression_metadata_batch_file_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "raw_impression_metadata_batch_file_service_kt_jvm_grpc_proto",
+    deps = [":raw_impression_metadata_batch_file_service_proto"],
 )

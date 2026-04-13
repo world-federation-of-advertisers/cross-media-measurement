@@ -15,10 +15,11 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.deploy.
 
 import java.sql.Connection
 import java.sql.Statement
-import org.junit.ClassRule
+import org.junit.AfterClass
+import org.junit.BeforeClass
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.testcontainers.containers.PostgreSQLContainer
+import org.testcontainers.postgresql.PostgreSQLContainer
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.deploy.common.postgres.testing.POSTGRES_LEDGER_SCHEMA_FILE
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.AbstractPrivacyBudgetLedgerStoreTest
@@ -60,8 +61,18 @@ class PostgresBackingStoreTest : AbstractPrivacyBudgetLedgerStoreTest() {
      * TODO(@uakyol): Use [org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule]
      *   instead of referencing TestContainers directly.
      */
-    @get:ClassRule
+    private val postgresContainer = PostgreSQLContainer(POSTGRES_IMAGE_NAME)
+
     @JvmStatic
-    val postgresContainer = PostgreSQLContainer<Nothing>(POSTGRES_IMAGE_NAME)
+    @BeforeClass
+    fun startPostgres() {
+      postgresContainer.start()
+    }
+
+    @JvmStatic
+    @AfterClass
+    fun stopPostgres() {
+      postgresContainer.stop()
+    }
   }
 }

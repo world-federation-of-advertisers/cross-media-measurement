@@ -1,0 +1,49 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Check PR title follows Conventional Commits
+
+on:
+  pull_request:
+    branches:
+      - main
+      - 'releases/**'
+
+permissions:
+  contents: read
+
+jobs:
+  check-pr-title:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up commitlint
+        run: |
+          npm install -D @commitlint/cli@20.5.0 @commitlint/config-conventional@20.5.0
+          echo "export default { extends: ['@commitlint/config-conventional'] };" > commitlint.config.js
+          echo '{"type": "module"}' > package.json
+          git --version
+          node --version
+          npm --version
+          npx commitlint --version
+
+      - name: Check PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo "Checking PR title: $PR_TITLE"
+          echo "${PR_TITLE}" | npx commitlint --config commitlint.config.ts

@@ -22,7 +22,10 @@ import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.internal.reporting.ErrorCode
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 import org.wfanet.measurement.reporting.v2alpha.Metric
 
 object Errors {
@@ -45,6 +48,8 @@ object Errors {
     DATA_PROVIDER_NOT_FOUND_FOR_CAMPAIGN_GROUP,
     /** A reference to a field in an event template is invalid for the Event message type. */
     EVENT_TEMPLATE_FIELD_INVALID,
+    MEASUREMENT_CONSUMER_NOT_FOUND,
+    REPORTING_SET_ALREADY_EXISTS,
   }
 
   enum class Metadata(val key: String) {
@@ -57,7 +62,8 @@ object Errors {
     IMPRESSION_QUALIFICATION_FILTER("impressionQualificationFilter"),
     MODEL_LINE("modelLine"),
     DATA_PROVIDER("dataProvider"),
-    EVENT_TEMPLATE_FIELD_PATH("eventTemplateFieldPath");
+    EVENT_TEMPLATE_FIELD_PATH("eventTemplateFieldPath"),
+    MEASUREMENT_CONSUMER("measurementConsumer");
 
     companion object {
       private val METADATA_BY_KEY by lazy { entries.associateBy { it.key } }
@@ -101,6 +107,22 @@ sealed class ServiceException(
       return fromInternal(InternalErrors.parseMetadata(errorInfo), cause)
     }
   }
+
+  abstract class LegacyFactory<T : ServiceException> {
+    protected abstract val code: ErrorCode
+
+    protected abstract fun fromLegacyInternal(
+      internalMetadata: Map<String, String>,
+      cause: Throwable,
+    ): T
+
+    fun fromLegacyInternal(cause: StatusException): T {
+      val errorInfo = requireNotNull(cause.errorInfo)
+      require(errorInfo.domain == ReportingInternalException.DOMAIN)
+      require(errorInfo.reason == code.name)
+      return fromLegacyInternal(errorInfo.metadataMap, cause)
+    }
+  }
 }
 
 class BasicReportNotFoundException(name: String, cause: Throwable? = null) :
@@ -125,6 +147,29 @@ class ReportingSetNotFoundException(name: String, cause: Throwable? = null) :
     "ReportingSet $name not found",
     mapOf(Errors.Metadata.REPORTING_SET to name),
     cause,
+  ) {
+  companion object : LegacyFactory<ReportingSetNotFoundException>() {
+    override val code: ErrorCode
+      get() = ErrorCode.REPORTING_SET_NOT_FOUND
+
+    override fun fromLegacyInternal(
+      internalMetadata: Map<String, String>,
+      cause: Throwable,
+    ): ReportingSetNotFoundException {
+      val cmmsMeasurementConsumerId = internalMetadata.getValue("cmmsMeasurementConsumerId")
+      val externalReportingSetId = internalMetadata.getValue("externalReportingSetId")
+      val key = ReportingSetKey(cmmsMeasurementConsumerId, externalReportingSetId)
+      return ReportingSetNotFoundException(key.toName(), cause)
+    }
+  }
+}
+
+class ReportingSetAlreadyExistsException(cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.REPORTING_SET_ALREADY_EXISTS,
+    "ReportingSet already exists",
+    emptyMap(),
+    cause,
   )
 
 class MetricNotFoundException(name: String, cause: Throwable? = null) :
@@ -132,6 +177,14 @@ class MetricNotFoundException(name: String, cause: Throwable? = null) :
     Errors.Reason.METRIC_NOT_FOUND,
     "Metric $name not found",
     mapOf(Errors.Metadata.METRIC to name),
+    cause,
+  )
+
+class MeasurementConsumerNotFoundException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
+    "MeasurementConsumer $name not found",
+    mapOf(Errors.Metadata.MEASUREMENT_CONSUMER to name),
     cause,
   )
 

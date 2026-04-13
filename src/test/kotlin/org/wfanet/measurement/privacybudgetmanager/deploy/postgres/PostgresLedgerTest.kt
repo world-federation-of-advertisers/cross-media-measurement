@@ -27,14 +27,15 @@ import java.time.ZoneId
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.AfterClass
 import org.junit.Before
-import org.junit.ClassRule
+import org.junit.BeforeClass
 import org.junit.FixMethodOrder
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.junit.runners.MethodSorters
-import org.testcontainers.containers.PostgreSQLContainer
+import org.testcontainers.postgresql.PostgreSQLContainer
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.privacybudgetmanager.Charges
 import org.wfanet.measurement.privacybudgetmanager.ChargesKt
@@ -594,9 +595,19 @@ class PostgresLedgerTest {
       }
     }
 
-    @get:ClassRule
+    private val postgresContainer = PostgreSQLContainer(POSTGRES_IMAGE_NAME)
+
     @JvmStatic
-    val postgresContainer = PostgreSQLContainer<Nothing>(POSTGRES_IMAGE_NAME)
+    @BeforeClass
+    fun startPostgres() {
+      postgresContainer.start()
+    }
+
+    @JvmStatic
+    @AfterClass
+    fun stopPostgres() {
+      postgresContainer.stop()
+    }
 
     // Logs can be enabled as below.
     //  val postgresContainer =
