@@ -73,10 +73,6 @@ message VidLabelingConfig {
   // Maximum batch size in bytes for partitioning raw impression files.
   // If unset, defaults to 10 GB (10000000000 bytes).
   int64 max_batch_size_bytes = 8 [(google.api.field_behavior) = OPTIONAL];
-
-  // KMS KEK URI for encrypting labeled impression output DEKs.
-  string vid_labeled_impressions_kek_uri = 9
-      [(google.api.field_behavior) = REQUIRED];
 }
 
 // Wrapper containing VID Labeling configurations for all EDPs.

@@ -96,7 +96,6 @@ class VidLabelingDispatcherTest {
         gcsProjectId = "test-project"
         impressionsBlobPrefix = "gs://input-bucket/raw"
       }
-    vidLabeledImpressionsKekUri = "gcp-kms://projects/test/locations/us/keyRings/kr/cryptoKeys/key"
   }
 
   private fun createDispatcher(

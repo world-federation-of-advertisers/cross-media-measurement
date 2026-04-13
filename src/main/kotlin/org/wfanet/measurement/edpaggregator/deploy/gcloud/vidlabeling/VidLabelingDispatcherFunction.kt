@@ -353,7 +353,6 @@ class VidLabelingDispatcherFunction : HttpFunction {
         }
         modelLineConfigs.putAll(convertModelLineConfigs(config.modelLineConfigsMap))
         overrideModelLines += config.overrideModelLinesList
-        vidLabeledImpressionsKekUri = config.vidLabeledImpressionsKekUri
       }
     }
 
