@@ -45,6 +45,7 @@ import io.kubernetes.client.util.Yaml
 import java.io.File
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.logging.Logger
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.resume
@@ -293,6 +294,29 @@ class KubernetesClientImpl(
 
   @Blocking
   override fun kubectlApply(config: File): Sequence<KubernetesObject> {
+    // DO_NOT_SUBMIT: drop this debug code
+    logger.warning("api type for v1/ConfigMap = " +
+      io.kubernetes.client.util.ModelMapper.getApiTypeClass("v1", "ConfigMap"))
+
+    logger.warning("models resource = " + 
+      io.kubernetes.client.util.Yaml::class.java.classLoader
+        .getResource("io/kubernetes/client/openapi/models"))
+
+val cl = io.kubernetes.client.util.Yaml::class.java.classLoader
+
+val resourcesEnum = cl.getResources("io/kubernetes/client/openapi/models")
+val resources = generateSequence {
+  if (resourcesEnum.hasMoreElements()) resourcesEnum.nextElement() else null
+}.toList()
+
+val configMapClass = io.kubernetes.client.openapi.models.V1ConfigMap::class.java
+val kubernetesObjectClass = io.kubernetes.client.common.KubernetesObject::class.java
+
+logger.warning("all model resources = $resources")
+logger.warning("V1ConfigMap source = ${configMapClass.protectionDomain.codeSource?.location}")
+logger.warning("KubernetesObject source = ${kubernetesObjectClass.protectionDomain.codeSource?.location}")
+logger.warning("assignable = ${kubernetesObjectClass.isAssignableFrom(configMapClass)}")
+
     @Suppress("UNCHECKED_CAST") val k8sObjects = Yaml.loadAll(config) as List<KubernetesObject>
     return kubectlApply(k8sObjects)
   }
@@ -318,6 +342,7 @@ class KubernetesClientImpl(
     }
 
   companion object {
+    private val logger = Logger.getLogger(this::class.java.name)
     private const val REVISION_ANNOTATION = "deployment.kubernetes.io/revision"
   }
 }
