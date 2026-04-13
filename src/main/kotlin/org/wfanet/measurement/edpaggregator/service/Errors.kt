@@ -31,6 +31,9 @@ object Errors {
   enum class Reason {
     IMPRESSION_METADATA_NOT_FOUND,
     IMPRESSION_METADATA_ALREADY_EXISTS,
+    RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+    RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+    RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
     REQUISITION_METADATA_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_ALREADY_EXISTS,
@@ -54,6 +57,8 @@ object Errors {
     REQUEST_ETAG("requestEtag"),
     ETAG("etag"),
     IMPRESSION_METADATA("impressionMetadata"),
+    RAW_IMPRESSION_METADATA_BATCH("rawImpressionMetadataBatch"),
+    RAW_IMPRESSION_METADATA_BATCH_FILE("rawImpressionMetadataBatchFile"),
     FIELD_NAME("fieldName"),
   }
 }
@@ -357,6 +362,89 @@ class ImpressionMetadataAlreadyExistsException(blobUri: String, cause: Throwable
       cause: Throwable,
     ): ImpressionMetadataAlreadyExistsException {
       return ImpressionMetadataAlreadyExistsException(
+        internalMetadata.getValue(InternalErrors.Metadata.BLOB_URI),
+        cause,
+      )
+    }
+  }
+}
+
+class RawImpressionMetadataBatchNotFoundException(
+  batchResourceName: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+    "RawImpressionMetadataBatch $batchResourceName not found",
+    mapOf(Errors.Metadata.RAW_IMPRESSION_METADATA_BATCH to batchResourceName),
+    cause,
+  ) {
+  companion object : Factory<RawImpressionMetadataBatchNotFoundException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): RawImpressionMetadataBatchNotFoundException {
+      val batchKey =
+        RawImpressionMetadataBatchKey(
+          internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID),
+          internalMetadata.getValue(InternalErrors.Metadata.BATCH_RESOURCE_ID),
+        )
+      return RawImpressionMetadataBatchNotFoundException(batchKey.toName(), cause)
+    }
+  }
+}
+
+class RawImpressionMetadataBatchFileNotFoundException(
+  fileResourceName: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+    "RawImpressionMetadataBatchFile $fileResourceName not found",
+    mapOf(Errors.Metadata.RAW_IMPRESSION_METADATA_BATCH_FILE to fileResourceName),
+    cause,
+  ) {
+  companion object : Factory<RawImpressionMetadataBatchFileNotFoundException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): RawImpressionMetadataBatchFileNotFoundException {
+      val fileKey =
+        RawImpressionMetadataBatchFileKey(
+          internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID),
+          internalMetadata.getValue(InternalErrors.Metadata.BATCH_RESOURCE_ID),
+          internalMetadata.getValue(InternalErrors.Metadata.FILE_RESOURCE_ID),
+        )
+      return RawImpressionMetadataBatchFileNotFoundException(fileKey.toName(), cause)
+    }
+  }
+}
+
+class RawImpressionMetadataBatchFileAlreadyExistsException(
+  blobUri: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+    "RawImpressionMetadataBatchFile with blobUri $blobUri already exists",
+    mapOf(Errors.Metadata.BLOB_URI to blobUri),
+    cause,
+  ) {
+  companion object : Factory<RawImpressionMetadataBatchFileAlreadyExistsException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): RawImpressionMetadataBatchFileAlreadyExistsException {
+      return RawImpressionMetadataBatchFileAlreadyExistsException(
         internalMetadata.getValue(InternalErrors.Metadata.BLOB_URI),
         cause,
       )
