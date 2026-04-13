@@ -71,7 +71,6 @@ import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupKt
-import org.wfanet.measurement.reporting.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
