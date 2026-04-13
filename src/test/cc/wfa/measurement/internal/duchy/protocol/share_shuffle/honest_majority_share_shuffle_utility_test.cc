@@ -102,10 +102,8 @@ class ShufflePhaseTestData {
   ShufflePhaseTestData() {
     *request_.mutable_common_random_seed() =
         std::string(kBytesPerAes256Key + kBytesPerAes256Iv, 'a');
-    request_.set_noise_mechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
     SetFrequencyVectorParams(kRegisterCount, kMaxCombinedFrequency,
                              kRingModulus);
-    SetDifferentialPrivacyParams(kEpsilon, kDelta);
 
     PrngSeed seed = GenerateRandomSeed();
     auto prng = CreatePrngFromSeed(seed);
@@ -149,7 +147,6 @@ class ShufflePhaseTestData {
   void ClearDifferentialPrivacyParams() {
     request_.clear_reach_dp_params();
     request_.clear_frequency_dp_params();
-    request_.set_noise_mechanism(NoiseMechanism::NONE);
   }
 
   void AddSeedToFrequencyVectorShares(const std::string& seed) {
@@ -203,6 +200,8 @@ class ShufflePhaseTestData {
 
 TEST(ReachAndFrequencyShufflePhaseAtNonAggregator, InvalidRegisterCountFails) {
   ShufflePhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetFrequencyVectorParams(/*register_count=*/0,
                                      /*maximum_combined_frequency=*/10,
                                      /*ring_modulus=*/128);
@@ -213,6 +212,8 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator, InvalidRegisterCountFails) {
 
 TEST(ReachAndFrequencyShufflePhaseAtNonAggregator, InvalidRingModulusFails) {
   ShufflePhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetFrequencyVectorParams(/*register_count=*/100,
                                      /*maximum_combined_frequency=*/10,
                                      /*ring_modulus=*/1);
@@ -224,6 +225,8 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator, InvalidRingModulusFails) {
 TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      InvalidRingModulusAndMaxFrequencyPairFails) {
   ShufflePhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetFrequencyVectorParams(/*register_count=*/100,
                                      /*maximum_combined_frequency=*/4,
                                      /*ring_modulus=*/5);
@@ -235,6 +238,8 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
 TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      InputSizeDoesNotMatchTheConfigFails) {
   ShufflePhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetFrequencyVectorParams(kRegisterCount, kMaxCombinedFrequency,
                                      kRingModulus);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
@@ -247,6 +252,8 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
 TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      EmptyFrequencyVectorSharesFails) {
   ShufflePhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetFrequencyVectorParams(kRegisterCount, kMaxCombinedFrequency,
                                      kRingModulus);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
@@ -257,13 +264,13 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
 TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      NoiseMechanismNoneWithBothDpParamsFails) {
   ShufflePhaseTestData test_data;
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetNoiseMechanism(NoiseMechanism::NONE);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   std::vector<uint32_t> share_data(kRegisterCount, 1);
   test_data.AddShareToFrequencyVectorShares(share_data);
-  EXPECT_THAT(
-      test_data.RunReachAndFrequencyShufflePhase().status(),
-      StatusIs(absl::StatusCode::kInvalidArgument, "must not be set"));
+  EXPECT_THAT(test_data.RunReachAndFrequencyShufflePhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "must not be set"));
 }
 
 TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
@@ -275,9 +282,8 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   std::vector<uint32_t> share_data(kRegisterCount, 1);
   test_data.AddShareToFrequencyVectorShares(share_data);
-  EXPECT_THAT(
-      test_data.RunReachAndFrequencyShufflePhase().status(),
-      StatusIs(absl::StatusCode::kInvalidArgument, "must not be set"));
+  EXPECT_THAT(test_data.RunReachAndFrequencyShufflePhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "must not be set"));
 }
 
 TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
@@ -288,9 +294,8 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   std::vector<uint32_t> share_data(kRegisterCount, 1);
   test_data.AddShareToFrequencyVectorShares(share_data);
-  EXPECT_THAT(
-      test_data.RunReachAndFrequencyShufflePhase().status(),
-      StatusIs(absl::StatusCode::kInvalidArgument, "required"));
+  EXPECT_THAT(test_data.RunReachAndFrequencyShufflePhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "required"));
 }
 
 TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
@@ -302,15 +307,15 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   std::vector<uint32_t> share_data(kRegisterCount, 1);
   test_data.AddShareToFrequencyVectorShares(share_data);
-  EXPECT_THAT(
-      test_data.RunReachAndFrequencyShufflePhase().status(),
-      StatusIs(absl::StatusCode::kInvalidArgument, "required"));
+  EXPECT_THAT(test_data.RunReachAndFrequencyShufflePhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "required"));
 }
 
 TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      NonAggregatorOrderNotSpecifiedAndDpParamsNotSpecifiedSucceeds) {
   ShufflePhaseTestData test_data;
   test_data.ClearDifferentialPrivacyParams();
+  test_data.SetNoiseMechanism(NoiseMechanism::NONE);
   std::vector<uint32_t> share_data(kRegisterCount, 1);
   test_data.AddShareToFrequencyVectorShares(share_data);
   EXPECT_EQ(test_data.RunReachAndFrequencyShufflePhase().status(),
@@ -320,6 +325,7 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
 TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      NonAggregatorOrderNotSpecifiedAndDpParamsSpecifiedFails) {
   ShufflePhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
   test_data.SetFrequencyVectorParams(kRegisterCount, kMaxCombinedFrequency,
                                      kRingModulus);
   test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
@@ -333,6 +339,7 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      FrequencyVectorSharesContainOnlyShareVectorAndNoDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
   test_data.ClearDifferentialPrivacyParams();
+  test_data.SetNoiseMechanism(NoiseMechanism::NONE);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   ASSERT_OK_AND_ASSIGN(
       std::vector<uint32_t> share_vector,
@@ -364,6 +371,7 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      FrequencyVectorSharesContainOnlySeedsAndNoDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
   test_data.ClearDifferentialPrivacyParams();
+  test_data.SetNoiseMechanism(NoiseMechanism::NONE);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   std::string share_seed(kBytesPerAes256Key + kBytesPerAes256Iv, 'c');
   for (int i = 0; i < kEdpCount; i++) {
@@ -401,6 +409,7 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      FrequencyVectorSharesContainShareVectorAndSeedsAndNoDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
   test_data.ClearDifferentialPrivacyParams();
+  test_data.SetNoiseMechanism(NoiseMechanism::NONE);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
 
   ASSERT_OK_AND_ASSIGN(
@@ -442,6 +451,7 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
 TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      ShufflePhaseWithDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
   test_data.SetFrequencyVectorParams(kRegisterCount, kMaxCombinedFrequency,
                                      kRingModulus);
   test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
@@ -509,10 +519,12 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      ShufflePhaseSimulationForTwoDuchiesWithoutDpNoiseSucceeds) {
   ShufflePhaseTestData test_data_1;
   test_data_1.ClearDifferentialPrivacyParams();
+  test_data_1.SetNoiseMechanism(NoiseMechanism::NONE);
   test_data_1.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
 
   ShufflePhaseTestData test_data_2;
   test_data_2.ClearDifferentialPrivacyParams();
+  test_data_2.SetNoiseMechanism(NoiseMechanism::NONE);
   test_data_2.SetNonAggregatorOrder(CompleteShufflePhaseRequest::SECOND);
 
   ASSERT_OK_AND_ASSIGN(std::vector<uint32_t> input_a,
@@ -568,9 +580,13 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
 TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
      ShufflePhaseSimulationForTwoDuchiesWithDpNoiseSucceeds) {
   ShufflePhaseTestData test_data_1;
+  test_data_1.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data_1.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data_1.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
 
   ShufflePhaseTestData test_data_2;
+  test_data_2.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data_2.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data_2.SetNonAggregatorOrder(CompleteShufflePhaseRequest::SECOND);
 
   ASSERT_OK_AND_ASSIGN(std::vector<uint32_t> input_a,
@@ -673,6 +689,8 @@ TEST(ReachAndFrequencyShufflePhaseAtNonAggregator,
 
 TEST(ReachOnlyShufflePhaseAtNonAggregator, InvalidRegisterCountFails) {
   ShufflePhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetFrequencyVectorParams(/*register_count=*/0,
                                      /*maximum_combined_frequency=*/10,
                                      /*ring_modulus=*/128);
@@ -683,6 +701,8 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator, InvalidRegisterCountFails) {
 
 TEST(ReachOnlyShufflePhaseAtNonAggregator, InvalidRingModulusFails) {
   ShufflePhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetFrequencyVectorParams(/*register_count=*/100,
                                      /*maximum_combined_frequency=*/10,
                                      /*ring_modulus=*/1);
@@ -694,6 +714,8 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator, InvalidRingModulusFails) {
 TEST(ReachOnlyShufflePhaseAtNonAggregator,
      InvalidRingModulusAndMaxFrequencyPairFails) {
   ShufflePhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetFrequencyVectorParams(/*register_count=*/100,
                                      /*maximum_combined_frequency=*/4,
                                      /*ring_modulus=*/5);
@@ -704,6 +726,8 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator,
 
 TEST(ReachOnlyShufflePhaseAtNonAggregator, NonPrimeRingModulusFails) {
   ShufflePhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetFrequencyVectorParams(/*register_count=*/100,
                                      /*maximum_combined_frequency=*/127,
                                      /*ring_modulus=*/130);
@@ -715,6 +739,8 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator, NonPrimeRingModulusFails) {
 TEST(ReachOnlyShufflePhaseAtNonAggregator,
      InputSizeDoesNotMatchTheConfigFails) {
   ShufflePhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetFrequencyVectorParams(kRegisterCount, kMaxCombinedFrequency,
                                      kRingModulus);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
@@ -726,6 +752,8 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator,
 
 TEST(ReachOnlyShufflePhaseAtNonAggregator, EmptyFrequencyVectorSharesFails) {
   ShufflePhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetFrequencyVectorParams(kRegisterCount, kMaxCombinedFrequency,
                                      kRingModulus);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
@@ -762,6 +790,7 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator,
      NonAggregatorOrderNotSpecifiedAndDpParamsNotSpecifiedSucceeds) {
   ShufflePhaseTestData test_data;
   test_data.ClearDifferentialPrivacyParams();
+  test_data.SetNoiseMechanism(NoiseMechanism::NONE);
   std::vector<uint32_t> share_data(kRegisterCount, 1);
   test_data.AddShareToFrequencyVectorShares(share_data);
   EXPECT_EQ(test_data.RunReachOnlyShufflePhase().status(), absl::OkStatus());
@@ -770,6 +799,7 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator,
 TEST(ReachOnlyShufflePhaseAtNonAggregator,
      NonAggregatorOrderNotSpecifiedAndDpParamsSpecifiedFails) {
   ShufflePhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
   test_data.SetFrequencyVectorParams(kRegisterCount, kMaxCombinedFrequency,
                                      kRingModulus);
   test_data.SetReachOnlyDifferentialPrivacyParams(kEpsilon, kDelta);
@@ -783,6 +813,7 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator,
      FrequencyVectorSharesContainOnlyShareVectorAndNoDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
   test_data.ClearDifferentialPrivacyParams();
+  test_data.SetNoiseMechanism(NoiseMechanism::NONE);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   ASSERT_OK_AND_ASSIGN(
       std::vector<uint32_t> share_vector,
@@ -825,6 +856,7 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator,
      FrequencyVectorSharesContainOnlySeedsAndNoDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
   test_data.ClearDifferentialPrivacyParams();
+  test_data.SetNoiseMechanism(NoiseMechanism::NONE);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   std::string share_seed(kBytesPerAes256Key + kBytesPerAes256Iv, 'c');
   for (int i = 0; i < kEdpCount; i++) {
@@ -874,6 +906,7 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator,
      FrequencyVectorSharesContainShareVectorAndSeedsAndNoDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
   test_data.ClearDifferentialPrivacyParams();
+  test_data.SetNoiseMechanism(NoiseMechanism::NONE);
   test_data.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
 
   ASSERT_OK_AND_ASSIGN(
@@ -926,6 +959,7 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator,
 
 TEST(ReachOnlyShufflePhaseAtNonAggregator, ShufflePhaseWithDpNoiseSucceeds) {
   ShufflePhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
   test_data.SetFrequencyVectorParams(kRegisterCount, kMaxCombinedFrequency,
                                      kRingModulus);
   test_data.SetReachOnlyDifferentialPrivacyParams(kEpsilon, kDelta);
@@ -996,10 +1030,12 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator,
      ShufflePhaseSimulationForTwoDuchiesWithoutDpNoiseSucceeds) {
   ShufflePhaseTestData test_data_1;
   test_data_1.ClearDifferentialPrivacyParams();
+  test_data_1.SetNoiseMechanism(NoiseMechanism::NONE);
   test_data_1.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
 
   ShufflePhaseTestData test_data_2;
   test_data_2.ClearDifferentialPrivacyParams();
+  test_data_2.SetNoiseMechanism(NoiseMechanism::NONE);
   test_data_2.SetNonAggregatorOrder(CompleteShufflePhaseRequest::SECOND);
 
   ASSERT_OK_AND_ASSIGN(std::vector<uint32_t> input_a,
@@ -1068,10 +1104,12 @@ TEST(ReachOnlyShufflePhaseAtNonAggregator,
 TEST(ReachOnlyShufflePhaseAtNonAggregator,
      ShufflePhaseSimulationForTwoDuchiesWithDpNoiseSucceeds) {
   ShufflePhaseTestData test_data_1;
+  test_data_1.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
   test_data_1.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
   test_data_1.SetReachOnlyDifferentialPrivacyParams(kEpsilon, kDelta);
 
   ShufflePhaseTestData test_data_2;
+  test_data_2.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
   test_data_2.SetNonAggregatorOrder(CompleteShufflePhaseRequest::SECOND);
   test_data_2.SetReachOnlyDifferentialPrivacyParams(kEpsilon, kDelta);
 
@@ -1165,8 +1203,6 @@ class AggregationPhaseTestData {
     }
     prng_ = std::move(prng.value());
     request_.set_vid_sampling_interval_width(kVidSamplingIntervalWidth);
-    request_.set_noise_mechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
-    SetDifferentialPrivacyParams(kEpsilon, kDelta);
     SetFrequencyVectorParams(kRegisterCount, kMaxCombinedFrequency,
                              kRingModulus);
     SetMaximumFrequency(kMaxFrequencyPerEdp);
@@ -1193,7 +1229,6 @@ class AggregationPhaseTestData {
   void ClearDifferentialPrivacyParams() {
     request_.clear_reach_dp_params();
     request_.clear_frequency_dp_params();
-    request_.set_noise_mechanism(NoiseMechanism::NONE);
   }
 
   void SetReachOnlyDifferentialPrivacyParams(double eps, double delta) {
@@ -1246,6 +1281,8 @@ class AggregationPhaseTestData {
 
 TEST(ReachAndFrequencyAggregationPhase, InvalidRegisterCountFails) {
   AggregationPhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetFrequencyVectorParams(/*register_count=*/0,
                                      /*maximum_combined_frequency=*/10,
                                      /*ring_modulus=*/128);
@@ -1255,6 +1292,8 @@ TEST(ReachAndFrequencyAggregationPhase, InvalidRegisterCountFails) {
 
 TEST(ReachAndFrequencyAggregationPhase, InvalidRingModulusFails) {
   AggregationPhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetFrequencyVectorParams(/*register_count=*/100,
                                      /*maximum_combined_frequency=*/10,
                                      /*ring_modulus=*/1);
@@ -1265,6 +1304,8 @@ TEST(ReachAndFrequencyAggregationPhase, InvalidRingModulusFails) {
 TEST(ReachAndFrequencyAggregationPhase,
      InvalidRingModulusAndMaxFrequencyPairFails) {
   AggregationPhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetFrequencyVectorParams(/*register_count=*/100,
                                      /*maximum_combined_frequency=*/4,
                                      /*ring_modulus=*/5);
@@ -1275,14 +1316,14 @@ TEST(ReachAndFrequencyAggregationPhase,
 TEST(ReachAndFrequencyAggregationPhase,
      NoiseMechanismNoneWithBothDpParamsFails) {
   AggregationPhaseTestData test_data;
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetNoiseMechanism(NoiseMechanism::NONE);
   std::vector<uint32_t> share_vector_1(kRegisterCount, 0);
   std::vector<uint32_t> share_vector_2(kRegisterCount, 0);
   test_data.AddShareToFrequencyVectorShares(share_vector_1);
   test_data.AddShareToFrequencyVectorShares(share_vector_2);
-  EXPECT_THAT(
-      test_data.RunReachAndFrequencyAggregationPhase().status(),
-      StatusIs(absl::StatusCode::kInvalidArgument, "must not be set"));
+  EXPECT_THAT(test_data.RunReachAndFrequencyAggregationPhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "must not be set"));
 }
 
 TEST(ReachAndFrequencyAggregationPhase,
@@ -1295,9 +1336,8 @@ TEST(ReachAndFrequencyAggregationPhase,
   std::vector<uint32_t> share_vector_2(kRegisterCount, 0);
   test_data.AddShareToFrequencyVectorShares(share_vector_1);
   test_data.AddShareToFrequencyVectorShares(share_vector_2);
-  EXPECT_THAT(
-      test_data.RunReachAndFrequencyAggregationPhase().status(),
-      StatusIs(absl::StatusCode::kInvalidArgument, "must not be set"));
+  EXPECT_THAT(test_data.RunReachAndFrequencyAggregationPhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "must not be set"));
 }
 
 TEST(ReachAndFrequencyAggregationPhase,
@@ -1309,9 +1349,8 @@ TEST(ReachAndFrequencyAggregationPhase,
   std::vector<uint32_t> share_vector_2(kRegisterCount, 0);
   test_data.AddShareToFrequencyVectorShares(share_vector_1);
   test_data.AddShareToFrequencyVectorShares(share_vector_2);
-  EXPECT_THAT(
-      test_data.RunReachAndFrequencyAggregationPhase().status(),
-      StatusIs(absl::StatusCode::kInvalidArgument, "required"));
+  EXPECT_THAT(test_data.RunReachAndFrequencyAggregationPhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "required"));
 }
 
 TEST(ReachAndFrequencyAggregationPhase,
@@ -1324,14 +1363,15 @@ TEST(ReachAndFrequencyAggregationPhase,
   std::vector<uint32_t> share_vector_2(kRegisterCount, 0);
   test_data.AddShareToFrequencyVectorShares(share_vector_1);
   test_data.AddShareToFrequencyVectorShares(share_vector_2);
-  EXPECT_THAT(
-      test_data.RunReachAndFrequencyAggregationPhase().status(),
-      StatusIs(absl::StatusCode::kInvalidArgument, "required"));
+  EXPECT_THAT(test_data.RunReachAndFrequencyAggregationPhase().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "required"));
 }
 
 TEST(ReachAndFrequencyAggregationPhase,
      InvalidNumberOfFrequencyVectorSharesFails) {
   AggregationPhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   std::vector<uint32_t> share_vector(10, 0);
   test_data.AddShareToFrequencyVectorShares(share_vector);
   EXPECT_THAT(test_data.RunReachAndFrequencyAggregationPhase().status(),
@@ -1340,6 +1380,8 @@ TEST(ReachAndFrequencyAggregationPhase,
 
 TEST(ReachAndFrequencyAggregationPhase, InvalidMaximumFrequencyFails) {
   AggregationPhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   ASSERT_OK_AND_ASSIGN(
       std::vector<uint32_t> share_vector_1,
       test_data.GenerateRandomShare(kRegisterCount, kRingModulus));
@@ -1356,6 +1398,8 @@ TEST(ReachAndFrequencyAggregationPhase, InvalidMaximumFrequencyFails) {
 TEST(ReachAndFrequencyAggregationPhase,
      FrequencyVectorShareVectorsHaveDifferentSizeFails) {
   AggregationPhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   ASSERT_OK_AND_ASSIGN(
       std::vector<uint32_t> share_vector_1,
       test_data.GenerateRandomShare(kRegisterCount, kRingModulus));
@@ -1378,6 +1422,7 @@ TEST(ReachAndFrequencyAggregationPhase,
                                      /*ring_modulus=*/8);
   test_data.SetMaximumFrequency(2);
   test_data.ClearDifferentialPrivacyParams();
+  test_data.SetNoiseMechanism(NoiseMechanism::NONE);
 
   std::vector<uint32_t> share_vector_1 = {0};
   std::vector<uint32_t> share_vector_2 = {5};
@@ -1397,6 +1442,7 @@ TEST(ReachAndFrequencyAggregationPhase,
                                      /*ring_modulus=*/8);
   test_data.SetMaximumFrequency(2);
   test_data.ClearDifferentialPrivacyParams();
+  test_data.SetNoiseMechanism(NoiseMechanism::NONE);
 
   // The combined frequency_vector is {0, 0, 0, 0, 1, 2, 3, 4}. The frequency
   // histogram after removing offset is {f[0] = 4, f[1] = f[2] = f[3] = f[4] =
@@ -1418,6 +1464,7 @@ TEST(ReachAndFrequencyAggregationPhase,
 
 TEST(ReachAndFrequencyAggregationPhase, AggregationPhaseWithDPNoiseSucceeds) {
   AggregationPhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
   int register_count = 8;
   test_data.SetFrequencyVectorParams(register_count,
                                      /*max_combined_frequency=*/4,
@@ -1448,6 +1495,7 @@ TEST(ReachAndFrequencyAggregationPhase, AggregationPhaseWithDPNoiseSucceeds) {
 TEST(ReachAndFrequencyAggregationPhase,
      AggregationPhaseNoDataNorEffectiveNoiseFails) {
   AggregationPhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
   int register_count = 4;
   test_data.SetFrequencyVectorParams(register_count,
                                      /*max_combined_frequency=*/4,
@@ -1472,6 +1520,8 @@ TEST(ReachAndFrequencyAggregationPhase,
 
 TEST(ReachOnlyAggregationPhase, InvalidRegisterCountFails) {
   AggregationPhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetFrequencyVectorParams(/*register_count=*/0,
                                      /*maximum_combined_frequency=*/10,
                                      /*ring_modulus=*/128);
@@ -1481,6 +1531,8 @@ TEST(ReachOnlyAggregationPhase, InvalidRegisterCountFails) {
 
 TEST(ReachOnlyAggregationPhase, InvalidRingModulusFails) {
   AggregationPhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetFrequencyVectorParams(/*register_count=*/100,
                                      /*maximum_combined_frequency=*/10,
                                      /*ring_modulus=*/1);
@@ -1490,6 +1542,8 @@ TEST(ReachOnlyAggregationPhase, InvalidRingModulusFails) {
 
 TEST(ReachOnlyAggregationPhase, InvalidRingModulusAndMaxFrequencyPairFails) {
   AggregationPhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   test_data.SetFrequencyVectorParams(/*register_count=*/100,
                                      /*maximum_combined_frequency=*/4,
                                      /*ring_modulus=*/5);
@@ -1525,6 +1579,8 @@ TEST(ReachOnlyAggregationPhase,
 
 TEST(ReachOnlyAggregationPhase, InvalidNumberOfFrequencyVectorSharesFails) {
   AggregationPhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   std::vector<uint32_t> share_vector(10, 0);
   test_data.AddShareToFrequencyVectorShares(share_vector);
   EXPECT_THAT(test_data.RunReachOnlyAggregationPhase().status(),
@@ -1534,6 +1590,8 @@ TEST(ReachOnlyAggregationPhase, InvalidNumberOfFrequencyVectorSharesFails) {
 TEST(ReachOnlyAggregationPhase,
      FrequencyVectorShareVectorsHaveDifferentSizeFails) {
   AggregationPhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+  test_data.SetDifferentialPrivacyParams(kEpsilon, kDelta);
   ASSERT_OK_AND_ASSIGN(
       std::vector<uint32_t> share_vector_1,
       test_data.GenerateRandomShare(kRegisterCount, kRingModulus));
@@ -1554,6 +1612,7 @@ TEST(ReachOnlyAggregationPhase, AggregationPhaseWithoutDPNoiseSucceeds) {
                                      /*ring_modulus=*/7);
   test_data.SetMaximumFrequency(2);
   test_data.ClearDifferentialPrivacyParams();
+  test_data.SetNoiseMechanism(NoiseMechanism::NONE);
 
   // The combined frequency_vector is {0, 0, 0, 0, 1, 2, 3, 4}.
   std::vector<uint32_t> share_vector_1 = {2, 3, 2, 5, 1, 6, 2, 0};
@@ -1570,6 +1629,7 @@ TEST(ReachOnlyAggregationPhase, AggregationPhaseWithoutDPNoiseSucceeds) {
 
 TEST(ReachOnlyAggregationPhase, AggregationPhaseWithDPNoiseSucceeds) {
   AggregationPhaseTestData test_data;
+  test_data.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
   int register_count = 8;
   test_data.SetFrequencyVectorParams(register_count,
                                      /*max_combined_frequency=*/4,
@@ -1622,6 +1682,13 @@ class EndToEndHmssTest {
     int64_t total_noise_registers_count_per_duchy = 0;
 
     if (has_dp_noise) {
+      worker_1.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+      worker_1.SetDifferentialPrivacyParams(epsilon, delta);
+      worker_2.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+      worker_2.SetDifferentialPrivacyParams(epsilon, delta);
+      aggregator.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+      aggregator.SetDifferentialPrivacyParams(epsilon, delta);
+
       DifferentialPrivacyParams reach_dp_params;
       reach_dp_params.set_epsilon(epsilon / 10.0);
       reach_dp_params.set_delta(delta);
@@ -1645,9 +1712,9 @@ class EndToEndHmssTest {
           frequency_noiser->options().shift_offset * 2 *
               maximum_combined_frequency;
     } else {
-      worker_1.ClearDifferentialPrivacyParams();
-      worker_2.ClearDifferentialPrivacyParams();
-      aggregator.ClearDifferentialPrivacyParams();
+      worker_1.SetNoiseMechanism(NoiseMechanism::NONE);
+      worker_2.SetNoiseMechanism(NoiseMechanism::NONE);
+      aggregator.SetNoiseMechanism(NoiseMechanism::NONE);
     }
 
     PrngSeed seed = GenerateRandomSeed();
@@ -1782,12 +1849,9 @@ class EndToEndReachOnlyHmssTest {
     AggregationPhaseTestData aggregator;
 
     worker_1.SetFrequencyVectorParams(register_count, edp_count, ring_modulus);
-    worker_1.SetReachOnlyDifferentialPrivacyParams(epsilon, delta);
     worker_2.SetFrequencyVectorParams(register_count, edp_count, ring_modulus);
-    worker_2.SetReachOnlyDifferentialPrivacyParams(epsilon, delta);
     aggregator.SetFrequencyVectorParams(register_count, edp_count,
                                         ring_modulus);
-    aggregator.SetReachOnlyDifferentialPrivacyParams(epsilon, delta);
     worker_1.SetNonAggregatorOrder(CompleteShufflePhaseRequest::FIRST);
     worker_2.SetNonAggregatorOrder(CompleteShufflePhaseRequest::SECOND);
 
@@ -1798,6 +1862,13 @@ class EndToEndReachOnlyHmssTest {
     int64_t total_noise_registers_count_per_duchy = 0;
 
     if (has_dp_noise) {
+      worker_1.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+      worker_1.SetReachOnlyDifferentialPrivacyParams(epsilon, delta);
+      worker_2.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+      worker_2.SetReachOnlyDifferentialPrivacyParams(epsilon, delta);
+      aggregator.SetNoiseMechanism(NoiseMechanism::DISCRETE_GAUSSIAN);
+      aggregator.SetReachOnlyDifferentialPrivacyParams(epsilon, delta);
+
       DifferentialPrivacyParams reach_dp_params;
       reach_dp_params.set_epsilon(epsilon);
       reach_dp_params.set_delta(delta);
@@ -1808,9 +1879,9 @@ class EndToEndReachOnlyHmssTest {
       total_noise_registers_count_per_duchy =
           noiser->options().shift_offset * 2;
     } else {
-      worker_1.ClearDifferentialPrivacyParams();
-      worker_2.ClearDifferentialPrivacyParams();
-      aggregator.ClearDifferentialPrivacyParams();
+      worker_1.SetNoiseMechanism(NoiseMechanism::NONE);
+      worker_2.SetNoiseMechanism(NoiseMechanism::NONE);
+      aggregator.SetNoiseMechanism(NoiseMechanism::NONE);
     }
 
     PrngSeed seed = GenerateRandomSeed();

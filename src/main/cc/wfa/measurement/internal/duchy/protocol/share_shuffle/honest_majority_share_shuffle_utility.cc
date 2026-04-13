@@ -74,7 +74,7 @@ absl::Status ValidateReachAndFrequencyNoiseMechanism(
 }
 
 absl::Status ValidateReachOnlyNoiseMechanism(NoiseMechanism noise_mechanism,
-                                              bool has_reach_dp_params) {
+                                             bool has_reach_dp_params) {
   if (noise_mechanism == NoiseMechanism::NONE) {
     if (has_reach_dp_params) {
       return absl::InvalidArgumentError(
