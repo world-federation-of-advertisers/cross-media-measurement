@@ -92,9 +92,34 @@ val HMSS_PROTOCOL_CONFIG_CONFIG: HmssProtocolConfigConfig =
     "hmss_protocol_config_config.textproto",
     HmssProtocolConfigConfig.getDefaultInstance(),
   )
-val TRUSTEE_PROTOCOL_CONFIG_CONFIG: TrusTeeProtocolConfigConfig =
+val TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_K_ANON: TrusTeeProtocolConfigConfig =
   loadTextProto(
-    "trustee_protocol_config_config.textproto",
+    "trustee_protocol_config_config_noise_k_anon.textproto",
+    TrusTeeProtocolConfigConfig.getDefaultInstance(),
+  )
+val TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_K_ANON_HIGH_THRESHOLD: TrusTeeProtocolConfigConfig =
+  loadTextProto(
+    "trustee_protocol_config_config_noise_k_anon_high_threshold.textproto",
+    TrusTeeProtocolConfigConfig.getDefaultInstance(),
+  )
+val TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_NO_K_ANON: TrusTeeProtocolConfigConfig =
+  loadTextProto(
+    "trustee_protocol_config_config_noise_no_k_anon.textproto",
+    TrusTeeProtocolConfigConfig.getDefaultInstance(),
+  )
+val TRUSTEE_PROTOCOL_CONFIG_CONFIG_K_ANON_NO_NOISE: TrusTeeProtocolConfigConfig =
+  loadTextProto(
+    "trustee_protocol_config_config_k_anon_no_noise.textproto",
+    TrusTeeProtocolConfigConfig.getDefaultInstance(),
+  )
+val TRUSTEE_PROTOCOL_CONFIG_CONFIG_K_ANON_NO_NOISE_HIGH_THRESHOLD: TrusTeeProtocolConfigConfig =
+  loadTextProto(
+    "trustee_protocol_config_config_k_anon_no_noise_high_threshold.textproto",
+    TrusTeeProtocolConfigConfig.getDefaultInstance(),
+  )
+val TRUSTEE_PROTOCOL_CONFIG_CONFIG_NO_NOISE_NO_K_ANON: TrusTeeProtocolConfigConfig =
+  loadTextProto(
+    "trustee_protocol_config_config_no_noise_no_k_anon.textproto",
     TrusTeeProtocolConfigConfig.getDefaultInstance(),
   )
 val IMPRESSION_QUALIFICATION_FILTER_CONFIG: ImpressionQualificationFilterConfig =

@@ -67,6 +67,15 @@ message TrusTee {
     }
     Type type = 2;
 
+    // Parameters for k-anonymity applied to the result. If the threshold is not
+    // met, a zero result is returned instead.
+    message KAnonymityParams {
+      // The minimum number of impressions.
+      int32 min_impressions = 1;
+      // The minimum number of unique users.
+      int32 min_users = 2;
+    }
+
     // Parameters used in this computation.
     message Parameters {
       // The maximum frequency to reveal in the histogram.
@@ -79,6 +88,8 @@ message TrusTee {
       NoiseMechanism noise_mechanism = 4;
       // The sampling rate.
       float vid_sampling_interval_width = 5;
+      // Optional k-anonymity parameters.
+      KAnonymityParams k_anonymity_params = 6;
     }
     Parameters parameters = 3;
   }

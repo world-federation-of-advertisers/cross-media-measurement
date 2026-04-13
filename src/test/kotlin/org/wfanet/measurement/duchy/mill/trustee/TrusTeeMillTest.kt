@@ -780,6 +780,11 @@ class TrusTeeMillTest {
           delta = 0.1
         }
         noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
+        kAnonymityParams =
+          TrusTeeKt.ComputationDetailsKt.kAnonymityParams {
+            minUsers = 1
+            minImpressions = 1
+          }
       }
 
     private val COMPUTATION_DETAILS = computationDetails {

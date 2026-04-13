@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.mill.trustee.processor
 
+import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.duchy.utils.ComputationResult
 import org.wfanet.measurement.internal.duchy.DifferentialPrivacyParams
 
@@ -24,6 +25,7 @@ sealed interface TrusTeeParams
 data class TrusTeeReachParams(
   val vidSamplingIntervalWidth: Float,
   val dpParams: DifferentialPrivacyParams?,
+  val kAnonymityParams: KAnonymityParams?,
 ) : TrusTeeParams
 
 /** TrusTEE parameters for a Reach-and-Frequency measurement. */
@@ -32,6 +34,7 @@ data class TrusTeeReachAndFrequencyParams(
   val vidSamplingIntervalWidth: Float,
   val reachDpParams: DifferentialPrivacyParams?,
   val frequencyDpParams: DifferentialPrivacyParams?,
+  val kAnonymityParams: KAnonymityParams?,
 ) : TrusTeeParams
 
 /**

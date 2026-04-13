@@ -34,7 +34,6 @@ import java.util.logging.Logger
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
-import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
@@ -100,12 +99,6 @@ import org.wfanet.measurement.integration.common.InProcessEdpAggregatorComponent
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.integration.common.PROJECT_ID
 import org.wfanet.measurement.integration.common.SUBSCRIPTION_ID
-import org.wfanet.measurement.internal.kingdom.HmssProtocolConfigConfig
-import org.wfanet.measurement.internal.kingdom.ProtocolConfig
-import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
-import org.wfanet.measurement.internal.kingdom.TrusTeeProtocolConfigConfig
-import org.wfanet.measurement.internal.kingdom.hmssProtocolConfigConfig
-import org.wfanet.measurement.internal.kingdom.trusTeeProtocolConfigConfig
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
@@ -502,7 +495,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   }
 
   @Test
-  fun `TrusTee no noise basic report has the expected result`() = runBlocking {
+  fun `TrusTee basic report has the expected result`() = runBlocking {
     val trusTeeEventGroups = getTrusTeeEventGroups()
     check(trusTeeEventGroups.size > 1)
 
@@ -545,22 +538,16 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .that(trusTeeProtocolMeasurements)
       .isNotEmpty()
 
-    assertStructuralResults(completedBasicReport)
-    assertNoNoiseResults(
-      completedBasicReport,
-      expectedCrossPublisherReach = EXPECTED_TRUSTEE_CROSS_PUBLISHER_REACH,
-      expectedCrossPublisherImpressions = EXPECTED_TRUSTEE_CROSS_PUBLISHER_IMPRESSIONS,
-      expectedKPlusReach = EXPECTED_TRUSTEE_K_PLUS_REACH,
-      expectedEdpSpec1Reach = EXPECTED_TRUSTEE_EDP_SPEC1_REACH,
-      expectedEdpSpec2Reach = EXPECTED_TRUSTEE_EDP_SPEC2_REACH,
-    )
+    assertTrusTeeResults(completedBasicReport)
   }
+
+  protected abstract fun assertTrusTeeResults(basicReport: BasicReport)
 
   /**
    * Checks structural invariants on basic report results: all metrics are positive, k+ reach is
    * monotonically non-increasing, and component-level metrics are present.
    */
-  private fun assertStructuralResults(basicReport: BasicReport) {
+  protected fun assertStructuralResults(basicReport: BasicReport) {
     basicReport.resultGroupsList.forEach { resultGroup ->
       val totalResults =
         resultGroup.resultsList.filter {
@@ -634,7 +621,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
    * ranges) so that the cross-publisher reach (union of VIDs) is strictly greater than any
    * individual EDP's reach.
    */
-  private fun assertNoNoiseResults(
+  protected fun assertNoNoiseResults(
     basicReport: BasicReport,
     expectedCrossPublisherReach: Long,
     expectedCrossPublisherImpressions: Long,
@@ -1115,46 +1102,54 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           }
         }
     }
-    private const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_REACH = 5369L
-    private const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_IMPRESSIONS = 9122L
-    private val EXPECTED_TRUSTEE_K_PLUS_REACH = listOf(5369L, 2677L, 682L, 394L, 0L)
-    private const val EXPECTED_TRUSTEE_EDP_SPEC1_REACH = 4472L
-    private const val EXPECTED_TRUSTEE_EDP_SPEC2_REACH = 3338L
-
     private const val EXPECTED_HMSS_CROSS_PUBLISHER_REACH = 5371L
     private const val EXPECTED_HMSS_CROSS_PUBLISHER_IMPRESSIONS = 9124L
     private val EXPECTED_HMSS_K_PLUS_REACH = listOf(5371L, 2678L, 682L, 394L, 0L)
     private const val EXPECTED_HMSS_EDP_SPEC1_REACH = 4473L
     private const val EXPECTED_HMSS_EDP_SPEC2_REACH = 3338L
 
-    private val NO_NOISE_TRUSTEE_PROTOCOL_CONFIG_CONFIG: TrusTeeProtocolConfigConfig =
-      trusTeeProtocolConfigConfig {
-        protocolConfig =
-          ProtocolConfigKt.trusTee { noiseMechanism = ProtocolConfig.NoiseMechanism.NONE }
-        duchyId = "aggregator"
-      }
+    // Why K_ANON reach (5459) > non-K_ANON reach (5369):
+    //
+    // TrusTee raw reach is identical (5459) for both configs — the difference is
+    // entirely from the report post-processor QP solver.
+    //
+    // Why the QP solver corrects even without differential privacy:
+    //   The report creates 7 measurements using DIFFERENT VID sampling intervals
+    //   per metric type (configured in InProcessReportingServer.METRIC_SPEC_CONFIG):
+    //     - R&F (1 TrusTee 2-EDP + 2 Direct 1-EDP): VID [0.16, 0.1767)
+    //     - Impressions (3 Direct 1-EDP + 1 Direct 2-EDP): VID [0.477, 0.683)
+    //   Different VID ranges sample different people with different frequency
+    //   profiles, so the R&F-implied impression count (reach * avgFreq) doesn't
+    //   match the independently measured impression count. The QP solver adjusts
+    //   reach, frequency, and impressions to satisfy:
+    //     impressions == reach * avgFreq  (and other monotonicity constraints)
+    //   Verified: when R&F and impression VID intervals are set equal, the QP
+    //   solver makes no corrections and raw TrusTee reach passes through unchanged.
+    //
+    // Concrete numbers for no-k-anon:
+    //   TrusTee raw: reach=5459, freq={1=0.495, 2=0.374, 3=0.055, 4=0.077}
+    //     -> implied avgFreq = 1.716, implied impressions = 5459 * 1.716 = 9368
+    //   But the impression measurement (different VIDs) reports ~9122
+    //     -> inconsistency of ~246, QP adjusts reach down 5459 -> 5369
+    //
+    // For k-anon (min_users=500), frequency buckets 3 and 4 are zeroed:
+    //   bucket 3: 5 sampled * 60 = 300 scaled users < min_users 500 -> zeroed
+    //   bucket 4: 7 sampled * 60 = 420 scaled users < min_users 500 -> zeroed
+    //   TrusTee raw: reach=5459, freq={1=0.570, 2=0.430}
+    //     -> implied avgFreq = 1.430, implied impressions = 5459 * 1.430 = 7806
+    //   Impression measurement reports ~9032 -> larger gap, so QP solver adjusts
+    //   freq upward instead of reducing reach, leaving reach at 5459
+    const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_REACH = 5369L
+    const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_IMPRESSIONS = 9122L
+    val EXPECTED_TRUSTEE_K_PLUS_REACH = listOf(5369L, 2677L, 682L, 394L, 0L)
+    const val EXPECTED_TRUSTEE_EDP_SPEC1_REACH = 4472L
+    const val EXPECTED_TRUSTEE_EDP_SPEC2_REACH = 3338L
 
-    private val NO_NOISE_HMSS_PROTOCOL_CONFIG_CONFIG: HmssProtocolConfigConfig =
-      hmssProtocolConfigConfig {
-        protocolConfig =
-          ProtocolConfigKt.honestMajorityShareShuffle {
-            noiseMechanism = ProtocolConfig.NoiseMechanism.NONE
-            reachAndFrequencyRingModulus = 127
-            reachRingModulus = 127
-          }
-        firstNonAggregatorDuchyId = "worker1"
-        secondNonAggregatorDuchyId = "worker2"
-        aggregatorDuchyId = "aggregator"
-      }
-
-    @BeforeClass
-    @JvmStatic
-    fun initConfig() {
-      InProcessCmmsComponents.initConfig(
-        trusTeeProtocolConfigConfig = NO_NOISE_TRUSTEE_PROTOCOL_CONFIG_CONFIG,
-        hmssProtocolConfigConfig = NO_NOISE_HMSS_PROTOCOL_CONFIG_CONFIG,
-      )
-    }
+    const val EXPECTED_TRUSTEE_K_ANON_CROSS_PUBLISHER_REACH = 5459L
+    const val EXPECTED_TRUSTEE_K_ANON_CROSS_PUBLISHER_IMPRESSIONS = 9032L
+    val EXPECTED_TRUSTEE_K_ANON_K_PLUS_REACH = listOf(5459L, 2349L, 0L, 0L, 0L)
+    const val EXPECTED_TRUSTEE_K_ANON_EDP_SPEC1_REACH = 4436L
+    const val EXPECTED_TRUSTEE_K_ANON_EDP_SPEC2_REACH = 3310L
 
     @get:ClassRule @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
   }

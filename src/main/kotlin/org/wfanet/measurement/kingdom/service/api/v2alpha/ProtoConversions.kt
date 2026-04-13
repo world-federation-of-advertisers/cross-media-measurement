@@ -70,6 +70,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.TrusTeeKt.kAnonymityParams as publicKAnonymityParams
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.honestMajorityShareShuffle
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
@@ -487,6 +488,12 @@ private fun buildMpcProtocolConfig(
       protocol {
         trusTee = trusTee {
           noiseMechanism = protocolConfig.trusTee.noiseMechanism.toNoiseMechanism()
+          if (protocolConfig.trusTee.hasKAnonymityParams()) {
+            kAnonymityParams = publicKAnonymityParams {
+              minImpressions = protocolConfig.trusTee.kAnonymityParams.minImpressions
+              minUsers = protocolConfig.trusTee.kAnonymityParams.minUsers
+            }
+          }
         }
       }
     }

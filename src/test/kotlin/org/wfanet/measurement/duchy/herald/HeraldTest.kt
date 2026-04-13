@@ -113,6 +113,7 @@ import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSket
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2Kt
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee
 import org.wfanet.measurement.internal.duchy.protocol.TrusTeeKt
+import org.wfanet.measurement.internal.duchy.protocol.TrusTeeKt.ComputationDetailsKt.kAnonymityParams as internalKAnonymityParams
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsV2NoiseConfig
 import org.wfanet.measurement.internal.duchy.setContinuationTokenRequest
@@ -124,6 +125,7 @@ import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.Noise
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.liquidLegionsSketchParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
+import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.TrusTeeKt.kAnonymityParams as systemTrusTeeKAnonymityParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.honestMajorityShareShuffle
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.trusTee
@@ -288,6 +290,16 @@ private val HMSS_NONE_NOISE_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
 
 private val TRUS_TEE_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
   trusTee = trusTee { noiseMechanism = SystemNoiseMechanism.CONTINUOUS_GAUSSIAN }
+}
+
+private val TRUS_TEE_MPC_PROTOCOL_CONFIG_WITH_K_ANON = mpcProtocolConfig {
+  trusTee = trusTee {
+    noiseMechanism = SystemNoiseMechanism.CONTINUOUS_GAUSSIAN
+    kAnonymityParams = systemTrusTeeKAnonymityParams {
+      minImpressions = 10
+      minUsers = 5
+    }
+  }
 }
 
 private const val AGGREGATOR_DUCHY_ID = "aggregator_duchy"
@@ -2150,6 +2162,63 @@ class HeraldTest {
               }
               noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
               vidSamplingIntervalWidth = 0.5f
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `syncStatuses creates new trusTEE computation with kAnonymityParams`() = runTest {
+    val confirmingKnown =
+      buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
+
+    val systemApiRequisitions1 =
+      REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+    val systemApiRequisitions2 =
+      REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+    val confirmingUnknown =
+      buildComputationAtKingdom(
+        "2",
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
+        mpcProtocolConfig = TRUS_TEE_MPC_PROTOCOL_CONFIG_WITH_K_ANON,
+        systemComputationParticipant = SINGLE_COMPUTATION_PARTICIPANT,
+      )
+    mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
+
+    fakeComputationDatabase.addComputation(
+      globalId = confirmingKnown.key.computationId,
+      stage = TrusTee.Stage.INITIALIZED.toProtocolStage(),
+      computationDetails = TRUS_TEE_COMPUTATION_DETAILS,
+    )
+
+    aggregatorHerald.syncStatuses()
+
+    val computationDetails =
+      fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+    val trusTeeDetails = computationDetails!!.trusTee
+    assertThat(trusTeeDetails)
+      .isEqualTo(
+        TrusTeeKt.computationDetails {
+          role = RoleInComputation.AGGREGATOR
+          type = TrusTee.ComputationDetails.Type.REACH_AND_FREQUENCY
+          parameters =
+            TrusTeeKt.ComputationDetailsKt.parameters {
+              maximumFrequency = 10
+              reachDpParams = differentialPrivacyParams {
+                epsilon = 1.1
+                delta = 1.2
+              }
+              frequencyDpParams = differentialPrivacyParams {
+                epsilon = 2.1
+                delta = 2.2
+              }
+              noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
+              vidSamplingIntervalWidth = 0.5f
+              kAnonymityParams = internalKAnonymityParams {
+                minImpressions = 10
+                minUsers = 5
+              }
             }
         }
       )
