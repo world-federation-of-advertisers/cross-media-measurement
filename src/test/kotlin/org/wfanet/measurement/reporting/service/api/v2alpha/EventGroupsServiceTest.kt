@@ -52,6 +52,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest as CmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt as CmmsListEventGroupsRequestKt
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerEventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.api.v2alpha.copy
@@ -59,6 +60,7 @@ import org.wfanet.measurement.api.v2alpha.dateInterval as cmmsDateInterval
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.getEventGroupRequest as cmmsGetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse as cmmsListEventGroupsResponse
@@ -71,7 +73,6 @@ import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupKt
-import org.wfanet.measurement.reporting.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
@@ -93,8 +94,7 @@ class EventGroupsServiceTest {
           nextPageToken = ""
         }
       )
-    onBlocking { getEventGroup(any()) }
-      .thenReturn(CMMS_EVENT_GROUP)
+    onBlocking { getEventGroup(any()) }.thenReturn(CMMS_EVENT_GROUP)
   }
 
   private val permissionsServiceMock: PermissionsGrpcKt.PermissionsCoroutineImplBase = mockService {
@@ -389,16 +389,17 @@ class EventGroupsServiceTest {
   fun `getEventGroup returns expected EventGroup`() {
     val response =
       withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        runBlocking {
-          service.getEventGroup(
-            getEventGroupRequest {
-              name = EVENT_GROUP.name
-            }
-          )
-        }
+        runBlocking { service.getEventGroup(getEventGroupRequest { name = EVENT_GROUP.name }) }
       }
 
     assertThat(response).isEqualTo(EVENT_GROUP)
+
+    verifyProtoArgument(cmmsEventGroupsMock, EventGroupsCoroutineImplBase::getEventGroup)
+      .isEqualTo(
+        cmmsGetEventGroupRequest {
+          name = MeasurementConsumerEventGroupKey(MEASUREMENT_CONSUMER_ID, EVENT_GROUP_ID).toName()
+        }
+      )
   }
 
   @Test
@@ -411,13 +412,7 @@ class EventGroupsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-          runBlocking {
-            service.getEventGroup(
-              getEventGroupRequest {
-                name = EVENT_GROUP.name
-              }
-            )
-          }
+          runBlocking { service.getEventGroup(getEventGroupRequest { name = EVENT_GROUP.name }) }
         }
       }
 
