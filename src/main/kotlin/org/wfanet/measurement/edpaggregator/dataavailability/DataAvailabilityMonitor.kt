@@ -25,9 +25,13 @@ import java.time.format.DateTimeParseException
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.flattenConcat
+import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata as V1AlphaImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt.filter as listImpressionMetadataRequestFilter
@@ -136,25 +140,12 @@ class DataAvailabilityMonitor(
   suspend fun checkFullStatus(
     maxStaleDays: Int,
     clock: () -> LocalDate,
-    spuriousDeletionLookbackDays: Int? = null,
+    spuriousDeletionLookbackDays: Int?,
   ): MonitorResult {
     require(maxStaleDays > 0) { "maxStaleDays must be greater than zero" }
     val today = clock()
 
-    // Run spurious deletion check if configured and stub is available.
-    val spuriousCounts: Map<ModelLineKey, Pair<Int, Int>> =
-      if (
-        spuriousDeletionLookbackDays != null &&
-          impressionMetadataStub != null &&
-          dataProviderName != null
-      ) {
-        val spuriousResult = checkSpuriousDeletions(spuriousDeletionLookbackDays, clock)
-        spuriousResult.statuses.associate {
-          it.modelLineKey to Pair(it.spuriousDeletionCount ?: 0, it.legitimateDeletionCount ?: 0)
-        }
-      } else {
-        emptyMap()
-      }
+    val spuriousCounts = getSpuriousDeletionCounts(spuriousDeletionLookbackDays, clock)
 
     val statuses =
       activeModelLines.map { modelLineKey ->
@@ -214,6 +205,7 @@ class DataAvailabilityMonitor(
     requireNotNull(dataProviderName) {
       "dataProviderName must be provided for spurious deletion checks"
     }
+    require(dataProviderName.isNotBlank()) { "dataProviderName must not be blank" }
 
     val today = clock()
     val cutoffDate = today.minusDays(lookbackDays.toLong())
@@ -225,50 +217,50 @@ class DataAvailabilityMonitor(
         val modelLineName = modelLineKey.toName()
         var spuriousCount = 0
         var legitimateCount = 0
-        var pageToken = ""
 
-        do {
-          val response =
-            impressionMetadataStub.listImpressionMetadata(
-              listImpressionMetadataRequest {
-                parent = dataProviderName
-                pageSize = 100
-                showDeleted = true
-                if (pageToken.isNotEmpty()) {
-                  this.pageToken = pageToken
-                }
-                filter = listImpressionMetadataRequestFilter {
-                  modelLine = modelLineName
-                  intervalOverlaps = interval {
-                    startTime = timestamp { seconds = cutoffEpochSeconds }
-                    endTime = timestamp { seconds = nowEpochSeconds }
+        val deletedEntries: Flow<V1AlphaImpressionMetadata> =
+          impressionMetadataStub
+            .listResources<
+              V1AlphaImpressionMetadata,
+              String,
+              ImpressionMetadataServiceCoroutineStub,
+            > { pageToken ->
+              val response =
+                listImpressionMetadata(
+                  listImpressionMetadataRequest {
+                    parent = dataProviderName
+                    pageSize = 100
+                    showDeleted = true
+                    this.pageToken = pageToken
+                    filter = listImpressionMetadataRequestFilter {
+                      modelLine = modelLineName
+                      intervalOverlaps = interval {
+                        startTime = timestamp { seconds = cutoffEpochSeconds }
+                        endTime = timestamp { seconds = nowEpochSeconds }
+                      }
+                    }
                   }
-                }
-              }
-            )
-
-          for (entry in response.impressionMetadataList) {
-            if (entry.state != V1AlphaImpressionMetadata.State.DELETED) {
-              continue
-            }
-            val blobKey = entry.blobUri.removePrefix("gs://").substringAfter("/")
-            val blob = storageClient.getBlob(blobKey)
-            if (blob != null) {
-              spuriousCount++
-              if (spuriousCount <= 10) {
-                logger.log(
-                  Level.WARNING,
-                  "Spurious deletion detected for model line $modelLineName: " +
-                    "entry ${entry.name} is deleted but blob exists at ${entry.blobUri}",
                 )
-              }
-            } else {
-              legitimateCount++
+              ResourceList(response.impressionMetadataList, response.nextPageToken)
             }
-          }
+            .flattenConcat()
 
-          pageToken = response.nextPageToken
-        } while (pageToken.isNotEmpty())
+        deletedEntries.collect { entry ->
+          val blobKey = entry.blobUri.removePrefix("gs://").substringAfter("/")
+          val blob = storageClient.getBlob(blobKey)
+          if (blob != null) {
+            spuriousCount++
+            if (spuriousCount <= 10) {
+              logger.log(
+                Level.WARNING,
+                "Spurious deletion detected for model line $modelLineName: " +
+                  "entry ${entry.name} is deleted but blob exists at ${entry.blobUri}",
+              )
+            }
+          } else {
+            legitimateCount++
+          }
+        }
 
         logger.log(
           Level.INFO,
@@ -300,6 +292,19 @@ class DataAvailabilityMonitor(
 
     statuses.forEach { recordMetrics(it) }
     return MonitorResult(statuses = statuses)
+  }
+
+  private suspend fun getSpuriousDeletionCounts(
+    lookbackDays: Int?,
+    clock: () -> LocalDate,
+  ): Map<ModelLineKey, Pair<Int, Int>> {
+    if (lookbackDays == null || impressionMetadataStub == null || dataProviderName == null) {
+      return emptyMap()
+    }
+    val spuriousResult = checkSpuriousDeletions(lookbackDays, clock)
+    return spuriousResult.statuses.associate {
+      it.modelLineKey to Pair(it.spuriousDeletionCount ?: 0, it.legitimateDeletionCount ?: 0)
+    }
   }
 
   private fun buildFullStatus(

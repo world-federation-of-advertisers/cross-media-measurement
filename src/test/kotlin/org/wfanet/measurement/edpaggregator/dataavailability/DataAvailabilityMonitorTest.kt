@@ -186,7 +186,12 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
     assertThat(result.statuses).hasSize(1)
 
     val status = result.statuses.single()
@@ -222,7 +227,12 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val status = result.statuses.single()
     assertThat(status.isStale).isTrue()
@@ -246,7 +256,12 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val status = result.statuses.single()
     assertThat(status.isStale).isFalse()
@@ -269,7 +284,12 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val status = result.statuses.single()
     assertThat(status.gapDates)
@@ -301,7 +321,12 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A, MODEL_LINE_B),
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val statusA = result.statuses.first { it.modelLineKey == MODEL_LINE_A }
     assertThat(statusA.isStale).isFalse()
@@ -323,7 +348,12 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
     val status = result.statuses.single()
     assertThat(status.isStale).isNull()
     assertThat(status.gapDates).isNull()
@@ -346,7 +376,12 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val status = result.statuses.single()
     assertThat(status.isStale).isFalse()
@@ -369,7 +404,12 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val status = result.statuses.single()
     assertThat(status.isStale).isTrue()
@@ -526,7 +566,12 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
     val status = result.statuses.single()
     assertThat(status.latestDate).isEqualTo(LocalDate.of(2026, 3, 15))
     assertThat(status.gapDates).isEmpty()
@@ -579,7 +624,12 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val status = result.statuses.single()
     assertThat(status.gapDates).isEmpty()
@@ -601,7 +651,11 @@ class DataAvailabilityMonitorTest {
       )
 
     assertFailsWith<IllegalArgumentException> {
-      monitor.checkFullStatus(maxStaleDays = 0, clock = { TODAY })
+      monitor.checkFullStatus(
+        maxStaleDays = 0,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
     }
   }
 
@@ -658,7 +712,12 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val status = result.statuses.single()
     assertThat(status.gapDates).isEmpty()
@@ -711,7 +770,12 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val status = result.statuses.single()
     assertThat(status.datesWithoutDoneBlob).containsExactly(LocalDate.of(2026, 3, 14))
@@ -773,7 +837,12 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val status = result.statuses.single()
     // Stale: latest done date is March 12, today is March 15 = 3 days, not > 3
@@ -802,7 +871,11 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    monitor.checkFullStatus(
+      maxStaleDays = 3,
+      clock = { TODAY },
+      spuriousDeletionLookbackDays = null,
+    )
 
     val metrics = collectMetrics()
     val metricByName = metrics.associateBy { it.name }
@@ -841,7 +914,11 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    monitor.checkFullStatus(
+      maxStaleDays = 3,
+      clock = { TODAY },
+      spuriousDeletionLookbackDays = null,
+    )
 
     val metrics = collectMetrics()
     val metricByName = metrics.associateBy { it.name }
@@ -907,7 +984,11 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    monitor.checkFullStatus(
+      maxStaleDays = 3,
+      clock = { TODAY },
+      spuriousDeletionLookbackDays = null,
+    )
 
     val metrics = collectMetrics()
     val metricByName = metrics.associateBy { it.name }
@@ -947,7 +1028,12 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val status = result.statuses.single()
     assertThat(status.lateArrivingDates).containsExactly(LocalDate.of(2026, 3, 15))
@@ -973,7 +1059,12 @@ class DataAvailabilityMonitorTest {
           activeModelLines = setOf(MODEL_LINE_A),
         )
 
-      val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+      val result =
+        monitor.checkFullStatus(
+          maxStaleDays = 3,
+          clock = { TODAY },
+          spuriousDeletionLookbackDays = null,
+        )
 
       val status = result.statuses.single()
       assertThat(status.lateArrivingDates).isEmpty()
@@ -1023,13 +1114,16 @@ class DataAvailabilityMonitorTest {
         activeModelLines = setOf(MODEL_LINE_A),
       )
 
-    monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    monitor.checkFullStatus(
+      maxStaleDays = 3,
+      clock = { TODAY },
+      spuriousDeletionLookbackDays = null,
+    )
 
     val metrics = collectMetrics()
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_LATE_ARRIVING))
       .isEqualTo(1)
   }
-
 
   @Test
   fun `checkSpuriousDeletions throws when stub is not provided`(): Unit = runBlocking {
