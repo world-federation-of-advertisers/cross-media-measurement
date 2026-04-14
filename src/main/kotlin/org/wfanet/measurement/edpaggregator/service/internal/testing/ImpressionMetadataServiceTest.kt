@@ -687,6 +687,183 @@ abstract class ImpressionMetadataServiceTest {
     }
 
   @Test
+  fun `batchCreateImpressionMetadata reactivates DELETED record matched by requestId`() =
+    runBlocking {
+      val requestId = UUID.randomUUID().toString()
+      val createRequest = createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA
+        this.requestId = requestId
+      }
+
+      // Create the record.
+      val initialResponse =
+        service.batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += createRequest
+          }
+        )
+      val created = initialResponse.impressionMetadataList.single()
+      assertThat(created.state).isEqualTo(State.IMPRESSION_METADATA_STATE_ACTIVE)
+
+      // Delete the record.
+      service.deleteImpressionMetadata(
+        deleteImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          impressionMetadataResourceId = created.impressionMetadataResourceId
+        }
+      )
+
+      // Re-create with the same requestId. The DELETED record should be reactivated.
+      val reactivatedResponse =
+        service.batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += createRequest
+          }
+        )
+
+      val reactivated = reactivatedResponse.impressionMetadataList.single()
+      assertThat(reactivated.state).isEqualTo(State.IMPRESSION_METADATA_STATE_ACTIVE)
+      assertThat(reactivated.impressionMetadataResourceId)
+        .isEqualTo(created.impressionMetadataResourceId)
+      assertThat(reactivated.updateTime.toInstant())
+        .isGreaterThan(created.updateTime.toInstant())
+    }
+
+  @Test
+  fun `batchCreateImpressionMetadata reactivates DELETED record matched by blobUri`() =
+    runBlocking {
+      val originalRequestId = UUID.randomUUID().toString()
+      val createRequest = createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA
+        requestId = originalRequestId
+      }
+
+      // Create the record.
+      val initialResponse =
+        service.batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += createRequest
+          }
+        )
+      val created = initialResponse.impressionMetadataList.single()
+      assertThat(created.state).isEqualTo(State.IMPRESSION_METADATA_STATE_ACTIVE)
+
+      // Delete the record.
+      service.deleteImpressionMetadata(
+        deleteImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          impressionMetadataResourceId = created.impressionMetadataResourceId
+        }
+      )
+
+      // Re-create with a different requestId but the same blobUri.
+      val newRequestId = UUID.randomUUID().toString()
+      val reactivatedResponse =
+        service.batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += createImpressionMetadataRequest {
+              impressionMetadata = IMPRESSION_METADATA
+              requestId = newRequestId
+            }
+          }
+        )
+
+      val reactivated = reactivatedResponse.impressionMetadataList.single()
+      assertThat(reactivated.state).isEqualTo(State.IMPRESSION_METADATA_STATE_ACTIVE)
+      assertThat(reactivated.impressionMetadataResourceId)
+        .isEqualTo(created.impressionMetadataResourceId)
+    }
+
+  @Test
+  fun `batchCreateImpressionMetadata reactivates DELETED and creates new in same batch`() =
+    runBlocking {
+      val requestId1 = UUID.randomUUID().toString()
+      val createRequest1 = createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA
+        requestId = requestId1
+      }
+
+      // Create the first record.
+      val initialResponse =
+        service.batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += createRequest1
+          }
+        )
+      val created = initialResponse.impressionMetadataList.single()
+
+      // Delete it.
+      service.deleteImpressionMetadata(
+        deleteImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          impressionMetadataResourceId = created.impressionMetadataResourceId
+        }
+      )
+
+      // Batch with one DELETED record (same requestId) and one new record.
+      val requestId2 = UUID.randomUUID().toString()
+      val createRequest2 = createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA_2
+        requestId = requestId2
+      }
+
+      val batchResponse =
+        service.batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += createRequest1
+            requests += createRequest2
+          }
+        )
+
+      assertThat(batchResponse.impressionMetadataCount).isEqualTo(2)
+      val reactivated = batchResponse.impressionMetadataList[0]
+      val newRecord = batchResponse.impressionMetadataList[1]
+
+      assertThat(reactivated.state).isEqualTo(State.IMPRESSION_METADATA_STATE_ACTIVE)
+      assertThat(reactivated.impressionMetadataResourceId)
+        .isEqualTo(created.impressionMetadataResourceId)
+      assertThat(newRecord.state).isEqualTo(State.IMPRESSION_METADATA_STATE_ACTIVE)
+      assertThat(newRecord.blobUri).isEqualTo(IMPRESSION_METADATA_2.blobUri)
+    }
+
+  @Test
+  fun `batchCreateImpressionMetadata still throws ALREADY_EXISTS for ACTIVE blobUri`() =
+    runBlocking {
+      val duplicateBlobUri = "active-blob-uri"
+      service.batchCreateImpressionMetadata(
+        batchCreateImpressionMetadataRequest {
+          requests += createImpressionMetadataRequest {
+            impressionMetadata = IMPRESSION_METADATA.copy { blobUri = duplicateBlobUri }
+            requestId = UUID.randomUUID().toString()
+          }
+        }
+      )
+
+      // Try to create a different record with the same blobUri but different requestId.
+      // The existing record is ACTIVE, so this should throw ALREADY_EXISTS.
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateImpressionMetadata(
+            batchCreateImpressionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              requests += createImpressionMetadataRequest {
+                impressionMetadata = IMPRESSION_METADATA_2.copy { blobUri = duplicateBlobUri }
+                requestId = UUID.randomUUID().toString()
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    }
+
+  @Test
   fun `deleteImpressionMetadata soft deletes and returns updated ImpressionMetadata`() =
     runBlocking {
       val created =

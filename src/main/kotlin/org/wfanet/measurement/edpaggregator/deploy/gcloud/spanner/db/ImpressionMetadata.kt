@@ -293,13 +293,17 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
  * Buffers a batch of [ImpressionMetadata] to be inserted in a single transaction.
  *
  * This will check for existence prior to insertion. If an entity with the same create_request_id
- * already exists, it will be returned instead.
+ * already exists and is ACTIVE, it will be returned as-is. If it exists but is DELETED, it will be
+ * reactivated (state set back to ACTIVE). Similarly, if an entity with the same blob_uri exists and
+ * is DELETED, it will be reactivated. If it exists and is ACTIVE, an ALREADY_EXISTS error is
+ * thrown.
  *
- * For newly-created entities, the `create_time`, `update_time`, and "etag" fields will not be set
- * in the returned [ImpressionMetadata]. The caller is responsible for populating these from the
- * commit timestamp.
+ * For newly-created or reactivated entities, the `update_time` and "etag" fields will not be set in
+ * the returned [ImpressionMetadata]. The caller is responsible for populating these from the commit
+ * timestamp.
  *
- * @return a list of [ImpressionMetadata], containing both the newly created and existing entities.
+ * @return a list of [ImpressionMetadata], containing newly created, reactivated, and existing
+ *   entities.
  */
 suspend fun AsyncDatabaseClient.TransactionContext.batchCreateImpressionMetadata(
   requests: List<CreateImpressionMetadataRequest>
@@ -322,11 +326,49 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchCreateImpressionMetadata
       requests.map { it.impressionMetadata.blobUri },
     )
 
+  // Reactivate DELETED records that were matched by requestId.
+  val reactivatedByRequestId: Map<String, ImpressionMetadata> = buildMap {
+    for ((requestId, result) in existingRequestIdToImpressionMetadata) {
+      if (result.impressionMetadata.state == State.IMPRESSION_METADATA_STATE_DELETED) {
+        updateImpressionMetadataState(
+          dataProviderResourceId,
+          result.impressionMetadataId,
+          State.IMPRESSION_METADATA_STATE_ACTIVE,
+        )
+        put(
+          requestId,
+          result.impressionMetadata.copy {
+            state = State.IMPRESSION_METADATA_STATE_ACTIVE
+            clearUpdateTime()
+            clearEtag()
+          },
+        )
+      }
+    }
+  }
+
   val creations: List<ImpressionMetadata> =
     requests
       .filter { !existingRequestIdToImpressionMetadata.containsKey(it.requestId) }
       .map { request ->
-        if (existingBlobUriToImpressionMetadata.containsKey(request.impressionMetadata.blobUri)) {
+        val existingByBlobUri =
+          existingBlobUriToImpressionMetadata[request.impressionMetadata.blobUri]
+        if (existingByBlobUri != null) {
+          if (
+            existingByBlobUri.impressionMetadata.state == State.IMPRESSION_METADATA_STATE_DELETED
+          ) {
+            // Reactivate the DELETED record found by blobUri.
+            updateImpressionMetadataState(
+              dataProviderResourceId,
+              existingByBlobUri.impressionMetadataId,
+              State.IMPRESSION_METADATA_STATE_ACTIVE,
+            )
+            return@map existingByBlobUri.impressionMetadata.copy {
+              state = State.IMPRESSION_METADATA_STATE_ACTIVE
+              clearUpdateTime()
+              clearEtag()
+            }
+          }
           throw ImpressionMetadataAlreadyExistsException(request.impressionMetadata.blobUri)
             .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
         }
@@ -369,7 +411,8 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchCreateImpressionMetadata
   val newCreationIterator = creations.iterator()
 
   return requests.map {
-    existingRequestIdToImpressionMetadata[it.requestId]?.impressionMetadata
+    reactivatedByRequestId[it.requestId]
+      ?: existingRequestIdToImpressionMetadata[it.requestId]?.impressionMetadata
       ?: newCreationIterator.next()
   }
 }
