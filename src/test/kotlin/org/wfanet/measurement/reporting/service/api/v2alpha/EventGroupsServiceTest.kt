@@ -33,12 +33,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.whenever
 import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.testing.Authentication.withPrincipalAndScopes
+import org.wfanet.measurement.access.v1alpha.CheckPermissionsRequest
 import org.wfanet.measurement.access.v1alpha.CheckPermissionsResponse
 import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
 import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
@@ -98,11 +100,10 @@ class EventGroupsServiceTest {
   }
 
   private val permissionsServiceMock: PermissionsGrpcKt.PermissionsCoroutineImplBase = mockService {
-    onBlocking { checkPermissions(any()) } doReturn
-      checkPermissionsResponse {
-        permissions += EventGroupsService.LIST_EVENT_GROUPS_PERMISSIONS.map { "permissions/$it" }
-        permissions += EventGroupsService.GET_EVENT_GROUP_PERMISSIONS.map { "permissions/$it" }
-      }
+    onBlocking { checkPermissions(any()) } doAnswer { invocation ->
+      val request = invocation.getArgument<CheckPermissionsRequest>(0)
+      checkPermissionsResponse { permissions += request.permissionsList }
+    }
   }
 
   @get:Rule
@@ -697,7 +698,9 @@ class EventGroupsServiceTest {
       configs[MEASUREMENT_CONSUMER_NAME] = CONFIG
     }
     private val PRINCIPAL = principal { name = "principals/${MEASUREMENT_CONSUMER_ID}-user" }
-    private val SCOPES = EventGroupsService.LIST_EVENT_GROUPS_PERMISSIONS
+    private val SCOPES =
+      EventGroupsService.LIST_EVENT_GROUPS_PERMISSIONS +
+        EventGroupsService.GET_EVENT_GROUP_PERMISSIONS
 
     private const val DATA_PROVIDER_ID = "1235"
     private val DATA_PROVIDER_NAME = DataProviderKey(DATA_PROVIDER_ID).toName()
