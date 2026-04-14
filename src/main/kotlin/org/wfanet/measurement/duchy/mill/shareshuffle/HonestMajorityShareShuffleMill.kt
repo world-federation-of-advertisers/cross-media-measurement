@@ -560,6 +560,7 @@ class HonestMajorityShareShuffleMill(
       cryptoCpuDurationHistogram,
     )
 
+
     when (val measurementType = measurementSpec.measurementTypeCase) {
       MeasurementSpec.MeasurementTypeCase.REACH ->
         sendResultToKingdom(

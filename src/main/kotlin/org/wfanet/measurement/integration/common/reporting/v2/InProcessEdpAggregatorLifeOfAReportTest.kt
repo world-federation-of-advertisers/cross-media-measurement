@@ -45,6 +45,8 @@ import org.junit.runners.model.Statement
 import org.wfanet.measurement.access.client.v1alpha.TrustedPrincipalAuthInterceptor
 import org.wfanet.measurement.access.service.PermissionKey
 import org.wfanet.measurement.access.v1alpha.PoliciesGrpc
+import org.wfanet.measurement.config.reporting.MetricSpecConfigKt
+import org.wfanet.measurement.config.reporting.metricSpecConfig
 import org.wfanet.measurement.access.v1alpha.PolicyKt
 import org.wfanet.measurement.access.v1alpha.PrincipalKt
 import org.wfanet.measurement.access.v1alpha.PrincipalsGrpc
@@ -310,6 +312,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           TestEvent.getDescriptor(),
           defaultModelLineName = inProcessCmmsComponents.modelLineResourceName,
           verboseGrpcLogging = false,
+          metricSpecConfigOverride = NO_SAMPLING_METRIC_SPEC_CONFIG,
           populationDataProviderName =
             inProcessCmmsComponents.getPopulationData().populationDataProviderName,
         )
@@ -1117,11 +1120,95 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
     // All computation methods (HMSS, TrusTee, etc.) are expected to produce exactly the same
     // results when using the same input data and no noise.
-    private const val EXPECTED_CROSS_PUBLISHER_REACH = 5371L
-    private const val EXPECTED_CROSS_PUBLISHER_IMPRESSIONS = 9124L
-    private val EXPECTED_K_PLUS_REACH = listOf(5371L, 2678L, 682L, 394L, 0L)
-    private const val EXPECTED_EDP_SPEC1_REACH = 4473L
-    private const val EXPECTED_EDP_SPEC2_REACH = 3338L
+    private const val EXPECTED_CROSS_PUBLISHER_REACH = 5330L
+    private const val EXPECTED_CROSS_PUBLISHER_IMPRESSIONS = 8860L
+    private val EXPECTED_K_PLUS_REACH = listOf(5330L, 2572L, 647L, 311L, 0L)
+    private const val EXPECTED_EDP_SPEC1_REACH = 3937L
+    private const val EXPECTED_EDP_SPEC2_REACH = 3638L
+
+    // Placeholder values required by the MeasurementSpec. Unused since NoiseMechanism is NONE.
+    private val NO_NOISE_PRIVACY_PARAMS =
+      MetricSpecConfigKt.differentialPrivacyParams {
+        epsilon = 1.0
+        delta = 1e-15
+      }
+
+    /** MetricSpecConfig with width=1.0 so there's no VID sampling variance. */
+    private val NO_SAMPLING_METRIC_SPEC_CONFIG = metricSpecConfig {
+      reachParams =
+        MetricSpecConfigKt.reachParams {
+          multipleDataProviderParams =
+            MetricSpecConfigKt.samplingAndPrivacyParams {
+              privacyParams = NO_NOISE_PRIVACY_PARAMS
+              vidSamplingInterval =
+                MetricSpecConfigKt.vidSamplingInterval {
+                  fixedStart =
+                    MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                      start = 0.0f
+                      width = 1.0f
+                    }
+                }
+            }
+          singleDataProviderParams = multipleDataProviderParams
+        }
+
+      reachAndFrequencyParams =
+        MetricSpecConfigKt.reachAndFrequencyParams {
+          multipleDataProviderParams =
+            MetricSpecConfigKt.reachAndFrequencySamplingAndPrivacyParams {
+              reachPrivacyParams = NO_NOISE_PRIVACY_PARAMS
+              frequencyPrivacyParams = NO_NOISE_PRIVACY_PARAMS
+              vidSamplingInterval =
+                MetricSpecConfigKt.vidSamplingInterval {
+                  fixedStart =
+                    MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                      start = 0.0f
+                      width = 1.0f
+                    }
+                }
+            }
+          singleDataProviderParams = multipleDataProviderParams
+          maximumFrequency = 10
+        }
+
+      impressionCountParams =
+        MetricSpecConfigKt.impressionCountParams {
+          params =
+            MetricSpecConfigKt.samplingAndPrivacyParams {
+              privacyParams = NO_NOISE_PRIVACY_PARAMS
+              vidSamplingInterval =
+                MetricSpecConfigKt.vidSamplingInterval {
+                  fixedStart =
+                    MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                      start = 0.0f
+                      width = 1.0f
+                    }
+                }
+            }
+          maximumFrequencyPerUser = 60
+        }
+
+      watchDurationParams =
+        MetricSpecConfigKt.watchDurationParams {
+          params =
+            MetricSpecConfigKt.samplingAndPrivacyParams {
+              privacyParams = NO_NOISE_PRIVACY_PARAMS
+              vidSamplingInterval =
+                MetricSpecConfigKt.vidSamplingInterval {
+                  fixedStart =
+                    MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                      start = 0.0f
+                      width = 1.0f
+                    }
+                }
+            }
+          maximumWatchDurationPerUser = com.google.protobuf.util.Durations.fromSeconds(4000)
+        }
+
+      populationCountParams =
+        org.wfanet.measurement.config.reporting.MetricSpecConfig.PopulationCountParams
+          .getDefaultInstance()
+    }
 
     private val NO_NOISE_TRUSTEE_PROTOCOL_CONFIG_CONFIG: TrusTeeProtocolConfigConfig =
       trusTeeProtocolConfigConfig {
