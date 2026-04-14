@@ -37,6 +37,7 @@ kt_jvm_library(
         "SpannerDuchyDependencyProviderRule.kt",
     ],
     visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/integration/common/reporting/v2:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/integration/deploy/gcloud:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/integration/postgres:__pkg__",
     ],

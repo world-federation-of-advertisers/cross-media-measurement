@@ -23,7 +23,9 @@ import com.google.protobuf.util.JsonFormat
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.metrics.data.MetricData
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
@@ -49,6 +51,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalsRequest
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -94,6 +97,7 @@ class DataAvailabilitySyncTest {
     private const val SYNC_DURATION_METRIC = "edpa.data_availability.sync_duration"
     private const val RECORDS_SYNCED_METRIC = "edpa.data_availability.records_synced"
     private const val CMMS_RPC_ERRORS_METRIC = "edpa.data_availability.cmms_rpc_errors"
+    private const val DATE_COUNT_METRIC = "edpa.data_availability.date_count"
     private const val DEFAULT_BATCH_SIZE = 100
   }
 
@@ -155,7 +159,7 @@ class DataAvailabilitySyncTest {
           // Build some fake proto data for the response
           computeModelLineBoundsResponse {
             modelLineBounds += modelLineBoundMapEntry {
-              key = "${request.parent}/modelLines/modelLineA"
+              key = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLineA"
               value = interval {
                 startTime = timestamp { seconds = 100 }
                 endTime = timestamp { seconds = 200 }
@@ -177,24 +181,37 @@ class DataAvailabilitySyncTest {
     val metrics: DataAvailabilitySyncMetrics,
     val metricExporter: InMemoryMetricExporter,
     val metricReader: PeriodicMetricReader,
-    val meterProvider: SdkMeterProvider,
+    val openTelemetry: OpenTelemetrySdk,
   ) {
     fun close() {
-      meterProvider.close()
+      openTelemetry.close()
+      GlobalOpenTelemetry.resetForTest()
+      Instrumentation.resetForTest()
     }
   }
 
   private fun createMetricsEnvironment(): MetricsTestEnvironment {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
     val metricExporter = InMemoryMetricExporter.create()
     val metricReader = PeriodicMetricReader.create(metricExporter)
     val meterProvider = SdkMeterProvider.builder().registerMetricReader(metricReader).build()
+    val openTelemetry =
+      OpenTelemetrySdk.builder().setMeterProvider(meterProvider).buildAndRegisterGlobal()
     val meter = meterProvider.get("data-availability-sync-test")
     return MetricsTestEnvironment(
       DataAvailabilitySyncMetrics(meter),
       metricExporter,
       metricReader,
-      meterProvider,
+      openTelemetry,
     )
+  }
+
+  private fun getDateStatusCount(metrics: List<MetricData>, status: String): Long? {
+    val dateCountMetric = metrics.find { it.name == DATE_COUNT_METRIC } ?: return null
+    return dateCountMetric.longSumData.points
+      .find { it.attributes.get(DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR) == status }
+      ?.value
   }
 
   @get:Rule
@@ -222,6 +239,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -255,6 +273,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -275,10 +294,10 @@ class DataAvailabilitySyncTest {
 
       seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
-      val modelLineKey = "dataProviders/dataProvider123/modelLines/modelLineA"
+      val modelLineKey = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLineA"
       val mappedLines =
         listOf(
-          "dataProviders/dataProvider123/modelLines/modelLineB",
+          "modelProviders/provider1/modelSuites/suite1/modelLines/modelLineB",
           "dataProviders/dataProvider123/modelLines/modelLineC",
         )
 
@@ -292,6 +311,7 @@ class DataAvailabilitySyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = mapOf(modelLineKey to mappedLines),
+          errorIfGapsExist = true,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -311,8 +331,8 @@ class DataAvailabilitySyncTest {
       val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
       val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
-      val existingModelLine = "modelLineA"
-      val newModelLine = "modelLineB"
+      val existingModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLineA"
+      val newModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLineB"
 
       seedBlobDetailsWithModelLine(storageClient, folderPrefix, listOf(300L to 400L), newModelLine)
 
@@ -321,14 +341,14 @@ class DataAvailabilitySyncTest {
           val request = invocation.getArgument<ComputeModelLineBoundsRequest>(0)
           computeModelLineBoundsResponse {
             modelLineBounds += modelLineBoundMapEntry {
-              key = "${request.parent}/modelLines/$existingModelLine"
+              key = existingModelLine
               value = interval {
                 startTime = timestamp { seconds = 100 }
                 endTime = timestamp { seconds = 200 }
               }
             }
             modelLineBounds += modelLineBoundMapEntry {
-              key = "${request.parent}/modelLines/$newModelLine"
+              key = newModelLine
               value = interval {
                 startTime = timestamp { seconds = 300 }
                 endTime = timestamp { seconds = 400 }
@@ -347,6 +367,7 @@ class DataAvailabilitySyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -356,11 +377,7 @@ class DataAvailabilitySyncTest {
         replaceDataAvailabilityIntervals(requestCaptor.capture())
       }
       val availabilityKeys = requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key }
-      assertThat(availabilityKeys)
-        .containsExactly(
-          "dataProviders/dataProvider123/modelLines/$existingModelLine",
-          "dataProviders/dataProvider123/modelLines/$newModelLine",
-        )
+      assertThat(availabilityKeys).containsExactly(existingModelLine, newModelLine)
     }
   }
 
@@ -381,6 +398,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -411,6 +429,7 @@ class DataAvailabilitySyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -443,6 +462,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -473,6 +493,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     try {
@@ -500,6 +521,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     try {
@@ -527,6 +549,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     try {
@@ -554,6 +577,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -581,6 +605,7 @@ class DataAvailabilitySyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
           metrics = metricsEnv.metrics,
         )
 
@@ -624,6 +649,7 @@ class DataAvailabilitySyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
           metrics = metricsEnv.metrics,
         )
 
@@ -681,6 +707,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -721,6 +748,7 @@ class DataAvailabilitySyncTest {
           recordingThrottler,
           impressionMetadataBatchSize = 2,
           modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -758,6 +786,7 @@ class DataAvailabilitySyncTest {
         recordingThrottler,
         impressionMetadataBatchSize = 2,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     assertFailsWith<IllegalArgumentException> {
@@ -787,6 +816,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     dataAvailabilitySync.sync("$bucket/edp/edpa_edp/model-line/some-model-line/timestamp/done")
@@ -799,7 +829,7 @@ class DataAvailabilitySyncTest {
           blobTypeUrl =
             "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
           eventGroupReferenceId = "event${index+1}"
-          modelLine = "modelLine1"
+          modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
           this.interval = interval {
             startTime = timestamp { seconds = times.first }
             endTime = timestamp { seconds = times.second }
@@ -833,6 +863,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -886,6 +917,7 @@ class DataAvailabilitySyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -928,6 +960,7 @@ class DataAvailabilitySyncTest {
       "edp/edpa_edp/model-line/some-model-line/timestamp/",
       listOf(300L to 400L, 400L to 500L, 500L to 600L),
       BlobEncoding.JSON,
+      edpImpressionPath = "",
     )
 
     val dataAvailabilitySync =
@@ -940,6 +973,7 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
       )
 
     dataAvailabilitySync.sync("$bucket/edp/edpa_edp/model-line/some-model-line/timestamp/done")
@@ -952,7 +986,7 @@ class DataAvailabilitySyncTest {
           blobTypeUrl =
             "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
           eventGroupReferenceId = "event${index+1}"
-          modelLine = "modelLine1"
+          modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
           this.interval = interval {
             startTime = timestamp { seconds = times.first }
             endTime = timestamp { seconds = times.second }
@@ -969,6 +1003,340 @@ class DataAvailabilitySyncTest {
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
 
+  @Test
+  fun `sync skips replaceDataAvailabilityIntervals when date gaps are detected`(): Unit =
+    runBlocking {
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+      // Set up done blobs at model-line paths with a gap (missing 2026-03-14)
+      val modelLineId = "modelLine1"
+      val edpPath = "edp/edpa_edp"
+      for (date in listOf("2026-03-13", "2026-03-15")) {
+        val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+        File(tempFolder.root, dataPath).parentFile.mkdirs()
+        storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+        val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+        storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+      }
+
+      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          edpPath,
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
+        )
+
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+      // Impression metadata should still be saved
+      verifyBlocking(impressionMetadataServiceMock, times(1)) {
+        batchCreateImpressionMetadata(any())
+      }
+
+      // Model line bounds should still be computed
+      verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
+
+      // replaceDataAvailabilityIntervals should NOT be called due to gaps
+      verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    }
+
+  @Test
+  fun `sync calls replaceDataAvailabilityIntervals when no date gaps exist`(): Unit = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+    // Set up done blobs at model-line paths with no gaps
+    val modelLineId = "modelLine1"
+    val edpPath = "edp/edpa_edp"
+    for (date in listOf("2026-03-13", "2026-03-14", "2026-03-15")) {
+      val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+      File(tempFolder.root, dataPath).parentFile.mkdirs()
+      storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+    }
+
+    // Seed metadata in the sync trigger folder
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        edpPath,
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+      )
+
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    // replaceDataAvailabilityIntervals should be called since no gaps
+    verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
+  @Test
+  fun `sync emits monitor gap metrics when date gaps are detected`(): Unit = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+    val modelLineId = "modelLine1"
+    val edpPath = "edp/edpa_edp"
+    // Set up done blobs with a gap (missing 2026-03-14)
+    for (date in listOf("2026-03-13", "2026-03-15")) {
+      val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+      File(tempFolder.root, dataPath).parentFile.mkdirs()
+      storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+    }
+
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    val metricsEnv = createMetricsEnvironment()
+    try {
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          edpPath,
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
+          metrics = metricsEnv.metrics,
+        )
+
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+      metricsEnv.metricReader.forceFlush()
+      val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+
+      assertThat(getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_GAP))
+        .isEqualTo(1)
+      assertThat(
+          getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_ZERO_IMPRESSION)
+        )
+        .isNull()
+      assertThat(
+          getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_WITHOUT_DONE_BLOB)
+        )
+        .isNull()
+    } finally {
+      metricsEnv.close()
+    }
+  }
+
+  @Test
+  fun `sync does not emit gap metrics when no issues exist`(): Unit = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+    val modelLineId = "modelLine1"
+    val edpPath = "edp/edpa_edp"
+    for (date in listOf("2026-03-13", "2026-03-14", "2026-03-15")) {
+      val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+      File(tempFolder.root, dataPath).parentFile.mkdirs()
+      storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+    }
+
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    val metricsEnv = createMetricsEnvironment()
+    try {
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          edpPath,
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
+          metrics = metricsEnv.metrics,
+        )
+
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+      metricsEnv.metricReader.forceFlush()
+      val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+
+      assertThat(getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_HEALTHY))
+        .isEqualTo(3)
+      assertThat(getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_GAP)).isNull()
+      assertThat(
+          getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_ZERO_IMPRESSION)
+        )
+        .isNull()
+      assertThat(
+          getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_WITHOUT_DONE_BLOB)
+        )
+        .isNull()
+    } finally {
+      metricsEnv.close()
+    }
+  }
+
+  @Test
+  fun `sync does not throw when errorIfGapsExist is false and gaps exist`(): Unit = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+    // Set up done blobs at model-line paths with a gap (missing 2026-03-14)
+    val modelLineId = "modelLine1"
+    val edpPath = "edp/edpa_edp"
+    for (date in listOf("2026-03-13", "2026-03-15")) {
+      val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+      File(tempFolder.root, dataPath).parentFile.mkdirs()
+      storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+    }
+
+    // Seed metadata in the sync trigger folder
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        edpPath,
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = false,
+      )
+
+    // Should NOT throw despite gaps
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    // Impression metadata should still be saved
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
+
+    // Model line bounds should still be computed
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
+
+    // replaceDataAvailabilityIntervals should still be called despite gaps
+    verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
+  @Test
+  fun `sync calls replaceDataAvailabilityIntervals when errorIfGapsExist is false and no gaps exist`():
+    Unit = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+    // Set up done blobs at model-line paths with no gaps
+    val modelLineId = "modelLine1"
+    val edpPath = "edp/edpa_edp"
+    for (date in listOf("2026-03-13", "2026-03-14", "2026-03-15")) {
+      val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+      File(tempFolder.root, dataPath).parentFile.mkdirs()
+      storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+    }
+
+    // Seed metadata in the sync trigger folder
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        edpPath,
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = false,
+      )
+
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    // replaceDataAvailabilityIntervals should be called since no gaps
+    verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
+  @Test
+  fun `sync emits success metrics when errorIfGapsExist is false and gaps exist`(): Unit =
+    runBlocking {
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+      // Set up done blobs with a gap (missing 2026-03-14)
+      val modelLineId = "modelLine1"
+      val edpPath = "edp/edpa_edp"
+      for (date in listOf("2026-03-13", "2026-03-15")) {
+        val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+        File(tempFolder.root, dataPath).parentFile.mkdirs()
+        storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+        val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+        storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+      }
+
+      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+      val metricsEnv = createMetricsEnvironment()
+      try {
+        val dataAvailabilitySync =
+          DataAvailabilitySync(
+            edpPath,
+            storageClient,
+            dataProvidersStub,
+            impressionMetadataStub,
+            "dataProviders/dataProvider123",
+            MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+            impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+            modelLineMap = emptyMap(),
+            errorIfGapsExist = false,
+            metrics = metricsEnv.metrics,
+          )
+
+        dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+        metricsEnv.metricReader.forceFlush()
+        val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+
+        // Should record success (not failure) since errorIfGapsExist=false prevents the throw
+        val durationPoint =
+          metricData
+            .associateBy { it.name }
+            .getValue(SYNC_DURATION_METRIC)
+            .histogramData
+            .points
+            .single()
+        assertThat(durationPoint.attributes.get(syncStatusAttributeKey)).isEqualTo("success")
+
+        // Gap metrics should still be emitted
+        assertThat(getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_GAP))
+          .isEqualTo(1)
+      } finally {
+        metricsEnv.close()
+      }
+    }
+
   /**
    * Seeds a directory (prefix) with BlobDetails files, one per interval. Returns the blob keys
    * written.
@@ -979,6 +1347,7 @@ class DataAvailabilitySyncTest {
     intervals: List<Pair<Long?, Long?>>,
     encoding: BlobEncoding = BlobEncoding.PROTO,
     createImpressionFile: Boolean = true,
+    edpImpressionPath: String = "edp/edpa_edp",
   ): List<String> {
     require(prefix.isEmpty() || prefix.endsWith("/")) { "prefix should end with '/'" }
 
@@ -990,7 +1359,7 @@ class DataAvailabilitySyncTest {
       val details = blobDetails {
         this.blobUri = blobUri
         eventGroupReferenceId = "event${index + 1}"
-        modelLine = "modelLine1"
+        modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
         interval = interval {
           if (startSeconds != null) {
             startTime = timestamp {
@@ -1023,6 +1392,13 @@ class DataAvailabilitySyncTest {
 
       written += key
     }
+
+    // Create done blob and data file at model-line path for gap checking
+    val donePrefix = if (edpImpressionPath.isEmpty()) "" else "$edpImpressionPath/"
+    val donePath = "${donePrefix}model-line/modelLine1/2026-03-15/done"
+    val dataPath = "${donePrefix}model-line/modelLine1/2026-03-15/data_campaign_1"
+    storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+    storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
 
     return written
   }
@@ -1074,6 +1450,14 @@ class DataAvailabilitySyncTest {
         storageClient.writeBlob(objectKey, emptyFlow())
       }
     }
+
+    // Create done blob and data file at model-line path for gap checking
+    val edpImpressionPath = "edp/edpa_edp"
+    val modelLineId = modelLine.substringAfterLast("/")
+    val donePath = "$edpImpressionPath/model-line/$modelLineId/2026-03-15/done"
+    val dataPath = "$edpImpressionPath/model-line/$modelLineId/2026-03-15/data_campaign_1"
+    storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+    storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
   }
 
   private fun BlobDetails.serialize(encoding: BlobEncoding): ByteString =
@@ -1104,7 +1488,7 @@ class DataAvailabilitySyncTest {
       val details = blobDetails {
         this.blobUri = blobUri
         eventGroupReferenceId = "event${index + 1}"
-        modelLine = "modelLine1"
+        modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
         interval = interval {
           startTime = timestamp {
             seconds = startSeconds
@@ -1130,6 +1514,13 @@ class DataAvailabilitySyncTest {
       // Create the impressions file at the custom path
       storageClient.writeBlob(impressionsBlobKey, emptyFlow())
     }
+
+    // Create done blob and data file at model-line path for gap checking
+    val edpImpPath = "edp/edpa_edp"
+    val donePath = "$edpImpPath/model-line/modelLine1/2026-03-15/done"
+    val dataPath = "$edpImpPath/model-line/modelLine1/2026-03-15/data_campaign_1"
+    storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+    storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
   }
 
   private class RecordingThrottler : Throttler {

@@ -60,6 +60,12 @@ message DataAvailabilitySyncConfig {
   // replacement model line that the kingdom recognizes.
   map<string, ModelLineList> model_line_map = 6;
 
+  // If true, skip replacing data availability intervals when date gaps are
+  // detected and log a warning. If false (default for proto3 bool), log a
+  // warning but proceed with replacing data availability intervals normally.
+  // Gap dates are always logged regardless of this setting.
+  bool error_if_gaps_exist = 7;
+
   // List of model lines to use for a single mapping entry.
   message ModelLineList {
     repeated string model_lines = 1;

@@ -47,6 +47,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
@@ -102,12 +103,15 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     tempDirectory.root.toPath()
   }
 
-  private val syntheticEventGroupMap =
+  private val syntheticEventGroupMapByEdp =
     mapOf(
-      "edpa-eg-reference-id-1" to syntheticEventGroupSpec,
-      "edpa-eg-reference-id-2" to syntheticEventGroupSpec,
-      "edpa-eg-reference-id-3" to syntheticEventGroupSpec,
+      "edp1" to mapOf("edpa-eg-reference-id-1" to syntheticEventGroupSpec),
+      "edp2" to mapOf("edpa-eg-reference-id-2" to syntheticEventGroupSpec),
+      "edp3" to mapOf("edpa-eg-reference-id-3" to syntheticEventGroupSpec),
     )
+
+  private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec> =
+    syntheticEventGroupMapByEdp.values.flatMap { it.entries }.associate { it.key to it.value }
 
   @get:Rule
   val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents =
@@ -115,7 +119,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       secureComputationDatabaseAdmin = secureComputationDatabaseAdmin,
       storagePath = tempPath,
       pubSubClient = pubSubClient,
-      syntheticEventGroupMap = syntheticEventGroupMap,
+      syntheticEventGroupMapByEdp = syntheticEventGroupMapByEdp,
       syntheticPopulationSpec = syntheticPopulationSpec,
       modelLineInfoMap = modelLineInfoMap,
       externalKmsClient = sharedKmsClient,
@@ -155,6 +159,12 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
           },
       ),
       duchyMap,
+      edpNoise =
+        mapOf(
+          "edp1" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
+          "edp2" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
+          "edp3" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
+        ),
     )
     initMcSimulator()
   }
@@ -310,7 +320,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       )
     private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
 
-    private val TEST_RESULTS_FULFILER_DATA_PATH =
+    private val TEST_RESULTS_FULFILLER_DATA_PATH =
       Paths.get(
         "wfa_measurement_system",
         "src",
@@ -324,7 +334,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         "testing",
       )
     private val TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH =
-      getRuntimePath(TEST_RESULTS_FULFILER_DATA_PATH)!!
+      getRuntimePath(TEST_RESULTS_FULFILLER_DATA_PATH)!!
 
     val syntheticPopulationSpec: SyntheticPopulationSpec =
       parseTextProto(
@@ -356,7 +366,10 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     @BeforeClass
     @JvmStatic
     fun initConfig() {
-      InProcessCmmsComponents.initConfig()
+      InProcessCmmsComponents.initConfig(
+        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG,
+        hmssProtocolConfigConfig = HMSS_PROTOCOL_CONFIG_CONFIG,
+      )
     }
 
     @get:ClassRule @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
