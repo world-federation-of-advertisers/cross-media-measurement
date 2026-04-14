@@ -83,9 +83,11 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.keyPair
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.principalKeyPairs
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
+import org.wfanet.measurement.config.reporting.MetricSpecConfigKt
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
+import org.wfanet.measurement.config.reporting.metricSpecConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
@@ -321,6 +323,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           TestEvent.getDescriptor(),
           defaultModelLineName = inProcessCmmsComponents.modelLineResourceName,
           verboseGrpcLogging = false,
+          metricSpecConfigOverride = NO_SAMPLING_METRIC_SPEC_CONFIG,
           populationDataProviderName =
             inProcessCmmsComponents.getPopulationData().populationDataProviderName,
         )
@@ -504,11 +507,11 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     assertStructuralResults(completedBasicReport)
     assertNoNoiseResults(
       completedBasicReport,
-      expectedCrossPublisherReach = EXPECTED_HMSS_CROSS_PUBLISHER_REACH,
-      expectedCrossPublisherImpressions = EXPECTED_HMSS_CROSS_PUBLISHER_IMPRESSIONS,
-      expectedKPlusReach = EXPECTED_HMSS_K_PLUS_REACH,
-      expectedEdpSpec1Reach = EXPECTED_HMSS_EDP_SPEC1_REACH,
-      expectedEdpSpec2Reach = EXPECTED_HMSS_EDP_SPEC2_REACH,
+      expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,
+      expectedCrossPublisherImpressions = EXPECTED_CROSS_PUBLISHER_IMPRESSIONS,
+      expectedKPlusReach = EXPECTED_K_PLUS_REACH,
+      expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
+      expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
     )
   }
 
@@ -559,11 +562,11 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     assertStructuralResults(completedBasicReport)
     assertNoNoiseResults(
       completedBasicReport,
-      expectedCrossPublisherReach = EXPECTED_TRUSTEE_CROSS_PUBLISHER_REACH,
-      expectedCrossPublisherImpressions = EXPECTED_TRUSTEE_CROSS_PUBLISHER_IMPRESSIONS,
-      expectedKPlusReach = EXPECTED_TRUSTEE_K_PLUS_REACH,
-      expectedEdpSpec1Reach = EXPECTED_TRUSTEE_EDP_SPEC1_REACH,
-      expectedEdpSpec2Reach = EXPECTED_TRUSTEE_EDP_SPEC2_REACH,
+      expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,
+      expectedCrossPublisherImpressions = EXPECTED_CROSS_PUBLISHER_IMPRESSIONS,
+      expectedKPlusReach = EXPECTED_K_PLUS_REACH,
+      expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
+      expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
     )
   }
 
@@ -1230,17 +1233,97 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           }
         }
     }
-    private const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_REACH = 5369L
-    private const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_IMPRESSIONS = 9122L
-    private val EXPECTED_TRUSTEE_K_PLUS_REACH = listOf(5369L, 2677L, 682L, 394L, 0L)
-    private const val EXPECTED_TRUSTEE_EDP_SPEC1_REACH = 4472L
-    private const val EXPECTED_TRUSTEE_EDP_SPEC2_REACH = 3338L
+    // All computation methods (HMSS, TrusTee, etc.) are expected to produce exactly the same
+    // results when using the same input data and no noise.
+    private const val EXPECTED_CROSS_PUBLISHER_REACH = 5330L
+    private const val EXPECTED_CROSS_PUBLISHER_IMPRESSIONS = 8860L
+    private val EXPECTED_K_PLUS_REACH = listOf(5330L, 2572L, 647L, 311L, 0L)
+    private const val EXPECTED_EDP_SPEC1_REACH = 3937L
+    private const val EXPECTED_EDP_SPEC2_REACH = 3638L
 
-    private const val EXPECTED_HMSS_CROSS_PUBLISHER_REACH = 5371L
-    private const val EXPECTED_HMSS_CROSS_PUBLISHER_IMPRESSIONS = 9124L
-    private val EXPECTED_HMSS_K_PLUS_REACH = listOf(5371L, 2678L, 682L, 394L, 0L)
-    private const val EXPECTED_HMSS_EDP_SPEC1_REACH = 4473L
-    private const val EXPECTED_HMSS_EDP_SPEC2_REACH = 3338L
+    // Placeholder values required by the MeasurementSpec. Unused since NoiseMechanism is NONE.
+    private val NO_NOISE_PRIVACY_PARAMS =
+      MetricSpecConfigKt.differentialPrivacyParams {
+        epsilon = 1.0
+        delta = 1e-15
+      }
+
+    /** MetricSpecConfig with width=1.0 so there's no VID sampling variance. */
+    private val NO_SAMPLING_METRIC_SPEC_CONFIG = metricSpecConfig {
+      reachParams =
+        MetricSpecConfigKt.reachParams {
+          multipleDataProviderParams =
+            MetricSpecConfigKt.samplingAndPrivacyParams {
+              privacyParams = NO_NOISE_PRIVACY_PARAMS
+              vidSamplingInterval =
+                MetricSpecConfigKt.vidSamplingInterval {
+                  fixedStart =
+                    MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                      start = 0.0f
+                      width = 1.0f
+                    }
+                }
+            }
+          singleDataProviderParams = multipleDataProviderParams
+        }
+
+      reachAndFrequencyParams =
+        MetricSpecConfigKt.reachAndFrequencyParams {
+          multipleDataProviderParams =
+            MetricSpecConfigKt.reachAndFrequencySamplingAndPrivacyParams {
+              reachPrivacyParams = NO_NOISE_PRIVACY_PARAMS
+              frequencyPrivacyParams = NO_NOISE_PRIVACY_PARAMS
+              vidSamplingInterval =
+                MetricSpecConfigKt.vidSamplingInterval {
+                  fixedStart =
+                    MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                      start = 0.0f
+                      width = 1.0f
+                    }
+                }
+            }
+          singleDataProviderParams = multipleDataProviderParams
+          maximumFrequency = 10
+        }
+
+      impressionCountParams =
+        MetricSpecConfigKt.impressionCountParams {
+          params =
+            MetricSpecConfigKt.samplingAndPrivacyParams {
+              privacyParams = NO_NOISE_PRIVACY_PARAMS
+              vidSamplingInterval =
+                MetricSpecConfigKt.vidSamplingInterval {
+                  fixedStart =
+                    MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                      start = 0.0f
+                      width = 1.0f
+                    }
+                }
+            }
+          maximumFrequencyPerUser = 60
+        }
+
+      watchDurationParams =
+        MetricSpecConfigKt.watchDurationParams {
+          params =
+            MetricSpecConfigKt.samplingAndPrivacyParams {
+              privacyParams = NO_NOISE_PRIVACY_PARAMS
+              vidSamplingInterval =
+                MetricSpecConfigKt.vidSamplingInterval {
+                  fixedStart =
+                    MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart {
+                      start = 0.0f
+                      width = 1.0f
+                    }
+                }
+            }
+          maximumWatchDurationPerUser = com.google.protobuf.util.Durations.fromSeconds(4000)
+        }
+
+      populationCountParams =
+        org.wfanet.measurement.config.reporting.MetricSpecConfig.PopulationCountParams
+          .getDefaultInstance()
+    }
 
     private val NO_NOISE_TRUSTEE_PROTOCOL_CONFIG_CONFIG: TrusTeeProtocolConfigConfig =
       trusTeeProtocolConfigConfig {

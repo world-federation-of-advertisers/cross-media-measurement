@@ -43,7 +43,7 @@ object ImpressionComputations {
    */
   fun computeImpressionCount(
     rawHistogram: LongArray,
-    vidSamplingIntervalWidth: Float,
+    vidSamplingIntervalWidth: Double,
     maxFrequency: Long?,
     dpParams: DifferentialPrivacyParams?,
     kAnonymityParams: KAnonymityParams?,

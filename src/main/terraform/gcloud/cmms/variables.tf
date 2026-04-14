@@ -290,6 +290,16 @@ variable "duchy_worker2_target" {
   type = string
 }
 
+variable "duchy_aggregator_id" {
+  description = "ID of aggregator duchy."
+  type = string
+}
+
+variable "duchy_aggregator_target" {
+  description = "Public API target of aggregator duchy."
+  type = string
+}
+
 variable "results_fulfiller_trusted_root_ca_collection_file_path" {
   description = "Trusted root CA used by the Results Fulfiller."
   type = string
@@ -320,4 +330,13 @@ variable "trusted_image_signing_fingerprint" {
   description = "The trusted signing fingerprint for images by the simulators."
   type        = string
   nullable    = false
+}
+variable "event_group_sync_config_file_path" {
+  description = "Path to EventGroupSync config file."
+  type        = string
+}
+
+variable "data_availability_sync_config_file_path" {
+  description = "Path to DataAvailabilitySync config file."
+  type        = string
 }

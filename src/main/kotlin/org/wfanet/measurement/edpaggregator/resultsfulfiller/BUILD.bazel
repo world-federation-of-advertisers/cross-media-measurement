@@ -389,6 +389,7 @@ java_image(
         # - OTEL_METRIC_EXPORT_INTERVAL: Interval in milliseconds for exporting metrics
         # Note: OpenTelemetry variables are automatically configured by the SDK
         "tee.launch_policy.allow_env_override": "EDPA_CONFIG_STORAGE_BUCKET,JAVA_TOOL_OPTIONS,OTEL_SERVICE_NAME,OTEL_METRICS_EXPORTER,OTEL_TRACES_EXPORTER,OTEL_LOGS_EXPORTER,OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID,OTEL_METRIC_EXPORT_INTERVAL",
+        "tee.launch_policy.log_redirect": "always",
     },
     main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunner",
     visibility = ["//src:docker_image_deployment"],

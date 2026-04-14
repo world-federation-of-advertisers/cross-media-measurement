@@ -168,6 +168,7 @@ expand_template(
         "{auth_id_token}": TEST_EDPA_SETTINGS.auth_id_token,
         "{requisition_fetcher_endpoint}": TEST_EDPA_SETTINGS.requisition_fetcher_endpoint,
         "{storage_bucket}": TEST_EDPA_SETTINGS.storage_bucket,
+        "{model_line}": TEST_EDPA_SETTINGS.model_line,
     },
     tags = ["manual"],
     template = "edpa_correctness_test_config.tmpl.textproto",
