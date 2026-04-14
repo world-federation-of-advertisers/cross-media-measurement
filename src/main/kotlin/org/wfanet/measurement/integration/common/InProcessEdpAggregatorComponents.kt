@@ -117,11 +117,11 @@ class InProcessEdpAggregatorComponents(
   private val storagePath: Path,
   private val pubSubClient: GooglePubSubEmulatorClient,
   private val syntheticPopulationSpec: SyntheticPopulationSpec,
-  private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec>,
+  private val syntheticEventGroupMapByEdp: Map<String, Map<String, SyntheticEventGroupSpec>>,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val externalKmsClient: FakeKmsClient,
 ) : TestRule {
-  private val modelLineName: String = requireSingleModelLineName(modelLineInfoMap.keys)
+  private val modelLineName: String by lazy { requireSingleModelLineName(modelLineInfoMap.keys) }
 
   private val storageClient: StorageClient = FileSystemStorageClient(storagePath.toFile())
 
@@ -244,7 +244,11 @@ class InProcessEdpAggregatorComponents(
     edpDisplayNameToResourceMap: Map<String, Resource>,
     edpCapabilities: Map<String, DataProvider.Capabilities>,
     duchyMap: Map<String, Channel>,
+    edpNoise: Map<String, ResultsFulfillerParams.NoiseParams.NoiseType>,
   ) = runBlocking {
+    require(edpNoise.keys == edpCapabilities.keys) {
+      "edpNoise keys ${edpNoise.keys} must match edpCapabilities keys ${edpCapabilities.keys}"
+    }
     publicApiChannel = kingdomChannel
     duchyChannelMap = duchyMap
     edpResourceNameMap =
@@ -275,7 +279,7 @@ class InProcessEdpAggregatorComponents(
                   .certificate
               )!!,
               "file:///$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName",
-              noiseType = ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
+              noiseType = edpNoise.getValue(edpAggregatorShortName),
             )
         }
       getDataWatcherResultFulfillerParamsConfig(
@@ -333,7 +337,7 @@ class InProcessEdpAggregatorComponents(
           requisitionFetcher.fetchAndStoreRequisitions()
         }
       }
-      val eventGroups = buildEventGroups(measurementConsumerData)
+      val eventGroups = buildEventGroups(measurementConsumerData, edpAggregatorShortName)
       eventGroupSync =
         EventGroupSync(
           edpResourceName,
@@ -352,7 +356,9 @@ class InProcessEdpAggregatorComponents(
           SyntheticDataGeneration.generateEvents(
             TestEvent.getDefaultInstance(),
             syntheticPopulationSpec,
-            syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
+            syntheticEventGroupMapByEdp
+              .getValue(edpAggregatorShortName)
+              .getValue(mappedEventGroup.eventGroupReferenceId),
           )
 
         val allDates: List<LocalDate> = events.map { it.localDate }.toList()
@@ -464,8 +470,12 @@ class InProcessEdpAggregatorComponents(
     }
   }
 
-  private fun buildEventGroups(measurementConsumerData: MeasurementConsumerData): List<EventGroup> {
-    return syntheticEventGroupMap.flatMap { (eventGroupReferenceId, syntheticEventGroupSpec) ->
+  private fun buildEventGroups(
+    measurementConsumerData: MeasurementConsumerData,
+    edpAggregatorShortName: String,
+  ): List<EventGroup> {
+    return syntheticEventGroupMapByEdp.getValue(edpAggregatorShortName).flatMap {
+      (eventGroupReferenceId, syntheticEventGroupSpec) ->
       syntheticEventGroupSpec.dateSpecsList.map { dateSpec ->
         val dateRange = dateSpec.dateRange
         val startTime =
@@ -518,7 +528,9 @@ class InProcessEdpAggregatorComponents(
         SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           syntheticPopulationSpec,
-          syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
+          syntheticEventGroupMapByEdp
+            .getValue(edpAggregatorShortName)
+            .getValue(mappedEventGroup.eventGroupReferenceId),
         )
       val impressionWriter =
         ImpressionsWriter(

@@ -34,7 +34,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
   private lateinit var aggregatedFrequencyVector: IntArray
 
   private val maxFrequency: Int
-  private val vidSamplingIntervalWidth: Float
+  private val vidSamplingIntervalWidth: Double
 
   init {
     when (trusTeeParams) {
@@ -50,7 +50,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
     }
 
     // A vidSamplingIntervalWidth of 0 is invalid as it would cause division by zero.
-    require(vidSamplingIntervalWidth > 0.0f && vidSamplingIntervalWidth <= 1.0f) {
+    require(vidSamplingIntervalWidth > 0.0 && vidSamplingIntervalWidth <= 1.0) {
       "Invalid vid sampling interval width: $vidSamplingIntervalWidth"
     }
   }
@@ -91,7 +91,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
             rawHistogram,
             vidSamplingIntervalWidth,
             frequencyVector.size,
-            trusTeeParams.dpParams.toDifferentialPrivacyParams(),
+            trusTeeParams.dpParams?.toDifferentialPrivacyParams(),
             kAnonymityParams = null,
           )
 
@@ -103,14 +103,14 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
             rawHistogram,
             vidSamplingIntervalWidth,
             frequencyVector.size,
-            trusTeeParams.reachDpParams.toDifferentialPrivacyParams(),
+            trusTeeParams.reachDpParams?.toDifferentialPrivacyParams(),
             kAnonymityParams = null,
           )
         val frequency =
           ReachAndFrequencyComputations.computeFrequencyDistribution(
             rawHistogram,
             maxFrequency,
-            trusTeeParams.frequencyDpParams.toDifferentialPrivacyParams(),
+            trusTeeParams.frequencyDpParams?.toDifferentialPrivacyParams(),
             kAnonymityParams = null,
             vidSamplingIntervalWidth = null,
           )
