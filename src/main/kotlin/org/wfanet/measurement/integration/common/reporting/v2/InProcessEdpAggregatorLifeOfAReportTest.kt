@@ -45,8 +45,6 @@ import org.junit.runners.model.Statement
 import org.wfanet.measurement.access.client.v1alpha.TrustedPrincipalAuthInterceptor
 import org.wfanet.measurement.access.service.PermissionKey
 import org.wfanet.measurement.access.v1alpha.PoliciesGrpc
-import org.wfanet.measurement.config.reporting.MetricSpecConfigKt
-import org.wfanet.measurement.config.reporting.metricSpecConfig
 import org.wfanet.measurement.access.v1alpha.PolicyKt
 import org.wfanet.measurement.access.v1alpha.PrincipalKt
 import org.wfanet.measurement.access.v1alpha.PrincipalsGrpc
@@ -85,9 +83,11 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.keyPair
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.principalKeyPairs
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
+import org.wfanet.measurement.config.reporting.MetricSpecConfigKt
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
+import org.wfanet.measurement.config.reporting.metricSpecConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
