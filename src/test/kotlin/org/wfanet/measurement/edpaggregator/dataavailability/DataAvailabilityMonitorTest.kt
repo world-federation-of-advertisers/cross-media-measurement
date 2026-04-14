@@ -41,11 +41,59 @@ import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.EDP_IMPRESSION_PATH_ATTR
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.MODEL_LINE_ATTR
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata as V1AlphaImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata as v1alphaImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 
 @RunWith(JUnit4::class)
 class DataAvailabilityMonitorTest {
 
   @get:Rule val tempFolder = TemporaryFolder()
+
+  private val DATA_PROVIDER_NAME = "dataProviders/testProvider1"
+  private val BUCKET_NAME = "test-bucket"
+
+  private val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase =
+    mockService {
+      onBlocking { listImpressionMetadata(org.mockito.kotlin.any<ListImpressionMetadataRequest>()) }
+        .thenAnswer { _ ->
+          listImpressionMetadataResponse {
+            impressionMetadata += v1alphaImpressionMetadata {
+              name = "$DATA_PROVIDER_NAME/impressionMetadata/imp-deleted-1"
+              blobUri = "gs://$BUCKET_NAME/$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata_campaign_123.json"
+              state = V1AlphaImpressionMetadata.State.DELETED
+            }
+          }
+        }
+    }
+
+  private val noDeletedEntriesServiceMock: ImpressionMetadataServiceCoroutineImplBase =
+    mockService {
+      onBlocking { listImpressionMetadata(org.mockito.kotlin.any<ListImpressionMetadataRequest>()) }
+        .thenAnswer { _ ->
+          listImpressionMetadataResponse {}
+        }
+    }
+
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule { addService(impressionMetadataServiceMock) }
+
+  @get:Rule
+  val grpcTestServerRule2 = GrpcTestServerRule { addService(noDeletedEntriesServiceMock) }
+
+  private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub by lazy {
+    ImpressionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  private val noDeletedEntriesStub: ImpressionMetadataServiceCoroutineStub by lazy {
+    ImpressionMetadataServiceCoroutineStub(grpcTestServerRule2.channel)
+  }
+
 
   companion object {
     private const val EDP_IMPRESSION_PATH = "edp/edp1/vid-labeled-impressions"
@@ -984,4 +1032,132 @@ class DataAvailabilityMonitorTest {
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_LATE_ARRIVING))
       .isEqualTo(1)
   }
+
+  // --- Spurious deletion check tests ---
+
+  @Test
+  fun `checkSpuriousDeletions throws when stub is not provided`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+      )
+
+    assertFailsWith<IllegalArgumentException> {
+      monitor.checkSpuriousDeletions(lookbackDays = 90, clock = { TODAY })
+    }
+  }
+
+  @Test
+  fun `checkSpuriousDeletions throws when lookbackDays is zero`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = impressionMetadataStub,
+        dataProviderName = DATA_PROVIDER_NAME,
+      )
+
+    assertFailsWith<IllegalArgumentException> {
+      monitor.checkSpuriousDeletions(lookbackDays = 0, clock = { TODAY })
+    }
+  }
+
+  @Test
+  fun `checkSpuriousDeletions detects deleted entry whose blob still exists`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    // Create a blob on storage that matches the deleted entry's blobUri
+    val blobPath = "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata_campaign_123.json"
+    storageClient.writeBlob(blobPath, ByteString.copyFromUtf8("data"))
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = impressionMetadataStub,
+        dataProviderName = DATA_PROVIDER_NAME,
+      )
+
+    val result = monitor.checkSpuriousDeletions(lookbackDays = 90, clock = { TODAY })
+
+    val status = result.statuses.single()
+    assertThat(status.spuriousDeletionCount).isEqualTo(1)
+    assertThat(status.legitimateDeletionCount).isEqualTo(0)
+  }
+
+  @Test
+  fun `checkSpuriousDeletions counts legitimate deletion when blob is gone`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    // Do NOT create the blob - it's legitimately deleted
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = impressionMetadataStub,
+        dataProviderName = DATA_PROVIDER_NAME,
+      )
+
+    val result = monitor.checkSpuriousDeletions(lookbackDays = 90, clock = { TODAY })
+
+    val status = result.statuses.single()
+    assertThat(status.spuriousDeletionCount).isEqualTo(0)
+    assertThat(status.legitimateDeletionCount).isEqualTo(1)
+  }
+
+  @Test
+  fun `checkSpuriousDeletions returns zero counts when no deleted entries`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = noDeletedEntriesStub,
+        dataProviderName = DATA_PROVIDER_NAME,
+      )
+
+    val result = monitor.checkSpuriousDeletions(lookbackDays = 90, clock = { TODAY })
+
+    val status = result.statuses.single()
+    assertThat(status.spuriousDeletionCount).isEqualTo(0)
+    assertThat(status.legitimateDeletionCount).isEqualTo(0)
+  }
+
+  @Test
+  fun `checkSpuriousDeletions emits metrics`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    val blobPath = "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata_campaign_123.json"
+    storageClient.writeBlob(blobPath, ByteString.copyFromUtf8("data"))
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = impressionMetadataStub,
+        dataProviderName = DATA_PROVIDER_NAME,
+      )
+
+    monitor.checkSpuriousDeletions(lookbackDays = 90, clock = { TODAY })
+
+    val metrics = collectMetrics()
+    assertThat(
+        getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_SPURIOUS_DELETION)
+      )
+      .isEqualTo(1)
+  }
+
 }

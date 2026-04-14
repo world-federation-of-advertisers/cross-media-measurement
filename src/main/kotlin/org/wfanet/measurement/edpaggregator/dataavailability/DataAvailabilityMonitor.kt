@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.edpaggregator.dataavailability
 
+import com.google.protobuf.timestamp
+
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import java.time.LocalDate
@@ -25,10 +27,15 @@ import java.util.logging.Logger
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata as V1AlphaImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt.filter as listImpressionMetadataRequestFilter
+import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 import org.wfanet.measurement.storage.StorageClient
 
 /**
- * Monitors impression data availability for staleness, gaps, missing days, and late-arriving files.
+ * Monitors impression data availability for staleness, gaps, missing days, late-arriving files, and
+ * spuriously deleted metadata entries.
  *
  * This class checks each active model line's GCS folder structure for:
  * - **Staleness**: The most recent uploaded date is more than [maxStaleDays] days behind today.
@@ -36,6 +43,9 @@ import org.wfanet.measurement.storage.StorageClient
  * - **Zero-impression dates**: A date folder has a "done" blob but no data files.
  * - **Missing done blobs**: A date folder exists but has no "done" blob.
  * - **Late-arriving files**: Data files were updated after the "done" blob was written.
+ * - **Spurious deletions**: ImpressionMetadata entries marked as deleted whose blobs still exist on
+ *   the bucket, indicating the deletion was caused by a GCS overwrite race condition rather than an
+ *   intentional deletion.
  *
  * The folder structure is expected to be:
  * ```
@@ -46,11 +56,17 @@ import org.wfanet.measurement.storage.StorageClient
  * @property edpImpressionPath Base path for EDP impressions (e.g.,
  *   "edp/edp1/vid-labeled-impressions").
  * @property activeModelLines Set of model line keys that are expected to upload daily.
+ * @property impressionMetadataStub Optional gRPC stub for the ImpressionMetadata service. Required
+ *   only for [checkSpuriousDeletions].
+ * @property dataProviderName Optional data provider resource name (e.g.,
+ *   "dataProviders/P8xrCkbWKBM"). Required only for [checkSpuriousDeletions].
  */
 class DataAvailabilityMonitor(
   private val storageClient: StorageClient,
   private val edpImpressionPath: String,
   private val activeModelLines: Set<ModelLineKey>,
+  private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub? = null,
+  private val dataProviderName: String? = null,
 ) {
   init {
     require(!edpImpressionPath.startsWith("/")) { "edpImpressionPath cannot start with a slash" }
@@ -77,6 +93,10 @@ class DataAvailabilityMonitor(
    *   `null` when no uploaded dates were found.
    * @property healthyDates Dates with a "done" blob, data files, and no late arrivals, or `null`
    *   when no uploaded dates were found.
+   * @property spuriousDeletionCount Number of deleted ImpressionMetadata entries whose blob still
+   *   exists on the bucket, or `null` when the check was not run.
+   * @property legitimateDeletionCount Number of deleted ImpressionMetadata entries whose blob is
+   *   genuinely gone from the bucket, or `null` when the check was not run.
    */
   data class ModelLineStatus(
     val modelLineKey: ModelLineKey,
@@ -88,25 +108,12 @@ class DataAvailabilityMonitor(
     val datesWithoutDoneBlob: List<LocalDate>?,
     val lateArrivingDates: List<LocalDate>?,
     val healthyDates: List<LocalDate>?,
+    val spuriousDeletionCount: Int? = null,
+    val legitimateDeletionCount: Int? = null,
   )
 
-  /**
-   * Result of a monitoring check across all active model lines.
-   *
-   * @property statuses One [ModelLineStatus] per model line in [activeModelLines], in the same
-   *   iteration order. The list has a 1:1 correspondence with [activeModelLines].
-   */
   data class MonitorResult(val statuses: List<ModelLineStatus>)
 
-  /**
-   * Checks all active model lines for staleness, gaps, and data quality issues.
-   *
-   * @param maxStaleDays Maximum number of days a model line can go without an upload before being
-   *   considered stale.
-   * @param clock Provides the current date for staleness checks.
-   * @return A [MonitorResult] with one [ModelLineStatus] per model line in [activeModelLines], in
-   *   the same iteration order.
-   */
   suspend fun checkFullStatus(maxStaleDays: Int, clock: () -> LocalDate): MonitorResult {
     require(maxStaleDays > 0) { "maxStaleDays must be greater than zero" }
     val today = clock()
@@ -115,30 +122,127 @@ class DataAvailabilityMonitor(
         val dateInfo = getDateInfoForModelLine(modelLineKey)
         buildFullStatus(modelLineKey, dateInfo, today, maxStaleDays)
       }
-
     statuses.forEach { recordMetrics(it) }
-
     return MonitorResult(statuses = statuses)
   }
 
-  /**
-   * Checks all active model lines for date gaps and data quality issues only (no staleness).
-   *
-   * Staleness-related fields ([ModelLineStatus.isStale] and [ModelLineStatus.staleDays]) are `null`
-   * in the returned statuses.
-   *
-   * @return A [MonitorResult] with one [ModelLineStatus] per model line in [activeModelLines], in
-   *   the same iteration order.
-   */
   suspend fun checkGaps(): MonitorResult {
     val statuses =
       activeModelLines.map { modelLineKey ->
         val dateInfo = getDateInfoForModelLine(modelLineKey)
         buildGapStatus(modelLineKey, dateInfo)
       }
+    statuses.forEach { recordMetrics(it) }
+    return MonitorResult(statuses = statuses)
+  }
+
+  /**
+   * Checks for deleted ImpressionMetadata entries whose blobs still exist on the bucket.
+   *
+   * These are "spurious deletions" caused by GCS overwrite race conditions: when a file is
+   * overwritten with versioning suspended, GCS fires an OBJECT_DELETE event for the old version,
+   * which the cleanup handler processes as a genuine deletion.
+   *
+   * Requires [impressionMetadataStub] and [dataProviderName] to be set.
+   *
+   * @param lookbackDays Number of days of deleted entries to check. Only entries with intervals
+   *   overlapping the last [lookbackDays] will be queried.
+   * @param clock Provides the current date.
+   * @return A [MonitorResult] with spurious/legitimate deletion counts per model line.
+   */
+  suspend fun checkSpuriousDeletions(lookbackDays: Int, clock: () -> LocalDate): MonitorResult {
+    require(lookbackDays > 0) { "lookbackDays must be greater than zero" }
+    requireNotNull(impressionMetadataStub) {
+      "impressionMetadataStub must be provided for spurious deletion checks"
+    }
+    requireNotNull(dataProviderName) {
+      "dataProviderName must be provided for spurious deletion checks"
+    }
+
+    val today = clock()
+    val cutoffDate = today.minusDays(lookbackDays.toLong())
+    val cutoffEpochSeconds = cutoffDate.atStartOfDay(java.time.ZoneOffset.UTC).toEpochSecond()
+    val nowEpochSeconds = java.time.Instant.now().epochSecond
+
+    val statuses =
+      activeModelLines.map { modelLineKey ->
+        val modelLineName = modelLineKey.toName()
+        var spuriousCount = 0
+        var legitimateCount = 0
+        var pageToken = ""
+
+        do {
+          val response =
+            impressionMetadataStub.listImpressionMetadata(
+              listImpressionMetadataRequest {
+                parent = dataProviderName
+                pageSize = 100
+                showDeleted = true
+                if (pageToken.isNotEmpty()) {
+                  this.pageToken = pageToken
+                }
+                filter = listImpressionMetadataRequestFilter {
+                  modelLine = modelLineName
+                  intervalOverlaps = com.google.type.interval {
+                    startTime = timestamp { seconds = cutoffEpochSeconds }
+                    endTime = timestamp { seconds = nowEpochSeconds }
+                  }
+                }
+              }
+            )
+
+          for (entry in response.impressionMetadataList) {
+            if (entry.state != V1AlphaImpressionMetadata.State.DELETED) {
+              continue
+            }
+            val blobKey = entry.blobUri.removePrefix("gs://").substringAfter("/")
+            val blob = storageClient.getBlob(blobKey)
+            if (blob != null) {
+              spuriousCount++
+              if (spuriousCount <= 10) {
+                logger.log(
+                  Level.WARNING,
+                  "Spurious deletion detected for model line $modelLineName: " +
+                    "entry ${entry.name} is deleted but blob exists at ${entry.blobUri}",
+                )
+              }
+            } else {
+              legitimateCount++
+            }
+          }
+
+          pageToken = response.nextPageToken
+        } while (pageToken.isNotEmpty())
+
+        logger.log(
+          Level.INFO,
+          "Model line $modelLineName spurious deletion check: " +
+            "spurious=$spuriousCount, legitimate=$legitimateCount",
+        )
+        if (spuriousCount > 0) {
+          logger.log(
+            Level.SEVERE,
+            "ALERT: Model line $modelLineName has $spuriousCount spuriously deleted entries " +
+              "(deleted in metadata store but blob still exists on bucket)",
+          )
+        }
+
+        ModelLineStatus(
+          modelLineKey = modelLineKey,
+          isStale = null,
+          latestDate = LocalDate.MIN,
+          gapDates = null,
+          staleDays = null,
+          zeroImpressionDates = null,
+          datesWithoutDoneBlob = null,
+          lateArrivingDates = null,
+          healthyDates = null,
+          spuriousDeletionCount = spuriousCount,
+          legitimateDeletionCount = legitimateCount,
+        )
+      }
 
     statuses.forEach { recordMetrics(it) }
-
     return MonitorResult(statuses = statuses)
   }
 
@@ -272,7 +376,6 @@ class DataAvailabilityMonitor(
     }
   }
 
-  /** Info about uploaded dates for a model line. */
   private data class DateInfo(
     val datesWithDoneBlob: Set<LocalDate>,
     val zeroImpressionDates: List<LocalDate>,
@@ -289,18 +392,6 @@ class DataAvailabilityMonitor(
     return getDateInfo(prefix)
   }
 
-  /**
-   * Discovers date folders under the given prefix using delimiter-based listing, then checks each
-   * date folder for a "done" blob and at least one data file.
-   *
-   * This avoids enumerating all blobs in every date folder, which can be slow when folders contain
-   * thousands of files. Instead, it:
-   * 1. Lists date-level prefixes using [StorageClient.listBlobKeysAndPrefixes].
-   * 2. For each date, checks for the "done" blob via [StorageClient.getBlob].
-   * 3. For dates with a done blob, checks for at least one data file via [StorageClient.listBlobs].
-   *
-   * Expected path format: `{prefix}{date}/done` and `{prefix}{date}/other_files`
-   */
   private suspend fun getDateInfo(prefix: String): DateInfo {
     val datesWithDone = mutableSetOf<LocalDate>()
     val zeroImpressionDatesList = mutableListOf<LocalDate>()
@@ -324,7 +415,6 @@ class DataAvailabilityMonitor(
       if (doneBlob != null) {
         datesWithDone.add(date)
 
-        // Check if there is at least one non-done file with content
         val hasData =
           storageClient.listBlobs("${prefix}$dateString/").take(2).toList().any {
             !it.blobKey.endsWith("/done") && it.size > 0
@@ -333,7 +423,6 @@ class DataAvailabilityMonitor(
           zeroImpressionDatesList.add(date)
         }
 
-        // Check if any file was updated after the done blob, indicating late-arriving data.
         val hasLateArrivals =
           storageClient
             .listBlobsUpdatedAfter("${prefix}$dateString/", doneBlob.updateTime)
@@ -361,7 +450,6 @@ class DataAvailabilityMonitor(
     )
   }
 
-  /** Finds dates that are missing in the sequence between the first and last date. */
   private fun findGaps(sortedDates: List<LocalDate>): List<LocalDate> {
     if (sortedDates.size <= 1) return emptyList()
 
@@ -406,14 +494,18 @@ class DataAvailabilityMonitor(
       DataAvailabilityMonitorMetrics.STATUS_LATE_ARRIVING,
     )
     addDateCount(status.healthyDates?.size ?: 0, DataAvailabilityMonitorMetrics.STATUS_HEALTHY)
+    addDateCount(
+      status.spuriousDeletionCount ?: 0,
+      DataAvailabilityMonitorMetrics.STATUS_SPURIOUS_DELETION,
+    )
+    addDateCount(
+      status.legitimateDeletionCount ?: 0,
+      DataAvailabilityMonitorMetrics.STATUS_LEGITIMATE_DELETION,
+    )
   }
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    /**
-     * Default staleness threshold in days. Set to 3 to allow for weekend gaps (Friday upload
-     * checked on Monday) plus one day of buffer for processing delays.
-     */
     const val DEFAULT_MAX_STALE_DAYS = 3
 
     val MODEL_LINE_ATTR: AttributeKey<String> =
