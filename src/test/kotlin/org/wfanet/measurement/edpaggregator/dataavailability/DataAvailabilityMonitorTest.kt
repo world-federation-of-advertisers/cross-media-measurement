@@ -84,7 +84,7 @@ class DataAvailabilityMonitorTest {
 
   @get:Rule val grpcTestServerRule2 = GrpcTestServerRule { addService(noDeletedEntriesServiceMock) }
 
-  private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub by lazy {
+  private val impressionMetadataStubForTest: ImpressionMetadataServiceCoroutineStub by lazy {
     ImpressionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
@@ -184,6 +184,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result =
@@ -225,6 +227,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result =
@@ -254,6 +258,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result =
@@ -282,6 +288,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result =
@@ -319,6 +327,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A, MODEL_LINE_B),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result =
@@ -346,6 +356,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result =
@@ -374,6 +386,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result =
@@ -402,6 +416,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result =
@@ -434,6 +450,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result = monitor.checkGaps()
@@ -463,6 +481,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result = monitor.checkGaps()
@@ -482,6 +502,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result = monitor.checkGaps()
@@ -512,6 +534,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result = monitor.checkGaps()
@@ -539,6 +563,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result = monitor.checkGaps()
@@ -564,6 +590,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result =
@@ -596,6 +624,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result = monitor.checkGaps()
@@ -622,6 +652,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result =
@@ -648,6 +680,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     assertFailsWith<IllegalArgumentException> {
@@ -668,6 +702,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = emptySet(),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
     }
   }
@@ -681,6 +717,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = "/$EDP_IMPRESSION_PATH",
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
     }
   }
@@ -694,6 +732,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = "$EDP_IMPRESSION_PATH/",
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
     }
   }
@@ -710,6 +750,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result =
@@ -738,6 +780,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result = monitor.checkGaps()
@@ -768,6 +812,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result =
@@ -801,6 +847,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result = monitor.checkGaps()
@@ -835,6 +883,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result =
@@ -869,6 +919,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     monitor.checkFullStatus(
@@ -912,6 +964,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     monitor.checkFullStatus(
@@ -949,6 +1003,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     monitor.checkGaps()
@@ -982,6 +1038,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     monitor.checkFullStatus(
@@ -1026,6 +1084,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result =
@@ -1057,6 +1117,8 @@ class DataAvailabilityMonitorTest {
           storageClient = storageClient,
           edpImpressionPath = EDP_IMPRESSION_PATH,
           activeModelLines = setOf(MODEL_LINE_A),
+          impressionMetadataStub = null,
+          dataProviderName = null,
         )
 
       val result =
@@ -1087,6 +1149,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result = monitor.checkGaps()
@@ -1112,6 +1176,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     monitor.checkFullStatus(
@@ -1126,44 +1192,41 @@ class DataAvailabilityMonitorTest {
   }
 
   @Test
-  fun `checkSpuriousDeletions throws when stub is not provided`(): Unit = runBlocking {
+  fun `checkFullStatus skips spurious check when stub is not provided`(): Unit = runBlocking {
     val storageClient = createStorageClient()
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
 
     val monitor =
       DataAvailabilityMonitor(
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
-    assertFailsWith<IllegalArgumentException> {
-      monitor.checkSpuriousDeletions(lookbackDays = 90, clock = { TODAY })
-    }
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = 90,
+      )
+
+    val status = result.statuses.single()
+    assertThat(status.spuriousDeletionCount).isNull()
+    assertThat(status.legitimateDeletionCount).isNull()
   }
 
   @Test
-  fun `checkSpuriousDeletions throws when lookbackDays is zero`(): Unit = runBlocking {
+  fun `checkFullStatus detects spurious deletion when blob still exists`(): Unit = runBlocking {
     val storageClient = createStorageClient()
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
 
-    val monitor =
-      DataAvailabilityMonitor(
-        storageClient = storageClient,
-        edpImpressionPath = EDP_IMPRESSION_PATH,
-        activeModelLines = setOf(MODEL_LINE_A),
-        impressionMetadataStub = impressionMetadataStub,
-        dataProviderName = DATA_PROVIDER_NAME,
-      )
-
-    assertFailsWith<IllegalArgumentException> {
-      monitor.checkSpuriousDeletions(lookbackDays = 0, clock = { TODAY })
-    }
-  }
-
-  @Test
-  fun `checkSpuriousDeletions detects deleted entry whose blob still exists`(): Unit = runBlocking {
-    val storageClient = createStorageClient()
-
-    // Create a blob on storage that matches the deleted entry's blobUri
+    // Create a blob that matches the deleted entry's blobUri
     val blobPath =
       "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata_campaign_123.json"
     storageClient.writeBlob(blobPath, ByteString.copyFromUtf8("data"))
@@ -1173,11 +1236,16 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
-        impressionMetadataStub = impressionMetadataStub,
+        impressionMetadataStub = impressionMetadataStubForTest,
         dataProviderName = DATA_PROVIDER_NAME,
       )
 
-    val result = monitor.checkSpuriousDeletions(lookbackDays = 90, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = 90,
+      )
 
     val status = result.statuses.single()
     assertThat(status.spuriousDeletionCount).isEqualTo(1)
@@ -1185,21 +1253,27 @@ class DataAvailabilityMonitorTest {
   }
 
   @Test
-  fun `checkSpuriousDeletions counts legitimate deletion when blob is gone`(): Unit = runBlocking {
+  fun `checkFullStatus counts legitimate deletion when blob is gone`(): Unit = runBlocking {
     val storageClient = createStorageClient()
-
-    // Do NOT create the blob - it's legitimately deleted
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
 
     val monitor =
       DataAvailabilityMonitor(
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
-        impressionMetadataStub = impressionMetadataStub,
+        impressionMetadataStub = impressionMetadataStubForTest,
         dataProviderName = DATA_PROVIDER_NAME,
       )
 
-    val result = monitor.checkSpuriousDeletions(lookbackDays = 90, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = 90,
+      )
 
     val status = result.statuses.single()
     assertThat(status.spuriousDeletionCount).isEqualTo(0)
@@ -1207,8 +1281,11 @@ class DataAvailabilityMonitorTest {
   }
 
   @Test
-  fun `checkSpuriousDeletions returns zero counts when no deleted entries`(): Unit = runBlocking {
+  fun `checkFullStatus returns zero spurious counts when no deleted entries`(): Unit = runBlocking {
     val storageClient = createStorageClient()
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
 
     val monitor =
       DataAvailabilityMonitor(
@@ -1219,7 +1296,12 @@ class DataAvailabilityMonitorTest {
         dataProviderName = DATA_PROVIDER_NAME,
       )
 
-    val result = monitor.checkSpuriousDeletions(lookbackDays = 90, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = 90,
+      )
 
     val status = result.statuses.single()
     assertThat(status.spuriousDeletionCount).isEqualTo(0)
@@ -1227,8 +1309,11 @@ class DataAvailabilityMonitorTest {
   }
 
   @Test
-  fun `checkSpuriousDeletions emits metrics`(): Unit = runBlocking {
+  fun `checkFullStatus emits spurious deletion metrics`(): Unit = runBlocking {
     val storageClient = createStorageClient()
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
 
     val blobPath =
       "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata_campaign_123.json"
@@ -1239,11 +1324,11 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
-        impressionMetadataStub = impressionMetadataStub,
+        impressionMetadataStub = impressionMetadataStubForTest,
         dataProviderName = DATA_PROVIDER_NAME,
       )
 
-    monitor.checkSpuriousDeletions(lookbackDays = 90, clock = { TODAY })
+    monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY }, spuriousDeletionLookbackDays = 90)
 
     val metrics = collectMetrics()
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_SPURIOUS_DELETION))

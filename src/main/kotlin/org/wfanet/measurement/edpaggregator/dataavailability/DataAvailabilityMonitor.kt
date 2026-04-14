@@ -36,6 +36,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata as V1Alph
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt.filter as listImpressionMetadataRequestFilter
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
+import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
 /**
@@ -113,8 +114,8 @@ class DataAvailabilityMonitor(
     val datesWithoutDoneBlob: List<LocalDate>?,
     val lateArrivingDates: List<LocalDate>?,
     val healthyDates: List<LocalDate>?,
-    val spuriousDeletionCount: Int? = null,
-    val legitimateDeletionCount: Int? = null,
+    val spuriousDeletionCount: Int?,
+    val legitimateDeletionCount: Int?,
   )
 
   /**
@@ -144,20 +145,10 @@ class DataAvailabilityMonitor(
   ): MonitorResult {
     require(maxStaleDays > 0) { "maxStaleDays must be greater than zero" }
     val today = clock()
-
-    val spuriousCounts = getSpuriousDeletionCounts(spuriousDeletionLookbackDays, clock)
-
     val statuses =
       activeModelLines.map { modelLineKey ->
-        val dateInfo = getDateInfoForModelLine(modelLineKey)
-        val (spurious, legitimate) = spuriousCounts[modelLineKey] ?: Pair(0, 0)
+        val dateInfo = getDateInfoForModelLine(modelLineKey, spuriousDeletionLookbackDays, clock)
         buildFullStatus(modelLineKey, dateInfo, today, maxStaleDays)
-          .copy(
-            spuriousDeletionCount =
-              if (spuriousCounts.containsKey(modelLineKey)) spurious else null,
-            legitimateDeletionCount =
-              if (spuriousCounts.containsKey(modelLineKey)) legitimate else null,
-          )
       }
     statuses.forEach { recordMetrics(it) }
     return MonitorResult(statuses = statuses)
@@ -175,136 +166,11 @@ class DataAvailabilityMonitor(
   suspend fun checkGaps(): MonitorResult {
     val statuses =
       activeModelLines.map { modelLineKey ->
-        val dateInfo = getDateInfoForModelLine(modelLineKey)
+        val dateInfo = getDateInfoForModelLine(modelLineKey, null, null)
         buildGapStatus(modelLineKey, dateInfo)
       }
     statuses.forEach { recordMetrics(it) }
     return MonitorResult(statuses = statuses)
-  }
-
-  /**
-   * Checks for deleted ImpressionMetadata entries whose blobs still exist on the bucket.
-   *
-   * These are "spurious deletions" caused by GCS overwrite race conditions: when a file is
-   * overwritten with versioning suspended, GCS fires an OBJECT_DELETE event for the old version,
-   * which the cleanup handler processes as a genuine deletion.
-   *
-   * Requires [impressionMetadataStub] and [dataProviderName] to be set.
-   *
-   * @param lookbackDays Number of days of deleted entries to check. Only entries with intervals
-   *   overlapping the last [lookbackDays] will be queried.
-   * @param clock Provides the current date.
-   * @return A [MonitorResult] with spurious/legitimate deletion counts per model line.
-   */
-  @OptIn(ExperimentalCoroutinesApi::class)
-  suspend fun checkSpuriousDeletions(lookbackDays: Int, clock: () -> LocalDate): MonitorResult {
-    require(lookbackDays > 0) { "lookbackDays must be greater than zero" }
-    requireNotNull(impressionMetadataStub) {
-      "impressionMetadataStub must be provided for spurious deletion checks"
-    }
-    requireNotNull(dataProviderName) {
-      "dataProviderName must be provided for spurious deletion checks"
-    }
-    require(dataProviderName.isNotBlank()) { "dataProviderName must not be blank" }
-
-    val today = clock()
-    val cutoffDate = today.minusDays(lookbackDays.toLong())
-    val cutoffEpochSeconds = cutoffDate.atStartOfDay(java.time.ZoneOffset.UTC).toEpochSecond()
-    val nowEpochSeconds = java.time.Instant.now().epochSecond
-
-    val statuses =
-      activeModelLines.map { modelLineKey ->
-        val modelLineName = modelLineKey.toName()
-        var spuriousCount = 0
-        var legitimateCount = 0
-
-        val deletedEntries: Flow<V1AlphaImpressionMetadata> =
-          impressionMetadataStub
-            .listResources<
-              V1AlphaImpressionMetadata,
-              String,
-              ImpressionMetadataServiceCoroutineStub,
-            > { pageToken ->
-              val response =
-                listImpressionMetadata(
-                  listImpressionMetadataRequest {
-                    parent = dataProviderName
-                    pageSize = 100
-                    showDeleted = true
-                    this.pageToken = pageToken
-                    filter = listImpressionMetadataRequestFilter {
-                      modelLine = modelLineName
-                      intervalOverlaps = interval {
-                        startTime = timestamp { seconds = cutoffEpochSeconds }
-                        endTime = timestamp { seconds = nowEpochSeconds }
-                      }
-                    }
-                  }
-                )
-              ResourceList(response.impressionMetadataList, response.nextPageToken)
-            }
-            .flattenConcat()
-
-        deletedEntries.collect { entry ->
-          val blobKey = entry.blobUri.removePrefix("gs://").substringAfter("/")
-          val blob = storageClient.getBlob(blobKey)
-          if (blob != null) {
-            spuriousCount++
-            if (spuriousCount <= 10) {
-              logger.log(
-                Level.WARNING,
-                "Spurious deletion detected for model line $modelLineName: " +
-                  "entry ${entry.name} is deleted but blob exists at ${entry.blobUri}",
-              )
-            }
-          } else {
-            legitimateCount++
-          }
-        }
-
-        logger.log(
-          Level.INFO,
-          "Model line $modelLineName spurious deletion check: " +
-            "spurious=$spuriousCount, legitimate=$legitimateCount",
-        )
-        if (spuriousCount > 0) {
-          logger.log(
-            Level.SEVERE,
-            "ALERT: Model line $modelLineName has $spuriousCount spuriously deleted entries " +
-              "(deleted in metadata store but blob still exists on bucket)",
-          )
-        }
-
-        ModelLineStatus(
-          modelLineKey = modelLineKey,
-          isStale = null,
-          latestDate = LocalDate.MIN,
-          gapDates = null,
-          staleDays = null,
-          zeroImpressionDates = null,
-          datesWithoutDoneBlob = null,
-          lateArrivingDates = null,
-          healthyDates = null,
-          spuriousDeletionCount = spuriousCount,
-          legitimateDeletionCount = legitimateCount,
-        )
-      }
-
-    statuses.forEach { recordMetrics(it) }
-    return MonitorResult(statuses = statuses)
-  }
-
-  private suspend fun getSpuriousDeletionCounts(
-    lookbackDays: Int?,
-    clock: () -> LocalDate,
-  ): Map<ModelLineKey, Pair<Int, Int>> {
-    if (lookbackDays == null || impressionMetadataStub == null || dataProviderName == null) {
-      return emptyMap()
-    }
-    val spuriousResult = checkSpuriousDeletions(lookbackDays, clock)
-    return spuriousResult.statuses.associate {
-      it.modelLineKey to Pair(it.spuriousDeletionCount ?: 0, it.legitimateDeletionCount ?: 0)
-    }
   }
 
   private fun buildFullStatus(
@@ -327,6 +193,8 @@ class DataAvailabilityMonitor(
         datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
         lateArrivingDates = null,
         healthyDates = null,
+        spuriousDeletionCount = dateInfo.spuriousDeletionCount,
+        legitimateDeletionCount = dateInfo.legitimateDeletionCount,
       )
     }
 
@@ -361,6 +229,8 @@ class DataAvailabilityMonitor(
       datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
       lateArrivingDates = dateInfo.lateArrivingDates,
       healthyDates = dateInfo.healthyDates,
+      spuriousDeletionCount = dateInfo.spuriousDeletionCount,
+      legitimateDeletionCount = dateInfo.legitimateDeletionCount,
     )
   }
 
@@ -379,6 +249,8 @@ class DataAvailabilityMonitor(
         datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
         lateArrivingDates = null,
         healthyDates = null,
+        spuriousDeletionCount = dateInfo.spuriousDeletionCount,
+        legitimateDeletionCount = dateInfo.legitimateDeletionCount,
       )
     }
 
@@ -404,6 +276,8 @@ class DataAvailabilityMonitor(
       datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
       lateArrivingDates = dateInfo.lateArrivingDates,
       healthyDates = dateInfo.healthyDates,
+      spuriousDeletionCount = dateInfo.spuriousDeletionCount,
+      legitimateDeletionCount = dateInfo.legitimateDeletionCount,
     )
   }
 
@@ -443,14 +317,101 @@ class DataAvailabilityMonitor(
     val datesWithoutDoneBlob: List<LocalDate>,
     val lateArrivingDates: List<LocalDate>,
     val healthyDates: List<LocalDate>,
+    val spuriousDeletionCount: Int?,
+    val legitimateDeletionCount: Int?,
   )
 
-  private suspend fun getDateInfoForModelLine(modelLineKey: ModelLineKey): DateInfo {
+  @OptIn(ExperimentalCoroutinesApi::class)
+  private suspend fun getDateInfoForModelLine(
+    modelLineKey: ModelLineKey,
+    spuriousDeletionLookbackDays: Int?,
+    clock: (() -> LocalDate)?,
+  ): DateInfo {
     val modelLineId = modelLineKey.modelLineId
     val prefix =
       if (edpImpressionPath.isEmpty()) "model-line/$modelLineId/"
       else "$edpImpressionPath/model-line/$modelLineId/"
-    return getDateInfo(prefix)
+    val baseInfo = getDateInfo(prefix)
+
+    if (
+      spuriousDeletionLookbackDays == null ||
+        impressionMetadataStub == null ||
+        dataProviderName == null ||
+        clock == null
+    ) {
+      return baseInfo
+    }
+
+    require(spuriousDeletionLookbackDays > 0) { "spuriousDeletionLookbackDays must be > 0" }
+    require(dataProviderName.isNotBlank()) { "dataProviderName must not be blank" }
+
+    val modelLineName = modelLineKey.toName()
+    val today = clock()
+    val cutoffDate = today.minusDays(spuriousDeletionLookbackDays.toLong())
+    val cutoffEpochSeconds = cutoffDate.atStartOfDay(java.time.ZoneOffset.UTC).toEpochSecond()
+    val nowEpochSeconds = java.time.Instant.now().epochSecond
+
+    var spuriousCount = 0
+    var legitimateCount = 0
+
+    val deletedEntries: Flow<V1AlphaImpressionMetadata> =
+      impressionMetadataStub
+        .listResources<V1AlphaImpressionMetadata, String, ImpressionMetadataServiceCoroutineStub> {
+          pageToken ->
+          val response =
+            listImpressionMetadata(
+              listImpressionMetadataRequest {
+                parent = dataProviderName
+                pageSize = 100
+                showDeleted = true
+                this.pageToken = pageToken
+                filter = listImpressionMetadataRequestFilter {
+                  modelLine = modelLineName
+                  intervalOverlaps = interval {
+                    startTime = timestamp { seconds = cutoffEpochSeconds }
+                    endTime = timestamp { seconds = nowEpochSeconds }
+                  }
+                }
+              }
+            )
+          ResourceList(response.impressionMetadataList, response.nextPageToken)
+        }
+        .flattenConcat()
+
+    deletedEntries.collect { entry ->
+      val blobKey = SelectedStorageClient.parseBlobUri(entry.blobUri).key
+      val blob = storageClient.getBlob(blobKey)
+      if (blob != null) {
+        spuriousCount++
+        if (spuriousCount <= 10) {
+          logger.log(
+            Level.WARNING,
+            "Spurious deletion detected for model line $modelLineName: " +
+              "entry ${entry.name} is deleted but blob exists at ${entry.blobUri}",
+          )
+        }
+      } else {
+        legitimateCount++
+      }
+    }
+
+    logger.log(
+      Level.INFO,
+      "Model line $modelLineName spurious deletion check: " +
+        "spurious=$spuriousCount, legitimate=$legitimateCount",
+    )
+    if (spuriousCount > 0) {
+      logger.log(
+        Level.SEVERE,
+        "ALERT: Model line $modelLineName has $spuriousCount spuriously deleted entries " +
+          "(deleted in metadata store but blob still exists on bucket)",
+      )
+    }
+
+    return baseInfo.copy(
+      spuriousDeletionCount = spuriousCount,
+      legitimateDeletionCount = legitimateCount,
+    )
   }
 
   private suspend fun getDateInfo(prefix: String): DateInfo {
@@ -508,6 +469,8 @@ class DataAvailabilityMonitor(
       datesWithoutDoneBlob = datesWithoutDoneBlobList.sorted(),
       lateArrivingDates = lateArrivingDatesList.sorted(),
       healthyDates = healthyDatesList.sorted(),
+      spuriousDeletionCount = null,
+      legitimateDeletionCount = null,
     )
   }
 
