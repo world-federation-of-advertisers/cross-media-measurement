@@ -34,6 +34,7 @@
 #include "math/distributed_noiser.h"
 #include "math/open_ssl_uniform_random_generator.h"
 #include "wfa/frequency_count/secret_share.pb.h"
+#include "wfa/measurement/internal/duchy/noise_mechanism.pb.h"
 #include "wfa/measurement/internal/duchy/protocol/common/noise_parameters_computation.h"
 #include "wfa/measurement/internal/duchy/protocol/honest_majority_share_shuffle_methods.pb.h"
 #include "wfa/measurement/internal/duchy/protocol/share_shuffle/honest_majority_share_shuffle_utility_helper.h"
@@ -53,6 +54,40 @@ using ::wfa::measurement::internal::duchy::protocol::common::
     GetBlindHistogramNoiser;
 
 constexpr int kWorkerCount = 2;
+
+absl::Status ValidateReachAndFrequencyNoiseMechanism(
+    NoiseMechanism noise_mechanism, bool has_reach_dp_params,
+    bool has_frequency_dp_params) {
+  if (noise_mechanism == NoiseMechanism::NONE) {
+    if (has_reach_dp_params || has_frequency_dp_params) {
+      return absl::InvalidArgumentError(
+          "DP params must not be set when noise mechanism is NONE.");
+    }
+  } else {
+    if (!has_reach_dp_params || !has_frequency_dp_params) {
+      return absl::InvalidArgumentError(
+          "Both reach and frequency DP params are required when noise "
+          "mechanism is not NONE.");
+    }
+  }
+  return absl::OkStatus();
+}
+
+absl::Status ValidateReachOnlyNoiseMechanism(NoiseMechanism noise_mechanism,
+                                             bool has_reach_dp_params) {
+  if (noise_mechanism == NoiseMechanism::NONE) {
+    if (has_reach_dp_params) {
+      return absl::InvalidArgumentError(
+          "DP params must not be set when noise mechanism is NONE.");
+    }
+  } else {
+    if (!has_reach_dp_params) {
+      return absl::InvalidArgumentError(
+          "Reach DP params are required when noise mechanism is not NONE.");
+    }
+  }
+  return absl::OkStatus();
+}
 
 absl::Status VerifyFrequencyVectorParameters(
     const ShareShuffleFrequencyVectorParams& params) {
@@ -95,6 +130,9 @@ CompleteReachAndFrequencyShufflePhase(
 
   RETURN_IF_ERROR(
       VerifyFrequencyVectorParameters(request.frequency_vector_params()));
+  RETURN_IF_ERROR(ValidateReachAndFrequencyNoiseMechanism(
+      request.noise_mechanism(), request.has_reach_dp_params(),
+      request.has_frequency_dp_params()));
 
   if (request.frequency_vector_shares().empty()) {
     return absl::InvalidArgumentError(
@@ -220,6 +258,8 @@ absl::StatusOr<CompleteShufflePhaseResponse> CompleteReachOnlyShufflePhase(
 
   RETURN_IF_ERROR(
       VerifyFrequencyVectorParameters(request.frequency_vector_params()));
+  RETURN_IF_ERROR(ValidateReachOnlyNoiseMechanism(
+      request.noise_mechanism(), request.has_reach_dp_params()));
 
   // Verify that the ring modulus is a prime.
   if (!IsPrime(request.frequency_vector_params().ring_modulus())) {
@@ -358,6 +398,9 @@ CompleteReachAndFrequencyAggregationPhase(
 
   RETURN_IF_ERROR(
       VerifyFrequencyVectorParameters(request.frequency_vector_params()));
+  RETURN_IF_ERROR(ValidateReachAndFrequencyNoiseMechanism(
+      request.noise_mechanism(), request.has_reach_dp_params(),
+      request.has_frequency_dp_params()));
 
   if (request.frequency_vector_shares().size() != kWorkerCount) {
     return absl::InvalidArgumentError(
@@ -507,6 +550,8 @@ CompleteReachOnlyAggregationPhase(
   CompleteAggregationPhaseResponse response;
   RETURN_IF_ERROR(
       VerifyFrequencyVectorParameters(request.frequency_vector_params()));
+  RETURN_IF_ERROR(ValidateReachOnlyNoiseMechanism(
+      request.noise_mechanism(), request.has_reach_dp_params()));
   if (request.frequency_vector_shares().size() != kWorkerCount) {
     return absl::InvalidArgumentError(
         "The number of share vectors must be equal to the number of "
