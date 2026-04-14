@@ -20,7 +20,9 @@ import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneOffset
 import java.time.format.DateTimeParseException
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -71,8 +73,8 @@ class DataAvailabilityMonitor(
   private val storageClient: StorageClient,
   private val edpImpressionPath: String,
   private val activeModelLines: Set<ModelLineKey>,
-  private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub? = null,
-  private val dataProviderName: String? = null,
+  private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub?,
+  private val dataProviderName: String?,
 ) {
   init {
     require(!edpImpressionPath.startsWith("/")) { "edpImpressionPath cannot start with a slash" }
@@ -311,6 +313,7 @@ class DataAvailabilityMonitor(
     }
   }
 
+  /** Info about uploaded dates for a model line. */
   private data class DateInfo(
     val datesWithDoneBlob: Set<LocalDate>,
     val zeroImpressionDates: List<LocalDate>,
@@ -348,8 +351,8 @@ class DataAvailabilityMonitor(
     val modelLineName = modelLineKey.toName()
     val today = clock()
     val cutoffDate = today.minusDays(spuriousDeletionLookbackDays.toLong())
-    val cutoffEpochSeconds = cutoffDate.atStartOfDay(java.time.ZoneOffset.UTC).toEpochSecond()
-    val nowEpochSeconds = java.time.Instant.now().epochSecond
+    val cutoffEpochSeconds = cutoffDate.atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+    val nowEpochSeconds = Instant.now().epochSecond
 
     var spuriousCount = 0
     var legitimateCount = 0
@@ -414,6 +417,18 @@ class DataAvailabilityMonitor(
     )
   }
 
+  /**
+   * Discovers date folders under the given prefix using delimiter-based listing, then checks each
+   * date folder for a "done" blob and at least one data file.
+   *
+   * This avoids enumerating all blobs in every date folder, which can be slow when folders contain
+   * thousands of files. Instead, it:
+   * 1. Lists date-level prefixes using [StorageClient.listBlobKeysAndPrefixes].
+   * 2. For each date, checks for the "done" blob via [StorageClient.getBlob].
+   * 3. For dates with a done blob, checks for at least one data file via [StorageClient.listBlobs].
+   *
+   * Expected path format: `{prefix}{date}/done` and `{prefix}{date}/other_files`
+   */
   private suspend fun getDateInfo(prefix: String): DateInfo {
     val datesWithDone = mutableSetOf<LocalDate>()
     val zeroImpressionDatesList = mutableListOf<LocalDate>()
