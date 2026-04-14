@@ -54,7 +54,7 @@ object KAnonymizer {
     val reachValue =
       ReachAndFrequencyComputations.computeReach(
         rawHistogram = histogram,
-        vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width,
+        vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width.toDouble(),
         vectorSize = maxPopulation,
         dpParams = null,
         kAnonymityParams = kAnonymityParams,
