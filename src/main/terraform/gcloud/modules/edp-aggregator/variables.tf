@@ -200,6 +200,22 @@ variable "edps_config" {
   })
 }
 
+variable "event_group_sync_config" {
+  description = "An object containing the local path of the EventGroupSync config file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+}
+
+variable "data_availability_sync_config" {
+  description = "An object containing the local path of the DataAvailabilitySync config file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+}
+
 variable "results_fulfiller_event_descriptor" {
   description = "An object containing the local path of the results fulfiller event descriptor file and its destination path in Cloud Storage."
   type = object({

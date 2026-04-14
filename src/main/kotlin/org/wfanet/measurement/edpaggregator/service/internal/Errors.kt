@@ -33,6 +33,7 @@ object Errors {
     IMPRESSION_METADATA_NOT_FOUND,
     IMPRESSION_METADATA_ALREADY_EXISTS,
     IMPRESSION_METADATA_STATE_INVALID,
+    RAW_IMPRESSION_METADATA_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_ALREADY_EXISTS,
@@ -56,6 +57,8 @@ object Errors {
     EXPECTED_REQUISITION_METADATA_STATES("expectedRequisitionMetadataStates"),
     REQUEST_ETAG("requestEtag"),
     ETAG("etag"),
+    BATCH_RESOURCE_ID("batchResourceId"),
+    FILE_RESOURCE_ID("fileResourceId"),
     FIELD_NAME("fieldName");
 
     companion object {
@@ -164,6 +167,24 @@ class ImpressionMetadataStateInvalidException(
       Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
       Errors.Metadata.IMPRESSION_METADATA_RESOURCE_ID to impressionMetadataResourceId,
       Errors.Metadata.IMPRESSION_METADATA_STATE to actualState.name,
+    ),
+    cause,
+  )
+
+class RawImpressionMetadataNotFoundException(
+  dataProviderResourceId: String,
+  batchResourceId: String,
+  fileResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+    "RawImpressionMetadata with batch $batchResourceId" +
+      " file $fileResourceId for DataProvider $dataProviderResourceId not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.BATCH_RESOURCE_ID to batchResourceId,
+      Errors.Metadata.FILE_RESOURCE_ID to fileResourceId,
     ),
     cause,
   )

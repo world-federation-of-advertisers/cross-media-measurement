@@ -1115,6 +1115,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           }
         }
     }
+    // All computation methods (HMSS, TrusTee, etc.) are expected to produce exactly the same
+    // results when using the same input data and no noise.
     private const val EXPECTED_CROSS_PUBLISHER_REACH = 5371L
     private const val EXPECTED_CROSS_PUBLISHER_IMPRESSIONS = 9124L
     private val EXPECTED_K_PLUS_REACH = listOf(5371L, 2678L, 682L, 394L, 0L)

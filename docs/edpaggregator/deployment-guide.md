@@ -169,79 +169,12 @@ watched_paths {
     endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/event-group-sync"
     app_params {
       fields {
+        key: "@type"
+        value { string_value: "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams" }
+      }
+      fields {
         key: "dataProvider"
         value { string_value: "dataProviders/T5RryPMNong" }
-      }
-      fields {
-        key: "eventGroupsBlobUri"
-        value { string_value: "gs://secure-computation-storage-dev-bucket/edp7/event-groups/edp7-event-group.pb" }
-      }
-      fields {
-        key: "eventGroupMapBlobUri"
-        value { string_value: "gs://secure-computation-storage-dev-bucket/edp7/event-groups-map/edp7-event-group.pb" }
-      }
-      fields {
-        key: "cmmsConnection"
-        value {
-          struct_value {
-            fields {
-              key: "certFilePath"
-              value { string_value: "/secrets/cert/edp7_tls.pem" }
-            }
-            fields {
-              key: "privateKeyFilePath"
-              value { string_value: "/secrets/key/edp7_tls.key" }
-            }
-            fields {
-              key: "certCollectionFilePath"
-              value { string_value: "/secrets/ca/kingdom_root.pem" }
-            }
-          }
-        }
-      }
-      fields {
-        key: "eventGroupStorage"
-        value {
-          struct_value {
-            fields {
-              key: "gcs"
-              value {
-                struct_value {
-                  fields {
-                    key: "projectId"
-                    value { string_value: "halo-cmm-dev" }
-                  }
-                  fields {
-                    key: "bucketName"
-                    value { string_value: "secure-computation-storage-dev-bucket" }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      fields {
-        key: "eventGroupMapStorage"
-        value {
-          struct_value {
-            fields {
-              key: "gcs"
-              value {
-                struct_value {
-                  fields {
-                    key: "projectId"
-                    value { string_value: "halo-cmm-dev" }
-                  }
-                  fields {
-                    key: "bucketName"
-                    value { string_value: "secure-computation-storage-dev-bucket" }
-                  }
-                }
-              }
-            }
-          }
-        }
       }
     }
   }
@@ -282,68 +215,12 @@ watched_paths {
     endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/data-availability-sync"
     app_params {
       fields {
+        key: "@type"
+        value { string_value: "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams" }
+      }
+      fields {
         key: "dataProvider"
         value { string_value: "dataProviders/T5RryPMNong" }
-      }
-      fields {
-        key: "dataAvailabilityStorage"
-        value {
-          struct_value {
-            fields {
-              key: "gcs"
-              value {
-                struct_value {
-                  fields {
-                    key: "projectId"
-                    value { string_value: "halo-cmm-dev" }
-                  }
-                  fields {
-                    key: "bucketName"
-                    value { string_value: "secure-computation-storage-dev-bucket" }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      fields {
-        key: "cmmsConnection"
-        value {
-          struct_value {
-            fields {
-              key: "certFilePath"
-              value { string_value: "/secrets/cert/edp7_tls.pem" }
-            }
-            fields {
-              key: "privateKeyFilePath"
-              value { string_value: "/secrets/key/edp7_tls.key" }
-            }
-            fields {
-              key: "certCollectionFilePath"
-              value { string_value: "/secrets/ca/kingdom_root.pem" }
-            }
-          }
-        }
-      }
-      fields {
-        key: "impressionMetadataStorageConnection"
-        value {
-          struct_value {
-            fields {
-              key: "certFilePath"
-              value { string_value: "/secrets/cert/data_availability/data_availability_tls.pem" }
-            }
-            fields {
-              key: "privateKeyFilePath"
-              value { string_value: "/secrets/key/data_availability/data_availability_tls.key" }
-            }
-            fields {
-              key: "certCollectionFilePath"
-              value { string_value: "/secrets/ca/metadata_storage/edp_aggregator_root.pem" }
-            }
-          }
-        }
       }
     }
   }
@@ -427,6 +304,7 @@ To enable Event Group synchronization for a new EDP, a new **watched path** corr
 EventGroupSync runs with a service account that has access to:
 
 * Read/write to EDP Aggregator Storage
+* Read from EDP Aggregator Config Storage
 * Access secrets from Secret Manager
 
 #### Deployment
@@ -436,14 +314,18 @@ The corresponding IAM permissions are defined in the [EDP Aggregator Terraform m
 
 ##### Environment Variables
 
-The EventGroupSync needs environment variables to operate. These variables are provided using the [event_group_env_var](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L175) terraform variable.
+The EventGroupSync needs environment variables to operate. These variables are provided using the [event_group_env_var](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L175) terraform variable, with `CONFIG_BLOB_KEY` and `EDPA_CONFIG_STORAGE_BUCKET` appended automatically by Terraform.
 
 * KINGDOM_TARGET \- the grpc target of the Kingdom public API**.**
+* CONFIG_BLOB_KEY \- the name of the config file in the EDPA config bucket (set automatically by Terraform to `event-group-sync-config.textproto`).
+* EDPA_CONFIG_STORAGE_BUCKET \- the GCS URI of the EDPA config bucket (set automatically by Terraform).
 
 This is an example of EventGroupSync env variable:
 
-| KINGDOM_TARGET=v2alpha.kingdom.dev.halo-cmm.org:8443 |
+| KINGDOM_TARGET=v2alpha.kingdom.dev.halo-cmm.org:8443,CONFIG_BLOB_KEY=event-group-sync-config.textproto,EDPA_CONFIG_STORAGE_BUCKET=gs://edpa-configs-storage-dev-bucket |
 | :---- |
+
+> **Note:** The value of `CONFIG_BLOB_KEY` must exactly match the object name of the config file uploaded to the EDPA config GCS bucket.
 
 ##### Secret Mappings
 
@@ -462,9 +344,43 @@ Each EDP needs the tls.key and tls.pem file.
 
 **Important:**
 
-* /secrets/key/edp7_tls.key must be the same value used for **privateKeyFilePath** in the **cmmsConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the [DataWatcher config file](#datawatcher-config-file).
-* /secrets/cert/edp7_tls.pem must be the same value used for **certFilePath** in the **cmmsConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the  [DataWatcher config file](#datawatcher-config-file).
-* /secrets/ca/kingdom_root.pem must be the same value used for **certCollectionFilePath** in the **cmmsConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the [DataWatcher config file](#datawatcher-config-file).
+* /secrets/key/edp7_tls.key must be the same value used for **privateKeyFilePath** in the **cmmsConnection** definition in the [EventGroupSync config file](#eventgroupsync-config-file).
+* /secrets/cert/edp7_tls.pem must be the same value used for **certFilePath** in the **cmmsConnection** definition in the [EventGroupSync config file](#eventgroupsync-config-file).
+* /secrets/ca/kingdom_root.pem must be the same value used for **certCollectionFilePath** in the **cmmsConnection** definition in the [EventGroupSync config file](#eventgroupsync-config-file).
+
+##### EventGroupSync Config file
+
+The EventGroupSync function loads its per-EDP configuration from this file at startup. The file is uploaded to the EDPA config GCS bucket and referenced via the `CONFIG_BLOB_KEY` environment variable.
+
+```protobuf
+# proto-file: wfa/measurement/config/edpaggregator/event_group_sync_config.proto
+# proto-message: wfa.measurement.config.edpaggregator.EventGroupSyncConfigs
+configs {
+  data_provider: "dataProviders/<your-edp-resource-id>"
+  event_groups_blob_uri: "gs://<your-storage-bucket>/<edp-name>/event-groups/<edp-name>-event-group.binpb"
+  event_group_map_blob_uri: "gs://<your-storage-bucket>/<edp-name>/event-groups-map/<edp-name>-event-group.binpb"
+  cmms_connection {
+    cert_file_path: "/secrets/<cert-secret-name>/<edp-name>_tls.pem"
+    private_key_file_path: "/secrets/<key-secret-name>/<edp-name>_tls.key"
+    cert_collection_file_path: "/secrets/<ca-secret-name>/kingdom_root.pem"
+  }
+  event_group_storage {
+    gcs {
+      project_id: "<gcp-project-id>"
+      bucket_name: "<storage-bucket-name>"
+    }
+  }
+  event_group_map_storage {
+    gcs {
+      project_id: "<gcp-project-id>"
+      bucket_name: "<storage-bucket-name>"
+    }
+  }
+}
+# Repeat the `configs` block for each EDP
+```
+
+The local file path for this config file is set using the [event_group_sync_config_file_path](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf) terraform variable.
 
 ### RequisitionFetcher Function
 
@@ -489,7 +405,7 @@ The corresponding IAM permissions are defined in the [EDP Aggregator Terraform m
 
 ##### Environment Variables
 
-The EventGroupSync needs environment variables to operate. These variables are provided using the [event_group_env_var](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L175) terraform variable.
+The RequisitionFetcher needs environment variables to operate. These variables are provided using the [requisition_fetcher_env_var](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf) terraform variable.
 
 * KINGDOM_TARGET \- the grpc target of the Kingdom public API**.**
 * EDPA_CONFIG_STORAGE_BUCKET \- the EDPA Config storage bucket**.**
@@ -587,6 +503,7 @@ To enable Data Availability synchronization for a new EDP, a new **watched path*
 DataAvailabilitySync runs with a service account that has access to:
 
 * Read/write to EDP Aggregator Storage
+* Read from EDP Aggregator Config Storage
 * Access secrets from Secret Manager
 
 #### Deployment
@@ -596,15 +513,19 @@ The corresponding IAM permissions are defined in the [EDP Aggregator Terraform m
 
 ##### Environment Variables
 
-The DataAvailabilitySync needs environment variables to operate. These variables are provided using the [data_availability_env_var](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L185) terraform variable.
+The DataAvailabilitySync needs environment variables to operate. These variables are provided using the [data_availability_env_var](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L185) terraform variable, with `CONFIG_BLOB_KEY` and `EDPA_CONFIG_STORAGE_BUCKET` appended automatically by Terraform.
 
 * KINGDOM_TARGET \- the grpc target of the Kingdom public API**.**
 * IMPRESSION_METADATA_TARGET \- the grpc target of the Edp Aggregator API (Metadata storage)**.**
+* CONFIG_BLOB_KEY \- the name of the config file in the EDPA config bucket (set automatically by Terraform to `data-availability-sync-config.textproto`).
+* EDPA_CONFIG_STORAGE_BUCKET \- the GCS URI of the EDPA config bucket (set automatically by Terraform).
 
 This is an example of DataAvailabilitySync env variable:
 
-| KINGDOM_TARGET=v2alpha.kingdom.dev.halo-cmm.org:8443,IMPRESSION_METADATA_TARGET=system.edp-aggregator.dev.halo-cmm.org:8443 |
+| KINGDOM_TARGET=v2alpha.kingdom.dev.halo-cmm.org:8443,IMPRESSION_METADATA_TARGET=system.edp-aggregator.dev.halo-cmm.org:8443,CONFIG_BLOB_KEY=data-availability-sync-config.textproto,EDPA_CONFIG_STORAGE_BUCKET=gs://edpa-configs-storage-dev-bucket |
 | :---- |
+
+> **Note:** The value of `CONFIG_BLOB_KEY` must exactly match the object name of the config file uploaded to the EDPA config GCS bucket. The `data-availability-cleanup` Cloud Function uses the same config file and environment variables.
 
 ##### Secret Mappings
 
@@ -623,14 +544,45 @@ Each EDP needs the tls.key and tls.pem file. The data availability leaf certs (k
 
 **Important:**
 
-* /secrets/key/edp7_tls.key must be the same value used for **privateKeyFilePath** in the **cmmsConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the [DataWatcher config file](#datawatcher-config-file).
-* /secrets/cert/edp7_tls.pem must be the same value used for **certFilePath** in the **cmmsConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the  [DataWatcher config file](#datawatcher-config-file).
-* /secrets/ca/kingdom_root.pem must be the same value used for **certCollectionFilePath** in the **cmmsConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the [DataWatcher config file](#datawatcher-config-file).
-* /secrets/key/data_availability/data_availability_tls.key must be the same value used for **privateKeyFilePath** in the **impressionMetadataStorageConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the [DataWatcher config file](#datawatcher-config-file).
-* /secrets/cert/data_availability/data_availability_tls.pem must be the same value used for **certFilePath** in the **impressionMetadataStorageConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the  [DataWatcher config file](#datawatcher-config-file).
-* /secrets/ca/metadata_storage/edp_aggregator_root.pem must be the same value used for **certCollectionFilePath** in the **impressionMetadataStorageConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the [DataWatcher config file](#datawatcher-config-file).
+* /secrets/key/edp7_tls.key must be the same value used for **privateKeyFilePath** in the **cmmsConnection** definition in the [DataAvailabilitySync config file](#dataavailabilitysync-config-file).
+* /secrets/cert/edp7_tls.pem must be the same value used for **certFilePath** in the **cmmsConnection** definition in the [DataAvailabilitySync config file](#dataavailabilitysync-config-file).
+* /secrets/ca/kingdom_root.pem must be the same value used for **certCollectionFilePath** in the **cmmsConnection** definition in the [DataAvailabilitySync config file](#dataavailabilitysync-config-file).
+* /secrets/key/data_availability/data_availability_tls.key must be the same value used for **privateKeyFilePath** in the **impressionMetadataStorageConnection** definition in the [DataAvailabilitySync config file](#dataavailabilitysync-config-file).
+* /secrets/cert/data_availability/data_availability_tls.pem must be the same value used for **certFilePath** in the **impressionMetadataStorageConnection** definition in the [DataAvailabilitySync config file](#dataavailabilitysync-config-file).
+* /secrets/ca/metadata_storage/edp_aggregator_root.pem must be the same value used for **certCollectionFilePath** in the **impressionMetadataStorageConnection** definition in the [DataAvailabilitySync config file](#dataavailabilitysync-config-file).
 
 The Data Availability needs to access Gcloud secrets as [defined here](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/modules/edp-aggregator/main.tf#L112-L120).
+
+##### DataAvailabilitySync Config file
+
+The DataAvailabilitySync function loads its per-EDP configuration from this file at startup. This file is also shared by the `data-availability-cleanup` Cloud Function. The file is uploaded to the EDPA config GCS bucket and referenced via the `CONFIG_BLOB_KEY` environment variable.
+
+```protobuf
+# proto-file: wfa/measurement/config/edpaggregator/data_availability_sync_config.proto
+# proto-message: wfa.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
+configs {
+  data_provider: "dataProviders/<your-edp-resource-id>"
+  data_availability_storage {
+    gcs {
+      project_id: "<gcp-project-id>"
+      bucket_name: "<your-storage-bucket>"
+    }
+  }
+  cmms_connection {
+    cert_file_path: "/secrets/<cert-secret-name>/<edp-name>_tls.pem"
+    private_key_file_path: "/secrets/<key-secret-name>/<edp-name>_tls.key"
+    cert_collection_file_path: "/secrets/<ca-secret-name>/kingdom_root.pem"
+  }
+  impression_metadata_storage_connection {
+    cert_file_path: "/secrets/<metadata-cert-secret-name>/data_availability_tls.pem"
+    private_key_file_path: "/secrets/<metadata-key-secret-name>/data_availability_tls.key"
+    cert_collection_file_path: "/secrets/<metadata-ca-secret-name>/edp_aggregator_root.pem"
+  }
+}
+# Repeat the `configs` block for each EDP
+```
+
+The local file path for this config file is set using the [data_availability_sync_config_file_path](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf) terraform variable.
 
 ### Results fulfiller
 
@@ -817,6 +769,8 @@ This is the top-level orchestrator module. It integrates several submodules and 
 
     * **datawatcher** config file
     * **requisitionfetcher** config file
+    * **event-group-sync** config file
+    * **data-availability-sync** config file
 
 * **Secrets**:
 
@@ -840,7 +794,7 @@ This is the top-level orchestrator module. It integrates several submodules and 
 
     * Grants Results Fulfiller VM read/write access to EDP Aggregator Storage
     * Grants admin access to RequisitionFetcher and EventGroupSync Cloud Functions over EDP Aggregator Storage
-    * Grants read access to RequisitionFetcher and DataWatcher Cloud Functions over EDP Aggregator Config Storage
+    * Grants read access to RequisitionFetcher, DataWatcher, EventGroupSync, DataAvailabilitySync, and DataAvailabilityCleanup Cloud Functions over EDP Aggregator Config Storage
 
 **(\*)** The KEK and KMS key ring must be created by the EDPs. They are not part of the EDP Aggregator infrastructure.
 The EDP Aggregator acquires access to the KEK via remote attestation, which must be configured separately. In this case, they are included in the Terraform to facilitate running the Cloud Test.
@@ -932,6 +886,16 @@ During **terraform plan**, the following variables must be provided:
 * Google Secrets ids that are mounted and made available to the Cloud function at run time
 * **data_availability_uber_jar_path**
 * **DataAvailability Uber jar** (bazel build //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:DataAvailabilitySyncFunction_deploy.jar)
+* **event_group_sync_config_file_path**
+  Path to the local EventGroupSync config file to upload to the Config Storage bucket. See [EventGroupSync Config file](#eventgroupsync-config-file).
+* **data_availability_sync_config_file_path**
+  Path to the local DataAvailabilitySync config file to upload to the Config Storage bucket. Shared by both `data-availability-sync` and `data-availability-cleanup` Cloud Functions. See [DataAvailabilitySync Config file](#dataavailabilitysync-config-file).
+* **data_availability_cleanup_env_var**
+  Env variables needed for the DataAvailabilityCleanup to operate (same `CONFIG_BLOB_KEY` and `EDPA_CONFIG_STORAGE_BUCKET` as DataAvailabilitySync).
+* **data_availability_cleanup_secret_mapping**
+  Google Secrets ids that are mounted and made available to the DataAvailabilityCleanup Cloud Function at run time.
+* **data_availability_cleanup_uber_jar_path**
+  DataAvailabilityCleanup Uber jar (bazel build //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:DataAvailabilityCleanupFunction_deploy.jar)
 
 
 **(\*)** This assumes that Secure Computation API have been already deployed.

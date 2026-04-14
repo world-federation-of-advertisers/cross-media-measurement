@@ -152,8 +152,13 @@ locals {
                                           "--event-template-type-name", var.results_fulfiller_event_template_type_name,
                                           "--duchy-id", var.duchy_worker1_id,
                                           "--duchy-target", var.duchy_worker1_target,
+                                          "--duchy-cert-host", "localhost",
                                           "--duchy-id", var.duchy_worker2_id,
                                           "--duchy-target", var.duchy_worker2_target,
+                                          "--duchy-cert-host", "localhost",
+                                          "--duchy-id", var.duchy_aggregator_id,
+                                          "--duchy-target", var.duchy_aggregator_target,
+                                          "--duchy-cert-host", "localhost",
                                         ]
     }
   }
@@ -188,6 +193,16 @@ locals {
       destination = "event-data-provider-configs.textproto"
     }
 
+  event_group_sync_config = {
+    local_path  = var.event_group_sync_config_file_path
+    destination = "event-group-sync-config.textproto"
+  }
+
+  data_availability_sync_config = {
+    local_path  = var.data_availability_sync_config_file_path
+    destination = "data-availability-sync-config.textproto"
+  }
+
   results_fulfiller_event_descriptor = {
     local_path  = var.results_fulfiller_event_proto_descriptor_path
     destination = "results_fulfiller_event_proto_descriptor.pb"
@@ -216,14 +231,14 @@ locals {
     event_group_sync = {
       function_name       = "event-group-sync"
       entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunction"
-      extra_env_vars      = var.event_group_env_var
+      extra_env_vars      = "${var.event_group_env_var},CONFIG_BLOB_KEY=${local.event_group_sync_config.destination},EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}"
       secret_mappings     = var.event_group_secret_mapping
       uber_jar_path       = var.event_group_uber_jar_path
     }
     data_availability_sync = {
       function_name       = "data-availability-sync"
       entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncFunction"
-      extra_env_vars      = var.data_availability_env_var
+      extra_env_vars      = "${var.data_availability_env_var},CONFIG_BLOB_KEY=${local.data_availability_sync_config.destination},EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}"
       secret_mappings     = var.data_availability_secret_mapping
       uber_jar_path       = var.data_availability_uber_jar_path
     }
@@ -237,7 +252,7 @@ locals {
     data_availability_cleanup = {
       function_name       = "data-availability-cleanup"
       entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilityCleanupFunction"
-      extra_env_vars      = var.data_availability_cleanup_env_var
+      extra_env_vars      = "${var.data_availability_cleanup_env_var},CONFIG_BLOB_KEY=${local.data_availability_sync_config.destination},EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}"
       secret_mappings     = var.data_availability_cleanup_secret_mapping
       uber_jar_path       = var.data_availability_cleanup_uber_jar_path
     }
@@ -265,6 +280,8 @@ module "edp_aggregator" {
   data_watcher_delete_config                    = local.data_watcher_delete_config
   requisition_fetcher_config                    = local.requisition_fetcher_config
   edps_config                                   = local.edps_config
+  event_group_sync_config                        = local.event_group_sync_config
+  data_availability_sync_config                  = local.data_availability_sync_config
   results_fulfiller_event_descriptor            = local.results_fulfiller_event_descriptor
   results_fulfiller_population_spec             = local.results_fulfiller_population_spec
   event_group_sync_service_account_name         = "edpa-event-group-sync"
