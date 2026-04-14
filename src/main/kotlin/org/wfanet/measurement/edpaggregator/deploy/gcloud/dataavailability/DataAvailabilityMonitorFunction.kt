@@ -20,18 +20,25 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
+import io.grpc.ManagedChannel
 import java.io.File
+import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilityMonitorConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilityMonitorConfigs
+import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -119,15 +126,50 @@ class DataAvailabilityMonitorFunction : HttpFunction {
       if (config.maxStaleDays > 0) config.maxStaleDays
       else DataAvailabilityMonitor.DEFAULT_MAX_STALE_DAYS
 
+    val spuriousDeletionConfig = config.spuriousDeletionCheck
+    val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub? =
+      if (spuriousDeletionConfig.enabled) {
+        require(spuriousDeletionConfig.hasImpressionMetadataConnection()) {
+          "impression_metadata_connection must be set when spurious_deletion_check is enabled"
+        }
+        require(spuriousDeletionConfig.dataProviderName.isNotEmpty()) {
+          "data_provider_name must be set when spurious_deletion_check is enabled"
+        }
+        val channel =
+          createImpressionMetadataChannel(spuriousDeletionConfig.impressionMetadataConnection)
+        ImpressionMetadataServiceCoroutineStub(channel)
+      } else {
+        null
+      }
+
     val monitor =
       DataAvailabilityMonitor(
         storageClient = storageClient,
         edpImpressionPath = config.edpImpressionPath,
         activeModelLines = activeModelLines,
+        impressionMetadataStub = impressionMetadataStub,
+        dataProviderName = spuriousDeletionConfig.dataProviderName.ifEmpty { null },
       )
 
     val result =
       monitor.checkFullStatus(maxStaleDays = maxStaleDays, clock = { LocalDate.now(timeZone) })
+
+    if (spuriousDeletionConfig.enabled) {
+      val spuriousResult =
+        monitor.checkSpuriousDeletions(
+          lookbackDays = spuriousDeletionConfig.lookbackDays,
+          clock = { LocalDate.now(timeZone) },
+        )
+      for (status in spuriousResult.statuses) {
+        if ((status.spuriousDeletionCount ?: 0) > 0) {
+          logger.log(
+            Level.SEVERE,
+            "ALERT: Model line ${status.modelLineKey.toName()} in ${config.edpImpressionPath} " +
+              "has ${status.spuriousDeletionCount} spuriously deleted entries",
+          )
+        }
+      }
+    }
 
     if (result.statuses.none { hasIssues(it) }) {
       logger.info("All model lines healthy for path: ${config.edpImpressionPath}")
@@ -203,10 +245,30 @@ class DataAvailabilityMonitorFunction : HttpFunction {
     }
   }
 
+  private fun createImpressionMetadataChannel(
+    tlsParams: TransportLayerSecurityParams
+  ): ManagedChannel {
+    val signingCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = File(tlsParams.certFilePath),
+        privateKeyFile = File(tlsParams.privateKeyFilePath),
+        trustedCertCollectionFile = File(tlsParams.certCollectionFilePath),
+      )
+    return buildMutualTlsChannel(impressionMetadataTarget, signingCerts, impressionMetadataCertHost)
+      .withShutdownTimeout(Duration.ofSeconds(channelShutdownDurationSeconds))
+  }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     private val fileSystemPath: String? = System.getenv("DATA_AVAILABILITY_FILE_SYSTEM_PATH")
+
+    private val impressionMetadataTarget: String = System.getenv("IMPRESSION_METADATA_TARGET") ?: ""
+
+    private val impressionMetadataCertHost: String? = System.getenv("IMPRESSION_METADATA_CERT_HOST")
+
+    private val channelShutdownDurationSeconds: Long =
+      System.getenv("CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLongOrNull() ?: 3L
 
     private val configBlobKey: String =
       requireNotNull(System.getenv("CONFIG_BLOB_KEY")) {

@@ -38,17 +38,17 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.Instrumentation
-import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.EDP_IMPRESSION_PATH_ATTR
-import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.MODEL_LINE_ATTR
-import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.EDP_IMPRESSION_PATH_ATTR
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.MODEL_LINE_ATTR
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata as V1AlphaImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata as v1alphaImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)
 class DataAvailabilityMonitorTest {
@@ -65,7 +65,8 @@ class DataAvailabilityMonitorTest {
           listImpressionMetadataResponse {
             impressionMetadata += v1alphaImpressionMetadata {
               name = "$DATA_PROVIDER_NAME/impressionMetadata/imp-deleted-1"
-              blobUri = "gs://$BUCKET_NAME/$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata_campaign_123.json"
+              blobUri =
+                "gs://$BUCKET_NAME/$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata_campaign_123.json"
               state = V1AlphaImpressionMetadata.State.DELETED
             }
           }
@@ -75,16 +76,13 @@ class DataAvailabilityMonitorTest {
   private val noDeletedEntriesServiceMock: ImpressionMetadataServiceCoroutineImplBase =
     mockService {
       onBlocking { listImpressionMetadata(org.mockito.kotlin.any<ListImpressionMetadataRequest>()) }
-        .thenAnswer { _ ->
-          listImpressionMetadataResponse {}
-        }
+        .thenAnswer { _ -> listImpressionMetadataResponse {} }
     }
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule { addService(impressionMetadataServiceMock) }
 
-  @get:Rule
-  val grpcTestServerRule2 = GrpcTestServerRule { addService(noDeletedEntriesServiceMock) }
+  @get:Rule val grpcTestServerRule2 = GrpcTestServerRule { addService(noDeletedEntriesServiceMock) }
 
   private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub by lazy {
     ImpressionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
@@ -93,7 +91,6 @@ class DataAvailabilityMonitorTest {
   private val noDeletedEntriesStub: ImpressionMetadataServiceCoroutineStub by lazy {
     ImpressionMetadataServiceCoroutineStub(grpcTestServerRule2.channel)
   }
-
 
   companion object {
     private const val EDP_IMPRESSION_PATH = "edp/edp1/vid-labeled-impressions"
@@ -1074,7 +1071,8 @@ class DataAvailabilityMonitorTest {
     val storageClient = createStorageClient()
 
     // Create a blob on storage that matches the deleted entry's blobUri
-    val blobPath = "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata_campaign_123.json"
+    val blobPath =
+      "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata_campaign_123.json"
     storageClient.writeBlob(blobPath, ByteString.copyFromUtf8("data"))
 
     val monitor =
@@ -1139,7 +1137,8 @@ class DataAvailabilityMonitorTest {
   fun `checkSpuriousDeletions emits metrics`(): Unit = runBlocking {
     val storageClient = createStorageClient()
 
-    val blobPath = "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata_campaign_123.json"
+    val blobPath =
+      "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata_campaign_123.json"
     storageClient.writeBlob(blobPath, ByteString.copyFromUtf8("data"))
 
     val monitor =
@@ -1154,10 +1153,7 @@ class DataAvailabilityMonitorTest {
     monitor.checkSpuriousDeletions(lookbackDays = 90, clock = { TODAY })
 
     val metrics = collectMetrics()
-    assertThat(
-        getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_SPURIOUS_DELETION)
-      )
+    assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_SPURIOUS_DELETION))
       .isEqualTo(1)
   }
-
 }

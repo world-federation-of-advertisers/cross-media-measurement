@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.config.edpaggregator;
 
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
+import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
@@ -63,8 +64,15 @@ message SpuriousDeletionCheckConfig {
 
   // Number of days of deleted entries to check. Only entries with
   // interval_start within the last `lookback_days` will be queried.
-  // Must be > 0 when enabled. Recommended: 90.
+  // Must be > 0 when enabled.
   int32 lookback_days = 2;
+
+  // Resource name of the data provider.
+  // Format: "dataProviders/{data_provider}"
+  string data_provider_name = 3;
+
+  // How to connect to the ImpressionMetadata service.
+  TransportLayerSecurityParams impression_metadata_connection = 4;
 }
 
 // Wrapper containing monitor configurations. Loaded at startup from the

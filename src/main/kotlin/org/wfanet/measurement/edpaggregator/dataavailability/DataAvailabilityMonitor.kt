@@ -17,13 +17,14 @@
 package org.wfanet.measurement.edpaggregator.dataavailability
 
 import com.google.protobuf.timestamp
-
+import com.google.type.interval
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
@@ -112,8 +113,23 @@ class DataAvailabilityMonitor(
     val legitimateDeletionCount: Int? = null,
   )
 
+  /**
+   * Result of a monitoring check across all active model lines.
+   *
+   * @property statuses One [ModelLineStatus] per model line in [activeModelLines], in the same
+   *   iteration order. The list has a 1:1 correspondence with [activeModelLines].
+   */
   data class MonitorResult(val statuses: List<ModelLineStatus>)
 
+  /**
+   * Checks all active model lines for staleness, gaps, and data quality issues.
+   *
+   * @param maxStaleDays Maximum number of days a model line can go without an upload before being
+   *   considered stale.
+   * @param clock Provides the current date for staleness checks.
+   * @return A [MonitorResult] with one [ModelLineStatus] per model line in [activeModelLines], in
+   *   the same iteration order.
+   */
   suspend fun checkFullStatus(maxStaleDays: Int, clock: () -> LocalDate): MonitorResult {
     require(maxStaleDays > 0) { "maxStaleDays must be greater than zero" }
     val today = clock()
@@ -126,6 +142,15 @@ class DataAvailabilityMonitor(
     return MonitorResult(statuses = statuses)
   }
 
+  /**
+   * Checks all active model lines for date gaps and data quality issues only (no staleness).
+   *
+   * Staleness-related fields ([ModelLineStatus.isStale] and [ModelLineStatus.staleDays]) are `null`
+   * in the returned statuses.
+   *
+   * @return A [MonitorResult] with one [ModelLineStatus] per model line in [activeModelLines], in
+   *   the same iteration order.
+   */
   suspend fun checkGaps(): MonitorResult {
     val statuses =
       activeModelLines.map { modelLineKey ->
@@ -150,6 +175,7 @@ class DataAvailabilityMonitor(
    * @param clock Provides the current date.
    * @return A [MonitorResult] with spurious/legitimate deletion counts per model line.
    */
+  @OptIn(ExperimentalCoroutinesApi::class)
   suspend fun checkSpuriousDeletions(lookbackDays: Int, clock: () -> LocalDate): MonitorResult {
     require(lookbackDays > 0) { "lookbackDays must be greater than zero" }
     requireNotNull(impressionMetadataStub) {
@@ -183,7 +209,7 @@ class DataAvailabilityMonitor(
                 }
                 filter = listImpressionMetadataRequestFilter {
                   modelLine = modelLineName
-                  intervalOverlaps = com.google.type.interval {
+                  intervalOverlaps = interval {
                     startTime = timestamp { seconds = cutoffEpochSeconds }
                     endTime = timestamp { seconds = nowEpochSeconds }
                   }
