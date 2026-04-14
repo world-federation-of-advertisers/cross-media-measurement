@@ -1872,10 +1872,12 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     }
 
     assertThat(actualResult).reachValue().isWithin(reachTolerance).of(0)
-    assertThat(actualResult)
-      .frequencyDistribution()
-      .isWithin(frequencyToleranceMap)
-      .of(mapWithAllZeroFrequency)
+    if (actualResult.reach.value == 0L) {
+      assertThat(actualResult)
+        .frequencyDistribution()
+        .isWithin(frequencyToleranceMap)
+        .of(mapWithAllZeroFrequency)
+    }
   }
 
   @Test

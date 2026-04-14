@@ -54,3 +54,23 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/io/opentelemetry/sdk/testing",
     ],
 )
+
+kt_jvm_test(
+    name = "DataAvailabilityMonitorTest",
+    srcs = ["DataAvailabilityMonitorTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitorTest",
+    deps = [
+        "//imports/java/io/opentelemetry/api",
+        "//imports/java/io/opentelemetry/sdk",
+        "//imports/java/io/opentelemetry/sdk:sdk_metrics",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_monitor",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/sdk/testing",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
+    ],
+)

@@ -8,17 +8,23 @@ package(default_visibility = [
 
 kt_jvm_library(
     name = "data_availability_sync_function",
-    srcs = ["DataAvailabilitySyncFunction.kt"],
+    srcs = [
+        "DataAvailabilitySyncFunction.kt",
+    ],
     deps = [
         "//imports/java/io/opentelemetry/api:context",
         "//imports/java/io/opentelemetry/extension:kotlin",
         "//imports/java/io/opentelemetry/instrumentation/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common:env_vars",
+        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:edp_aggregator_config",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:interceptors",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:config_loader",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/config/edpaggregator:data_availability_sync_configs_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:storage_params_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:transport_layer_security_params_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
         "@wfa_common_jvm//imports/java/com/google/events",
@@ -46,6 +52,8 @@ kt_jvm_library(
         "//imports/java/io/opentelemetry/api:context",
         "//imports/java/io/opentelemetry/extension:kotlin",
         "//imports/java/io/opentelemetry/instrumentation/grpc",
+        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:edp_aggregator_config",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:config_loader",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
         "//src/main/proto/wfa/measurement/config/edpaggregator:data_availability_sync_configs_kt_jvm_proto",
@@ -62,4 +70,28 @@ java_binary(
     name = "DataAvailabilityCleanupFunction",
     main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilityCleanupFunction",
     runtime_deps = [":data_availability_cleanup_function"],
+)
+
+kt_jvm_library(
+    name = "data_availability_monitor_function",
+    srcs = ["DataAvailabilityMonitorFunction.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:edp_aggregator_config",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_monitor",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:data_availability_monitor_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:storage_params_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
+    ],
+)
+
+java_binary(
+    name = "DataAvailabilityMonitorFunction",
+    main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilityMonitorFunction",
+    runtime_deps = [":data_availability_monitor_function"],
 )

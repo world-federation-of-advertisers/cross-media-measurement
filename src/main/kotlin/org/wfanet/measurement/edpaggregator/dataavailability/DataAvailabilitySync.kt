@@ -17,7 +17,6 @@
 package org.wfanet.measurement.edpaggregator.dataavailability
 
 import com.google.protobuf.ByteString
-import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
 import com.google.type.interval
 import io.grpc.StatusException
@@ -32,6 +31,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.throttler.Throttler
@@ -61,7 +61,7 @@ import org.wfanet.measurement.storage.StorageClient
  * - Validating and storing impression metadata records via the
  *   [ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub].
  * - Computing model line availability intervals using the impression metadata service.
- * - Updating the kingdom data provider’s availability intervals through
+ * - Updating the kingdom data provider's availability intervals through
  *   [DataProvidersGrpcKt.DataProvidersCoroutineStub].
  *
  * The synchronization process is throttled via the provided [Throttler] to prevent overwhelming
@@ -72,7 +72,7 @@ import org.wfanet.measurement.storage.StorageClient
  * 2. Metadata blobs in the same folder are discovered and parsed into [ImpressionMetadata].
  * 3. Valid impression metadata are persisted.
  * 4. Model line availability intervals are computed from the persisted metadata.
- * 5. The data provider’s availability intervals are updated accordingly.
+ * 5. The data provider's availability intervals are updated accordingly.
  *
  * @property edpImpressionPath a string name assigned to the EDP. All impressions for this edp will
  *   be within a subfolder with that name.
@@ -88,6 +88,9 @@ import org.wfanet.measurement.storage.StorageClient
  *   request.
  * @property modelLineMap Mapping from a source model line to additional model lines that should
  *   receive the same availability interval updates.
+ * @property errorIfGapsExist If true, skip replacing data availability intervals when date gaps are
+ *   detected and log a warning. If false (default), log a warning but proceed with replacing data
+ *   availability intervals normally. Gap dates are always logged regardless of this setting.
  * @property metrics Metrics recorder for telemetry.
  */
 class DataAvailabilitySync(
@@ -100,6 +103,7 @@ class DataAvailabilitySync(
   private val throttler: Throttler,
   private val impressionMetadataBatchSize: Int,
   private val modelLineMap: Map<String, List<String>>,
+  private val errorIfGapsExist: Boolean,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
 ) {
   private val validImpressionPathRegex: Regex = Regex("^$edpImpressionPath/[^/]+(/.*)?$")
@@ -148,7 +152,7 @@ class DataAvailabilitySync(
         storageClient.listBlobs(doneBlobFolderPath)
 
       // 1. Retrieve blob details from storage and build a map and validate them
-      val impressionMetadataMap: Map<String, List<ImpressionMetadataWithBlobKey>> =
+      val impressionMetadataMap: Map<ModelLineKey, List<ImpressionMetadataWithBlobKey>> =
         createModelLineToImpressionMetadataMap(impressionMetadataBlobs, doneBlobUri)
 
       if (impressionMetadataMap.isEmpty()) {
@@ -196,6 +200,33 @@ class DataAvailabilitySync(
           }
         }
 
+      // Check for date gaps before updating availability intervals.
+      // A new monitor is created per sync call because activeModelLines is derived from the
+      // metadata in this sync batch, which may vary between invocations. This intentionally only
+      // checks model lines present in the current trigger; model lines without metadata in this
+      // batch are not covered here.
+      val gapMonitor =
+        DataAvailabilityMonitor(
+          storageClient = storageClient,
+          edpImpressionPath = edpImpressionPath,
+          activeModelLines = impressionMetadataMap.keys,
+        )
+      val gapResult = gapMonitor.checkGaps()
+      val modelLinesWithGaps = gapResult.statuses.filter { !it.gapDates.isNullOrEmpty() }
+      if (modelLinesWithGaps.isNotEmpty()) {
+        val gapDetails =
+          modelLinesWithGaps.joinToString("; ") { status ->
+            "Model line ${status.modelLineKey.toName()} gap dates: ${status.gapDates}"
+          }
+        logger.warning("Date gaps detected in $edpImpressionPath. $gapDetails")
+        if (errorIfGapsExist) {
+          logger.warning(
+            "Skipping replaceDataAvailabilityIntervals due to date gaps in $edpImpressionPath."
+          )
+          recordSyncDuration(syncStartTime, SYNC_STATUS_SKIPPED_GAPS)
+          return
+        }
+      }
       if (availabilityEntries.isNotEmpty()) {
         throttler.onReady {
           try {
@@ -308,37 +339,33 @@ class DataAvailabilitySync(
    * Reads impression metadata blobs from a given flow of storage objects and groups them by model
    * line.
    *
-   * This function iterates over each blob in [impressionMetadataBlobs], filtering out those that
-   * does not have the string "metadata" in the file name.
+   * This function iterates over each blob in [impressionMetadataBlobs], filtering out those that do
+   * not have the string "metadata" in the file name.
    *
-   * For each blob:
+   * For each matching blob:
    * - Determines the format based on the file extension:
-   *     - If the file name ends with `.binpb`, parses the content as a binary `BlobDetails`
-   *       protobuf.
-   *     - If the file name ends with `.json`, parses the content as JSON using [JsonFormat.parser]
-   *       with `ignoringUnknownFields()`
-   *     - Ignore otherwise
-   * - Reads the full blob content into a [ByteString] via [StorageClient.Blob.read] and [flatten].
-   * - Attempts to parse the content as a binary `BlobDetails` protobuf.
-   * - If binary parsing fails with [InvalidProtocolBufferException], falls back to parsing as JSON
-   *   using [JsonFormat.parser] with `ignoringUnknownFields()`.
-   * - Constructs an [ImpressionMetadata] object using:
-   *     - `blobUri` set to the URI built from [bucket] and the blob's key
-   *     - `eventGroupReferenceId`, `modelLine`, and `interval` from the parsed `BlobDetails`
-   * - Adds the [ImpressionMetadataWithBlobKey] to a list in a map keyed by `modelLine`.
+   *     - `.binpb`: parses the content as a binary `BlobDetails` protobuf.
+   *     - `.json`: parses the content as JSON using [JsonFormat.parser] with
+   *       `ignoringUnknownFields()`.
+   *     - Other extensions: throws [IllegalArgumentException].
+   * - Validates that the parsed `BlobDetails` has both a start and end time in its interval.
+   * - Verifies that the referenced encrypted impressions blob exists in storage.
+   * - Constructs an [ImpressionMetadata] and groups it by [ModelLineKey].
    *
    * @param impressionMetadataBlobs the flow of [StorageClient.Blob] objects to read and parse.
-   * @param doneBlobUri the blob uri.
-   * @return a map where each key is a `modelLine` string and each value is the list of
+   * @param doneBlobUri the URI of the "done" blob, used to derive the storage scheme and bucket.
+   * @return a map where each key is a [ModelLineKey] and each value is the list of
    *   [ImpressionMetadataWithBlobKey] objects associated with that model line.
-   * @throws InvalidProtocolBufferException if a blob cannot be parsed as either binary or JSON
-   *   `BlobDetails`.
+   * @throws com.google.protobuf.InvalidProtocolBufferException if a binary `.binpb` blob cannot be
+   *   parsed as `BlobDetails`.
+   * @throws IllegalArgumentException if a blob has an unsupported file extension.
    */
   private suspend fun createModelLineToImpressionMetadataMap(
     impressionMetadataBlobs: Flow<StorageClient.Blob>,
     doneBlobUri: BlobUri,
-  ): Map<String, List<ImpressionMetadataWithBlobKey>> {
-    val impressionMetadataMap = mutableMapOf<String, MutableList<ImpressionMetadataWithBlobKey>>()
+  ): Map<ModelLineKey, List<ImpressionMetadataWithBlobKey>> {
+    val impressionMetadataMap =
+      mutableMapOf<ModelLineKey, MutableList<ImpressionMetadataWithBlobKey>>()
     impressionMetadataBlobs
       .filter { impressionMetadataBlob ->
         val fileName = impressionMetadataBlob.blobKey.substringAfterLast("/").lowercase()
@@ -388,8 +415,12 @@ class DataAvailabilitySync(
             modelLine = blobDetails.modelLine
             interval = blobDetails.interval
           }
+          val modelLineKey =
+            requireNotNull(ModelLineKey.fromName(blobDetails.modelLine)) {
+              "Invalid model line resource name: ${blobDetails.modelLine}"
+            }
           impressionMetadataMap
-            .getOrPut(blobDetails.modelLine) { mutableListOf() }
+            .getOrPut(modelLineKey) { mutableListOf() }
             .add(
               ImpressionMetadataWithBlobKey(
                 impressionMetadata = impressionMetadata,
@@ -436,6 +467,7 @@ class DataAvailabilitySync(
       AttributeKey.stringKey("edpa.data_availability_sync.status_code")
     private const val SYNC_STATUS_SUCCESS = "success"
     private const val SYNC_STATUS_FAILED = "failed"
+    private const val SYNC_STATUS_SKIPPED_GAPS = "skipped_gaps"
     private const val RPC_METHOD_REPLACE_DATA_AVAILABILITY_INTERVALS =
       "ReplaceDataAvailabilityIntervals"
     private const val METADATA_FILE_NAME = "metadata"

@@ -213,6 +213,18 @@ resource "google_storage_bucket_object" "upload_edps_config" {
   source = var.edps_config.local_path
 }
 
+resource "google_storage_bucket_object" "upload_event_group_sync_config" {
+  name   = var.event_group_sync_config.destination
+  bucket = module.config_files_bucket.storage_bucket.name
+  source = var.event_group_sync_config.local_path
+}
+
+resource "google_storage_bucket_object" "upload_data_availability_sync_config" {
+  name   = var.data_availability_sync_config.destination
+  bucket = module.config_files_bucket.storage_bucket.name
+  source = var.data_availability_sync_config.local_path
+}
+
 resource "google_storage_bucket_object" "upload_results_fulfiller_proto_descriptors" {
   name   = var.results_fulfiller_event_descriptor.destination
   bucket = module.config_files_bucket.storage_bucket.name
@@ -447,6 +459,24 @@ resource "google_storage_bucket_iam_member" "results_fulfiller_config_storage_vi
   bucket = module.config_files_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${module.result_fulfiller_tee_app.mig_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "event_group_sync_config_storage_viewer" {
+  bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.event_group_sync_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "data_availability_sync_config_storage_viewer" {
+  bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "data_availability_cleanup_config_storage_viewer" {
+  bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.data_availability_cleanup_cloud_function.cloud_function_service_account.email}"
 }
 
 resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {

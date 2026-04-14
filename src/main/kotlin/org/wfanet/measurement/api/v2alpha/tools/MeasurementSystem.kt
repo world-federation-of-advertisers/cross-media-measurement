@@ -983,7 +983,13 @@ private class DataProviders {
       description = ["Whether the Honest Majority Share Shuffle (HMSS) protocol is supported"],
       required = false,
     )
-    honestMajorityShareShuffleSupported: Boolean? = null
+    honestMajorityShareShuffleSupported: Boolean? = null,
+    @Option(
+      names = ["--trus-tee-supported"],
+      description = ["Whether the TrusTee protocol is supported"],
+      required = false,
+    )
+    trusTeeSupported: Boolean? = null,
   ) {
     val capabilities: DataProvider.Capabilities =
       runBlocking(parentCommand.rpcDispatcher) {
@@ -996,6 +1002,9 @@ private class DataProviders {
         capabilities.copy {
           if (honestMajorityShareShuffleSupported != null) {
             this.honestMajorityShareShuffleSupported = honestMajorityShareShuffleSupported
+          }
+          if (trusTeeSupported != null) {
+            this.trusTeeSupported = trusTeeSupported
           }
         }
     }

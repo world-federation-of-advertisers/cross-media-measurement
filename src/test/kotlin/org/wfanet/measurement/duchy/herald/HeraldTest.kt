@@ -199,6 +199,10 @@ private val PUBLIC_API_REACH_ONLY_MEASUREMENT_SPEC = measurementSpec {
       delta = 1.2
     }
   }
+  vidSamplingInterval = vidSamplingInterval {
+    start = 0.1f
+    width = 0.5f
+  }
   nonceHashes += REACH_ONLY_REQUISITION_1.nonceHash
   nonceHashes += REACH_ONLY_REQUISITION_2.nonceHash
 }
@@ -288,6 +292,10 @@ private val HMSS_NONE_NOISE_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
 
 private val TRUS_TEE_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
   trusTee = trusTee { noiseMechanism = SystemNoiseMechanism.CONTINUOUS_GAUSSIAN }
+}
+
+private val TRUS_TEE_NONE_NOISE_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
+  trusTee = trusTee { noiseMechanism = SystemNoiseMechanism.NONE }
 }
 
 private const val AGGREGATOR_DUCHY_ID = "aggregator_duchy"
@@ -2149,6 +2157,131 @@ class HeraldTest {
                 delta = 2.2
               }
               noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
+              vidSamplingIntervalWidth = 0.5f
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `syncStatuses creates trusTEE computation with NONE noise`() = runTest {
+    val confirmingKnown =
+      buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
+
+    val systemApiRequisitions1 =
+      REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+    val systemApiRequisitions2 =
+      REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+    val confirmingUnknown =
+      buildComputationAtKingdom(
+        "2",
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
+        mpcProtocolConfig = TRUS_TEE_NONE_NOISE_MPC_PROTOCOL_CONFIG,
+        systemComputationParticipant = SINGLE_COMPUTATION_PARTICIPANT,
+      )
+    mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
+
+    fakeComputationDatabase.addComputation(
+      globalId = confirmingKnown.key.computationId,
+      stage = TrusTee.Stage.INITIALIZED.toProtocolStage(),
+      computationDetails = TRUS_TEE_COMPUTATION_DETAILS,
+    )
+
+    aggregatorHerald.syncStatuses()
+
+    verifyBlocking(continuationTokensService, atLeastOnce()) {
+      setContinuationToken(eq(setContinuationTokenRequest { this.token = "2" }))
+    }
+    assertThat(
+        fakeComputationDatabase.mapValues { (_, fakeComputation) ->
+          fakeComputation.computationStage
+        }
+      )
+      .containsExactly(
+        confirmingKnown.key.computationId.toLong(),
+        TrusTee.Stage.INITIALIZED.toProtocolStage(),
+        confirmingUnknown.key.computationId.toLong(),
+        TrusTee.Stage.INITIALIZED.toProtocolStage(),
+      )
+
+    assertThat(
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.requisitionsList
+      )
+      .containsExactly(
+        REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+        REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+      )
+    val computationDetails =
+      fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+    val trusTeeDetails = computationDetails!!.trusTee
+    assertThat(trusTeeDetails)
+      .isEqualTo(
+        TrusTeeKt.computationDetails {
+          role = RoleInComputation.AGGREGATOR
+          type = TrusTee.ComputationDetails.Type.REACH_AND_FREQUENCY
+          parameters =
+            TrusTeeKt.ComputationDetailsKt.parameters {
+              maximumFrequency = 10
+              reachDpParams = differentialPrivacyParams {
+                epsilon = 1.1
+                delta = 1.2
+              }
+              frequencyDpParams = differentialPrivacyParams {
+                epsilon = 2.1
+                delta = 2.2
+              }
+              noiseMechanism = NoiseMechanism.NONE
+              vidSamplingIntervalWidth = 0.5f
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `syncStatuses creates reach-only trusTEE computation with NONE noise`() = runTest {
+    val confirmingKnown =
+      buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
+
+    val systemApiRequisitions1 =
+      REACH_ONLY_REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+    val systemApiRequisitions2 =
+      REACH_ONLY_REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+    val confirmingUnknown =
+      buildComputationAtKingdom(
+        "2",
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
+        serializedMeasurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC,
+        mpcProtocolConfig = TRUS_TEE_NONE_NOISE_MPC_PROTOCOL_CONFIG,
+        systemComputationParticipant = SINGLE_COMPUTATION_PARTICIPANT,
+      )
+    mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
+
+    fakeComputationDatabase.addComputation(
+      globalId = confirmingKnown.key.computationId,
+      stage = TrusTee.Stage.INITIALIZED.toProtocolStage(),
+      computationDetails = TRUS_TEE_COMPUTATION_DETAILS,
+    )
+
+    aggregatorHerald.syncStatuses()
+
+    val computationDetails =
+      fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+    val trusTeeDetails = computationDetails!!.trusTee
+    assertThat(trusTeeDetails)
+      .isEqualTo(
+        TrusTeeKt.computationDetails {
+          role = RoleInComputation.AGGREGATOR
+          type = TrusTee.ComputationDetails.Type.REACH
+          parameters =
+            TrusTeeKt.ComputationDetailsKt.parameters {
+              maximumFrequency = 1
+              reachDpParams = differentialPrivacyParams {
+                epsilon = 1.1
+                delta = 1.2
+              }
+              noiseMechanism = NoiseMechanism.NONE
               vidSamplingIntervalWidth = 0.5f
             }
         }
