@@ -100,10 +100,11 @@ class EventGroupsServiceTest {
   }
 
   private val permissionsServiceMock: PermissionsGrpcKt.PermissionsCoroutineImplBase = mockService {
-    onBlocking { checkPermissions(any()) } doAnswer { invocation ->
-      val request = invocation.getArgument<CheckPermissionsRequest>(0)
-      checkPermissionsResponse { permissions += request.permissionsList }
-    }
+    onBlocking { checkPermissions(any()) } doAnswer
+      { invocation ->
+        val request = invocation.getArgument<CheckPermissionsRequest>(0)
+        checkPermissionsResponse { permissions += request.permissionsList }
+      }
   }
 
   @get:Rule
