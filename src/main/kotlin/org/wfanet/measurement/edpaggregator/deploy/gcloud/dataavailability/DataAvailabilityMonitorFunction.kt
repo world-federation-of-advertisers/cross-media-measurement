@@ -129,14 +129,13 @@ class DataAvailabilityMonitorFunction : HttpFunction {
     val spuriousDeletionConfig = config.spuriousDeletionCheck
     val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub? =
       if (spuriousDeletionConfig.enabled) {
-        require(spuriousDeletionConfig.hasImpressionMetadataConnection()) {
+        require(config.hasImpressionMetadataConnection()) {
           "impression_metadata_connection must be set when spurious_deletion_check is enabled"
         }
-        require(spuriousDeletionConfig.dataProviderName.isNotEmpty()) {
+        require(config.dataProviderName.isNotEmpty()) {
           "data_provider_name must be set when spurious_deletion_check is enabled"
         }
-        val channel =
-          createImpressionMetadataChannel(spuriousDeletionConfig.impressionMetadataConnection)
+        val channel = createImpressionMetadataChannel(config.impressionMetadataConnection)
         ImpressionMetadataServiceCoroutineStub(channel)
       } else {
         null
@@ -148,28 +147,18 @@ class DataAvailabilityMonitorFunction : HttpFunction {
         edpImpressionPath = config.edpImpressionPath,
         activeModelLines = activeModelLines,
         impressionMetadataStub = impressionMetadataStub,
-        dataProviderName = spuriousDeletionConfig.dataProviderName.ifEmpty { null },
+        dataProviderName = config.dataProviderName.ifEmpty { null },
       )
 
-    val result =
-      monitor.checkFullStatus(maxStaleDays = maxStaleDays, clock = { LocalDate.now(timeZone) })
+    val spuriousLookbackDays =
+      if (spuriousDeletionConfig.enabled) spuriousDeletionConfig.lookbackDays else null
 
-    if (spuriousDeletionConfig.enabled) {
-      val spuriousResult =
-        monitor.checkSpuriousDeletions(
-          lookbackDays = spuriousDeletionConfig.lookbackDays,
-          clock = { LocalDate.now(timeZone) },
-        )
-      for (status in spuriousResult.statuses) {
-        if ((status.spuriousDeletionCount ?: 0) > 0) {
-          logger.log(
-            Level.SEVERE,
-            "ALERT: Model line ${status.modelLineKey.toName()} in ${config.edpImpressionPath} " +
-              "has ${status.spuriousDeletionCount} spuriously deleted entries",
-          )
-        }
-      }
-    }
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = maxStaleDays,
+        clock = { LocalDate.now(timeZone) },
+        spuriousDeletionLookbackDays = spuriousLookbackDays,
+      )
 
     if (result.statuses.none { hasIssues(it) }) {
       logger.info("All model lines healthy for path: ${config.edpImpressionPath}")
@@ -222,6 +211,14 @@ class DataAvailabilityMonitorFunction : HttpFunction {
         Level.SEVERE,
         "ALERT: Model line $modelLineName in $edpImpressionPath " +
           "has late-arriving data after done blob: ${status.lateArrivingDates}",
+      )
+    }
+    if ((status.spuriousDeletionCount ?: 0) > 0) {
+      logger.log(
+        Level.SEVERE,
+        "ALERT: Model line $modelLineName in $edpImpressionPath " +
+          "has ${status.spuriousDeletionCount} spuriously deleted entries " +
+          "(deleted in metadata store but blob still exists on bucket)",
       )
     }
   }
@@ -293,6 +290,7 @@ class DataAvailabilityMonitorFunction : HttpFunction {
         !status.gapDates.isNullOrEmpty() ||
         !status.zeroImpressionDates.isNullOrEmpty() ||
         !status.datesWithoutDoneBlob.isNullOrEmpty() ||
-        !status.lateArrivingDates.isNullOrEmpty()
+        !status.lateArrivingDates.isNullOrEmpty() ||
+        (status.spuriousDeletionCount ?: 0) > 0
   }
 }

@@ -1030,7 +1030,6 @@ class DataAvailabilityMonitorTest {
       .isEqualTo(1)
   }
 
-  // --- Spurious deletion check tests ---
 
   @Test
   fun `checkSpuriousDeletions throws when stub is not provided`(): Unit = runBlocking {

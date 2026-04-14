@@ -54,6 +54,13 @@ message DataAvailabilityMonitorConfig {
   // Configuration for checking deleted ImpressionMetadata entries whose
   // blobs still exist on the bucket (spurious deletions).
   SpuriousDeletionCheckConfig spurious_deletion_check = 6;
+
+  // Resource name of the data provider.
+  // Format: "dataProviders/{data_provider}"
+  string data_provider_name = 7;
+
+  // How to connect to the ImpressionMetadata service.
+  TransportLayerSecurityParams impression_metadata_connection = 8;
 }
 
 // Configuration for the spurious deletion reconciliation check.
@@ -66,13 +73,6 @@ message SpuriousDeletionCheckConfig {
   // interval_start within the last `lookback_days` will be queried.
   // Must be > 0 when enabled.
   int32 lookback_days = 2;
-
-  // Resource name of the data provider.
-  // Format: "dataProviders/{data_provider}"
-  string data_provider_name = 3;
-
-  // How to connect to the ImpressionMetadata service.
-  TransportLayerSecurityParams impression_metadata_connection = 4;
 }
 
 // Wrapper containing monitor configurations. Loaded at startup from the

@@ -127,16 +127,46 @@ class DataAvailabilityMonitor(
    * @param maxStaleDays Maximum number of days a model line can go without an upload before being
    *   considered stale.
    * @param clock Provides the current date for staleness checks.
+   * @param spuriousDeletionLookbackDays If set and [impressionMetadataStub] is available, also
+   *   checks for deleted ImpressionMetadata entries whose blobs still exist on the bucket. Only
+   *   entries with intervals within the last N days are checked.
    * @return A [MonitorResult] with one [ModelLineStatus] per model line in [activeModelLines], in
    *   the same iteration order.
    */
-  suspend fun checkFullStatus(maxStaleDays: Int, clock: () -> LocalDate): MonitorResult {
+  suspend fun checkFullStatus(
+    maxStaleDays: Int,
+    clock: () -> LocalDate,
+    spuriousDeletionLookbackDays: Int? = null,
+  ): MonitorResult {
     require(maxStaleDays > 0) { "maxStaleDays must be greater than zero" }
     val today = clock()
+
+    // Run spurious deletion check if configured and stub is available.
+    val spuriousCounts: Map<ModelLineKey, Pair<Int, Int>> =
+      if (
+        spuriousDeletionLookbackDays != null &&
+          impressionMetadataStub != null &&
+          dataProviderName != null
+      ) {
+        val spuriousResult = checkSpuriousDeletions(spuriousDeletionLookbackDays, clock)
+        spuriousResult.statuses.associate {
+          it.modelLineKey to Pair(it.spuriousDeletionCount ?: 0, it.legitimateDeletionCount ?: 0)
+        }
+      } else {
+        emptyMap()
+      }
+
     val statuses =
       activeModelLines.map { modelLineKey ->
         val dateInfo = getDateInfoForModelLine(modelLineKey)
+        val (spurious, legitimate) = spuriousCounts[modelLineKey] ?: Pair(0, 0)
         buildFullStatus(modelLineKey, dateInfo, today, maxStaleDays)
+          .copy(
+            spuriousDeletionCount =
+              if (spuriousCounts.containsKey(modelLineKey)) spurious else null,
+            legitimateDeletionCount =
+              if (spuriousCounts.containsKey(modelLineKey)) legitimate else null,
+          )
       }
     statuses.forEach { recordMetrics(it) }
     return MonitorResult(statuses = statuses)
