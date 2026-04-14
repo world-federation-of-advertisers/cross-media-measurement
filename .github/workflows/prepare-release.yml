@@ -1,0 +1,103 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Prepare release
+
+on:
+  workflow_dispatch:
+    inputs:
+      existing-nightly-build:
+        description: "Existing nightly build tag (e.g. nightly/20260305.2)"
+        type: string
+        required: true
+      new-git-tag:
+        description: "Git tag to create for the release (e.g. v0.5.35)"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-release:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      actions: write    
+    steps:
+    - name: Checkout (full history)
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      with:
+        fetch-depth: 0
+        fetch-tags: true
+
+    - name: Validate tag to create
+      env:
+        RELEASE_TAG: ${{ inputs.new-git-tag }}
+      run: |
+        # Accept tags like v0.5.35 and v0.5.35-rc1
+        printf '%s\n' "${RELEASE_TAG}" | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9]+)?$" || (echo "Invalid tag: ${RELEASE_TAG}" && exit 1)
+
+    - name: Validate nightly build tag
+      env:
+        NIGHTLY_BUILD_TAG: ${{ inputs.existing-nightly-build }}
+      run: |
+        printf '%s\n' "${NIGHTLY_BUILD_TAG}" | grep -E "^nightly/[0-9]{8}\.[0-9]+$" >/dev/null || {
+          echo "Invalid nightly build tag: ${NIGHTLY_BUILD_TAG}"
+          echo "Expected format: nightly/YYYYMMDD.N"
+          exit 1
+        }
+
+    - name: Get nightly build sha
+      id: get-nightly-build-sha
+      env:
+        NIGHTLY_BUILD_TAG: refs/tags/${{ inputs.existing-nightly-build }}
+      run: |
+        sha=$(git rev-list -n 1 "${NIGHTLY_BUILD_TAG}")
+        echo "sha=$sha" | tee -a "$GITHUB_OUTPUT"
+
+    - name: Create release tag
+      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+      env:
+        RELEASE_TAG: ${{ inputs.new-git-tag }}
+        NIGHTLY_BUILD_SHA: ${{ steps.get-nightly-build-sha.outputs.sha }}
+      with:
+        script: |
+          const tag = process.env['RELEASE_TAG'];
+          const sha = process.env['NIGHTLY_BUILD_SHA'];
+          github.rest.git.createRef({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            ref: `refs/tags/${tag}`,
+            sha: sha,
+          });
+
+    # Use workflow dispatch via API so that the workflow gets the right ref.
+    - name: Create deploy dispatch to QA
+      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+      env:
+        RELEASE_TAG: ${{ inputs.new-git-tag }}
+      with:
+        script: |
+          const tag = process.env['RELEASE_TAG'];
+          github.rest.actions.createWorkflowDispatch({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            workflow_id: 'update-cmms.yml',
+            ref: tag,
+            inputs: {
+              environment: 'qa',
+              apply: true,
+            },
+          });
