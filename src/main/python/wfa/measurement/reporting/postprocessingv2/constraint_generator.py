@@ -61,7 +61,7 @@ def get_minimal_cover_relationships(
     if len(target_set) <= 1:
       continue
 
-    other_sets = [
+    subsets = [
         edp_combination
         for edp_combination in edp_combinations
         if edp_combination != target_set
@@ -70,8 +70,8 @@ def get_minimal_cover_relationships(
 
     current_target_covers = []
     # Find all covers.
-    for combination_size in range(2, len(other_sets) + 1):
-      for combo in combinations(other_sets, combination_size):
+    for combination_size in range(2, len(subsets) + 1):
+      for combo in combinations(subsets, combination_size):
         union = set().union(*combo)
         if union == target_set:
           current_target_covers.append(set(combo))
