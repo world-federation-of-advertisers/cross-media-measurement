@@ -249,9 +249,7 @@ class DataAvailabilityMonitorFunction : HttpFunction {
 
     private val fileSystemPath: String? = System.getenv("DATA_AVAILABILITY_FILE_SYSTEM_PATH")
 
-    private val impressionMetadataTarget: String by lazy {
-      EnvVars.checkNotNullOrEmpty("IMPRESSION_METADATA_TARGET")
-    }
+    private val impressionMetadataTarget = EnvVars.checkNotNullOrEmpty("IMPRESSION_METADATA_TARGET")
 
     private val impressionMetadataCertHost: String? = System.getenv("IMPRESSION_METADATA_CERT_HOST")
 
