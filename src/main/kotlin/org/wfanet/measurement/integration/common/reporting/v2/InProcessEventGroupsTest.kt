@@ -99,6 +99,7 @@ import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.dateInterval
+import org.wfanet.measurement.reporting.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 
 @RunWith(JUnit4::class)
@@ -515,6 +516,26 @@ abstract class InProcessEventGroupsTest(
           ),
         )
       )
+  }
+
+  @Test
+  fun `getEventGroup returns expected EventGroup`(): Unit = runBlocking {
+    val now = Instant.now()
+    val cmmsEventGroups: List<CmmsEventGroup> = populateTestEventGroups(now)
+
+    val cmmsEventGroup = cmmsEventGroups.first()
+    val reportingName = toReportingEventGroupName(cmmsEventGroup.name)
+
+    val response: EventGroup =
+      eventGroupsStub
+        .withCallCredentials(callCredentials)
+        .getEventGroup(getEventGroupRequest { name = reportingName })
+
+    assertThat(response.name).isEqualTo(reportingName)
+    assertThat(response.cmmsEventGroup).isEqualTo(cmmsEventGroup.name)
+    assertThat(response.cmmsDataProvider).isEqualTo(reportingRule.dataProvider1Name)
+    assertThat(response.eventGroupReferenceId).isEqualTo(cmmsEventGroup.eventGroupReferenceId)
+    assertThat(response.mediaTypesList).containsExactly(MediaType.VIDEO)
   }
 
   private fun populateTestEventGroups(now: Instant): List<CmmsEventGroup> {
