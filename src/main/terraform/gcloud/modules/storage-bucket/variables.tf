@@ -45,6 +45,12 @@ variable "lifecycle_rules" {
   default = []
 }
 
+variable "versioning_enabled" {
+  description = "Whether to enable object versioning on the bucket."
+  type        = bool
+  default     = false
+}
+
 variable "retention_period_days" {
   description = <<-EOT
     Number of days to retain objects before they can be deleted or overwritten.
