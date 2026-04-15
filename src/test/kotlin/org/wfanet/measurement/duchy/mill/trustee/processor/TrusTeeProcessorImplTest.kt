@@ -58,7 +58,7 @@ class TrusTeeProcessorImplTest {
         maximumFrequency = MAX_FREQUENCY,
         reachDpParams = DEFAULT_DP_PARAMS,
         frequencyDpParams = DEFAULT_DP_PARAMS,
-        vidSamplingIntervalWidth = -0.2f,
+        vidSamplingIntervalWidth = -0.2,
       )
     val exception = assertFailsWith<IllegalArgumentException> { TrusTeeProcessorImpl(params) }
     assertThat(exception.message).contains("Invalid vid sampling interval width")
@@ -71,7 +71,7 @@ class TrusTeeProcessorImplTest {
         maximumFrequency = MAX_FREQUENCY,
         reachDpParams = DEFAULT_DP_PARAMS,
         frequencyDpParams = DEFAULT_DP_PARAMS,
-        vidSamplingIntervalWidth = 1.1f,
+        vidSamplingIntervalWidth = 1.1,
       )
     val exception = assertFailsWith<IllegalArgumentException> { TrusTeeProcessorImpl(params) }
     assertThat(exception.message).contains("Invalid vid sampling interval width")
@@ -148,7 +148,7 @@ class TrusTeeProcessorImplTest {
 
   @Test
   fun `computeResult for Reach-Only returns correct result type`() {
-    val params = TrusTeeReachParams(vidSamplingIntervalWidth = 0.5f, dpParams = DEFAULT_DP_PARAMS)
+    val params = TrusTeeReachParams(vidSamplingIntervalWidth = 0.5, dpParams = DEFAULT_DP_PARAMS)
     val processor = TrusTeeProcessorImpl(params)
     processor.addFrequencyVector(byteArrayOf(1, 0, 1, 0, 1, 0))
     val result = processor.computeResult() as ReachResult
@@ -164,7 +164,7 @@ class TrusTeeProcessorImplTest {
     val params =
       TrusTeeReachAndFrequencyParams(
         maximumFrequency = MAX_FREQUENCY,
-        vidSamplingIntervalWidth = 0.25f,
+        vidSamplingIntervalWidth = 0.25,
         reachDpParams = DEFAULT_DP_PARAMS,
         frequencyDpParams = DEFAULT_DP_PARAMS,
       )
@@ -184,7 +184,7 @@ class TrusTeeProcessorImplTest {
 
   @Test
   fun `computeResult for R&F caps noised reach at theoretical maximum`() {
-    val samplingWidth = 0.5f
+    val samplingWidth = 0.5
     // Low noise
     val dpParams = differentialPrivacyParams {
       epsilon = 100.0
@@ -211,6 +211,102 @@ class TrusTeeProcessorImplTest {
     assertThat(result.reach).isAtMost(maxPossibleScaledReach)
   }
 
+  @Test
+  fun `computeResult for Reach-Only with no noise returns exact reach`() {
+    val params = TrusTeeReachParams(vidSamplingIntervalWidth = 1.0, dpParams = null)
+    val processor = TrusTeeProcessorImpl(params)
+    processor.addFrequencyVector(byteArrayOf(1, 0, 1, 0, 1, 0))
+    val result = processor.computeResult() as ReachResult
+
+    assertThat(result.reach).isEqualTo(3)
+  }
+
+  @Test
+  fun `computeResult for Reach-Only with no noise and sampling returns scaled reach`() {
+    val params = TrusTeeReachParams(vidSamplingIntervalWidth = 0.5, dpParams = null)
+    val processor = TrusTeeProcessorImpl(params)
+    processor.addFrequencyVector(byteArrayOf(1, 0, 1, 0, 1, 0))
+    val result = processor.computeResult() as ReachResult
+
+    assertThat(result.reach).isEqualTo(6)
+  }
+
+  @Test
+  fun `computeResult for R&F with no noise returns exact reach and frequency`() {
+    val params =
+      TrusTeeReachAndFrequencyParams(
+        maximumFrequency = 3,
+        vidSamplingIntervalWidth = 1.0,
+        reachDpParams = null,
+        frequencyDpParams = null,
+      )
+    val processor = TrusTeeProcessorImpl(params)
+    // 4 VIDs: frequencies [2, 1, 0, 3] -> histogram: {1: 1, 2: 1, 3+: 1}, 3 reached
+    processor.addFrequencyVector(byteArrayOf(2, 1, 0, 3))
+    val result = processor.computeResult() as ReachAndFrequencyResult
+
+    assertThat(result.reach).isEqualTo(3)
+    assertThat(result.frequency).containsExactly(1L, 1.0 / 3, 2L, 1.0 / 3, 3L, 1.0 / 3)
+  }
+
+  @Test
+  fun `computeResult for R&F with no noise aggregates multiple vectors`() {
+    val params =
+      TrusTeeReachAndFrequencyParams(
+        maximumFrequency = 3,
+        vidSamplingIntervalWidth = 1.0,
+        reachDpParams = null,
+        frequencyDpParams = null,
+      )
+    val processor = TrusTeeProcessorImpl(params)
+    // VID0: 1+0=1, VID1: 0+1=1, VID2: 1+1=2, VID3: 0+0=0
+    // histogram: {1: 2, 2: 1}, 3 reached
+    processor.addFrequencyVector(byteArrayOf(1, 0, 1, 0))
+    processor.addFrequencyVector(byteArrayOf(0, 1, 1, 0))
+    val result = processor.computeResult() as ReachAndFrequencyResult
+
+    assertThat(result.reach).isEqualTo(3)
+    assertThat(result.frequency).containsExactly(1L, 2.0 / 3, 2L, 1.0 / 3, 3L, 0.0)
+  }
+
+  @Test
+  fun `computeResult for R&F with no noise caps frequency at max`() {
+    val params =
+      TrusTeeReachAndFrequencyParams(
+        maximumFrequency = 2,
+        vidSamplingIntervalWidth = 1.0,
+        reachDpParams = null,
+        frequencyDpParams = null,
+      )
+    val processor = TrusTeeProcessorImpl(params)
+    // VID0: 1+1=2(capped at 2), VID1: 1+1=2(capped at 2), VID2: 0+0=0
+    // histogram: {2: 2}, 2 reached
+    processor.addFrequencyVector(byteArrayOf(1, 1, 0))
+    processor.addFrequencyVector(byteArrayOf(1, 1, 0))
+    val result = processor.computeResult() as ReachAndFrequencyResult
+
+    assertThat(result.reach).isEqualTo(2)
+    assertThat(result.frequency).containsExactly(1L, 0.0, 2L, 1.0)
+  }
+
+  @Test
+  fun `computeResult for R&F with no noise and all-zero vectors returns zero reach`() {
+    val params =
+      TrusTeeReachAndFrequencyParams(
+        maximumFrequency = MAX_FREQUENCY,
+        vidSamplingIntervalWidth = 1.0,
+        reachDpParams = null,
+        frequencyDpParams = null,
+      )
+    val processor = TrusTeeProcessorImpl(params)
+    processor.addFrequencyVector(byteArrayOf(0, 0, 0, 0))
+    val result = processor.computeResult() as ReachAndFrequencyResult
+
+    assertThat(result.reach).isEqualTo(0)
+    val expectedDistribution = (1L..MAX_FREQUENCY).associateWith { 0.0 }
+    assertThat(result.frequency).isEqualTo(expectedDistribution)
+  }
+
   companion object {
     private const val MAX_FREQUENCY = 5
     private const val FLOAT_COMPARISON_TOLERANCE = 1e-9
@@ -220,7 +316,7 @@ class TrusTeeProcessorImplTest {
       delta = 0.99
     }
 
-    private const val FULL_SAMPLING_RATE = 1.0f
+    private const val FULL_SAMPLING_RATE = 1.0
 
     private val REACH_ONLY_PARAMS =
       TrusTeeReachParams(

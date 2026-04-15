@@ -16,6 +16,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
         "//src/main/proto/google/rpc:error_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:impression_metadata_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_batch_state_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:requisition_metadata_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
     ],
@@ -26,6 +27,8 @@ kt_jvm_library(
     srcs = ["Services.kt"],
     deps = [
         "//src/main/proto/wfa/measurement/internal/edpaggregator:impression_metadata_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_metadata_batch_file_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_metadata_batch_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:requisition_metadata_service_kt_jvm_grpc_proto",
     ],
 )
