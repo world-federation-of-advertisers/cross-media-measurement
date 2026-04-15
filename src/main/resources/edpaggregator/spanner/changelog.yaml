@@ -37,3 +37,7 @@ databaseChangeLog:
   - include:
       file: refactor-raw-impression-schema.sql
       relativeToChangeLogFile: true
+
+  - include:
+      file: create-rank-table-schema.sql
+      relativeToChangeLogFile: true
