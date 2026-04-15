@@ -491,6 +491,7 @@ class DataAvailabilityMonitor(
     )
   }
 
+  /** Finds dates that are missing in the sequence between the first and last date. */
   private fun findGaps(sortedDates: List<LocalDate>): List<LocalDate> {
     if (sortedDates.size <= 1) return emptyList()
 
@@ -547,6 +548,10 @@ class DataAvailabilityMonitor(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    /**
+     * Default staleness threshold in days. Set to 3 to allow for weekend gaps (Friday upload
+     * checked on Monday) plus one day of buffer for processing delays.
+     */
     const val DEFAULT_MAX_STALE_DAYS = 3
 
     val MODEL_LINE_ATTR: AttributeKey<String> =
