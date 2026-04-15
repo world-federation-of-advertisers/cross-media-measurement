@@ -28,6 +28,8 @@ class CoverRelationship:
   """Represents a cover relationship where a target set is covered by a
   collection of its subsets.
 
+  For example, the subsets {A}, {B}, {A U C} cover the target set {A U B U C}.
+
   Attributes:
     target_set: A frozenset of strings, where each string is associated with a
       data provider.
@@ -52,7 +54,7 @@ def get_minimal_cover_relationships(
       strings representing the names/ID associated with a data provider.
 
   Returns:
-    A list of CoverRelationship objects.
+    A list of CoverRelationship objects where the subsets are sorted.
   """
   all_covers = []
   for target_set in edp_combinations:
@@ -86,7 +88,10 @@ def get_minimal_cover_relationships(
           break
       if is_minimal:
         all_covers.append(
-            CoverRelationship(target_set=target_set, subset_cover=cover_list)
+            CoverRelationship(
+                target_set=target_set,
+                subset_cover=sorted(cover_list, key=lambda x: sorted(list(x))),
+            )
         )
 
   return all_covers
@@ -99,12 +104,30 @@ class ConstraintGenerator(ABC):
     self.num_metric_sets = num_metric_sets
     self.max_frequency = max_frequency
 
+  def _validate_metric(self, metric: "Metric"):
+    """Validates a Metric, raising a ValueError if it is invalid.
+
+    A metric is valid if:
+      - the value and sigma are non-negative
+      - the index is within [0, num_metric_sets)
+    """
+    if metric.value < 0:
+      raise ValueError(
+          f"{metric.name}: Metric value {metric.value} must be non-negative.")
+    if metric.sigma < 0:
+      raise ValueError(
+          f"{metric.name}: Metric sigma {metric.sigma} must be non-negative.")
+    if not (0 <= metric.index < self.num_metric_sets):
+      raise ValueError(
+          f"{metric.name}: Metric index {metric.index} must be in [0,"
+          f" {self.num_metric_sets})."
+      )
+
   def _validate_metric_set(self, metric_set: "MetricSet"):
     """Validates a MetricSet, raising a ValueError if it is invalid.
 
-    For each metric in the metric set:
-      - the value and sigma are non-negative
-      - the index is within [0, num_metric_sets)
+    A metric set is valid if:
+      - All metrics are valid
       - k-reach is either empty or has length of max_frequency
     """
     if not metric_set:
@@ -124,15 +147,7 @@ class ConstraintGenerator(ABC):
       metrics.append(k_reach_metric)
 
     for metric in metrics:
-      if metric.value < 0:
-        raise ValueError(f"Metric value {metric.value} must be non-negative.")
-      if metric.sigma < 0:
-        raise ValueError(f"Metric sigma {metric.sigma} must be non-negative.")
-      if not (0 <= metric.index < self.num_metric_sets):
-        raise ValueError(
-            f"Metric index {metric.index} must be in [0,"
-            f" {self.num_metric_sets})."
-        )
+      self._validate_metric(metric)
 
     if metric_set.k_reach and len(metric_set.k_reach) != self.max_frequency:
       raise ValueError(
@@ -163,10 +178,12 @@ class LowerBoundRelationGenerator(ConstraintGenerator):
       num_metric_sets: int,
       max_frequency: int,
       data_provider_metric_set: DataProviderMetricSetMap,
+      lower_bound: int,
   ):
     super().__init__(num_metric_sets, max_frequency)
     self._validate_data_provider_metric_set_map(data_provider_metric_set)
     self.data_provider_metric_set = data_provider_metric_set
+    self.lower_bound = lower_bound
 
   def get_constraints(self) -> list[Constraint]:
     constraints = []
@@ -184,14 +201,18 @@ class LowerBoundRelationGenerator(ConstraintGenerator):
             Constraint(
                 coefficients={index: 1},
                 type=ConstraintType.CONSTRAINT_TYPE_GREATER_THAN_OR_EQUAL,
-                constant=0,
+                constant=self.lower_bound,
             )
         )
     return constraints
 
 
 class UnnoisedRelationGenerator(ConstraintGenerator):
-  """Generates constraints for unnoised metrics (sigma=0)."""
+  """Generates constraints for unnoised metrics (sigma=0).
+
+  An unnoised metric should not be modified. This is enforced by adding an equal
+  constraint for each of them.
+  """
 
   def __init__(
       self,
@@ -275,7 +296,13 @@ class CoverRelationGenerator(ConstraintGenerator):
 
 
 class ImpressionsSumRelationGenerator(ConstraintGenerator):
-  """Generates constraints based on impression sums."""
+  """Generates constraints based on impression sums.
+
+  This constraint enforces that the impressions of the union set is equal to the
+  sum of the impressions of each individual EDP.
+
+  For example, impressions(A U B) = impressions(A) + impressions(B).
+  """
 
   def __init__(
       self,

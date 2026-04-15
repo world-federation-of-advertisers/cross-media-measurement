@@ -26,6 +26,14 @@ class Metric:
 
 @dataclass
 class MetricSet:
+  """Represents a set of metrics: reach, k_reach, and impression.
+
+  Attributes:
+    reach (Metric): The reach.
+    k_reach (dict[int, Metric]): The frequency histogram that maps a frequency
+      to its corresponding metric. The key is the actual frequency.
+    impression (Metric): The impression.
+  """
   reach: Metric
   k_reach: dict[int, Metric]
   impression: Metric
