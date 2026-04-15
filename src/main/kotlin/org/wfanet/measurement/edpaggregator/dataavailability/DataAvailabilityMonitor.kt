@@ -17,10 +17,10 @@
 package org.wfanet.measurement.edpaggregator.dataavailability
 
 import com.google.protobuf.timestamp
+import com.google.type.Interval
 import com.google.type.interval
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
-import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeParseException
@@ -147,9 +147,23 @@ class DataAvailabilityMonitor(
   ): MonitorResult {
     require(maxStaleDays > 0) { "maxStaleDays must be greater than zero" }
     val today = clock()
+
+    val spuriousDeletionInterval: Interval? =
+      if (spuriousDeletionLookbackDays != null) {
+        require(spuriousDeletionLookbackDays > 0) { "spuriousDeletionLookbackDays must be > 0" }
+        require(!dataProviderName.isNullOrBlank()) { "dataProviderName must not be blank" }
+        val cutoffDate = today.minusDays(spuriousDeletionLookbackDays.toLong())
+        val cutoffEpochSeconds = cutoffDate.atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+        val endEpochSeconds = today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+        interval {
+          startTime = timestamp { seconds = cutoffEpochSeconds }
+          endTime = timestamp { seconds = endEpochSeconds }
+        }
+      } else null
+
     val statuses =
       activeModelLines.map { modelLineKey ->
-        val dateInfo = getDateInfoForModelLine(modelLineKey, spuriousDeletionLookbackDays, clock)
+        val dateInfo = getDateInfoForModelLine(modelLineKey, spuriousDeletionInterval)
         buildFullStatus(modelLineKey, dateInfo, today, maxStaleDays)
       }
     statuses.forEach { recordMetrics(it) }
@@ -168,7 +182,7 @@ class DataAvailabilityMonitor(
   suspend fun checkGaps(): MonitorResult {
     val statuses =
       activeModelLines.map { modelLineKey ->
-        val dateInfo = getDateInfoForModelLine(modelLineKey, null, null)
+        val dateInfo = getDateInfoForModelLine(modelLineKey, null)
         buildGapStatus(modelLineKey, dateInfo)
       }
     statuses.forEach { recordMetrics(it) }
@@ -327,8 +341,7 @@ class DataAvailabilityMonitor(
   @OptIn(ExperimentalCoroutinesApi::class)
   private suspend fun getDateInfoForModelLine(
     modelLineKey: ModelLineKey,
-    spuriousDeletionLookbackDays: Int?,
-    clock: (() -> LocalDate)?,
+    spuriousDeletionInterval: Interval?,
   ): DateInfo {
     val modelLineId = modelLineKey.modelLineId
     val prefix =
@@ -337,22 +350,12 @@ class DataAvailabilityMonitor(
     val baseInfo = getDateInfo(prefix)
 
     if (
-      spuriousDeletionLookbackDays == null ||
-        impressionMetadataStub == null ||
-        dataProviderName == null ||
-        clock == null
+      spuriousDeletionInterval == null || impressionMetadataStub == null || dataProviderName == null
     ) {
       return baseInfo
     }
 
-    require(spuriousDeletionLookbackDays > 0) { "spuriousDeletionLookbackDays must be > 0" }
-    require(dataProviderName.isNotBlank()) { "dataProviderName must not be blank" }
-
     val modelLineName = modelLineKey.toName()
-    val today = clock()
-    val cutoffDate = today.minusDays(spuriousDeletionLookbackDays.toLong())
-    val cutoffEpochSeconds = cutoffDate.atStartOfDay(ZoneOffset.UTC).toEpochSecond()
-    val nowEpochSeconds = Instant.now().epochSecond
 
     var spuriousCount = 0
     var legitimateCount = 0
@@ -370,10 +373,7 @@ class DataAvailabilityMonitor(
                 this.pageToken = pageToken
                 filter = listImpressionMetadataRequestFilter {
                   modelLine = modelLineName
-                  intervalOverlaps = interval {
-                    startTime = timestamp { seconds = cutoffEpochSeconds }
-                    endTime = timestamp { seconds = nowEpochSeconds }
-                  }
+                  intervalOverlaps = spuriousDeletionInterval
                 }
               }
             )

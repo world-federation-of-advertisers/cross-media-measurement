@@ -25,6 +25,7 @@ import java.io.File
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
@@ -135,7 +136,10 @@ class DataAvailabilityMonitorFunction : HttpFunction {
         require(config.dataProviderName.isNotEmpty()) {
           "data_provider_name must be set when spurious_deletion_check is enabled"
         }
-        val channel = createImpressionMetadataChannel(config.impressionMetadataConnection)
+        require(impressionMetadataTarget.isNotEmpty()) {
+          "IMPRESSION_METADATA_TARGET must be set when spurious_deletion_check is enabled"
+        }
+        val channel = getOrCreateImpressionMetadataChannel(config.impressionMetadataConnection)
         ImpressionMetadataServiceCoroutineStub(channel)
       } else {
         null
@@ -242,19 +246,6 @@ class DataAvailabilityMonitorFunction : HttpFunction {
     }
   }
 
-  private fun createImpressionMetadataChannel(
-    tlsParams: TransportLayerSecurityParams
-  ): ManagedChannel {
-    val signingCerts =
-      SigningCerts.fromPemFiles(
-        certificateFile = File(tlsParams.certFilePath),
-        privateKeyFile = File(tlsParams.privateKeyFilePath),
-        trustedCertCollectionFile = File(tlsParams.certCollectionFilePath),
-      )
-    return buildMutualTlsChannel(impressionMetadataTarget, signingCerts, impressionMetadataCertHost)
-      .withShutdownTimeout(Duration.ofSeconds(channelShutdownDurationSeconds))
-  }
-
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
@@ -266,6 +257,31 @@ class DataAvailabilityMonitorFunction : HttpFunction {
 
     private val channelShutdownDurationSeconds: Long =
       System.getenv("CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLongOrNull() ?: 3L
+
+    private data class ChannelKey(
+      val tls: TransportLayerSecurityParams,
+      val target: String,
+      val hostName: String?,
+    )
+
+    private val channelCache = ConcurrentHashMap<ChannelKey, ManagedChannel>()
+
+    private fun getOrCreateImpressionMetadataChannel(
+      tlsParams: TransportLayerSecurityParams
+    ): ManagedChannel {
+      val key = ChannelKey(tlsParams, impressionMetadataTarget, impressionMetadataCertHost)
+      return channelCache.computeIfAbsent(key) {
+        logger.info("Creating new ImpressionMetadata channel for TLS params: $key")
+        val signingCerts =
+          SigningCerts.fromPemFiles(
+            certificateFile = File(tlsParams.certFilePath),
+            privateKeyFile = File(tlsParams.privateKeyFilePath),
+            trustedCertCollectionFile = File(tlsParams.certCollectionFilePath),
+          )
+        buildMutualTlsChannel(impressionMetadataTarget, signingCerts, impressionMetadataCertHost)
+          .withShutdownTimeout(Duration.ofSeconds(channelShutdownDurationSeconds))
+      }
+    }
 
     private val configBlobKey: String =
       requireNotNull(System.getenv("CONFIG_BLOB_KEY")) {
