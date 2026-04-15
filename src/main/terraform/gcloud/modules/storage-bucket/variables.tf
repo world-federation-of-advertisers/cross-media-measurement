@@ -51,16 +51,6 @@ variable "versioning_enabled" {
   default     = false
 }
 
-variable "noncurrent_version_max_count" {
-  description = <<-EOT
-    Maximum number of noncurrent object versions to retain when versioning is
-    enabled. Older noncurrent versions are automatically deleted by a lifecycle
-    rule. Only applies when versioning_enabled is true.
-  EOT
-  type    = number
-  default = 1
-}
-
 variable "retention_period_days" {
   description = <<-EOT
     Number of days to retain objects before they can be deleted or overwritten.

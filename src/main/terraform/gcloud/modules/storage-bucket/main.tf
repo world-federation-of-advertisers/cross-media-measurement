@@ -23,20 +23,6 @@ resource "google_storage_bucket" "bucket" {
     enabled = var.versioning_enabled
   }
 
-  # Delete noncurrent object versions when versioning is enabled
-  dynamic "lifecycle_rule" {
-    for_each = var.versioning_enabled ? [1] : []
-    content {
-      condition {
-        num_newer_versions = var.noncurrent_version_max_count
-        with_state         = "ARCHIVED"
-      }
-      action {
-        type = "Delete"
-      }
-    }
-  }
-
   # Prevent accidental deletion of objects during the retention period
   dynamic "retention_policy" {
     for_each = var.retention_period_days != null ? [1] : []
