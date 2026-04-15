@@ -299,6 +299,86 @@ class CoverRelationGeneratorTest(unittest.TestCase):
 
     self.assertCountEqual(expected_constraints, constraints)
 
+  def test_cover_relation_generator_without_any_reach(self):
+    metric_set_abc = MetricSet(
+        reach=None,
+        k_reach={},
+        impression=Metric(20.0, 1.0, "impression_abc", index=0),
+    )
+    metric_set_a = MetricSet(
+        reach=None,
+        k_reach={},
+        impression=Metric(10.0, 1.0, "impression_a", index=1),
+    )
+    metric_set_b = MetricSet(
+        reach=None,
+        k_reach={},
+        impression=Metric(10.0, 1.0, "impression_b", index=2),
+    )
+    metric_set_c = MetricSet(
+        reach=None,
+        k_reach={},
+        impression=Metric(10.0, 1.0, "impression_c", index=3),
+    )
+
+    data_provider_map = DataProviderMetricSetMap({
+        frozenset(["A", "B", "C"]): metric_set_abc,
+        frozenset(["A"]): metric_set_a,
+        frozenset(["B"]): metric_set_b,
+        frozenset(["C"]): metric_set_c,
+    })
+    cover_relationships = get_minimal_cover_relationships(
+        list(data_provider_map.keys())
+    )
+    generator = CoverRelationGenerator(
+        num_metric_sets=4,
+        max_frequency=1,
+        data_provider_metric_set=data_provider_map,
+        cover_relationships=cover_relationships,
+    )
+
+    self.assertCountEqual(generator.get_constraints(), [])
+
+  def test_cover_relation_generator_without_some_reach(self):
+    metric_set_abc = MetricSet(
+        reach=Metric(20.0, 1.0, "reach_abc", index=0),
+        k_reach={},
+        impression=None,
+    )
+    metric_set_a = MetricSet(
+        reach=None,
+        k_reach={},
+        impression=Metric(10.0, 1.0, "reach_a", index=1),
+    )
+    metric_set_b = MetricSet(
+        reach=None,
+        k_reach={},
+        impression=Metric(10.0, 1.0, "reach_b", index=2),
+    )
+    metric_set_c = MetricSet(
+        reach=None,
+        k_reach={},
+        impression=Metric(10.0, 1.0, "reach_c", index=3),
+    )
+
+    data_provider_map = DataProviderMetricSetMap({
+        frozenset(["A", "B", "C"]): metric_set_abc,
+        frozenset(["A"]): metric_set_a,
+        frozenset(["B"]): metric_set_b,
+        frozenset(["C"]): metric_set_c,
+    })
+    cover_relationships = get_minimal_cover_relationships(
+        list(data_provider_map.keys())
+    )
+    generator = CoverRelationGenerator(
+        num_metric_sets=4,
+        max_frequency=1,
+        data_provider_metric_set=data_provider_map,
+        cover_relationships=cover_relationships,
+    )
+
+    self.assertCountEqual(generator.get_constraints(), [])
+
   def test_cover_relation_generator_without_cover_relations(self):
     metric_set_abc = MetricSet(
         reach=Metric(20.0, 1.0, "reach_abc", index=0),
@@ -566,6 +646,44 @@ class ImpressionsSumRelationGeneratorTest(unittest.TestCase):
 
     self.assertCountEqual(constraints, expected_constraints)
 
+  def test_impressions_relation_generator_without_any_impression(self):
+    metric_set_ab = MetricSet(
+        reach=Metric(30, 1, "reach_ab", 0), k_reach={}, impression=None
+    )
+    metric_set_a = MetricSet(
+        reach=Metric(10, 1, "reach_a", 1), k_reach={}, impression=None
+    )
+    metric_set_b = MetricSet(
+        reach=Metric(10, 1, "reach_b", 2), k_reach={}, impression=None
+    )
+    data_provider_map = DataProviderMetricSetMap({
+        frozenset(["A", "B"]): metric_set_ab,
+        frozenset(["A"]): metric_set_a,
+        frozenset(["B"]): metric_set_b,
+    })
+    generator = ImpressionsSumRelationGenerator(3, 1, data_provider_map)
+
+    self.assertCountEqual(generator.get_constraints(), [])
+
+  def test_impressions_relation_generator_without_some_impression(self):
+    metric_set_ab = MetricSet(
+        reach=None, k_reach={}, impression=Metric(30, 1, "impression_ab", 0)
+    )
+    metric_set_a = MetricSet(
+        reach=Metric(10, 1, "reach_a", 1), k_reach={}, impression=None
+    )
+    metric_set_b = MetricSet(
+        reach=Metric(10, 1, "reach_b", 2), k_reach={}, impression=None
+    )
+    data_provider_map = DataProviderMetricSetMap({
+        frozenset(["A", "B"]): metric_set_ab,
+        frozenset(["A"]): metric_set_a,
+        frozenset(["B"]): metric_set_b,
+    })
+    generator = ImpressionsSumRelationGenerator(3, 1, data_provider_map)
+
+    self.assertCountEqual(generator.get_constraints(), [])
+
   def test_impressions_relation_generator_missing_components(self):
     metric_set_ab = MetricSet(
         reach=None, k_reach={}, impression=Metric(30, 1, "impression_ab", 0)
@@ -773,6 +891,15 @@ class FrequencyImpressionRelationGeneratorTest(unittest.TestCase):
   def test_frequency_impressions_relation_generator_missing_impression(self):
     metric_set = MetricSet(
         reach=None, k_reach={1: Metric(5, 1, "k_reach1", 0)}, impression=None
+    )
+    generator = FrequencyImpressionsRelationGenerator(
+        1, 1, DataProviderMetricSetMap({frozenset(["A"]): metric_set})
+    )
+    self.assertEqual(len(generator.get_constraints()), 0)
+
+  def test_frequency_impressions_relation_generator_missing_both_k_reach_and_impression(self):
+    metric_set = MetricSet(
+        reach=Metric(5, 1, "reach", 0), k_reach={}, impression=None
     )
     generator = FrequencyImpressionsRelationGenerator(
         1, 1, DataProviderMetricSetMap({frozenset(["A"]): metric_set})
