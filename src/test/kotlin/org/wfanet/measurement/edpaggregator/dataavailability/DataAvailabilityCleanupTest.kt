@@ -103,6 +103,12 @@ class DataAvailabilityCleanupTest {
     ImpressionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
+  /** A StorageClient backed by an empty directory — getBlob always returns null. */
+  private val emptyStorageClient: FileSystemStorageClient by lazy {
+    val dir = createTempDir("cleanup-empty-storage")
+    FileSystemStorageClient(dir)
+  }
+
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule { addService(impressionMetadataServiceMock) }
 
@@ -133,7 +139,7 @@ class DataAvailabilityCleanupTest {
   @Test
   fun `cleanup with resource ID deletes directly without lookup`() = runBlocking {
     val dataAvailabilityCleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME)
+      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
 
     val result = dataAvailabilityCleanup.cleanup(BLOB_URI, RESOURCE_ID)
 
@@ -153,7 +159,7 @@ class DataAvailabilityCleanupTest {
   @Test
   fun `cleanup without resource ID looks up by blob URI then deletes`() = runBlocking {
     val dataAvailabilityCleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME)
+      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
 
     val result = dataAvailabilityCleanup.cleanup(BLOB_URI, null)
 
@@ -182,7 +188,7 @@ class DataAvailabilityCleanupTest {
       .thenReturn(listImpressionMetadataResponse {})
 
     val dataAvailabilityCleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME)
+      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
 
     val result = dataAvailabilityCleanup.cleanup(BLOB_URI, null)
 
@@ -230,7 +236,7 @@ class DataAvailabilityCleanupTest {
     val metricsEnv = createMetricsEnvironment()
     try {
       val dataAvailabilityCleanup =
-        DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, metrics = metricsEnv.metrics)
+        DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient, metricsEnv.metrics)
 
       val exception =
         assertFailsWith<IllegalStateException> { dataAvailabilityCleanup.cleanup(BLOB_URI, null) }
@@ -261,7 +267,7 @@ class DataAvailabilityCleanupTest {
       .thenAnswer { throw StatusException(Status.NOT_FOUND) }
 
     val dataAvailabilityCleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME)
+      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
 
     val result = dataAvailabilityCleanup.cleanup(BLOB_URI, RESOURCE_ID)
 
@@ -275,7 +281,7 @@ class DataAvailabilityCleanupTest {
       .thenAnswer { throw StatusException(Status.UNAVAILABLE) }
 
     val dataAvailabilityCleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME)
+      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
 
     assertFailsWith<StatusException> { dataAvailabilityCleanup.cleanup(BLOB_URI, RESOURCE_ID) }
     Unit
@@ -284,7 +290,7 @@ class DataAvailabilityCleanupTest {
   @Test
   fun `cleanup with empty resource ID string looks up by blob URI`() = runBlocking {
     val dataAvailabilityCleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME)
+      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
 
     val result = dataAvailabilityCleanup.cleanup(BLOB_URI, "")
 
@@ -300,7 +306,7 @@ class DataAvailabilityCleanupTest {
     val metricsEnv = createMetricsEnvironment()
     try {
       val dataAvailabilityCleanup =
-        DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, metrics = metricsEnv.metrics)
+        DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient, metricsEnv.metrics)
 
       dataAvailabilityCleanup.cleanup(BLOB_URI, RESOURCE_ID)
 
@@ -334,7 +340,7 @@ class DataAvailabilityCleanupTest {
     val metricsEnv = createMetricsEnvironment()
     try {
       val dataAvailabilityCleanup =
-        DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, metrics = metricsEnv.metrics)
+        DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient, metricsEnv.metrics)
 
       dataAvailabilityCleanup.cleanup(BLOB_URI, null)
 
@@ -367,7 +373,7 @@ class DataAvailabilityCleanupTest {
     val metricsEnv = createMetricsEnvironment()
     try {
       val dataAvailabilityCleanup =
-        DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, metrics = metricsEnv.metrics)
+        DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient, metricsEnv.metrics)
 
       try {
         dataAvailabilityCleanup.cleanup(BLOB_URI, RESOURCE_ID)
@@ -406,7 +412,7 @@ class DataAvailabilityCleanupTest {
     val metricsEnv = createMetricsEnvironment()
     try {
       val dataAvailabilityCleanup =
-        DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, metrics = metricsEnv.metrics)
+        DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient, metricsEnv.metrics)
 
       dataAvailabilityCleanup.cleanup(BLOB_URI, RESOURCE_ID)
 
@@ -475,18 +481,4 @@ class DataAvailabilityCleanupTest {
     }
   }
 
-  @Test
-  fun `cleanup without storage client proceeds with deletion (pre-versioning behavior)`() =
-    runBlocking {
-      // No storage client passed — pre-versioning behavior, no version check
-      val dataAvailabilityCleanup =
-        DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME)
-
-      val result = dataAvailabilityCleanup.cleanup(BLOB_URI, RESOURCE_ID)
-
-      assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SUCCESS)
-
-      // Verify delete was called (no version check performed)
-      verifyBlocking(impressionMetadataServiceMock, times(1)) { deleteImpressionMetadata(any()) }
-    }
 }

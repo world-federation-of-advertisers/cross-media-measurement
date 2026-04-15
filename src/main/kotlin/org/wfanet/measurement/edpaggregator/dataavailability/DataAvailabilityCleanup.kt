@@ -52,18 +52,17 @@ import org.wfanet.measurement.storage.StorageClient
  *   service.
  * @property dataProviderName The resource name of the data provider, used as a parent identifier in
  *   gRPC requests.
- * @property storageClient Optional storage client for checking if a live version of a deleted object
- *   still exists. When object versioning is enabled, a noncurrent version deletion fires an
- *   OBJECT_DELETE event but the live version still exists. If provided, cleanup will skip deletion
- *   when a live version is detected. If null, no version check is performed (pre-versioning
- *   behavior).
+ * @property storageClient Storage client for checking if a live version of a deleted object still
+ *   exists. When object versioning is enabled, a noncurrent version deletion fires an OBJECT_DELETE
+ *   event but the live version still exists. Cleanup will skip deletion when a live version is
+ *   detected.
  * @property metrics Metrics recorder for telemetry.
  */
 class DataAvailabilityCleanup(
   private val impressionMetadataServiceStub:
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub,
   private val dataProviderName: String,
-  private val storageClient: StorageClient? = null,
+  private val storageClient: StorageClient,
   private val metrics: DataAvailabilityCleanupMetrics = DataAvailabilityCleanupMetrics(),
 ) {
 
@@ -104,20 +103,18 @@ class DataAvailabilityCleanup(
     var cleanupStatus = CleanupStatus.SUCCESS
 
     try {
-      // When object versioning is enabled, check if a live version still exists.
-      // If it does, this OBJECT_DELETE event is for a noncurrent version and the
-      // ImpressionMetadata record should remain active.
-      if (storageClient != null) {
-        val blobUri = SelectedStorageClient.parseBlobUri(deletedBlobPath)
-        val liveBlob = storageClient.getBlob(blobUri.key)
-        if (liveBlob != null) {
-          logger.info(
-            "Live version still exists for $deletedBlobPath. " +
-              "Skipping cleanup (noncurrent version deletion)."
-          )
-          cleanupStatus = CleanupStatus.SKIPPED
-          return CleanupResult(cleanupStatus)
-        }
+      // Check if a live version of the object still exists. If it does, this
+      // OBJECT_DELETE event is for a noncurrent version (e.g., lifecycle cleanup)
+      // and the ImpressionMetadata record should remain active.
+      val blobUri = SelectedStorageClient.parseBlobUri(deletedBlobPath)
+      val liveBlob = storageClient.getBlob(blobUri.key)
+      if (liveBlob != null) {
+        logger.info(
+          "Live version still exists for $deletedBlobPath. " +
+            "Skipping cleanup (noncurrent version deletion)."
+        )
+        cleanupStatus = CleanupStatus.SKIPPED
+        return CleanupResult(cleanupStatus)
       }
 
       val resourceIdToDelete: String? =
