@@ -30,6 +30,7 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -135,9 +136,6 @@ class DataAvailabilityMonitorFunction : HttpFunction {
         }
         require(config.dataProviderName.isNotEmpty()) {
           "data_provider_name must be set when spurious_deletion_check is enabled"
-        }
-        require(impressionMetadataTarget.isNotEmpty()) {
-          "IMPRESSION_METADATA_TARGET must be set when spurious_deletion_check is enabled"
         }
         val channel = getOrCreateImpressionMetadataChannel(config.impressionMetadataConnection)
         ImpressionMetadataServiceCoroutineStub(channel)
@@ -251,7 +249,9 @@ class DataAvailabilityMonitorFunction : HttpFunction {
 
     private val fileSystemPath: String? = System.getenv("DATA_AVAILABILITY_FILE_SYSTEM_PATH")
 
-    private val impressionMetadataTarget: String = System.getenv("IMPRESSION_METADATA_TARGET") ?: ""
+    private val impressionMetadataTarget: String by lazy {
+      EnvVars.checkNotNullOrEmpty("IMPRESSION_METADATA_TARGET")
+    }
 
     private val impressionMetadataCertHost: String? = System.getenv("IMPRESSION_METADATA_CERT_HOST")
 

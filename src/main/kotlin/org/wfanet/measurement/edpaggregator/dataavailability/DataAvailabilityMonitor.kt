@@ -452,6 +452,7 @@ class DataAvailabilityMonitor(
       if (doneBlob != null) {
         datesWithDone.add(date)
 
+        // Check if there is at least one non-done file with content
         val hasData =
           storageClient.listBlobs("${prefix}$dateString/").take(2).toList().any {
             !it.blobKey.endsWith("/done") && it.size > 0
@@ -460,6 +461,7 @@ class DataAvailabilityMonitor(
           zeroImpressionDatesList.add(date)
         }
 
+        // Check if any file was updated after the done blob, indicating late-arriving data.
         val hasLateArrivals =
           storageClient
             .listBlobsUpdatedAfter("${prefix}$dateString/", doneBlob.updateTime)
