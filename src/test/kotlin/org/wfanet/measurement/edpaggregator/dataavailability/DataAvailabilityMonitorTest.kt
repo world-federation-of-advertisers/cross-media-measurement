@@ -27,6 +27,7 @@ import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.io.File
 import java.time.LocalDate
+import java.time.ZoneId
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -97,6 +98,7 @@ class DataAvailabilityMonitorTest {
     private val MODEL_LINE_A = ModelLineKey("provider1", "suite1", "modelLineA")
     private val MODEL_LINE_B = ModelLineKey("provider1", "suite1", "modelLineB")
     private val TODAY = LocalDate.of(2026, 3, 15)
+    private val TIME_ZONE = ZoneId.of("UTC")
 
     private const val STALE_DAYS_METRIC = "edpa.data_availability.stale_days"
     private const val DATE_COUNT_METRIC = "edpa.data_availability.date_count"
@@ -191,6 +193,7 @@ class DataAvailabilityMonitorTest {
     val result =
       monitor.checkFullStatus(
         maxStaleDays = 3,
+        timeZone = TIME_ZONE,
         clock = { TODAY },
         spuriousDeletionLookbackDays = null,
       )
@@ -234,6 +237,7 @@ class DataAvailabilityMonitorTest {
     val result =
       monitor.checkFullStatus(
         maxStaleDays = 3,
+        timeZone = TIME_ZONE,
         clock = { TODAY },
         spuriousDeletionLookbackDays = null,
       )
@@ -265,6 +269,7 @@ class DataAvailabilityMonitorTest {
     val result =
       monitor.checkFullStatus(
         maxStaleDays = 3,
+        timeZone = TIME_ZONE,
         clock = { TODAY },
         spuriousDeletionLookbackDays = null,
       )
@@ -295,6 +300,7 @@ class DataAvailabilityMonitorTest {
     val result =
       monitor.checkFullStatus(
         maxStaleDays = 3,
+        timeZone = TIME_ZONE,
         clock = { TODAY },
         spuriousDeletionLookbackDays = null,
       )
@@ -334,6 +340,7 @@ class DataAvailabilityMonitorTest {
     val result =
       monitor.checkFullStatus(
         maxStaleDays = 3,
+        timeZone = TIME_ZONE,
         clock = { TODAY },
         spuriousDeletionLookbackDays = null,
       )
@@ -363,6 +370,7 @@ class DataAvailabilityMonitorTest {
     val result =
       monitor.checkFullStatus(
         maxStaleDays = 3,
+        timeZone = TIME_ZONE,
         clock = { TODAY },
         spuriousDeletionLookbackDays = null,
       )
@@ -393,6 +401,7 @@ class DataAvailabilityMonitorTest {
     val result =
       monitor.checkFullStatus(
         maxStaleDays = 3,
+        timeZone = TIME_ZONE,
         clock = { TODAY },
         spuriousDeletionLookbackDays = null,
       )
@@ -423,6 +432,7 @@ class DataAvailabilityMonitorTest {
     val result =
       monitor.checkFullStatus(
         maxStaleDays = 3,
+        timeZone = TIME_ZONE,
         clock = { TODAY },
         spuriousDeletionLookbackDays = null,
       )
@@ -597,6 +607,7 @@ class DataAvailabilityMonitorTest {
     val result =
       monitor.checkFullStatus(
         maxStaleDays = 3,
+        timeZone = TIME_ZONE,
         clock = { TODAY },
         spuriousDeletionLookbackDays = null,
       )
@@ -659,6 +670,7 @@ class DataAvailabilityMonitorTest {
     val result =
       monitor.checkFullStatus(
         maxStaleDays = 3,
+        timeZone = TIME_ZONE,
         clock = { TODAY },
         spuriousDeletionLookbackDays = null,
       )
@@ -687,6 +699,7 @@ class DataAvailabilityMonitorTest {
     assertFailsWith<IllegalArgumentException> {
       monitor.checkFullStatus(
         maxStaleDays = 0,
+        timeZone = TIME_ZONE,
         clock = { TODAY },
         spuriousDeletionLookbackDays = null,
       )
@@ -757,6 +770,7 @@ class DataAvailabilityMonitorTest {
     val result =
       monitor.checkFullStatus(
         maxStaleDays = 3,
+        timeZone = TIME_ZONE,
         clock = { TODAY },
         spuriousDeletionLookbackDays = null,
       )
@@ -819,6 +833,7 @@ class DataAvailabilityMonitorTest {
     val result =
       monitor.checkFullStatus(
         maxStaleDays = 3,
+        timeZone = TIME_ZONE,
         clock = { TODAY },
         spuriousDeletionLookbackDays = null,
       )
@@ -890,6 +905,7 @@ class DataAvailabilityMonitorTest {
     val result =
       monitor.checkFullStatus(
         maxStaleDays = 3,
+        timeZone = TIME_ZONE,
         clock = { TODAY },
         spuriousDeletionLookbackDays = null,
       )
@@ -925,6 +941,7 @@ class DataAvailabilityMonitorTest {
 
     monitor.checkFullStatus(
       maxStaleDays = 3,
+      timeZone = TIME_ZONE,
       clock = { TODAY },
       spuriousDeletionLookbackDays = null,
     )
@@ -970,6 +987,7 @@ class DataAvailabilityMonitorTest {
 
     monitor.checkFullStatus(
       maxStaleDays = 3,
+      timeZone = TIME_ZONE,
       clock = { TODAY },
       spuriousDeletionLookbackDays = null,
     )
@@ -1044,6 +1062,7 @@ class DataAvailabilityMonitorTest {
 
     monitor.checkFullStatus(
       maxStaleDays = 3,
+      timeZone = TIME_ZONE,
       clock = { TODAY },
       spuriousDeletionLookbackDays = null,
     )
@@ -1091,6 +1110,7 @@ class DataAvailabilityMonitorTest {
     val result =
       monitor.checkFullStatus(
         maxStaleDays = 3,
+        timeZone = TIME_ZONE,
         clock = { TODAY },
         spuriousDeletionLookbackDays = null,
       )
@@ -1124,6 +1144,7 @@ class DataAvailabilityMonitorTest {
       val result =
         monitor.checkFullStatus(
           maxStaleDays = 3,
+          timeZone = TIME_ZONE,
           clock = { TODAY },
           spuriousDeletionLookbackDays = null,
         )
@@ -1182,6 +1203,7 @@ class DataAvailabilityMonitorTest {
 
     monitor.checkFullStatus(
       maxStaleDays = 3,
+      timeZone = TIME_ZONE,
       clock = { TODAY },
       spuriousDeletionLookbackDays = null,
     )
@@ -1211,6 +1233,7 @@ class DataAvailabilityMonitorTest {
       assertFailsWith<IllegalArgumentException> {
         monitor.checkFullStatus(
           maxStaleDays = 3,
+          timeZone = TIME_ZONE,
           clock = { TODAY },
           spuriousDeletionLookbackDays = 90,
         )
@@ -1241,6 +1264,7 @@ class DataAvailabilityMonitorTest {
     val result =
       monitor.checkFullStatus(
         maxStaleDays = 3,
+        timeZone = TIME_ZONE,
         clock = { TODAY },
         spuriousDeletionLookbackDays = 90,
       )
@@ -1269,6 +1293,7 @@ class DataAvailabilityMonitorTest {
     val result =
       monitor.checkFullStatus(
         maxStaleDays = 3,
+        timeZone = TIME_ZONE,
         clock = { TODAY },
         spuriousDeletionLookbackDays = 90,
       )
@@ -1297,6 +1322,7 @@ class DataAvailabilityMonitorTest {
     val result =
       monitor.checkFullStatus(
         maxStaleDays = 3,
+        timeZone = TIME_ZONE,
         clock = { TODAY },
         spuriousDeletionLookbackDays = 90,
       )
@@ -1326,7 +1352,12 @@ class DataAvailabilityMonitorTest {
         dataProviderName = DATA_PROVIDER_NAME,
       )
 
-    monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY }, spuriousDeletionLookbackDays = 90)
+    monitor.checkFullStatus(
+      maxStaleDays = 3,
+      timeZone = TIME_ZONE,
+      clock = { TODAY },
+      spuriousDeletionLookbackDays = 90,
+    )
 
     val metrics = collectMetrics()
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_SPURIOUS_DELETION))

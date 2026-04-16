@@ -23,7 +23,6 @@ import com.google.cloud.storage.StorageOptions
 import io.grpc.ManagedChannel
 import java.io.File
 import java.time.Duration
-import java.time.LocalDate
 import java.time.ZoneId
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
@@ -129,14 +128,16 @@ class DataAvailabilityMonitorFunction : HttpFunction {
       else DataAvailabilityMonitor.DEFAULT_MAX_STALE_DAYS
 
     val spuriousLookbackDays =
-      config.spuriousDeletionLookbackDays.takeIf { it > 0 }?.also {
-        require(config.hasImpressionMetadataConnection()) {
-          "impression_metadata_connection must be set when spurious_deletion_lookback_days is set"
+      config.spuriousDeletionLookbackDays
+        .takeIf { it > 0 }
+        ?.also {
+          require(config.hasImpressionMetadataConnection()) {
+            "impression_metadata_connection must be set when spurious_deletion_lookback_days is set"
+          }
+          require(config.dataProviderName.isNotEmpty()) {
+            "data_provider_name must be set when spurious_deletion_lookback_days is set"
+          }
         }
-        require(config.dataProviderName.isNotEmpty()) {
-          "data_provider_name must be set when spurious_deletion_lookback_days is set"
-        }
-      }
 
     val impressionMetadataStub =
       spuriousLookbackDays?.let {
@@ -156,7 +157,7 @@ class DataAvailabilityMonitorFunction : HttpFunction {
     val result =
       monitor.checkFullStatus(
         maxStaleDays = maxStaleDays,
-        clock = { LocalDate.now(timeZone) },
+        timeZone = timeZone,
         spuriousDeletionLookbackDays = spuriousLookbackDays,
       )
 

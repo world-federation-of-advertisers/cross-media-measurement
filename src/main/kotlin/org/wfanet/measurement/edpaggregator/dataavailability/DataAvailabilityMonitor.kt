@@ -22,7 +22,7 @@ import com.google.type.interval
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import java.time.LocalDate
-import java.time.ZoneOffset
+import java.time.ZoneId
 import java.time.format.DateTimeParseException
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -52,8 +52,8 @@ import org.wfanet.measurement.storage.StorageClient
  * - **Missing done blobs**: A date folder exists but has no "done" blob.
  * - **Late-arriving files**: Data files were updated after the "done" blob was written.
  * - **Spurious deletions**: ImpressionMetadata entries marked as deleted whose blobs still exist on
- *   the bucket, indicating the deletion was caused by a GCS overwrite race condition rather than an
- *   intentional deletion.
+ *   the bucket, indicating the deletion may have been caused by a GCS overwrite race condition or
+ *   by a new file being uploaded to the same location after the original was deleted.
  *
  * The folder structure is expected to be:
  * ```
@@ -133,6 +133,8 @@ class DataAvailabilityMonitor(
    *
    * @param maxStaleDays Maximum number of days a model line can go without an upload before being
    *   considered stale.
+   * @param timeZone Time zone used to determine "today" for staleness checks and spurious deletion
+   *   interval boundaries.
    * @param clock Provides the current date for staleness checks.
    * @param spuriousDeletionLookbackDays If set, also checks for deleted ImpressionMetadata entries
    *   whose blobs still exist on the bucket. Only entries with intervals within the last N days are
@@ -142,29 +144,33 @@ class DataAvailabilityMonitor(
    */
   suspend fun checkFullStatus(
     maxStaleDays: Int,
-    clock: () -> LocalDate,
+    timeZone: ZoneId,
+    clock: () -> LocalDate = { LocalDate.now(timeZone) },
     spuriousDeletionLookbackDays: Int?,
   ): MonitorResult {
     require(maxStaleDays > 0) { "maxStaleDays must be greater than zero" }
     val today = clock()
 
     val spuriousDeletionInterval: Interval? =
-      if (spuriousDeletionLookbackDays != null) {
-        require(spuriousDeletionLookbackDays > 0) { "spuriousDeletionLookbackDays must be > 0" }
-        requireNotNull(impressionMetadataStub) {
-          "impressionMetadataStub must be set when spuriousDeletionLookbackDays is specified"
+      spuriousDeletionLookbackDays
+        ?.also {
+          require(it > 0) { "spuriousDeletionLookbackDays must be > 0" }
+          requireNotNull(impressionMetadataStub) {
+            "impressionMetadataStub must be set when spuriousDeletionLookbackDays is specified"
+          }
+          require(!dataProviderName.isNullOrBlank()) {
+            "dataProviderName must be set when spuriousDeletionLookbackDays is specified"
+          }
         }
-        require(!dataProviderName.isNullOrBlank()) {
-          "dataProviderName must be set when spuriousDeletionLookbackDays is specified"
+        ?.let { lookbackDays ->
+          val cutoffDate = today.minusDays(lookbackDays.toLong())
+          val cutoffEpochSeconds = cutoffDate.atStartOfDay(timeZone).toEpochSecond()
+          val endEpochSeconds = today.plusDays(1).atStartOfDay(timeZone).toEpochSecond()
+          interval {
+            startTime = timestamp { seconds = cutoffEpochSeconds }
+            endTime = timestamp { seconds = endEpochSeconds }
+          }
         }
-        val cutoffDate = today.minusDays(spuriousDeletionLookbackDays.toLong())
-        val cutoffEpochSeconds = cutoffDate.atStartOfDay(ZoneOffset.UTC).toEpochSecond()
-        val endEpochSeconds = today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
-        interval {
-          startTime = timestamp { seconds = cutoffEpochSeconds }
-          endTime = timestamp { seconds = endEpochSeconds }
-        }
-      } else null
 
     val statuses =
       activeModelLines.map { modelLineKey ->
@@ -387,7 +393,7 @@ class DataAvailabilityMonitor(
     deletedEntries.collect { entry ->
       val blobKey = SelectedStorageClient.parseBlobUri(entry.blobUri).key
       val blob = storageClient.getBlob(blobKey)
-      if (blob != null) {
+      blob?.let {
         spuriousCount++
         if (spuriousCount <= 10) {
           logger.log(
@@ -396,9 +402,7 @@ class DataAvailabilityMonitor(
               "entry ${entry.name} is deleted but blob exists at ${entry.blobUri}",
           )
         }
-      } else {
-        legitimateCount++
-      }
+      } ?: legitimateCount++
     }
 
     logger.log(
