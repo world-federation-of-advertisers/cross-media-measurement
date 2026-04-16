@@ -54,7 +54,7 @@ message DataAvailabilityMonitorConfig {
   // Number of days of deleted ImpressionMetadata entries to check for
   // spurious deletions (entries marked deleted whose blobs still exist on
   // the bucket). When set to a value > 0, the spurious deletion check is
-  // enabled. When unset or 0, the check is skipped.
+  // enabled. When unspecified, the check is skipped.
   // Requires data_provider_name and impression_metadata_connection.
   int32 spurious_deletion_lookback_days = 6;
 

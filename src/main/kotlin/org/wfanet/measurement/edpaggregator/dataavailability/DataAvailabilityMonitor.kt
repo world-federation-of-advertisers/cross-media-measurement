@@ -80,6 +80,7 @@ class DataAvailabilityMonitor(
     require(!edpImpressionPath.startsWith("/")) { "edpImpressionPath cannot start with a slash" }
     require(!edpImpressionPath.endsWith("/")) { "edpImpressionPath cannot end with a slash" }
     require(activeModelLines.isNotEmpty()) { "activeModelLines must not be empty" }
+    require(dataProviderName?.isNotBlank() != false) { "dataProviderName must not be blank" }
   }
 
   /**
@@ -155,10 +156,10 @@ class DataAvailabilityMonitor(
       spuriousDeletionLookbackDays
         ?.also {
           require(it > 0) { "spuriousDeletionLookbackDays must be > 0" }
-          requireNotNull(impressionMetadataStub) {
+          checkNotNull(impressionMetadataStub) {
             "impressionMetadataStub must be set when spuriousDeletionLookbackDays is specified"
           }
-          require(!dataProviderName.isNullOrBlank()) {
+          checkNotNull(dataProviderName) {
             "dataProviderName must be set when spuriousDeletionLookbackDays is specified"
           }
         }
@@ -360,9 +361,7 @@ class DataAvailabilityMonitor(
       else "$edpImpressionPath/model-line/$modelLineId/"
     val baseInfo = getDateInfo(prefix)
 
-    if (spuriousDeletionInterval == null) {
-      return baseInfo
-    }
+    val spuriousInterval = spuriousDeletionInterval ?: return baseInfo
 
     val modelLineName = modelLineKey.toName()
 
@@ -370,19 +369,19 @@ class DataAvailabilityMonitor(
     var legitimateCount = 0
 
     val deletedEntries: Flow<V1AlphaImpressionMetadata> =
-      impressionMetadataStub!!
+      checkNotNull(impressionMetadataStub)
         .listResources<V1AlphaImpressionMetadata, String, ImpressionMetadataServiceCoroutineStub> {
           pageToken ->
           val response =
             listImpressionMetadata(
               listImpressionMetadataRequest {
-                parent = dataProviderName!!
+                parent = checkNotNull(dataProviderName)
                 pageSize = 100
                 showDeleted = true
                 this.pageToken = pageToken
                 filter = listImpressionMetadataRequestFilter {
                   modelLine = modelLineName
-                  intervalOverlaps = spuriousDeletionInterval
+                  intervalOverlaps = spuriousInterval
                 }
               }
             )

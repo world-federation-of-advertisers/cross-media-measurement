@@ -1230,7 +1230,7 @@ class DataAvailabilityMonitorTest {
           dataProviderName = null,
         )
 
-      assertFailsWith<IllegalArgumentException> {
+      assertFailsWith<IllegalStateException> {
         monitor.checkFullStatus(
           maxStaleDays = 3,
           timeZone = TIME_ZONE,
