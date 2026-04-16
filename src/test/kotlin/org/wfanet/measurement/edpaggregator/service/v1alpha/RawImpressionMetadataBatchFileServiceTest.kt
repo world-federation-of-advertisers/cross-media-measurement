@@ -273,6 +273,7 @@ class RawImpressionMetadataBatchFileServiceTest {
     assertThat(response.rawImpressionMetadataBatchFilesList).hasSize(2)
     val blobUris = response.rawImpressionMetadataBatchFilesList.map { it.blobUri }
     assertThat(blobUris).containsExactly(BLOB_URI_1, BLOB_URI_2)
+    Unit
   }
 
   @Test
