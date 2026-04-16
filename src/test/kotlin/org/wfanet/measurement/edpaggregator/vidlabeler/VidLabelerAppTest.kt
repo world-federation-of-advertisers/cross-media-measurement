@@ -174,9 +174,7 @@ class VidLabelerAppTest {
     val params = vidLabelerParams { dataProvider = DATA_PROVIDER_NAME }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("raw_impressions_storage_params must be set")
+    assertThat(exception).hasMessageThat().contains("raw_impressions_storage_params must be set")
   }
 
   companion object {
