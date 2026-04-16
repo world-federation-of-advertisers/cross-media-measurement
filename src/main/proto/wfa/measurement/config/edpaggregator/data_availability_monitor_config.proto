@@ -1,0 +1,60 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.config.edpaggregator;
+
+import "wfa/measurement/config/edpaggregator/storage_params.proto";
+
+option java_package = "org.wfanet.measurement.config.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "DataAvailabilityMonitorConfigProto";
+
+// Configuration for a monitored model line.
+message ModelLineConfig {
+  // Model line resource name.
+  // Format:
+  //   "modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}"
+  string model_line = 1;
+}
+
+// Configuration for a single monitored EDP impression path.
+message DataAvailabilityMonitorConfig {
+  // Storage backend where the impressions are stored.
+  StorageParams storage = 1;
+
+  // Base path for EDP impressions
+  // (e.g., "edp/edp1/vid-labeled-impressions").
+  string edp_impression_path = 2;
+
+  // Model lines to monitor and their storage paths.
+  repeated ModelLineConfig model_line_configs = 3;
+
+  // Maximum number of days a model line can go without an upload before
+  // being considered stale. Defaults to 3 if not set.
+  int32 max_stale_days = 4;
+
+  // IANA time zone ID used to determine "today" for staleness checks
+  // (e.g., "UTC", "America/New_York").
+  string time_zone = 5;
+}
+
+// Wrapper containing monitor configurations. Loaded at startup from the
+// EDPA config bucket.
+message DataAvailabilityMonitorConfigs {
+  // Monitored EDP impression paths. Each entry monitors a separate
+  // storage location and set of model lines.
+  repeated DataAvailabilityMonitorConfig configs = 1;
+}

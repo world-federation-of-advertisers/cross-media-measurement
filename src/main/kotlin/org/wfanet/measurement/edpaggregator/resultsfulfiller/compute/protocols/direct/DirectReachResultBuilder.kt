@@ -102,7 +102,7 @@ class DirectReachResultBuilder(
     return ReachAndFrequencyComputations.computeReach(
       rawHistogram = histogram,
       dpParams = reachDpParams,
-      vidSamplingIntervalWidth = samplingRate,
+      vidSamplingIntervalWidth = samplingRate.toDouble(),
       vectorSize = maxPopulation,
       kAnonymityParams = kAnonymityParams,
     )

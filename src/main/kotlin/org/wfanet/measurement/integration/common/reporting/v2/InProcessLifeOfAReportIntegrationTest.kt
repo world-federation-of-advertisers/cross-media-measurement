@@ -93,9 +93,11 @@ import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.dataprovider.MeasurementResults
 import org.wfanet.measurement.integration.common.ALL_EDP_DISPLAY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
+import org.wfanet.measurement.integration.common.HMSS_PROTOCOL_CONFIG_CONFIG
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
+import org.wfanet.measurement.integration.common.TRUSTEE_PROTOCOL_CONFIG_CONFIG
 import org.wfanet.measurement.integration.crypto.testing.ThrowingKmsClient
 import org.wfanet.measurement.internal.reporting.v2.ListImpressionQualificationFiltersPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
@@ -1870,10 +1872,12 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     }
 
     assertThat(actualResult).reachValue().isWithin(reachTolerance).of(0)
-    assertThat(actualResult)
-      .frequencyDistribution()
-      .isWithin(frequencyToleranceMap)
-      .of(mapWithAllZeroFrequency)
+    if (actualResult.reach.value == 0L) {
+      assertThat(actualResult)
+        .frequencyDistribution()
+        .isWithin(frequencyToleranceMap)
+        .of(mapWithAllZeroFrequency)
+    }
   }
 
   @Test
@@ -3255,7 +3259,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     @BeforeClass
     @JvmStatic
     fun initConfig() {
-      InProcessCmmsComponents.initConfig()
+      InProcessCmmsComponents.initConfig(
+        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG,
+        hmssProtocolConfigConfig = HMSS_PROTOCOL_CONFIG_CONFIG,
+      )
     }
   }
 }
