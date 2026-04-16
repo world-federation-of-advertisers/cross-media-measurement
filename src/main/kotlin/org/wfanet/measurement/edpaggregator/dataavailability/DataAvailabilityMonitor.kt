@@ -65,9 +65,9 @@ import org.wfanet.measurement.storage.StorageClient
  *   "edp/edp1/vid-labeled-impressions").
  * @property activeModelLines Set of model line keys that are expected to upload daily.
  * @property impressionMetadataStub Optional gRPC stub for the ImpressionMetadata service. Required
- *   only for [checkSpuriousDeletions].
+ *   when checking for spurious deletions.
  * @property dataProviderName Optional data provider resource name (e.g.,
- *   "dataProviders/P8xrCkbWKBM"). Required only for [checkSpuriousDeletions].
+ *   "dataProviders/P8xrCkbWKBM"). Required when checking for spurious deletions.
  */
 class DataAvailabilityMonitor(
   private val storageClient: StorageClient,
@@ -134,9 +134,9 @@ class DataAvailabilityMonitor(
    * @param maxStaleDays Maximum number of days a model line can go without an upload before being
    *   considered stale.
    * @param clock Provides the current date for staleness checks.
-   * @param spuriousDeletionLookbackDays If set and [impressionMetadataStub] is available, also
-   *   checks for deleted ImpressionMetadata entries whose blobs still exist on the bucket. Only
-   *   entries with intervals within the last N days are checked.
+   * @param spuriousDeletionLookbackDays If set, also checks for deleted ImpressionMetadata entries
+   *   whose blobs still exist on the bucket. Only entries with intervals within the last N days are
+   *   checked. Requires [impressionMetadataStub] and [dataProviderName] to be set.
    * @return A [MonitorResult] with one [ModelLineStatus] per model line in [activeModelLines], in
    *   the same iteration order.
    */
@@ -151,7 +151,12 @@ class DataAvailabilityMonitor(
     val spuriousDeletionInterval: Interval? =
       if (spuriousDeletionLookbackDays != null) {
         require(spuriousDeletionLookbackDays > 0) { "spuriousDeletionLookbackDays must be > 0" }
-        require(!dataProviderName.isNullOrBlank()) { "dataProviderName must not be blank" }
+        requireNotNull(impressionMetadataStub) {
+          "impressionMetadataStub must be set when spuriousDeletionLookbackDays is specified"
+        }
+        require(!dataProviderName.isNullOrBlank()) {
+          "dataProviderName must be set when spuriousDeletionLookbackDays is specified"
+        }
         val cutoffDate = today.minusDays(spuriousDeletionLookbackDays.toLong())
         val cutoffEpochSeconds = cutoffDate.atStartOfDay(ZoneOffset.UTC).toEpochSecond()
         val endEpochSeconds = today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
@@ -349,9 +354,7 @@ class DataAvailabilityMonitor(
       else "$edpImpressionPath/model-line/$modelLineId/"
     val baseInfo = getDateInfo(prefix)
 
-    if (
-      spuriousDeletionInterval == null || impressionMetadataStub == null || dataProviderName == null
-    ) {
+    if (spuriousDeletionInterval == null) {
       return baseInfo
     }
 
@@ -361,13 +364,13 @@ class DataAvailabilityMonitor(
     var legitimateCount = 0
 
     val deletedEntries: Flow<V1AlphaImpressionMetadata> =
-      impressionMetadataStub
+      impressionMetadataStub!!
         .listResources<V1AlphaImpressionMetadata, String, ImpressionMetadataServiceCoroutineStub> {
           pageToken ->
           val response =
             listImpressionMetadata(
               listImpressionMetadataRequest {
-                parent = dataProviderName
+                parent = dataProviderName!!
                 pageSize = 100
                 showDeleted = true
                 this.pageToken = pageToken

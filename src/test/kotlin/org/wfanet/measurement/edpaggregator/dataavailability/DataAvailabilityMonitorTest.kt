@@ -1192,32 +1192,30 @@ class DataAvailabilityMonitorTest {
   }
 
   @Test
-  fun `checkFullStatus skips spurious check when stub is not provided`(): Unit = runBlocking {
-    val storageClient = createStorageClient()
-    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
-    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+  fun `checkFullStatus throws when spurious lookback set but stub is not provided`(): Unit =
+    runBlocking {
+      val storageClient = createStorageClient()
+      ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+      createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
 
-    val monitor =
-      DataAvailabilityMonitor(
-        storageClient = storageClient,
-        edpImpressionPath = EDP_IMPRESSION_PATH,
-        activeModelLines = setOf(MODEL_LINE_A),
-        impressionMetadataStub = null,
-        dataProviderName = null,
-      )
+      val monitor =
+        DataAvailabilityMonitor(
+          storageClient = storageClient,
+          edpImpressionPath = EDP_IMPRESSION_PATH,
+          activeModelLines = setOf(MODEL_LINE_A),
+          impressionMetadataStub = null,
+          dataProviderName = null,
+        )
 
-    val result =
-      monitor.checkFullStatus(
-        maxStaleDays = 3,
-        clock = { TODAY },
-        spuriousDeletionLookbackDays = 90,
-      )
-
-    val status = result.statuses.single()
-    assertThat(status.spuriousDeletionCount).isNull()
-    assertThat(status.legitimateDeletionCount).isNull()
-  }
+      assertFailsWith<IllegalArgumentException> {
+        monitor.checkFullStatus(
+          maxStaleDays = 3,
+          clock = { TODAY },
+          spuriousDeletionLookbackDays = 90,
+        )
+      }
+    }
 
   @Test
   fun `checkFullStatus detects spurious deletion when blob still exists`(): Unit = runBlocking {

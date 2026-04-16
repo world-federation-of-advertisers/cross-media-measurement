@@ -128,14 +128,16 @@ class DataAvailabilityMonitorFunction : HttpFunction {
       if (config.maxStaleDays > 0) config.maxStaleDays
       else DataAvailabilityMonitor.DEFAULT_MAX_STALE_DAYS
 
-    val spuriousDeletionConfig = config.spuriousDeletionCheck
+    val spuriousLookbackDays =
+      if (config.spuriousDeletionLookbackDays > 0) config.spuriousDeletionLookbackDays else null
+
     val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub? =
-      if (spuriousDeletionConfig.enabled) {
+      if (spuriousLookbackDays != null) {
         require(config.hasImpressionMetadataConnection()) {
-          "impression_metadata_connection must be set when spurious_deletion_check is enabled"
+          "impression_metadata_connection must be set when spurious_deletion_lookback_days is set"
         }
         require(config.dataProviderName.isNotEmpty()) {
-          "data_provider_name must be set when spurious_deletion_check is enabled"
+          "data_provider_name must be set when spurious_deletion_lookback_days is set"
         }
         val channel = getOrCreateImpressionMetadataChannel(config.impressionMetadataConnection)
         ImpressionMetadataServiceCoroutineStub(channel)
@@ -151,9 +153,6 @@ class DataAvailabilityMonitorFunction : HttpFunction {
         impressionMetadataStub = impressionMetadataStub,
         dataProviderName = config.dataProviderName.ifEmpty { null },
       )
-
-    val spuriousLookbackDays =
-      if (spuriousDeletionConfig.enabled) spuriousDeletionConfig.lookbackDays else null
 
     val result =
       monitor.checkFullStatus(
