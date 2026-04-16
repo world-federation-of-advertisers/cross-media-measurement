@@ -91,7 +91,7 @@ message EventDataProviderConfig {
   string data_provider = 1
       [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 
-  // Kms config
+  // KMS config for encrypting VID-labeled impression data.
   KmsConfig kms_config = 2;
   // Tls Config
   TlsConfig tls_config = 3;

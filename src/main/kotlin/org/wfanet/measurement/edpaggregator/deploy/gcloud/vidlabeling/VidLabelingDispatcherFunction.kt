@@ -344,8 +344,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
         rawImpressionsStorageParams =
           VidLabelerParamsKt.storageParams {
             gcsProjectId = config.rawImpressionsStorageParams.gcs.projectId
-            impressionsBlobPrefix =
-              "gs://${config.rawImpressionsStorageParams.gcs.bucketName}"
+            impressionsBlobPrefix = "gs://${config.rawImpressionsStorageParams.gcs.bucketName}"
           }
         vidRepoConnection = transportLayerSecurityParams {
           clientCertResourcePath = config.vidRepoConnection.certFilePath

@@ -41,9 +41,7 @@ message VidLabelerParams {
     string gcs_project_id = 1 [(google.api.field_behavior) = REQUIRED];
 
     // The blob URI prefix for impressions in Google Cloud Storage.
-    string impressions_blob_prefix = 2 [
-      (google.api.field_behavior) = REQUIRED
-    ];
+    string impressions_blob_prefix = 2 [(google.api.field_behavior) = REQUIRED];
   }
 
   // Storage for raw impressions read by the TEE app.
