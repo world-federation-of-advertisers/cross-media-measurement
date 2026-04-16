@@ -109,8 +109,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingBatchByRequestId(
           bind("createRequestId").to(requestId)
         }
       )
-      .singleOrNullIfEmpty()
-      ?: return null
+      .singleOrNullIfEmpty() ?: return null
 
   return buildRawImpressionMetadataBatchResult(row)
 }
