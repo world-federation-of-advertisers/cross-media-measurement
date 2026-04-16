@@ -125,19 +125,7 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE ->
             Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
-          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
-          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.ETAG_MISMATCH,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+          else -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
 
@@ -183,7 +171,9 @@ class RawImpressionMetadataBatchFileService(
         }
 
         if (!blobUriSet.add(blobUri)) {
-          throw InvalidFieldValueException("requests.$index.blob_uri") {
+          throw InvalidFieldValueException(
+              "requests.$index.raw_impression_metadata_batch_file.blob_uri"
+            ) {
               "blob uri $blobUri is duplicate in the batch of requests"
             }
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -238,19 +228,7 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE ->
             Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
-          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
-          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.ETAG_MISMATCH,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+          else -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
 
@@ -298,19 +276,7 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE ->
             Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
-          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
-          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.ETAG_MISMATCH,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+          else -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
 
@@ -397,19 +363,7 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE ->
             Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
-          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
-          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.ETAG_MISMATCH,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+          else -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
 
@@ -460,19 +414,7 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE ->
             Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
-          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
-          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.ETAG_MISMATCH,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+          else -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
 
@@ -553,19 +495,7 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE ->
             Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
-          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
-          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.ETAG_MISMATCH,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+          else -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
 
