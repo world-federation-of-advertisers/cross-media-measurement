@@ -62,3 +62,17 @@ spanner_emulator_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )
+
+spanner_emulator_test(
+    name = "SpannerRankTableTest",
+    srcs = ["SpannerRankTableTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.SpannerRankTableTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/db",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/testing:schemata",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)

@@ -12,6 +12,7 @@ kt_jvm_library(
         "ImpressionMetadata.kt",
         "RawImpressionMetadataBatch.kt",
         "RawImpressionMetadataBatchFile.kt",
+        "RankTable.kt",
         "RequisitionMetadata.kt",
         "RequisitionMetadataActions.kt",
     ],
