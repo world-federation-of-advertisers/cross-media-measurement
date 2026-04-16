@@ -89,10 +89,15 @@ class VidLabelerAppTest {
     val app = createApp()
     val params = vidLabelerParams {
       dataProvider = DATA_PROVIDER_NAME
-      storageParams =
+      rawImpressionsStorageParams =
         VidLabelerParamsKt.storageParams {
           gcsProjectId = "test-project"
-          labeledImpressionsBlobPrefix = "gs://output-bucket/labeled"
+          impressionsBlobPrefix = "gs://raw-bucket/impressions"
+        }
+      vidLabeledImpressionsStorageParams =
+        VidLabelerParamsKt.storageParams {
+          gcsProjectId = "test-project"
+          impressionsBlobPrefix = "gs://output-bucket/labeled"
         }
     }
 
@@ -104,10 +109,15 @@ class VidLabelerAppTest {
     val app = createApp(rawImpressionsKmsClient = emptyMap())
     val params = vidLabelerParams {
       dataProvider = DATA_PROVIDER_NAME
-      storageParams =
+      rawImpressionsStorageParams =
         VidLabelerParamsKt.storageParams {
           gcsProjectId = "test-project"
-          labeledImpressionsBlobPrefix = "gs://output-bucket/labeled"
+          impressionsBlobPrefix = "gs://raw-bucket/impressions"
+        }
+      vidLabeledImpressionsStorageParams =
+        VidLabelerParamsKt.storageParams {
+          gcsProjectId = "test-project"
+          impressionsBlobPrefix = "gs://output-bucket/labeled"
         }
     }
 
@@ -121,10 +131,15 @@ class VidLabelerAppTest {
     val app = createApp(vidLabeledImpressionsKmsClient = emptyMap())
     val params = vidLabelerParams {
       dataProvider = DATA_PROVIDER_NAME
-      storageParams =
+      rawImpressionsStorageParams =
         VidLabelerParamsKt.storageParams {
           gcsProjectId = "test-project"
-          labeledImpressionsBlobPrefix = "gs://output-bucket/labeled"
+          impressionsBlobPrefix = "gs://raw-bucket/impressions"
+        }
+      vidLabeledImpressionsStorageParams =
+        VidLabelerParamsKt.storageParams {
+          gcsProjectId = "test-project"
+          impressionsBlobPrefix = "gs://output-bucket/labeled"
         }
     }
 
@@ -137,10 +152,15 @@ class VidLabelerAppTest {
   fun `runWork throws when data_provider is empty`() = runBlocking {
     val app = createApp()
     val params = vidLabelerParams {
-      storageParams =
+      rawImpressionsStorageParams =
         VidLabelerParamsKt.storageParams {
           gcsProjectId = "test-project"
-          labeledImpressionsBlobPrefix = "gs://output-bucket/labeled"
+          impressionsBlobPrefix = "gs://raw-bucket/impressions"
+        }
+      vidLabeledImpressionsStorageParams =
+        VidLabelerParamsKt.storageParams {
+          gcsProjectId = "test-project"
+          impressionsBlobPrefix = "gs://output-bucket/labeled"
         }
     }
 
@@ -149,12 +169,14 @@ class VidLabelerAppTest {
   }
 
   @Test
-  fun `runWork throws when storage_params is not set`() = runBlocking {
+  fun `runWork throws when raw_impressions_storage_params is not set`() = runBlocking {
     val app = createApp()
     val params = vidLabelerParams { dataProvider = DATA_PROVIDER_NAME }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
-    assertThat(exception).hasMessageThat().contains("storage_params must be set")
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("raw_impressions_storage_params must be set")
   }
 
   companion object {
