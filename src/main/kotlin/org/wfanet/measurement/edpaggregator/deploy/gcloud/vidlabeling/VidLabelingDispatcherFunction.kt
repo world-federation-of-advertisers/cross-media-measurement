@@ -326,14 +326,25 @@ class VidLabelingDispatcherFunction : HttpFunction {
      * @return a [VidLabelerParams] template with static fields populated.
      */
     private fun buildVidLabelerParamsTemplate(config: VidLabelingConfig): VidLabelerParams {
-      require(config.storageParams.hasGcs()) { "VidLabelingConfig storage_params must use GCS" }
+      require(config.rawImpressionsStorageParams.hasGcs()) {
+        "VidLabelingConfig raw_impressions_storage_params must use GCS"
+      }
+      require(config.vidLabeledImpressionsStorageParams.hasGcs()) {
+        "VidLabelingConfig vid_labeled_impressions_storage_params must use GCS"
+      }
 
       return vidLabelerParams {
         dataProvider = config.dataProvider
-        storageParams =
+        vidLabeledImpressionsStorageParams =
           VidLabelerParamsKt.storageParams {
-            gcsProjectId = config.storageParams.gcs.projectId
-            labeledImpressionsBlobPrefix = "gs://${config.storageParams.gcs.bucketName}"
+            gcsProjectId = config.vidLabeledImpressionsStorageParams.gcs.projectId
+            impressionsBlobPrefix =
+              "gs://${config.vidLabeledImpressionsStorageParams.gcs.bucketName}"
+          }
+        rawImpressionsStorageParams =
+          VidLabelerParamsKt.storageParams {
+            gcsProjectId = config.rawImpressionsStorageParams.gcs.projectId
+            impressionsBlobPrefix = "gs://${config.rawImpressionsStorageParams.gcs.bucketName}"
           }
         vidRepoConnection = transportLayerSecurityParams {
           clientCertResourcePath = config.vidRepoConnection.certFilePath

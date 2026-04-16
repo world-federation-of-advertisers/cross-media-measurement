@@ -136,7 +136,9 @@ class VidLabelingDispatcher(
 
         val params = vidLabelerParams {
           dataProvider = vidLabelerParamsTemplate.dataProvider
-          storageParams = vidLabelerParamsTemplate.storageParams
+          vidLabeledImpressionsStorageParams =
+            vidLabelerParamsTemplate.vidLabeledImpressionsStorageParams
+          rawImpressionsStorageParams = vidLabelerParamsTemplate.rawImpressionsStorageParams
           vidRepoConnection = vidLabelerParamsTemplate.vidRepoConnection
           modelLineConfigs.putAll(vidLabelerParamsTemplate.modelLineConfigsMap)
           overrideModelLines += vidLabelerParamsTemplate.overrideModelLinesList
