@@ -113,6 +113,15 @@ class DataAvailabilityCleanup(
           "Live version still exists for $deletedBlobPath. " +
             "Skipping cleanup (noncurrent version deletion)."
         )
+        metrics.cleanupSkippedCounter.add(
+          1,
+          Attributes.of(
+            DataAvailabilityCleanupMetrics.DATA_PROVIDER_KEY_ATTR,
+            dataProviderName,
+            DataAvailabilityCleanupMetrics.CLEANUP_STATUS_ATTR,
+            DataAvailabilityCleanupMetrics.CLEANUP_SKIP_REASON_NONCURRENT_VERSION,
+          ),
+        )
         cleanupStatus = CleanupStatus.SKIPPED
         return CleanupResult(cleanupStatus)
       }
