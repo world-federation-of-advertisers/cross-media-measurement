@@ -23,23 +23,6 @@ resource "google_storage_bucket" "bucket" {
     enabled = var.versioning_enabled
   }
 
-  # Permanently delete noncurrent object versions when versioning is enabled.
-  # With versioning, lifecycle Delete on a live object only archives it (makes
-  # it noncurrent). This rule ensures noncurrent versions are permanently
-  # deleted, which fires the OBJECT_DELETE event needed by DataAvailabilityCleanup.
-  dynamic "lifecycle_rule" {
-    for_each = var.versioning_enabled ? [1] : []
-    content {
-      condition {
-        days_since_noncurrent_time = 0
-        with_state                 = "ARCHIVED"
-      }
-      action {
-        type = "Delete"
-      }
-    }
-  }
-
   # Prevent accidental deletion of objects during the retention period
   dynamic "retention_policy" {
     for_each = var.retention_period_days != null ? [1] : []
