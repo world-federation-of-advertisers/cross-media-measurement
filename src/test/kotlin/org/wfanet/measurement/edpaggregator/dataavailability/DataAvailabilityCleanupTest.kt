@@ -17,7 +17,6 @@
 package org.wfanet.measurement.edpaggregator.dataavailability
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.grpc.Status
@@ -27,11 +26,11 @@ import io.opentelemetry.sdk.metrics.data.MetricData
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.io.File
-import java.nio.file.Files
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
@@ -104,11 +103,11 @@ class DataAvailabilityCleanupTest {
     ImpressionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
+  @get:Rule val tempFolder = TemporaryFolder()
+
   /** A StorageClient backed by an empty directory — getBlob always returns null. */
-  private val emptyStorageClient: FileSystemStorageClient by lazy {
-    val dir = Files.createTempDirectory("cleanup-empty-storage").toFile()
-    FileSystemStorageClient(dir)
-  }
+  private val emptyStorageClient: FileSystemStorageClient
+    get() = FileSystemStorageClient(tempFolder.newFolder("empty-storage"))
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule { addService(impressionMetadataServiceMock) }
@@ -237,7 +236,12 @@ class DataAvailabilityCleanupTest {
     val metricsEnv = createMetricsEnvironment()
     try {
       val dataAvailabilityCleanup =
-        DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient, metricsEnv.metrics)
+        DataAvailabilityCleanup(
+          impressionMetadataStub,
+          DATA_PROVIDER_NAME,
+          emptyStorageClient,
+          metricsEnv.metrics
+        )
 
       val exception =
         assertFailsWith<IllegalStateException> { dataAvailabilityCleanup.cleanup(BLOB_URI, null) }
@@ -307,7 +311,12 @@ class DataAvailabilityCleanupTest {
     val metricsEnv = createMetricsEnvironment()
     try {
       val dataAvailabilityCleanup =
-        DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient, metricsEnv.metrics)
+        DataAvailabilityCleanup(
+          impressionMetadataStub,
+          DATA_PROVIDER_NAME,
+          emptyStorageClient,
+          metricsEnv.metrics
+        )
 
       dataAvailabilityCleanup.cleanup(BLOB_URI, RESOURCE_ID)
 
@@ -341,7 +350,12 @@ class DataAvailabilityCleanupTest {
     val metricsEnv = createMetricsEnvironment()
     try {
       val dataAvailabilityCleanup =
-        DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient, metricsEnv.metrics)
+        DataAvailabilityCleanup(
+          impressionMetadataStub,
+          DATA_PROVIDER_NAME,
+          emptyStorageClient,
+          metricsEnv.metrics
+        )
 
       dataAvailabilityCleanup.cleanup(BLOB_URI, null)
 
@@ -374,7 +388,12 @@ class DataAvailabilityCleanupTest {
     val metricsEnv = createMetricsEnvironment()
     try {
       val dataAvailabilityCleanup =
-        DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient, metricsEnv.metrics)
+        DataAvailabilityCleanup(
+          impressionMetadataStub,
+          DATA_PROVIDER_NAME,
+          emptyStorageClient,
+          metricsEnv.metrics
+        )
 
       try {
         dataAvailabilityCleanup.cleanup(BLOB_URI, RESOURCE_ID)
@@ -413,7 +432,12 @@ class DataAvailabilityCleanupTest {
     val metricsEnv = createMetricsEnvironment()
     try {
       val dataAvailabilityCleanup =
-        DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient, metricsEnv.metrics)
+        DataAvailabilityCleanup(
+          impressionMetadataStub,
+          DATA_PROVIDER_NAME,
+          emptyStorageClient,
+          metricsEnv.metrics
+        )
 
       dataAvailabilityCleanup.cleanup(BLOB_URI, RESOURCE_ID)
 
@@ -434,52 +458,43 @@ class DataAvailabilityCleanupTest {
 
   @Test
   fun `cleanup skips deletion when live version still exists in storage`() = runBlocking {
-    val tempDir = Files.createTempDirectory("cleanup-test").toFile()
-    try {
-      // Create a file to simulate a live version existing in storage
-      val blobDir = File(tempDir, "path/to")
-      blobDir.mkdirs()
-      File(blobDir, "blob").writeBytes("live version content".toByteArray())
+    val tempDir = tempFolder.newFolder("live-version-storage")
+    // Create a file to simulate a live version existing in storage
+    val blobDir = File(tempDir, "path/to")
+    blobDir.mkdirs()
+    File(blobDir, "blob").writeBytes("live version content".toByteArray())
 
-      val storageClient = FileSystemStorageClient(tempDir)
-      val dataAvailabilityCleanup =
-        DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, storageClient)
+    val storageClient = FileSystemStorageClient(tempDir)
+    val dataAvailabilityCleanup =
+      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, storageClient)
 
-      val blobPath = "file:///${tempDir.name}/path/to/blob"
-      val result = dataAvailabilityCleanup.cleanup(blobPath, RESOURCE_ID)
+    val blobPath = "file:///${tempDir.name}/path/to/blob"
+    val result = dataAvailabilityCleanup.cleanup(blobPath, RESOURCE_ID)
 
-      assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SKIPPED)
+    assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SKIPPED)
 
-      // Verify delete was NOT called since a live version exists
-      verifyBlocking(impressionMetadataServiceMock, never()) { deleteImpressionMetadata(any()) }
-    } finally {
-      tempDir.deleteRecursively()
-    }
+    // Verify delete was NOT called since a live version exists
+    verifyBlocking(impressionMetadataServiceMock, never()) { deleteImpressionMetadata(any()) }
   }
 
   @Test
   fun `cleanup proceeds with deletion when no live version exists in storage`() = runBlocking {
-    val tempDir = Files.createTempDirectory("cleanup-test").toFile()
-    try {
-      // Do NOT create any file — simulates a permanent deletion with no live version
-      val storageClient = FileSystemStorageClient(tempDir)
-      val dataAvailabilityCleanup =
-        DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, storageClient)
+    val tempDir = tempFolder.newFolder("no-live-version-storage")
+    // Do NOT create any file — simulates a permanent deletion with no live version
+    val storageClient = FileSystemStorageClient(tempDir)
+    val dataAvailabilityCleanup =
+      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, storageClient)
 
-      val blobPath = "file:///${tempDir.name}/path/to/blob"
-      val result = dataAvailabilityCleanup.cleanup(blobPath, RESOURCE_ID)
+    val blobPath = "file:///${tempDir.name}/path/to/blob"
+    val result = dataAvailabilityCleanup.cleanup(blobPath, RESOURCE_ID)
 
-      assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SUCCESS)
+    assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SUCCESS)
 
-      // Verify delete WAS called since no live version exists
-      val deleteCaptor = argumentCaptor<DeleteImpressionMetadataRequest>()
-      verifyBlocking(impressionMetadataServiceMock, times(1)) {
-        deleteImpressionMetadata(deleteCaptor.capture())
-      }
-      assertThat(deleteCaptor.firstValue.name).isEqualTo(RESOURCE_ID)
-    } finally {
-      tempDir.deleteRecursively()
+    // Verify delete WAS called since no live version exists
+    val deleteCaptor = argumentCaptor<DeleteImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      deleteImpressionMetadata(deleteCaptor.capture())
     }
+    assertThat(deleteCaptor.firstValue.name).isEqualTo(RESOURCE_ID)
   }
-
 }
