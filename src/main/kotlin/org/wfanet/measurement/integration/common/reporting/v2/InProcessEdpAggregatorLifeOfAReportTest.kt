@@ -843,6 +843,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .isWithin(GAUSSIAN_REACH_TOLERANCE)
       .of(expectedCrossPublisherReach.toDouble())
 
+    assertWithMessage("Gaussian noise was applied to cross-publisher reach")
+      .that(reportingUnitCumulative.reach)
+      .isNotEqualTo(expectedCrossPublisherReach)
+
     assertWithMessage("cross-publisher percent reach")
       .that(reportingUnitCumulative.percentReach)
       .isGreaterThan(0f)
@@ -851,6 +855,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .that(reportingUnitCumulative.impressions.toDouble())
       .isWithin(GAUSSIAN_IMPRESSION_TOLERANCE)
       .of(expectedCrossPublisherImpressions.toDouble())
+
+    assertWithMessage("Gaussian noise was applied to cross-publisher impressions")
+      .that(reportingUnitCumulative.impressions)
+      .isNotEqualTo(expectedCrossPublisherImpressions)
 
     assertWithMessage("cross-publisher average frequency")
       .that(reportingUnitCumulative.averageFrequency)
@@ -902,6 +910,13 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .that(sortedComponentReaches[1].toDouble())
       .isWithin(GAUSSIAN_REACH_TOLERANCE)
       .of(expectedEdpSpec1Reach.toDouble())
+
+    assertWithMessage("Gaussian noise was applied to at least one component reach")
+      .that(
+        sortedComponentReaches[0] != expectedEdpSpec2Reach ||
+          sortedComponentReaches[1] != expectedEdpSpec1Reach
+      )
+      .isTrue()
   }
 
   private fun assertRunningBasicReport(
