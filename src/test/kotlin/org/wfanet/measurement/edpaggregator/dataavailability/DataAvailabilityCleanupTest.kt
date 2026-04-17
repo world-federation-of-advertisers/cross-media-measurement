@@ -27,6 +27,7 @@ import io.opentelemetry.sdk.metrics.data.MetricData
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.io.File
+import java.nio.file.Files
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -105,7 +106,7 @@ class DataAvailabilityCleanupTest {
 
   /** A StorageClient backed by an empty directory — getBlob always returns null. */
   private val emptyStorageClient: FileSystemStorageClient by lazy {
-    val dir = createTempDir("cleanup-empty-storage")
+    val dir = Files.createTempDirectory("cleanup-empty-storage").toFile()
     FileSystemStorageClient(dir)
   }
 
@@ -433,7 +434,7 @@ class DataAvailabilityCleanupTest {
 
   @Test
   fun `cleanup skips deletion when live version still exists in storage`() = runBlocking {
-    val tempDir = createTempDir("cleanup-test")
+    val tempDir = Files.createTempDirectory("cleanup-test").toFile()
     try {
       // Create a file to simulate a live version existing in storage
       val blobDir = File(tempDir, "path/to")
@@ -458,7 +459,7 @@ class DataAvailabilityCleanupTest {
 
   @Test
   fun `cleanup proceeds with deletion when no live version exists in storage`() = runBlocking {
-    val tempDir = createTempDir("cleanup-test")
+    val tempDir = Files.createTempDirectory("cleanup-test").toFile()
     try {
       // Do NOT create any file — simulates a permanent deletion with no live version
       val storageClient = FileSystemStorageClient(tempDir)
