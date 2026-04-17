@@ -266,7 +266,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
             ),
           edpMultiPartyNoiseTypes =
             mapOf(
-              "edp4" to listOf(ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN),
+              "edp4" to listOf(ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN)
             ),
         )
         runBlocking {
