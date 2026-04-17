@@ -245,6 +245,7 @@ class InProcessEdpAggregatorComponents(
     edpCapabilities: Map<String, DataProvider.Capabilities>,
     duchyMap: Map<String, Channel>,
     edpNoise: Map<String, ResultsFulfillerParams.NoiseParams.NoiseType>,
+    edpMultiPartyNoiseTypes: Map<String, List<ResultsFulfillerParams.NoiseParams.NoiseType>>,
   ) = runBlocking {
     require(edpNoise.keys == edpCapabilities.keys) {
       "edpNoise keys ${edpNoise.keys} must match edpCapabilities keys ${edpCapabilities.keys}"
@@ -280,6 +281,8 @@ class InProcessEdpAggregatorComponents(
               )!!,
               "file:///$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName",
               noiseType = edpNoise.getValue(edpAggregatorShortName),
+              supportedMultiPartyNoiseTypes =
+                edpMultiPartyNoiseTypes.getOrDefault(edpAggregatorShortName, emptyList()),
             )
         }
       getDataWatcherResultFulfillerParamsConfig(
