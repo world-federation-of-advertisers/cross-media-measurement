@@ -157,7 +157,7 @@ val PERMISSIONS_CONFIG: PermissionsConfig =
     PermissionsConfig.getDefaultInstance(),
   )
 
-val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3", "edp4")
+val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3", "edp4", "edp5")
 
 const val DUCHY_MILL_PARALLELISM = 3
 
