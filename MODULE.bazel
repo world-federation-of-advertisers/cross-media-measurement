@@ -83,6 +83,11 @@ bazel_dep(
     repo_name = "wfa_virtual_people_common",
 )
 bazel_dep(
+    name = "virtual-people-core-serving",
+    version = "0.2.1",
+    repo_name = "wfa_virtual_people_core_serving",
+)
+bazel_dep(
     name = "grpc_ecosystem_grpc_gateway",
     version = "2.26.0.bzlmod.1",
 )
