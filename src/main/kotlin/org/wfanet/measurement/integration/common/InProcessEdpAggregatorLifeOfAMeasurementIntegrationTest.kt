@@ -321,9 +321,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         mcSimulator.testReachOnly(
           "hmss-no-noise-1234",
           ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
-          eventGroupFilter = {
-            it.eventGroupReferenceId in HMSS_RESTRICTED_EVENT_GROUP_REF_IDS
-          },
+          eventGroupFilter = { it.eventGroupReferenceId in HMSS_RESTRICTED_EVENT_GROUP_REF_IDS },
         )
       }
     }
@@ -336,9 +334,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         mcSimulator.testReachOnly(
           "trustee-no-noise-1234",
           ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
-          eventGroupFilter = {
-            it.eventGroupReferenceId in TRUSTEE_RESTRICTED_EVENT_GROUP_REF_IDS
-          },
+          eventGroupFilter = { it.eventGroupReferenceId in TRUSTEE_RESTRICTED_EVENT_GROUP_REF_IDS },
         )
       }
     }
