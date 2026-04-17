@@ -81,7 +81,7 @@ message ResultsFulfillerParams {
   TransportLayerSecurityParams cmms_connection = 4
       [(google.api.field_behavior) = REQUIRED];
 
-  // The parameters for noise that is applied to the result.
+  // The parameters for noise that is applied to single EDP (direct) results.
   message NoiseParams {
     // The types of noise
     enum NoiseType {
@@ -96,7 +96,8 @@ message ResultsFulfillerParams {
     NoiseType noise_type = 1;
   }
 
-  // The noise params to be applied.
+  // The noise params to be applied to single EDP (direct) results only.
+  // For multi-party protocol noise, see `multi_party_config`.
   NoiseParams noise_params = 5;
 
   // The parameters for k-anonymity that is applied to the result. Note that if

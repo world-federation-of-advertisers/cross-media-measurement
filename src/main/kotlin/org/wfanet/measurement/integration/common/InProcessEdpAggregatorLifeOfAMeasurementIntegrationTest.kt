@@ -20,6 +20,7 @@ import com.google.crypto.tink.KeysetHandle
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.logging.Logger
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -172,7 +173,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
           "edp3" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
           "edp4" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
         ),
-      edpMultiPartyNoiseTypes = emptyMap(),
+      edpMultiPartyNoiseTypes =
+        mapOf("edp4" to listOf(ResultsFulfillerParams.NoiseParams.NoiseType.NONE)),
     )
     initMcSimulator()
   }
@@ -274,6 +276,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       mcSimulator.testReachOnly(
         "1234",
         ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+        eventGroupFilter = { it.eventGroupReferenceId != RESTRICTED_EDP_EVENT_GROUP_REF_ID },
       )
     }
 
@@ -284,6 +287,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       mcSimulator.testReachAndFrequency(
         "1234",
         ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+        eventGroupFilter = { it.eventGroupReferenceId != RESTRICTED_EDP_EVENT_GROUP_REF_ID },
       )
     }
 
@@ -291,7 +295,11 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   fun `create a TrusTee reach-only measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a TrusTee reach-only measurement and verify its result.
-      mcSimulator.testReachOnly("1234", ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE)
+      mcSimulator.testReachOnly(
+        "1234",
+        ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
+        eventGroupFilter = { it.eventGroupReferenceId != RESTRICTED_EDP_EVENT_GROUP_REF_ID },
+      )
     }
 
   @Test
@@ -299,10 +307,50 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     runBlocking {
       // Use frontend simulator to create a TrusTee reach and frequency measurement and verify its
       // result.
-      mcSimulator.testReachAndFrequency("1234", ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE)
+      mcSimulator.testReachAndFrequency(
+        "1234",
+        ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
+        eventGroupFilter = { it.eventGroupReferenceId != RESTRICTED_EDP_EVENT_GROUP_REF_ID },
+      )
     }
 
+  @Test
+  fun `HMSS measurement fails when EDP requires no noise`() {
+    assertFailsWith<IllegalStateException>("Expected measurement to fail") {
+      runBlocking {
+        mcSimulator.testReachOnly(
+          "hmss-no-noise-1234",
+          ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+          eventGroupFilter = {
+            it.eventGroupReferenceId in HMSS_RESTRICTED_EVENT_GROUP_REF_IDS
+          },
+        )
+      }
+    }
+  }
+
+  @Test
+  fun `TrusTee measurement fails when EDP requires no noise`() {
+    assertFailsWith<IllegalStateException>("Expected measurement to fail") {
+      runBlocking {
+        mcSimulator.testReachOnly(
+          "trustee-no-noise-1234",
+          ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
+          eventGroupFilter = {
+            it.eventGroupReferenceId in TRUSTEE_RESTRICTED_EVENT_GROUP_REF_IDS
+          },
+        )
+      }
+    }
+  }
+
   companion object {
+    private const val RESTRICTED_EDP_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-4"
+    private val HMSS_RESTRICTED_EVENT_GROUP_REF_IDS =
+      setOf("edpa-eg-reference-id-1", RESTRICTED_EDP_EVENT_GROUP_REF_ID)
+    private val TRUSTEE_RESTRICTED_EVENT_GROUP_REF_IDS =
+      setOf("edpa-eg-reference-id-3", RESTRICTED_EDP_EVENT_GROUP_REF_ID)
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val modelLineName =
       "modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelLines/AAAAAAAAAHs"
