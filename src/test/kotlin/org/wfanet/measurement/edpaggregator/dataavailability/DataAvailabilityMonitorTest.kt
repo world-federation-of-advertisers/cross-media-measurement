@@ -27,6 +27,7 @@ import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.io.File
 import java.time.LocalDate
+import java.time.ZoneId
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -38,8 +39,16 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.EDP_IMPRESSION_PATH_ATTR
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.MODEL_LINE_ATTR
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata as V1AlphaImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata as v1alphaImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)
@@ -47,11 +56,49 @@ class DataAvailabilityMonitorTest {
 
   @get:Rule val tempFolder = TemporaryFolder()
 
+  private val DATA_PROVIDER_NAME = "dataProviders/testProvider1"
+  private val BUCKET_NAME = "test-bucket"
+
+  private val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase =
+    mockService {
+      onBlocking { listImpressionMetadata(org.mockito.kotlin.any<ListImpressionMetadataRequest>()) }
+        .thenAnswer { _ ->
+          listImpressionMetadataResponse {
+            impressionMetadata += v1alphaImpressionMetadata {
+              name = "$DATA_PROVIDER_NAME/impressionMetadata/imp-deleted-1"
+              blobUri =
+                "gs://$BUCKET_NAME/$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata_campaign_123.json"
+              state = V1AlphaImpressionMetadata.State.DELETED
+            }
+          }
+        }
+    }
+
+  private val noDeletedEntriesServiceMock: ImpressionMetadataServiceCoroutineImplBase =
+    mockService {
+      onBlocking { listImpressionMetadata(org.mockito.kotlin.any<ListImpressionMetadataRequest>()) }
+        .thenAnswer { _ -> listImpressionMetadataResponse {} }
+    }
+
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule { addService(impressionMetadataServiceMock) }
+
+  @get:Rule val grpcTestServerRule2 = GrpcTestServerRule { addService(noDeletedEntriesServiceMock) }
+
+  private val impressionMetadataStubForTest: ImpressionMetadataServiceCoroutineStub by lazy {
+    ImpressionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  private val noDeletedEntriesStub: ImpressionMetadataServiceCoroutineStub by lazy {
+    ImpressionMetadataServiceCoroutineStub(grpcTestServerRule2.channel)
+  }
+
   companion object {
     private const val EDP_IMPRESSION_PATH = "edp/edp1/vid-labeled-impressions"
     private val MODEL_LINE_A = ModelLineKey("provider1", "suite1", "modelLineA")
     private val MODEL_LINE_B = ModelLineKey("provider1", "suite1", "modelLineB")
     private val TODAY = LocalDate.of(2026, 3, 15)
+    private val TIME_ZONE = ZoneId.of("UTC")
 
     private const val STALE_DAYS_METRIC = "edpa.data_availability.stale_days"
     private const val DATE_COUNT_METRIC = "edpa.data_availability.date_count"
@@ -139,9 +186,17 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
     assertThat(result.statuses).hasSize(1)
 
     val status = result.statuses.single()
@@ -175,9 +230,17 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val status = result.statuses.single()
     assertThat(status.isStale).isTrue()
@@ -199,9 +262,17 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val status = result.statuses.single()
     assertThat(status.isStale).isFalse()
@@ -222,9 +293,17 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val status = result.statuses.single()
     assertThat(status.gapDates)
@@ -254,9 +333,17 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A, MODEL_LINE_B),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val statusA = result.statuses.first { it.modelLineKey == MODEL_LINE_A }
     assertThat(statusA.isStale).isFalse()
@@ -276,9 +363,17 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
     val status = result.statuses.single()
     assertThat(status.isStale).isNull()
     assertThat(status.gapDates).isNull()
@@ -299,9 +394,17 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val status = result.statuses.single()
     assertThat(status.isStale).isFalse()
@@ -322,9 +425,17 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val status = result.statuses.single()
     assertThat(status.isStale).isTrue()
@@ -349,6 +460,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result = monitor.checkGaps()
@@ -378,6 +491,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result = monitor.checkGaps()
@@ -397,6 +512,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result = monitor.checkGaps()
@@ -427,6 +544,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result = monitor.checkGaps()
@@ -454,6 +573,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result = monitor.checkGaps()
@@ -479,9 +600,17 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
     val status = result.statuses.single()
     assertThat(status.latestDate).isEqualTo(LocalDate.of(2026, 3, 15))
     assertThat(status.gapDates).isEmpty()
@@ -506,6 +635,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result = monitor.checkGaps()
@@ -532,9 +663,17 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val status = result.statuses.single()
     assertThat(status.gapDates).isEmpty()
@@ -553,10 +692,17 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     assertFailsWith<IllegalArgumentException> {
-      monitor.checkFullStatus(maxStaleDays = 0, clock = { TODAY })
+      monitor.checkFullStatus(
+        maxStaleDays = 0,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
     }
   }
 
@@ -569,6 +715,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = emptySet(),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
     }
   }
@@ -582,6 +730,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = "/$EDP_IMPRESSION_PATH",
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
     }
   }
@@ -595,6 +745,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = "$EDP_IMPRESSION_PATH/",
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
     }
   }
@@ -611,9 +763,17 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val status = result.statuses.single()
     assertThat(status.gapDates).isEmpty()
@@ -634,6 +794,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result = monitor.checkGaps()
@@ -664,9 +826,17 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val status = result.statuses.single()
     assertThat(status.datesWithoutDoneBlob).containsExactly(LocalDate.of(2026, 3, 14))
@@ -692,6 +862,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result = monitor.checkGaps()
@@ -726,9 +898,17 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val status = result.statuses.single()
     // Stale: latest done date is March 12, today is March 15 = 3 days, not > 3
@@ -755,9 +935,16 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
-    monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    monitor.checkFullStatus(
+      maxStaleDays = 3,
+      timeZone = TIME_ZONE,
+      clock = { TODAY },
+      spuriousDeletionLookbackDays = null,
+    )
 
     val metrics = collectMetrics()
     val metricByName = metrics.associateBy { it.name }
@@ -794,9 +981,16 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
-    monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    monitor.checkFullStatus(
+      maxStaleDays = 3,
+      timeZone = TIME_ZONE,
+      clock = { TODAY },
+      spuriousDeletionLookbackDays = null,
+    )
 
     val metrics = collectMetrics()
     val metricByName = metrics.associateBy { it.name }
@@ -827,6 +1021,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     monitor.checkGaps()
@@ -860,9 +1056,16 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
-    monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    monitor.checkFullStatus(
+      maxStaleDays = 3,
+      timeZone = TIME_ZONE,
+      clock = { TODAY },
+      spuriousDeletionLookbackDays = null,
+    )
 
     val metrics = collectMetrics()
     val metricByName = metrics.associateBy { it.name }
@@ -900,9 +1103,17 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
-    val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
     val status = result.statuses.single()
     assertThat(status.lateArrivingDates).containsExactly(LocalDate.of(2026, 3, 15))
@@ -926,9 +1137,17 @@ class DataAvailabilityMonitorTest {
           storageClient = storageClient,
           edpImpressionPath = EDP_IMPRESSION_PATH,
           activeModelLines = setOf(MODEL_LINE_A),
+          impressionMetadataStub = null,
+          dataProviderName = null,
         )
 
-      val result = monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+      val result =
+        monitor.checkFullStatus(
+          maxStaleDays = 3,
+          timeZone = TIME_ZONE,
+          clock = { TODAY },
+          spuriousDeletionLookbackDays = null,
+        )
 
       val status = result.statuses.single()
       assertThat(status.lateArrivingDates).isEmpty()
@@ -951,6 +1170,8 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
     val result = monitor.checkGaps()
@@ -976,12 +1197,170 @@ class DataAvailabilityMonitorTest {
         storageClient = storageClient,
         edpImpressionPath = EDP_IMPRESSION_PATH,
         activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
       )
 
-    monitor.checkFullStatus(maxStaleDays = 3, clock = { TODAY })
+    monitor.checkFullStatus(
+      maxStaleDays = 3,
+      timeZone = TIME_ZONE,
+      clock = { TODAY },
+      spuriousDeletionLookbackDays = null,
+    )
 
     val metrics = collectMetrics()
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_LATE_ARRIVING))
+      .isEqualTo(1)
+  }
+
+  @Test
+  fun `checkFullStatus throws when spurious lookback set but stub is not provided`(): Unit =
+    runBlocking {
+      val storageClient = createStorageClient()
+      ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+      createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+      val monitor =
+        DataAvailabilityMonitor(
+          storageClient = storageClient,
+          edpImpressionPath = EDP_IMPRESSION_PATH,
+          activeModelLines = setOf(MODEL_LINE_A),
+          impressionMetadataStub = null,
+          dataProviderName = null,
+        )
+
+      assertFailsWith<IllegalStateException> {
+        monitor.checkFullStatus(
+          maxStaleDays = 3,
+          timeZone = TIME_ZONE,
+          clock = { TODAY },
+          spuriousDeletionLookbackDays = 90,
+        )
+      }
+    }
+
+  @Test
+  fun `checkFullStatus detects spurious deletion when blob still exists`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+    // Create a blob that matches the deleted entry's blobUri
+    val blobPath =
+      "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata_campaign_123.json"
+    storageClient.writeBlob(blobPath, ByteString.copyFromUtf8("data"))
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = impressionMetadataStubForTest,
+        dataProviderName = DATA_PROVIDER_NAME,
+      )
+
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = 90,
+      )
+
+    val status = result.statuses.single()
+    assertThat(status.spuriousDeletionCount).isEqualTo(1)
+    assertThat(status.legitimateDeletionCount).isEqualTo(0)
+  }
+
+  @Test
+  fun `checkFullStatus counts legitimate deletion when blob is gone`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = impressionMetadataStubForTest,
+        dataProviderName = DATA_PROVIDER_NAME,
+      )
+
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = 90,
+      )
+
+    val status = result.statuses.single()
+    assertThat(status.spuriousDeletionCount).isEqualTo(0)
+    assertThat(status.legitimateDeletionCount).isEqualTo(1)
+  }
+
+  @Test
+  fun `checkFullStatus returns zero spurious counts when no deleted entries`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = noDeletedEntriesStub,
+        dataProviderName = DATA_PROVIDER_NAME,
+      )
+
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = 90,
+      )
+
+    val status = result.statuses.single()
+    assertThat(status.spuriousDeletionCount).isEqualTo(0)
+    assertThat(status.legitimateDeletionCount).isEqualTo(0)
+  }
+
+  @Test
+  fun `checkFullStatus emits spurious deletion metrics`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+    val blobPath =
+      "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata_campaign_123.json"
+    storageClient.writeBlob(blobPath, ByteString.copyFromUtf8("data"))
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = impressionMetadataStubForTest,
+        dataProviderName = DATA_PROVIDER_NAME,
+      )
+
+    monitor.checkFullStatus(
+      maxStaleDays = 3,
+      timeZone = TIME_ZONE,
+      clock = { TODAY },
+      spuriousDeletionLookbackDays = 90,
+    )
+
+    val metrics = collectMetrics()
+    assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_SPURIOUS_DELETION))
       .isEqualTo(1)
   }
 }
