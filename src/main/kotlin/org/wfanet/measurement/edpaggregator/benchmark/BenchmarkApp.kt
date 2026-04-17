@@ -42,11 +42,18 @@ class BenchmarkApp : Runnable {
   private lateinit var modelPath: String
 
   @CommandLine.Option(
-    names = ["--scale-factor"],
-    description = ["Scale factor for data volume (1.0 = 30M reach, 0.001 = 30K for dev)"],
-    defaultValue = "0.001",
+    names = ["--total-reach"],
+    description = ["Total unique accounts to simulate across all days"],
+    required = true,
   )
-  private var scaleFactor: Double = 0.001
+  private var totalReach: Int = 0
+
+  @CommandLine.Option(
+    names = ["--total-impressions"],
+    description = ["Total impressions to simulate across all days"],
+    required = true,
+  )
+  private var totalImpressions: Int = 0
 
   @CommandLine.Option(
     names = ["--days"],
@@ -96,7 +103,7 @@ class BenchmarkApp : Runnable {
 
       spannerFlags.usingSpanner { spanner ->
         val databaseClient = spanner.databaseClient
-        val dataGenerator = DataGenerator(scaleFactor)
+        val dataGenerator = DataGenerator(totalReach, totalImpressions)
         val pipeline =
           Pipeline(
             databaseClient = databaseClient,
@@ -110,10 +117,7 @@ class BenchmarkApp : Runnable {
         println()
         println("=== Memoized VID Assignment Benchmark ===")
         println(
-          "Scale: ${scaleFactor}x | Days: $days | DB batch: $dbBatchSize | Pools: $numPools"
-        )
-        println(
-          "Total reach: ${dataGenerator.totalReach} | Total impressions: ${dataGenerator.totalImpressions}"
+          "Reach: $totalReach | Impressions: $totalImpressions | Days: $days | DB batch: $dbBatchSize | Pools: $numPools"
         )
         println()
 

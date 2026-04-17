@@ -55,7 +55,7 @@ class Pipeline(
   suspend fun initializePoolCounters() {
     for (i in 0 until numPools) {
       val poolId = "pool-$i"
-      databaseClient.readWriteTransaction { txn ->
+      databaseClient.readWriteTransaction().run { txn ->
         val existing = txn.readPoolCounter(dataProvider, modelRelease, poolId)
         if (existing == null) {
           txn.insertPoolCounter(
@@ -86,7 +86,7 @@ class Pipeline(
     val bulkLookupMs = timed {
       val allFingerprints = accountFingerprints.values.toList()
       for (batch in allFingerprints.chunked(dbBatchSize)) {
-        databaseClient.readWriteTransaction { txn ->
+        databaseClient.readWriteTransaction().run { txn ->
           val results = txn.bulkLookupRanks(dataProvider, modelRelease, batch)
           knownRanks.putAll(results)
         }
@@ -110,8 +110,8 @@ class Pipeline(
         val output = labeler.label(input)
         // Derive pool_id from the VID output
         val vid =
-          if (output.virtualPersonActivitiesList.isNotEmpty()) {
-            output.virtualPersonActivitiesList[0].virtualPersonId
+          if (output.peopleList.isNotEmpty()) {
+            output.peopleList[0].virtualPersonId
           } else {
             0L
           }
@@ -125,7 +125,7 @@ class Pipeline(
     val poolGroups = newAccountPoolAssignments.entries.groupBy({ it.value }, { it.key })
     val rankAllocMs = timed {
       for ((poolId, userIds) in poolGroups) {
-        databaseClient.readWriteTransaction { txn ->
+        databaseClient.readWriteTransaction().run { txn ->
           poolToStartRank[poolId] = txn.allocateRanks(
             dataProvider, modelRelease, poolId, userIds.size
           )
@@ -151,7 +151,7 @@ class Pipeline(
     }
     val writeRanksMs = timed {
       for (batch in newRankEntries.chunked(dbBatchSize)) {
-        databaseClient.readWriteTransaction { txn ->
+        databaseClient.readWriteTransaction().run { txn ->
           txn.batchInsertRankEntries(batch)
         }
       }

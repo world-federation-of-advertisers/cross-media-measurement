@@ -121,6 +121,7 @@
     "https://bcr.bazel.build/modules/gflags/2.2.2/MODULE.bazel": "ba6502c3fee189734f359454db8a49b7c08afd7271b32e7c6fc38c2d2e1edbeb",
     "https://bcr.bazel.build/modules/gflags/2.2.2/source.json": "b06d93702e18b5d75a69d53464c37ef5c2a9b4e237a8d4f2bf0217b3b0af2bee",
     "https://bcr.bazel.build/modules/glog/0.5.0/MODULE.bazel": "f5e4f5ae1c0642c84a06a68c5428a576b28bac2cd1dfa3faf5b6d683c69007a4",
+    "https://bcr.bazel.build/modules/glog/0.6.0/MODULE.bazel": "64078738c906382b2e86a8cd9005085136a1b0b5c697a95376b64ce9dea7712d",
     "https://bcr.bazel.build/modules/glog/0.7.1/MODULE.bazel": "56479ec15bd11a411f46ee4a381c305b8d0763462713027d5421efe68de0e468",
     "https://bcr.bazel.build/modules/glog/0.7.1/source.json": "110c33d8557e88aa65b3069eaaa13ab8c0c758a74ed78053954a9368ef62bcfe",
     "https://bcr.bazel.build/modules/google_benchmark/1.8.2/MODULE.bazel": "a70cf1bba851000ba93b58ae2f6d76490a9feb74192e57ab8e8ff13c34ec50cb",
@@ -139,7 +140,6 @@
     "https://bcr.bazel.build/modules/googleapis/0.0.0-20240819-fe8ba054a/MODULE.bazel": "117b7c7be7327ed5d6c482274533f2dbd78631313f607094d4625c28203cacdf",
     "https://bcr.bazel.build/modules/googleapis/0.0.0-20250703-f9d6fe4a/MODULE.bazel": "d1a3f5d60acdc6466b2f86320855c8a5543cec1af1e4bf9d34d3115fe043c851",
     "https://bcr.bazel.build/modules/googleapis/0.0.0-20251127-8cd3749f/MODULE.bazel": "0a7d8e0130d168498b6d84873349ca2ccd5ceeb929ba7857ca5d3fbe84fd24d4",
-    "https://bcr.bazel.build/modules/googleapis/0.0.0-20251127-8cd3749f/source.json": "9fe9804a6a425f22428eddf184c397237e41f81dd28897213bc1217b9e17095b",
     "https://bcr.bazel.build/modules/googletest/1.11.0/MODULE.bazel": "3a83f095183f66345ca86aa13c58b59f9f94a2f81999c093d4eeaa2d262d12f4",
     "https://bcr.bazel.build/modules/googletest/1.12.1/MODULE.bazel": "abc33f70934a2688139c34dbee705e541a9acd8bd404d09b77dbd869e9b911e1",
     "https://bcr.bazel.build/modules/googletest/1.14.0.bcr.1/MODULE.bazel": "22c31a561553727960057361aa33bf20fb2e98584bc4fec007906e27053f80c6",
@@ -319,6 +319,7 @@
     "https://bcr.bazel.build/modules/rules_java/6.5.2/MODULE.bazel": "1d440d262d0e08453fa0c4d8f699ba81609ed0e9a9a0f02cd10b3e7942e61e31",
     "https://bcr.bazel.build/modules/rules_java/7.1.0/MODULE.bazel": "30d9135a2b6561c761bd67bd4990da591e6bdc128790ce3e7afd6a3558b2fb64",
     "https://bcr.bazel.build/modules/rules_java/7.10.0/MODULE.bazel": "530c3beb3067e870561739f1144329a21c851ff771cd752a49e06e3dc9c2e71a",
+    "https://bcr.bazel.build/modules/rules_java/7.11.1/MODULE.bazel": "b4782e019dd0b0151bd49fd8929136fd4441f527eb208fbd991b77e480b7236e",
     "https://bcr.bazel.build/modules/rules_java/7.12.2/MODULE.bazel": "579c505165ee757a4280ef83cda0150eea193eed3bef50b1004ba88b99da6de6",
     "https://bcr.bazel.build/modules/rules_java/7.2.0/MODULE.bazel": "06c0334c9be61e6cef2c8c84a7800cef502063269a5af25ceb100b192453d4ab",
     "https://bcr.bazel.build/modules/rules_java/7.3.2/MODULE.bazel": "50dece891cfdf1741ea230d001aa9c14398062f2b7c066470accace78e412bc2",
@@ -342,6 +343,7 @@
     "https://bcr.bazel.build/modules/rules_jvm_external/6.1/MODULE.bazel": "75b5fec090dbd46cf9b7d8ea08cf84a0472d92ba3585b476f44c326eda8059c4",
     "https://bcr.bazel.build/modules/rules_jvm_external/6.2/MODULE.bazel": "36a6e52487a855f33cb960724eb56547fa87e2c98a0474c3acad94339d7f8e99",
     "https://bcr.bazel.build/modules/rules_jvm_external/6.3/MODULE.bazel": "c998e060b85f71e00de5ec552019347c8bca255062c990ac02d051bb80a38df0",
+    "https://bcr.bazel.build/modules/rules_jvm_external/6.4/MODULE.bazel": "e859f460f0fcebbee0af2ac65a38c952eedb60612956395ba414fdf78babae2f",
     "https://bcr.bazel.build/modules/rules_jvm_external/6.6/MODULE.bazel": "153042249c7060536dc95b6bb9f9bb8063b8a0b0cb7acdb381bddbc2374aed55",
     "https://bcr.bazel.build/modules/rules_jvm_external/6.7/MODULE.bazel": "e717beabc4d091ecb2c803c2d341b88590e9116b8bf7947915eeb33aab4f96dd",
     "https://bcr.bazel.build/modules/rules_jvm_external/6.8/MODULE.bazel": "b5afe861e867e4c8e5b88e401cb7955bd35924258f97b1862cc966cbcf4f1a62",
@@ -352,6 +354,7 @@
     "https://bcr.bazel.build/modules/rules_kotlin/2.1.10/MODULE.bazel": "cf3e4e04cebd799ffdd76f07a5fcc05f7b8c47bae73b780a694fe76746a69440",
     "https://bcr.bazel.build/modules/rules_kotlin/2.1.10/source.json": "04a273e397fbb31ff3d328f44482c783feac979f33f3c2737fba880c84f8f340",
     "https://bcr.bazel.build/modules/rules_license/0.0.3/MODULE.bazel": "627e9ab0247f7d1e05736b59dbb1b6871373de5ad31c3011880b4133cafd4bd0",
+    "https://bcr.bazel.build/modules/rules_license/0.0.4/MODULE.bazel": "6a88dd22800cf1f9f79ba32cacad0d3a423ed28efa2c2ed5582eaa78dd3ac1e5",
     "https://bcr.bazel.build/modules/rules_license/0.0.7/MODULE.bazel": "088fbeb0b6a419005b89cf93fe62d9517c0a2b8bb56af3244af65ecfe37e7d5d",
     "https://bcr.bazel.build/modules/rules_license/0.0.8/MODULE.bazel": "5669c6fe49b5134dbf534db681ad3d67a2d49cfc197e4a95f1ca2fd7f3aebe96",
     "https://bcr.bazel.build/modules/rules_license/1.0.0/MODULE.bazel": "a7fda60eefdf3d8c827262ba499957e4df06f659330bbe6cdbdb975b768bb65c",
@@ -366,6 +369,7 @@
     "https://bcr.bazel.build/modules/rules_perl/0.2.4/MODULE.bazel": "5f5af7be4bf5fb88d91af7469518f0fd2161718aefc606188f7cd51f436ca938",
     "https://bcr.bazel.build/modules/rules_perl/0.2.4/source.json": "574317d6b3c7e4843fe611b76f15e62a1889949f5570702e1ee4ad335ea3c339",
     "https://bcr.bazel.build/modules/rules_pkg/0.7.0/MODULE.bazel": "df99f03fc7934a4737122518bb87e667e62d780b610910f0447665a7e2be62dc",
+    "https://bcr.bazel.build/modules/rules_pkg/0.9.1/MODULE.bazel": "af00144208c4be503bc920d043ba3284fb37385b3f6160b4a4daf4df80b4b823",
     "https://bcr.bazel.build/modules/rules_pkg/1.0.1/MODULE.bazel": "5b1df97dbc29623bccdf2b0dcd0f5cb08e2f2c9050aab1092fd39a41e82686ff",
     "https://bcr.bazel.build/modules/rules_pkg/1.0.1/source.json": "bd82e5d7b9ce2d31e380dd9f50c111d678c3bdaca190cb76b0e1c71b05e1ba8a",
     "https://bcr.bazel.build/modules/rules_proto/4.0.0/MODULE.bazel": "a7a7b6ce9bee418c1a760b3d84f83a299ad6952f9903c67f19e4edd964894e06",
@@ -531,6 +535,7 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/c-ares/1.19.1/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cel-spec/0.15.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/civetweb/1.16/MODULE.bazel": "not found",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cloud-spanner-emulator-bin/1.5.23/MODULE.bazel": "451c90440b42c7854ce058fadcd70b0d61397aa04ae149460aa516ac966e5eac",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cloud-spanner-emulator-bin/1.5.37.libcxx.1/MODULE.bazel": "e613534d63e9c0c100986a4c438c93ff0c6903223d215d63273c168407ff3395",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cloud-spanner-emulator-bin/1.5.37.libcxx.1/source.json": "a68ef196aab6142417530c86166a79aa3ef7dd68328bc6fea194491d9f3aadfc",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.11.0/MODULE.bazel": "22f7e06ac78cd614d2143fcd0e7028eb595d9902dbfa94f777531439c616f13f",
@@ -540,9 +545,11 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.129.0/MODULE.bazel": "2bf570f12d4cd8b5d743bc3d619b7bd554f7f18d8179114c33a30f39abb7e447",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.140.0/MODULE.bazel": "11ae47fee5df898da3ed4a8510e24bb390424a21f5be707f3f311d4a67dad22e",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.140.0/source.json": "7fb30d1e028df15e642a7b7f7529664e4c6e7ee550ae656567c1e164543bfb49",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.96.0/MODULE.bazel": "1bca0537055c659b1797115b00362563811e5f28749ca8897b2327bf4274aa68",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.23.0/MODULE.bazel": "5fde5a3f897ec6a39300666bc745cb309b4c12e74ce4fcddef6429e5e4a627a2",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.23.0/source.json": "3798af185e6c71cabea6550303035ea4ad325a6d53854ab056ee6c93acf03b89",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/crc32c/1.1.0/MODULE.bazel": "not found",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.70.0/MODULE.bazel": "c385f4377bf437402565d489cd672e2a451ebdea848f64cbf552676d37090d8c",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.87.0/MODULE.bazel": "c678b3f46885c8dea8e0de6215dc3b935ff93d632eec5d603e0690ce61571398",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.90.0/MODULE.bazel": "aacc649d1929bdf07dc2db029d584e9f5f94c9a6c1e3845e7d11679140eb6d76",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.90.0/source.json": "a85f3c95b057ef98fafbe9266b0b40db2dc44c3bcb680aa58366c2238454d2a6",
@@ -565,6 +572,7 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/gazelle/0.47.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/gflags/2.2.2/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/glog/0.5.0/MODULE.bazel": "not found",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/glog/0.6.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/glog/0.7.1/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/google_benchmark/1.8.2/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/google_benchmark/1.8.4/MODULE.bazel": "not found",
@@ -579,6 +587,8 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/googleapis/0.0.0-20250120-318818b.bzlmod.2/MODULE.bazel": "bc7b33b0bb086af82b8df26d22f377022bb8335a397a8f5ffdfa5447c4b21423",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/googleapis/0.0.0-20250703-f9d6fe4a/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/googleapis/0.0.0-20251127-8cd3749f/MODULE.bazel": "not found",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/googleapis/0.0.0-bzlmod.1/MODULE.bazel": "70e5569c0dff1cd32afa1a5fee0a70cfa01d99b221e9a6c31f7f917252c76fb0",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/googleapis/0.0.0-bzlmod.1/source.json": "9613485e0f8a83fbceaebd3573238a03072f584209371458a03de0cca6b2d3b6",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/googletest/1.11.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/googletest/1.12.1/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/googletest/1.14.0.bcr.1/MODULE.bazel": "not found",
@@ -735,6 +745,7 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_java/6.5.2/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_java/7.1.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_java/7.10.0/MODULE.bazel": "not found",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_java/7.11.1/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_java/7.12.2/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_java/7.2.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_java/7.3.2/MODULE.bazel": "not found",
@@ -757,6 +768,7 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_jvm_external/6.1/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_jvm_external/6.2/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_jvm_external/6.3/MODULE.bazel": "not found",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_jvm_external/6.4/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_jvm_external/6.6/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_jvm_external/6.7/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_jvm_external/6.8/MODULE.bazel": "not found",
@@ -764,11 +776,14 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_kotlin/1.9.5/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_kotlin/1.9.6/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_kotlin/2.1.10/MODULE.bazel": "not found",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_kotlin_jvm/0.1.1/MODULE.bazel": "0498b8f043a639cfd56f3a834b0c02749363c9229063226ca6b0197aa81dbd97",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_kotlin_jvm/0.10.0/MODULE.bazel": "5c0f8fb102fa23a25d64c6961c96ae42693f0b23226ebdaff33dc82112a63de2",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_kotlin_jvm/0.12.0/MODULE.bazel": "9890f3f1dd666a90bdec1647e541825618ca724976f0884e76dd070a991a5780",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_kotlin_jvm/0.12.0/source.json": "e5512215fd7e3be7f347247cb07f9462353ef87ec5797828e559ac208a3ca8a5",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_kotlin_jvm/0.4.0/MODULE.bazel": "081fda6bc8e893eadc449692c9b44b5584d6d1146d2850f5ae94bbeb27436729",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_kotlin_jvm/0.5.0/MODULE.bazel": "83293212c2e6e55fa27e70835ac665ccaacaced1539c447d2981eaebc0f6d9ae",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_license/0.0.3/MODULE.bazel": "not found",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_license/0.0.4/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_license/0.0.7/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_license/0.0.8/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_license/1.0.0/MODULE.bazel": "not found",
@@ -779,6 +794,7 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_oci/2.2.1/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_perl/0.2.4/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_pkg/0.7.0/MODULE.bazel": "not found",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_pkg/0.9.1/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_pkg/1.0.1/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_proto/4.0.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_proto/5.3.0-21.7/MODULE.bazel": "not found",
@@ -839,6 +855,7 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/upb/0.0.0-20220923-a547704/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/upb/0.0.0-20230516-61a97ef/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/upb/0.0.0-20230907-e7430e6/MODULE.bazel": "not found",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/virtual-people-common/0.4.0/MODULE.bazel": "ca8d37024da40821df69f73296977b5aaa6064ff90907206a7dec1f4a94a25e3",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/virtual-people-common/0.5.0/MODULE.bazel": "9258ccbfde180ffecb4b8dbf578095cb4593c796d7358dfa9b77c5d2b9497021",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/virtual-people-common/0.5.0/source.json": "bfe09d9e9cfcccc43af9006c4ca157b5206ce1924c0e69811c1ab2bb6a9b0cc2",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/xds/0.0.0-20240423-555b57e/MODULE.bazel": "not found",
@@ -854,7 +871,9 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/zlib/1.3/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/zstd/1.5.6/MODULE.bazel": "not found"
   },
-  "selectedYankedVersions": {},
+  "selectedYankedVersions": {
+    "googleapis@0.0.0-bzlmod.1": "Incorrect versioning scheme"
+  },
   "moduleExtensions": {
     "//build/cosign:extensions.bzl%cosign": {
       "general": {
@@ -1765,6 +1784,176 @@
             "envoy_api~",
             "envoy_api",
             "envoy_api~"
+          ]
+        ]
+      }
+    },
+    "@@googleapis~//:extensions.bzl%imports": {
+      "general": {
+        "bzlTransitiveDigest": "DVvQ5zp1ZdrBTVEsf8/fIZLVGp/2SJ6R9ojo+0DUazU=",
+        "usagesDigest": "3dXfltpb97TXCNAYkOLxTM0DbZLOuT4/PjoE4Z0VU5c=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "com_google_googleapis_imports": {
+            "bzlFile": "@@googleapis~//:repository_rules.bzl",
+            "ruleClassName": "switched_rules",
+            "attributes": {
+              "rules": {
+                "proto_library_with_info": [
+                  "",
+                  ""
+                ],
+                "moved_proto_library": [
+                  "",
+                  ""
+                ],
+                "java_proto_library": [
+                  "",
+                  ""
+                ],
+                "java_grpc_library": [
+                  "",
+                  ""
+                ],
+                "java_gapic_library": [
+                  "",
+                  ""
+                ],
+                "java_gapic_test": [
+                  "",
+                  ""
+                ],
+                "java_gapic_assembly_gradle_pkg": [
+                  "",
+                  ""
+                ],
+                "py_proto_library": [
+                  "",
+                  ""
+                ],
+                "py_grpc_library": [
+                  "",
+                  ""
+                ],
+                "py_gapic_library": [
+                  "",
+                  ""
+                ],
+                "py_test": [
+                  "",
+                  ""
+                ],
+                "py_gapic_assembly_pkg": [
+                  "",
+                  ""
+                ],
+                "py_import": [
+                  "",
+                  ""
+                ],
+                "go_proto_library": [
+                  "",
+                  ""
+                ],
+                "go_library": [
+                  "",
+                  ""
+                ],
+                "go_test": [
+                  "",
+                  ""
+                ],
+                "go_gapic_library": [
+                  "",
+                  ""
+                ],
+                "go_gapic_assembly_pkg": [
+                  "",
+                  ""
+                ],
+                "cc_proto_library": [
+                  "",
+                  ""
+                ],
+                "cc_grpc_library": [
+                  "",
+                  ""
+                ],
+                "cc_gapic_library": [
+                  "",
+                  ""
+                ],
+                "php_proto_library": [
+                  "",
+                  "php_proto_library"
+                ],
+                "php_grpc_library": [
+                  "",
+                  "php_grpc_library"
+                ],
+                "php_gapic_library": [
+                  "",
+                  "php_gapic_library"
+                ],
+                "php_gapic_assembly_pkg": [
+                  "",
+                  "php_gapic_assembly_pkg"
+                ],
+                "nodejs_gapic_library": [
+                  "",
+                  "typescript_gapic_library"
+                ],
+                "nodejs_gapic_assembly_pkg": [
+                  "",
+                  "typescript_gapic_assembly_pkg"
+                ],
+                "ruby_proto_library": [
+                  "",
+                  ""
+                ],
+                "ruby_grpc_library": [
+                  "",
+                  ""
+                ],
+                "ruby_ads_gapic_library": [
+                  "",
+                  ""
+                ],
+                "ruby_cloud_gapic_library": [
+                  "",
+                  ""
+                ],
+                "ruby_gapic_assembly_pkg": [
+                  "",
+                  ""
+                ],
+                "csharp_proto_library": [
+                  "",
+                  ""
+                ],
+                "csharp_grpc_library": [
+                  "",
+                  ""
+                ],
+                "csharp_gapic_library": [
+                  "",
+                  ""
+                ],
+                "csharp_gapic_assembly_pkg": [
+                  "",
+                  ""
+                ]
+              }
+            }
+          }
+        },
+        "recordedRepoMappingEntries": [
+          [
+            "googleapis~",
+            "com_google_googleapis",
+            "googleapis~"
           ]
         ]
       }

@@ -41,9 +41,7 @@ data class DayData(
   val totalImpressions: Int,
 )
 
-class DataGenerator(private val scaleFactor: Double) {
-  val totalReach: Int = (30_000_000 * scaleFactor).toInt().coerceAtLeast(10)
-  val totalImpressions: Int = (90_000_000 * scaleFactor).toInt().coerceAtLeast(30)
+class DataGenerator(val totalReach: Int, val totalImpressions: Int) {
 
   private val allSeenAccounts = mutableListOf<String>()
   private var nextAccountIndex = 0

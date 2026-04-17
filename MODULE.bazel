@@ -84,8 +84,13 @@ bazel_dep(
 )
 bazel_dep(
     name = "virtual-people-core-serving",
-    version = "0.2.1",
+    version = "0.2.2",
     repo_name = "wfa_virtual_people_core_serving",
+)
+git_override(
+    module_name = "virtual-people-core-serving",
+    remote = "https://github.com/world-federation-of-advertisers/virtual-people-core-serving",
+    commit = "8a83a76374a958c8e4cdc8976d3dcfab6fbde517",
 )
 bazel_dep(
     name = "grpc_ecosystem_grpc_gateway",
