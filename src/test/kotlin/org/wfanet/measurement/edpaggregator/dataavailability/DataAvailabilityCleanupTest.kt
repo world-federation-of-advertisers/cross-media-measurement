@@ -240,7 +240,7 @@ class DataAvailabilityCleanupTest {
           impressionMetadataStub,
           DATA_PROVIDER_NAME,
           emptyStorageClient,
-          metricsEnv.metrics
+          metricsEnv.metrics,
         )
 
       val exception =
@@ -315,7 +315,7 @@ class DataAvailabilityCleanupTest {
           impressionMetadataStub,
           DATA_PROVIDER_NAME,
           emptyStorageClient,
-          metricsEnv.metrics
+          metricsEnv.metrics,
         )
 
       dataAvailabilityCleanup.cleanup(BLOB_URI, RESOURCE_ID)
@@ -354,7 +354,7 @@ class DataAvailabilityCleanupTest {
           impressionMetadataStub,
           DATA_PROVIDER_NAME,
           emptyStorageClient,
-          metricsEnv.metrics
+          metricsEnv.metrics,
         )
 
       dataAvailabilityCleanup.cleanup(BLOB_URI, null)
@@ -392,7 +392,7 @@ class DataAvailabilityCleanupTest {
           impressionMetadataStub,
           DATA_PROVIDER_NAME,
           emptyStorageClient,
-          metricsEnv.metrics
+          metricsEnv.metrics,
         )
 
       try {
@@ -436,7 +436,7 @@ class DataAvailabilityCleanupTest {
           impressionMetadataStub,
           DATA_PROVIDER_NAME,
           emptyStorageClient,
-          metricsEnv.metrics
+          metricsEnv.metrics,
         )
 
       dataAvailabilityCleanup.cleanup(BLOB_URI, RESOURCE_ID)
