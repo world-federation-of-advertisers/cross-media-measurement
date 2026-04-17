@@ -19,6 +19,10 @@ resource "google_storage_bucket" "bucket" {
   uniform_bucket_level_access = true
   public_access_prevention    = "enforced"
 
+  versioning {
+    enabled = var.versioning_enabled
+  }
+
   # Prevent accidental deletion of objects during the retention period
   dynamic "retention_policy" {
     for_each = var.retention_period_days != null ? [1] : []
