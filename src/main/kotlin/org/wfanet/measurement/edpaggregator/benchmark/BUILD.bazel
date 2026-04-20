@@ -10,6 +10,7 @@ kt_jvm_library(
         "BigtableRankTableStorage.kt",
         "DataGenerator.kt",
         "GcsIo.kt",
+        "NoOpRankTableStorage.kt",
         "Pipeline.kt",
         "RankTableStorage.kt",
         "SpannerRankTableStorage.kt",

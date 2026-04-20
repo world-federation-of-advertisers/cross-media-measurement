@@ -25,7 +25,6 @@ import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import org.wfanet.virtualpeople.common.CompiledNode
 import org.wfanet.virtualpeople.core.labeler.Labeler
 import picocli.CommandLine
@@ -40,8 +39,26 @@ enum class StorageBackend {
   description = ["Benchmark for memoized VID assignment pipeline"],
 )
 class BenchmarkApp : Runnable {
-  @CommandLine.Mixin
-  private lateinit var spannerFlags: SpannerFlags
+  @CommandLine.Option(
+    names = ["--spanner-project"],
+    description = ["Spanner project (required unless --skip-db)"],
+    defaultValue = "",
+  )
+  private var spannerProject: String = ""
+
+  @CommandLine.Option(
+    names = ["--spanner-instance"],
+    description = ["Spanner instance (required unless --skip-db)"],
+    defaultValue = "",
+  )
+  private var spannerInstance: String = ""
+
+  @CommandLine.Option(
+    names = ["--spanner-database"],
+    description = ["Spanner database (required unless --skip-db)"],
+    defaultValue = "",
+  )
+  private var spannerDatabase: String = ""
 
   @CommandLine.Option(
     names = ["--model-path"],
@@ -197,6 +214,13 @@ class BenchmarkApp : Runnable {
   )
   private var bigtableCounterTable: String = "pool-counter"
 
+  @CommandLine.Option(
+    names = ["--skip-db"],
+    description = ["Skip all database operations; every account is treated as new each day"],
+    defaultValue = "false",
+  )
+  private var skipDb: Boolean = false
+
   override fun run() {
     runBlocking {
       println("Loading model from $modelPath...")
@@ -214,7 +238,7 @@ class BenchmarkApp : Runnable {
       println()
       println("=== Memoized VID Assignment Benchmark ===")
       println("  Reach: $totalReach | Impressions: $totalImpressions | Days: $days")
-      println("  Storage backend: $storageBackend")
+      println("  Storage backend: ${if (skipDb) "NONE (--skip-db)" else storageBackend.name}")
       println(
         "  CPU workers: $workers | DB read: $dbReadParallelism | DB write: $dbWriteParallelism | I/O: $ioParallelism"
       )
@@ -226,7 +250,11 @@ class BenchmarkApp : Runnable {
       val storageCloseable: AutoCloseable
       val storage: RankTableStorage
 
-      when (storageBackend) {
+      if (skipDb) {
+        println("Database operations DISABLED (--skip-db). All accounts treated as new.")
+        storage = NoOpRankTableStorage()
+        storageCloseable = storage
+      } else when (storageBackend) {
         StorageBackend.BIGTABLE -> {
           require(bigtableProject.isNotEmpty()) {
             "--bigtable-project is required when --storage-backend=BIGTABLE"
@@ -251,18 +279,27 @@ class BenchmarkApp : Runnable {
           storageCloseable = btStorage
         }
         StorageBackend.SPANNER -> {
+          require(spannerProject.isNotEmpty()) {
+            "--spanner-project is required when not using --skip-db"
+          }
+          require(spannerInstance.isNotEmpty()) {
+            "--spanner-instance is required when not using --skip-db"
+          }
+          require(spannerDatabase.isNotEmpty()) {
+            "--spanner-database is required when not using --skip-db"
+          }
           println("Connecting to Spanner...")
           val spannerService =
             SpannerOptions.newBuilder()
-              .setProjectId(spannerFlags.projectName)
+              .setProjectId(spannerProject)
               .build()
               .service
           val dbClient =
             spannerService.getDatabaseClient(
               DatabaseId.of(
-                spannerFlags.projectName,
-                spannerFlags.instanceName,
-                spannerFlags.databaseName,
+                spannerProject,
+                spannerInstance,
+                spannerDatabase,
               )
             )
           storage = SpannerRankTableStorage(dbClient)
