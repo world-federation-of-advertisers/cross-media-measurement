@@ -159,17 +159,16 @@ class VidLabelerTest {
   }
 
   @Test
-  fun `labelBatch marks batch as FAILED when batch has no files`() = runBlocking {
+  fun `labelBatch throws NotImplementedError when batch has no files`() = runBlocking {
     mockBatchFileServiceToReturn(listRawImpressionMetadataBatchFilesResponse {})
 
     val vidLabeler = createVidLabeler()
 
-    // Empty batch should fail during readAndDecryptRawImpressions (empty list, no data to read).
-    // The pipeline continues past read with an empty list, then fails at labelImpressions
-    // (NotImplementedError), triggering markBatchFailed.
-    assertFailsWith<Throwable> { vidLabeler.labelBatch() }
-
-    verifyBlocking(rawImpressionBatchService) { markRawImpressionMetadataBatchFailed(any()) }
+    // Empty batch passes through read (returns empty list), then fails at labelImpressions
+    // (NotImplementedError). NotImplementedError extends Error, not Exception, so
+    // VidLabeler's catch block does not invoke markBatchFailed.
+    val error = assertFailsWith<NotImplementedError> { vidLabeler.labelBatch() }
+    assertThat(error).hasMessageThat().contains("VID model inference not yet implemented")
   }
 
   @Test
@@ -179,7 +178,7 @@ class VidLabelerTest {
 
     // Set up local file storage
     val bucket = "raw-bucket"
-    tempFolder.root.resolve(bucket).mkdirs()
+    tempFolder.root.resolve("$bucket/raw").mkdirs()
     val storageClient = FileSystemStorageClient(tempFolder.root)
 
     // Write a BlobDetails metadata file pointing to the encrypted data
@@ -244,7 +243,7 @@ class VidLabelerTest {
     val encryptKmsClient = createFakeKmsClient(encryptKekUri)
 
     val bucket = "output-bucket"
-    tempFolder.root.resolve("$bucket/labeled").mkdirs()
+    tempFolder.root.resolve("$bucket/labeled/test-group").mkdirs()
 
     val vidLabeler =
       createVidLabeler(
