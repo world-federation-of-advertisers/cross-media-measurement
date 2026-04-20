@@ -7,12 +7,18 @@ kt_jvm_library(
     name = "benchmark_lib",
     srcs = [
         "BenchmarkApp.kt",
+        "BigtableRankTableStorage.kt",
         "DataGenerator.kt",
+        "GcsIo.kt",
         "Pipeline.kt",
+        "RankTableStorage.kt",
+        "SpannerRankTableStorage.kt",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/db",
+        "@maven//:com_google_cloud_google_cloud_bigtable",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",

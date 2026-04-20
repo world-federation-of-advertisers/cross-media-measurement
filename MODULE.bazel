@@ -268,6 +268,7 @@ maven.install(
         "com.google.apis:google-api-services-bigquery:v2-rev20250511-2.0.0",
         "com.google.cloud:google-cloud-bigquerystorage",
         "com.google.cloud:google-cloud-security-private-ca",
+        "com.google.cloud:google-cloud-bigtable",
         "com.google.cloud.functions.invoker:java-function-invoker:1.4.0",
         "com.google.cloud:google-cloud-secretmanager",
         "com.google.cloud:google-cloud-logging",
