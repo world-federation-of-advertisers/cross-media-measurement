@@ -85,6 +85,7 @@ proto_library(
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:any_proto",
+        "@com_google_protobuf//:struct_proto",
     ],
 )
 
