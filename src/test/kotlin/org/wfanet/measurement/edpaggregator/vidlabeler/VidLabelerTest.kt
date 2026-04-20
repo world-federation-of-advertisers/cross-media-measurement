@@ -143,16 +143,17 @@ class VidLabelerTest {
       listRawImpressionMetadataBatchFilesResponse {
         rawImpressionMetadataBatchFiles += rawImpressionMetadataBatchFile {
           name = "$BATCH_NAME/files/file1"
-          blobUri = "gs://bucket/raw/file1"
+          blobUri = "file:///nonexistent/raw/file1"
         }
       }
     )
 
-    val vidLabeler = createVidLabeler()
+    val vidLabeler =
+      createVidLabeler(storageConfig = StorageConfig(rootDirectory = tempFolder.root))
 
     // labelBatch will fail during readAndDecryptRawImpressions because there's no real
     // storage backend, which should trigger markBatchFailed.
-    assertFailsWith<Exception> { vidLabeler.labelBatch() }
+    assertFailsWith<Throwable> { vidLabeler.labelBatch() }
 
     verifyBlocking(rawImpressionBatchService) { markRawImpressionMetadataBatchFailed(any()) }
   }
@@ -166,7 +167,7 @@ class VidLabelerTest {
     // Empty batch should fail during readAndDecryptRawImpressions (empty list, no data to read).
     // The pipeline continues past read with an empty list, then fails at labelImpressions
     // (NotImplementedError), triggering markBatchFailed.
-    assertFailsWith<Exception> { vidLabeler.labelBatch() }
+    assertFailsWith<Throwable> { vidLabeler.labelBatch() }
 
     verifyBlocking(rawImpressionBatchService) { markRawImpressionMetadataBatchFailed(any()) }
   }
