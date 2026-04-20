@@ -24,8 +24,6 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.edpaggregator.service.InvalidFieldValueException
-import org.wfanet.measurement.edpaggregator.service.RawImpressionMetadataBatchFileAlreadyExistsException
-import org.wfanet.measurement.edpaggregator.service.RawImpressionMetadataBatchFileNotFoundException
 import org.wfanet.measurement.edpaggregator.service.RawImpressionMetadataBatchKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionMetadataBatchNotFoundException
 import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
@@ -95,17 +93,6 @@ class RawImpressionMetadataBatchService(
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND ->
-            RawImpressionMetadataBatchNotFoundException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID ->
-            Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND ->
-            RawImpressionMetadataBatchFileNotFoundException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS ->
-            RawImpressionMetadataBatchFileAlreadyExistsException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE ->
             Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
@@ -142,17 +129,6 @@ class RawImpressionMetadataBatchService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND ->
             RawImpressionMetadataBatchNotFoundException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID ->
-            Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND ->
-            RawImpressionMetadataBatchFileNotFoundException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS ->
-            RawImpressionMetadataBatchFileAlreadyExistsException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.INVALID_FIELD_VALUE ->
-            Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
           else -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -220,17 +196,6 @@ class RawImpressionMetadataBatchService(
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND ->
-            RawImpressionMetadataBatchNotFoundException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID ->
-            Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND ->
-            RawImpressionMetadataBatchFileNotFoundException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS ->
-            RawImpressionMetadataBatchFileAlreadyExistsException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE ->
             Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
@@ -273,17 +238,6 @@ class RawImpressionMetadataBatchService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND ->
             RawImpressionMetadataBatchNotFoundException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID ->
-            Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND ->
-            RawImpressionMetadataBatchFileNotFoundException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS ->
-            RawImpressionMetadataBatchFileAlreadyExistsException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.INVALID_FIELD_VALUE ->
-            Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
           else -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -319,15 +273,6 @@ class RawImpressionMetadataBatchService(
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID ->
             Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND ->
-            RawImpressionMetadataBatchFileNotFoundException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS ->
-            RawImpressionMetadataBatchFileAlreadyExistsException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.INVALID_FIELD_VALUE ->
-            Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
           else -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -363,15 +308,6 @@ class RawImpressionMetadataBatchService(
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID ->
             Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND ->
-            RawImpressionMetadataBatchFileNotFoundException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS ->
-            RawImpressionMetadataBatchFileAlreadyExistsException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.INVALID_FIELD_VALUE ->
-            Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
           else -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }

@@ -114,11 +114,6 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND ->
             RawImpressionMetadataBatchNotFoundException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID ->
-            Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND ->
-            RawImpressionMetadataBatchFileNotFoundException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS ->
             RawImpressionMetadataBatchFileAlreadyExistsException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
@@ -217,11 +212,6 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND ->
             RawImpressionMetadataBatchNotFoundException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID ->
-            Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND ->
-            RawImpressionMetadataBatchFileNotFoundException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS ->
             RawImpressionMetadataBatchFileAlreadyExistsException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
@@ -262,20 +252,9 @@ class RawImpressionMetadataBatchFileService(
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND ->
-            RawImpressionMetadataBatchNotFoundException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID ->
-            Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND ->
             RawImpressionMetadataBatchFileNotFoundException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS ->
-            RawImpressionMetadataBatchFileAlreadyExistsException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.INVALID_FIELD_VALUE ->
-            Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
           else -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -349,17 +328,6 @@ class RawImpressionMetadataBatchFileService(
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND ->
-            RawImpressionMetadataBatchNotFoundException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID ->
-            Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND ->
-            RawImpressionMetadataBatchFileNotFoundException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS ->
-            RawImpressionMetadataBatchFileAlreadyExistsException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE ->
             Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
@@ -400,20 +368,9 @@ class RawImpressionMetadataBatchFileService(
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND ->
-            RawImpressionMetadataBatchNotFoundException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID ->
-            Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND ->
             RawImpressionMetadataBatchFileNotFoundException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS ->
-            RawImpressionMetadataBatchFileAlreadyExistsException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.INVALID_FIELD_VALUE ->
-            Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
           else -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -481,20 +438,9 @@ class RawImpressionMetadataBatchFileService(
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND ->
-            RawImpressionMetadataBatchNotFoundException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID ->
-            Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND ->
             RawImpressionMetadataBatchFileNotFoundException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS ->
-            RawImpressionMetadataBatchFileAlreadyExistsException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.INVALID_FIELD_VALUE ->
-            Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
           else -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
