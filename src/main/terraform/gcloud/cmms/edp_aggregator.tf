@@ -330,7 +330,6 @@ module "edp_aggregator" {
   edp_aggregator_service_account_name           = "edp-aggregator-internal"
   data_availability_monitor_service_account_name = "edpa-data-avail-monitor"
   data_availability_monitor_config                = local.data_availability_monitor_config
-  data_availability_monitor_function_name         = "data-availability-monitor"
   data_availability_monitor_scheduler_config      = local.data_availability_monitor_scheduler_config
   spanner_instance                              = google_spanner_instance.spanner_instance
 }

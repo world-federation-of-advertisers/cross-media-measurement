@@ -645,8 +645,6 @@ module "data_availability_monitor_cloud_function" {
   depends_on = [
     module.secrets,
     google_storage_bucket_object.upload_data_availability_monitor_config,
-    google_storage_bucket_iam_member.data_availability_monitor_config_storage_viewer,
-    google_storage_bucket_iam_member.data_availability_monitor_storage_viewer,
   ]
 
   http_cloud_function_service_account_name = var.data_availability_monitor_service_account_name

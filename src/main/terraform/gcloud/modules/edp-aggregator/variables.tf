@@ -437,12 +437,6 @@ variable "data_availability_monitor_config" {
   })
 }
 
-variable "data_availability_monitor_function_name" {
-  description = "Name of the DataAvailabilityMonitor cloud function."
-  type        = string
-  nullable    = false
-}
-
 variable "data_availability_monitor_scheduler_config" {
   description = "Configuration for Google Cloud Scheduler to trigger the DataAvailabilityMonitor"
   type = object({
