@@ -129,6 +129,11 @@ message StreamEventGroupsRequest {
     // the [EventGroup][]. [start_date][DateInterval.start_date] and
     // [end_date][DateInterval.end_date] are required.
     DateInterval activity_contains = 16;
+
+    // Set of entity types which [EventGroupDetails.entity_key.entity_type][]
+    // must be in. Empty means no filtering at this layer; request-level
+    // default handling happens in the public-API service.
+    repeated string entity_type_in = 17;
   }
   Filter filter = 1;
 

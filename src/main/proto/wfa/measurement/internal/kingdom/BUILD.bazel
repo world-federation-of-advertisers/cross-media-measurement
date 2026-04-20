@@ -344,6 +344,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":event_template_proto",
+        "@com_google_protobuf//:struct_proto",
     ],
 )
 
