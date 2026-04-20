@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-import "google/protobuf/struct.proto";
 import "wfa/measurement/internal/kingdom/event_template.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
@@ -57,10 +56,6 @@ message EventGroupDetails {
     oneof metadata {
       AdMetadata ad_metadata = 2;
     }
-
-    // Metadata for the entity that the [EventGroup][] represents. The schema is
-    // specific to the ([DataProvider][], [EntityKey.entity_type][]) pair.
-    google.protobuf.Struct entity_metadata = 3;
   }
   // Common [EventGroup][] metadata. This is intended to eventually replace
   // [encrypted_metadata][].
@@ -69,17 +64,4 @@ message EventGroupDetails {
   // Data Provider-specific encrypted Event Group metadata. This will eventually
   // be deprecated in favor of [metadata][].
   bytes encrypted_metadata = 6;
-
-  // Key of the entity in the DataProvider's system that an EventGroup
-  // represents.
-  message EntityKey {
-    // Type of the entity in the DataProvider's system.
-    string entity_type = 1;
-    // ID of the entity in the DataProvider's system.
-    string entity_id = 2;
-  }
-  // Entity in the DataProvider's system that this EventGroup represents. Must
-  // be unique across all EventGroups for the parent (DataProvider,
-  // MeasurementConsumer) pair when specified.
-  EntityKey entity_key = 10;
 }
