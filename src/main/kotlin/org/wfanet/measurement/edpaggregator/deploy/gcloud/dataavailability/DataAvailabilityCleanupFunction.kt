@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability
 import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
+import com.google.cloud.storage.StorageOptions
 import io.grpc.ClientInterceptors
 import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
@@ -28,12 +29,14 @@ import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
+import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.edpaggregator.ConfigLoader
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityCleanup
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 
 /**
  * Cloud Function that handles cleanup of ImpressionMetadata records when GCS objects are deleted.
@@ -92,10 +95,13 @@ class DataAvailabilityCleanupFunction : HttpFunction {
       val impressionMetadataServiceStub =
         ImpressionMetadataServiceCoroutineStub(instrumentedChannel)
 
+      val storageClient = createStorageClient(dataAvailabilitySyncConfig)
+
       val dataAvailabilityCleanup =
         DataAvailabilityCleanup(
           impressionMetadataServiceStub,
           dataAvailabilitySyncConfig.dataProvider,
+          storageClient,
         )
 
       Tracing.withW3CTraceContext(request) {
@@ -129,6 +135,23 @@ class DataAvailabilityCleanupFunction : HttpFunction {
       EdpAggregatorConfig.getConfigAsProtoMessage(
         configBlobKey,
         DataAvailabilitySyncConfigs.getDefaultInstance(),
+      )
+    }
+
+    private fun createStorageClient(
+      dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
+    ): GcsStorageClient {
+      val gcsConfig = dataAvailabilitySyncConfig.dataAvailabilityStorage.gcs
+      return GcsStorageClient(
+        StorageOptions.newBuilder()
+          .also {
+            if (gcsConfig.projectId.isNotEmpty()) {
+              it.setProjectId(gcsConfig.projectId)
+            }
+          }
+          .build()
+          .service,
+        gcsConfig.bucketName,
       )
     }
   }
