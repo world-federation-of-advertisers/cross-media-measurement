@@ -23,6 +23,7 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
+import io.opentelemetry.api.OpenTelemetry
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.toList
@@ -33,7 +34,6 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
-import io.opentelemetry.api.OpenTelemetry
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.verifyBlocking
@@ -43,21 +43,17 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
-import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionMetadataBatchFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionMetadataBatchFile
 import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
-import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)

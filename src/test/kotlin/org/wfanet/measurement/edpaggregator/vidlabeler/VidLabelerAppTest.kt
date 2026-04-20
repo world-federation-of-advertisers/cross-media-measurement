@@ -202,7 +202,9 @@ class VidLabelerAppTest {
     }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
-    assertThat(exception).hasMessageThat().contains("raw_impression_metadata_batch must not be empty")
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("raw_impression_metadata_batch must not be empty")
   }
 
   companion object {
