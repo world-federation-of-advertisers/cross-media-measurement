@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeout
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RankEntry
@@ -372,13 +373,14 @@ class Pipeline(
             async(ioDispatcher) {
               val impressions = gcsIo.readImpressions(filePath)
 
-              val baos = java.io.ByteArrayOutputStream(256)
-              val serializedOutputs =
+              val serializedOutputs = withContext(cpuDispatcher) {
+                val baos = java.io.ByteArrayOutputStream(256)
                 impressions.map { input ->
                   baos.reset()
                   labeler.label(input).writeDelimitedTo(baos)
                   baos.toByteArray()
                 }
+              }
 
               val outputPath = filePath.replace("impressions_", "labeled_")
               gcsIo.writeLabeledEventsRaw(outputPath, serializedOutputs)

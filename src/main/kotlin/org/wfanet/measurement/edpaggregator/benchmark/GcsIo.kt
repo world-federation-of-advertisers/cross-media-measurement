@@ -72,15 +72,12 @@ class GcsIo(private val bucket: String) {
    * [delimitedOutputs] is already in writeDelimitedTo format (varint length + proto bytes).
    */
   fun writeLabeledEventsRaw(path: String, delimitedOutputs: List<ByteArray>) {
-    val totalSize = delimitedOutputs.sumOf { it.size }
-    val buffer = ByteArray(totalSize)
-    var offset = 0
-    for (bytes in delimitedOutputs) {
-      System.arraycopy(bytes, 0, buffer, offset, bytes.size)
-      offset += bytes.size
-    }
     val blobInfo = BlobInfo.newBuilder(BlobId.of(bucket, path)).build()
-    storage.create(blobInfo, buffer)
+    storage.writer(blobInfo).use { writer ->
+      for (bytes in delimitedOutputs) {
+        writer.write(java.nio.ByteBuffer.wrap(bytes))
+      }
+    }
   }
 
   /** Lists all blobs under a given prefix. */
