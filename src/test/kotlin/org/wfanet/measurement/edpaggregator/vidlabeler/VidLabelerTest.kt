@@ -34,7 +34,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
-import org.mockito.kotlin.onBlocking
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
