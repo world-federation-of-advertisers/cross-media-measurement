@@ -1,0 +1,19 @@
+# proto-file: wfa/measurement/reporting/v2alpha/reporting_set.proto
+# proto-message: ReportingSet
+
+# name: "measurementConsumers/VCTqwV_vFXw/reportingSets/incremental_for_A"
+
+display_name: "incremental_reporting_set_for_A_age_18_above"
+
+# For age 18-34, 35-54, 55+
+filter: "person.age==YEARS_18_TO_34 || person.age==YEARS_35_TO_54 || person.age==YEARS_55_PLUS"
+
+value {
+  composite {
+    expression {
+      operation: "DIFFERENCE"
+      lhs: "measurementConsumers/VCTqwV_vFXw/reportingSets/union_all"
+      rhs: "measurementConsumers/VCTqwV_vFXw/reportingSets/union_all_but_A"
+    }
+  }
+}
