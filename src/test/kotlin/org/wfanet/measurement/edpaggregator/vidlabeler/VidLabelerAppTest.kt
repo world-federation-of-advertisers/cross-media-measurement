@@ -76,9 +76,7 @@ class VidLabelerAppTest {
       workItemAttemptsClient = workItemAttemptsStub,
       rawImpressionsKmsClient = rawImpressionsKmsClient,
       vidLabeledImpressionsKmsClient = vidLabeledImpressionsKmsClient,
-      getStorageConfig = { storageParams ->
-        StorageConfig(projectId = storageParams.gcsProjectId)
-      },
+      getStorageConfig = { storageParams -> StorageConfig(projectId = storageParams.gcsProjectId) },
     )
   }
 

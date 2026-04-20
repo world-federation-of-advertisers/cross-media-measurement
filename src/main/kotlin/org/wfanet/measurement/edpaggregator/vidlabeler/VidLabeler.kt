@@ -95,7 +95,8 @@ class VidLabeler(
         val blobUris = listBatchFileUris()
         logger.info("Found ${blobUris.size} files in batch")
 
-        val rawImpressions = metrics.readDecryptDuration.measured { readAndDecryptRawImpressions(blobUris) }
+        val rawImpressions =
+          metrics.readDecryptDuration.measured { readAndDecryptRawImpressions(blobUris) }
         logger.info("Read ${rawImpressions.size} raw impressions")
 
         val activeModelLines = resolveModelLines()
@@ -150,9 +151,7 @@ class VidLabeler(
    * Each blob URI points to a BlobDetails proto which contains the actual encrypted data location
    * and the DEK needed for decryption.
    */
-  private suspend fun readAndDecryptRawImpressions(
-    blobUris: List<String>
-  ): List<RawImpression> {
+  private suspend fun readAndDecryptRawImpressions(blobUris: List<String>): List<RawImpression> {
     val rawImpressions = mutableListOf<RawImpression>()
     for (blobUri in blobUris) {
       val blobDetails = readBlobDetails(blobUri)
@@ -196,11 +195,7 @@ class VidLabeler(
   private suspend fun readBlobDetails(metadataPath: String): BlobDetails {
     val storageClientUri = SelectedStorageClient.parseBlobUri(metadataPath)
     val storageClient =
-      SelectedStorageClient(
-        storageClientUri,
-        storageConfig.rootDirectory,
-        storageConfig.projectId,
-      )
+      SelectedStorageClient(storageClientUri, storageConfig.rootDirectory, storageConfig.projectId)
     val blob =
       storageClient.getBlob(storageClientUri.key)
         ?: throw IllegalStateException("BlobDetails metadata not found: $metadataPath")
@@ -266,7 +261,7 @@ class VidLabeler(
    * group for downstream metadata registration.
    */
   private suspend fun encryptAndWriteLabeledImpressions(
-    labeledImpressions: List<LabeledImpressionOutput>,
+    labeledImpressions: List<LabeledImpressionOutput>
   ): List<BlobDetails> {
     if (labeledImpressions.isEmpty()) return emptyList()
 
@@ -338,7 +333,9 @@ class VidLabeler(
         )
       metadataStorageClient.writeBlob(metadataBlobKey, details.toByteString())
 
-      logger.info("Wrote labeled impressions for $modelLine/$eventGroupReferenceId to $outputBlobUri")
+      logger.info(
+        "Wrote labeled impressions for $modelLine/$eventGroupReferenceId to $outputBlobUri"
+      )
       blobDetailsList.add(details)
     }
 

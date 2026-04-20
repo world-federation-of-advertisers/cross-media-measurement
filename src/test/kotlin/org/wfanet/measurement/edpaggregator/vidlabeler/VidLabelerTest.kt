@@ -23,8 +23,6 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
-import com.google.protobuf.ByteString
-import com.google.protobuf.util.JsonFormat
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.toList
@@ -39,12 +37,10 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
-import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
@@ -128,10 +124,11 @@ class VidLabelerTest {
       impressionMetadataStub = impressionMetadataStub,
       rawImpressionBatchStub = rawImpressionBatchStub,
       batchFileStub = batchFileStub,
-      vidRepoConnection = transportLayerSecurityParams {
-        clientCertResourcePath = "certs/client.pem"
-        clientPrivateKeyResourcePath = "certs/client.key"
-      },
+      vidRepoConnection =
+        transportLayerSecurityParams {
+          clientCertResourcePath = "certs/client.pem"
+          clientPrivateKeyResourcePath = "certs/client.key"
+        },
       storageConfig = storageConfig,
       metrics = mockMetrics,
     )
@@ -154,9 +151,7 @@ class VidLabelerTest {
     // storage backend, which should trigger markBatchFailed.
     assertFailsWith<Exception> { vidLabeler.labelBatch() }
 
-    verifyBlocking(rawImpressionBatchService) {
-      markRawImpressionMetadataBatchFailed(any())
-    }
+    verifyBlocking(rawImpressionBatchService) { markRawImpressionMetadataBatchFailed(any()) }
   }
 
   @Test
@@ -170,9 +165,7 @@ class VidLabelerTest {
     // (NotImplementedError), triggering markBatchFailed.
     assertFailsWith<Exception> { vidLabeler.labelBatch() }
 
-    verifyBlocking(rawImpressionBatchService) {
-      markRawImpressionMetadataBatchFailed(any())
-    }
+    verifyBlocking(rawImpressionBatchService) { markRawImpressionMetadataBatchFailed(any()) }
   }
 
   @Test
@@ -202,10 +195,7 @@ class VidLabelerTest {
       vid = 42L
       eventGroupReferenceId = "eg-ref-1"
     }
-    encryptedStorage.writeBlob(
-      impressionsBlobKey,
-      listOf(testImpression.toByteString()).asFlow(),
-    )
+    encryptedStorage.writeBlob(impressionsBlobKey, listOf(testImpression.toByteString()).asFlow())
 
     // Write BlobDetails metadata
     val metadataBlobKey = "$bucket/raw/metadata.binpb"
@@ -321,7 +311,8 @@ class VidLabelerTest {
   }
 
   private fun mockBatchFileServiceToReturn(
-    response: org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionMetadataBatchFilesResponse
+    response:
+      org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionMetadataBatchFilesResponse
   ) {
     batchFileService.stub {
       onBlocking { listRawImpressionMetadataBatchFiles(any()) }.thenReturn(response)
@@ -330,8 +321,7 @@ class VidLabelerTest {
 
   companion object {
     private const val DATA_PROVIDER_NAME = "dataProviders/edp123"
-    private const val BATCH_NAME =
-      "dataProviders/edp123/rawImpressionMetadataBatches/batch456"
+    private const val BATCH_NAME = "dataProviders/edp123/rawImpressionMetadataBatches/batch456"
     private const val MODEL_LINE_1 = "dataProviders/edp123/modelLines/ml1"
     private const val MODEL_LINE_2 = "dataProviders/edp123/modelLines/ml2"
 
