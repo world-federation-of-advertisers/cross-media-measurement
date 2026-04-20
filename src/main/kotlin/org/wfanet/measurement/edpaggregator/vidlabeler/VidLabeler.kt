@@ -19,14 +19,18 @@ package org.wfanet.measurement.edpaggregator.vidlabeler
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.ByteString
 import com.google.protobuf.util.JsonFormat
+import com.google.type.interval
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineStub
@@ -34,12 +38,15 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchSe
 import org.wfanet.measurement.edpaggregator.v1alpha.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionMetadataBatchFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionMetadataBatchFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionMetadataBatchProcessedRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.VidLabelerMetrics.Companion.measured
+import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
@@ -55,6 +62,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param storageParams GCS project and output prefix configuration.
  * @param decryptKmsClient decrypt-only KMS client for reading raw impressions.
  * @param encryptKmsClient encrypt/decrypt KMS client for writing labeled output.
+ * @param encryptKekUri KEK URI for generating DEKs when writing labeled output.
  * @param impressionMetadataStub gRPC stub for idempotency checks and writing output metadata.
  * @param rawImpressionBatchStub gRPC stub for updating batch state.
  * @param batchFileStub gRPC stub for listing files in a batch.
@@ -70,6 +78,7 @@ class VidLabeler(
   private val storageParams: VidLabelerParams.StorageParams,
   private val decryptKmsClient: KmsClient,
   private val encryptKmsClient: KmsClient,
+  private val encryptKekUri: String,
   private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub,
   private val rawImpressionBatchStub: RawImpressionMetadataBatchServiceCoroutineStub,
   private val batchFileStub: RawImpressionMetadataBatchFileServiceCoroutineStub,
@@ -259,8 +268,81 @@ class VidLabeler(
   private suspend fun encryptAndWriteLabeledImpressions(
     labeledImpressions: List<LabeledImpressionOutput>,
   ): List<BlobDetails> {
-    // TODO: Implement encryptAndWriteLabeledImpressions using EncryptedStorage.
-    return emptyList()
+    if (labeledImpressions.isEmpty()) return emptyList()
+
+    val groups = labeledImpressions.groupBy { it.modelLine to it.eventGroupReferenceId }
+    val blobDetailsList = mutableListOf<BlobDetails>()
+
+    for ((key, impressions) in groups) {
+      val (modelLine, eventGroupReferenceId) = key
+
+      val serializedEncryptionKey =
+        EncryptedStorage.generateSerializedEncryptionKey(
+          encryptKmsClient,
+          encryptKekUri,
+          TINK_KEY_TEMPLATE,
+        )
+
+      val outputEncryptedDek = encryptedDek {
+        kekUri = encryptKekUri
+        ciphertext = serializedEncryptionKey
+        protobufFormat = EncryptedDek.ProtobufFormat.BINARY
+        typeUrl = "type.googleapis.com/google.crypto.tink.Keyset"
+      }
+
+      val blobKey = "${UUID.randomUUID()}/labeled-impressions"
+      val outputBlobUri = "${storageParams.impressionsBlobPrefix}/$blobKey"
+
+      val outputStorageClient =
+        SelectedStorageClient(
+          SelectedStorageClient.parseBlobUri(outputBlobUri),
+          storageConfig.rootDirectory,
+          storageConfig.projectId,
+        )
+
+      val aeadStorageClient =
+        outputStorageClient.withEnvelopeEncryption(
+          encryptKmsClient,
+          encryptKekUri,
+          serializedEncryptionKey,
+        )
+      val encryptedStorage = MesosRecordIoStorageClient(aeadStorageClient)
+
+      encryptedStorage.writeBlob(
+        blobKey,
+        impressions.map { it.labeledImpression.toByteString() }.asFlow(),
+      )
+
+      val timestamps = impressions.map { it.labeledImpression.eventTime }
+      val startTime = timestamps.minBy { it.seconds * 1_000_000_000L + it.nanos }
+      val endTime = timestamps.maxBy { it.seconds * 1_000_000_000L + it.nanos }
+
+      val details = blobDetails {
+        this.blobUri = outputBlobUri
+        this.encryptedDek = outputEncryptedDek
+        this.eventGroupReferenceId = eventGroupReferenceId
+        this.modelLine = modelLine
+        this.interval = interval {
+          this.startTime = startTime
+          this.endTime = endTime
+        }
+      }
+
+      val metadataBlobKey = "${UUID.randomUUID()}/metadata.binpb"
+      val metadataUri = "${storageParams.impressionsBlobPrefix}/$metadataBlobKey"
+      val metadataStorageClient =
+        SelectedStorageClient(
+          SelectedStorageClient.parseBlobUri(metadataUri),
+          storageConfig.rootDirectory,
+          storageConfig.projectId,
+        )
+      metadataStorageClient.writeBlob(metadataBlobKey, details.toByteString())
+
+      logger.info("Wrote labeled impressions for $modelLine/$eventGroupReferenceId to $outputBlobUri")
+      blobDetailsList.add(details)
+    }
+
+    return blobDetailsList
   }
 
   /**
@@ -321,7 +403,7 @@ class VidLabeler(
     private const val LABELED_IMPRESSION_TYPE_URL =
       "type.googleapis.com/wfa.measurement.edpaggregator.LabeledImpression"
 
-    private const val TINK_KEY_TEMPLATE = "AES128_GCM"
+    private const val TINK_KEY_TEMPLATE = "AES128_GCM_HKDF_1MB"
   }
 }
 
