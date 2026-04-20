@@ -30,7 +30,7 @@ concurrency:
 jobs:
   check-do-not-submit:
     name: Check for DO_NOT_SUBMIT comments
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
     - name: Check out revision
       uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
