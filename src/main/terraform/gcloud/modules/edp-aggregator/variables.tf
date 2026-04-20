@@ -422,3 +422,38 @@ variable "edp_aggregator_api_server_ip_address" {
   default     = null
 }
 
+
+variable "data_availability_monitor_service_account_name" {
+  description = "Name of the DataAvailabilityMonitor service account."
+  type        = string
+  nullable    = false
+}
+
+variable "data_availability_monitor_config" {
+  description = "An object containing the local path of the DataAvailabilityMonitor config file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+}
+
+variable "data_availability_monitor_function_name" {
+  description = "Name of the DataAvailabilityMonitor cloud function."
+  type        = string
+  nullable    = false
+}
+
+variable "data_availability_monitor_scheduler_config" {
+  description = "Configuration for Google Cloud Scheduler to trigger the DataAvailabilityMonitor"
+  type = object({
+    schedule                  = string
+    time_zone                 = string
+    name                      = string
+    function_url              = string
+    scheduler_sa_display_name = string
+    scheduler_sa_description  = string
+    scheduler_job_description = string
+    scheduler_job_name        = optional(string)
+  })
+  nullable = false
+}
