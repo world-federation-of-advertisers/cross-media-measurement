@@ -25,6 +25,15 @@ SET PROTO_DESCRIPTORS = 'CsQBCjp3ZmEvbWVhc3VyZW1lbnQvaW50ZXJuYWwva2luZ2RvbS9jZXJ
 
 START BATCH DDL;
 
+-- Drop metadata-search columns and search index that depend on
+-- `EventGroupDetails`. They block `ALTER PROTO BUNDLE UPDATE` below and are
+-- recreated later in this same batch (token values get recomputed from
+-- existing EventGroupDetails blobs automatically).
+DROP SEARCH INDEX EventGroupsByMetadata;
+ALTER TABLE EventGroups DROP COLUMN Metadata_Tokens;
+ALTER TABLE EventGroups DROP COLUMN BrandName_Tokens;
+ALTER TABLE EventGroups DROP COLUMN CampaignName_Tokens;
+
 -- Register new proto types:
 --   * `google.protobuf.Struct` and its transitive dependencies, needed for the
 --     new `EventGroupDetails.EventGroupMetadata.entity_metadata` field.
@@ -43,6 +52,25 @@ ALTER PROTO BUNDLE UPDATE (
   `wfa.measurement.internal.kingdom.EventGroupDetails`,
   `wfa.measurement.internal.kingdom.EventGroupDetails.EventGroupMetadata`,
 );
+
+-- Recreate the metadata-search columns and search index against the updated
+-- bundle. Definitions mirror add-event-group-metadata.sql exactly.
+ALTER TABLE EventGroups
+ADD COLUMN BrandName_Tokens TOKENLIST AS (
+  TOKENIZE_FULLTEXT(EventGroupDetails.metadata.ad_metadata.campaign_metadata.brand_name)
+) HIDDEN;
+
+ALTER TABLE EventGroups
+ADD COLUMN CampaignName_Tokens TOKENLIST AS (
+  TOKENIZE_FULLTEXT(EventGroupDetails.metadata.ad_metadata.campaign_metadata.campaign_name)
+) HIDDEN;
+
+ALTER TABLE EventGroups
+ADD COLUMN Metadata_Tokens TOKENLIST AS (
+  TOKENLIST_CONCAT([BrandName_Tokens, CampaignName_Tokens])
+) HIDDEN;
+
+CREATE SEARCH INDEX EventGroupsByMetadata ON EventGroups(Metadata_Tokens);
 
 -- STORED generated column for entity_type. Defaults to "campaign" for legacy
 -- EventGroups that predate entity_key. NULLIF handles both an unset entity_key
