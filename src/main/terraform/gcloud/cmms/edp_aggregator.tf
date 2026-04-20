@@ -175,7 +175,7 @@ locals {
   data_availability_monitor_scheduler_config = {
     schedule                  = "0 6 * * *"
     time_zone                 = "UTC"
-    name                      = "data-availability-monitor-scheduler"
+    name                      = "da-monitor-scheduler"
     function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/data-availability-monitor"
     scheduler_sa_display_name = "Data Availability Monitor Scheduler"
     scheduler_sa_description  = "Service account for Cloud Scheduler to trigger data availability monitor"
