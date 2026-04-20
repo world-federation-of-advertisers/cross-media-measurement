@@ -33,6 +33,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import io.opentelemetry.api.OpenTelemetry
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.verifyBlocking
@@ -99,7 +100,8 @@ class VidLabelerTest {
 
   private val mockDecryptKmsClient: KmsClient = mock()
   private val mockEncryptKmsClient: KmsClient = mock()
-  private val mockMetrics: VidLabelerMetrics = mock()
+  private val testMetrics: VidLabelerMetrics =
+    VidLabelerMetrics(OpenTelemetry.noop().getMeter("test"))
 
   private fun createVidLabeler(
     modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig> = DEFAULT_MODEL_LINE_CONFIGS,
@@ -131,7 +133,7 @@ class VidLabelerTest {
           clientPrivateKeyResourcePath = "certs/client.key"
         },
       storageConfig = storageConfig,
-      metrics = mockMetrics,
+      metrics = testMetrics,
     )
   }
 
