@@ -189,9 +189,9 @@ class VidLabelerTest {
     val impressionsFileUri = "file:///$impressionsBlobKey"
 
     // Write encrypted labeled impressions to storage
-    val selectedStorageClient = SelectedStorageClient(impressionsFileUri, tempFolder.root)
+    val fileStorageClient = FileSystemStorageClient(tempFolder.root)
     val aeadStorageClient =
-      selectedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
+      fileStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
     val encryptedStorage = MesosRecordIoStorageClient(aeadStorageClient)
 
     val testImpression = labeledImpression {
@@ -267,9 +267,9 @@ class VidLabelerTest {
     val blobKey = "$bucket/labeled/test-group/labeled-impressions"
     val outputBlobUri = "file:///$blobKey"
 
-    val outputStorageClient = SelectedStorageClient(outputBlobUri, tempFolder.root)
+    val fileStorageClient = FileSystemStorageClient(tempFolder.root)
     val aeadStorageClient =
-      outputStorageClient.withEnvelopeEncryption(
+      fileStorageClient.withEnvelopeEncryption(
         encryptKmsClient,
         encryptKekUri,
         serializedEncryptionKey,
@@ -291,9 +291,8 @@ class VidLabelerTest {
     )
 
     // Now read back and decrypt using the same pattern as readAndDecryptRawImpressions
-    val readStorageClient = SelectedStorageClient(outputBlobUri, tempFolder.root)
     val readAeadClient =
-      readStorageClient.withEnvelopeEncryption(
+      fileStorageClient.withEnvelopeEncryption(
         encryptKmsClient,
         encryptKekUri,
         serializedEncryptionKey,
