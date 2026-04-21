@@ -167,6 +167,8 @@ module "edp_aggregator_bucket" {
   name     = var.edp_aggregator_bucket_name
   location = var.edp_aggregator_buckets_location
 
+  versioning_enabled = true
+
   # Per-EDP lifecycle rules for impression data retention
   lifecycle_rules = [
     {

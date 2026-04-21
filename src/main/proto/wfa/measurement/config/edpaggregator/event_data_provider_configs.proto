@@ -91,12 +91,16 @@ message EventDataProviderConfig {
   string data_provider = 1
       [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 
-  // Kms config
+  // KMS config for encrypting VID-labeled impression data.
   KmsConfig kms_config = 2;
   // Tls Config
   TlsConfig tls_config = 3;
   // Consent Signaling Config
   ConsentSignalingConfig consent_signaling_config = 4;
+
+  // KMS config for decrypting raw impression data. Only set for EDPs
+  // that use the VID Labeler. Read by VidLabelerAppRunner at startup.
+  KmsConfig raw_impression_kms_config = 5;
 }
 
 message EventDataProviderConfigs {

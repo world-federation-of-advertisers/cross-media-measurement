@@ -34,11 +34,16 @@ message VidLabelingConfig {
     (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
   ];
 
-  // The storage used by the TEE app.
-  StorageParams storage_params = 2 [(google.api.field_behavior) = REQUIRED];
+  // Storage for raw impressions read by the TEE app.
+  StorageParams raw_impressions_storage_params = 2
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Storage for VID-labeled impressions written by the TEE app.
+  StorageParams vid_labeled_impressions_storage_params = 3
+      [(google.api.field_behavior) = REQUIRED];
 
   // Connection used by TEE App to access the VID Repo.
-  TransportLayerSecurityParams vid_repo_connection = 3
+  TransportLayerSecurityParams vid_repo_connection = 4
       [(google.api.field_behavior) = REQUIRED];
 
   // Message representing the configuration for a model line.
@@ -51,23 +56,23 @@ message VidLabelingConfig {
   }
 
   // Map from model line resource name to its configuration.
-  map<string, ModelLineConfig> model_line_configs = 4
+  map<string, ModelLineConfig> model_line_configs = 5
       [(google.api.field_behavior) = REQUIRED];
 
   // Optional; if provided, indicates what model lines to use.
-  repeated string override_model_lines = 5 [
+  repeated string override_model_lines = 6 [
     (google.api.field_behavior) = OPTIONAL,
     (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
   ];
 
   // Cloud Function TLS connection params for the RawImpressionMetadata
   // storage service.
-  TransportLayerSecurityParams raw_impression_metadata_storage_connection = 6
+  TransportLayerSecurityParams raw_impression_metadata_storage_connection = 7
       [(google.api.field_behavior) = REQUIRED];
 
   // Maximum batch size in bytes for partitioning raw impression files.
   // If unset, defaults to 10 GB (10000000000 bytes).
-  int64 max_batch_size_bytes = 7 [(google.api.field_behavior) = OPTIONAL];
+  int64 max_batch_size_bytes = 8 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Wrapper containing VID Labeling configurations for all EDPs.
