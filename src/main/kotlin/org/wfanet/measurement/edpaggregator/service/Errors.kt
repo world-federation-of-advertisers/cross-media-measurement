@@ -378,24 +378,7 @@ class RawImpressionMetadataBatchNotFoundException(
     "RawImpressionMetadataBatch $batchResourceName not found",
     mapOf(Errors.Metadata.RAW_IMPRESSION_METADATA_BATCH to batchResourceName),
     cause,
-  ) {
-  companion object : Factory<RawImpressionMetadataBatchNotFoundException>() {
-    override val reason: Errors.Reason
-      get() = Errors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND
-
-    override fun fromInternal(
-      internalMetadata: Map<InternalErrors.Metadata, String>,
-      cause: Throwable,
-    ): RawImpressionMetadataBatchNotFoundException {
-      val batchKey =
-        RawImpressionMetadataBatchKey(
-          internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID),
-          internalMetadata.getValue(InternalErrors.Metadata.BATCH_RESOURCE_ID),
-        )
-      return RawImpressionMetadataBatchNotFoundException(batchKey.toName(), cause)
-    }
-  }
-}
+  )
 
 class RawImpressionMetadataBatchFileNotFoundException(
   fileResourceName: String,
