@@ -94,7 +94,10 @@ class GcsIo(private val bucket: String) {
    * Opens a streaming writer to a GCS blob. Caller must close the writer.
    * Writes are buffered internally (~15MB chunks), so small writes are efficient.
    */
-  fun withWriter(path: String, block: (java.nio.channels.WritableByteChannel) -> Unit) {
+  suspend fun withWriter(
+    path: String,
+    block: suspend (java.nio.channels.WritableByteChannel) -> Unit,
+  ) {
     val blobInfo = BlobInfo.newBuilder(BlobId.of(bucket, path)).build()
     storage.writer(blobInfo).use { writer -> block(writer) }
   }

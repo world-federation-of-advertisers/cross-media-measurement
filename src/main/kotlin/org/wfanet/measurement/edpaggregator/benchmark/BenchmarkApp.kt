@@ -459,11 +459,8 @@ class BenchmarkApp : Runnable {
               labeler = labeler,
               dataProvider = dataProvider,
               modelRelease = modelRelease,
-              dbLookupBatchSize = dbLookupBatchSize,
               parallelism = workers,
-              dbReadParallelism = dbReadParallelism,
               ioParallelism = ioParallelism,
-              batchSizeBytes = batchSizeMb.toLong() * 1024 * 1024,
             )
 
           for (day in 1..days) {
