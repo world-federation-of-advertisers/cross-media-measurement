@@ -22,6 +22,7 @@ import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
 import org.wfanet.virtualpeople.common.LabelerInput
 import org.wfanet.virtualpeople.common.LabelerOutput
 
@@ -31,10 +32,6 @@ const val IMPRESSIONS_PER_FILE = 100_000
 class GcsIo(private val bucket: String) {
   private val storage: Storage = StorageOptions.getDefaultInstance().service
 
-  /**
-   * Writes a list of [LabelerInput] protos to a GCS blob as length-delimited protobuf. Overwrites
-   * if the blob already exists.
-   */
   fun writeImpressions(path: String, impressions: List<LabelerInput>) {
     val baos = ByteArrayOutputStream()
     for (impression in impressions) {
@@ -44,12 +41,11 @@ class GcsIo(private val bucket: String) {
     storage.create(blobInfo, baos.toByteArray())
   }
 
-  /** Reads [LabelerInput] protos from a GCS blob containing length-delimited protobuf. */
   fun readImpressions(path: String): List<LabelerInput> {
     val blobId = BlobId.of(bucket, path)
     val content = storage.readAllBytes(blobId)
     val inputStream = ByteArrayInputStream(content)
-    val result = mutableListOf<LabelerInput>()
+    val result = ArrayList<LabelerInput>(IMPRESSIONS_PER_FILE)
     while (inputStream.available() > 0) {
       val input = LabelerInput.parseDelimitedFrom(inputStream) ?: break
       result.add(input)
@@ -57,7 +53,20 @@ class GcsIo(private val bucket: String) {
     return result
   }
 
-  /** Writes a list of [LabelerOutput] protos to a GCS blob as length-delimited protobuf. */
+  fun readRawBytes(path: String): ByteArray {
+    return storage.readAllBytes(BlobId.of(bucket, path))
+  }
+
+  fun parseImpressionsFromBytes(rawBytes: ByteArray): List<LabelerInput> {
+    val inputStream = ByteArrayInputStream(rawBytes)
+    val result = ArrayList<LabelerInput>(IMPRESSIONS_PER_FILE)
+    while (inputStream.available() > 0) {
+      val input = LabelerInput.parseDelimitedFrom(inputStream) ?: break
+      result.add(input)
+    }
+    return result
+  }
+
   fun writeLabeledEvents(path: String, outputs: List<LabelerOutput>) {
     val baos = ByteArrayOutputStream()
     for (output in outputs) {
@@ -67,26 +76,39 @@ class GcsIo(private val bucket: String) {
     storage.create(blobInfo, baos.toByteArray())
   }
 
-  /**
-   * Writes pre-serialized length-delimited proto bytes to a GCS blob. Each entry in
-   * [delimitedOutputs] is already in writeDelimitedTo format (varint length + proto bytes).
-   */
   fun writeLabeledEventsRaw(path: String, delimitedOutputs: List<ByteArray>) {
     val blobInfo = BlobInfo.newBuilder(BlobId.of(bucket, path)).build()
     storage.writer(blobInfo).use { writer ->
       for (bytes in delimitedOutputs) {
-        writer.write(java.nio.ByteBuffer.wrap(bytes))
+        writer.write(ByteBuffer.wrap(bytes))
       }
     }
   }
 
-  /** Lists all blobs under a given prefix. */
+  fun writeBytes(path: String, data: ByteArray) {
+    val blobInfo = BlobInfo.newBuilder(BlobId.of(bucket, path)).build()
+    storage.create(blobInfo, data)
+  }
+
+  /**
+   * Opens a streaming writer to a GCS blob. Caller must close the writer.
+   * Writes are buffered internally (~15MB chunks), so small writes are efficient.
+   */
+  fun withWriter(path: String, block: (java.nio.channels.WritableByteChannel) -> Unit) {
+    val blobInfo = BlobInfo.newBuilder(BlobId.of(bucket, path)).build()
+    storage.writer(blobInfo).use { writer -> block(writer) }
+  }
+
   fun listBlobs(prefix: String): List<String> {
     val blobs = storage.list(bucket, Storage.BlobListOption.prefix(prefix))
     return blobs.iterateAll().map { it.name }
   }
 
-  /** Deletes all blobs under a given prefix (for cleanup/overwrite). */
+  fun listBlobsWithSize(prefix: String): List<Pair<String, Long>> {
+    val blobs = storage.list(bucket, Storage.BlobListOption.prefix(prefix))
+    return blobs.iterateAll().map { it.name to it.size }
+  }
+
   fun deletePrefix(prefix: String) {
     val blobs = storage.list(bucket, Storage.BlobListOption.prefix(prefix))
     for (blob in blobs.iterateAll()) {

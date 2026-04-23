@@ -22,9 +22,9 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Statement
+import com.google.cloud.spanner.TimestampBound
 import com.google.cloud.spanner.Value
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import java.util.concurrent.TimeUnit
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RankEntry
 
 class SpannerRankTableStorage(
@@ -40,14 +40,19 @@ class SpannerRankTableStorage(
       "RankValue",
     )
 
+  private val rankValueColumns =
+    listOf(
+      "EncryptedFingerprint",
+      "RankValue",
+    )
+
   override suspend fun initializePoolCounter(
     dataProvider: String,
     modelRelease: String,
     poolId: String,
     rankedSize: Long,
-  ) =
-    withContext(Dispatchers.IO) {
-      dbClient.readWriteTransaction().run { txn ->
+  ) {
+    dbClient.readWriteTransaction().run { txn ->
         val rs =
           txn.executeQuery(
             Statement.newBuilder(
@@ -64,6 +69,7 @@ class SpannerRankTableStorage(
               .to(poolId)
               .build()
           )
+
         if (!rs.next()) {
           txn.buffer(
             Mutation.newInsertBuilder("PoolCounter")
@@ -83,18 +89,16 @@ class SpannerRankTableStorage(
         rs.close()
         null
       }
-      Unit
-    }
+  }
 
   override suspend fun lookupRanks(
     dataProvider: String,
     modelRelease: String,
     fingerprints: List<SpannerByteArray>,
-  ): Map<SpannerByteArray, RankEntry> =
-    withContext(Dispatchers.IO) {
-      if (fingerprints.isEmpty()) return@withContext emptyMap()
+  ): Map<SpannerByteArray, RankEntry> {
+    if (fingerprints.isEmpty()) return emptyMap()
 
-      val keySet =
+    val keySet =
         KeySet.newBuilder()
           .apply {
             for (fp in fingerprints) {
@@ -103,39 +107,107 @@ class SpannerRankTableStorage(
           }
           .build()
 
-      val results = mutableMapOf<SpannerByteArray, RankEntry>()
-      val readContext = dbClient.singleUse()
-      val rs = readContext.read("RankTable", keySet, rankTableColumns)
-      try {
-        while (rs.next()) {
-          val entry =
-            RankEntry(
-              dataProviderResourceId =
-                rs.getString("DataProviderResourceId"),
-              modelRelease = rs.getString("ModelRelease"),
-              encryptedFingerprint = rs.getBytes("EncryptedFingerprint"),
-              poolId = rs.getString("PoolId"),
-              rankValue = rs.getLong("RankValue"),
-            )
-          results[entry.encryptedFingerprint] = entry
-        }
-      } finally {
-        rs.close()
-        readContext.close()
+    val results = mutableMapOf<SpannerByteArray, RankEntry>()
+    val readContext = dbClient.singleUse()
+    val rs = readContext.read("RankTable", keySet, rankTableColumns)
+    try {
+      while (rs.next()) {
+        val entry =
+          RankEntry(
+            dataProviderResourceId =
+              rs.getString("DataProviderResourceId"),
+            modelRelease = rs.getString("ModelRelease"),
+            encryptedFingerprint = rs.getBytes("EncryptedFingerprint"),
+            poolId = rs.getString("PoolId"),
+            rankValue = rs.getLong("RankValue"),
+          )
+        results[entry.encryptedFingerprint] = entry
       }
-      results
+    } finally {
+      rs.close()
+      readContext.close()
     }
 
+    return results
+  }
+
+  override suspend fun lookupRankValues(
+    dataProvider: String,
+    modelRelease: String,
+    fingerprints: List<SpannerByteArray>,
+  ): Map<SpannerByteArray, Long> {
+    if (fingerprints.isEmpty()) return emptyMap()
+
+    val keySet =
+        KeySet.newBuilder()
+          .apply {
+            for (fp in fingerprints) {
+              addKey(Key.of(dataProvider, modelRelease, fp))
+            }
+          }
+          .build()
+
+    val results = mutableMapOf<SpannerByteArray, Long>()
+    val readContext = dbClient.singleUse()
+    val rs = readContext.read("RankTable", keySet, rankValueColumns)
+    try {
+      while (rs.next()) {
+        results[rs.getBytes("EncryptedFingerprint")] = rs.getLong("RankValue")
+      }
+    } finally {
+      rs.close()
+      readContext.close()
+    }
+
+    return results
+  }
+
+  override suspend fun lookupRankValuesStale(
+    dataProvider: String,
+    modelRelease: String,
+    fingerprints: List<SpannerByteArray>,
+    maxStalenessSeconds: Long,
+  ): Map<SpannerByteArray, Long> {
+    if (fingerprints.isEmpty()) return emptyMap()
+
+    val keySet =
+        KeySet.newBuilder()
+          .apply {
+            for (fp in fingerprints) {
+              addKey(Key.of(dataProvider, modelRelease, fp))
+            }
+          }
+          .build()
+
+    val timestampBound = if (maxStalenessSeconds > 0) {
+      TimestampBound.ofMaxStaleness(maxStalenessSeconds, TimeUnit.SECONDS)
+    } else {
+      TimestampBound.strong()
+    }
+
+    val results = mutableMapOf<SpannerByteArray, Long>()
+    val readContext = dbClient.singleUse(timestampBound)
+    val rs = readContext.read("RankTable", keySet, rankValueColumns)
+    try {
+      while (rs.next()) {
+        results[rs.getBytes("EncryptedFingerprint")] = rs.getLong("RankValue")
+      }
+    } finally {
+      rs.close()
+      readContext.close()
+    }
+
+    return results
+  }
 
   override suspend fun lookupKnownFingerprints(
     dataProvider: String,
     modelRelease: String,
     fingerprints: List<SpannerByteArray>,
-  ): Set<SpannerByteArray> =
-    withContext(Dispatchers.IO) {
-      if (fingerprints.isEmpty()) return@withContext emptySet()
+  ): Set<SpannerByteArray> {
+    if (fingerprints.isEmpty()) return emptySet()
 
-      val keySet =
+    val keySet =
         KeySet.newBuilder()
           .apply {
             for (fp in fingerprints) {
@@ -144,29 +216,29 @@ class SpannerRankTableStorage(
           }
           .build()
 
-      val results = mutableSetOf<SpannerByteArray>()
-      val readContext = dbClient.singleUse()
-      val rs = readContext.read("RankTable", keySet, listOf("EncryptedFingerprint"))
-      try {
-        while (rs.next()) {
-          results.add(rs.getBytes("EncryptedFingerprint"))
-        }
-      } finally {
-        rs.close()
-        readContext.close()
+    val results = mutableSetOf<SpannerByteArray>()
+    val readContext = dbClient.singleUse()
+    val rs = readContext.read("RankTable", keySet, listOf("EncryptedFingerprint"))
+    try {
+      while (rs.next()) {
+        results.add(rs.getBytes("EncryptedFingerprint"))
       }
-      results
+    } finally {
+      rs.close()
+      readContext.close()
     }
+
+    return results
+  }
 
   override suspend fun allocateRanks(
     dataProvider: String,
     modelRelease: String,
     poolId: String,
     count: Int,
-  ): Long =
-    withContext(Dispatchers.IO) {
-      var startRank = 0L
-      dbClient.readWriteTransaction().run { txn ->
+  ): Long {
+    var startRank = 0L
+    dbClient.readWriteTransaction().run { txn ->
         val rs =
           txn.executeQuery(
             Statement.newBuilder(
@@ -183,6 +255,7 @@ class SpannerRankTableStorage(
               .to(poolId)
               .build()
           )
+
         check(rs.next()) {
           "PoolCounter not found for pool $poolId" +
             " (dataProvider=$dataProvider, model=$modelRelease)"
@@ -204,31 +277,30 @@ class SpannerRankTableStorage(
         )
         null
       }
-      startRank
-    }
 
-  override suspend fun writeRanks(entries: List<RankEntry>) =
-    withContext(Dispatchers.IO) {
-      val mutations =
-        entries.map { entry ->
-          Mutation.newInsertBuilder("RankTable")
-            .set("DataProviderResourceId")
-            .to(entry.dataProviderResourceId)
-            .set("ModelRelease")
-            .to(entry.modelRelease)
-            .set("EncryptedFingerprint")
-            .to(entry.encryptedFingerprint)
-            .set("PoolId")
-            .to(entry.poolId)
-            .set("RankValue")
-            .to(entry.rankValue)
-            .set("CreateTime")
-            .to(Value.COMMIT_TIMESTAMP)
-            .build()
-        }
-      dbClient.write(mutations)
-      Unit
-    }
+    return startRank
+  }
+
+  override suspend fun writeRanks(entries: List<RankEntry>) {
+    val mutations =
+      entries.map { entry ->
+        Mutation.newInsertBuilder("RankTable")
+          .set("DataProviderResourceId")
+          .to(entry.dataProviderResourceId)
+          .set("ModelRelease")
+          .to(entry.modelRelease)
+          .set("EncryptedFingerprint")
+          .to(entry.encryptedFingerprint)
+          .set("PoolId")
+          .to(entry.poolId)
+          .set("RankValue")
+          .to(entry.rankValue)
+          .set("CreateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .build()
+      }
+    dbClient.write(mutations)
+  }
 
   override fun close() {}
 }

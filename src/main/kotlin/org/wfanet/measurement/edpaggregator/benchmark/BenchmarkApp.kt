@@ -91,9 +91,9 @@ class BenchmarkApp : Runnable {
   @CommandLine.Option(
     names = ["--db-lookup-batch-size"],
     description = ["Fingerprints per Spanner lookup query (no mutation limit, can be large)"],
-    defaultValue = "50000",
+    defaultValue = "200000",
   )
-  private var dbLookupBatchSize: Int = 50_000
+  private var dbLookupBatchSize: Int = 200_000
 
   @CommandLine.Option(
     names = ["--db-write-batch-size"],
@@ -133,9 +133,9 @@ class BenchmarkApp : Runnable {
   @CommandLine.Option(
     names = ["--db-read-parallelism"],
     description = ["Concurrent Spanner read-only operations (safe to set high)"],
-    defaultValue = "32",
+    defaultValue = "128",
   )
-  private var dbReadParallelism: Int = 32
+  private var dbReadParallelism: Int = 128
 
   @CommandLine.Option(
     names = ["--db-write-parallelism"],
@@ -147,9 +147,9 @@ class BenchmarkApp : Runnable {
   @CommandLine.Option(
     names = ["--io-parallelism"],
     description = ["Concurrent GCS file read/write operations"],
-    defaultValue = "16",
+    defaultValue = "128",
   )
-  private var ioParallelism: Int = 16
+  private var ioParallelism: Int = 128
 
   @CommandLine.Option(
     names = ["--gcs-bucket"],
@@ -178,6 +178,13 @@ class BenchmarkApp : Runnable {
     defaultValue = "false",
   )
   private var skipDataGeneration: Boolean = false
+
+  @CommandLine.Option(
+    names = ["--day2-overlap-pct"],
+    description = ["Generate Day 2 data with this % of accounts overlapping Day 1. Uses first N accounts from Day 1 as returning, creates new accounts beyond totalReach."],
+    defaultValue = "0",
+  )
+  private var day2OverlapPct: Int = 0
 
   @CommandLine.Option(
     names = ["--storage-backend"],
@@ -220,6 +227,27 @@ class BenchmarkApp : Runnable {
     defaultValue = "false",
   )
   private var skipDb: Boolean = false
+
+  @CommandLine.Option(
+    names = ["--rank-only"],
+    description = ["Run rank-only mode: read GCS files in batches, compute ranks, write to DB. No Pass 2 or output generation."],
+    defaultValue = "false",
+  )
+  private var rankOnly: Boolean = false
+
+  @CommandLine.Option(
+    names = ["--label-only"],
+    description = ["Run label-only mode: read GCS impressions, run Pass 2 labeler, write output. No rank resolution."],
+    defaultValue = "false",
+  )
+  private var labelOnly: Boolean = false
+
+  @CommandLine.Option(
+    names = ["--batch-size-mb"],
+    description = ["Batch size in MB for rank-only mode (files are grouped until this threshold)"],
+    defaultValue = "1024",
+  )
+  private var batchSizeMb: Int = 1024
 
   override fun run() {
     runBlocking {
@@ -308,8 +336,7 @@ class BenchmarkApp : Runnable {
       }
 
       storageCloseable.use {
-        val dataGenerator = DataGenerator(totalReach, totalImpressions)
-
+        val dataGenerator = DataGenerator(totalReach, totalImpressions, singleDay = days == 1)
         val pipeline =
           Pipeline(
             storage = storage,
@@ -324,13 +351,12 @@ class BenchmarkApp : Runnable {
             dbWriteParallelism = dbWriteParallelism,
             ioParallelism = ioParallelism,
           )
-
         pipeline.initializePoolCounters()
 
         val gcsIo = GcsIo(gcsBucket)
 
         // === Data Generation Phase (not benchmarked) ===
-        if (!skipDataGeneration) {
+        if (!skipDataGeneration && day2OverlapPct == 0) {
           println()
           println("=== Data Generation -- uploading impressions to GCS ===")
           for (day in 1..days) {
@@ -342,23 +368,25 @@ class BenchmarkApp : Runnable {
 
             val allAccountIds = dayData.newAccountIds + dayData.returningAccountIds
             val totalDayImpressions = dayData.totalImpressions
-
             var written = 0
             var fileIndex = 0
+            val rng = java.util.Random(day.toLong())
+
             while (written < totalDayImpressions) {
               val batchSize = minOf(IMPRESSIONS_PER_FILE, totalDayImpressions - written)
               val batch =
                 (0 until batchSize).map { i ->
-                  val idx = (written + i) % allAccountIds.size
-                  val userId = allAccountIds[idx]
+                  val userId = allAccountIds[rng.nextInt(allAccountIds.size)]
                   val accountIndex = userId.removePrefix("user_").toInt()
                   DataGenerator.buildLabelerInput(userId, accountIndex)
                 }
+
               val filePath =
                 "$dayPrefix/impressions_${String.format("%06d", fileIndex)}.pb"
               gcsIo.writeImpressions(filePath, batch)
               written += batchSize
               fileIndex++
+
               if (fileIndex % 10 == 0) {
                 print(
                   "\r  Day $day: $written/$totalDayImpressions impressions ($fileIndex files)"
@@ -375,28 +403,205 @@ class BenchmarkApp : Runnable {
           println("=== Data Generation -- SKIPPED (using existing GCS data) ===")
         }
 
-        // Reset the data generator for the benchmark run
-        val dataGenerator2 = DataGenerator(totalReach, totalImpressions)
+        if (day2OverlapPct > 0) {
+          require(day2OverlapPct in 1..99) { "--day2-overlap-pct must be between 1 and 99" }
+          val returningCount = (totalReach.toLong() * day2OverlapPct / 100).toInt()
+          val newCount = totalReach - returningCount
+          val day2TotalAccounts = totalReach
 
-        val allDayResults = mutableListOf<DayResult>()
-        for (day in 1..days) {
-          val dayData = dataGenerator2.generateDay(day)
-          val date = LocalDate.parse(startDate).plusDays((day - 1).toLong())
-          val dayGcsPrefix = "$gcsPrefix/$date"
+          println()
+          println("=== Day 2 Data Generation ($day2OverlapPct% overlap) ===")
+          println("  Returning from Day 1: $returningCount | New: $newCount | Total: $day2TotalAccounts | Impressions: $totalImpressions")
+          println("  Returning: user_0..user_${returningCount - 1} | New: user_${totalReach}..user_${totalReach + newCount - 1}")
+
+          val day2Date = LocalDate.parse(startDate).plusDays(1)
+          val day2Prefix = "$gcsPrefix/$day2Date"
+          gcsIo.deletePrefix(day2Prefix)
+
+          var written2 = 0
+          var fileIndex2 = 0
+          val rng2 = java.util.Random(42L)
+          while (written2 < totalImpressions) {
+            val batchSize = minOf(IMPRESSIONS_PER_FILE, totalImpressions - written2)
+            val batch =
+              (0 until batchSize).map {
+                val idx = rng2.nextInt(day2TotalAccounts)
+                val accountIndex =
+                  if (idx < returningCount) idx
+                  else totalReach + (idx - returningCount)
+                val userId = "user_$accountIndex"
+                DataGenerator.buildLabelerInput(userId, accountIndex)
+              }
+            val filePath =
+              "$day2Prefix/impressions_${String.format("%06d", fileIndex2)}.pb"
+            gcsIo.writeImpressions(filePath, batch)
+            written2 += batchSize
+            fileIndex2++
+            if (fileIndex2 % 10 == 0) {
+              print(
+                "\r  Day 2: $written2/$totalImpressions impressions ($fileIndex2 files)"
+              )
+            }
+          }
           println(
-            "--- Day $day: ${dayData.newAccountIds.size} new, " +
-              "${dayData.returningAccountIds.size} returning, " +
-              "${dayData.totalImpressions} impressions ---"
+            "\r  Day 2: $written2/$totalImpressions impressions ($fileIndex2 files) -- done"
           )
-
-          val result = pipeline.runDay(dayData, gcsIo, dayGcsPrefix)
-          allDayResults.add(result)
-          printDayResult(result)
           println()
         }
 
-        println("=== Summary ===")
-        printSummary(allDayResults)
+        // Reset the data generator for the benchmark run
+        val dataGenerator2 = DataGenerator(totalReach, totalImpressions, singleDay = days == 1)
+
+        if (labelOnly) {
+          val labelPipeline =
+            LabelOnlyPipeline(
+              storage = storage,
+              labeler = labeler,
+              dataProvider = dataProvider,
+              modelRelease = modelRelease,
+              dbLookupBatchSize = dbLookupBatchSize,
+              parallelism = workers,
+              dbReadParallelism = dbReadParallelism,
+              ioParallelism = ioParallelism,
+              batchSizeBytes = batchSizeMb.toLong() * 1024 * 1024,
+            )
+
+          for (day in 1..days) {
+            val dayData = dataGenerator2.generateDay(day)
+            val date = LocalDate.parse(startDate).plusDays((day - 1).toLong())
+            val dayGcsPrefix = "$gcsPrefix/$date"
+
+            println(
+              "--- Day $day: ${dayData.totalImpressions} impressions (label-only) ---"
+            )
+
+            val result = labelPipeline.processDay(gcsIo, dayGcsPrefix)
+
+            println()
+            println("  Day $day Summary:")
+            println("    Workers:        ${result.workerResults.size}")
+            println("    Files:          ${result.totalFiles}")
+            println("    Impressions:    ${result.totalImpressions}")
+            println("    Unique accounts:${result.uniqueAccounts}")
+            println("    Ranks found:    ${result.ranksFound}")
+            println()
+            println("    Phase Timing (accumulated across workers, stages overlap):")
+            println("      GCS Read:       ${result.gcsScanMs}ms")
+            println("      Fingerprint:    ${result.fingerprintMs}ms")
+            println("      DB Lookup:      ${result.dbLookupMs}ms")
+            println("      Feistel:        ${result.feistelMs}ms")
+            println("      Label + Write:  ${result.labelWriteMs}ms")
+            println("      Phase sum:      ${result.gcsScanMs + result.fingerprintMs + result.dbLookupMs + result.feistelMs + result.labelWriteMs}ms")
+            println()
+            println(
+              "    Wall clock:     ${result.wallClockMs}ms (${result.wallClockMs / 1000}s)"
+            )
+            if (result.totalImpressions > 0 && result.wallClockMs > 0) {
+              println(
+                "    Throughput:     ${result.totalImpressions * 1000L / result.wallClockMs} impressions/sec"
+              )
+            }
+            println()
+            println("    Per-worker breakdown:")
+            println(
+              "      %-7s %6s %12s %9s %9s %10s %8s %12s %10s".format(
+                "Worker", "Files", "Impressions", "GCS Read", "Fingerpt",
+                "DB Lookup", "Feistel", "Label+Write", "Total"
+              )
+            )
+            for (w in result.workerResults) {
+              println(
+                "      %-7s %6d %12d %7dms %7dms %8dms %6dms %10dms %8dms".format(
+                  "W${w.workerIndex}", w.fileCount, w.impressions,
+                  w.gcsReadMs, w.fingerprintMs, w.dbLookupMs,
+                  w.feistelMs, w.labelWriteMs, w.totalMs
+                )
+              )
+            }
+            val straggler = result.workerResults.maxByOrNull { it.totalMs }
+            if (straggler != null) {
+              println("    Straggler:      W${straggler.workerIndex}" +
+                " at ${straggler.totalMs}ms" +
+                " (GCS:${straggler.gcsReadMs} FP:${straggler.fingerprintMs}" +
+                " DB:${straggler.dbLookupMs} Label:${straggler.labelWriteMs}ms)")
+            }
+            println()
+          }
+        } else if (rankOnly) {
+          val rankOnlyPipeline =
+            RankOnlyPipeline(
+              storage = storage,
+              labeler = labeler,
+              dataProvider = dataProvider,
+              modelRelease = modelRelease,
+              numPools = numPools,
+              dbLookupBatchSize = dbLookupBatchSize,
+              dbWriteBatchSize = dbWriteBatchSize,
+              parallelism = workers,
+              dbReadParallelism = dbReadParallelism,
+              dbWriteParallelism = dbWriteParallelism,
+              ioParallelism = ioParallelism,
+              batchSizeBytes = batchSizeMb.toLong() * 1024 * 1024,
+            )
+          rankOnlyPipeline.initializePoolCounters()
+
+          for (day in 1..days) {
+            val dayData = dataGenerator2.generateDay(day)
+            val date = LocalDate.parse(startDate).plusDays((day - 1).toLong())
+            val dayGcsPrefix = "$gcsPrefix/$date"
+
+            println(
+              "--- Day $day: ${dayData.newAccountIds.size} new, " +
+                "${dayData.returningAccountIds.size} returning, " +
+                "${dayData.totalImpressions} impressions ---"
+            )
+
+            val batchResults = rankOnlyPipeline.processDay(gcsIo, dayGcsPrefix)
+
+            println()
+            val totalMs = batchResults.sumOf { it.totalMs }
+            val totalNew = batchResults.sumOf { it.newAccounts }
+            val totalRanked = batchResults.sumOf { it.ranksWritten }
+            val totalAccounts = batchResults.sumOf { it.uniqueAccounts }
+
+            println("  Day $day Summary:")
+            println("    Batches:        ${batchResults.size}")
+            println("    Accounts:       $totalAccounts unique, $totalNew new, $totalRanked ranked")
+            println("    GCS Read:       ${batchResults.sumOf { it.readGcsMs }}ms")
+            println("    Fingerprints:   ${batchResults.sumOf { it.fingerprintMs }}ms")
+            println("    Bulk Lookup:    ${batchResults.sumOf { it.bulkLookupMs }}ms")
+            println("    Pass 1:         ${batchResults.sumOf { it.pass1Ms }}ms")
+            println("    Rank Alloc:     ${batchResults.sumOf { it.rankAllocMs }}ms")
+            println("    Write Ranks:    ${batchResults.sumOf { it.writeRanksMs }}ms")
+            println("    Total:          ${totalMs}ms")
+            if (totalNew > 0 && totalMs > 0) {
+              println("    Throughput:     ${totalNew * 1000L / totalMs} new accounts/sec")
+            }
+            println()
+          }
+        } else {
+          val allDayResults = mutableListOf<DayResult>()
+
+          for (day in 1..days) {
+            val dayData = dataGenerator2.generateDay(day)
+            val date = LocalDate.parse(startDate).plusDays((day - 1).toLong())
+            val dayGcsPrefix = "$gcsPrefix/$date"
+
+            println(
+              "--- Day $day: ${dayData.newAccountIds.size} new, " +
+                "${dayData.returningAccountIds.size} returning, " +
+                "${dayData.totalImpressions} impressions ---"
+            )
+
+            val result = pipeline.runDay(dayData, gcsIo, dayGcsPrefix)
+            allDayResults.add(result)
+            printDayResult(result)
+            println()
+          }
+
+          println("=== Summary ===")
+          printSummary(allDayResults)
+        }
       }
     }
   }
@@ -491,7 +696,7 @@ class BenchmarkApp : Runnable {
     )
   }
 
-  companion object {
+    companion object {
     @JvmStatic
     fun main(args: Array<String>) = commandLineMain(BenchmarkApp(), args)
   }

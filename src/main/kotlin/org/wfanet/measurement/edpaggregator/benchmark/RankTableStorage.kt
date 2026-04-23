@@ -20,7 +20,6 @@ import com.google.cloud.ByteArray as SpannerByteArray
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RankEntry
 
 interface RankTableStorage : AutoCloseable {
-
   suspend fun initializePoolCounter(
     dataProvider: String,
     modelRelease: String,
@@ -34,12 +33,27 @@ interface RankTableStorage : AutoCloseable {
     fingerprints: List<SpannerByteArray>,
   ): Map<SpannerByteArray, RankEntry>
 
-
   suspend fun lookupKnownFingerprints(
     dataProvider: String,
     modelRelease: String,
     fingerprints: List<SpannerByteArray>,
   ): Set<SpannerByteArray>
+
+  suspend fun lookupRankValues(
+    dataProvider: String,
+    modelRelease: String,
+    fingerprints: List<SpannerByteArray>,
+  ): Map<SpannerByteArray, Long> {
+    return lookupRanks(dataProvider, modelRelease, fingerprints)
+      .mapValues { it.value.rankValue }
+  }
+
+  suspend fun lookupRankValuesStale(
+    dataProvider: String,
+    modelRelease: String,
+    fingerprints: List<SpannerByteArray>,
+    maxStalenessSeconds: Long = 15,
+  ): Map<SpannerByteArray, Long> = lookupRankValues(dataProvider, modelRelease, fingerprints)
 
   suspend fun allocateRanks(
     dataProvider: String,

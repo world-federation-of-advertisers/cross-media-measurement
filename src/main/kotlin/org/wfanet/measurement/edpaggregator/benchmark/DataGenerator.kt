@@ -41,16 +41,23 @@ data class DayData(
   val totalImpressions: Int,
 )
 
-class DataGenerator(val totalReach: Int, val totalImpressions: Int) {
+class DataGenerator(val totalReach: Int, val totalImpressions: Int, val singleDay: Boolean = false) {
 
   private val allSeenAccounts = mutableListOf<String>()
   private var nextAccountIndex = 0
 
   fun generateDay(day: Int): DayData {
     val dayIndex = (day - 1).coerceAtMost(NEW_REACH_FRACTIONS.size - 1)
-    val newCount = (totalReach * NEW_REACH_FRACTIONS[dayIndex]).toInt().coerceAtLeast(1)
-    val impressionCount =
-      (totalImpressions * IMPRESSION_FRACTIONS[dayIndex]).toInt().coerceAtLeast(1)
+    val newCount: Int
+    val impressionCount: Int
+    if (singleDay) {
+      newCount = totalReach
+      impressionCount = totalImpressions
+    } else {
+      newCount = (totalReach * NEW_REACH_FRACTIONS[dayIndex]).toInt().coerceAtLeast(1)
+      impressionCount =
+        (totalImpressions * IMPRESSION_FRACTIONS[dayIndex]).toInt().coerceAtLeast(1)
+    }
 
     val newAccountIds =
       (0 until newCount).map {

@@ -12,6 +12,8 @@ kt_jvm_library(
         "GcsIo.kt",
         "NoOpRankTableStorage.kt",
         "Pipeline.kt",
+        "LabelOnlyPipeline.kt",
+        "RankOnlyPipeline.kt",
         "RankTableStorage.kt",
         "SpannerRankTableStorage.kt",
     ],
