@@ -701,20 +701,18 @@ class EventGroupSyncTest {
           fields["ad_group_id"] = value { stringValue = "ag-42" }
           fields["impressions"] = value { numberValue = 12345.0 }
           fields["is_seasonal"] = value { boolValue = true }
-          fields["tags"] =
-            value {
-              listValue = listValue {
-                values += value { stringValue = "holiday" }
-                values += value { stringValue = "promo" }
-              }
+          fields["tags"] = value {
+            listValue = listValue {
+              values += value { stringValue = "holiday" }
+              values += value { stringValue = "promo" }
             }
-          fields["targeting"] =
-            value {
-              structValue = struct {
-                fields["geo"] = value { stringValue = "US" }
-                fields["age_min"] = value { numberValue = 18.0 }
-              }
+          }
+          fields["targeting"] = value {
+            structValue = struct {
+              fields["geo"] = value { stringValue = "US" }
+              fields["age_min"] = value { numberValue = 18.0 }
             }
+          }
         }
       }
       entityKey = entityKey {
@@ -1076,8 +1074,7 @@ class EventGroupSyncTest {
 
           val updateCaptor = argumentCaptor<UpdateEventGroupRequest>()
           verifyBlocking(eventGroupsMock, times(1)) { updateEventGroup(updateCaptor.capture()) }
-          val updatedMetadata =
-            updateCaptor.firstValue.eventGroup.eventGroupMetadata.entityMetadata
+          val updatedMetadata = updateCaptor.firstValue.eventGroup.eventGroupMetadata.entityMetadata
           assertThat(updatedMetadata.fieldsMap.getValue("alpha").stringValue).isEqualTo("a")
           assertThat(updatedMetadata.fieldsMap.getValue("gamma").stringValue).isEqualTo("new")
         }
@@ -1167,8 +1164,7 @@ class EventGroupSyncTest {
 
           val updateCaptor = argumentCaptor<UpdateEventGroupRequest>()
           verifyBlocking(eventGroupsMock, times(1)) { updateEventGroup(updateCaptor.capture()) }
-          val updatedMetadata =
-            updateCaptor.firstValue.eventGroup.eventGroupMetadata.entityMetadata
+          val updatedMetadata = updateCaptor.firstValue.eventGroup.eventGroupMetadata.entityMetadata
           assertThat(updatedMetadata.fieldsMap.getValue("alpha").stringValue).isEqualTo("new")
         }
       }
@@ -1260,8 +1256,7 @@ class EventGroupSyncTest {
 
           val updateCaptor = argumentCaptor<UpdateEventGroupRequest>()
           verifyBlocking(eventGroupsMock, times(1)) { updateEventGroup(updateCaptor.capture()) }
-          val updatedMetadata =
-            updateCaptor.firstValue.eventGroup.eventGroupMetadata.entityMetadata
+          val updatedMetadata = updateCaptor.firstValue.eventGroup.eventGroupMetadata.entityMetadata
           assertThat(updatedMetadata.fieldsMap).containsKey("alpha")
           assertThat(updatedMetadata.fieldsMap).doesNotContainKey("beta")
         }
