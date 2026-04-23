@@ -889,9 +889,7 @@ class EventGroupSyncFunctionTest() {
             campaign = "campaign-new"
           }
         }
-        entityMetadata = struct {
-          fields["ad_group"] = value { stringValue = "ag-fn-1" }
-        }
+        entityMetadata = struct { fields["ad_group"] = value { stringValue = "ag-fn-1" } }
       }
       entityKey = entityKey {
         entityType = "creative"

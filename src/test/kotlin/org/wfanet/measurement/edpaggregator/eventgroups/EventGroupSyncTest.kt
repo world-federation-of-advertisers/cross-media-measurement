@@ -645,9 +645,7 @@ class EventGroupSyncTest {
             campaign = "campaign-new"
           }
         }
-        entityMetadata = struct {
-          fields["placement"] = value { stringValue = "homepage" }
-        }
+        entityMetadata = struct { fields["placement"] = value { stringValue = "homepage" } }
       }
       entityKey = entityKey {
         entityType = "creative"
@@ -713,9 +711,7 @@ class EventGroupSyncTest {
             campaign = "campaign-1"
           }
         }
-        entityMetadata = struct {
-          fields["ad_group"] = value { stringValue = "ag-upd" }
-        }
+        entityMetadata = struct { fields["ad_group"] = value { stringValue = "ag-upd" } }
       }
       entityKey = entityKey {
         entityType = "creative"
