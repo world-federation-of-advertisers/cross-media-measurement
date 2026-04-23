@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.eventgroups
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.listValue
 import com.google.protobuf.struct
 import com.google.protobuf.timestamp
 import com.google.protobuf.value
@@ -685,6 +686,76 @@ class EventGroupSyncTest {
   }
 
   @Test
+  fun `sync preserves nested entity_metadata values on create`() {
+    val sourceEventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id-rich"
+      measurementConsumer = "measurementConsumers/measurement-consumer-2"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-rich"
+            campaign = "campaign-rich"
+          }
+        }
+        entityMetadata = struct {
+          fields["ad_group_id"] = value { stringValue = "ag-42" }
+          fields["impressions"] = value { numberValue = 12345.0 }
+          fields["is_seasonal"] = value { boolValue = true }
+          fields["tags"] =
+            value {
+              listValue = listValue {
+                values += value { stringValue = "holiday" }
+                values += value { stringValue = "promo" }
+              }
+            }
+          fields["targeting"] =
+            value {
+              structValue = struct {
+                fields["geo"] = value { stringValue = "US" }
+                fields["age_min"] = value { numberValue = 18.0 }
+              }
+            }
+        }
+      }
+      entityKey = entityKey {
+        entityType = "creative"
+        entityId = "cr-rich"
+      }
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.VIDEO)
+    }
+
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        listOf(sourceEventGroup).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+      )
+    runBlocking { eventGroupSync.sync().collect() }
+
+    val createCaptor = argumentCaptor<CreateEventGroupRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(createCaptor.capture()) }
+    val forwarded = createCaptor.firstValue.eventGroup.eventGroupMetadata.entityMetadata
+
+    assertThat(forwarded.fieldsMap.getValue("ad_group_id").stringValue).isEqualTo("ag-42")
+    assertThat(forwarded.fieldsMap.getValue("impressions").numberValue).isEqualTo(12345.0)
+    assertThat(forwarded.fieldsMap.getValue("is_seasonal").boolValue).isTrue()
+
+    val tags = forwarded.fieldsMap.getValue("tags").listValue.valuesList
+    assertThat(tags.map { it.stringValue }).containsExactly("holiday", "promo").inOrder()
+
+    val targeting = forwarded.fieldsMap.getValue("targeting").structValue
+    assertThat(targeting.fieldsMap.getValue("geo").stringValue).isEqualTo("US")
+    assertThat(targeting.fieldsMap.getValue("age_min").numberValue).isEqualTo(18.0)
+  }
+
+  @Test
   fun `sync updatesExistingEventGroups`() {
     val eventGroupSync =
       EventGroupSync(
@@ -822,6 +893,377 @@ class EventGroupSyncTest {
           verifyBlocking(eventGroupsMock, times(1)) { updateEventGroup(updateCaptor.capture()) }
           val updated = updateCaptor.firstValue.eventGroup
           assertThat(updated.hasEntityKey()).isFalse()
+        }
+      }
+
+    testRule.apply(statement, org.junit.runner.Description.EMPTY).evaluate()
+  }
+
+  @Test
+  fun `sync does not update when entity_metadata fields differ only in insertion order`() {
+    val eventGroupsMock: EventGroupsCoroutineImplBase = mockService {
+      onBlocking { updateEventGroup(any<UpdateEventGroupRequest>()) }
+        .thenAnswer { invocation -> invocation.getArgument<UpdateEventGroupRequest>(0).eventGroup }
+      onBlocking { createEventGroup(any<CreateEventGroupRequest>()) }
+        .thenAnswer { invocation -> invocation.getArgument<CreateEventGroupRequest>(0).eventGroup }
+      onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
+        .thenAnswer {
+          listEventGroupsResponse {
+            eventGroups += cmmsEventGroup {
+              name = "dataProviders/data-provider-1/eventGroups/resource-id-1"
+              measurementConsumer = "measurementConsumers/measurement-consumer-1"
+              eventGroupReferenceId = "reference-id-1"
+              mediaTypes += listOf(CmmsMediaType.VIDEO)
+              eventGroupMetadata = cmmsEventGroupMetadata {
+                this.adMetadata = cmmsAdMetadata {
+                  this.campaignMetadata = cmmsCampaignMetadata {
+                    brandName = "brand-1"
+                    campaignName = "campaign-1"
+                  }
+                }
+                this.entityMetadata = struct {
+                  fields["alpha"] = value { stringValue = "a" }
+                  fields["beta"] = value { stringValue = "b" }
+                }
+              }
+              dataAvailabilityInterval = interval {
+                startTime = timestamp { seconds = 200 }
+                endTime = timestamp { seconds = 300 }
+              }
+              this.entityKey = cmmsEntityKey {
+                entityType = "creative"
+                entityId = "cr-1"
+              }
+            }
+          }
+        }
+    }
+
+    val testRule = GrpcTestServerRule {
+      addService(eventGroupsMock)
+      addService(clientAccountsServiceMock)
+    }
+
+    val statement =
+      object : org.junit.runners.model.Statement() {
+        override fun evaluate() {
+          val sourceEventGroup = eventGroup {
+            eventGroupReferenceId = "reference-id-1"
+            measurementConsumer = "measurementConsumers/measurement-consumer-1"
+            this.eventGroupMetadata = eventGroupMetadata {
+              this.adMetadata = adMetadata {
+                this.campaignMetadata = campaignMetadata {
+                  brand = "brand-1"
+                  campaign = "campaign-1"
+                }
+              }
+              entityMetadata = struct {
+                fields["beta"] = value { stringValue = "b" }
+                fields["alpha"] = value { stringValue = "a" }
+              }
+            }
+            entityKey = entityKey {
+              entityType = "creative"
+              entityId = "cr-1"
+            }
+            dataAvailabilityInterval = interval {
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
+            }
+            mediaTypes += listOf(MediaType.VIDEO)
+          }
+
+          val eventGroupSync =
+            EventGroupSync(
+              "edp-name",
+              EventGroupsCoroutineStub(testRule.channel),
+              ClientAccountsCoroutineStub(testRule.channel),
+              listOf(sourceEventGroup).asFlow(),
+              MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+              100,
+            )
+          runBlocking { eventGroupSync.sync().collect() }
+
+          verifyBlocking(eventGroupsMock, times(0)) { updateEventGroup(any()) }
+          verifyBlocking(eventGroupsMock, times(0)) { createEventGroup(any()) }
+        }
+      }
+
+    testRule.apply(statement, org.junit.runner.Description.EMPTY).evaluate()
+  }
+
+  @Test
+  fun `sync updates when source adds a new entity_metadata key`() {
+    val eventGroupsMock: EventGroupsCoroutineImplBase = mockService {
+      onBlocking { updateEventGroup(any<UpdateEventGroupRequest>()) }
+        .thenAnswer { invocation -> invocation.getArgument<UpdateEventGroupRequest>(0).eventGroup }
+      onBlocking { createEventGroup(any<CreateEventGroupRequest>()) }
+        .thenAnswer { invocation -> invocation.getArgument<CreateEventGroupRequest>(0).eventGroup }
+      onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
+        .thenAnswer {
+          listEventGroupsResponse {
+            eventGroups += cmmsEventGroup {
+              name = "dataProviders/data-provider-1/eventGroups/resource-id-1"
+              measurementConsumer = "measurementConsumers/measurement-consumer-1"
+              eventGroupReferenceId = "reference-id-1"
+              mediaTypes += listOf(CmmsMediaType.VIDEO)
+              eventGroupMetadata = cmmsEventGroupMetadata {
+                this.adMetadata = cmmsAdMetadata {
+                  this.campaignMetadata = cmmsCampaignMetadata {
+                    brandName = "brand-1"
+                    campaignName = "campaign-1"
+                  }
+                }
+                this.entityMetadata = struct { fields["alpha"] = value { stringValue = "a" } }
+              }
+              dataAvailabilityInterval = interval {
+                startTime = timestamp { seconds = 200 }
+                endTime = timestamp { seconds = 300 }
+              }
+              this.entityKey = cmmsEntityKey {
+                entityType = "creative"
+                entityId = "cr-1"
+              }
+            }
+          }
+        }
+    }
+
+    val testRule = GrpcTestServerRule {
+      addService(eventGroupsMock)
+      addService(clientAccountsServiceMock)
+    }
+
+    val statement =
+      object : org.junit.runners.model.Statement() {
+        override fun evaluate() {
+          val sourceEventGroup = eventGroup {
+            eventGroupReferenceId = "reference-id-1"
+            measurementConsumer = "measurementConsumers/measurement-consumer-1"
+            this.eventGroupMetadata = eventGroupMetadata {
+              this.adMetadata = adMetadata {
+                this.campaignMetadata = campaignMetadata {
+                  brand = "brand-1"
+                  campaign = "campaign-1"
+                }
+              }
+              entityMetadata = struct {
+                fields["alpha"] = value { stringValue = "a" }
+                fields["gamma"] = value { stringValue = "new" }
+              }
+            }
+            entityKey = entityKey {
+              entityType = "creative"
+              entityId = "cr-1"
+            }
+            dataAvailabilityInterval = interval {
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
+            }
+            mediaTypes += listOf(MediaType.VIDEO)
+          }
+
+          val eventGroupSync =
+            EventGroupSync(
+              "edp-name",
+              EventGroupsCoroutineStub(testRule.channel),
+              ClientAccountsCoroutineStub(testRule.channel),
+              listOf(sourceEventGroup).asFlow(),
+              MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+              100,
+            )
+          runBlocking { eventGroupSync.sync().collect() }
+
+          val updateCaptor = argumentCaptor<UpdateEventGroupRequest>()
+          verifyBlocking(eventGroupsMock, times(1)) { updateEventGroup(updateCaptor.capture()) }
+          val updatedMetadata =
+            updateCaptor.firstValue.eventGroup.eventGroupMetadata.entityMetadata
+          assertThat(updatedMetadata.fieldsMap.getValue("alpha").stringValue).isEqualTo("a")
+          assertThat(updatedMetadata.fieldsMap.getValue("gamma").stringValue).isEqualTo("new")
+        }
+      }
+
+    testRule.apply(statement, org.junit.runner.Description.EMPTY).evaluate()
+  }
+
+  @Test
+  fun `sync updates when source changes the value for an existing entity_metadata key`() {
+    val eventGroupsMock: EventGroupsCoroutineImplBase = mockService {
+      onBlocking { updateEventGroup(any<UpdateEventGroupRequest>()) }
+        .thenAnswer { invocation -> invocation.getArgument<UpdateEventGroupRequest>(0).eventGroup }
+      onBlocking { createEventGroup(any<CreateEventGroupRequest>()) }
+        .thenAnswer { invocation -> invocation.getArgument<CreateEventGroupRequest>(0).eventGroup }
+      onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
+        .thenAnswer {
+          listEventGroupsResponse {
+            eventGroups += cmmsEventGroup {
+              name = "dataProviders/data-provider-1/eventGroups/resource-id-1"
+              measurementConsumer = "measurementConsumers/measurement-consumer-1"
+              eventGroupReferenceId = "reference-id-1"
+              mediaTypes += listOf(CmmsMediaType.VIDEO)
+              eventGroupMetadata = cmmsEventGroupMetadata {
+                this.adMetadata = cmmsAdMetadata {
+                  this.campaignMetadata = cmmsCampaignMetadata {
+                    brandName = "brand-1"
+                    campaignName = "campaign-1"
+                  }
+                }
+                this.entityMetadata = struct { fields["alpha"] = value { stringValue = "old" } }
+              }
+              dataAvailabilityInterval = interval {
+                startTime = timestamp { seconds = 200 }
+                endTime = timestamp { seconds = 300 }
+              }
+              this.entityKey = cmmsEntityKey {
+                entityType = "creative"
+                entityId = "cr-1"
+              }
+            }
+          }
+        }
+    }
+
+    val testRule = GrpcTestServerRule {
+      addService(eventGroupsMock)
+      addService(clientAccountsServiceMock)
+    }
+
+    val statement =
+      object : org.junit.runners.model.Statement() {
+        override fun evaluate() {
+          val sourceEventGroup = eventGroup {
+            eventGroupReferenceId = "reference-id-1"
+            measurementConsumer = "measurementConsumers/measurement-consumer-1"
+            this.eventGroupMetadata = eventGroupMetadata {
+              this.adMetadata = adMetadata {
+                this.campaignMetadata = campaignMetadata {
+                  brand = "brand-1"
+                  campaign = "campaign-1"
+                }
+              }
+              entityMetadata = struct { fields["alpha"] = value { stringValue = "new" } }
+            }
+            entityKey = entityKey {
+              entityType = "creative"
+              entityId = "cr-1"
+            }
+            dataAvailabilityInterval = interval {
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
+            }
+            mediaTypes += listOf(MediaType.VIDEO)
+          }
+
+          val eventGroupSync =
+            EventGroupSync(
+              "edp-name",
+              EventGroupsCoroutineStub(testRule.channel),
+              ClientAccountsCoroutineStub(testRule.channel),
+              listOf(sourceEventGroup).asFlow(),
+              MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+              100,
+            )
+          runBlocking { eventGroupSync.sync().collect() }
+
+          val updateCaptor = argumentCaptor<UpdateEventGroupRequest>()
+          verifyBlocking(eventGroupsMock, times(1)) { updateEventGroup(updateCaptor.capture()) }
+          val updatedMetadata =
+            updateCaptor.firstValue.eventGroup.eventGroupMetadata.entityMetadata
+          assertThat(updatedMetadata.fieldsMap.getValue("alpha").stringValue).isEqualTo("new")
+        }
+      }
+
+    testRule.apply(statement, org.junit.runner.Description.EMPTY).evaluate()
+  }
+
+  @Test
+  fun `sync updates when source removes an entity_metadata key`() {
+    val eventGroupsMock: EventGroupsCoroutineImplBase = mockService {
+      onBlocking { updateEventGroup(any<UpdateEventGroupRequest>()) }
+        .thenAnswer { invocation -> invocation.getArgument<UpdateEventGroupRequest>(0).eventGroup }
+      onBlocking { createEventGroup(any<CreateEventGroupRequest>()) }
+        .thenAnswer { invocation -> invocation.getArgument<CreateEventGroupRequest>(0).eventGroup }
+      onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
+        .thenAnswer {
+          listEventGroupsResponse {
+            eventGroups += cmmsEventGroup {
+              name = "dataProviders/data-provider-1/eventGroups/resource-id-1"
+              measurementConsumer = "measurementConsumers/measurement-consumer-1"
+              eventGroupReferenceId = "reference-id-1"
+              mediaTypes += listOf(CmmsMediaType.VIDEO)
+              eventGroupMetadata = cmmsEventGroupMetadata {
+                this.adMetadata = cmmsAdMetadata {
+                  this.campaignMetadata = cmmsCampaignMetadata {
+                    brandName = "brand-1"
+                    campaignName = "campaign-1"
+                  }
+                }
+                this.entityMetadata = struct {
+                  fields["alpha"] = value { stringValue = "a" }
+                  fields["beta"] = value { stringValue = "b" }
+                }
+              }
+              dataAvailabilityInterval = interval {
+                startTime = timestamp { seconds = 200 }
+                endTime = timestamp { seconds = 300 }
+              }
+              this.entityKey = cmmsEntityKey {
+                entityType = "creative"
+                entityId = "cr-1"
+              }
+            }
+          }
+        }
+    }
+
+    val testRule = GrpcTestServerRule {
+      addService(eventGroupsMock)
+      addService(clientAccountsServiceMock)
+    }
+
+    val statement =
+      object : org.junit.runners.model.Statement() {
+        override fun evaluate() {
+          val sourceEventGroup = eventGroup {
+            eventGroupReferenceId = "reference-id-1"
+            measurementConsumer = "measurementConsumers/measurement-consumer-1"
+            this.eventGroupMetadata = eventGroupMetadata {
+              this.adMetadata = adMetadata {
+                this.campaignMetadata = campaignMetadata {
+                  brand = "brand-1"
+                  campaign = "campaign-1"
+                }
+              }
+              entityMetadata = struct { fields["alpha"] = value { stringValue = "a" } }
+            }
+            entityKey = entityKey {
+              entityType = "creative"
+              entityId = "cr-1"
+            }
+            dataAvailabilityInterval = interval {
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
+            }
+            mediaTypes += listOf(MediaType.VIDEO)
+          }
+
+          val eventGroupSync =
+            EventGroupSync(
+              "edp-name",
+              EventGroupsCoroutineStub(testRule.channel),
+              ClientAccountsCoroutineStub(testRule.channel),
+              listOf(sourceEventGroup).asFlow(),
+              MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+              100,
+            )
+          runBlocking { eventGroupSync.sync().collect() }
+
+          val updateCaptor = argumentCaptor<UpdateEventGroupRequest>()
+          verifyBlocking(eventGroupsMock, times(1)) { updateEventGroup(updateCaptor.capture()) }
+          val updatedMetadata =
+            updateCaptor.firstValue.eventGroup.eventGroupMetadata.entityMetadata
+          assertThat(updatedMetadata.fieldsMap).containsKey("alpha")
+          assertThat(updatedMetadata.fieldsMap).doesNotContainKey("beta")
         }
       }
 
