@@ -422,3 +422,15 @@ variable "edp_aggregator_api_server_ip_address" {
   default     = null
 }
 
+
+variable "stress_test_fulfiller_config" {
+  description = "Configuration for the SWIOTLB stress-test Results Fulfiller. Set to null to disable."
+  type = object({
+    machine_type      = string
+    java_tool_options = optional(string)
+    docker_image      = string
+    app_flags         = list(string)
+  })
+  default  = null
+  nullable = true
+}

@@ -306,4 +306,47 @@ module "edp_aggregator" {
   dns_managed_zone_name                         = "googleapis-private"
   edp_aggregator_service_account_name           = "edp-aggregator-internal"
   spanner_instance                              = google_spanner_instance.spanner_instance
+  stress_test_fulfiller_config                  = local.stress_test_fulfiller_config
+}
+
+# SWIOTLB stress-test fulfiller — mirrors the production fulfiller config but
+# uses the debug CS image and its own Pub/Sub queue. Disabled by default;
+# set var.enable_stress_test_fulfiller = true to deploy.
+
+locals {
+  stress_test_fulfiller_config = var.enable_stress_test_fulfiller ? {
+    machine_type      = "c4d-standard-32"
+    java_tool_options = "-Xmx96G"
+    docker_image      = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
+    app_flags         = [
+      "--edpa-tls-cert-secret-id", "edpa-tee-app-tls-pem",
+      "--edpa-tls-cert-file-path", "/tmp/edpa_certs/edpa_tee_app_tls.pem",
+      "--edpa-tls-key-secret-id", "edpa-tee-app-tls-key",
+      "--edpa-tls-key-file-path", "/tmp/edpa_certs/edpa_tee_app_tls.key",
+      "--secure-computation-cert-collection-secret-id", "securecomputation-root-ca",
+      "--secure-computation-cert-collection-file-path", "/tmp/edpa_certs/secure_computation_root.pem",
+      "--metadata-storage-cert-collection-secret-id", "edpaggregator-root-ca",
+      "--metadata-storage-cert-collection-file-path", "/tmp/edpa_certs/edp_aggregator_root.pem",
+      "--trusted-cert-collection-secret-id", "trusted-root-ca",
+      "--trusted-cert-collection-file-path", "/tmp/edpa_certs/trusted_root.pem",
+      "--kingdom-public-api-target", var.kingdom_public_api_target,
+      "--secure-computation-public-api-target", var.secure_computation_public_api_target,
+      "--metadata-storage-public-api-target", var.metadata_storage_public_api_target,
+      "--subscription-id", "stress-test-fulfiller-subscription",
+      "--google-project-id", data.google_client_config.default.project,
+      "--model-line", var.edpa_model_line_map,
+      "--population-spec-file-blob-uri", var.results_fulfiller_population_spec_blob_uri,
+      "--event-template-descriptor-blob-uri", var.results_fulfiller_event_proto_descriptor_blob_uri,
+      "--event-template-type-name", var.results_fulfiller_event_template_type_name,
+      "--duchy-id", var.duchy_worker1_id,
+      "--duchy-target", var.duchy_worker1_target,
+      "--duchy-cert-host", "localhost",
+      "--duchy-id", var.duchy_worker2_id,
+      "--duchy-target", var.duchy_worker2_target,
+      "--duchy-cert-host", "localhost",
+      "--duchy-id", var.duchy_aggregator_id,
+      "--duchy-target", var.duchy_aggregator_target,
+      "--duchy-cert-host", "localhost",
+    ]
+  } : null
 }

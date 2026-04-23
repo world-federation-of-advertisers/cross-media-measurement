@@ -340,3 +340,9 @@ variable "data_availability_sync_config_file_path" {
   description = "Path to DataAvailabilitySync config file."
   type        = string
 }
+
+variable "enable_stress_test_fulfiller" {
+  description = "Whether to deploy the SWIOTLB stress-test Results Fulfiller."
+  type        = bool
+  default     = false
+}
