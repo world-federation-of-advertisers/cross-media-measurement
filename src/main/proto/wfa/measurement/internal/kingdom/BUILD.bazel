@@ -906,7 +906,13 @@ proto_descriptor_set(
     deps = [
         ":{name}_details_proto".format(name = name)
         for name in DETAILS_LIBS
-    ] + [
-        "@com_google_protobuf//:struct_proto",
     ],
+)
+
+# Minimal descriptor set for google.protobuf.Struct, used by
+# add-event-group-entity-key.sql to register Struct in the Spanner proto
+# bundle without re-introducing descriptors for files already in the bundle.
+proto_descriptor_set(
+    name = "struct_descriptor_set",
+    deps = ["@com_google_protobuf//:struct_proto"],
 )
