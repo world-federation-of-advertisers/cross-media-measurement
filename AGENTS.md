@@ -1,18 +1,21 @@
 # WFA Cross-Media Measurement System
 
-Privacy-preserving system for cross-publisher, cross-media ads measurement through secure multiparty computation. Kotlin primary, C++ for crypto, Protocol Buffers for APIs, Bazel build, gRPC services, Kubernetes deployments.
+Privacy-preserving system for cross-publisher, cross-media reach and frequency measurement through secure multiparty computation. Kotlin primary, C++ for crypto, Protocol Buffers for APIs, Bazel build, gRPC services, Kubernetes deployments, Spanner database, Confidential Spaces for TEE workloads.
 
 ## Commands
 
 ```shell
-# Run all tests
-bazel test //src/test/...
-
 # Build everything
-bazel build //src/main/...
+bazel build //...
+
+# Run all tests
+bazel test //...
 
 # Containerized build (when host glibc > 2.36)
-tools/bazel-container test //src/test/...
+tools/bazel-container build //...
+
+# Containerized test (when host glibc > 2.36)
+tools/bazel-container test //...
 
 # Format Kotlin
 ktfmt --google-style <file>
@@ -102,27 +105,11 @@ assertThat(service.internalCache.size())
 
 Full guide: [docs/dev-standards.md](docs/dev-standards.md)
 
-**Conventional Commits** — required format:
-
-```
-<type>[optional scope][!]: <imperative sentence>
-
-[optional body]
-
-[optional footers]
-```
-
-Types: `build`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `test`
-
-The description must be a **complete imperative sentence** that stands alone:
-- Good: `fix: Increase timeout for RecordIO client connections`
-- Bad: `fix: bug with RecordIO client timeout`
-
-Use `!` for breaking changes. Use `BREAKING-CHANGE` (hyphen, not space) as Git trailer.
+**Conventional Commits** — see [docs/dev-standards.md](docs/dev-standards.md) for full format, types, and commit message requirements.
 
 Every significant PR must have an `Issue` trailer:
 ```
-Issue: world-federation-of-advertisers/cross-media-measurement#123
+Issue: #123
 ```
 
 **Code review:** Use [Reviewable](https://reviewable.io). Self-review before assigning reviewers. Review others' code promptly (< 48 hours).
@@ -136,7 +123,7 @@ Issue: world-federation-of-advertisers/cross-media-measurement#123
 - **Mark temporary changes** with `DO_NOT_SUBMIT` (automated check blocks merge)
 - **No Java modules** — this project doesn't use `module-info.java`
 - All public service APIs follow [AIPs](https://aip.dev/) unless explicitly noted
-- TODOs must be actionable: `TODO(@username): <what to do and when>`
+- TODOs must be actionable — see [docs/code-style.md#todos](docs/code-style.md#todos) for format
 
 ## Architecture
 
