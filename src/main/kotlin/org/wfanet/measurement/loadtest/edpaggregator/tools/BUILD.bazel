@@ -69,3 +69,26 @@ java_binary(
     main_class = "org.wfanet.measurement.loadtest.edpaggregator.tools.VerifySyntheticDataKt",
     runtime_deps = [":verify_synthetic_data"],
 )
+
+kt_jvm_library(
+    name = "generate_stress_test_event_groups",
+    srcs = [
+        "GenerateStressTestEventGroups.kt",
+    ],
+    deps = [
+        "//src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha:event_group_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+    ],
+)
+
+java_binary(
+    name = "GenerateStressTestEventGroups",
+    main_class = "org.wfanet.measurement.loadtest.edpaggregator.tools.GenerateStressTestEventGroupsKt",
+    runtime_deps = [
+        ":generate_stress_test_event_groups",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+    ],
+)
