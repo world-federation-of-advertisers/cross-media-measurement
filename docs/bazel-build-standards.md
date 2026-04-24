@@ -15,7 +15,9 @@ This supplements the general build guidance in [Code Style](code-style.md) and
 ### Explicit Dependencies
 
 Do not rely on transitive dependencies. Every dependency used in a source file
-must be explicitly declared in that target's `deps`. If your code imports
+must be explicitly declared in that target's `deps`.
+([#3306](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/3306),
+[PR #1945](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/1945#issuecomment-2513251533)) If your code imports
 `com.google.common.collect.ImmutableList`, your target must directly depend on
 the Guava target — even if another dependency already pulls it in transitively.
 
@@ -43,7 +45,8 @@ have their versions specified individually.
 
 ### Third-Party Dependencies
 
-Limit usage of unnecessary third-party dependencies. Due to the privacy
+Limit usage of unnecessary third-party dependencies.
+([PR #701](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/701#issuecomment-1256431974)) Due to the privacy
 requirements of this project, we prefer avoiding unaudited dependencies.
 
 Before removing a dependency, search the entire GitHub org to confirm nothing
@@ -73,6 +76,7 @@ For example, for package `//imports/java/com/rabbitmq/client`, name the target
 
 Use `package(default_visibility = ...)` instead of specifying visibility on
 every target.
+([PR #3574](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/3574#issuecomment-4026448303))
 
 ```python
 package(default_visibility = ["//visibility:public"])
@@ -90,7 +94,8 @@ transitive dependency.
 
 ### Test Infrastructure
 
-Test utilities under `src/main/testing` must have `testonly = True`. See the
+Test utilities under `src/main/testing` must have `testonly = True`.
+([PR #3622](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/3622#issuecomment-4076151760)) See the
 [Code Style](code-style.md) conventions for the `testing` subpackage pattern.
 
 ## Module & Lockfile Management
@@ -106,14 +111,17 @@ Never change `maven_install.json` without corresponding changes to
 ### Bazel Version
 
 Use [`bazelisk`](https://github.com/bazelbuild/bazelisk) to run Bazel so it
-respects the `.bazelversion` file. Lockfile version mismatches are often caused
+respects the `.bazelversion` file.
+([PR #356](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/356#issuecomment-966591532)) Lockfile version mismatches are often caused
 by running `bazel` directly instead of `bazelisk`.
 
 ### Temporary Overrides
 
 When overriding a module dependency (e.g., `local_path_override`,
 `archive_override`), always include a `# DO_NOT_SUBMIT` comment to prevent
-accidental merging. This tag is detected by an automated check and will block
+accidental merging.
+([PR #2789](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/2789#discussion_r2288540263),
+[PR #669](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/669#issuecomment-1222915827)) This tag is detected by an automated check and will block
 the PR from being merged.
 
 ```python
@@ -146,6 +154,7 @@ rather than a literal value, make this clear in the name.
 
 BUILD and Starlark files must be formatted with
 [Buildifier](https://github.com/bazelbuild/buildtools/tree/master/buildifier).
+([PR #21](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/21#discussion_r617052851))
 
 ### GitHub Actions
 

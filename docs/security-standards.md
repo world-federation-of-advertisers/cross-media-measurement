@@ -10,6 +10,9 @@ mishandling key material are all violations of that model.
 
 ## Tink API Usage
 
+([PR #1874](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/1874#issuecomment-2434573770),
+[#939](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/939#issuecomment-1507258772))
+
 ### Public API Only
 
 Do not use APIs in `com.google.crypto.tink.subtle`. While they may be
@@ -46,6 +49,7 @@ and should be flagged for review.
 Keys must be serialized in binary protobuf format using
 `TinkProtoKeysetFormat`. Never use JSON, base64, or custom serialization
 formats.
+([#1836](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/1836#issuecomment-2391798342))
 
 ### Deprecated APIs
 
@@ -57,7 +61,9 @@ For example, `keysetInfo` is deprecated in more recent Tink releases.
 ### Register Only What You Need
 
 Do not register all Tink configs. Register only the specific primitives your
-code uses. If your code uses `StreamingAead` but not regular `Aead`, register
+code uses.
+([common-jvm PR #329](https://github.com/world-federation-of-advertisers/common-jvm/pull/329),
+[common-jvm PR #320](https://github.com/world-federation-of-advertisers/common-jvm/pull/320)) If your code uses `StreamingAead` but not regular `Aead`, register
 only `StreamingAeadConfig`.
 
 Note that envelope encryption is a separate concern — code that performs
@@ -69,6 +75,7 @@ independently.
 Tink config registration should happen in the companion object `init` block
 of the class that uses the primitive. This guarantees registration happens
 before any usage.
+([PR #3622](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/3622#issuecomment-4001396341))
 
 ```kotlin
 class StreamingAeadStorageClient(private val streamingAead: StreamingAead) {
@@ -86,7 +93,9 @@ class StreamingAeadStorageClient(private val streamingAead: StreamingAead) {
 
 Functions should accept Tink primitive objects (`StreamingAead`, `Aead`, etc.),
 not raw key material. Keys should be loaded into `KeysetHandle` objects and
-wrapped in primitives at system boundaries. Internal code should never handle
+wrapped in primitives at system boundaries.
+([#781](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/781#issuecomment-1341375697),
+[#1947](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/1947#issuecomment-2515037945)) Internal code should never handle
 raw key bytes.
 
 ### No Magic Strings for Key Types
@@ -100,6 +109,9 @@ Do not base64-encode key material unless required by an external system's
 interface.
 
 ## Terminology
+
+([PR #3682](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/3682#issuecomment-4203849190),
+[PR #3685](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/3685#issuecomment-4284240764))
 
 *   The cryptographic pattern of wrapping a DEK with a KEK is called "envelope
     encryption" regardless of whether the implementation focuses on encryption

@@ -22,6 +22,8 @@ Key terminology conventions from the code-style guide:
 
 Standard CRUD methods must follow their respective AIP patterns exactly. The
 API lint workflow should catch violations, but manual review is still necessary.
+([api-linter enforcement](https://github.com/world-federation-of-advertisers/cross-media-measurement-api/pull/137#issuecomment-1562022514),
+[AIP parent requirement](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/3627#discussion_r2956747163))
 
 *   [AIP-133 (Create)](https://google.aip.dev/133): Request must have `parent`
     string field and the resource message field. Response is the created
@@ -48,12 +50,14 @@ The `parent` field in resource creation must reference the canonical parent in
 the resource hierarchy, not an operator or intermediary. Regardless of which
 pattern is used to get the resource, the resulting `name` field will contain the
 canonical resource name.
+([PR #3627](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/3627#discussion_r2956747163))
 
 ### Resource IDs
 
 Resource IDs should be short, human-readable identifiers that conform to
 RFC-1034 label conventions. Never use URIs, file paths, or other long strings
 as resource IDs. See [AIP-122](https://google.aip.dev/122).
+([API PR #264](https://github.com/world-federation-of-advertisers/cross-media-measurement-api/pull/264#issuecomment-3729763823))
 
 Per [AIP-122](https://google.aip.dev/122), child collections may omit parent
 prefixes in their collection identifiers.
@@ -61,7 +65,9 @@ prefixes in their collection identifiers.
 ### Internal Database IDs
 
 Database internal IDs must not be exposed outside of internal API servers.
-API resource names use resource IDs (external identifiers). Internal database
+API resource names use resource IDs (external identifiers).
+([PR #139](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/139#issuecomment-878375259),
+[#1215](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/1215#issuecomment-1714405124)) Internal database
 primary keys are private to the implementation.
 
 Maintain separate columns for the database primary key and the API resource ID.
@@ -75,6 +81,7 @@ component should directly access the database.
 
 Names of protobuf messages for the serialized portion of a database row must
 end in `Details`.
+([PR #7](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/7#discussion_r608128540))
 
 ## Field Design
 
@@ -95,16 +102,21 @@ message EventGroup {
 Individual fields inside a `oneof` are not individually required. Document
 the requirement on the `oneof` itself using a comment, not field behavior
 annotations.
+([PR #3722](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/3722#discussion_r3117519822),
+[API PR #186](https://github.com/world-federation-of-advertisers/cross-media-measurement-api/pull/186#issuecomment-1792646479))
 
 ### Field Behavior Annotations
 
 If you start using `[(google.api.field_behavior)]` annotations, they must be
 applied consistently across the entire API.
+([API PR #137](https://github.com/world-federation-of-advertisers/cross-media-measurement-api/pull/137#issuecomment-1562022514),
+[#2532](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/2532#issuecomment-3019985380))
 
 ### Wrapper Messages for Extensibility
 
 When you might need to add fields alongside a value in the future, create a
 wrapper message now rather than using the bare type directly.
+([#799](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/799#issuecomment-1397556770))
 
 ```protobuf
 // Prefer this:
@@ -126,13 +138,18 @@ the oneof can eventually be marked required.
 
 Do not create enums where code has to interpret what `UNSPECIFIED` means. If
 the absence of a value is meaningful, use an optional message type instead.
+([API PR #137](https://github.com/world-federation-of-advertisers/cross-media-measurement-api/pull/137#issuecomment-1562022514),
+[PR #3722](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/3722#discussion_r3116634851))
 
 `UNSPECIFIED` must always be the 0/default value.
 
 ## Breaking Changes
 
 Never renumber fields or change field semantics in released protos. Add new
-fields and deprecate old ones. Field renumbering is only safe if the message
+fields and deprecate old ones.
+([PR #14](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/14#discussion_r612554380),
+[PR #3589](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/3589#discussion_r2854555126),
+[#3593](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/3593#issuecomment-3968608866)) Field renumbering is only safe if the message
 has never been used in released code.
 
 ## API vs. Configuration
@@ -140,6 +157,9 @@ has never been used in released code.
 Messages defined in the versioned API should only be used for data that
 travels over the wire in API calls. Static process configuration belongs in
 separate, unversioned config protos.
+([PR #3574](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/3574#issuecomment-4025023591),
+[PR #3682](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/3682#issuecomment-4203849190),
+[PR #3685](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/3685#issuecomment-4284240764))
 
 For components that need both API and config representations, keep the two as
 separate messages and convert between them. Options in order of preference:
@@ -156,6 +176,8 @@ coupling. Prefer local definitions or serialized versions.
 
 When using structured filter fields instead of [AIP-160](https://google.aip.dev/160)
 filter strings, document this explicitly in the field comment.
+([#3338](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/3338#issuecomment-3666811692),
+[#3300](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/3300#issuecomment-3633539577))
 
 ## Documentation Conventions
 
@@ -178,8 +200,14 @@ References to protobuf symbols in comments should be wrapped in backticks.
 
 Never say "will be removed in a future release." Specify the exact version
 and which repository's release the timeline refers to.
+([#3593](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/3593#issuecomment-3968608866),
+[PR #3589](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/3589#discussion_r2854555120))
 
 ## Naming Conventions
+
+([#3593](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/3593#issuecomment-3968608866),
+[PR #3682](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/3682#issuecomment-4203849190),
+[PR #3574](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/3574#issuecomment-4025023591))
 
 *   The API uses the full term `DataProvider`, not the abbreviation "EDP".
 *   Google's cloud offering is referred to as "Google Cloud", not "GCP".

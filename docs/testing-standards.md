@@ -21,7 +21,9 @@ Additional guidance from the code-style guide:
 ### Test the Public API
 
 For CLI tools, the public interface is the `main` function. Tests should invoke
-`main` with arguments and assert on the output or side effects. Tests should not
+`main` with arguments and assert on the output or side effects.
+([PR #2351](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/2351#discussion_r2111265367),
+[PR #18](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/18#discussion_r616254253)) Tests should not
 construct the command class directly or test framework-specific behavior.
 
 For services, test the gRPC interface, not internal helpers. The constructor of
@@ -55,7 +57,8 @@ should fail without the fix and pass with it.
 
 ### Truth Assertion Ordering
 
-Use the [Truth](https://truth.dev/) library for test assertions. Wrap the
+Use the [Truth](https://truth.dev/) library for test assertions.
+([PR #18](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/18#discussion_r616177307)) Wrap the
 Subject around the **actual** value. The expected value goes in the assertion
 method.
 
@@ -74,6 +77,7 @@ diff output.
 ### Expected Exceptions
 
 Use `assertFailsWith` from the `kotlin.test` package for expected exceptions.
+([PR #1125](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/1125#issuecomment-1681075005))
 Do not use try/catch or JUnit's `assertThrows`.
 
 ### Exception Message Assertions
@@ -95,7 +99,8 @@ provides false confidence.
 
 ## Test Doubles
 
-Prefer purpose-built test implementations over mocking your own interfaces. For
+Prefer purpose-built test implementations over mocking your own interfaces.
+([#781](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/781#issuecomment-1341375697)) For
 example, use `InMemoryStorageClient` (which exists specifically for testing) or
 `FileSystemStorageClient` rather than mocking `StorageClient`.
 
@@ -108,13 +113,16 @@ for guidance.
 
 ## Timing
 
-Unit tests must not use real delays or rely on wall-clock timing. Tests that
+Unit tests must not use real delays or rely on wall-clock timing.
+([PR #2351](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/2351#discussion_r2111306698),
+[#827](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/827#issuecomment-1404339766)) Tests that
 depend on timing are flaky and slow. Use test dispatchers, fake clocks, or
 restructure the code to be testable without timing.
 
 ## Test Setup
 
 If a test resource is specific to one test method, create it inside that method.
+([PR #2351](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/2351#discussion_r2111292495))
 Do not create it in `@Before` or class-level setup where it runs for every test.
 
 When automated testing is genuinely difficult, document what was manually tested
@@ -139,6 +147,7 @@ method name being tested.
 ## Organization
 
 *   Tests go in the `src/test/` tree, mirroring the `src/main/` path.
+    ([PR #2351](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/2351#discussion_r2111258485))
 *   Test infrastructure that is complex enough to warrant being tested itself or
     is used by more than one package goes into a `testing` subpackage of the
     `src/main/` tree, with its Bazel targets marked as `testonly`.
