@@ -340,3 +340,18 @@ variable "data_availability_sync_config_file_path" {
   description = "Path to DataAvailabilitySync config file."
   type        = string
 }
+
+variable "data_availability_monitor_config_file_path" {
+  description = "Path to DataAvailabilityMonitor config file."
+  type        = string
+}
+
+variable "data_availability_monitor_env_var" {
+  description = "DataAvailabilityMonitor extra env variables"
+  type        = string
+}
+
+variable "data_availability_monitor_uber_jar_path" {
+  description = "Path to DataAvailabilityMonitor uber jar."
+  type        = string
+}
