@@ -906,5 +906,7 @@ proto_descriptor_set(
     deps = [
         ":{name}_details_proto".format(name = name)
         for name in DETAILS_LIBS
+    ] + [
+        "@com_google_protobuf//:struct_proto",
     ],
 )
