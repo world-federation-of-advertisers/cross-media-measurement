@@ -4,9 +4,8 @@
 # Stress-test spec for reproducing SWIOTLB buffer exhaustion on Confidential VMs.
 #
 # Designed for use with small_population_spec.textproto (100K VIDs).
+# VID ranges aligned to sub-population boundaries.
 # Covers 36 days (Mar 1 - Apr 5 2026) to match the Chevrolet production window.
-# Run GenerateSyntheticData once per synthetic campaign (63 times with different
-# --event-group-reference-id values) to produce ~2,268 blobs total.
 
 date_specs {
   date_range {
@@ -26,7 +25,7 @@ date_specs {
     vid_range_specs {
       vid_range {
         start: 1
-        end_exclusive: 20001
+        end_exclusive: 10000
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
@@ -40,8 +39,8 @@ date_specs {
     frequency: 5
     vid_range_specs {
       vid_range {
-        start: 20001
-        end_exclusive: 50001
+        start: 10000
+        end_exclusive: 20000
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
@@ -55,8 +54,8 @@ date_specs {
     frequency: 2
     vid_range_specs {
       vid_range {
-        start: 50001
-        end_exclusive: 80001
+        start: 20000
+        end_exclusive: 30000
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
@@ -70,13 +69,133 @@ date_specs {
     frequency: 4
     vid_range_specs {
       vid_range {
-        start: 80001
-        end_exclusive: 100000
+        start: 30000
+        end_exclusive: 40000
       }
       non_population_field_values {
         key: "video_ad.viewed_fraction"
         value {
           double_value: 0.75
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 3
+    vid_range_specs {
+      vid_range {
+        start: 40000
+        end_exclusive: 50000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.3
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 5
+    vid_range_specs {
+      vid_range {
+        start: 50000
+        end_exclusive: 60000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.6
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 2
+    vid_range_specs {
+      vid_range {
+        start: 60000
+        end_exclusive: 70000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.15
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 4
+    vid_range_specs {
+      vid_range {
+        start: 70000
+        end_exclusive: 80000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.8
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 3
+    vid_range_specs {
+      vid_range {
+        start: 80000
+        end_exclusive: 85000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.2
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 2
+    vid_range_specs {
+      vid_range {
+        start: 85000
+        end_exclusive: 90000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.4
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 4
+    vid_range_specs {
+      vid_range {
+        start: 90000
+        end_exclusive: 95000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.55
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 5
+    vid_range_specs {
+      vid_range {
+        start: 95000
+        end_exclusive: 100000
+      }
+      non_population_field_values {
+        key: "video_ad.viewed_fraction"
+        value {
+          double_value: 0.7
         }
       }
     }
