@@ -70,7 +70,6 @@ jobs:
       RESULTS_FULFILLER_POPULATION_SPEC_CONTENT: ${{ vars.RESULTS_FULFILLER_POPULATION_SPEC_CONTENT }}
       RESULTS_FULFILLER_TRUSTED_CA_CONTENT: ${{ secrets.RESULTS_FULFILLER_TRUSTED_CA_CONTENT }}
       EDP_SIMULATOR_NAMES: '["edp1-simulator", "edp2-simulator", "edp3-simulator", "edp4-simulator", "edp5-simulator", "edp6-simulator"]'
-      ENABLE_STRESS_TEST_FULFILLER: ${{ vars.ENABLE_STRESS_TEST_FULFILLER || 'false' }}
 
     steps:
     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -331,7 +330,6 @@ jobs:
         -var="duchy_aggregator_cert_id=$AGGREGATOR_DUCHY_CERT_ID"
         -var="edp_simulator_names=$EDP_SIMULATOR_NAMES"
         -var="trusted_image_signing_fingerprint=$TRUSTED_IMAGE_SIGNING_FINGERPRINT"
-        -var="enable_stress_test_fulfiller=$ENABLE_STRESS_TEST_FULFILLER"
         -out=tfplan
 
     - name: terraform apply

@@ -59,3 +59,15 @@ variable "secrets_to_access" {
   type        = list(string)
   default     = []
 }
+
+variable "memory" {
+  description = "Memory allocated to the Cloud Function (e.g. \"512MB\", \"2GB\")."
+  type        = string
+  default     = "512MB"
+}
+
+variable "timeout_seconds" {
+  description = "Maximum execution time for a single invocation, in seconds (gen2 max is 3600)."
+  type        = number
+  default     = 60
+}

@@ -41,7 +41,7 @@ resource "terraform_data" "deploy_http_cloud_function" {
     google_secret_manager_secret_iam_member.secret_accessor,
   ]
 
-  triggers_replace = [var.uber_jar_path]
+  triggers_replace = [var.uber_jar_path, var.memory, var.timeout_seconds]
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
@@ -53,6 +53,8 @@ resource "terraform_data" "deploy_http_cloud_function" {
       EXTRA_ENV_VARS          = var.extra_env_vars
       SECRET_MAPPINGS         = var.secret_mappings
       UBER_JAR_DIRECTORY      = dirname(var.uber_jar_path)
+      MEMORY                  = var.memory
+      TIMEOUT_SECONDS         = var.timeout_seconds
     }
     command = <<-EOT
       #!/bin/bash
@@ -63,7 +65,8 @@ resource "terraform_data" "deploy_http_cloud_function" {
         "--gen2"
         "--runtime=java17"
         "--entry-point=$ENTRY_POINT"
-        "--memory=512MB"
+        "--memory=$MEMORY"
+        "--timeout=$TIMEOUT_SECONDS"
         "--region=$CLOUD_REGION"
         "--run-service-account=$RUN_SERVICE_ACCOUNT"
         "--source=$UBER_JAR_DIRECTORY"

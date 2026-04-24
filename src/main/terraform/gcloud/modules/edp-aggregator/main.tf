@@ -329,6 +329,8 @@ module "event_group_sync_cloud_function" {
   extra_env_vars                           = var.cloud_function_configs.event_group_sync.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.event_group_sync.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.event_group_sync.uber_jar_path
+  memory                                   = var.cloud_function_configs.event_group_sync.memory
+  timeout_seconds                          = var.cloud_function_configs.event_group_sync.timeout_seconds
   secrets_to_access                        = [for key in local.event_group_sync_secrets_access : local.all_secrets[key].secret_id]
 }
 

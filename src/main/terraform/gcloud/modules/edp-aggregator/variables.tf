@@ -317,6 +317,8 @@ variable "cloud_function_configs" {
     extra_env_vars      = string
     secret_mappings     = string
     uber_jar_path       = string
+    memory              = optional(string, "512MB")
+    timeout_seconds     = optional(number, 60)
   }))
 }
 

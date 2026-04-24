@@ -234,6 +234,8 @@ locals {
       extra_env_vars      = "${var.event_group_env_var},CONFIG_BLOB_KEY=${local.event_group_sync_config.destination},EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}"
       secret_mappings     = var.event_group_secret_mapping
       uber_jar_path       = var.event_group_uber_jar_path
+      memory              = "2GB"
+      timeout_seconds     = 3600
     }
     data_availability_sync = {
       function_name       = "data-availability-sync"
