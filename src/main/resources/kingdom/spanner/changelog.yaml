@@ -116,3 +116,6 @@ databaseChangeLog:
 - include:
     file: create-client-accounts-table.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-event-group-entity-key.sql
+    relativeToChangeLogFile: true
