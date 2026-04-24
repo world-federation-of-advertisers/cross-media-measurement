@@ -135,5 +135,5 @@ The system has three deployment types:
 
 Protocols: Liquid Legions V2, Reach-Only LLv2, Honest Majority Share Shuffle, TrusTEE.
 
-Architecture details: [docs/architecture/](docs/architecture/)
+Additional design and deployment docs: [docs/](docs/)
 Operations guides: [docs/operations/](docs/operations/)

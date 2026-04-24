@@ -94,9 +94,12 @@ transitive dependency.
 
 ### Test Infrastructure
 
-Test utilities under `src/main/testing` must have `testonly = True`.
+Test utilities in `testing` subpackages under `src/main/` must have
+`testonly = True`.
 ([PR #3622](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/3622#issuecomment-4076151760)) See the
-[Code Style](code-style.md) conventions for the `testing` subpackage pattern.
+[Code Style](code-style.md) conventions for the `testing` subpackage pattern,
+for example `src/main/kotlin/org/wfanet/measurement/testing` or
+`src/main/kotlin/org/wfanet/measurement/duchy/testing`.
 
 ## Module & Lockfile Management
 
@@ -134,9 +137,10 @@ local_path_override(
 
 ## Import Paths
 
-Import paths in BUILD files should not include source tree prefixes like
-`src.main.python`. Use the `imports` attribute to put the correct directory on
-the path.
+Python import paths in BUILD files should not include source tree prefixes like
+`src/main/python`. Use the `imports` attribute to put the correct source root
+on the path so code imports `wfa.measurement...`, not
+`src.main.python.wfa.measurement...`.
 
 This project does not use Java modules. Do not add `module-info.java` files.
 

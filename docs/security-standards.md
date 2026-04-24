@@ -47,9 +47,18 @@ and should be flagged for review.
 ### Key Serialization
 
 Keys must be serialized in binary protobuf format using
-`TinkProtoKeysetFormat`. Never use JSON, base64, or custom serialization
-formats.
+`TinkProtoKeysetFormat`. Do not use Tink JSON keyset serialization or invent
+alternate serialization formats for Tink keysets.
 ([#1836](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/1836#issuecomment-2391798342))
+
+If an external interface requires text-safe transport, encode the serialized
+binary keyset bytes at the boundary (for example, with base64). In that case,
+base64 is a transport encoding, not the keyset serialization format.
+
+Exception: some integrations use an encrypted JSON representation of an
+application-level wrapper message rather than a serialized Tink keyset. Treat
+that as a compatibility format at the system boundary only. It is not a Tink
+JSON keyset and should be converted to Tink types immediately after parsing.
 
 ### Deprecated APIs
 
@@ -103,10 +112,10 @@ raw key bytes.
 Do not use string constants to identify key types. The key object already has
 its associated type information.
 
-### No Unnecessary Encoding
+### No Unnecessary Transport Encoding
 
-Do not base64-encode key material unless required by an external system's
-interface.
+Do not add base64 or other secondary encodings unless required by an external
+system's interface.
 
 ## Terminology
 

@@ -21,10 +21,11 @@ Additional guidance from the code-style guide:
 ### Test the Public API
 
 For CLI tools, the public interface is the `main` function. Tests should invoke
-`main` with arguments and assert on the output or side effects.
+`main` with arguments and assert on the output or side effects. This includes
+user-visible flag handling such as defaults, validation, and error reporting.
 ([PR #2351](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/2351#discussion_r2111265367),
 [PR #18](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/18#discussion_r616254253)) Tests should not
-construct the command class directly or test framework-specific behavior.
+construct the command class directly or assert on Picocli internals.
 
 For services, test the gRPC interface, not internal helpers. The constructor of
 the implementation class should be inaccessible to the test.
@@ -42,11 +43,12 @@ Do not expose internal functionality just so it can be tested directly. If
 something cannot be tested through the public API, consider whether it needs to
 exist as a separate unit at all.
 
-### Do Not Test Frameworks
+### Do Not Test Framework Internals
 
 Assume Picocli, gRPC, protobuf, and other frameworks work as documented. Tests
-that exercise flag parsing, serialization, or other framework behavior are
-testing the framework, not your code.
+should not exist solely to verify framework behavior in isolation. Black-box
+tests through your public API are still appropriate when they verify your
+command's observable behavior or your code's use of the framework.
 
 ### Bug Fixes Require Tests
 
