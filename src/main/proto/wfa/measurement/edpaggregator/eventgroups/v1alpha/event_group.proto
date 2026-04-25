@@ -18,8 +18,10 @@ package wfa.measurement.edpaggregator.eventgroups.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/type/interval.proto";
+import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "google/api/resource.proto";
+import "wfa/measurement/type/future_disposition.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.eventgroups.v1alpha";
 option java_multiple_files = true;
@@ -50,6 +52,16 @@ message EventGroup {
       // Metadata for an ad
       AdMetadata ad_metadata = 2;
     }
+
+    // Metadata for the entity that the `EventGroup` represents.
+    //
+    // The schema is specific to the (`DataProvider`,
+    // `EventGroup.EntityKey.entity_type`) pair.
+    //
+    // Forwarded verbatim to the CMMS public API's
+    // `EventGroupMetadata.entity_metadata`.
+    google.protobuf.Struct entity_metadata = 3
+        [(type.future_disposition) = REQUIRED];
   }
 
   // MediaType for Events, Event Groups, Event Templates, and associated
@@ -107,6 +119,35 @@ message EventGroup {
   }
   // Event Group state.
   State state = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Key of the entity in the `DataProvider`'s system that an `EventGroup`
+  // represents.
+  message EntityKey {
+    // Type of the entity in the `DataProvider`'s system as a human- and
+    // machine-readable string.
+    //
+    // This must be a URL-safe string, such that URL-encoding or -decoding
+    // results in the same string.
+    string entity_type = 1 [(google.api.field_behavior) = REQUIRED];
+
+    // ID of the entity in the `DataProvider`'s system.
+    //
+    // This should be an ID that is available to `MeasurementConsumer`s
+    // through the `DataProvider`'s system.
+    //
+    // This must be a URL-safe string, such that URL-encoding or -decoding
+    // results in the same string.
+    string entity_id = 2 [(type.future_disposition) = REQUIRED];
+  }
+
+  // Entity in the `DataProvider`'s system that this `EventGroup`
+  // represents.
+  //
+  // If specified, this must be unique across all `EventGroup`s for the
+  // parent (`DataProvider`, `MeasurementConsumer`) pair.
+  //
+  // Forwarded verbatim to the CMMS public API's `EventGroup.entity_key`.
+  EntityKey entity_key = 8 [(type.future_disposition) = REQUIRED];
 }
 
 // The list of event groups for a data provider. Only used when input is json.
