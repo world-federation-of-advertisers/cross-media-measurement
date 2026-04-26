@@ -130,10 +130,10 @@ message ListEventGroupsRequest {
     // [end_date][DateInterval.end_date] are required.
     DateInterval activity_contains = 8;
 
-    // Set of entity types which [EventGroup.entity_key.entity_type][] must be
-    // in. Forwarded to the CMMS API. If unspecified, the CMMS server treats
-    // this as if it contains "campaign", so pre-existing clients continue to
-    // see only legacy EventGroups.
+    // Set of entity types which [EventGroup.EntityKey.entity_type][] of
+    // [EventGroup.entity_key][] must be in.
+    //
+    // If unspecified, the server will treat this as if it contains "campaign".
     repeated string entity_type_in = 9 [(google.api.field_behavior) = OPTIONAL];
   }
 
