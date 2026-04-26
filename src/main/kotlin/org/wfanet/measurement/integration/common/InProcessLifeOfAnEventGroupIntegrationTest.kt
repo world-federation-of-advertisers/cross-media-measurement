@@ -21,7 +21,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.type.Date
 import com.google.type.date
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
+import io.grpc.StatusException
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -485,11 +485,11 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
     Unit = runBlocking {
     createEventGroupWithEntityKey("eg-dup-1", entityType = "creative", entityId = "dup-1")
 
-    val exception: StatusRuntimeException =
+    val exception: StatusException =
       try {
         createEventGroupWithEntityKey("eg-dup-2", entityType = "creative", entityId = "dup-1")
-        throw AssertionError("Expected StatusRuntimeException ALREADY_EXISTS")
-      } catch (e: StatusRuntimeException) {
+        throw AssertionError("Expected StatusException ALREADY_EXISTS")
+      } catch (e: StatusException) {
         e
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)

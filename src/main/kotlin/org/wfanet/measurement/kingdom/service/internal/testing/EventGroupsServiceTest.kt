@@ -2528,7 +2528,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     }
 
   @Test
-  fun `createEventGroup allows same entity_key under different DataProviders`() = runBlocking {
+  fun `createEventGroup allows same entity_key under different DataProviders`(): Unit = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider1 = population.createDataProvider(dataProvidersService)
@@ -2559,7 +2559,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
-  fun `createEventGroup allows same entity_key under different MeasurementConsumers`() =
+  fun `createEventGroup allows same entity_key under different MeasurementConsumers`(): Unit =
     runBlocking {
       val measurementConsumer1 =
         population.createMeasurementConsumer(measurementConsumersService, accountsService)
@@ -2592,8 +2592,8 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     }
 
   @Test
-  fun `createEventGroup allows multiple EventGroups without entity_key under same parent`() =
-    runBlocking {
+  fun `createEventGroup allows multiple EventGroups without entity_key under same parent`():
+    Unit = runBlocking {
       // EventGroupsByEntityKey is NULL_FILTERED on EntityId, so legacy-style EGs (no entity_key
       // set)
       // are exempt from the uniqueness constraint.
