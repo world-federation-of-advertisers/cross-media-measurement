@@ -2594,7 +2594,8 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   @Test
   fun `createEventGroup allows multiple EventGroups without entity_key under same parent`() =
     runBlocking {
-      // EventGroupsByEntityKey is NULL_FILTERED on EntityId, so legacy-style EGs (no entity_key set)
+      // EventGroupsByEntityKey is NULL_FILTERED on EntityId, so legacy-style EGs (no entity_key
+      // set)
       // are exempt from the uniqueness constraint.
       val measurementConsumer =
         population.createMeasurementConsumer(measurementConsumersService, accountsService)
@@ -2744,9 +2745,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       )
 
     eventGroupsService.updateEventGroup(
-      updateEventGroupRequest {
-        eventGroup = created.copy { entityKey = ENTITY_KEY_OTHER }
-      }
+      updateEventGroupRequest { eventGroup = created.copy { entityKey = ENTITY_KEY_OTHER } }
     )
 
     val fetched =
@@ -2789,9 +2788,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         eventGroupsService.updateEventGroup(
-          updateEventGroupRequest {
-            eventGroup = eventGroupA.copy { entityKey = ENTITY_KEY_OTHER }
-          }
+          updateEventGroupRequest { eventGroup = eventGroupA.copy { entityKey = ENTITY_KEY_OTHER } }
         )
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)

@@ -705,12 +705,7 @@ class EventGroupEntityKeyAlreadyExistsException(
   message: String =
     "EventGroup with the same entity_key already exists for the parent " +
       "(DataProvider, MeasurementConsumer) pair",
-) :
-  KingdomInternalException(
-    ErrorCode.EVENT_GROUP_ENTITY_KEY_ALREADY_EXISTS,
-    message,
-    cause,
-  ) {
+) : KingdomInternalException(ErrorCode.EVENT_GROUP_ENTITY_KEY_ALREADY_EXISTS, message, cause) {
   override val context
     get() = emptyMap<String, String>()
 }

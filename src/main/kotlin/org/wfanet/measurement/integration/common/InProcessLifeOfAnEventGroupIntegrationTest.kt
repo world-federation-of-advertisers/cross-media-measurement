@@ -447,11 +447,10 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
         .listEventGroups(
           listEventGroupsRequest {
             parent = edpResourceName
-            filter =
-              filter {
-                entityTypeIn += "creative"
-                entityTypeIn += "ad_group"
-              }
+            filter = filter {
+              entityTypeIn += "creative"
+              entityTypeIn += "ad_group"
+            }
           }
         )
         .eventGroupsList
@@ -489,11 +488,7 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        createEventGroupWithEntityKey(
-          "eg-dup-2",
-          entityType = "creative",
-          entityId = "dup-1",
-        )
+        createEventGroupWithEntityKey("eg-dup-2", entityType = "creative", entityId = "dup-1")
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
   }

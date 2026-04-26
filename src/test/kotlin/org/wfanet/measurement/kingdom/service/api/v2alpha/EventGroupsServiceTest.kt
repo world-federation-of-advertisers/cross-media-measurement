@@ -2337,11 +2337,10 @@ class EventGroupsServiceTest {
     val request = listEventGroupsRequest {
       parent = DATA_PROVIDER_NAME
       pageSize = 100
-      filter =
-        filter {
-          entityTypeIn += "creative"
-          entityTypeIn += "ad_group"
-        }
+      filter = filter {
+        entityTypeIn += "creative"
+        entityTypeIn += "ad_group"
+      }
     }
 
     withDataProviderPrincipal(DATA_PROVIDER_NAME) {
@@ -2427,8 +2426,9 @@ class EventGroupsServiceTest {
     internalEventGroupsMock.stub {
       onBlocking { createEventGroup(any()) }
         .thenThrow(
-          Status.ALREADY_EXISTS
-            .withDescription("EventGroup with the same entity_key already exists.")
+          Status.ALREADY_EXISTS.withDescription(
+              "EventGroup with the same entity_key already exists."
+            )
             .asRuntimeException()
         )
     }
@@ -2455,8 +2455,9 @@ class EventGroupsServiceTest {
     internalEventGroupsMock.stub {
       onBlocking { updateEventGroup(any()) }
         .thenThrow(
-          Status.ALREADY_EXISTS
-            .withDescription("EventGroup with the same entity_key already exists.")
+          Status.ALREADY_EXISTS.withDescription(
+              "EventGroup with the same entity_key already exists."
+            )
             .asRuntimeException()
         )
     }
