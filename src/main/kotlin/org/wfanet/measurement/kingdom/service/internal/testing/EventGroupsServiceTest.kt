@@ -2528,35 +2528,36 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     }
 
   @Test
-  fun `createEventGroup allows same entity_key under different DataProviders`(): Unit = runBlocking {
-    val measurementConsumer =
-      population.createMeasurementConsumer(measurementConsumersService, accountsService)
-    val dataProvider1 = population.createDataProvider(dataProvidersService)
-    val dataProvider2 = population.createDataProvider(dataProvidersService)
+  fun `createEventGroup allows same entity_key under different DataProviders`(): Unit =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider1 = population.createDataProvider(dataProvidersService)
+      val dataProvider2 = population.createDataProvider(dataProvidersService)
 
-    eventGroupsService.createEventGroup(
-      createEventGroupRequest {
-        eventGroup = eventGroup {
-          externalDataProviderId = dataProvider1.externalDataProviderId
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          details = DETAILS
-          entityKey = ENTITY_KEY
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            externalDataProviderId = dataProvider1.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            details = DETAILS
+            entityKey = ENTITY_KEY
+          }
         }
-      }
-    )
+      )
 
-    // Same entity_key under a different DataProvider must succeed.
-    eventGroupsService.createEventGroup(
-      createEventGroupRequest {
-        eventGroup = eventGroup {
-          externalDataProviderId = dataProvider2.externalDataProviderId
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          details = DETAILS
-          entityKey = ENTITY_KEY
+      // Same entity_key under a different DataProvider must succeed.
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            externalDataProviderId = dataProvider2.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            details = DETAILS
+            entityKey = ENTITY_KEY
+          }
         }
-      }
-    )
-  }
+      )
+    }
 
   @Test
   fun `createEventGroup allows same entity_key under different MeasurementConsumers`(): Unit =
@@ -2592,8 +2593,8 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     }
 
   @Test
-  fun `createEventGroup allows multiple EventGroups without entity_key under same parent`():
-    Unit = runBlocking {
+  fun `createEventGroup allows multiple EventGroups without entity_key under same parent`(): Unit =
+    runBlocking {
       // EventGroupsByEntityKey is NULL_FILTERED on EntityId, so legacy-style EGs (no entity_key
       // set)
       // are exempt from the uniqueness constraint.
