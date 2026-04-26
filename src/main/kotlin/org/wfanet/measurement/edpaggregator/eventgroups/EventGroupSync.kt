@@ -31,6 +31,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroupKt
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadata as CmmsEventGroupMetadataMessage
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt as CmmsEventGroupMetadataKt
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt as CmmsAdMetadataKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -370,18 +372,12 @@ class EventGroupSync(
       this.eventGroup = cmmsEventGroup {
         measurementConsumer = eventGroup.measurementConsumer
         eventGroupReferenceId = eventGroup.eventGroupReferenceId
-        this.eventGroupMetadata = cmmsEventGroupMetadata {
-          this.adMetadata =
-            CmmsEventGroupMetadataKt.adMetadata {
-              this.campaignMetadata =
-                CmmsAdMetadataKt.campaignMetadata {
-                  brandName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.brand
-                  campaignName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.campaign
-                }
-            }
-        }
+        this.eventGroupMetadata = eventGroup.toCmmsEventGroupMetadata()
         mediaTypes += eventGroup.mediaTypesList.map { it.toCmmsMediaType() }
         dataAvailabilityInterval = eventGroup.dataAvailabilityInterval
+        if (eventGroup.hasEntityKey()) {
+          this.entityKey = eventGroup.entityKey.toCmmsEntityKey()
+        }
       }
     }
     return throttler.onReady { eventGroupsStub.createEventGroup(request) }
@@ -398,19 +394,15 @@ class EventGroupSync(
     return existingEventGroup.copy {
       measurementConsumer = eventGroup.measurementConsumer
       eventGroupReferenceId = eventGroup.eventGroupReferenceId
-      this.eventGroupMetadata = cmmsEventGroupMetadata {
-        this.adMetadata =
-          CmmsEventGroupMetadataKt.adMetadata {
-            this.campaignMetadata =
-              CmmsAdMetadataKt.campaignMetadata {
-                brandName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.brand
-                campaignName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.campaign
-              }
-          }
-      }
+      this.eventGroupMetadata = eventGroup.toCmmsEventGroupMetadata()
       mediaTypes.clear()
       mediaTypes += eventGroup.mediaTypesList.map { it.toCmmsMediaType() }
       dataAvailabilityInterval = eventGroup.dataAvailabilityInterval
+      if (eventGroup.hasEntityKey()) {
+        this.entityKey = eventGroup.entityKey.toCmmsEntityKey()
+      } else {
+        clearEntityKey()
+      }
     }
   }
 
@@ -444,6 +436,31 @@ class EventGroupSync(
       MediaType.DISPLAY -> CmmsMediaType.DISPLAY
       MediaType.OTHER -> CmmsMediaType.OTHER
       MediaType.UNRECOGNIZED -> error("Not a real media type")
+    }
+  }
+
+  private fun EventGroup.toCmmsEventGroupMetadata(): CmmsEventGroupMetadataMessage {
+    val source = this.eventGroupMetadata
+    return cmmsEventGroupMetadata {
+      this.adMetadata =
+        CmmsEventGroupMetadataKt.adMetadata {
+          this.campaignMetadata =
+            CmmsAdMetadataKt.campaignMetadata {
+              brandName = source.adMetadata.campaignMetadata.brand
+              campaignName = source.adMetadata.campaignMetadata.campaign
+            }
+        }
+      if (source.hasEntityMetadata()) {
+        this.entityMetadata = source.entityMetadata
+      }
+    }
+  }
+
+  private fun EventGroup.EntityKey.toCmmsEntityKey(): CmmsEventGroup.EntityKey {
+    val source = this
+    return CmmsEventGroupKt.entityKey {
+      entityType = source.entityType
+      entityId = source.entityId
     }
   }
 
