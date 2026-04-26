@@ -22,7 +22,6 @@ import com.google.type.Date
 import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -486,9 +485,12 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
     Unit = runBlocking {
     createEventGroupWithEntityKey("eg-dup-1", entityType = "creative", entityId = "dup-1")
 
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
+    val exception: StatusRuntimeException =
+      try {
         createEventGroupWithEntityKey("eg-dup-2", entityType = "creative", entityId = "dup-1")
+        throw AssertionError("Expected StatusRuntimeException ALREADY_EXISTS")
+      } catch (e: StatusRuntimeException) {
+        e
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
   }
