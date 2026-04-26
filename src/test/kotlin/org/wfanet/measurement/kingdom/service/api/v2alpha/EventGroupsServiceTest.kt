@@ -20,7 +20,9 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
+import com.google.protobuf.struct
 import com.google.protobuf.timestamp
+import com.google.protobuf.value
 import com.google.rpc.errorInfo
 import com.google.type.Interval
 import com.google.type.date
@@ -171,6 +173,11 @@ private val EVENT_TEMPLATES =
 private val INTERNAL_EVENT_TEMPLATES =
   EVENT_TEMPLATE_TYPES.map { type -> eventTemplate { fullyQualifiedType = type } }
 
+private val ENTITY_METADATA_STRUCT = struct {
+  fields["brand"] = value { stringValue = "Blammo!" }
+  fields["objective"] = value { stringValue = "awareness" }
+}
+
 private val EVENT_GROUP: EventGroup = eventGroup {
   name = EVENT_GROUP_NAME
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
@@ -193,6 +200,7 @@ private val EVENT_GROUP: EventGroup = eventGroup {
             campaignName = "Log: Better Than Bad"
           }
       }
+    entityMetadata = ENTITY_METADATA_STRUCT
   }
   encryptedMetadata = ENCRYPTED_METADATA
   // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this field.
@@ -202,6 +210,11 @@ private val EVENT_GROUP: EventGroup = eventGroup {
     startTime = LocalDate.of(2025, 2, 6).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
     endTime = LocalDate.of(2025, 5, 4).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
   }
+  entityKey =
+    EventGroupKt.entityKey {
+      entityType = "creative"
+      entityId = "creative-abc-123"
+    }
 }
 
 private val DELETED_EVENT_GROUP: EventGroup = eventGroup {
@@ -239,6 +252,12 @@ private val INTERNAL_EVENT_GROUP: InternalEventGroup = internalEventGroup {
   }
   state = InternalEventGroup.State.ACTIVE
   dataAvailabilityInterval = EVENT_GROUP.dataAvailabilityInterval
+  entityKey =
+    InternalEventGroupKt.entityKey {
+      entityType = EVENT_GROUP.entityKey.entityType
+      entityId = EVENT_GROUP.entityKey.entityId
+    }
+  entityMetadata = ENTITY_METADATA_STRUCT
 }
 
 private val INTERNAL_DELETED_EVENT_GROUP: InternalEventGroup = internalEventGroup {
@@ -1345,7 +1364,10 @@ class EventGroupsServiceTest {
       .isEqualTo(
         streamEventGroupsRequest {
           filter =
-            StreamEventGroupsRequestKt.filter { externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID }
+            StreamEventGroupsRequestKt.filter {
+              externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+              entityTypeIn += "campaign"
+            }
           limit = request.pageSize + 1
           allowStaleReads = true
         }
@@ -1393,6 +1415,7 @@ class EventGroupsServiceTest {
               dataAvailabilityStartTimeOnOrBefore =
                 request.filter.dataAvailabilityStartTimeOnOrBefore
               dataAvailabilityEndTimeOnOrAfter = request.filter.dataAvailabilityEndTimeOnOrAfter
+              entityTypeIn += "campaign"
             }
           orderBy =
             StreamEventGroupsRequestKt.orderBy {
@@ -1586,6 +1609,7 @@ class EventGroupsServiceTest {
               dataAvailabilityStartTimeOnOrAfter = request.filter.dataAvailabilityStartTimeOnOrAfter
               dataAvailabilityEndTimeOnOrBefore = request.filter.dataAvailabilityEndTimeOnOrBefore
               metadataSearchQuery = request.filter.metadataSearchQuery
+              entityTypeIn += "campaign"
             }
           limit = request.pageSize + 1
           allowStaleReads = true
@@ -1665,6 +1689,7 @@ class EventGroupsServiceTest {
               externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
               externalMeasurementConsumerIdIn += MEASUREMENT_CONSUMER_EXTERNAL_ID
               mediaTypesIntersect += InternalMediaType.VIDEO
+              entityTypeIn += "campaign"
               after =
                 StreamEventGroupsRequestKt.FilterKt.after {
                   eventGroupKey = eventGroupKey {
@@ -2305,5 +2330,146 @@ class EventGroupsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `listEventGroups forwards entity_type_in filter to internal request`() {
+    val request = listEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      pageSize = 100
+      filter =
+        filter {
+          entityTypeIn += "creative"
+          entityTypeIn += "ad_group"
+        }
+    }
+
+    withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+      runBlocking { service.listEventGroups(request) }
+    }
+
+    val internalRequest: StreamEventGroupsRequest = captureFirst {
+      verify(internalEventGroupsMock).streamEventGroups(capture())
+    }
+    // Caller-supplied entity_type_in flows through unchanged; no "campaign" substitution.
+    assertThat(internalRequest.filter.entityTypeInList)
+      .containsExactly("creative", "ad_group")
+      .inOrder()
+  }
+
+  @Test
+  fun `listEventGroups stores caller's entity_type_in on the page token`() {
+    val request = listEventGroupsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      pageSize = 2
+      filter = filter { entityTypeIn += "creative" }
+    }
+
+    val response: ListEventGroupsResponse =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listEventGroups(request) }
+      }
+
+    val nextPageToken = ListEventGroupsPageToken.parseFrom(response.nextPageToken.base64UrlDecode())
+    assertThat(nextPageToken.entityTypeInList).containsExactly("creative")
+  }
+
+  @Test
+  fun `listEventGroups stores empty entity_type_in on page token when caller omits filter`() {
+    val request = listEventGroupsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      pageSize = 2
+    }
+
+    val response: ListEventGroupsResponse =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listEventGroups(request) }
+      }
+
+    val nextPageToken = ListEventGroupsPageToken.parseFrom(response.nextPageToken.base64UrlDecode())
+    // Page token reflects caller intent (empty), not the post-substitution ["campaign"].
+    // Without this, a caller who never set the filter would mismatch the token on page 2.
+    assertThat(nextPageToken.entityTypeInList).isEmpty()
+  }
+
+  @Test
+  fun `listEventGroups throws INVALID_ARGUMENT when entity_type_in mismatches page token`() {
+    val initialRequest = listEventGroupsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      filter = filter { entityTypeIn += "creative" }
+      pageSize = 2
+    }
+    val initialResponse: ListEventGroupsResponse =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listEventGroups(initialRequest) }
+      }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.listEventGroups(
+              initialRequest.copy {
+                filter = filter.copy { entityTypeIn.clear() }
+                pageToken = initialResponse.nextPageToken
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("page")
+  }
+
+  @Test
+  fun `createEventGroup maps internal ALREADY_EXISTS to ALREADY_EXISTS`() {
+    internalEventGroupsMock.stub {
+      onBlocking { createEventGroup(any()) }
+        .thenThrow(
+          Status.ALREADY_EXISTS
+            .withDescription("EventGroup with the same entity_key already exists.")
+            .asRuntimeException()
+        )
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.createEventGroup(
+              createEventGroupRequest {
+                parent = DATA_PROVIDER_NAME
+                eventGroup = EVENT_GROUP
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+  }
+
+  @Test
+  fun `updateEventGroup maps internal ALREADY_EXISTS to ALREADY_EXISTS`() {
+    internalEventGroupsMock.stub {
+      onBlocking { updateEventGroup(any()) }
+        .thenThrow(
+          Status.ALREADY_EXISTS
+            .withDescription("EventGroup with the same entity_key already exists.")
+            .asRuntimeException()
+        )
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.updateEventGroup(updateEventGroupRequest { eventGroup = EVENT_GROUP })
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
   }
 }

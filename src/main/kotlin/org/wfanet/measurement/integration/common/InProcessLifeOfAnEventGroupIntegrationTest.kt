@@ -20,6 +20,9 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.type.Date
 import com.google.type.date
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -418,6 +421,102 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
         }
       )
     assertThat(response).isEqualTo(eventGroup)
+  }
+
+  @Test
+  fun `list with entity_type_in returns only EventGroups of that type`(): Unit = runBlocking {
+    val legacyEventGroup = createEventGroup("eg-legacy")
+    val creativeEventGroup =
+      createEventGroupWithEntityKey("eg-creative", entityType = "creative", entityId = "cr-1")
+    val adGroupEventGroup =
+      createEventGroupWithEntityKey("eg-ad-group", entityType = "ad_group", entityId = "ag-1")
+
+    val creativesOnly =
+      publicEventGroupsClient
+        .listEventGroups(
+          listEventGroupsRequest {
+            parent = edpResourceName
+            filter = filter { entityTypeIn += "creative" }
+          }
+        )
+        .eventGroupsList
+    assertThat(creativesOnly.map { it.name }).containsExactly(creativeEventGroup.name)
+
+    val multiple =
+      publicEventGroupsClient
+        .listEventGroups(
+          listEventGroupsRequest {
+            parent = edpResourceName
+            filter =
+              filter {
+                entityTypeIn += "creative"
+                entityTypeIn += "ad_group"
+              }
+          }
+        )
+        .eventGroupsList
+    assertThat(multiple.map { it.name })
+      .containsExactly(creativeEventGroup.name, adGroupEventGroup.name)
+
+    // Sanity: legacyEventGroup is not in either list above.
+    assertThat(creativesOnly.map { it.name }).doesNotContain(legacyEventGroup.name)
+    assertThat(multiple.map { it.name }).doesNotContain(legacyEventGroup.name)
+  }
+
+  @Test
+  fun `list without entity_type_in defaults to legacy EventGroups only`(): Unit = runBlocking {
+    val legacyEventGroup = createEventGroup("eg-legacy-default")
+    val creativeEventGroup =
+      createEventGroupWithEntityKey(
+        "eg-creative-default",
+        entityType = "creative",
+        entityId = "cr-default",
+      )
+
+    val response =
+      publicEventGroupsClient
+        .listEventGroups(listEventGroupsRequest { parent = edpResourceName })
+        .eventGroupsList
+
+    assertThat(response.map { it.name }).contains(legacyEventGroup.name)
+    assertThat(response.map { it.name }).doesNotContain(creativeEventGroup.name)
+  }
+
+  @Test
+  fun `creating duplicate entity_key under same DataProvider and MeasurementConsumer fails`():
+    Unit = runBlocking {
+    createEventGroupWithEntityKey("eg-dup-1", entityType = "creative", entityId = "dup-1")
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        createEventGroupWithEntityKey(
+          "eg-dup-2",
+          entityType = "creative",
+          entityId = "dup-1",
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+  }
+
+  private suspend fun createEventGroupWithEntityKey(
+    name: String,
+    entityType: String,
+    entityId: String,
+  ): EventGroup {
+    return publicEventGroupsClient.createEventGroup(
+      createEventGroupRequest {
+        parent = edpResourceName
+        eventGroup = eventGroup {
+          this.measurementConsumer = mcResourceName
+          this.name = name
+          this.entityKey =
+            EventGroupKt.entityKey {
+              this.entityType = entityType
+              this.entityId = entityId
+            }
+        }
+      }
+    )
   }
 
   private suspend fun createActivities(eventGroupName: String, dates: List<Date>) {

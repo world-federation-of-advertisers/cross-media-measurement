@@ -17,6 +17,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.InvalidProtocolBufferException
+import com.google.protobuf.Struct
 import com.google.protobuf.any
 import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Timestamps
@@ -86,6 +87,7 @@ import org.wfanet.measurement.internal.kingdom.DateInterval as InternalDateInter
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupDetails
 import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt
+import org.wfanet.measurement.internal.kingdom.EventGroupKt as InternalEventGroupKt
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub as InternalEventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest as InternalGetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.MediaType as InternalMediaType
@@ -224,6 +226,7 @@ class EventGroupsService(
         Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
         Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS
         else -> Status.UNKNOWN
       }.toExternalStatusRuntimeException(e)
     }
@@ -291,6 +294,7 @@ class EventGroupsService(
         Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
         Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS
         else -> Status.UNKNOWN
       }.toExternalStatusRuntimeException(e)
     }
@@ -320,6 +324,7 @@ class EventGroupsService(
         Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
         Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS
         else -> Status.UNKNOWN
       }.toExternalStatusRuntimeException(e)
     }
@@ -382,6 +387,7 @@ class EventGroupsService(
         Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
         Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS
         else -> Status.UNKNOWN
       }.toExternalStatusRuntimeException(e)
     }
@@ -461,6 +467,7 @@ class EventGroupsService(
         Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
         Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS
         else -> Status.UNKNOWN
       }.toExternalStatusRuntimeException(e)
     }
@@ -519,7 +526,7 @@ class EventGroupsService(
           .map(InternalEventGroup::toEventGroup)
       if (internalEventGroups.size > pageSize) {
         nextPageToken =
-          buildNextPageToken(internalRequest.filter, internalEventGroups)
+          buildNextPageToken(internalRequest.filter, request.filter, internalEventGroups)
             .toByteString()
             .base64UrlEncode()
       }
@@ -528,6 +535,7 @@ class EventGroupsService(
 
   private fun buildNextPageToken(
     internalFilter: StreamEventGroupsRequest.Filter,
+    publicFilter: ListEventGroupsRequest.Filter,
     results: List<InternalEventGroup>,
   ): ListEventGroupsPageToken {
     val lastInternalEventGroup: InternalEventGroup = results[results.lastIndex - 1]
@@ -557,6 +565,7 @@ class EventGroupsService(
       if (internalFilter.hasActivityContains()) {
         activityContains = internalFilter.activityContains.toDateInterval()
       }
+      entityTypeIn += publicFilter.entityTypeInList
       lastEventGroup = previousPageEnd {
         externalDataProviderId = lastInternalEventGroup.externalDataProviderId
         externalEventGroupId = lastInternalEventGroup.externalEventGroupId
@@ -630,6 +639,9 @@ class EventGroupsService(
             validateActivityContainsInterval(filter.activityContains)
             activityContains = filter.activityContains.toInternal()
           }
+          entityTypeIn +=
+            if (filter.entityTypeInList.isNotEmpty()) filter.entityTypeInList
+            else listOf("campaign")
           metadataSearchQuery = filter.metadataSearchQuery
           this.showDeleted = showDeleted
           if (pageToken != null) {
@@ -647,7 +659,8 @@ class EventGroupsService(
                   dataAvailabilityStartTimeOnOrBefore ||
                 pageToken.dataAvailabilityEndTimeOnOrAfter != dataAvailabilityEndTimeOnOrAfter ||
                 pageToken.metadataSearchQuery != metadataSearchQuery ||
-                pageToken.activityContains != filter.activityContains
+                pageToken.activityContains != filter.activityContains ||
+                pageToken.entityTypeInList != filter.entityTypeInList
             ) {
               throw Status.INVALID_ARGUMENT.withDescription(
                   "Arguments other than page_size must remain the same for subsequent page requests"
@@ -758,8 +771,13 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
           eventTemplate { type = event.fullyQualifiedType }
         }
       )
+      // Public EventGroupMetadata.metadata is // Required. (per upstream CMMS proto), so we only
+      // construct it when details.metadata is set; entity_metadata is threaded through alongside.
       if (source.details.hasMetadata()) {
-        eventGroupMetadata = source.details.metadata.toEventGroupMetadata()
+        eventGroupMetadata =
+          source.details.metadata.toEventGroupMetadata(
+            entityMetadata = source.entityMetadata.takeIf { source.hasEntityMetadata() }
+          )
       }
       if (!source.details.encryptedMetadata.isEmpty) {
         encryptedMetadata = encryptedMessage {
@@ -776,6 +794,9 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
     }
     state = source.state.toV2Alpha()
     aggregatedActivities += source.aggregatedActivitiesList.map { it.toAggregatedActivity() }
+    if (source.hasEntityKey()) {
+      entityKey = source.entityKey.toApi()
+    }
   }
 }
 
@@ -789,7 +810,9 @@ private fun InternalMediaType.toMediaType(): MediaType {
   }
 }
 
-private fun EventGroupDetails.EventGroupMetadata.toEventGroupMetadata(): EventGroupMetadata {
+private fun EventGroupDetails.EventGroupMetadata.toEventGroupMetadata(
+  entityMetadata: Struct? = null
+): EventGroupMetadata {
   val source = this
   return eventGroupMetadata {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
@@ -806,6 +829,9 @@ private fun EventGroupDetails.EventGroupMetadata.toEventGroupMetadata(): EventGr
       }
       EventGroupDetails.EventGroupMetadata.MetadataCase.METADATA_NOT_SET ->
         error("metadata not set")
+    }
+    if (entityMetadata != null) {
+      this.entityMetadata = entityMetadata
     }
   }
 }
@@ -865,6 +891,28 @@ private fun EventGroup.toInternal(
         encryptedMetadata = source.serializedEncryptedMetadata
       }
     }
+    if (source.hasEntityKey()) {
+      entityKey = source.entityKey.toInternal()
+    }
+    if (source.hasEventGroupMetadata() && source.eventGroupMetadata.hasEntityMetadata()) {
+      entityMetadata = source.eventGroupMetadata.entityMetadata
+    }
+  }
+}
+
+private fun InternalEventGroup.EntityKey.toApi(): EventGroup.EntityKey {
+  val source = this
+  return EventGroupKt.entityKey {
+    entityType = source.entityType
+    entityId = source.entityId
+  }
+}
+
+private fun EventGroup.EntityKey.toInternal(): InternalEventGroup.EntityKey {
+  val source = this
+  return InternalEventGroupKt.entityKey {
+    entityType = source.entityType
+    entityId = source.entityId
   }
 }
 

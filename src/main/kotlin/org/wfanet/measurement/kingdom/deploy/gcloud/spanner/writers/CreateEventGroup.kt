@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.ErrorCode as SpannerErrorCode
+import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Value
 import com.google.protobuf.Timestamp
 import org.wfanet.measurement.common.identity.ExternalId
@@ -28,6 +30,7 @@ import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupEntityKeyAlreadyExistsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
@@ -83,6 +86,13 @@ class CreateEventGroup(private val request: CreateEventGroupRequest) :
       }
     }
   }
+
+  override suspend fun handleSpannerException(e: SpannerException): EventGroup? {
+    when (e.errorCode) {
+      SpannerErrorCode.ALREADY_EXISTS -> throw EventGroupEntityKeyAlreadyExistsException(e)
+      else -> throw e
+    }
+  }
 }
 
 /** Buffers an insert mutation for the EventGroups table. */
@@ -117,6 +127,13 @@ internal fun SpannerWriter.TransactionScope.createEventGroup(
     }
     if (request.eventGroup.hasDetails()) {
       set("EventGroupDetails").to(request.eventGroup.details)
+    }
+    if (request.eventGroup.hasEntityKey()) {
+      set("EntityType" to request.eventGroup.entityKey.entityType)
+      set("EntityId" to request.eventGroup.entityKey.entityId)
+    }
+    if (request.eventGroup.hasEntityMetadata()) {
+      set("EntityMetadata").to(request.eventGroup.entityMetadata)
     }
     set("State").toInt64(EventGroup.State.ACTIVE)
   }

@@ -41,6 +41,7 @@ import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateEventGroupRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupEntityKeyAlreadyExistsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
@@ -86,6 +87,11 @@ class SpannerEventGroupsService(
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
         "MeasurementConsumer's Certificate not found.",
+      )
+    } catch (e: EventGroupEntityKeyAlreadyExistsException) {
+      throw e.asStatusRuntimeException(
+        Status.Code.ALREADY_EXISTS,
+        "EventGroup with the same entity_key already exists.",
       )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
@@ -140,6 +146,8 @@ class SpannerEventGroupsService(
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: MeasurementConsumerCertificateNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    } catch (e: EventGroupEntityKeyAlreadyExistsException) {
+      throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
@@ -180,6 +188,11 @@ class SpannerEventGroupsService(
           throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
         }
       }
+    } catch (e: EventGroupEntityKeyAlreadyExistsException) {
+      throw e.asStatusRuntimeException(
+        Status.Code.ALREADY_EXISTS,
+        "EventGroup with the same entity_key already exists.",
+      )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
@@ -236,6 +249,8 @@ class SpannerEventGroupsService(
           throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
         }
       }
+    } catch (e: EventGroupEntityKeyAlreadyExistsException) {
+      throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
