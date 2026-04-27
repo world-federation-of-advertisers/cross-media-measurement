@@ -172,6 +172,17 @@ locals {
     scheduler_sa_description    = "Service account for Cloud Scheduler to trigger requisition fetcher"
     scheduler_job_description   = "Scheduled job to fetch unfulfilled requisitions from the Kingdom"
   }
+  data_availability_monitor_scheduler_config = {
+    schedule                  = "0 6 * * *"
+    time_zone                 = "UTC"
+    name                      = "da-monitor-scheduler"
+    function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/data-availability-monitor"
+    scheduler_sa_display_name = "Data Availability Monitor Scheduler"
+    scheduler_sa_description  = "Service account for Cloud Scheduler to trigger data availability monitor"
+    scheduler_job_description = "Scheduled job to monitor data availability for staleness and gaps"
+    scheduler_job_name        = "data-availability-monitor"
+  }
+
 
   data_watcher_config = {
     local_path  = var.data_watcher_config_file_path
@@ -201,6 +212,11 @@ locals {
   data_availability_sync_config = {
     local_path  = var.data_availability_sync_config_file_path
     destination = "data-availability-sync-config.textproto"
+  }
+
+  data_availability_monitor_config = {
+    local_path  = var.data_availability_monitor_config_file_path
+    destination = "data-availability-monitor-config.textproto"
   }
 
   results_fulfiller_event_descriptor = {
@@ -256,6 +272,13 @@ locals {
       secret_mappings     = var.data_availability_cleanup_secret_mapping
       uber_jar_path       = var.data_availability_cleanup_uber_jar_path
     }
+    data_availability_monitor = {
+      function_name       = "data-availability-monitor"
+      entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilityMonitorFunction"
+      extra_env_vars      = "${var.data_availability_monitor_env_var},CONFIG_BLOB_KEY=${local.data_availability_monitor_config.destination},EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}"
+      secret_mappings     = ""
+      uber_jar_path       = var.data_availability_monitor_uber_jar_path
+    }
   }
 
 }
@@ -305,5 +328,8 @@ module "edp_aggregator" {
   results_fulfiller_disk_image_family           = "confidential-space"
   dns_managed_zone_name                         = "googleapis-private"
   edp_aggregator_service_account_name           = "edp-aggregator-internal"
+  data_availability_monitor_service_account_name = "edpa-data-avail-monitor"
+  data_availability_monitor_config                = local.data_availability_monitor_config
+  data_availability_monitor_scheduler_config      = local.data_availability_monitor_scheduler_config
   spanner_instance                              = google_spanner_instance.spanner_instance
 }
