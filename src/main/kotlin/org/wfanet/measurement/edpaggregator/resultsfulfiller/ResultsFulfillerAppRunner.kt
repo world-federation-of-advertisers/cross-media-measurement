@@ -266,6 +266,38 @@ class ResultsFulfillerAppRunner : Runnable {
   private var metadataStoragePublicApiCertHost: String? = null
 
   @CommandLine.Option(
+    names = ["--pipeline-batch-size"],
+    description = ["Number of events to process in each batch."],
+    defaultValue = "256",
+  )
+  private var pipelineBatchSize: Int = 256
+
+  @CommandLine.Option(
+    names = ["--pipeline-channel-capacity"],
+    description = ["Per-worker channel capacity in number of batches."],
+    defaultValue = "64",
+  )
+  private var pipelineChannelCapacity: Int = 64
+
+  @CommandLine.Option(
+    names = ["--pipeline-thread-pool-size"],
+    description =
+      ["Size of the thread pool for the coroutine dispatcher. Defaults to available CPU cores."],
+    defaultValue = "0",
+  )
+  private var pipelineThreadPoolSize: Int = 0
+
+  @CommandLine.Option(
+    names = ["--pipeline-workers"],
+    description =
+      [
+        "Number of parallel worker coroutines for processing batches. Defaults to available CPU cores."
+      ],
+    defaultValue = "0",
+  )
+  private var pipelineWorkers: Int = 0
+
+  @CommandLine.Option(
     names = ["--subscription-id"],
     description = ["Subscription ID for the queue"],
     required = true,
@@ -363,6 +395,16 @@ class ResultsFulfillerAppRunner : Runnable {
 
     val modelLinesMap = runBlockingWithTelemetry { buildModelLineMap() }
 
+    val cpuCount = Runtime.getRuntime().availableProcessors()
+    val pipelineConfiguration =
+      PipelineConfiguration(
+        batchSize = pipelineBatchSize,
+        channelCapacity = pipelineChannelCapacity,
+        threadPoolSize = if (pipelineThreadPoolSize > 0) pipelineThreadPoolSize else cpuCount,
+        workers = if (pipelineWorkers > 0) pipelineWorkers else cpuCount,
+      )
+    pipelineConfiguration.validate()
+
     val resultsFulfillerApp =
       ResultsFulfillerApp(
         subscriptionId = subscriptionId,
@@ -379,6 +421,7 @@ class ResultsFulfillerAppRunner : Runnable {
         getImpressionsStorageConfig = getImpressionsStorageConfig,
         getRequisitionsStorageConfig = getImpressionsStorageConfig,
         modelLineInfoMap = modelLinesMap,
+        pipelineConfiguration = pipelineConfiguration,
         metrics = metrics,
       )
 
