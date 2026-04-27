@@ -240,6 +240,16 @@ class EventGroupsService(
               }
               EventGroupMetadata.SelectorCase.SELECTOR_NOT_SET -> error("metadata not set")
             }
+            if (source.eventGroupMetadata.hasEntityMetadata()) {
+              entityMetadata = source.eventGroupMetadata.entityMetadata
+            }
+          }
+      }
+      if (source.hasEntityKey()) {
+        entityKey =
+          EventGroupKt.entityKey {
+            entityType = source.entityKey.entityType
+            entityId = source.entityKey.entityId
           }
       }
       aggregatedActivities += source.aggregatedActivitiesList.map { it.toAggregatedActivity() }
@@ -321,6 +331,10 @@ private fun ListEventGroupsRequest.Filter.toCmmsFilter(): CmmsListEventGroupsReq
       validateActivityContains(source.activityContains)
       activityContains = source.activityContains.toCmmsDateInterval()
     }
+    // Forward entity_type_in as-is. When the caller leaves it empty, we pass
+    // empty to CMMS, which applies its own default of ["campaign"] so legacy
+    // clients continue to see only legacy EventGroups.
+    entityTypeIn += source.entityTypeInList
   }
 }
 

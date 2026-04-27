@@ -18,6 +18,8 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Struct
+import com.google.protobuf.Value
 import com.google.type.date
 import com.google.type.interval
 import io.grpc.Deadline
@@ -328,6 +330,37 @@ class EventGroupsServiceTest {
                 this.startDate = startDate
                 this.endDate = endDate
               }
+            }
+          pageSize = DEFAULT_PAGE_SIZE
+        }
+      )
+  }
+
+  @Test
+  fun `listEventGroups delegates to CMMS API when entity_type_in is specified`() {
+    wheneverBlocking { cmmsEventGroupsMock.listEventGroups(any()) } doReturn
+      cmmsListEventGroupsResponse { eventGroups += CMMS_EVENT_GROUP }
+
+    val request = listEventGroupsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      structuredFilter =
+        ListEventGroupsRequestKt.filter {
+          entityTypeIn += "creative"
+          entityTypeIn += "ad_group"
+        }
+    }
+
+    withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listEventGroups(request) } }
+
+    verifyProtoArgument(cmmsEventGroupsMock, EventGroupsCoroutineImplBase::listEventGroups)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        cmmsListEventGroupsRequest {
+          parent = request.parent
+          filter =
+            CmmsListEventGroupsRequestKt.filter {
+              entityTypeIn += "creative"
+              entityTypeIn += "ad_group"
             }
           pageSize = DEFAULT_PAGE_SIZE
         }
@@ -708,6 +741,13 @@ class EventGroupsServiceTest {
 
     private const val EVENT_GROUP_REFERENCE_ID = "ref"
     private const val EVENT_GROUP_ID = "1237"
+    private const val ENTITY_TYPE = "creative"
+    private const val ENTITY_ID = "cr_12345"
+    private val ENTITY_METADATA: Struct =
+      Struct.newBuilder()
+        .putFields("placement", Value.newBuilder().setStringValue("homepage").build())
+        .putFields("creative_id", Value.newBuilder().setStringValue(ENTITY_ID).build())
+        .build()
     private val CMMS_EVENT_GROUP_NAME = CmmsEventGroupKey(DATA_PROVIDER_ID, EVENT_GROUP_ID).toName()
     private val CMMS_EVENT_GROUP = cmmsEventGroup {
       name = CMMS_EVENT_GROUP_NAME
@@ -728,7 +768,13 @@ class EventGroupsServiceTest {
                 campaignName = "Log: Better Than Bad"
               }
           }
+        entityMetadata = ENTITY_METADATA
       }
+      entityKey =
+        CmmsEventGroupKt.entityKey {
+          entityType = ENTITY_TYPE
+          entityId = ENTITY_ID
+        }
       state = CmmsEventGroup.State.ACTIVE
     }
 
@@ -764,6 +810,12 @@ class EventGroupsServiceTest {
                     CMMS_EVENT_GROUP.eventGroupMetadata.adMetadata.campaignMetadata.campaignName
                 }
             }
+          entityMetadata = ENTITY_METADATA
+        }
+      entityKey =
+        EventGroupKt.entityKey {
+          entityType = ENTITY_TYPE
+          entityId = ENTITY_ID
         }
     }
 
