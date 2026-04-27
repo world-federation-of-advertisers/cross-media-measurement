@@ -22,6 +22,7 @@ variable "scheduler_config" {
     scheduler_sa_display_name   = string
     scheduler_sa_description    = string
     scheduler_job_description   = string
+    scheduler_job_name          = optional(string)
   })
   nullable = false
 }

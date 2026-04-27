@@ -22,7 +22,9 @@ proto_library(
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:struct_proto",
         "@com_google_protobuf//:timestamp_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/type:future_disposition_proto",
     ],
 )
 
