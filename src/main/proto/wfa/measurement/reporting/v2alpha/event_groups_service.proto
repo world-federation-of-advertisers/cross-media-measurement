@@ -129,6 +129,12 @@ message ListEventGroupsRequest {
     // [EventGroup][]. [start_date][DateInterval.start_date] and
     // [end_date][DateInterval.end_date] are required.
     DateInterval activity_contains = 8;
+
+    // Set of entity types which [EventGroup.EntityKey.entity_type][] of
+    // [EventGroup.entity_key][] must be in.
+    //
+    // If unspecified, the server will treat this as if it contains "campaign".
+    repeated string entity_type_in = 9 [(google.api.field_behavior) = OPTIONAL];
   }
 
   // Result filter.
