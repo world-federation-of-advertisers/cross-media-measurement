@@ -947,6 +947,7 @@ class MeasurementsServiceTest {
                     capabilities = internalDataProviderCapabilities {
                       trusTeeSupported = true
                       noiseMechanismNoneSupported = true
+                      isPanelProjection = true
                     }
                   }
               }
@@ -1019,6 +1020,7 @@ class MeasurementsServiceTest {
                     capabilities = internalDataProviderCapabilities {
                       trusTeeSupported = true
                       noiseMechanismNoneSupported = true
+                      isPanelProjection = true
                     }
                   }
               }
@@ -1097,6 +1099,7 @@ class MeasurementsServiceTest {
                     capabilities = internalDataProviderCapabilities {
                       trusTeeSupported = true
                       noiseMechanismNoneSupported = true
+                      isPanelProjection = true
                     }
                   }
               }
@@ -1170,6 +1173,157 @@ class MeasurementsServiceTest {
                     capabilities = internalDataProviderCapabilities {
                       trusTeeSupported = true
                       noiseMechanismNoneSupported = true
+                      isPanelProjection = true
+                    }
+                  }
+              }
+            }
+          }
+        )
+    }
+    val measurement =
+      MEASUREMENT.copy {
+        clearFailure()
+        results.clear()
+        clearProtocolConfig()
+      }
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      this.measurement = measurement
+      requestId = "foo"
+    }
+
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      runBlocking { trusTeeEnabledService.createMeasurement(request) }
+    }
+
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
+      )
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        internalCreateMeasurementRequest {
+          this.measurement =
+            INTERNAL_MEASUREMENT.copy {
+              clearExternalMeasurementId()
+              clearCreateTime()
+              clearUpdateTime()
+              results.clear()
+              details =
+                details.copy {
+                  clearFailure()
+                  protocolConfig = internalProtocolConfig {
+                    externalProtocolConfigId = "trustee"
+                    trusTee =
+                      InternalProtocolConfigKt.trusTee {
+                        noiseMechanism = InternalNoiseMechanism.NONE
+                      }
+                  }
+                  clearDuchyProtocolConfig()
+                }
+            }
+          requestId = request.requestId
+        }
+      )
+  }
+
+  @Test
+  fun `createMeasurement with TrusTEE policy excluding NONE for non-panel-projection EDPs selects CG`() {
+    TrusTeeProtocolConfig.setForTest(
+      TRUS_TEE_INTERNAL_PROTOCOL_CONFIG.trusTee,
+      "aggregator",
+      listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN),
+      maxNonPanelProjectionEdpsForNoneNoise = 0,
+    )
+    internalDataProvidersMock.stub {
+      onBlocking { batchGetDataProviders(any()) }
+        .thenReturn(
+          internalBatchGetDataProvidersResponse {
+            for (externalDataProviderId in EXTERNAL_DATA_PROVIDER_IDS) {
+              dataProviders += internalDataProvider {
+                this.externalDataProviderId = externalDataProviderId.value
+                details =
+                  details.copy {
+                    capabilities = internalDataProviderCapabilities {
+                      trusTeeSupported = true
+                      noiseMechanismNoneSupported = true
+                      isPanelProjection = false
+                    }
+                  }
+              }
+            }
+          }
+        )
+    }
+    val measurement =
+      MEASUREMENT.copy {
+        clearFailure()
+        results.clear()
+        clearProtocolConfig()
+      }
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      this.measurement = measurement
+      requestId = "foo"
+    }
+
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      runBlocking { trusTeeEnabledService.createMeasurement(request) }
+    }
+
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
+      )
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        internalCreateMeasurementRequest {
+          this.measurement =
+            INTERNAL_MEASUREMENT.copy {
+              clearExternalMeasurementId()
+              clearCreateTime()
+              clearUpdateTime()
+              results.clear()
+              details =
+                details.copy {
+                  clearFailure()
+                  protocolConfig = internalProtocolConfig {
+                    externalProtocolConfigId = "trustee"
+                    trusTee =
+                      InternalProtocolConfigKt.trusTee {
+                        noiseMechanism = InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
+                      }
+                  }
+                  clearDuchyProtocolConfig()
+                }
+            }
+          requestId = request.requestId
+        }
+      )
+  }
+
+  @Test
+  fun `createMeasurement with TrusTEE policy and all panel-projection EDPs still selects NONE`() {
+    TrusTeeProtocolConfig.setForTest(
+      TRUS_TEE_INTERNAL_PROTOCOL_CONFIG.trusTee,
+      "aggregator",
+      listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN),
+      maxNonPanelProjectionEdpsForNoneNoise = 0,
+    )
+    internalDataProvidersMock.stub {
+      onBlocking { batchGetDataProviders(any()) }
+        .thenReturn(
+          internalBatchGetDataProvidersResponse {
+            for (externalDataProviderId in EXTERNAL_DATA_PROVIDER_IDS) {
+              dataProviders += internalDataProvider {
+                this.externalDataProviderId = externalDataProviderId.value
+                details =
+                  details.copy {
+                    capabilities = internalDataProviderCapabilities {
+                      trusTeeSupported = true
+                      noiseMechanismNoneSupported = true
+                      isPanelProjection = true
                     }
                   }
               }

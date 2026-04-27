@@ -66,4 +66,24 @@ message TrusTeeProtocolConfigConfig {
   // `protocol_config.noise_mechanism`. This field is planned to become REQUIRED
   // in a future Halo CMM release.
   repeated ProtocolConfig.NoiseMechanism noise_mechanisms = 3;
+
+  // Operator-configured policy: maximum number of `DataProvider`s in a
+  // `Measurement` that are NOT `is_panel_projection` (i.e. that may be
+  // event-level / impression-level) for which `NoiseMechanism.NONE` is
+  // permitted to be selected.
+  //
+  // If a `Measurement` contains more `DataProvider`s without
+  // `is_panel_projection = true` than this value, `NONE` is excluded from the
+  // noise mechanism selection set for that `Measurement` (a noisy mechanism
+  // such as `CONTINUOUS_GAUSSIAN` is selected instead).
+  //
+  // The default (unset / `0`) is the strictest, privacy-conservative policy:
+  // `NONE` may only be selected when ALL `DataProvider`s in a `Measurement`
+  // have `is_panel_projection = true`. Operators may relax this by setting a
+  // higher value.
+  //
+  // This guards against differential queries over a no-noise aggregate
+  // exposing precise cross-publisher overlap that no individual
+  // `DataProvider` has consented to.
+  int32 max_non_panel_projection_edps_for_none_noise = 4;
 }

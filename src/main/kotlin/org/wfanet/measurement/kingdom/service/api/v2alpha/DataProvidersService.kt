@@ -343,6 +343,7 @@ private fun InternalDataProviderCapabilities.toCapabilities(): DataProvider.Capa
     honestMajorityShareShuffleSupported = source.honestMajorityShareShuffleSupported
     trusTeeSupported = source.trusTeeSupported
     noiseMechanismNoneSupported = source.noiseMechanismNoneSupported
+    isPanelProjection = source.isPanelProjection
   }
 }
 
@@ -352,5 +353,6 @@ private fun DataProvider.Capabilities.toInternal(): InternalDataProviderCapabili
     honestMajorityShareShuffleSupported = source.honestMajorityShareShuffleSupported
     trusTeeSupported = source.trusTeeSupported
     noiseMechanismNoneSupported = source.noiseMechanismNoneSupported
+    isPanelProjection = source.isPanelProjection
   }
 }

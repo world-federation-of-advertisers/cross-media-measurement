@@ -64,7 +64,12 @@ class SelectNoiseMechanismsTest {
     val serverMechanisms =
       listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
     val capabilities =
-      listOf(internalDataProviderCapabilities { noiseMechanismNoneSupported = true })
+      listOf(
+        internalDataProviderCapabilities {
+          noiseMechanismNoneSupported = true
+          isPanelProjection = true
+        }
+      )
 
     val result = MeasurementsService.selectNoiseMechanisms(serverMechanisms, capabilities)
     assertEquals(
@@ -108,8 +113,14 @@ class SelectNoiseMechanismsTest {
       listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
     val capabilities =
       listOf(
-        internalDataProviderCapabilities { noiseMechanismNoneSupported = true },
-        internalDataProviderCapabilities { noiseMechanismNoneSupported = true },
+        internalDataProviderCapabilities {
+          noiseMechanismNoneSupported = true
+          isPanelProjection = true
+        },
+        internalDataProviderCapabilities {
+          noiseMechanismNoneSupported = true
+          isPanelProjection = true
+        },
       )
 
     val result = MeasurementsService.selectNoiseMechanisms(serverMechanisms, capabilities)
@@ -145,12 +156,239 @@ class SelectNoiseMechanismsTest {
   }
 
   @Test
-  fun `server only supports NONE and EDP supports NONE`() {
+  fun `server only supports NONE and panel-projection EDP supports NONE`() {
     val serverMechanisms = listOf(InternalNoiseMechanism.NONE)
     val capabilities =
-      listOf(internalDataProviderCapabilities { noiseMechanismNoneSupported = true })
+      listOf(
+        internalDataProviderCapabilities {
+          noiseMechanismNoneSupported = true
+          isPanelProjection = true
+        }
+      )
 
     val result = MeasurementsService.selectNoiseMechanisms(serverMechanisms, capabilities)
     assertEquals(listOf(InternalNoiseMechanism.NONE), result)
+  }
+
+  @Test
+  fun `default threshold excludes NONE when any EDP is not panel-projection`() {
+    val serverMechanisms =
+      listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
+    val capabilities =
+      listOf(
+        internalDataProviderCapabilities {
+          noiseMechanismNoneSupported = true
+          isPanelProjection = true
+        },
+        internalDataProviderCapabilities {
+          noiseMechanismNoneSupported = true
+          isPanelProjection = false
+        },
+      )
+
+    val result = MeasurementsService.selectNoiseMechanisms(serverMechanisms, capabilities)
+
+    assertEquals(listOf(InternalNoiseMechanism.CONTINUOUS_GAUSSIAN), result)
+  }
+
+  @Test
+  fun `large threshold preserves NONE regardless of panel-projection composition`() {
+    val serverMechanisms =
+      listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
+    val capabilities =
+      listOf(
+        internalDataProviderCapabilities {
+          noiseMechanismNoneSupported = true
+          isPanelProjection = false
+        },
+        internalDataProviderCapabilities {
+          noiseMechanismNoneSupported = true
+          isPanelProjection = false
+        },
+      )
+
+    val result =
+      MeasurementsService.selectNoiseMechanisms(
+        serverMechanisms,
+        capabilities,
+        maxNonPanelProjectionEdpsForNoneNoise = Int.MAX_VALUE,
+      )
+
+    assertEquals(
+      setOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN),
+      result.toSet(),
+    )
+  }
+
+  @Test
+  fun `negative threshold throws`() {
+    val serverMechanisms =
+      listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
+    val capabilities =
+      listOf(
+        internalDataProviderCapabilities {
+          noiseMechanismNoneSupported = true
+          isPanelProjection = true
+        }
+      )
+
+    assertFailsWith<IllegalArgumentException> {
+      MeasurementsService.selectNoiseMechanisms(
+        serverMechanisms,
+        capabilities,
+        maxNonPanelProjectionEdpsForNoneNoise = -1,
+      )
+    }
+  }
+
+  @Test
+  fun `threshold of 0 excludes NONE when any EDP is not panel-projection`() {
+    val serverMechanisms =
+      listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
+    val capabilities =
+      listOf(
+        internalDataProviderCapabilities {
+          noiseMechanismNoneSupported = true
+          isPanelProjection = true
+        },
+        internalDataProviderCapabilities {
+          noiseMechanismNoneSupported = true
+          isPanelProjection = false
+        },
+      )
+
+    val result =
+      MeasurementsService.selectNoiseMechanisms(
+        serverMechanisms,
+        capabilities,
+        maxNonPanelProjectionEdpsForNoneNoise = 0,
+      )
+
+    assertEquals(listOf(InternalNoiseMechanism.CONTINUOUS_GAUSSIAN), result)
+  }
+
+  @Test
+  fun `threshold of 0 keeps NONE when all EDPs are panel-projection`() {
+    val serverMechanisms =
+      listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
+    val capabilities =
+      listOf(
+        internalDataProviderCapabilities {
+          noiseMechanismNoneSupported = true
+          isPanelProjection = true
+        },
+        internalDataProviderCapabilities {
+          noiseMechanismNoneSupported = true
+          isPanelProjection = true
+        },
+      )
+
+    val result =
+      MeasurementsService.selectNoiseMechanisms(
+        serverMechanisms,
+        capabilities,
+        maxNonPanelProjectionEdpsForNoneNoise = 0,
+      )
+
+    assertEquals(
+      setOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN),
+      result.toSet(),
+    )
+  }
+
+  @Test
+  fun `threshold of 1 keeps NONE with exactly one non-panel-projection EDP`() {
+    val serverMechanisms =
+      listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
+    val capabilities =
+      listOf(
+        internalDataProviderCapabilities {
+          noiseMechanismNoneSupported = true
+          isPanelProjection = true
+        },
+        internalDataProviderCapabilities {
+          noiseMechanismNoneSupported = true
+          isPanelProjection = false
+        },
+      )
+
+    val result =
+      MeasurementsService.selectNoiseMechanisms(
+        serverMechanisms,
+        capabilities,
+        maxNonPanelProjectionEdpsForNoneNoise = 1,
+      )
+
+    assertEquals(
+      setOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN),
+      result.toSet(),
+    )
+  }
+
+  @Test
+  fun `threshold of 1 excludes NONE with two non-panel-projection EDPs`() {
+    val serverMechanisms =
+      listOf(InternalNoiseMechanism.NONE, InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
+    val capabilities =
+      listOf(
+        internalDataProviderCapabilities {
+          noiseMechanismNoneSupported = true
+          isPanelProjection = false
+        },
+        internalDataProviderCapabilities {
+          noiseMechanismNoneSupported = true
+          isPanelProjection = false
+        },
+      )
+
+    val result =
+      MeasurementsService.selectNoiseMechanisms(
+        serverMechanisms,
+        capabilities,
+        maxNonPanelProjectionEdpsForNoneNoise = 1,
+      )
+
+    assertEquals(listOf(InternalNoiseMechanism.CONTINUOUS_GAUSSIAN), result)
+  }
+
+  @Test
+  fun `threshold throws when only NONE is available and policy excludes it`() {
+    val serverMechanisms = listOf(InternalNoiseMechanism.NONE)
+    val capabilities =
+      listOf(
+        internalDataProviderCapabilities {
+          noiseMechanismNoneSupported = true
+          isPanelProjection = false
+        }
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        MeasurementsService.selectNoiseMechanisms(
+          serverMechanisms,
+          capabilities,
+          maxNonPanelProjectionEdpsForNoneNoise = 0,
+        )
+      }
+    assertEquals(Status.Code.INVALID_ARGUMENT, exception.status.code)
+  }
+
+  @Test
+  fun `threshold does not affect CONTINUOUS_GAUSSIAN-only selection`() {
+    val serverMechanisms = listOf(InternalNoiseMechanism.CONTINUOUS_GAUSSIAN)
+    val capabilities =
+      listOf(
+        internalDataProviderCapabilities { isPanelProjection = false },
+        internalDataProviderCapabilities { isPanelProjection = false },
+      )
+
+    val result =
+      MeasurementsService.selectNoiseMechanisms(
+        serverMechanisms,
+        capabilities,
+        maxNonPanelProjectionEdpsForNoneNoise = 0,
+      )
+
+    assertEquals(listOf(InternalNoiseMechanism.CONTINUOUS_GAUSSIAN), result)
   }
 }

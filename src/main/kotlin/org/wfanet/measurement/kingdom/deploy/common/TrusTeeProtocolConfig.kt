@@ -29,6 +29,14 @@ object TrusTeeProtocolConfig {
   var noiseMechanisms: List<ProtocolConfig.NoiseMechanism> = emptyList()
     private set
 
+  // Maximum number of non-panel-projection `DataProvider`s in a `Measurement`
+  // for which `NoiseMechanism.NONE` may be selected. The default `0` is the
+  // strictest, privacy-conservative policy: `NONE` only when ALL
+  // `DataProvider`s have `is_panel_projection = true`. Operators may relax
+  // this by setting a higher value via `TrusTeeProtocolConfigConfig`.
+  var maxNonPanelProjectionEdpsForNoneNoise: Int = 0
+    private set
+
   lateinit var duchyId: String
 
   fun initializeFromFlags(flags: TrusTeeProtocolConfigFlags) {
@@ -41,16 +49,20 @@ object TrusTeeProtocolConfig {
     protocolConfig = configMessage.protocolConfig
     noiseMechanisms = configMessage.noiseMechanismsList
     duchyId = configMessage.duchyId
+    maxNonPanelProjectionEdpsForNoneNoise = configMessage.maxNonPanelProjectionEdpsForNoneNoise
   }
 
   fun setForTest(
     protocolConfig: ProtocolConfig.TrusTee,
     duchyId: String,
     noiseMechanisms: List<ProtocolConfig.NoiseMechanism>,
+    maxNonPanelProjectionEdpsForNoneNoise: Int = 0,
   ) {
     TrusTeeProtocolConfig.protocolConfig = protocolConfig
     TrusTeeProtocolConfig.noiseMechanisms = noiseMechanisms
     TrusTeeProtocolConfig.duchyId = duchyId
+    TrusTeeProtocolConfig.maxNonPanelProjectionEdpsForNoneNoise =
+      maxNonPanelProjectionEdpsForNoneNoise
   }
 }
 

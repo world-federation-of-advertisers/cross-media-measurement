@@ -683,7 +683,12 @@ class MeasurementsService(
       return TrusTeeProtocolConfig.protocolConfig
     }
 
-    val selected = selectNoiseMechanisms(serverNoiseMechanisms, dataProviderCapabilities.toList())
+    val selected =
+      selectNoiseMechanisms(
+        serverNoiseMechanisms,
+        dataProviderCapabilities.toList(),
+        TrusTeeProtocolConfig.maxNonPanelProjectionEdpsForNoneNoise,
+      )
     val selectedSet = selected.toSet()
     val preferred =
       when (selectedSet) {
@@ -721,18 +726,35 @@ class MeasurementsService(
      * Narrows [serverNoiseMechanisms] to those allowed by all [dataProviderCapabilities].
      *
      * CONTINUOUS_GAUSSIAN is always assumed to be supported by every EDP.
+     *
+     * Additionally excludes [InternalProtocolConfig.NoiseMechanism.NONE] from the result when the
+     * number of [dataProviderCapabilities] entries with `isPanelProjection = false` exceeds
+     * [maxNonPanelProjectionEdpsForNoneNoise]. This implements the operator-controlled policy that
+     * disallows no-noise selection for `Measurement`s combining more than the configured number of
+     * non-panel-projection `DataProvider`s, since differential queries over a no-noise aggregate
+     * can otherwise expose precise cross-publisher overlap that no individual `DataProvider` has
+     * consented to. The default `0` is the strictest, privacy-conservative policy: `NONE` may only
+     * be selected when ALL `DataProvider`s have `isPanelProjection = true`.
      */
     fun selectNoiseMechanisms(
       serverNoiseMechanisms: List<InternalProtocolConfig.NoiseMechanism>,
       dataProviderCapabilities: List<InternalDataProviderCapabilities>,
+      maxNonPanelProjectionEdpsForNoneNoise: Int = 0,
     ): List<InternalProtocolConfig.NoiseMechanism> {
       require(serverNoiseMechanisms.isNotEmpty()) { "serverNoiseMechanisms must not be empty" }
       require(dataProviderCapabilities.isNotEmpty()) {
         "dataProviderCapabilities must not be empty"
       }
+      require(maxNonPanelProjectionEdpsForNoneNoise >= 0) {
+        "maxNonPanelProjectionEdpsForNoneNoise must be non-negative"
+      }
       var effectiveMechanisms = serverNoiseMechanisms.toSet()
       for (capabilities in dataProviderCapabilities) {
         effectiveMechanisms = effectiveMechanisms.intersect(capabilities.toNoiseMechanismSet())
+      }
+      val nonPanelProjectionCount = dataProviderCapabilities.count { !it.isPanelProjection }
+      if (nonPanelProjectionCount > maxNonPanelProjectionEdpsForNoneNoise) {
+        effectiveMechanisms = effectiveMechanisms - InternalProtocolConfig.NoiseMechanism.NONE
       }
       grpcRequire(effectiveMechanisms.isNotEmpty()) {
         "No common noise mechanism across all DataProviders and the server"

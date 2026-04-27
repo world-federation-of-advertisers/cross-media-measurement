@@ -53,6 +53,16 @@ bazel_dep(
     repo_name = "wfa_measurement_proto",
 )
 
+# DO_NOT_SUBMIT: Override pointing at the unreleased cm-api branch that adds
+# DataProvider.Capabilities.is_panel_projection (branch
+# `stevenwarejones_row_level_capability`). Remove this override and bump the
+# bazel_dep version above once the cm-api change is released.
+git_override(
+    module_name = "cross-media-measurement-api",
+    commit = "a51e5130d0ea30ee86b25d85bd64e6b7089c7639",
+    remote = "https://github.com/world-federation-of-advertisers/cross-media-measurement-api.git",
+)
+
 bazel_dep(
     name = "consent-signaling-client",
     version = "0.23.0",

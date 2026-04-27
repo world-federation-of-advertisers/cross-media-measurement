@@ -843,6 +843,30 @@ class DataProvidersServiceTest {
     assertThat(dataProvider.capabilities).isEqualTo(expectedCapabilities)
   }
 
+  @Test
+  fun `getDataProvider returns capabilities with is_panel_projection`() {
+    val capabilitiesWithPanelProjection = internalDataProviderCapabilities {
+      isPanelProjection = true
+    }
+    val internalDataProviderWithCapabilities =
+      INTERNAL_DATA_PROVIDER.copy {
+        details = details.copy { capabilities = capabilitiesWithPanelProjection }
+      }
+    internalServiceMock.stub {
+      onBlocking { getDataProvider(any()) }.thenReturn(internalDataProviderWithCapabilities)
+    }
+
+    val dataProvider =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking {
+          service.getDataProvider(getDataProviderRequest { name = DATA_PROVIDER_NAME })
+        }
+      }
+
+    val expectedCapabilities = DataProviderKt.capabilities { isPanelProjection = true }
+    assertThat(dataProvider.capabilities).isEqualTo(expectedCapabilities)
+  }
+
   companion object {
     private val API_VERSION = Version.V2_ALPHA
 
