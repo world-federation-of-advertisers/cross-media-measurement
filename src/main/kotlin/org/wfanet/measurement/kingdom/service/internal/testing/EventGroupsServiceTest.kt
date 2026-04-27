@@ -2833,6 +2833,80 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     assertThat(fetched.hasEntityKey()).isFalse()
     assertThat(fetched.hasEntityMetadata()).isFalse()
   }
+
+  @Test
+  fun `deleteEventGroup frees the entity_key slot for reuse`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val created: EventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            details = DETAILS
+            entityKey = ENTITY_KEY
+          }
+        }
+      )
+
+    eventGroupsService.deleteEventGroup(
+      deleteEventGroupRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalEventGroupId = created.externalEventGroupId
+      }
+    )
+
+    // After delete, the entity_key slot is free; recreating the same entity_key under the same
+    // (DataProvider, MeasurementConsumer) must succeed.
+    eventGroupsService.createEventGroup(
+      createEventGroupRequest {
+        eventGroup = eventGroup {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          details = DETAILS
+          entityKey = ENTITY_KEY
+        }
+      }
+    )
+  }
+
+  @Test
+  fun `deleteEventGroup clears entity_key on Get`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val created: EventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            details = DETAILS
+            entityKey = ENTITY_KEY
+            entityMetadata = ENTITY_METADATA
+          }
+        }
+      )
+
+    eventGroupsService.deleteEventGroup(
+      deleteEventGroupRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalEventGroupId = created.externalEventGroupId
+      }
+    )
+
+    val fetched =
+      eventGroupsService.getEventGroup(
+        getEventGroupRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = created.externalEventGroupId
+        }
+      )
+    assertThat(fetched.state).isEqualTo(EventGroup.State.DELETED)
+    assertThat(fetched.hasEntityKey()).isFalse()
+  }
 }
 
 data class EventGroupAndHelperServices<T : EventGroupsCoroutineImplBase>(
