@@ -64,21 +64,14 @@ Test infrastructure reusable across packages lives in `testing` subpackages unde
 
 Full guide: [docs/code-style.md](docs/code-style.md)
 
-**Kotlin** — Google Android Kotlin style with **2-space indent** (not 4). Format with `ktfmt --google-style`.
-- Use Truth (`assertThat`) for test assertions, ProtoTruth for protobuf subjects
-- Use `assertFailsWith` from `kotlin.test` for expected exceptions
-- Prefer Kotlin DSL builders for protobuf construction
-- Specify types explicitly except when obvious (constructors, factory functions)
-- Catch `StatusException` from RPCs at the call site — never let gRPC statuses propagate through servers that are also clients
+**Kotlin** — Format with `ktfmt --google-style`. See [docs/code-style.md](docs/code-style.md) for Kotlin-specific conventions.
 
-**C++** — Google C++ style. Don't rely on transitive includes.
+**C++** — Format with `clang-format --style=Google`. See [docs/code-style.md](docs/code-style.md) for C++ conventions.
 
-**BUILD/Starlark** — Bazel BUILD and .bzl style guides. Never rely on transitive deps.
+**BUILD/Starlark** — Format with `buildifier`. See [docs/bazel-build-standards.md](docs/bazel-build-standards.md) for BUILD file conventions.
 
-**Protobuf** — Google Protobuf style guide. Serialized row messages end in `Details`.
+**Protobuf** — Format with `clang-format --style=Google`. See [docs/api-standards.md](docs/api-standards.md) for API and protobuf design conventions.
 
-Bazel BUILD file conventions: [docs/bazel-build-standards.md](docs/bazel-build-standards.md)
-API and protobuf design conventions: [docs/api-standards.md](docs/api-standards.md)
 Cryptography and Tink usage: [docs/security-standards.md](docs/security-standards.md)
 
 ## Testing
@@ -87,7 +80,7 @@ Full guide: [docs/testing-standards.md](docs/testing-standards.md)
 
 - Test the public API contract, not the implementation
 - Never expose internal functionality just to test it directly
-- Prefer fakes over mocks; don't overuse mocks
+- Prefer in-process tests and fakes to mocks; don't overuse mocks
 - Bias toward more, smaller test cases
 - Tests go in `src/test/` mirroring the `src/main/` path
 
@@ -119,11 +112,11 @@ Issue: #123
 - **Never commit secrets** — no credentials, private keys, or sensitive config
 - **Never expose database internal IDs** outside internal API servers
 - **Never rely on transitive dependencies** — declare every dep explicitly in BUILD
-- **Limit third-party dependencies** — privacy requirements mandate avoiding unaudited deps
+- **Limit third-party dependencies** — privacy requirements mandate avoiding unaudited deps. Introduction of third-party deps must happen in a separate PR
 - **Mark temporary changes** with `DO_NOT_SUBMIT` (automated check blocks merge)
 - **No Java modules** — this project doesn't use `module-info.java`
 - All public service APIs follow [AIPs](https://aip.dev/) unless explicitly noted
-- TODOs must be actionable — see [docs/code-style.md#todos](docs/code-style.md#todos) for format
+- TODOs must be actionable — see [docs/code-style.md#todos](docs/code-style.md#todos) for format. When an agent creates a TODO, it must also create a corresponding GitHub issue
 
 ## Architecture
 
@@ -134,6 +127,8 @@ The system has three deployment types:
 - **Data Providers** — supply encrypted measurement data via requisitions
 
 Protocols: Liquid Legions V2, Reach-Only LLv2, Honest Majority Share Shuffle, TrusTEE.
+
+CLI tools for resource management, benchmarking, and operations live under `tools/` subpackages within each component's deploy directory.
 
 Additional design and deployment docs: [docs/](docs/)
 Operations guides: [docs/operations/](docs/operations/)
