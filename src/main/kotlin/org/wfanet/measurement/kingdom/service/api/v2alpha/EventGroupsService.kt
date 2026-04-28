@@ -779,7 +779,9 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
         eventGroupMetadata = eventGroupMetadata {
           if (source.details.hasMetadata()) {
             val metadataSource = source.details.metadata
-            @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
+            @Suppress(
+              "WHEN_ENUM_CAN_BE_NULL_IN_JAVA"
+            ) // Protobuf enum accessors cannot return null.
             when (metadataSource.metadataCase) {
               EventGroupDetails.EventGroupMetadata.MetadataCase.AD_METADATA -> {
                 adMetadata =
