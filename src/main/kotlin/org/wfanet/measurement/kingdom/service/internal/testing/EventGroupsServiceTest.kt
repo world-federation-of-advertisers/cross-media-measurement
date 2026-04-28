@@ -2907,6 +2907,52 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     assertThat(fetched.state).isEqualTo(EventGroup.State.DELETED)
     assertThat(fetched.hasEntityKey()).isFalse()
   }
+
+  @Test
+  fun `createEventGroup with blank entity_id persists NULL EntityId`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+
+    val created: EventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            details = DETAILS
+            entityKey = entityKey {
+              entityType = "creative"
+              // entity_id intentionally not set (blank).
+            }
+          }
+        }
+      )
+
+    // Reader gates entity_key population on EntityId IS NOT NULL, so a blank entity_id input
+    // round-trips as an unset entity_key on the returned proto.
+    val fetched =
+      eventGroupsService.getEventGroup(
+        getEventGroupRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = created.externalEventGroupId
+        }
+      )
+    assertThat(fetched.hasEntityKey()).isFalse()
+
+    // Second EG with the same blank-entity_id key under the same (DP, MC) must succeed —
+    // EventGroupsByEntityKey is NULL_FILTERED, so NULL EntityId rows are exempt from uniqueness.
+    eventGroupsService.createEventGroup(
+      createEventGroupRequest {
+        eventGroup = eventGroup {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          details = DETAILS
+          entityKey = entityKey { entityType = "creative" }
+        }
+      }
+    )
+  }
 }
 
 data class EventGroupAndHelperServices<T : EventGroupsCoroutineImplBase>(

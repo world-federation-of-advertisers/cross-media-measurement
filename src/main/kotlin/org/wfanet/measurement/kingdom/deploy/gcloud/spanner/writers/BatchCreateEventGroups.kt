@@ -25,7 +25,7 @@ import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.batchCreateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupEntityKeyAlreadyExistsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupAlreadyExistsWithEntityKeyException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
@@ -110,7 +110,7 @@ class BatchCreateEventGroups(private val request: BatchCreateEventGroupsRequest)
     e: SpannerException
   ): BatchCreateEventGroupsResponse? {
     when (e.errorCode) {
-      SpannerErrorCode.ALREADY_EXISTS -> throw EventGroupEntityKeyAlreadyExistsException(e)
+      SpannerErrorCode.ALREADY_EXISTS -> throw EventGroupAlreadyExistsWithEntityKeyException(e)
       else -> throw e
     }
   }

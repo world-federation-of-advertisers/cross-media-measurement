@@ -21,7 +21,7 @@ import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.copy
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupEntityKeyAlreadyExistsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupAlreadyExistsWithEntityKeyException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 
@@ -67,7 +67,7 @@ class BatchUpdateEventGroups(private val request: BatchUpdateEventGroupsRequest)
     e: SpannerException
   ): BatchUpdateEventGroupsResponse? {
     when (e.errorCode) {
-      SpannerErrorCode.ALREADY_EXISTS -> throw EventGroupEntityKeyAlreadyExistsException(e)
+      SpannerErrorCode.ALREADY_EXISTS -> throw EventGroupAlreadyExistsWithEntityKeyException(e)
       else -> throw e
     }
   }

@@ -2473,4 +2473,26 @@ class EventGroupsServiceTest {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
   }
+
+  @Test
+  fun `getEventGroup returns entity_metadata when details metadata is unset`() {
+    // Internal EG with entity_metadata set but no details.metadata oneof — exercises the
+    // loosened conversion gate that builds public eventGroupMetadata whenever the internal
+    // record carries any of its sub-fields.
+    val internalEventGroup =
+      INTERNAL_EVENT_GROUP.copy { details = details.copy { clearMetadata() } }
+    internalEventGroupsMock.stub {
+      onBlocking { getEventGroup(any()) }.thenReturn(internalEventGroup)
+    }
+
+    val response: EventGroup =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.getEventGroup(getEventGroupRequest { name = EVENT_GROUP_NAME }) }
+      }
+
+    assertThat(response.hasEventGroupMetadata()).isTrue()
+    assertThat(response.eventGroupMetadata.entityMetadata).isEqualTo(ENTITY_METADATA_STRUCT)
+    assertThat(response.eventGroupMetadata.selectorCase)
+      .isEqualTo(EventGroupMetadata.SelectorCase.SELECTOR_NOT_SET)
+  }
 }

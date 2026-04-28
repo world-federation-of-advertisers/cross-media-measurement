@@ -36,7 +36,7 @@ import org.wfanet.measurement.gcloud.spanner.to
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupDetails
 import org.wfanet.measurement.internal.kingdom.MediaType
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupEntityKeyAlreadyExistsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupAlreadyExistsWithEntityKeyException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
@@ -72,7 +72,7 @@ class UpdateEventGroup(private val request: EventGroup) : SpannerWriter<EventGro
 
   override suspend fun handleSpannerException(e: SpannerException): EventGroup? {
     when (e.errorCode) {
-      SpannerErrorCode.ALREADY_EXISTS -> throw EventGroupEntityKeyAlreadyExistsException(e)
+      SpannerErrorCode.ALREADY_EXISTS -> throw EventGroupAlreadyExistsWithEntityKeyException(e)
       else -> throw e
     }
   }
@@ -122,7 +122,7 @@ internal suspend fun SpannerWriter.TransactionScope.updateEventGroup(
 
     if (request.hasEntityKey()) {
       set("EntityType" to request.entityKey.entityType)
-      set("EntityId" to request.entityKey.entityId)
+      set("EntityId" to request.entityKey.entityId.ifBlank { null })
     } else {
       set("EntityType" to "campaign")
       set("EntityId" to null as String?)

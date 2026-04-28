@@ -17,7 +17,6 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.InvalidProtocolBufferException
-import com.google.protobuf.Struct
 import com.google.protobuf.any
 import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Timestamps
@@ -640,8 +639,11 @@ class EventGroupsService(
             activityContains = filter.activityContains.toInternal()
           }
           entityTypeIn +=
-            if (filter.entityTypeInList.isNotEmpty()) filter.entityTypeInList
-            else listOf("campaign")
+            if (filter.entityTypeInList.isNotEmpty()) {
+              filter.entityTypeInList
+            } else {
+              listOf("campaign")
+            }
           metadataSearchQuery = filter.metadataSearchQuery
           this.showDeleted = showDeleted
           if (pageToken != null) {
@@ -771,13 +773,32 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
           eventTemplate { type = event.fullyQualifiedType }
         }
       )
-      // Public EventGroupMetadata.metadata is // Required. (per upstream CMMS proto), so we only
-      // construct it when details.metadata is set; entity_metadata is threaded through alongside.
-      if (source.details.hasMetadata()) {
-        eventGroupMetadata =
-          source.details.metadata.toEventGroupMetadata(
-            entityMetadata = source.entityMetadata.takeIf { source.hasEntityMetadata() }
-          )
+      // Public event_group_metadata is currently optional (future_disposition REQUIRED), so we
+      // construct it whenever the internal record carries any of its sub-fields.
+      if (source.details.hasMetadata() || source.hasEntityMetadata()) {
+        eventGroupMetadata = eventGroupMetadata {
+          if (source.details.hasMetadata()) {
+            val metadataSource = source.details.metadata
+            @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
+            when (metadataSource.metadataCase) {
+              EventGroupDetails.EventGroupMetadata.MetadataCase.AD_METADATA -> {
+                adMetadata =
+                  EventGroupMetadataKt.adMetadata {
+                    campaignMetadata =
+                      EventGroupMetadataKt.AdMetadataKt.campaignMetadata {
+                        brandName = metadataSource.adMetadata.campaignMetadata.brandName
+                        campaignName = metadataSource.adMetadata.campaignMetadata.campaignName
+                      }
+                  }
+              }
+              EventGroupDetails.EventGroupMetadata.MetadataCase.METADATA_NOT_SET ->
+                error("metadata not set")
+            }
+          }
+          if (source.hasEntityMetadata()) {
+            this.entityMetadata = source.entityMetadata
+          }
+        }
       }
       if (!source.details.encryptedMetadata.isEmpty) {
         encryptedMetadata = encryptedMessage {
@@ -795,7 +816,7 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
     state = source.state.toV2Alpha()
     aggregatedActivities += source.aggregatedActivitiesList.map { it.toAggregatedActivity() }
     if (source.hasEntityKey()) {
-      entityKey = source.entityKey.toApi()
+      entityKey = source.entityKey.toEntityKey()
     }
   }
 }
@@ -807,32 +828,6 @@ private fun InternalMediaType.toMediaType(): MediaType {
     InternalMediaType.OTHER -> MediaType.OTHER
     InternalMediaType.MEDIA_TYPE_UNSPECIFIED -> MediaType.MEDIA_TYPE_UNSPECIFIED
     InternalMediaType.UNRECOGNIZED -> error("MediaType unrecognized")
-  }
-}
-
-private fun EventGroupDetails.EventGroupMetadata.toEventGroupMetadata(
-  entityMetadata: Struct? = null
-): EventGroupMetadata {
-  val source = this
-  return eventGroupMetadata {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
-    when (source.metadataCase) {
-      EventGroupDetails.EventGroupMetadata.MetadataCase.AD_METADATA -> {
-        adMetadata =
-          EventGroupMetadataKt.adMetadata {
-            campaignMetadata =
-              EventGroupMetadataKt.AdMetadataKt.campaignMetadata {
-                brandName = source.adMetadata.campaignMetadata.brandName
-                campaignName = source.adMetadata.campaignMetadata.campaignName
-              }
-          }
-      }
-      EventGroupDetails.EventGroupMetadata.MetadataCase.METADATA_NOT_SET ->
-        error("metadata not set")
-    }
-    if (entityMetadata != null) {
-      this.entityMetadata = entityMetadata
-    }
   }
 }
 
@@ -900,7 +895,7 @@ private fun EventGroup.toInternal(
   }
 }
 
-private fun InternalEventGroup.EntityKey.toApi(): EventGroup.EntityKey {
+private fun InternalEventGroup.EntityKey.toEntityKey(): EventGroup.EntityKey {
   val source = this
   return EventGroupKt.entityKey {
     entityType = source.entityType

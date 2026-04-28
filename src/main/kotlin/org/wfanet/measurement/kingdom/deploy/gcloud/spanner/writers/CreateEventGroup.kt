@@ -30,7 +30,7 @@ import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupEntityKeyAlreadyExistsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupAlreadyExistsWithEntityKeyException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
@@ -89,7 +89,7 @@ class CreateEventGroup(private val request: CreateEventGroupRequest) :
 
   override suspend fun handleSpannerException(e: SpannerException): EventGroup? {
     when (e.errorCode) {
-      SpannerErrorCode.ALREADY_EXISTS -> throw EventGroupEntityKeyAlreadyExistsException(e)
+      SpannerErrorCode.ALREADY_EXISTS -> throw EventGroupAlreadyExistsWithEntityKeyException(e)
       else -> throw e
     }
   }
@@ -130,7 +130,7 @@ internal fun SpannerWriter.TransactionScope.createEventGroup(
     }
     if (request.eventGroup.hasEntityKey()) {
       set("EntityType" to request.eventGroup.entityKey.entityType)
-      set("EntityId" to request.eventGroup.entityKey.entityId)
+      set("EntityId" to request.eventGroup.entityKey.entityId.ifBlank { null })
     }
     if (request.eventGroup.hasEntityMetadata()) {
       set("EntityMetadata").to(request.eventGroup.entityMetadata)
