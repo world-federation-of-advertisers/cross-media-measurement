@@ -6,6 +6,7 @@ resulting container images are intended to run in
 
 ## Requirements
 
+DO_NOT_SUBMIT: update doc (glibc)?
 In order to build the primary system executables and run the corresponding
 tests, your build environment must have the following:
 
