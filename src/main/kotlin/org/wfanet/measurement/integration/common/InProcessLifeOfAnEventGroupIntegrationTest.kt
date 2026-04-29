@@ -21,6 +21,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.type.Date
 import com.google.type.date
 import io.grpc.StatusException
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -488,13 +489,9 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
     // specific gRPC status code: the underlying Spanner ALREADY_EXISTS propagates uncaught
     // through the internal service and is wrapped by the gRPC framework, so the surfaced code is
     // framework-dependent (typically UNKNOWN/INTERNAL).
-    var failed = false
-    try {
+    assertFailsWith<StatusException> {
       createEventGroupWithEntityKey("eg-dup-2", entityType = "creative", entityId = "dup-1")
-    } catch (e: StatusException) {
-      failed = true
     }
-    assertThat(failed).isTrue()
   }
 
   private suspend fun createEventGroupWithEntityKey(

@@ -114,7 +114,7 @@ internal suspend fun SpannerWriter.TransactionScope.updateEventGroup(
       set("EntityType" to request.entityKey.entityType)
       set("EntityId" to request.entityKey.entityId.ifBlank { null })
     } else {
-      set("EntityType" to "campaign")
+      set("EntityType" to Table.DEFAULT_ENTITY_TYPE)
       set("EntityId" to null as String?)
     }
 
@@ -172,4 +172,6 @@ private suspend fun AsyncDatabaseClient.TransactionContext.syncMediaTypes(
 private object Table {
   const val EVENT_GROUPS = "EventGroups"
   const val EVENT_GROUP_MEDIA_TYPES = "EventGroupMediaTypes"
+  /** Mirrors the column default declared in `add-event-group-entity-key.sql`. */
+  const val DEFAULT_ENTITY_TYPE = "campaign"
 }
