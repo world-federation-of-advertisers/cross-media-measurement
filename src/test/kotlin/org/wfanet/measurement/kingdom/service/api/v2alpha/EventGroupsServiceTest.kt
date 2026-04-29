@@ -2423,59 +2423,6 @@ class EventGroupsServiceTest {
   }
 
   @Test
-  fun `createEventGroup maps internal ALREADY_EXISTS to ALREADY_EXISTS`() {
-    internalEventGroupsMock.stub {
-      onBlocking { createEventGroup(any()) }
-        .thenThrow(
-          Status.ALREADY_EXISTS.withDescription(
-              "EventGroup with the same entity_key already exists."
-            )
-            .asRuntimeException()
-        )
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-          runBlocking {
-            service.createEventGroup(
-              createEventGroupRequest {
-                parent = DATA_PROVIDER_NAME
-                eventGroup = EVENT_GROUP
-              }
-            )
-          }
-        }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
-  }
-
-  @Test
-  fun `updateEventGroup maps internal ALREADY_EXISTS to ALREADY_EXISTS`() {
-    internalEventGroupsMock.stub {
-      onBlocking { updateEventGroup(any()) }
-        .thenThrow(
-          Status.ALREADY_EXISTS.withDescription(
-              "EventGroup with the same entity_key already exists."
-            )
-            .asRuntimeException()
-        )
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-          runBlocking {
-            service.updateEventGroup(updateEventGroupRequest { eventGroup = EVENT_GROUP })
-          }
-        }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
-  }
-
-  @Test
   fun `getEventGroup returns entity_metadata when details metadata is unset`() {
     // Internal EG with entity_metadata set but no details.metadata oneof — exercises the
     // loosened conversion gate that builds public eventGroupMetadata whenever the internal

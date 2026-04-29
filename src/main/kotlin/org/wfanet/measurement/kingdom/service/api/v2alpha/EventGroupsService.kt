@@ -225,7 +225,6 @@ class EventGroupsService(
         Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
         Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
-        Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS
         else -> Status.UNKNOWN
       }.toExternalStatusRuntimeException(e)
     }
@@ -293,7 +292,6 @@ class EventGroupsService(
         Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
         Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
-        Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS
         else -> Status.UNKNOWN
       }.toExternalStatusRuntimeException(e)
     }
@@ -323,7 +321,6 @@ class EventGroupsService(
         Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
         Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
-        Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS
         else -> Status.UNKNOWN
       }.toExternalStatusRuntimeException(e)
     }
@@ -386,7 +383,6 @@ class EventGroupsService(
         Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
         Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
-        Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS
         else -> Status.UNKNOWN
       }.toExternalStatusRuntimeException(e)
     }
@@ -466,7 +462,6 @@ class EventGroupsService(
         Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
         Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
-        Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS
         else -> Status.UNKNOWN
       }.toExternalStatusRuntimeException(e)
     }

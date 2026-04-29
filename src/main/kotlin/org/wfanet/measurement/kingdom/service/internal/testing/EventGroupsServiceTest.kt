@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
+import com.google.cloud.spanner.ErrorCode as SpannerErrorCode
+import com.google.cloud.spanner.SpannerException
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
@@ -2493,39 +2495,38 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     }
 
   @Test
-  fun `createEventGroup with duplicate entity_key under same parent fails ALREADY_EXISTS`() =
-    runBlocking {
-      val measurementConsumer =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
-      val dataProvider = population.createDataProvider(dataProvidersService)
+  fun `createEventGroup with duplicate entity_key under same parent fails`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
 
-      eventGroupsService.createEventGroup(
-        createEventGroupRequest {
-          eventGroup = eventGroup {
-            externalDataProviderId = dataProvider.externalDataProviderId
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            details = DETAILS
-            entityKey = ENTITY_KEY
-          }
+    eventGroupsService.createEventGroup(
+      createEventGroupRequest {
+        eventGroup = eventGroup {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          details = DETAILS
+          entityKey = ENTITY_KEY
         }
-      )
+      }
+    )
 
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          eventGroupsService.createEventGroup(
-            createEventGroupRequest {
-              eventGroup = eventGroup {
-                externalDataProviderId = dataProvider.externalDataProviderId
-                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-                details = DETAILS
-                entityKey = ENTITY_KEY
-              }
+    val exception =
+      assertFailsWith<SpannerException> {
+        eventGroupsService.createEventGroup(
+          createEventGroupRequest {
+            eventGroup = eventGroup {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              details = DETAILS
+              entityKey = ENTITY_KEY
             }
-          )
-        }
+          }
+        )
+      }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
-    }
+    assertThat(exception.errorCode).isEqualTo(SpannerErrorCode.ALREADY_EXISTS)
+  }
 
   @Test
   fun `createEventGroup allows same entity_key under different DataProviders`(): Unit =
@@ -2760,7 +2761,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
-  fun `updateEventGroup to existing entity_key fails ALREADY_EXISTS`(): Unit = runBlocking {
+  fun `updateEventGroup to existing entity_key fails`(): Unit = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
@@ -2787,12 +2788,12 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     )
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
+      assertFailsWith<SpannerException> {
         eventGroupsService.updateEventGroup(
           updateEventGroupRequest { eventGroup = eventGroupA.copy { entityKey = ENTITY_KEY_OTHER } }
         )
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(exception.errorCode).isEqualTo(SpannerErrorCode.ALREADY_EXISTS)
   }
 
   @Test

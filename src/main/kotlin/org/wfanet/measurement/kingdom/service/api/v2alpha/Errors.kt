@@ -541,11 +541,6 @@ fun Status.toExternalStatusRuntimeException(
       ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_ALREADY_EXISTS_WITH_TYPE -> {
         errorMessage = "EventGroupMetadataDescriptor with same type already exists."
       }
-      ErrorCode.EVENT_GROUP_ALREADY_EXISTS_WITH_ENTITY_KEY -> {
-        errorMessage =
-          "EventGroup with the same entity_key already exists for the parent " +
-            "(DataProvider, MeasurementConsumer) pair."
-      }
       ErrorCode.RECURRING_EXCHANGE_NOT_FOUND -> {
         val recurringExchangeName =
           CanonicalRecurringExchangeKey(
