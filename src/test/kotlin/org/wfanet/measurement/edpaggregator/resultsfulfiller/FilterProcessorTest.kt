@@ -23,6 +23,7 @@ import com.google.protobuf.Message
 import com.google.protobuf.util.Timestamps
 import com.google.type.Interval
 import java.time.Instant
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -64,10 +65,10 @@ class FilterProcessorTest {
   /** Helper function to create a LabeledEvent for testing. */
   private fun createTestLabeledEvent(
     vid: Long,
+    entityKeys: List<LabeledImpression.EntityKey>,
     timestamp: Instant = Instant.now(),
     ageGroup: Person.AgeGroup = Person.AgeGroup.YEARS_18_TO_34,
     gender: Person.Gender = Person.Gender.MALE,
-    entityKeys: List<LabeledImpression.EntityKey> = emptyList(),
   ): LabeledEvent<Message> {
     val message = createDynamicMessage(ageGroup, gender)
     return LabeledEvent(
@@ -128,9 +129,9 @@ class FilterProcessorTest {
 
       val events =
         listOf(
-          createTestLabeledEvent(vid = 1, ageGroup = Person.AgeGroup.YEARS_18_TO_34),
-          createTestLabeledEvent(vid = 2, ageGroup = Person.AgeGroup.YEARS_35_TO_54),
-          createTestLabeledEvent(vid = 3, ageGroup = Person.AgeGroup.YEARS_18_TO_34),
+          createTestLabeledEvent(vid = 1, ageGroup = Person.AgeGroup.YEARS_18_TO_34, entityKeys = emptyList()),
+          createTestLabeledEvent(vid = 2, ageGroup = Person.AgeGroup.YEARS_35_TO_54, entityKeys = emptyList()),
+          createTestLabeledEvent(vid = 3, ageGroup = Person.AgeGroup.YEARS_18_TO_34, entityKeys = emptyList()),
         )
 
       val batch = createEventBatch(events)
@@ -149,9 +150,9 @@ class FilterProcessorTest {
 
       val events =
         listOf(
-          createTestLabeledEvent(1, ageGroup = Person.AgeGroup.YEARS_18_TO_34),
-          createTestLabeledEvent(2, ageGroup = Person.AgeGroup.YEARS_35_TO_54),
-          createTestLabeledEvent(3, ageGroup = Person.AgeGroup.YEARS_55_PLUS),
+          createTestLabeledEvent(1, ageGroup = Person.AgeGroup.YEARS_18_TO_34, entityKeys = emptyList()),
+          createTestLabeledEvent(2, ageGroup = Person.AgeGroup.YEARS_35_TO_54, entityKeys = emptyList()),
+          createTestLabeledEvent(3, ageGroup = Person.AgeGroup.YEARS_55_PLUS, entityKeys = emptyList()),
         )
 
       val batch = createEventBatch(events)
@@ -182,14 +183,17 @@ class FilterProcessorTest {
           createTestLabeledEvent(
             1,
             timestamp = Instant.parse("2024-12-31T23:59:59Z"),
+            entityKeys = emptyList(),
           ), // Before range
           createTestLabeledEvent(
             2,
             timestamp = Instant.parse("2025-01-15T12:00:00Z"),
+            entityKeys = emptyList(),
           ), // Within range
           createTestLabeledEvent(
             3,
             timestamp = Instant.parse("2025-02-01T00:00:00Z"),
+            entityKeys = emptyList(),
           ), // After range
         )
 
@@ -215,7 +219,7 @@ class FilterProcessorTest {
       val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
       val events =
-        listOf(createTestLabeledEvent(1), createTestLabeledEvent(2), createTestLabeledEvent(3))
+        listOf(createTestLabeledEvent(1, entityKeys = emptyList()), createTestLabeledEvent(2, entityKeys = emptyList()), createTestLabeledEvent(3, entityKeys = emptyList()))
 
       val batch = createEventBatch(events)
       val result = filterProcessor.processBatch(batch)
@@ -254,21 +258,25 @@ class FilterProcessorTest {
             1,
             gender = Person.Gender.MALE,
             timestamp = Instant.parse("2025-01-15T12:00:00Z"),
+            entityKeys = emptyList(),
           ),
           createTestLabeledEvent(
             2,
             gender = Person.Gender.FEMALE,
             timestamp = Instant.parse("2025-01-15T12:00:00Z"),
+            entityKeys = emptyList(),
           ),
           createTestLabeledEvent(
             3,
             gender = Person.Gender.MALE,
             timestamp = Instant.parse("2025-01-15T12:00:00Z"),
+            entityKeys = emptyList(),
           ),
           createTestLabeledEvent(
             4,
             gender = Person.Gender.MALE,
             timestamp = Instant.parse("2024-12-31T23:59:59Z"),
+            entityKeys = emptyList(),
           ),
         )
 
@@ -294,21 +302,25 @@ class FilterProcessorTest {
             1,
             ageGroup = Person.AgeGroup.YEARS_18_TO_34,
             gender = Person.Gender.MALE,
+            entityKeys = emptyList(),
           ),
           createTestLabeledEvent(
             2,
             ageGroup = Person.AgeGroup.YEARS_18_TO_34,
             gender = Person.Gender.FEMALE,
+            entityKeys = emptyList(),
           ),
           createTestLabeledEvent(
             3,
             ageGroup = Person.AgeGroup.YEARS_35_TO_54,
             gender = Person.Gender.MALE,
+            entityKeys = emptyList(),
           ),
           createTestLabeledEvent(
             4,
             ageGroup = Person.AgeGroup.YEARS_18_TO_34,
             gender = Person.Gender.MALE,
+            entityKeys = emptyList(),
           ),
         )
 
@@ -338,9 +350,9 @@ class FilterProcessorTest {
       // All events are outside the collection interval (before it starts)
       val events =
         listOf(
-          createTestLabeledEvent(1, timestamp = Instant.parse("2024-12-01T00:00:00Z")),
-          createTestLabeledEvent(2, timestamp = Instant.parse("2024-12-15T12:00:00Z")),
-          createTestLabeledEvent(3, timestamp = Instant.parse("2024-12-31T23:59:59Z")),
+          createTestLabeledEvent(1, timestamp = Instant.parse("2024-12-01T00:00:00Z"), entityKeys = emptyList()),
+          createTestLabeledEvent(2, timestamp = Instant.parse("2024-12-15T12:00:00Z"), entityKeys = emptyList()),
+          createTestLabeledEvent(3, timestamp = Instant.parse("2024-12-31T23:59:59Z"), entityKeys = emptyList()),
         )
 
       val batch = createEventBatch(events)
@@ -372,14 +384,17 @@ class FilterProcessorTest {
           createTestLabeledEvent(
             1,
             timestamp = Instant.parse("2024-12-31T23:59:59Z"),
+            entityKeys = emptyList(),
           ), // Before interval
           createTestLabeledEvent(
             2,
             timestamp = Instant.parse("2025-01-15T12:00:00Z"),
+            entityKeys = emptyList(),
           ), // Within interval
           createTestLabeledEvent(
             3,
             timestamp = Instant.parse("2025-02-01T00:00:00Z"),
+            entityKeys = emptyList(),
           ), // After interval
         )
 
@@ -410,9 +425,9 @@ class FilterProcessorTest {
       // All events are after the collection interval
       val events =
         listOf(
-          createTestLabeledEvent(1, timestamp = Instant.parse("2025-02-01T00:00:00Z")),
-          createTestLabeledEvent(2, timestamp = Instant.parse("2025-03-15T12:00:00Z")),
-          createTestLabeledEvent(3, timestamp = Instant.parse("2025-04-01T00:00:00Z")),
+          createTestLabeledEvent(1, timestamp = Instant.parse("2025-02-01T00:00:00Z"), entityKeys = emptyList()),
+          createTestLabeledEvent(2, timestamp = Instant.parse("2025-03-15T12:00:00Z"), entityKeys = emptyList()),
+          createTestLabeledEvent(3, timestamp = Instant.parse("2025-04-01T00:00:00Z"), entityKeys = emptyList()),
         )
 
       val batch = createEventBatch(events)
@@ -443,14 +458,16 @@ class FilterProcessorTest {
           createTestLabeledEvent(
             1,
             timestamp = Instant.parse("2024-12-31T23:59:59.999Z"),
+            entityKeys = emptyList(),
           ), // Just before start
-          createTestLabeledEvent(2, timestamp = startTime), // Exactly at start (inclusive)
+          createTestLabeledEvent(2, timestamp = startTime, entityKeys = emptyList()), // Exactly at start (inclusive)
           createTestLabeledEvent(
             3,
             timestamp = Instant.parse("2025-01-01T12:00:00Z"),
+            entityKeys = emptyList(),
           ), // Within range
-          createTestLabeledEvent(4, timestamp = endTime.minusMillis(1)), // Just before end
-          createTestLabeledEvent(5, timestamp = endTime), // Exactly at end (exclusive)
+          createTestLabeledEvent(4, timestamp = endTime.minusMillis(1), entityKeys = emptyList()), // Just before end
+          createTestLabeledEvent(5, timestamp = endTime, entityKeys = emptyList()), // Exactly at end (exclusive)
         )
 
       val batch = createEventBatch(events)
@@ -579,4 +596,57 @@ class FilterProcessorTest {
       assertThat(result.events.map { it.vid }).containsExactly(1L)
     }
   }
+  @Test
+  fun `processBatch with entityKeys ignores event_group_reference_id batch check`() {
+    runBlocking {
+      // When entity_keys is set, it replaces event_group_reference_ids as the selector. A batch
+      // whose event_group_reference_id is NOT in the spec should still be processed (and filtered
+      // by entity_keys per-event) instead of being dropped wholesale.
+      val targetKey = makeEntityKey("ad", "X")
+      val filterSpec =
+        createTestFilterSpec(
+          eventGroupReferenceIds = listOf("some-other-group"),
+          entityKeys = setOf(targetKey),
+        )
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+
+      val events =
+        listOf(
+          createTestLabeledEvent(vid = 1, entityKeys = listOf(targetKey)),
+          createTestLabeledEvent(vid = 2, entityKeys = listOf(makeEntityKey("ad", "Y"))),
+        )
+
+      val result = filterProcessor.processBatch(createEventBatch(events))
+
+      // Batch's event_group_reference_id "test-group" is NOT in the spec, but it is processed
+      // anyway because entityKeys takes precedence.
+      assertThat(result.events.map { it.vid }).containsExactly(1L)
+    }
+  }
+
+  @Test
+  fun `FilterSpec init throws when both eventGroupReferenceIds and entityKeys are empty`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        FilterSpec(
+          celExpression = "",
+          collectionInterval = createDefaultInterval(),
+          eventGroupReferenceIds = emptyList(),
+          entityKeys = emptySet(),
+        )
+      }
+    assertThat(exception).hasMessageThat().contains("Either eventGroupReferenceIds or entityKeys")
+  }
+
+  @Test
+  fun `FilterSpec init accepts entityKeys-only spec`() {
+    // No exception expected.
+    FilterSpec(
+      celExpression = "",
+      collectionInterval = createDefaultInterval(),
+      eventGroupReferenceIds = emptyList(),
+      entityKeys = setOf(makeEntityKey("ad", "X")),
+    )
+  }
+
 }
