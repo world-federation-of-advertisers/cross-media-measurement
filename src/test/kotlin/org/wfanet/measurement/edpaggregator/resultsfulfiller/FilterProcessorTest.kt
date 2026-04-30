@@ -29,6 +29,8 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt.entityKey
 
 @RunWith(JUnit4::class)
 class FilterProcessorTest {
@@ -65,9 +67,15 @@ class FilterProcessorTest {
     timestamp: Instant = Instant.now(),
     ageGroup: Person.AgeGroup = Person.AgeGroup.YEARS_18_TO_34,
     gender: Person.Gender = Person.Gender.MALE,
+    entityKeys: List<LabeledImpression.EntityKey> = emptyList(),
   ): LabeledEvent<Message> {
     val message = createDynamicMessage(ageGroup, gender)
-    return LabeledEvent(timestamp = timestamp, vid = vid, message = message)
+    return LabeledEvent(
+      timestamp = timestamp,
+      vid = vid,
+      message = message,
+      entityKeys = entityKeys,
+    )
   }
 
   /** Helper function to create an EventBatch with proper minTime and maxTime. */
@@ -94,13 +102,22 @@ class FilterProcessorTest {
     celExpression: String = "",
     collectionInterval: Interval = createDefaultInterval(),
     eventGroupReferenceIds: List<String> = listOf("test-group"),
+    entityKeys: Set<LabeledImpression.EntityKey> = emptySet(),
   ): FilterSpec {
     return FilterSpec(
       celExpression = celExpression,
       collectionInterval = collectionInterval,
       eventGroupReferenceIds = eventGroupReferenceIds,
+      entityKeys = entityKeys,
     )
   }
+
+  /** Helper function to build a [LabeledImpression.EntityKey]. */
+  private fun makeEntityKey(type: String, id: String): LabeledImpression.EntityKey =
+    entityKey {
+      entityType = type
+      entityId = id
+    }
 
   @Test
   fun `processBatch filters events with CEL expression`() {
@@ -442,6 +459,124 @@ class FilterProcessorTest {
       // Events 2, 3, and 4 should match (start inclusive, end exclusive)
       assertThat(result.events).hasSize(3)
       assertThat(result.events.map { it.vid }).containsExactly(2L, 3L, 4L)
+    }
+  }
+
+  @Test
+  fun `processBatch with empty entityKeys filter passes all events`() {
+    runBlocking {
+      // Regression: existing behavior preserved when no entity-key filter is requested.
+      val filterSpec = createTestFilterSpec()
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+
+      val events =
+        listOf(
+          createTestLabeledEvent(1, entityKeys = listOf(makeEntityKey("ad", "X"))),
+          createTestLabeledEvent(2, entityKeys = emptyList()),
+          createTestLabeledEvent(3, entityKeys = listOf(makeEntityKey("placement", "P"))),
+        )
+
+      val result = filterProcessor.processBatch(createEventBatch(events))
+
+      assertThat(result.events.map { it.vid }).containsExactly(1L, 2L, 3L).inOrder()
+    }
+  }
+
+  @Test
+  fun `processBatch with entityKeys filter keeps events whose keys intersect`() {
+    runBlocking {
+      val targetKey = makeEntityKey("ad", "X")
+      val filterSpec = createTestFilterSpec(entityKeys = setOf(targetKey))
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+
+      val events =
+        listOf(
+          createTestLabeledEvent(1, entityKeys = listOf(targetKey)),
+          createTestLabeledEvent(
+            2,
+            entityKeys = listOf(makeEntityKey("ad", "Y"), targetKey),
+          ),
+        )
+
+      val result = filterProcessor.processBatch(createEventBatch(events))
+
+      assertThat(result.events.map { it.vid }).containsExactly(1L, 2L).inOrder()
+    }
+  }
+
+  @Test
+  fun `processBatch with entityKeys filter drops events whose keys do not intersect`() {
+    runBlocking {
+      val filterSpec =
+        createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X")))
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+
+      val events =
+        listOf(
+          createTestLabeledEvent(1, entityKeys = listOf(makeEntityKey("ad", "Y"))),
+          createTestLabeledEvent(
+            2,
+            entityKeys = listOf(makeEntityKey("placement", "X")),
+          ),
+        )
+
+      val result = filterProcessor.processBatch(createEventBatch(events))
+
+      assertThat(result.events).isEmpty()
+    }
+  }
+
+  @Test
+  fun `processBatch with entityKeys filter drops events whose entityKeys are empty`() {
+    runBlocking {
+      val filterSpec =
+        createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X")))
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+
+      val events = listOf(createTestLabeledEvent(1, entityKeys = emptyList()))
+
+      val result = filterProcessor.processBatch(createEventBatch(events))
+
+      assertThat(result.events).isEmpty()
+    }
+  }
+
+  @Test
+  fun `processBatch with entityKeys filter combined with CEL must satisfy both`() {
+    runBlocking {
+      val targetKey = makeEntityKey("ad", "X")
+      val filterSpec =
+        createTestFilterSpec(
+          celExpression = "person.age_group == 1", // YEARS_18_TO_34
+          entityKeys = setOf(targetKey),
+        )
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+
+      val events =
+        listOf(
+          // matches both
+          createTestLabeledEvent(
+            1,
+            ageGroup = Person.AgeGroup.YEARS_18_TO_34,
+            entityKeys = listOf(targetKey),
+          ),
+          // matches CEL but not entity key
+          createTestLabeledEvent(
+            2,
+            ageGroup = Person.AgeGroup.YEARS_18_TO_34,
+            entityKeys = listOf(makeEntityKey("ad", "Y")),
+          ),
+          // matches entity key but not CEL
+          createTestLabeledEvent(
+            3,
+            ageGroup = Person.AgeGroup.YEARS_35_TO_54,
+            entityKeys = listOf(targetKey),
+          ),
+        )
+
+      val result = filterProcessor.processBatch(createEventBatch(events))
+
+      assertThat(result.events.map { it.vid }).containsExactly(1L)
     }
   }
 }
