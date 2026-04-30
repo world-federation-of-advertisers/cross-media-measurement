@@ -52,7 +52,7 @@ permissions:
 jobs:
   generate-release-notes:
     name: Generate relnotes
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       pull-requests: read
