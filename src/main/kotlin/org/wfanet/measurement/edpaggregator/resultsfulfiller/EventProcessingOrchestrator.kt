@@ -112,6 +112,7 @@ data class FilterSpecIndex(
             celExpression = firstEventGroup.value.filter.expression,
             collectionInterval = firstEventGroup.value.collectionInterval,
             eventGroupReferenceIds = eventGroupReferenceIds,
+            entityKeys = emptySet(),
           )
 
         filterSpecToReqNames.getOrPut(filterSpec) { mutableListOf() }.add(requisition.name)
