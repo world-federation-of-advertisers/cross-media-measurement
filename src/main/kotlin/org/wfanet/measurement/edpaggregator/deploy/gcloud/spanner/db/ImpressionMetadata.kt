@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
+import com.google.cloud.spanner.Type
 import com.google.cloud.spanner.Value
 import com.google.type.Interval
 import com.google.type.interval
@@ -40,17 +41,29 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.gcloud.spanner.struct
 import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.EntityKey
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as State
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.MetaEntityKey
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataKey
 import org.wfanet.measurement.internal.edpaggregator.copy
+import org.wfanet.measurement.internal.edpaggregator.entityKey
 import org.wfanet.measurement.internal.edpaggregator.impressionMetadata
+import org.wfanet.measurement.internal.edpaggregator.metaEntityKey
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionMetadataKey
 
 private const val IMPRESSION_METADATA_RESOURCE_ID_PREFIX = "imp"
+
+// Struct shape for binding the ImpressionMetadataMetaEntityKeys filter as an array parameter.
+private val META_ENTITY_KEY_FILTER_STRUCT: Type =
+  Type.struct(
+    Type.StructField.of("MetaType", Type.int64()),
+    Type.StructField.of("EntityId", Type.string()),
+  )
 
 data class ImpressionMetadataResult(
   val impressionMetadata: ImpressionMetadata,
@@ -287,6 +300,30 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
+
+  for (entityKey in impressionMetadata.entityKeysList) {
+    if (entityKey.hasMeta()) {
+      insertImpressionMetadataMetaEntityKey(
+        impressionMetadata.dataProviderResourceId,
+        impressionMetadataId,
+        entityKey.meta,
+      )
+    }
+  }
+}
+
+/** Buffers an insert mutation for a single [ImpressionMetadataMetaEntityKeys] row. */
+private fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadataMetaEntityKey(
+  dataProviderResourceId: String,
+  impressionMetadataId: Long,
+  metaEntityKey: MetaEntityKey,
+) {
+  bufferInsertMutation("ImpressionMetadataMetaEntityKeys") {
+    set("DataProviderResourceId").to(dataProviderResourceId)
+    set("ImpressionMetadataId").to(impressionMetadataId)
+    set("MetaType").to(metaEntityKey.type.number.toLong())
+    set("EntityId").to(metaEntityKey.id)
+  }
 }
 
 /**
@@ -395,6 +432,9 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
   limit: Int,
   after: ListImpressionMetadataPageToken.After? = null,
 ): Flow<ImpressionMetadataResult> {
+  val metaEntityKeyFilter: List<MetaEntityKey> =
+    filter.entityKeysList.filter { it.hasMeta() }.map { it.meta }
+
   val sql = buildString {
     appendLine(ImpressionMetadataEntity.BASE_SQL)
 
@@ -421,6 +461,25 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
 
     if (filter.blobUriPrefix.isNotEmpty()) {
       conjuncts.add("STARTS_WITH(ImpressionMetadata.BlobUri, @blobUriPrefix)")
+    }
+
+    if (metaEntityKeyFilter.isNotEmpty()) {
+      conjuncts.add(
+        """
+        EXISTS (
+          SELECT 1
+          FROM ImpressionMetadataMetaEntityKeys
+          WHERE ImpressionMetadataMetaEntityKeys.DataProviderResourceId = ImpressionMetadata.DataProviderResourceId
+            AND ImpressionMetadataMetaEntityKeys.ImpressionMetadataId = ImpressionMetadata.ImpressionMetadataId
+            AND EXISTS (
+              SELECT 1 FROM UNNEST(@metaEntityKeyFilter) AS f
+              WHERE f.MetaType = ImpressionMetadataMetaEntityKeys.MetaType
+                AND f.EntityId = ImpressionMetadataMetaEntityKeys.EntityId
+            )
+        )
+        """
+          .trimIndent()
+      )
     }
 
     if (after != null) {
@@ -458,6 +517,19 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
 
       if (filter.blobUriPrefix.isNotEmpty()) {
         bind("blobUriPrefix").to(filter.blobUriPrefix)
+      }
+
+      if (metaEntityKeyFilter.isNotEmpty()) {
+        bind("metaEntityKeyFilter")
+          .toStructArray(
+            META_ENTITY_KEY_FILTER_STRUCT,
+            metaEntityKeyFilter.map { meta ->
+              struct {
+                set("MetaType").to(meta.type.number.toLong())
+                set("EntityId").to(meta.id)
+              }
+            },
+          )
       }
 
       if (after != null) {
@@ -527,6 +599,15 @@ private object ImpressionMetadataEntity {
       ImpressionMetadata.UpdateTime,
       RawImpressionMetadataBatch.BatchResourceId AS RawImpressionBatchResourceId,
       RawImpressionMetadataBatchFile.FileResourceId AS RawImpressionFileResourceId,
+      ARRAY(
+        SELECT AS STRUCT
+          ImpressionMetadataMetaEntityKeys.MetaType,
+          ImpressionMetadataMetaEntityKeys.EntityId
+        FROM ImpressionMetadataMetaEntityKeys
+        WHERE ImpressionMetadataMetaEntityKeys.DataProviderResourceId = ImpressionMetadata.DataProviderResourceId
+          AND ImpressionMetadataMetaEntityKeys.ImpressionMetadataId = ImpressionMetadata.ImpressionMetadataId
+        ORDER BY ImpressionMetadataMetaEntityKeys.MetaType, ImpressionMetadataMetaEntityKeys.EntityId
+      ) AS MetaEntityKeys,
     FROM
       ImpressionMetadata
     LEFT JOIN (
@@ -562,6 +643,15 @@ private object ImpressionMetadataEntity {
             fileResourceId = struct.getString("RawImpressionFileResourceId")
           }
         }
+        entityKeys +=
+          struct.getStructList("MetaEntityKeys").map { metaStruct ->
+            entityKey {
+              meta = metaEntityKey {
+                type = MetaEntityKey.Type.forNumber(metaStruct.getLong("MetaType").toInt())
+                id = metaStruct.getString("EntityId")
+              }
+            }
+          }
       },
       struct.getLong("ImpressionMetadataId"),
     )
