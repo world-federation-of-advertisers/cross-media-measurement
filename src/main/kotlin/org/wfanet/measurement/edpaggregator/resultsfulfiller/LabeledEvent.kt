@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.protobuf.Message
 import java.time.Instant
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 
 /**
  * Represents a single event with associated metadata for processing.
@@ -34,5 +35,14 @@ import java.time.Instant
  *   this event. Used for sampling and deduplication.
  * @property message the actual event data as a Protocol Buffer message. Contains the
  *   domain-specific event information.
+ * @property entityKeys entities (in the DataProvider's system) that this impression is associated
+ *   with, propagated from `LabeledImpression.entity_keys`. Used by the filtering pipeline to drop
+ *   events that don't match a requested entity-key selector. Defaults to an empty list for
+ *   producers (e.g. synthetic data generation) that don't carry entity-level slicing.
  */
-data class LabeledEvent<T : Message>(val timestamp: Instant, val vid: Long, val message: T)
+data class LabeledEvent<T : Message>(
+  val timestamp: Instant,
+  val vid: Long,
+  val message: T,
+  val entityKeys: List<LabeledImpression.EntityKey> = emptyList(),
+)
