@@ -112,8 +112,7 @@ jobs:
 
       - name: Run tests
         id: run-tests
-        # DO_NOT_SUBMIT: remove nocache after testing
-        run: bazel test --nocache_test_results //...
+        run: bazel test //...
 
       # TODO(world-federation-of-advertisers/cross-media-measurement#3329): Re-enable coverage.
 
