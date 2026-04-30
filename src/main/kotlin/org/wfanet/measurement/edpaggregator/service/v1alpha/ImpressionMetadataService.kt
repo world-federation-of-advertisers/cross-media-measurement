@@ -433,8 +433,6 @@ class ImpressionMetadataService(
         validateEntityKey(entityKey, "filter.entity_keys.$index")
       } catch (e: RequiredFieldNotSetException) {
         throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      } catch (e: InvalidFieldValueException) {
-        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
 
