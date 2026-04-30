@@ -28,36 +28,22 @@ option java_outer_classname = "ImpressionMetadataProto";
 // Key of an entity in a DataProvider's system that an ImpressionMetadata
 // blob is associated with.
 //
-// The variant inside `key` identifies which DataProvider's taxonomy the
-// entity belongs to. Each variant carries a per-EDP enum of valid entity
-// types plus the entity's ID. Adding a new EDP means adding a new variant
-// to the `key` oneof and a new corresponding message type.
+// `entity_type` is interpreted per-EDP via configuration (no proto change is
+// required to onboard a new EDP or to add new entity types to an existing
+// EDP's taxonomy).
 message EntityKey {
-  // Exactly one variant must be set.
-  oneof key {
-    MetaEntityKey meta = 1;
-  }
-}
-
-// Entity key for entities in Meta's system (Facebook / Instagram).
-message MetaEntityKey {
-  // Taxonomy of entities in Meta's system that an ImpressionMetadata blob
-  // may be associated with.
-  enum Type {
-    TYPE_UNSPECIFIED = 0;
-    AD = 1;
-    AD_SET = 2;
-    CAMPAIGN = 3;
-    AD_ACCOUNT = 4;
-  }
-
-  Type type = 1 [(google.api.field_behavior) = REQUIRED];
-
-  // ID of the entity in Meta's system.
+  // ID of the entity in the DataProvider's system.
   //
   // Must be a URL-safe string, such that URL-encoding or -decoding results
   // in the same string.
-  string id = 2 [(google.api.field_behavior) = REQUIRED];
+  string id = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // Type of the entity in the DataProvider's system. Interpreted per-EDP
+  // via configuration.
+  //
+  // Must be a URL-safe string, such that URL-encoding or -decoding results
+  // in the same string.
+  string entity_type = 2 [(google.api.field_behavior) = REQUIRED];
 }
 
 // Metadata for a blob of labeled impressions.
