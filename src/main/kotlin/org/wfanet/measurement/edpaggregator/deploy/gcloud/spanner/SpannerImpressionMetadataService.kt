@@ -49,6 +49,7 @@ import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsReque
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.DeleteImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.EntityKey
 import org.wfanet.measurement.internal.edpaggregator.GetImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
@@ -56,6 +57,7 @@ import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as 
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.MetaEntityKey
 import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsResponse
@@ -216,6 +218,16 @@ class SpannerImpressionMetadataService(
           "$fieldName must be non-negative"
         }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    request.filter.entityKeysList.forEachIndexed { index, entityKey ->
+      try {
+        validateEntityKey(entityKey, "filter.entity_keys.$index")
+      } catch (e: RequiredFieldNotSetException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      } catch (e: InvalidFieldValueException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
     }
 
     val pageSize =
@@ -465,6 +477,35 @@ class SpannerImpressionMetadataService(
 
     if (!request.impressionMetadata.hasInterval()) {
       throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.interval")
+    }
+
+    request.impressionMetadata.entityKeysList.forEachIndexed { index, entityKey ->
+      validateEntityKey(entityKey, "${fieldPathPrefix}impression_metadata.entity_keys.$index")
+    }
+  }
+
+  /**
+   * Checks that the specified [EntityKey] has exactly one variant set and that the inner fields
+   * are populated correctly.
+   *
+   * @throws RequiredFieldNotSetException if the variant or a required inner field is unset
+   * @throws InvalidFieldValueException if an inner enum is set to its UNSPECIFIED value
+   */
+  private fun validateEntityKey(entityKey: EntityKey, fieldPath: String) {
+    when (entityKey.keyCase) {
+      EntityKey.KeyCase.META -> {
+        if (entityKey.meta.type == MetaEntityKey.Type.TYPE_UNSPECIFIED) {
+          throw InvalidFieldValueException("$fieldPath.meta.type") { fieldName ->
+            "$fieldName must not be TYPE_UNSPECIFIED"
+          }
+        }
+        if (entityKey.meta.id.isEmpty()) {
+          throw RequiredFieldNotSetException("$fieldPath.meta.id")
+        }
+      }
+      EntityKey.KeyCase.KEY_NOT_SET -> {
+        throw RequiredFieldNotSetException("$fieldPath.key")
+      }
     }
   }
 
