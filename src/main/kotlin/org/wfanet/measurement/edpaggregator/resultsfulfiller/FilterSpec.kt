@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.type.Interval
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 
 /**
  * Immutable specification for event filtering.
@@ -29,11 +30,15 @@ import org.wfanet.measurement.common.toInstant
  * @property celExpression The CEL expression for filtering events
  * @property collectionInterval The time interval for event collection
  * @property eventGroupReferenceIds The reference IDs of the event groups to be filtered
+ * @property entityKeys Optional set of entity keys to restrict events by. Empty means no
+ *   restriction. When non-empty, an event passes only if its `LabeledEvent.entityKeys` intersects
+ *   this set (OR-semantics across the set).
  */
 data class FilterSpec(
   val celExpression: String,
   val collectionInterval: Interval,
   val eventGroupReferenceIds: List<String>,
+  val entityKeys: Set<LabeledImpression.EntityKey> = emptySet(),
 ) {
   init {
     require(eventGroupReferenceIds.isNotEmpty()) { "eventGroupReferenceIds must not be empty" }

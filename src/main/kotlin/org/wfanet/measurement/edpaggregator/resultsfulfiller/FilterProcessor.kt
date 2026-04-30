@@ -28,7 +28,7 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
  *
  * This processor compiles a CEL expression once and reuses it for batch processing. It processes
  * events sequentially through the CEL filter and identifies matching events. The processor supports
- * filtering by event group reference ID, time ranges, CEL expressions.
+ * filtering by event group reference ID, time ranges, entity keys, and CEL expressions.
  *
  * @param filterSpec immutable specification containing all filtering criteria
  */
@@ -70,13 +70,22 @@ class FilterProcessor<T : Message>(
     )
 
   /**
+   * Whether the spec restricts events by entity keys.
+   *
+   * Pre-computed so the per-event hot path can short-circuit cheaply when no entity-key filter
+   * was requested.
+   */
+  private val entityKeyFilterEnabled: Boolean = filterSpec.entityKeys.isNotEmpty()
+
+  /**
    * Processes a batch of events and returns the matching events.
    *
    * Applies filtering in the following order for optimal performance:
    * 1. Batch time range overlap check (fastest, avoids processing entire batch)
    * 2. Event group reference ID filtering (fast, string comparison)
    * 3. Time range filtering (fast, cached instant comparisons)
-   * 4. CEL expression filtering (slower, requires expression evaluation)
+   * 4. Entity-key intersection filtering (fast, set membership)
+   * 5. CEL expression filtering (slower, requires expression evaluation)
    *
    * @param batch The batch of events to process. Must contain a valid list of events.
    * @return An EventBatch containing events that match all configured filters. The batch may be
@@ -111,6 +120,10 @@ class FilterProcessor<T : Message>(
     val filteredEvents =
       batch.events.filter { event ->
         if (!isEventInTimeRange(event)) {
+          return@filter false
+        }
+
+        if (entityKeyFilterEnabled && !eventMatchesEntityKeyFilter(event)) {
           return@filter false
         }
 
@@ -153,5 +166,18 @@ class FilterProcessor<T : Message>(
   private fun isEventInTimeRange(event: LabeledEvent<T>): Boolean {
     val eventTime = event.timestamp
     return !eventTime.isBefore(startInstant) && eventTime.isBefore(endInstant)
+  }
+
+  /**
+   * Checks whether [event]'s `entityKeys` intersect the filter's selector.
+   *
+   * Only called when [entityKeyFilterEnabled] is `true`. An event with empty `entityKeys` always
+   * fails this check when the filter is non-empty.
+   *
+   * @param event the event to check
+   * @return `true` if at least one of [event]'s entity keys is in [FilterSpec.entityKeys]
+   */
+  private fun eventMatchesEntityKeyFilter(event: LabeledEvent<T>): Boolean {
+    return event.entityKeys.any { it in filterSpec.entityKeys }
   }
 }
