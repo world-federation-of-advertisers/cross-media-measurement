@@ -57,7 +57,6 @@ import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as 
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse
-import org.wfanet.measurement.internal.edpaggregator.MetaEntityKey
 import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsResponse
@@ -485,27 +484,16 @@ class SpannerImpressionMetadataService(
   }
 
   /**
-   * Checks that the specified [EntityKey] has exactly one variant set and that the inner fields
-   * are populated correctly.
+   * Checks that the specified [EntityKey] has both `entity_type` and `id` set.
    *
-   * @throws RequiredFieldNotSetException if the variant or a required inner field is unset
-   * @throws InvalidFieldValueException if an inner enum is set to its UNSPECIFIED value
+   * @throws RequiredFieldNotSetException if a required field is unset
    */
   private fun validateEntityKey(entityKey: EntityKey, fieldPath: String) {
-    when (entityKey.keyCase) {
-      EntityKey.KeyCase.META -> {
-        if (entityKey.meta.type == MetaEntityKey.Type.TYPE_UNSPECIFIED) {
-          throw InvalidFieldValueException("$fieldPath.meta.type") { fieldName ->
-            "$fieldName must not be TYPE_UNSPECIFIED"
-          }
-        }
-        if (entityKey.meta.id.isEmpty()) {
-          throw RequiredFieldNotSetException("$fieldPath.meta.id")
-        }
-      }
-      EntityKey.KeyCase.KEY_NOT_SET -> {
-        throw RequiredFieldNotSetException("$fieldPath.key")
-      }
+    if (entityKey.entityType.isEmpty()) {
+      throw RequiredFieldNotSetException("$fieldPath.entity_type")
+    }
+    if (entityKey.id.isEmpty()) {
+      throw RequiredFieldNotSetException("$fieldPath.id")
     }
   }
 
