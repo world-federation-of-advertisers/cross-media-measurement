@@ -27,8 +27,11 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
  * Filter processor for event filtering with CEL expressions and time ranges.
  *
  * This processor compiles a CEL expression once and reuses it for batch processing. It processes
- * events sequentially through the CEL filter and identifies matching events. The processor supports
- * filtering by event group reference ID, time ranges, entity keys, and CEL expressions.
+ * events sequentially through the CEL filter and identifies matching events.
+ *
+ * The processor supports two alternative selectors for identifying which events belong to an
+ * EventGroup: `eventGroupReferenceIds` (legacy) and `entityKeys` (new). When `entityKeys` is
+ * non-empty it takes precedence and the `eventGroupReferenceIds` batch-level check is skipped.
  *
  * @param filterSpec immutable specification containing all filtering criteria
  */
@@ -70,10 +73,11 @@ class FilterProcessor<T : Message>(
     )
 
   /**
-   * Whether the spec restricts events by entity keys.
+   * Whether the spec uses entity keys as the selector.
    *
-   * Pre-computed so the per-event hot path can short-circuit cheaply when no entity-key filter
-   * was requested.
+   * When `true`, the per-event entity-key intersection check is applied and the batch-level
+   * `event_group_reference_id` check is skipped. When `false`, the legacy `event_group_reference_id`
+   * check is used and no entity-key filter is applied.
    */
   private val entityKeyFilterEnabled: Boolean = filterSpec.entityKeys.isNotEmpty()
 
@@ -81,24 +85,27 @@ class FilterProcessor<T : Message>(
    * Processes a batch of events and returns the matching events.
    *
    * Applies filtering in the following order for optimal performance:
-   * 1. Batch time range overlap check (fastest, avoids processing entire batch)
-   * 2. Event group reference ID filtering (fast, string comparison)
-   * 3. Time range filtering (fast, cached instant comparisons)
-   * 4. Entity-key intersection filtering (fast, set membership)
-   * 5. CEL expression filtering (slower, requires expression evaluation)
+   * 1. Selector check (mutually exclusive):
+   *    - If [entityKeyFilterEnabled] is `false`: batch-level `event_group_reference_id` match.
+   *    - If `true`: deferred to the per-event entity-key intersection check below.
+   * 2. Batch time range overlap check (fast, avoids processing entire batch).
+   * 3. Per-event time range filter.
+   * 4. Per-event entity-key intersection (only when [entityKeyFilterEnabled]).
+   * 5. Per-event CEL expression evaluation.
    *
    * @param batch The batch of events to process. Must contain a valid list of events.
    * @return An EventBatch containing events that match all configured filters. The batch may be
    *   empty if no events match the criteria.
-   * @throws Exception if there are issues with event processing, though individual event failures
-   *   are logged and do not stop batch processing.
    */
   fun processBatch(batch: EventBatch<T>): EventBatch<T> {
     if (batch.events.isEmpty()) {
       return batch
     }
 
-    if (!filterSpec.eventGroupReferenceIds.contains(batch.eventGroupReferenceId)) {
+    if (
+      !entityKeyFilterEnabled &&
+        !filterSpec.eventGroupReferenceIds.contains(batch.eventGroupReferenceId)
+    ) {
       return EventBatch(
         emptyList(),
         minTime = batch.minTime,
@@ -172,7 +179,7 @@ class FilterProcessor<T : Message>(
    * Checks whether [event]'s `entityKeys` intersect the filter's selector.
    *
    * Only called when [entityKeyFilterEnabled] is `true`. An event with empty `entityKeys` always
-   * fails this check when the filter is non-empty.
+   * fails this check.
    *
    * @param event the event to check
    * @return `true` if at least one of [event]'s entity keys is in [FilterSpec.entityKeys]
