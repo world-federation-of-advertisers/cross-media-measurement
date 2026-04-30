@@ -1,16 +1,18 @@
-// Copyright 2025 The Cross-Media Measurement Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Copyright 2025 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package org.wfanet.measurement.edpaggregator.service.v1alpha
 
@@ -40,21 +42,26 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRespon
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.DeleteImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.GetImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.MetaEntityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.metaEntityKey
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateImpressionMetadataResponse as InternalBatchCreateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.BatchDeleteImpressionMetadataResponse as InternalBatchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse as InternalComputeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest as InternalCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.DeleteImpressionMetadataRequest as InternalDeleteImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.EntityKey as InternalEntityKey
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata as InternalImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub as InternalImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as InternalImpressionMetadataState
@@ -62,14 +69,17 @@ import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageT
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest as InternalListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequestKt.filter as internalListImpressionMetadataRequestFilter
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse as InternalListImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.MetaEntityKey as InternalMetaEntityKey
 import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataRequest as internalBatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataRequest as internalBatchDeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsRequest as internalComputeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.createImpressionMetadataRequest as internalCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.deleteImpressionMetadataRequest as internalDeleteImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.entityKey as internalEntityKey
 import org.wfanet.measurement.internal.edpaggregator.getImpressionMetadataRequest as internalGetImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.impressionMetadata as internalImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataRequest as internalListImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.metaEntityKey as internalMetaEntityKey
 
 class ImpressionMetadataService(
   private val internalImpressionMetadataStub: InternalImpressionMetadataServiceCoroutineStub,
@@ -422,6 +432,16 @@ class ImpressionMetadataService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    request.filter.entityKeysList.forEachIndexed { index, entityKey ->
+      try {
+        validateEntityKey(entityKey, "filter.entity_keys.$index")
+      } catch (e: RequiredFieldNotSetException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      } catch (e: InvalidFieldValueException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+
     val pageSize =
       if (request.pageSize == 0) {
         DEFAULT_PAGE_SIZE
@@ -455,6 +475,7 @@ class ImpressionMetadataService(
         if (request.filter.blobUriPrefix.isNotEmpty()) {
           blobUriPrefix = request.filter.blobUriPrefix
         }
+        entityKeys += request.filter.entityKeysList.map { it.toInternal() }
 
         state =
           if (!request.showDeleted) {
@@ -616,6 +637,35 @@ class ImpressionMetadataService(
     if (!request.impressionMetadata.hasInterval()) {
       throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.interval")
     }
+
+    request.impressionMetadata.entityKeysList.forEachIndexed { index, entityKey ->
+      validateEntityKey(entityKey, "${fieldPathPrefix}impression_metadata.entity_keys.$index")
+    }
+  }
+
+  /**
+   * Checks that the specified [EntityKey] has exactly one variant set and that the inner fields
+   * are populated correctly.
+   *
+   * @throws RequiredFieldNotSetException if the variant or a required inner field is unset
+   * @throws InvalidFieldValueException if an inner enum is set to its UNSPECIFIED value
+   */
+  private fun validateEntityKey(entityKey: EntityKey, fieldPath: String) {
+    when (entityKey.keyCase) {
+      EntityKey.KeyCase.META -> {
+        if (entityKey.meta.type == MetaEntityKey.Type.TYPE_UNSPECIFIED) {
+          throw InvalidFieldValueException("$fieldPath.meta.type") { fieldName ->
+            "$fieldName must not be TYPE_UNSPECIFIED"
+          }
+        }
+        if (entityKey.meta.id.isEmpty()) {
+          throw RequiredFieldNotSetException("$fieldPath.meta.id")
+        }
+      }
+      EntityKey.KeyCase.KEY_NOT_SET -> {
+        throw RequiredFieldNotSetException("$fieldPath.key")
+      }
+    }
   }
 
   companion object {
@@ -639,6 +689,7 @@ fun InternalImpressionMetadata.toImpressionMetadata(): ImpressionMetadata {
     state = source.state.toState()
     createTime = source.createTime
     updateTime = source.updateTime
+    entityKeys += source.entityKeysList.map { it.toPublic() }
   }
 }
 
@@ -660,6 +711,7 @@ fun ImpressionMetadata.toInternal(
     eventGroupReferenceId = source.eventGroupReferenceId
     cmmsModelLine = source.modelLine
     interval = source.interval
+    entityKeys += source.entityKeysList.map { it.toInternal() }
   }
 }
 
@@ -689,5 +741,59 @@ internal fun ImpressionMetadata.State.toInternal(): InternalImpressionMetadataSt
       InternalImpressionMetadataState.IMPRESSION_METADATA_STATE_DELETED
     ImpressionMetadata.State.UNRECOGNIZED,
     ImpressionMetadata.State.STATE_UNSPECIFIED -> error("Unrecognized state")
+  }
+}
+
+/** Converts an internal [InternalEntityKey] to a public [EntityKey]. */
+internal fun InternalEntityKey.toPublic(): EntityKey {
+  val source = this
+  return entityKey {
+    when (source.keyCase) {
+      InternalEntityKey.KeyCase.META ->
+        meta = metaEntityKey {
+          type = source.meta.type.toPublic()
+          id = source.meta.id
+        }
+      InternalEntityKey.KeyCase.KEY_NOT_SET -> error("EntityKey.key not set")
+    }
+  }
+}
+
+/** Converts a public [EntityKey] to an internal [InternalEntityKey]. */
+internal fun EntityKey.toInternal(): InternalEntityKey {
+  val source = this
+  return internalEntityKey {
+    when (source.keyCase) {
+      EntityKey.KeyCase.META ->
+        meta = internalMetaEntityKey {
+          type = source.meta.type.toInternal()
+          id = source.meta.id
+        }
+      EntityKey.KeyCase.KEY_NOT_SET -> error("EntityKey.key not set")
+    }
+  }
+}
+
+/** Converts an internal [InternalMetaEntityKey.Type] to a public [MetaEntityKey.Type]. */
+internal fun InternalMetaEntityKey.Type.toPublic(): MetaEntityKey.Type {
+  return when (this) {
+    InternalMetaEntityKey.Type.AD -> MetaEntityKey.Type.AD
+    InternalMetaEntityKey.Type.AD_SET -> MetaEntityKey.Type.AD_SET
+    InternalMetaEntityKey.Type.CAMPAIGN -> MetaEntityKey.Type.CAMPAIGN
+    InternalMetaEntityKey.Type.AD_ACCOUNT -> MetaEntityKey.Type.AD_ACCOUNT
+    InternalMetaEntityKey.Type.UNRECOGNIZED,
+    InternalMetaEntityKey.Type.TYPE_UNSPECIFIED -> error("Unrecognized MetaEntityKey.Type")
+  }
+}
+
+/** Converts a public [MetaEntityKey.Type] to an internal [InternalMetaEntityKey.Type]. */
+internal fun MetaEntityKey.Type.toInternal(): InternalMetaEntityKey.Type {
+  return when (this) {
+    MetaEntityKey.Type.AD -> InternalMetaEntityKey.Type.AD
+    MetaEntityKey.Type.AD_SET -> InternalMetaEntityKey.Type.AD_SET
+    MetaEntityKey.Type.CAMPAIGN -> InternalMetaEntityKey.Type.CAMPAIGN
+    MetaEntityKey.Type.AD_ACCOUNT -> InternalMetaEntityKey.Type.AD_ACCOUNT
+    MetaEntityKey.Type.UNRECOGNIZED,
+    MetaEntityKey.Type.TYPE_UNSPECIFIED -> error("Unrecognized MetaEntityKey.Type")
   }
 }
