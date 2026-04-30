@@ -129,6 +129,10 @@ message StreamEventGroupsRequest {
     // the [EventGroup][]. [start_date][DateInterval.start_date] and
     // [end_date][DateInterval.end_date] are required.
     DateInterval activity_contains = 16;
+
+    // Set of entity types which [EventGroup.EntityKey.entity_type][] of
+    // [EventGroup.entity_key][] must be in.
+    repeated string entity_type_in = 17;
   }
   Filter filter = 1;
 

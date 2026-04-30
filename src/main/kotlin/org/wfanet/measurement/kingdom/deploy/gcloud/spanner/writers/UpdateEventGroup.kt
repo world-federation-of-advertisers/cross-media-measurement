@@ -18,6 +18,7 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
+import com.google.protobuf.Struct
 import com.google.type.endTimeOrNull
 import com.google.type.startTimeOrNull
 import kotlinx.coroutines.flow.map
@@ -108,6 +109,22 @@ internal suspend fun SpannerWriter.TransactionScope.updateEventGroup(
         Value.protoMessage(null, EventGroupDetails.getDescriptor())
       }
     set("EventGroupDetails").to(detailsValue)
+
+    if (request.hasEntityKey()) {
+      set("EntityType" to request.entityKey.entityType)
+      set("EntityId" to request.entityKey.entityId.ifEmpty { null })
+    } else {
+      set("EntityType" to Table.DEFAULT_ENTITY_TYPE)
+      set("EntityId" to null as String?)
+    }
+
+    val entityMetadataValue =
+      if (request.hasEntityMetadata()) {
+        Value.protoMessage(request.entityMetadata)
+      } else {
+        Value.protoMessage(null, Struct.getDescriptor())
+      }
+    set("EntityMetadata").to(entityMetadataValue)
   }
 
   transactionContext.syncMediaTypes(
@@ -155,4 +172,6 @@ private suspend fun AsyncDatabaseClient.TransactionContext.syncMediaTypes(
 private object Table {
   const val EVENT_GROUPS = "EventGroups"
   const val EVENT_GROUP_MEDIA_TYPES = "EventGroupMediaTypes"
+  /** Mirrors the column default declared in `add-event-group-entity-key.sql`. */
+  const val DEFAULT_ENTITY_TYPE = "campaign"
 }

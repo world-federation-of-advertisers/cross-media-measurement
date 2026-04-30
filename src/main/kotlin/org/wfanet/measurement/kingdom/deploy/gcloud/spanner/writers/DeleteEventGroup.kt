@@ -61,6 +61,9 @@ class DeleteEventGroup(private val request: DeleteEventGroupRequest) :
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("EventGroupDetails").to(null, EventGroupDetails.getDescriptor())
       set("State").toInt64(EventGroup.State.DELETED)
+      // Drop the row from EventGroupsByEntityKey (UNIQUE NULL_FILTERED): nulling EntityId frees
+      // the entity_key slot for reuse since DELETED is terminal.
+      set("EntityId" to null as String?)
     }
 
     return result.eventGroup.copy {

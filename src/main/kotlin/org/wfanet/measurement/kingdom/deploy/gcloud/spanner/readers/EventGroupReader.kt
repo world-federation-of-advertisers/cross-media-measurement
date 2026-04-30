@@ -18,6 +18,7 @@ import com.google.cloud.Timestamp as CloudTimestamp
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
+import com.google.protobuf.Struct as ProtobufStruct
 import com.google.type.interval
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -34,6 +35,7 @@ import org.wfanet.measurement.gcloud.spanner.getNullableTimestamp
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupDetails
 import org.wfanet.measurement.internal.kingdom.EventGroupKt.aggregatedActivity
+import org.wfanet.measurement.internal.kingdom.EventGroupKt.entityKey
 import org.wfanet.measurement.internal.kingdom.MediaType
 import org.wfanet.measurement.internal.kingdom.dateInterval
 import org.wfanet.measurement.internal.kingdom.eventGroup
@@ -205,6 +207,16 @@ class EventGroupReader(private val view: EventGroup.View = EventGroup.View.BASIC
         details =
           struct.getProtoMessage("EventGroupDetails", EventGroupDetails.getDefaultInstance())
       }
+      if (!struct.isNull("EntityId")) {
+        entityKey = entityKey {
+          entityType = struct.getString("EntityType")
+          entityId = struct.getString("EntityId")
+        }
+      }
+      if (!struct.isNull("EntityMetadata")) {
+        entityMetadata =
+          struct.getProtoMessage("EntityMetadata", ProtobufStruct.getDefaultInstance())
+      }
       state = struct.getProtoEnum("State", EventGroup.State::forNumber)
       if (view == EventGroup.View.WITH_ACTIVITY_SUMMARY) {
         aggregatedActivities += buildAggregatedActivities(struct)
@@ -274,6 +286,9 @@ class EventGroupReader(private val view: EventGroup.View = EventGroup.View.BASIC
         EventGroups.DataAvailabilityStartTime,
         EventGroups.DataAvailabilityEndTime,
         EventGroups.EventGroupDetails,
+        EventGroups.EntityType,
+        EventGroups.EntityId,
+        EventGroups.EntityMetadata,
         MeasurementConsumers.ExternalMeasurementConsumerId,
         DataProviders.ExternalDataProviderId,
         EventGroups.State,
@@ -305,6 +320,9 @@ class EventGroupReader(private val view: EventGroup.View = EventGroup.View.BASIC
         EventGroups.DataAvailabilityStartTime,
         EventGroups.DataAvailabilityEndTime,
         EventGroups.EventGroupDetails,
+        EventGroups.EntityType,
+        EventGroups.EntityId,
+        EventGroups.EntityMetadata,
         MeasurementConsumers.ExternalMeasurementConsumerId,
         DataProviders.ExternalDataProviderId,
         EventGroups.State,

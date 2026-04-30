@@ -118,6 +118,13 @@ internal fun SpannerWriter.TransactionScope.createEventGroup(
     if (request.eventGroup.hasDetails()) {
       set("EventGroupDetails").to(request.eventGroup.details)
     }
+    if (request.eventGroup.hasEntityKey()) {
+      set("EntityType" to request.eventGroup.entityKey.entityType)
+      set("EntityId" to request.eventGroup.entityKey.entityId.ifEmpty { null })
+    }
+    if (request.eventGroup.hasEntityMetadata()) {
+      set("EntityMetadata").to(request.eventGroup.entityMetadata)
+    }
     set("State").toInt64(EventGroup.State.ACTIVE)
   }
 

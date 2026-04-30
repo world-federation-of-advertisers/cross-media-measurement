@@ -86,6 +86,7 @@ import org.wfanet.measurement.internal.kingdom.DateInterval as InternalDateInter
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupDetails
 import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt
+import org.wfanet.measurement.internal.kingdom.EventGroupKt as InternalEventGroupKt
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub as InternalEventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest as InternalGetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.MediaType as InternalMediaType
@@ -519,7 +520,7 @@ class EventGroupsService(
           .map(InternalEventGroup::toEventGroup)
       if (internalEventGroups.size > pageSize) {
         nextPageToken =
-          buildNextPageToken(internalRequest.filter, internalEventGroups)
+          buildNextPageToken(internalRequest.filter, request.filter, internalEventGroups)
             .toByteString()
             .base64UrlEncode()
       }
@@ -528,6 +529,7 @@ class EventGroupsService(
 
   private fun buildNextPageToken(
     internalFilter: StreamEventGroupsRequest.Filter,
+    publicFilter: ListEventGroupsRequest.Filter,
     results: List<InternalEventGroup>,
   ): ListEventGroupsPageToken {
     val lastInternalEventGroup: InternalEventGroup = results[results.lastIndex - 1]
@@ -557,6 +559,7 @@ class EventGroupsService(
       if (internalFilter.hasActivityContains()) {
         activityContains = internalFilter.activityContains.toDateInterval()
       }
+      entityTypeIn += publicFilter.entityTypeInList
       lastEventGroup = previousPageEnd {
         externalDataProviderId = lastInternalEventGroup.externalDataProviderId
         externalEventGroupId = lastInternalEventGroup.externalEventGroupId
@@ -630,6 +633,12 @@ class EventGroupsService(
             validateActivityContainsInterval(filter.activityContains)
             activityContains = filter.activityContains.toInternal()
           }
+          entityTypeIn +=
+            if (filter.entityTypeInList.isNotEmpty()) {
+              filter.entityTypeInList
+            } else {
+              listOf(DEFAULT_ENTITY_TYPE)
+            }
           metadataSearchQuery = filter.metadataSearchQuery
           this.showDeleted = showDeleted
           if (pageToken != null) {
@@ -647,7 +656,8 @@ class EventGroupsService(
                   dataAvailabilityStartTimeOnOrBefore ||
                 pageToken.dataAvailabilityEndTimeOnOrAfter != dataAvailabilityEndTimeOnOrAfter ||
                 pageToken.metadataSearchQuery != metadataSearchQuery ||
-                pageToken.activityContains != filter.activityContains
+                pageToken.activityContains != filter.activityContains ||
+                pageToken.entityTypeInList != filter.entityTypeInList
             ) {
               throw Status.INVALID_ARGUMENT.withDescription(
                   "Arguments other than page_size must remain the same for subsequent page requests"
@@ -684,6 +694,8 @@ class EventGroupsService(
   companion object {
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 500
+    /** Substituted into `entity_type_in` when the caller omits the filter. */
+    private const val DEFAULT_ENTITY_TYPE = "campaign"
   }
 
   private fun validateActivityContainsInterval(interval: DateInterval) {
@@ -758,8 +770,34 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
           eventTemplate { type = event.fullyQualifiedType }
         }
       )
-      if (source.details.hasMetadata()) {
-        eventGroupMetadata = source.details.metadata.toEventGroupMetadata()
+      // Public event_group_metadata is currently optional (future_disposition REQUIRED), so we
+      // construct it whenever the internal record carries any of its sub-fields.
+      if (source.details.hasMetadata() || source.hasEntityMetadata()) {
+        eventGroupMetadata = eventGroupMetadata {
+          if (source.details.hasMetadata()) {
+            val metadataSource = source.details.metadata
+            @Suppress(
+              "WHEN_ENUM_CAN_BE_NULL_IN_JAVA"
+            ) // Protobuf enum accessors cannot return null.
+            when (metadataSource.metadataCase) {
+              EventGroupDetails.EventGroupMetadata.MetadataCase.AD_METADATA -> {
+                adMetadata =
+                  EventGroupMetadataKt.adMetadata {
+                    campaignMetadata =
+                      EventGroupMetadataKt.AdMetadataKt.campaignMetadata {
+                        brandName = metadataSource.adMetadata.campaignMetadata.brandName
+                        campaignName = metadataSource.adMetadata.campaignMetadata.campaignName
+                      }
+                  }
+              }
+              EventGroupDetails.EventGroupMetadata.MetadataCase.METADATA_NOT_SET ->
+                error("metadata not set")
+            }
+          }
+          if (source.hasEntityMetadata()) {
+            this.entityMetadata = source.entityMetadata
+          }
+        }
       }
       if (!source.details.encryptedMetadata.isEmpty) {
         encryptedMetadata = encryptedMessage {
@@ -776,6 +814,9 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
     }
     state = source.state.toV2Alpha()
     aggregatedActivities += source.aggregatedActivitiesList.map { it.toAggregatedActivity() }
+    if (source.hasEntityKey()) {
+      entityKey = source.entityKey.toEntityKey()
+    }
   }
 }
 
@@ -786,27 +827,6 @@ private fun InternalMediaType.toMediaType(): MediaType {
     InternalMediaType.OTHER -> MediaType.OTHER
     InternalMediaType.MEDIA_TYPE_UNSPECIFIED -> MediaType.MEDIA_TYPE_UNSPECIFIED
     InternalMediaType.UNRECOGNIZED -> error("MediaType unrecognized")
-  }
-}
-
-private fun EventGroupDetails.EventGroupMetadata.toEventGroupMetadata(): EventGroupMetadata {
-  val source = this
-  return eventGroupMetadata {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
-    when (source.metadataCase) {
-      EventGroupDetails.EventGroupMetadata.MetadataCase.AD_METADATA -> {
-        adMetadata =
-          EventGroupMetadataKt.adMetadata {
-            campaignMetadata =
-              EventGroupMetadataKt.AdMetadataKt.campaignMetadata {
-                brandName = source.adMetadata.campaignMetadata.brandName
-                campaignName = source.adMetadata.campaignMetadata.campaignName
-              }
-          }
-      }
-      EventGroupDetails.EventGroupMetadata.MetadataCase.METADATA_NOT_SET ->
-        error("metadata not set")
-    }
   }
 }
 
@@ -865,6 +885,28 @@ private fun EventGroup.toInternal(
         encryptedMetadata = source.serializedEncryptedMetadata
       }
     }
+    if (source.hasEntityKey()) {
+      entityKey = source.entityKey.toInternal()
+    }
+    if (source.hasEventGroupMetadata() && source.eventGroupMetadata.hasEntityMetadata()) {
+      entityMetadata = source.eventGroupMetadata.entityMetadata
+    }
+  }
+}
+
+private fun InternalEventGroup.EntityKey.toEntityKey(): EventGroup.EntityKey {
+  val source = this
+  return EventGroupKt.entityKey {
+    entityType = source.entityType
+    entityId = source.entityId
+  }
+}
+
+private fun EventGroup.EntityKey.toInternal(): InternalEventGroup.EntityKey {
+  val source = this
+  return InternalEventGroupKt.entityKey {
+    entityType = source.entityType
+    entityId = source.entityId
   }
 }
 

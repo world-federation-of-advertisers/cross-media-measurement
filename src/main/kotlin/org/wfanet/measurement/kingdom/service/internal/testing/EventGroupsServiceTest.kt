@@ -14,10 +14,14 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
+import com.google.cloud.spanner.ErrorCode as SpannerErrorCode
+import com.google.cloud.spanner.SpannerException
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.struct
 import com.google.protobuf.util.Timestamps
+import com.google.protobuf.value
 import com.google.type.copy
 import com.google.type.date
 import com.google.type.endTimeOrNull
@@ -54,6 +58,7 @@ import org.wfanet.measurement.internal.kingdom.EventGroupActivitiesGrpcKt.EventG
 import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.EventGroupMetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.EventGroupMetadataKt.adMetadata
 import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.eventGroupMetadata
+import org.wfanet.measurement.internal.kingdom.EventGroupKt.entityKey
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
@@ -97,6 +102,21 @@ private val DETAILS = eventGroupDetails {
       }
     }
   }
+}
+
+private val ENTITY_KEY = entityKey {
+  entityType = "creative"
+  entityId = "creative-abc-123"
+}
+
+private val ENTITY_KEY_OTHER = entityKey {
+  entityType = "ad_group"
+  entityId = "ad-group-xyz-789"
+}
+
+private val ENTITY_METADATA = struct {
+  fields["brand"] = value { stringValue = "Blammo!" }
+  fields["objective"] = value { stringValue = "awareness" }
 }
 
 @RunWith(JUnit4::class)
@@ -2411,6 +2431,529 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception).hasMessageThat().contains("filter.activity_contains.start_date")
     }
+
+  @Test
+  fun `createEventGroup with entity_key and entity_metadata round-trips through Get`() =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider = population.createDataProvider(dataProvidersService)
+      val request = createEventGroupRequest {
+        eventGroup = eventGroup {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+          details = DETAILS
+          entityKey = ENTITY_KEY
+          entityMetadata = ENTITY_METADATA
+        }
+      }
+
+      val created: EventGroup = eventGroupsService.createEventGroup(request)
+      assertThat(created.entityKey).isEqualTo(ENTITY_KEY)
+      assertThat(created.entityMetadata).isEqualTo(ENTITY_METADATA)
+
+      val fetched: EventGroup =
+        eventGroupsService.getEventGroup(
+          getEventGroupRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = created.externalEventGroupId
+          }
+        )
+      assertThat(fetched.entityKey).isEqualTo(ENTITY_KEY)
+      assertThat(fetched.entityMetadata).isEqualTo(ENTITY_METADATA)
+    }
+
+  @Test
+  fun `createEventGroup without entity_key leaves entity_key and entity_metadata unset on Get`() =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider = population.createDataProvider(dataProvidersService)
+
+      val created: EventGroup =
+        eventGroupsService.createEventGroup(
+          createEventGroupRequest {
+            eventGroup = eventGroup {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+              details = DETAILS
+            }
+          }
+        )
+
+      val fetched: EventGroup =
+        eventGroupsService.getEventGroup(
+          getEventGroupRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = created.externalEventGroupId
+          }
+        )
+      assertThat(fetched.hasEntityKey()).isFalse()
+      assertThat(fetched.hasEntityMetadata()).isFalse()
+    }
+
+  @Test
+  fun `createEventGroup with duplicate entity_key under same parent fails`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+
+    eventGroupsService.createEventGroup(
+      createEventGroupRequest {
+        eventGroup = eventGroup {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          details = DETAILS
+          entityKey = ENTITY_KEY
+        }
+      }
+    )
+
+    val exception =
+      assertFailsWith<SpannerException> {
+        eventGroupsService.createEventGroup(
+          createEventGroupRequest {
+            eventGroup = eventGroup {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              details = DETAILS
+              entityKey = ENTITY_KEY
+            }
+          }
+        )
+      }
+
+    assertThat(exception.errorCode).isEqualTo(SpannerErrorCode.ALREADY_EXISTS)
+  }
+
+  @Test
+  fun `createEventGroup allows same entity_key under different DataProviders`(): Unit =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider1 = population.createDataProvider(dataProvidersService)
+      val dataProvider2 = population.createDataProvider(dataProvidersService)
+
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            externalDataProviderId = dataProvider1.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            details = DETAILS
+            entityKey = ENTITY_KEY
+          }
+        }
+      )
+
+      // Same entity_key under a different DataProvider must succeed.
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            externalDataProviderId = dataProvider2.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            details = DETAILS
+            entityKey = ENTITY_KEY
+          }
+        }
+      )
+    }
+
+  @Test
+  fun `createEventGroup allows same entity_key under different MeasurementConsumers`(): Unit =
+    runBlocking {
+      val measurementConsumer1 =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val measurementConsumer2 =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider = population.createDataProvider(dataProvidersService)
+
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer1.externalMeasurementConsumerId
+            details = DETAILS
+            entityKey = ENTITY_KEY
+          }
+        }
+      )
+
+      // Same entity_key under a different MeasurementConsumer must succeed.
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer2.externalMeasurementConsumerId
+            details = DETAILS
+            entityKey = ENTITY_KEY
+          }
+        }
+      )
+    }
+
+  @Test
+  fun `createEventGroup allows multiple EventGroups without entity_key under same parent`(): Unit =
+    runBlocking {
+      // EventGroupsByEntityKey is NULL_FILTERED on EntityId, so legacy-style EGs (no entity_key
+      // set)
+      // are exempt from the uniqueness constraint.
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider = population.createDataProvider(dataProvidersService)
+
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+            details = DETAILS
+          }
+        }
+      )
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            providedEventGroupId = PROVIDED_EVENT_GROUP_ID_2
+            details = DETAILS
+          }
+        }
+      )
+    }
+
+  @Test
+  fun `streamEventGroups respects entity_type_in filter`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+
+    val creativeEventGroup: EventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            details = DETAILS
+            entityKey = ENTITY_KEY
+          }
+        }
+      )
+    val adGroupEventGroup: EventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            details = DETAILS
+            entityKey = ENTITY_KEY_OTHER
+          }
+        }
+      )
+    val legacyEventGroup: EventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+            details = DETAILS
+          }
+        }
+      )
+
+    val creativeOnly =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              entityTypeIn += "creative"
+            }
+          }
+        )
+        .toList()
+    assertThat(creativeOnly.map { it.externalEventGroupId })
+      .containsExactly(creativeEventGroup.externalEventGroupId)
+
+    val campaignOnly =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              entityTypeIn += "campaign"
+            }
+          }
+        )
+        .toList()
+    assertThat(campaignOnly.map { it.externalEventGroupId })
+      .containsExactly(legacyEventGroup.externalEventGroupId)
+
+    val multiple =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              entityTypeIn += "creative"
+              entityTypeIn += "ad_group"
+            }
+          }
+        )
+        .toList()
+    assertThat(multiple.map { it.externalEventGroupId })
+      .containsExactly(
+        creativeEventGroup.externalEventGroupId,
+        adGroupEventGroup.externalEventGroupId,
+      )
+
+    val noFilter =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            }
+          }
+        )
+        .toList()
+    assertThat(noFilter.map { it.externalEventGroupId })
+      .containsExactly(
+        creativeEventGroup.externalEventGroupId,
+        adGroupEventGroup.externalEventGroupId,
+        legacyEventGroup.externalEventGroupId,
+      )
+  }
+
+  @Test
+  fun `updateEventGroup changes entity_key`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val created: EventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            details = DETAILS
+            entityKey = ENTITY_KEY
+          }
+        }
+      )
+
+    eventGroupsService.updateEventGroup(
+      updateEventGroupRequest { eventGroup = created.copy { entityKey = ENTITY_KEY_OTHER } }
+    )
+
+    val fetched =
+      eventGroupsService.getEventGroup(
+        getEventGroupRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = created.externalEventGroupId
+        }
+      )
+    assertThat(fetched.entityKey).isEqualTo(ENTITY_KEY_OTHER)
+  }
+
+  @Test
+  fun `updateEventGroup to existing entity_key fails`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val eventGroupA: EventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            details = DETAILS
+            entityKey = ENTITY_KEY
+          }
+        }
+      )
+    eventGroupsService.createEventGroup(
+      createEventGroupRequest {
+        eventGroup = eventGroup {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          details = DETAILS
+          entityKey = ENTITY_KEY_OTHER
+        }
+      }
+    )
+
+    val exception =
+      assertFailsWith<SpannerException> {
+        eventGroupsService.updateEventGroup(
+          updateEventGroupRequest { eventGroup = eventGroupA.copy { entityKey = ENTITY_KEY_OTHER } }
+        )
+      }
+    assertThat(exception.errorCode).isEqualTo(SpannerErrorCode.ALREADY_EXISTS)
+  }
+
+  @Test
+  fun `updateEventGroup without entity_key clears it`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val created: EventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            details = DETAILS
+            entityKey = ENTITY_KEY
+            entityMetadata = ENTITY_METADATA
+          }
+        }
+      )
+
+    eventGroupsService.updateEventGroup(
+      updateEventGroupRequest {
+        eventGroup =
+          created.copy {
+            clearEntityKey()
+            clearEntityMetadata()
+          }
+      }
+    )
+
+    val fetched =
+      eventGroupsService.getEventGroup(
+        getEventGroupRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = created.externalEventGroupId
+        }
+      )
+    assertThat(fetched.hasEntityKey()).isFalse()
+    assertThat(fetched.hasEntityMetadata()).isFalse()
+  }
+
+  @Test
+  fun `deleteEventGroup frees the entity_key slot for reuse`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val created: EventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            details = DETAILS
+            entityKey = ENTITY_KEY
+          }
+        }
+      )
+
+    eventGroupsService.deleteEventGroup(
+      deleteEventGroupRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalEventGroupId = created.externalEventGroupId
+      }
+    )
+
+    // After delete, the entity_key slot is free; recreating the same entity_key under the same
+    // (DataProvider, MeasurementConsumer) must succeed.
+    eventGroupsService.createEventGroup(
+      createEventGroupRequest {
+        eventGroup = eventGroup {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          details = DETAILS
+          entityKey = ENTITY_KEY
+        }
+      }
+    )
+  }
+
+  @Test
+  fun `deleteEventGroup clears entity_key on Get`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val created: EventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            details = DETAILS
+            entityKey = ENTITY_KEY
+            entityMetadata = ENTITY_METADATA
+          }
+        }
+      )
+
+    eventGroupsService.deleteEventGroup(
+      deleteEventGroupRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalEventGroupId = created.externalEventGroupId
+      }
+    )
+
+    val fetched =
+      eventGroupsService.getEventGroup(
+        getEventGroupRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = created.externalEventGroupId
+        }
+      )
+    assertThat(fetched.state).isEqualTo(EventGroup.State.DELETED)
+    assertThat(fetched.hasEntityKey()).isFalse()
+  }
+
+  @Test
+  fun `createEventGroup with blank entity_id persists NULL EntityId`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+
+    val created: EventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            details = DETAILS
+            entityKey = entityKey {
+              entityType = "creative"
+              // entity_id intentionally not set (blank).
+            }
+          }
+        }
+      )
+
+    // Reader gates entity_key population on EntityId IS NOT NULL, so a blank entity_id input
+    // round-trips as an unset entity_key on the returned proto.
+    val fetched =
+      eventGroupsService.getEventGroup(
+        getEventGroupRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = created.externalEventGroupId
+        }
+      )
+    assertThat(fetched.hasEntityKey()).isFalse()
+
+    // Second EG with the same blank-entity_id key under the same (DP, MC) must succeed —
+    // EventGroupsByEntityKey is NULL_FILTERED, so NULL EntityId rows are exempt from uniqueness.
+    eventGroupsService.createEventGroup(
+      createEventGroupRequest {
+        eventGroup = eventGroup {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          details = DETAILS
+          entityKey = entityKey { entityType = "creative" }
+        }
+      }
+    )
+  }
 }
 
 data class EventGroupAndHelperServices<T : EventGroupsCoroutineImplBase>(
