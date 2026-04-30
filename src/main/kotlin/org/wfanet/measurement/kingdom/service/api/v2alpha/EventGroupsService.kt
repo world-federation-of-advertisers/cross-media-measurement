@@ -637,7 +637,7 @@ class EventGroupsService(
             if (filter.entityTypeInList.isNotEmpty()) {
               filter.entityTypeInList
             } else {
-              listOf("campaign")
+              listOf(DEFAULT_ENTITY_TYPE)
             }
           metadataSearchQuery = filter.metadataSearchQuery
           this.showDeleted = showDeleted
@@ -694,6 +694,8 @@ class EventGroupsService(
   companion object {
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 500
+    /** Substituted into `entity_type_in` when the caller omits the filter. */
+    private const val DEFAULT_ENTITY_TYPE = "campaign"
   }
 
   private fun validateActivityContainsInterval(interval: DateInterval) {

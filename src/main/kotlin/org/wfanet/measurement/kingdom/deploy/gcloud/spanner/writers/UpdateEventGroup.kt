@@ -112,7 +112,7 @@ internal suspend fun SpannerWriter.TransactionScope.updateEventGroup(
 
     if (request.hasEntityKey()) {
       set("EntityType" to request.entityKey.entityType)
-      set("EntityId" to request.entityKey.entityId.ifBlank { null })
+      set("EntityId" to request.entityKey.entityId.ifEmpty { null })
     } else {
       set("EntityType" to Table.DEFAULT_ENTITY_TYPE)
       set("EntityId" to null as String?)
