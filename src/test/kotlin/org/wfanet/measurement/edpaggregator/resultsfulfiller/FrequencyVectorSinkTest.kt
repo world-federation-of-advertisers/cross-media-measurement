@@ -46,6 +46,7 @@ class FrequencyVectorSinkTest {
         timestamp = testInstant,
         vid = vid,
         message = TestEvent.getDefaultInstance(),
+        entityKeys = emptyList(),
       )
     }
 
@@ -67,6 +68,7 @@ class FrequencyVectorSinkTest {
         celExpression = "true",
         collectionInterval = interval,
         eventGroupReferenceIds = listOf("test-event-group-1"),
+        entityKeys = emptySet(),
       )
     }
   }
