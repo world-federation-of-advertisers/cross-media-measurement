@@ -25,6 +25,41 @@ option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ImpressionMetadataProto";
 
+// Key of an entity in a DataProvider's system that an ImpressionMetadata
+// blob is associated with.
+//
+// The variant inside `key` identifies which DataProvider's taxonomy the
+// entity belongs to. Each variant carries a per-EDP enum of valid entity
+// types plus the entity's ID. Adding a new EDP means adding a new variant
+// to the `key` oneof and a new corresponding message type.
+message EntityKey {
+  // Exactly one variant must be set.
+  oneof key {
+    MetaEntityKey meta = 1;
+  }
+}
+
+// Entity key for entities in Meta's system (Facebook / Instagram).
+message MetaEntityKey {
+  // Taxonomy of entities in Meta's system that an ImpressionMetadata blob
+  // may be associated with.
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    AD = 1;
+    AD_SET = 2;
+    CAMPAIGN = 3;
+    AD_ACCOUNT = 4;
+  }
+
+  Type type = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // ID of the entity in Meta's system.
+  //
+  // Must be a URL-safe string, such that URL-encoding or -decoding results
+  // in the same string.
+  string id = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
 // Metadata for a blob of labeled impressions.
 // This resource tracks the location and context of raw data files uploaded by
 // an EDP.
@@ -86,4 +121,12 @@ message ImpressionMetadata {
   // The timestamp when this metadata entry was last updated (e.g., deleted).
   google.protobuf.Timestamp update_time = 9
       [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Entities in the DataProvider's system that the impressions in this blob
+  // are associated with.
+  //
+  // A single blob may be tagged with multiple entities. Consumers may use
+  // this field to filter blobs to a subset of entities without joining
+  // against EventGroup metadata.
+  repeated EntityKey entity_keys = 10 [(google.api.field_behavior) = OPTIONAL];
 }
