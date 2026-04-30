@@ -3,8 +3,6 @@
 # Usage: tools/gen-rbe-configs <Bazel version> <container image>
 # e.g. tools/gen-rbe-configs 4.2.0 gcr.io/ads-open-measurement/bazel:latest
 
-# DO_NOT_SUBMIT: regenerate config using new release of containers
-
 readonly bazel_version="$1"
 readonly toolchain_container="$2"
 shift 2
