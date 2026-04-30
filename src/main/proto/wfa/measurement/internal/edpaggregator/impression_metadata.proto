@@ -24,6 +24,28 @@ import "wfa/measurement/internal/edpaggregator/raw_impression_metadata_key.proto
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
 
+// Key of an entity in the DataProvider's system that an ImpressionMetadata
+// blob is associated with.
+//
+// Mirrors the semantics of the v1alpha LabeledImpression.EntityKey: an
+// ImpressionMetadata blob may be tagged with multiple entity keys (e.g. a
+// creative and a placement), enabling downstream filtering by entity without
+// having to join against EventGroup metadata.
+message EntityKey {
+  // Type of the entity in the DataProvider's system as a human- and
+  // machine-readable string.
+  //
+  // Must be a URL-safe string, such that URL-encoding or -decoding results
+  // in the same string.
+  string entity_type = 1;
+
+  // ID of the entity in the DataProvider's system.
+  //
+  // Must be a URL-safe string, such that URL-encoding or -decoding results
+  // in the same string.
+  string entity_id = 2;
+}
+
 // Proto representation of the internal ImpressionMetadata entity type.
 message ImpressionMetadata {
   string data_provider_resource_id = 1;
@@ -50,4 +72,12 @@ message ImpressionMetadata {
   // External key reference to the source RawImpressionMetadata.
   // Optional; unset when there is no source raw impression.
   RawImpressionMetadataKey raw_impression_metadata_key = 12;
+
+  // Entities in the DataProvider's system that the impressions in this blob
+  // are associated with.
+  //
+  // A single blob may be tagged with multiple entities. Consumers may use
+  // this field to filter blobs to a subset of entities without joining
+  // against EventGroup metadata.
+  repeated EntityKey entity_keys = 13;
 }
