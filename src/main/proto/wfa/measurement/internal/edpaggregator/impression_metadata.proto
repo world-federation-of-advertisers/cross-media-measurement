@@ -24,26 +24,42 @@ import "wfa/measurement/internal/edpaggregator/raw_impression_metadata_key.proto
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
 
-// Key of an entity in the DataProvider's system that an ImpressionMetadata
+// Key of an entity in a DataProvider's system that an ImpressionMetadata
 // blob is associated with.
 //
-// Mirrors the semantics of the v1alpha LabeledImpression.EntityKey: an
-// ImpressionMetadata blob may be tagged with multiple entity keys (e.g. a
-// creative and a placement), enabling downstream filtering by entity without
-// having to join against EventGroup metadata.
+// The variant inside `key` identifies which DataProvider's taxonomy the entity
+// belongs to. Each variant carries a per-EDP enum of valid entity types plus
+// the entity's ID.
+//
+// Adding a new EDP means adding a new variant to the `key` oneof and a new
+// corresponding message type (e.g. `GoogleEntityKey`). Storage and filtering
+// for a new EDP requires a corresponding child table.
 message EntityKey {
-  // Type of the entity in the DataProvider's system as a human- and
-  // machine-readable string.
-  //
-  // Must be a URL-safe string, such that URL-encoding or -decoding results
-  // in the same string.
-  string entity_type = 1;
+  // Exactly one variant must be set.
+  oneof key {
+    MetaEntityKey meta = 1;
+  }
+}
 
-  // ID of the entity in the DataProvider's system.
+// Entity key for entities in Meta's system (Facebook / Instagram).
+message MetaEntityKey {
+  // Taxonomy of entities in Meta's system that an ImpressionMetadata blob
+  // may be associated with.
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    AD = 1;
+    AD_SET = 2;
+    CAMPAIGN = 3;
+    AD_ACCOUNT = 4;
+  }
+
+  Type type = 1;
+
+  // ID of the entity in Meta's system.
   //
   // Must be a URL-safe string, such that URL-encoding or -decoding results
   // in the same string.
-  string entity_id = 2;
+  string id = 2;
 }
 
 // Proto representation of the internal ImpressionMetadata entity type.
