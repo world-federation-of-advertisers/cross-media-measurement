@@ -766,6 +766,30 @@ class EventGroupsServiceTest {
   }
 
   @Test
+  fun `createEventGroup throws INVALID_ARGUMENT if event_group_metadata has no selector`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.createEventGroup(
+              createEventGroupRequest {
+                parent = DATA_PROVIDER_NAME
+                eventGroup =
+                  EVENT_GROUP.copy {
+                    eventGroupMetadata = eventGroupMetadata {
+                      entityMetadata = ENTITY_METADATA_STRUCT
+                    }
+                  }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("event_group_metadata.selector")
+  }
+
+  @Test
   fun `createEventGroup throws INVALID_ARGUMENT if data_availability_interval has no start_time`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {

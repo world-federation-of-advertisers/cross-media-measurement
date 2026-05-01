@@ -20,7 +20,9 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
+import com.google.protobuf.struct
 import com.google.protobuf.timestamp
+import com.google.protobuf.value
 import com.google.type.date
 import com.google.type.dateTime
 import com.google.type.interval
@@ -88,6 +90,7 @@ import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.metricSpecConfig
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey as edpaEntityKey
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
@@ -95,6 +98,7 @@ import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.common.AccessServicesFactory
+import org.wfanet.measurement.integration.common.EventGroupEntityOverride
 import org.wfanet.measurement.integration.common.FULFILLER_TOPIC_ID
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
@@ -122,6 +126,7 @@ import org.wfanet.measurement.reporting.v2alpha.CreateBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as ReportingEventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
+import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.Report
@@ -198,6 +203,30 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       "edp4" to mapOf("edp4-eg-ref-1" to syntheticEventGroupSpec1),
     )
 
+  // Mix of entity_key shapes so the test exercises every path the workstream cares about:
+  //   - edp1: no override (legacy path; Kingdom defaults entity_type="campaign", entity_id NULL).
+  //   - edp2, edp3: overridden with entity_type="campaign" + entity_id + metadata.
+  //   - edp4: overridden with entity_type="ad_group" (non-default type round-trip).
+  // listReportingEventGroups() filters entity_type_in=["campaign", "ad_group"] so edp4 stays
+  // visible to the HMSS/TrusTee correctness tests despite its non-default entity_type.
+  private val entityOverridesByEdp: Map<String, Map<String, EventGroupEntityOverride>> =
+    syntheticEventGroupMapByEdp
+      .filterKeys { it != LEGACY_EDP_DISPLAY_NAME }
+      .mapValues { (edpDisplayName, edpRefs) ->
+        edpRefs.keys.associateWith { refId ->
+          val entityType =
+            if (edpDisplayName == AD_GROUP_EDP_DISPLAY_NAME) "ad_group" else "campaign"
+          EventGroupEntityOverride(
+            entityKey =
+              edpaEntityKey {
+                this.entityType = entityType
+                this.entityId = refId
+              },
+            entityMetadata = ENTITY_METADATA,
+          )
+        }
+      }
+
   private val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents =
     InProcessEdpAggregatorComponents(
       secureComputationDatabaseAdmin = secureComputationDatabaseAdmin,
@@ -207,6 +236,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       syntheticPopulationSpec = syntheticPopulationSpec,
       modelLineInfoMap = modelLineInfoMap,
       externalKmsClient = sharedKmsClient,
+      entityOverridesByEdp = entityOverridesByEdp,
     )
 
   private val daemonsStartup = TestRule { base, _ ->
@@ -626,6 +656,50 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
   }
 
+  @Test
+  fun `EDPA EventGroups with explicit entity_key round-trip to the Reporting API`() = runBlocking {
+    val byRefId: Map<String, EventGroup> =
+      listReportingEventGroups().associateBy { it.eventGroupReferenceId }
+
+    for ((_, refOverrides) in entityOverridesByEdp) {
+      for ((refId, override) in refOverrides) {
+        val eventGroup = byRefId.getValue(refId)
+        assertWithMessage("entity_key.entity_type for $refId")
+          .that(eventGroup.entityKey.entityType)
+          .isEqualTo(override.entityKey!!.entityType)
+        assertWithMessage("entity_key.entity_id for $refId")
+          .that(eventGroup.entityKey.entityId)
+          .isEqualTo(override.entityKey!!.entityId)
+        assertWithMessage("entity_metadata for $refId")
+          .that(eventGroup.eventGroupMetadata.entityMetadata)
+          .isEqualTo(override.entityMetadata)
+      }
+    }
+  }
+
+  @Test
+  fun `EDPA EventGroups without entity_key default to campaign with no entity_id or metadata`() =
+    runBlocking {
+      val byRefId: Map<String, EventGroup> =
+        listReportingEventGroups().associateBy { it.eventGroupReferenceId }
+
+      val legacy = byRefId.getValue(LEGACY_EDP_EVENT_GROUP_REF_ID)
+      assertThat(legacy.entityKey.entityType).isEqualTo("campaign")
+      assertThat(legacy.entityKey.entityId).isEmpty()
+      assertThat(legacy.eventGroupMetadata.hasEntityMetadata()).isFalse()
+    }
+
+  @Test
+  fun `EDPA EventGroups with non-default entity_type round-trip through Reporting`() = runBlocking {
+    val byRefId: Map<String, EventGroup> =
+      listReportingEventGroups().associateBy { it.eventGroupReferenceId }
+
+    val adGroupEventGroup = byRefId.getValue(AD_GROUP_EDP_EVENT_GROUP_REF_ID)
+    assertThat(adGroupEventGroup.entityKey.entityType).isEqualTo("ad_group")
+    assertThat(adGroupEventGroup.entityKey.entityId).isEqualTo(AD_GROUP_EDP_EVENT_GROUP_REF_ID)
+    assertThat(adGroupEventGroup.eventGroupMetadata.entityMetadata).isEqualTo(ENTITY_METADATA)
+  }
+
   /**
    * Checks structural invariants on basic report results: all metrics are positive, k+ reach is
    * monotonically non-increasing, and component-level metrics are present.
@@ -942,6 +1016,13 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         listEventGroupsRequest {
           parent = measurementConsumerData.name
           pageSize = 1000
+          // Default entity_type_in is ["campaign"], which would hide AD_GROUP_EDP's EventGroup.
+          // Include both so HMSS/TrusTee correctness tests still see every expected EDP.
+          structuredFilter =
+            ListEventGroupsRequestKt.filter {
+              entityTypeIn += "campaign"
+              entityTypeIn += "ad_group"
+            }
         }
       )
       .eventGroupsList
@@ -1123,7 +1204,15 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
 
   companion object {
-    private const val RESTRICTED_EDP_DISPLAY_NAME = "edp4"
+    // edp1 has no entity_key/entity_metadata override (legacy path).
+    // edp4 is configured with multi-party noise CONTINUOUS_GAUSSIAN, so it's the "restricted"
+    // EDP for the no-noise failure path tests; the same EDP also carries the non-default
+    // entity_type ("ad_group") in this fixture.
+    private const val LEGACY_EDP_DISPLAY_NAME = "edp1"
+    private const val LEGACY_EDP_EVENT_GROUP_REF_ID = "edp1-eg-ref-1"
+    private const val AD_GROUP_EDP_DISPLAY_NAME = "edp4"
+    private const val AD_GROUP_EDP_EVENT_GROUP_REF_ID = "edp4-eg-ref-1"
+    private const val RESTRICTED_EDP_DISPLAY_NAME = AD_GROUP_EDP_DISPLAY_NAME
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val SECRETS_DIR: File =
       getRuntimePath(
@@ -1355,5 +1444,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
 
     @get:ClassRule @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
+
+    private val ENTITY_METADATA = struct {
+      fields["placement"] = value { stringValue = "homepage_top" }
+      fields["objective"] = value { stringValue = "awareness" }
+    }
   }
 }

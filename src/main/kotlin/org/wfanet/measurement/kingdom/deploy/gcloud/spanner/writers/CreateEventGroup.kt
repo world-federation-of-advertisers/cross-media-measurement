@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.ErrorCode as SpannerErrorCode
+import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Value
 import com.google.protobuf.Timestamp
 import org.wfanet.measurement.common.identity.ExternalId
@@ -28,6 +30,7 @@ import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupEntityKeyAlreadyExistsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
@@ -40,6 +43,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * Throws one of the following [KingdomInternalException] types on [execute].
  * * [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  * * [DataProviderNotFoundException] DataProvider not found
+ * * [EventGroupEntityKeyAlreadyExistsException] An EventGroup with the same `entity_key` already
+ *   exists for this (DataProvider, MeasurementConsumer)
  */
 class CreateEventGroup(private val request: CreateEventGroupRequest) :
   SpannerWriter<EventGroup, EventGroup>() {
@@ -81,6 +86,13 @@ class CreateEventGroup(private val request: CreateEventGroupRequest) :
         createTime = commitTime
         updateTime = commitTime
       }
+    }
+  }
+
+  override suspend fun handleSpannerException(e: SpannerException): EventGroup? {
+    when (e.errorCode) {
+      SpannerErrorCode.ALREADY_EXISTS -> throw EventGroupEntityKeyAlreadyExistsException(cause = e)
+      else -> throw e
     }
   }
 }

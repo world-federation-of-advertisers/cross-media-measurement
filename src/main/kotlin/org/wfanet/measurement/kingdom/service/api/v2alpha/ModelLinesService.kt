@@ -324,6 +324,7 @@ class ModelLinesService(
             ErrorCode.API_KEY_NOT_FOUND,
             ErrorCode.EVENT_GROUP_ACTIVITY_NOT_FOUND,
             ErrorCode.EVENT_GROUP_NOT_FOUND,
+            ErrorCode.EVENT_GROUP_ENTITY_KEY_ALREADY_EXISTS,
             ErrorCode.EVENT_GROUP_INVALID_ARGS,
             ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
             ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_ALREADY_EXISTS_WITH_TYPE,

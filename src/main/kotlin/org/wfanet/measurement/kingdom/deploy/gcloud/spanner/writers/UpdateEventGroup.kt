@@ -14,9 +14,11 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.ErrorCode as SpannerErrorCode
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
+import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Value
 import com.google.protobuf.Struct
 import com.google.type.endTimeOrNull
@@ -34,6 +36,7 @@ import org.wfanet.measurement.gcloud.spanner.to
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupDetails
 import org.wfanet.measurement.internal.kingdom.MediaType
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupEntityKeyAlreadyExistsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
@@ -47,6 +50,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupRe
  * * [EventGroupNotFoundException] EventGroup not found
  * * [EventGroupStateIllegalException] EventGroup state is DELETED
  * * [EventGroupInvalidArgsException] MeasurementConsumer ids mismatch
+ * * [EventGroupEntityKeyAlreadyExistsException] An EventGroup with the same `entity_key` already
+ *   exists for this (DataProvider, MeasurementConsumer)
  */
 class UpdateEventGroup(private val request: EventGroup) : SpannerWriter<EventGroup, EventGroup>() {
   override suspend fun TransactionScope.runTransaction(): EventGroup {
@@ -65,6 +70,13 @@ class UpdateEventGroup(private val request: EventGroup) : SpannerWriter<EventGro
 
   override fun ResultScope<EventGroup>.buildResult(): EventGroup {
     return request.toBuilder().apply { updateTime = commitTimestamp.toProto() }.build()
+  }
+
+  override suspend fun handleSpannerException(e: SpannerException): EventGroup? {
+    when (e.errorCode) {
+      SpannerErrorCode.ALREADY_EXISTS -> throw EventGroupEntityKeyAlreadyExistsException(cause = e)
+      else -> throw e
+    }
   }
 }
 

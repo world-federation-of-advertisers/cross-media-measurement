@@ -134,4 +134,7 @@ enum ErrorCode {
   /** ClientAccount with the same DataProvider and reference ID already exists.
    */
   CLIENT_ACCOUNT_ALREADY_EXISTS = 54;
+  /** EventGroup with the same entity_key already exists for the
+   * (DataProvider, MeasurementConsumer) pair. */
+  EVENT_GROUP_ENTITY_KEY_ALREADY_EXISTS = 55;
 }

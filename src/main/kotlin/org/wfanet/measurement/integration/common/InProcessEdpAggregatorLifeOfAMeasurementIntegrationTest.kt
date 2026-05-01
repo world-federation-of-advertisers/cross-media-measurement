@@ -14,9 +14,14 @@
 
 package org.wfanet.measurement.integration.common
 
+import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
+import com.google.protobuf.struct
+import com.google.protobuf.value
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.logging.Logger
@@ -43,10 +48,13 @@ import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey as edpaEntityKey
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
@@ -115,6 +123,27 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec> =
     syntheticEventGroupMapByEdp.values.flatMap { it.entries }.associate { it.key to it.value }
 
+  // edp1 is intentionally absent from this map so its EventGroup is created without entity_key
+  // and entity_metadata, exercising the legacy path: Kingdom's schema default sets entity_type to
+  // "campaign" and leaves entity_id and entity_metadata unset. The simulator's ListEventGroups
+  // uses the default filter (entity_type_in defaults to ["campaign"]), so edp1 stays visible to
+  // existing measurement tests.
+  private val entityOverridesByEdp: Map<String, Map<String, EventGroupEntityOverride>> =
+    syntheticEventGroupMapByEdp
+      .filterKeys { it != LEGACY_EDP_DISPLAY_NAME }
+      .mapValues { (_, edpRefs) ->
+        edpRefs.keys.associateWith { refId ->
+          EventGroupEntityOverride(
+            entityKey =
+              edpaEntityKey {
+                entityType = "campaign"
+                entityId = refId
+              },
+            entityMetadata = ENTITY_METADATA,
+          )
+        }
+      }
+
   @get:Rule
   val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents =
     InProcessEdpAggregatorComponents(
@@ -125,6 +154,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       syntheticPopulationSpec = syntheticPopulationSpec,
       modelLineInfoMap = modelLineInfoMap,
       externalKmsClient = sharedKmsClient,
+      entityOverridesByEdp = entityOverridesByEdp,
     )
 
   @Before
@@ -276,7 +306,9 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       mcSimulator.testReachOnly(
         "1234",
         ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
-        eventGroupFilter = { it.eventGroupReferenceId != RESTRICTED_EDP_EVENT_GROUP_REF_ID },
+        eventGroupFilter = {
+          it.eventGroupReferenceId != MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID
+        },
       )
     }
 
@@ -287,7 +319,9 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       mcSimulator.testReachAndFrequency(
         "1234",
         ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
-        eventGroupFilter = { it.eventGroupReferenceId != RESTRICTED_EDP_EVENT_GROUP_REF_ID },
+        eventGroupFilter = {
+          it.eventGroupReferenceId != MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID
+        },
       )
     }
 
@@ -298,7 +332,9 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       mcSimulator.testReachOnly(
         "1234",
         ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
-        eventGroupFilter = { it.eventGroupReferenceId != RESTRICTED_EDP_EVENT_GROUP_REF_ID },
+        eventGroupFilter = {
+          it.eventGroupReferenceId != MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID
+        },
       )
     }
 
@@ -310,7 +346,9 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       mcSimulator.testReachAndFrequency(
         "1234",
         ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
-        eventGroupFilter = { it.eventGroupReferenceId != RESTRICTED_EDP_EVENT_GROUP_REF_ID },
+        eventGroupFilter = {
+          it.eventGroupReferenceId != MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID
+        },
       )
     }
 
@@ -321,7 +359,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         mcSimulator.testReachOnly(
           "hmss-no-noise-1234",
           ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
-          eventGroupFilter = { it.eventGroupReferenceId in HMSS_RESTRICTED_EVENT_GROUP_REF_IDS },
+          eventGroupFilter = { it.eventGroupReferenceId in HMSS_NO_NOISE_EVENT_GROUP_REF_IDS },
         )
       }
     }
@@ -334,18 +372,93 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         mcSimulator.testReachOnly(
           "trustee-no-noise-1234",
           ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
-          eventGroupFilter = { it.eventGroupReferenceId in TRUSTEE_RESTRICTED_EVENT_GROUP_REF_IDS },
+          eventGroupFilter = { it.eventGroupReferenceId in TRUSTEE_NO_NOISE_EVENT_GROUP_REF_IDS },
         )
       }
     }
   }
 
+  @Test
+  fun `EDPA-registered EventGroups with entity_key round-trip to the CMMS public API`() =
+    runBlocking {
+      val edpDisplayNameToResourceMap = inProcessCmmsComponents.edpDisplayNameToResourceMap
+
+      for ((edpDisplayName, refOverrides) in entityOverridesByEdp) {
+        val edpResourceName = edpDisplayNameToResourceMap.getValue(edpDisplayName).name
+        val response =
+          publicEventGroupsClient
+            .withPrincipalName(edpResourceName)
+            .listEventGroups(
+              listEventGroupsRequest {
+                parent = edpResourceName
+                pageSize = 1000
+              }
+            )
+
+        val byRefId = response.eventGroupsList.associateBy { it.eventGroupReferenceId }
+        assertWithMessage("EventGroups for $edpDisplayName")
+          .that(byRefId.keys)
+          .containsAtLeastElementsIn(refOverrides.keys)
+
+        for ((refId, override) in refOverrides) {
+          val eventGroup = byRefId.getValue(refId)
+          assertWithMessage("entity_key.entity_type for $refId")
+            .that(eventGroup.entityKey.entityType)
+            .isEqualTo(override.entityKey!!.entityType)
+          assertWithMessage("entity_key.entity_id for $refId")
+            .that(eventGroup.entityKey.entityId)
+            .isEqualTo(override.entityKey!!.entityId)
+          assertWithMessage("entity_metadata for $refId")
+            .that(eventGroup.eventGroupMetadata.entityMetadata)
+            .isEqualTo(override.entityMetadata)
+        }
+      }
+    }
+
+  @Test
+  fun `EDPA EventGroups without entity_key default to campaign with no entity_id or metadata`() =
+    runBlocking {
+      val edpDisplayNameToResourceMap = inProcessCmmsComponents.edpDisplayNameToResourceMap
+      val edpResourceName = edpDisplayNameToResourceMap.getValue(LEGACY_EDP_DISPLAY_NAME).name
+
+      val response =
+        publicEventGroupsClient
+          .withPrincipalName(edpResourceName)
+          .listEventGroups(
+            listEventGroupsRequest {
+              parent = edpResourceName
+              pageSize = 1000
+            }
+          )
+
+      val legacy =
+        response.eventGroupsList.single {
+          it.eventGroupReferenceId == LEGACY_EDP_EVENT_GROUP_REF_ID
+        }
+      assertThat(legacy.entityKey.entityType).isEqualTo("campaign")
+      assertThat(legacy.entityKey.entityId).isEmpty()
+      assertThat(legacy.eventGroupMetadata.hasEntityMetadata()).isFalse()
+    }
+
   companion object {
-    private const val RESTRICTED_EDP_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-4"
-    private val HMSS_RESTRICTED_EVENT_GROUP_REF_IDS =
-      setOf("edpa-eg-reference-id-1", RESTRICTED_EDP_EVENT_GROUP_REF_ID)
-    private val TRUSTEE_RESTRICTED_EVENT_GROUP_REF_IDS =
-      setOf("edpa-eg-reference-id-3", RESTRICTED_EDP_EVENT_GROUP_REF_ID)
+    // edp1 deliberately has no entity_key/entity_metadata override (legacy path); it also happens
+    // to be the EDP that requires no measurement noise on the HMSS protocol, used by the
+    // HMSS-failure path test.
+    private const val LEGACY_EDP_DISPLAY_NAME = "edp1"
+    private const val LEGACY_EDP_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-1"
+    private const val HMSS_NO_NOISE_EDP_EVENT_GROUP_REF_ID = LEGACY_EDP_EVENT_GROUP_REF_ID
+    private const val TRUSTEE_NO_NOISE_EDP_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-3"
+    private const val MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-4"
+
+    /** EventGroups whose EDPs cannot satisfy a single-party HMSS measurement's noise contract. */
+    private val HMSS_NO_NOISE_EVENT_GROUP_REF_IDS =
+      setOf(HMSS_NO_NOISE_EDP_EVENT_GROUP_REF_ID, MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID)
+
+    /**
+     * EventGroups whose EDPs cannot satisfy a single-party TrusTee measurement's noise contract.
+     */
+    private val TRUSTEE_NO_NOISE_EVENT_GROUP_REF_IDS =
+      setOf(TRUSTEE_NO_NOISE_EDP_EVENT_GROUP_REF_ID, MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID)
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val modelLineName =
@@ -425,5 +538,10 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     }
 
     @get:ClassRule @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
+
+    private val ENTITY_METADATA = struct {
+      fields["placement"] = value { stringValue = "homepage_top" }
+      fields["objective"] = value { stringValue = "awareness" }
+    }
   }
 }

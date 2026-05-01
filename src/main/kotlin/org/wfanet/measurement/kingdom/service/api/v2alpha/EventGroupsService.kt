@@ -106,6 +106,13 @@ import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalG
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest as internalUpdateEventGroupRequest
 
+/**
+ * Default `entity_type` substituted into the public-API response for legacy EventGroups whose
+ * internal record carries no `entity_key`, and into the `entity_type_in` filter when a caller omits
+ * it. Mirrors the column DEFAULT in `add-event-group-entity-key.sql`.
+ */
+private const val DEFAULT_ENTITY_TYPE = "campaign"
+
 class EventGroupsService(
   private val internalEventGroupsStub: InternalEventGroupsCoroutineStub,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
@@ -225,6 +232,7 @@ class EventGroupsService(
         Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
         Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS
         else -> Status.UNKNOWN
       }.toExternalStatusRuntimeException(e)
     }
@@ -292,6 +300,7 @@ class EventGroupsService(
         Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
         Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS
         else -> Status.UNKNOWN
       }.toExternalStatusRuntimeException(e)
     }
@@ -321,6 +330,7 @@ class EventGroupsService(
         Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
         Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS
         else -> Status.UNKNOWN
       }.toExternalStatusRuntimeException(e)
     }
@@ -383,6 +393,7 @@ class EventGroupsService(
         Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
         Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS
         else -> Status.UNKNOWN
       }.toExternalStatusRuntimeException(e)
     }
@@ -431,6 +442,18 @@ class EventGroupsService(
         ) {
           "data_availability_interval start_time must be before end_time"
         }
+      }
+    }
+
+    // The `selector` oneof on EventGroupMetadata is "// Required." in the public proto. Reject
+    // requests that set event_group_metadata without picking a selector (e.g. only entity_metadata)
+    // with INVALID_ARGUMENT rather than letting the converter throw IllegalStateException.
+    if (requestEventGroup.hasEventGroupMetadata()) {
+      grpcRequire(
+        requestEventGroup.eventGroupMetadata.selectorCase !=
+          EventGroupMetadata.SelectorCase.SELECTOR_NOT_SET
+      ) {
+        "event_group_metadata.selector is required (e.g. event_group_metadata.ad_metadata)"
       }
     }
   }
@@ -694,8 +717,6 @@ class EventGroupsService(
   companion object {
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 500
-    /** Substituted into `entity_type_in` when the caller omits the filter. */
-    private const val DEFAULT_ENTITY_TYPE = "campaign"
   }
 
   private fun validateActivityContainsInterval(interval: DateInterval) {
@@ -814,9 +835,16 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
     }
     state = source.state.toV2Alpha()
     aggregatedActivities += source.aggregatedActivitiesList.map { it.toAggregatedActivity() }
-    if (source.hasEntityKey()) {
-      entityKey = source.entityKey.toEntityKey()
-    }
+    entityKey =
+      if (source.hasEntityKey()) {
+        source.entityKey.toEntityKey()
+      } else {
+        // Legacy EventGroups created before entity_key existed surface with the schema's column
+        // default; see add-event-group-entity-key.sql. The internal proto preserves the
+        // "no entity_key supplied" intent signal (#3729); this default is the public-API
+        // backwards-compat promise from cross-media-measurement-api PR #275.
+        EventGroupKt.entityKey { entityType = DEFAULT_ENTITY_TYPE }
+      }
   }
 }
 

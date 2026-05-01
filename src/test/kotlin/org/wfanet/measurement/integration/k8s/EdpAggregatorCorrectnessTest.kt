@@ -18,7 +18,9 @@ package org.wfanet.measurement.integration.k8s
 
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
+import com.google.protobuf.struct
 import com.google.protobuf.timestamp
+import com.google.protobuf.value
 import com.google.type.interval
 import io.grpc.ManagedChannel
 import java.net.URI
@@ -63,6 +65,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
@@ -189,6 +192,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
               .atTime(23, 59, 59)
               .atZone(ZONE_ID)
               .toInstant()
+          // EDP1 carries the default-shape entity_key (entity_type="campaign"); EDP2 carries a
+          // non-default entity_type ("ad_group") so the deployed Kingdom + Reporting stack
+          // exercises both paths end-to-end on cluster.
+          val eventGroupEntityType =
+            if (eventGroupReferenceId == GROUP_REFERENCE_ID_EDPA_EDP2) "ad_group" else "campaign"
           eventGroup {
             this.eventGroupReferenceId = eventGroupReferenceId
             measurementConsumer = TEST_CONFIG.measurementConsumer
@@ -203,6 +211,14 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
                   campaign = "some-campaign"
                 }
               }
+              this.entityMetadata = struct {
+                fields["placement"] = value { stringValue = "homepage_top" }
+                fields["objective"] = value { stringValue = "awareness" }
+              }
+            }
+            this.entityKey = entityKey {
+              entityType = eventGroupEntityType
+              entityId = eventGroupReferenceId
             }
             mediaTypes += MediaType.valueOf("VIDEO")
           }
@@ -291,6 +307,12 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     override val mcSimulator: MeasurementConsumerSimulator
       get() = _mcSimulator
+
+    override val publicEventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub by lazy {
+      EventGroupsGrpcKt.EventGroupsCoroutineStub(publicApiChannel)
+    }
+    override val measurementConsumerName: String = TEST_CONFIG.measurementConsumer
+    override val apiAuthenticationKey: String = TEST_CONFIG.apiAuthenticationKey
 
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {

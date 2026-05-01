@@ -14,8 +14,6 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
-import com.google.cloud.spanner.ErrorCode as SpannerErrorCode
-import com.google.cloud.spanner.SpannerException
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
@@ -2512,7 +2510,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     )
 
     val exception =
-      assertFailsWith<SpannerException> {
+      assertFailsWith<StatusRuntimeException> {
         eventGroupsService.createEventGroup(
           createEventGroupRequest {
             eventGroup = eventGroup {
@@ -2525,7 +2523,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         )
       }
 
-    assertThat(exception.errorCode).isEqualTo(SpannerErrorCode.ALREADY_EXISTS)
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
   }
 
   @Test
@@ -2788,12 +2786,12 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     )
 
     val exception =
-      assertFailsWith<SpannerException> {
+      assertFailsWith<StatusRuntimeException> {
         eventGroupsService.updateEventGroup(
           updateEventGroupRequest { eventGroup = eventGroupA.copy { entityKey = ENTITY_KEY_OTHER } }
         )
       }
-    assertThat(exception.errorCode).isEqualTo(SpannerErrorCode.ALREADY_EXISTS)
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
   }
 
   @Test

@@ -731,6 +731,15 @@ class EventGroupMetadataDescriptorAlreadyExistsWithTypeException(
     get() = emptyMap()
 }
 
+class EventGroupEntityKeyAlreadyExistsException(
+  cause: Throwable? = null,
+  message: String =
+    "EventGroup with the same entity_key already exists for the (DataProvider, MeasurementConsumer) pair",
+) : KingdomInternalException(ErrorCode.EVENT_GROUP_ENTITY_KEY_ALREADY_EXISTS, message, cause) {
+  override val context: Map<String, String>
+    get() = emptyMap()
+}
+
 class RecurringExchangeNotFoundException(
   val externalRecurringExchangeId: ExternalId,
   provideDescription: () -> String = { "RecurringExchange not found" },

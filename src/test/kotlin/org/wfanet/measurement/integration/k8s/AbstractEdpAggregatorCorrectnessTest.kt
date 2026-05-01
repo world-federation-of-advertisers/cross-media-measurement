@@ -16,13 +16,18 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import com.google.common.truth.Truth.assertThat
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -110,9 +115,43 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       )
     }
 
+  @Test
+  fun `EDPA-registered EventGroups carry entity_key and entity_metadata via the CMMS public API`() =
+    runBlocking {
+      val response =
+        measurementSystem.publicEventGroupsStub
+          .withAuthenticationKey(measurementSystem.apiAuthenticationKey)
+          .listEventGroups(
+            listEventGroupsRequest {
+              parent = measurementSystem.measurementConsumerName
+              pageSize = 100
+              // Default entity_type_in is ["campaign"], which would hide the ad_group EventGroup.
+              filter =
+                ListEventGroupsRequestKt.filter {
+                  entityTypeIn += "campaign"
+                  entityTypeIn += "ad_group"
+                }
+            }
+          )
+
+      val byRefId = response.eventGroupsList.associateBy { it.eventGroupReferenceId }
+      val edp1 = byRefId.getValue("edpa-eg-reference-id-1")
+      assertThat(edp1.entityKey.entityType).isEqualTo("campaign")
+      assertThat(edp1.entityKey.entityId).isEqualTo("edpa-eg-reference-id-1")
+      assertThat(edp1.eventGroupMetadata.entityMetadata.fieldsMap).containsKey("placement")
+
+      val edp2 = byRefId.getValue("edpa-eg-reference-id-2")
+      assertThat(edp2.entityKey.entityType).isEqualTo("ad_group")
+      assertThat(edp2.entityKey.entityId).isEqualTo("edpa-eg-reference-id-2")
+      assertThat(edp2.eventGroupMetadata.entityMetadata.fieldsMap).containsKey("placement")
+    }
+
   interface MeasurementSystem {
     val runId: String
     val mcSimulator: MeasurementConsumerSimulator
+    val publicEventGroupsStub: EventGroupsCoroutineStub
+    val measurementConsumerName: String
+    val apiAuthenticationKey: String
   }
 
   companion object {
