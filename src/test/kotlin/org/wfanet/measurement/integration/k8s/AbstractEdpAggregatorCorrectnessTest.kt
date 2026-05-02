@@ -146,6 +146,24 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       assertThat(edp2.eventGroupMetadata.entityMetadata.fieldsMap).containsKey("placement")
     }
 
+  @Test
+  fun `default ListEventGroups filter hides non-campaign EventGroups`() = runBlocking {
+    val response =
+      measurementSystem.publicEventGroupsStub
+        .withAuthenticationKey(measurementSystem.apiAuthenticationKey)
+        .listEventGroups(
+          listEventGroupsRequest {
+            parent = measurementSystem.measurementConsumerName
+            pageSize = 100
+            // No filter — server defaults entity_type_in to ["campaign"].
+          }
+        )
+
+    val refIds = response.eventGroupsList.map { it.eventGroupReferenceId }.toSet()
+    assertThat(refIds).contains("edpa-eg-reference-id-1")
+    assertThat(refIds).doesNotContain("edpa-eg-reference-id-2")
+  }
+
   interface MeasurementSystem {
     val runId: String
     val mcSimulator: MeasurementConsumerSimulator
