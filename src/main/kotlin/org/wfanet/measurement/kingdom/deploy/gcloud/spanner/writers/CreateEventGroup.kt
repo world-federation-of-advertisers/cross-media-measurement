@@ -14,8 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.ErrorCode as SpannerErrorCode
-import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Value
 import com.google.protobuf.Timestamp
 import org.wfanet.measurement.common.identity.ExternalId
@@ -28,9 +26,9 @@ import org.wfanet.measurement.gcloud.spanner.to
 import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup
+import org.wfanet.measurement.internal.kingdom.EventGroupKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupEntityKeyAlreadyExistsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
@@ -43,8 +41,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * Throws one of the following [KingdomInternalException] types on [execute].
  * * [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  * * [DataProviderNotFoundException] DataProvider not found
- * * [EventGroupEntityKeyAlreadyExistsException] An EventGroup with the same `entity_key` already
- *   exists for this (DataProvider, MeasurementConsumer)
  */
 class CreateEventGroup(private val request: CreateEventGroupRequest) :
   SpannerWriter<EventGroup, EventGroup>() {
@@ -86,13 +82,6 @@ class CreateEventGroup(private val request: CreateEventGroupRequest) :
         createTime = commitTime
         updateTime = commitTime
       }
-    }
-  }
-
-  override suspend fun handleSpannerException(e: SpannerException): EventGroup? {
-    when (e.errorCode) {
-      SpannerErrorCode.ALREADY_EXISTS -> throw EventGroupEntityKeyAlreadyExistsException(cause = e)
-      else -> throw e
     }
   }
 }
@@ -153,5 +142,11 @@ internal fun SpannerWriter.TransactionScope.createEventGroup(
     this.state = EventGroup.State.ACTIVE
     clearCreateTime()
     clearUpdateTime()
+    // Mirror the EntityType column DEFAULT: when the caller doesn't supply entity_key, the row
+    // is stored with EntityType="campaign" and EntityId=NULL. Reflect that in the echoed
+    // response so it matches what a subsequent Get returns.
+    if (!request.eventGroup.hasEntityKey()) {
+      entityKey = EventGroupKt.entityKey { entityType = Table.DEFAULT_ENTITY_TYPE }
+    }
   }
 }

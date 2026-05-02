@@ -14,8 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.ErrorCode as SpannerErrorCode
-import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Timestamp
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
@@ -25,7 +23,6 @@ import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.batchCreateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupEntityKeyAlreadyExistsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
@@ -40,8 +37,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * @throws [DataProviderNotFoundException] when the DataProvider for the EventGroups is not found
  * @throws [MeasurementConsumerNotFoundException] when a MeasurementConsumer for an EventGroup is
  *   not found
- * @throws [EventGroupEntityKeyAlreadyExistsException] when an EventGroup with the same `entity_key`
- *   already exists for its (DataProvider, MeasurementConsumer)
  */
 class BatchCreateEventGroups(private val request: BatchCreateEventGroupsRequest) :
   SpannerWriter<BatchCreateEventGroupsResponse, BatchCreateEventGroupsResponse>() {
@@ -105,15 +100,6 @@ class BatchCreateEventGroups(private val request: BatchCreateEventGroupsRequest)
             }
           }
         }
-    }
-  }
-
-  override suspend fun handleSpannerException(
-    e: SpannerException
-  ): BatchCreateEventGroupsResponse? {
-    when (e.errorCode) {
-      SpannerErrorCode.ALREADY_EXISTS -> throw EventGroupEntityKeyAlreadyExistsException(cause = e)
-      else -> throw e
     }
   }
 }
