@@ -1,0 +1,6 @@
+review:
+  enable: true
+  instructions: |
+    Review PRs for code quality, security, readability, and missing documentation.
+  comment_style: inline
+  max_comments: 20
