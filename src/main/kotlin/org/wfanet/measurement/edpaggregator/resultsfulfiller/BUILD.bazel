@@ -109,6 +109,7 @@ kt_jvm_library(
     srcs = ["EventBatch.kt"],
     deps = [
         ":labeled_event",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )
