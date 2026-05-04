@@ -30,8 +30,10 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt.entityKey
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 
 @RunWith(JUnit4::class)
 class FilterProcessorTest {
@@ -80,11 +82,20 @@ class FilterProcessorTest {
   }
 
   /** Helper function to create an EventBatch with proper minTime and maxTime. */
-  private fun createEventBatch(events: List<LabeledEvent<Message>>): EventBatch<Message> {
+  private fun createEventBatch(
+    events: List<LabeledEvent<Message>>,
+    entityKeys: List<EntityKeyGroup> = emptyList(),
+  ): EventBatch<Message> {
     val timestamps = events.map { it.timestamp }
     val minTime = timestamps.minOrNull() ?: Instant.now()
     val maxTime = timestamps.maxOrNull() ?: Instant.now()
-    return EventBatch(events, minTime, maxTime, eventGroupReferenceId = "test-group")
+    return EventBatch(
+      events,
+      minTime,
+      maxTime,
+      eventGroupReferenceId = "test-group",
+      entityKeys = entityKeys,
+    )
   }
 
   /** Helper function to create a default interval that covers a wide time range. */
@@ -118,6 +129,13 @@ class FilterProcessorTest {
     entityKey {
       entityType = type
       entityId = id
+    }
+
+  /** Helper function to build an [EntityKeyGroup] for a single (type, ids...) tuple. */
+  private fun makeEntityKeyGroup(type: String, vararg ids: String): EntityKeyGroup =
+    entityKeyGroup {
+      entityType = type
+      entityIds += ids.toList()
     }
 
   @Test
@@ -515,7 +533,7 @@ class FilterProcessorTest {
           ),
         )
 
-      val result = filterProcessor.processBatch(createEventBatch(events))
+      val result = filterProcessor.processBatch(createEventBatch(events, entityKeys = listOf(makeEntityKeyGroup("ad", "X", "Y"))))
 
       assertThat(result.events.map { it.vid }).containsExactly(1L, 2L).inOrder()
     }
@@ -591,7 +609,7 @@ class FilterProcessorTest {
           ),
         )
 
-      val result = filterProcessor.processBatch(createEventBatch(events))
+      val result = filterProcessor.processBatch(createEventBatch(events, entityKeys = listOf(makeEntityKeyGroup("ad", "X"))))
 
       assertThat(result.events.map { it.vid }).containsExactly(1L)
     }
@@ -616,7 +634,7 @@ class FilterProcessorTest {
           createTestLabeledEvent(vid = 2, entityKeys = listOf(makeEntityKey("ad", "Y"))),
         )
 
-      val result = filterProcessor.processBatch(createEventBatch(events))
+      val result = filterProcessor.processBatch(createEventBatch(events, entityKeys = listOf(makeEntityKeyGroup("ad", "X", "Y"))))
 
       // Batch's event_group_reference_id "test-group" is NOT in the spec, but it is processed
       // anyway because entityKeys takes precedence.
@@ -647,6 +665,64 @@ class FilterProcessorTest {
       eventGroupReferenceIds = emptyList(),
       entityKeys = setOf(makeEntityKey("ad", "X")),
     )
+  }
+
+  @Test
+  fun `processBatch with batch entityKeys overlapping the filter passes events through`() {
+    runBlocking {
+      val targetKey = makeEntityKey("ad", "X")
+      val filterSpec = createTestFilterSpec(entityKeys = setOf(targetKey))
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+
+      // Batch carries an EntityKeyGroup that overlaps the filter — batch-level check passes.
+      // Per-event check then keeps only events whose own entity_keys intersect the filter.
+      val events =
+        listOf(
+          createTestLabeledEvent(1, entityKeys = listOf(targetKey)),
+          createTestLabeledEvent(2, entityKeys = listOf(makeEntityKey("ad", "Y"))),
+        )
+      val batchKeys = listOf(makeEntityKeyGroup("ad", "X", "Y"))
+
+      val result = filterProcessor.processBatch(createEventBatch(events, entityKeys = batchKeys))
+
+      assertThat(result.events.map { it.vid }).containsExactly(1L)
+    }
+  }
+
+  @Test
+  fun `processBatch with batch entityKeys not overlapping the filter short-circuits`() {
+    runBlocking {
+      val filterSpec =
+        createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X")))
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+
+      // Events would match per-event but the batch's own entity_keys do not overlap the
+      // filter — the entire batch is dropped before the per-event check runs.
+      val events =
+        listOf(createTestLabeledEvent(1, entityKeys = listOf(makeEntityKey("ad", "X"))))
+      val batchKeys = listOf(makeEntityKeyGroup("placement", "P"))
+
+      val result = filterProcessor.processBatch(createEventBatch(events, entityKeys = batchKeys))
+
+      assertThat(result.events).isEmpty()
+    }
+  }
+
+  @Test
+  fun `processBatch with empty batch entityKeys and non-empty filter drops the batch`() {
+    runBlocking {
+      val filterSpec =
+        createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X")))
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+
+      val events =
+        listOf(createTestLabeledEvent(1, entityKeys = listOf(makeEntityKey("ad", "X"))))
+
+      // No batch-level entity_keys — cannot match a non-empty filter.
+      val result = filterProcessor.processBatch(createEventBatch(events, entityKeys = emptyList()))
+
+      assertThat(result.events).isEmpty()
+    }
   }
 
 }
