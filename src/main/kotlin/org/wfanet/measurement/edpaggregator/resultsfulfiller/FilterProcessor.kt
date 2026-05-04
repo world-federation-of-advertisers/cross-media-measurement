@@ -31,7 +31,9 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
  *
  * The processor supports two alternative selectors for identifying which events belong to an
  * EventGroup: `eventGroupReferenceIds` (legacy) and `entityKeys` (new). When `entityKeys` is
- * non-empty it takes precedence and the `eventGroupReferenceIds` batch-level check is skipped.
+ * non-empty it takes precedence and the `eventGroupReferenceIds` batch-level check is skipped;
+ * a separate batch-level entity-key intersection check is applied instead, mirroring the legacy
+ * fast-rejection pattern.
  *
  * @param filterSpec immutable specification containing all filtering criteria
  */
@@ -75,9 +77,9 @@ class FilterProcessor<T : Message>(
   /**
    * Whether the spec uses entity keys as the selector.
    *
-   * When `true`, the per-event entity-key intersection check is applied and the batch-level
-   * `event_group_reference_id` check is skipped. When `false`, the legacy `event_group_reference_id`
-   * check is used and no entity-key filter is applied.
+   * When `true`, both batch-level and per-event entity-key checks are applied and the legacy
+   * `event_group_reference_id` batch-level check is skipped. When `false`, the legacy
+   * `event_group_reference_id` check is used and no entity-key filter is applied.
    */
   private val entityKeyFilterEnabled: Boolean = filterSpec.entityKeys.isNotEmpty()
 
@@ -87,7 +89,7 @@ class FilterProcessor<T : Message>(
    * Applies filtering in the following order for optimal performance:
    * 1. Selector check (mutually exclusive):
    *    - If [entityKeyFilterEnabled] is `false`: batch-level `event_group_reference_id` match.
-   *    - If `true`: deferred to the per-event entity-key intersection check below.
+   *    - If `true`: batch-level entity-key intersection short-circuit.
    * 2. Batch time range overlap check (fast, avoids processing entire batch).
    * 3. Per-event time range filter.
    * 4. Per-event entity-key intersection (only when [entityKeyFilterEnabled]).
@@ -102,26 +104,19 @@ class FilterProcessor<T : Message>(
       return batch
     }
 
-    if (
-      !entityKeyFilterEnabled &&
-        !filterSpec.eventGroupReferenceIds.contains(batch.eventGroupReferenceId)
-    ) {
-      return EventBatch(
-        emptyList(),
-        minTime = batch.minTime,
-        maxTime = batch.maxTime,
-        eventGroupReferenceId = batch.eventGroupReferenceId,
-      )
+    if (entityKeyFilterEnabled) {
+      if (!batchEntityKeysOverlap(batch)) {
+        return emptyBatchLike(batch)
+      }
+    } else {
+      if (!filterSpec.eventGroupReferenceIds.contains(batch.eventGroupReferenceId)) {
+        return emptyBatchLike(batch)
+      }
     }
 
     // Fast batch-level time range check: skip entire batch if no overlap
     if (!batchTimeRangeOverlaps(batch)) {
-      return EventBatch(
-        emptyList(),
-        minTime = batch.minTime,
-        maxTime = batch.maxTime,
-        eventGroupReferenceId = batch.eventGroupReferenceId,
-      )
+      return emptyBatchLike(batch)
     }
 
     val filteredEvents =
@@ -142,6 +137,23 @@ class FilterProcessor<T : Message>(
       minTime = batch.minTime,
       maxTime = batch.maxTime,
       eventGroupReferenceId = batch.eventGroupReferenceId,
+      entityKeys = batch.entityKeys,
+    )
+  }
+
+  /**
+   * Returns an empty `EventBatch` carrying the same metadata as [batch].
+   *
+   * Used to short-circuit a batch without dropping its identifying metadata so downstream
+   * accounting can still distinguish per-batch outputs.
+   */
+  private fun emptyBatchLike(batch: EventBatch<T>): EventBatch<T> {
+    return EventBatch(
+      emptyList(),
+      minTime = batch.minTime,
+      maxTime = batch.maxTime,
+      eventGroupReferenceId = batch.eventGroupReferenceId,
+      entityKeys = batch.entityKeys,
     )
   }
 
@@ -186,5 +198,21 @@ class FilterProcessor<T : Message>(
    */
   private fun eventMatchesEntityKeyFilter(event: LabeledEvent<T>): Boolean {
     return event.entityKeys.any { it in filterSpec.entityKeys }
+  }
+
+  /**
+   * Checks whether any [org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup] on [batch]
+   * contains an `(entity_type, entity_id)` pair that matches the filter's selector.
+   *
+   * Only called when [entityKeyFilterEnabled] is `true`. A batch with empty `entityKeys` always
+   * fails this check (cannot match a non-empty filter).
+   */
+  private fun batchEntityKeysOverlap(batch: EventBatch<T>): Boolean {
+    if (batch.entityKeys.isEmpty()) return false
+    return filterSpec.entityKeys.any { fk ->
+      batch.entityKeys.any { g ->
+        g.entityType == fk.entityType && g.entityIdsList.contains(fk.entityId)
+      }
+    }
   }
 }

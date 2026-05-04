@@ -1092,6 +1092,7 @@ class EventProcessingIntegrationTest {
                   minTime,
                   maxTime,
                   eventGroupReferenceId = eventGroupReferenceId,
+                  entityKeys = emptyList(),
                 )
               )
             }
@@ -1120,7 +1121,7 @@ class EventProcessingIntegrationTest {
             val maxTime = eventTimes.maxOrNull() ?: Instant.now()
 
             emit(
-              EventBatch(eventList, minTime, maxTime, eventGroupReferenceId = eventGroupReferenceId)
+              EventBatch(eventList, minTime, maxTime, eventGroupReferenceId = eventGroupReferenceId, entityKeys = emptyList())
             )
           }
         }
