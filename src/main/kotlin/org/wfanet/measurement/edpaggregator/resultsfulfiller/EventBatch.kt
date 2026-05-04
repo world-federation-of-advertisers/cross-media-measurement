@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.protobuf.Message
+import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
 
 /**
  * Simple event batch container for efficient processing.
@@ -29,12 +30,17 @@ import com.google.protobuf.Message
  * @param maxTime The latest event time in the batch, used for filtering.
  * @param eventGroupReferenceId identifier linking this event to a specific event group or campaign.
  *   Used for filtering events by group membership.
+ * @param entityKeys Entity keys (grouped by type) carried by the blob that produced this batch,
+ *   propagated from `BlobDetails.entity_keys`. Enables fast batch-level rejection in
+ *   `FilterProcessor` when entity keys are the active selector — same two-tier optimisation as the
+ *   existing `eventGroupReferenceId` path.
  */
 data class EventBatch<T : Message>(
   val events: List<LabeledEvent<T>>,
   val minTime: java.time.Instant,
   val maxTime: java.time.Instant,
   val eventGroupReferenceId: String,
+  val entityKeys: List<EntityKeyGroup>,
 ) {
   val size: Int
     get() = events.size

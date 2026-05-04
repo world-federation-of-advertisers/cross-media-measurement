@@ -56,6 +56,7 @@ class FrequencyVectorSinkTest {
         minTime = testInstant,
         maxTime = testInstant,
         eventGroupReferenceId = "test-group",
+        entityKeys = emptyList(),
       )
     }
 
