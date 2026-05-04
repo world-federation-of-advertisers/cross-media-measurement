@@ -1359,6 +1359,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       TrusTeeProtocolConfig.setForTest(
         ProtocolConfig.TrusTee.getDefaultInstance(),
         Population.AGGREGATOR_DUCHY.externalDuchyId,
+        emptyList(),
       )
     }
   }

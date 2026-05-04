@@ -76,6 +76,7 @@ import org.wfanet.measurement.internal.kingdom.certificate as internalCertificat
 import org.wfanet.measurement.internal.kingdom.certificateDetails
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
+import org.wfanet.measurement.internal.kingdom.dataProviderCapabilities as internalDataProviderCapabilities
 import org.wfanet.measurement.internal.kingdom.dataProviderDetails
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest as internalGetDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.modelLineKey
@@ -816,6 +817,54 @@ class DataProvidersServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.errorInfo?.metadataMap).containsEntry("dataProvider", DATA_PROVIDER_NAME)
+  }
+
+  @Test
+  fun `getDataProvider returns capabilities with noise mechanisms`() {
+    val capabilitiesWithNoise = internalDataProviderCapabilities {
+      noiseMechanismNoneSupported = true
+    }
+    val internalDataProviderWithCapabilities =
+      INTERNAL_DATA_PROVIDER.copy {
+        details = details.copy { capabilities = capabilitiesWithNoise }
+      }
+    internalServiceMock.stub {
+      onBlocking { getDataProvider(any()) }.thenReturn(internalDataProviderWithCapabilities)
+    }
+
+    val dataProvider =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking {
+          service.getDataProvider(getDataProviderRequest { name = DATA_PROVIDER_NAME })
+        }
+      }
+
+    val expectedCapabilities = DataProviderKt.capabilities { noiseMechanismNoneSupported = true }
+    assertThat(dataProvider.capabilities).isEqualTo(expectedCapabilities)
+  }
+
+  @Test
+  fun `getDataProvider returns capabilities with is_panel_projection`() {
+    val capabilitiesWithPanelProjection = internalDataProviderCapabilities {
+      isPanelProjection = true
+    }
+    val internalDataProviderWithCapabilities =
+      INTERNAL_DATA_PROVIDER.copy {
+        details = details.copy { capabilities = capabilitiesWithPanelProjection }
+      }
+    internalServiceMock.stub {
+      onBlocking { getDataProvider(any()) }.thenReturn(internalDataProviderWithCapabilities)
+    }
+
+    val dataProvider =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking {
+          service.getDataProvider(getDataProviderRequest { name = DATA_PROVIDER_NAME })
+        }
+      }
+
+    val expectedCapabilities = DataProviderKt.capabilities { isPanelProjection = true }
+    assertThat(dataProvider.capabilities).isEqualTo(expectedCapabilities)
   }
 
   companion object {

@@ -342,6 +342,8 @@ private fun InternalDataProviderCapabilities.toCapabilities(): DataProvider.Capa
   return DataProviderKt.capabilities {
     honestMajorityShareShuffleSupported = source.honestMajorityShareShuffleSupported
     trusTeeSupported = source.trusTeeSupported
+    noiseMechanismNoneSupported = source.noiseMechanismNoneSupported
+    isPanelProjection = source.isPanelProjection
   }
 }
 
@@ -350,5 +352,7 @@ private fun DataProvider.Capabilities.toInternal(): InternalDataProviderCapabili
   return internalDataProviderCapabilities {
     honestMajorityShareShuffleSupported = source.honestMajorityShareShuffleSupported
     trusTeeSupported = source.trusTeeSupported
+    noiseMechanismNoneSupported = source.noiseMechanismNoneSupported
+    isPanelProjection = source.isPanelProjection
   }
 }

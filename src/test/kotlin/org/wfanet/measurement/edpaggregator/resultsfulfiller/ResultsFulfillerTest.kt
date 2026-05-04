@@ -1535,7 +1535,7 @@ class ResultsFulfillerTest {
   }
 
   @Test
-  fun `runWork refuses HMSS requisition and updates metadata store when multi-party noise validation fails`() =
+  fun `runWork refuses HMSS requisition requesting NONE noise when only CONTINUOUS_GAUSSIAN is supported`() =
     runBlocking {
       val impressionsTmpPath = Files.createTempDirectory(null).toFile()
       val metadataTmpPath = Files.createTempDirectory(null).toFile()
@@ -1650,7 +1650,7 @@ class ResultsFulfillerTest {
     }
 
   @Test
-  fun `runWork refuses TrusTee requisition and updates metadata store when multi-party noise validation fails`() =
+  fun `runWork refuses TrusTee requisition requesting NONE noise when only CONTINUOUS_GAUSSIAN is supported`() =
     runBlocking {
       val impressionsTmpPath = Files.createTempDirectory(null).toFile()
       val metadataTmpPath = Files.createTempDirectory(null).toFile()

@@ -3232,6 +3232,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       TrusTeeProtocolConfig.setForTest(
         ProtocolConfig.TrusTee.getDefaultInstance(),
         Population.AGGREGATOR_DUCHY.externalDuchyId,
+        emptyList(),
       )
     }
   }

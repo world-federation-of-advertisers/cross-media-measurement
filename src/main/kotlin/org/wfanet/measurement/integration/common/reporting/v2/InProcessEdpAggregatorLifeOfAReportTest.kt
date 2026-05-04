@@ -196,6 +196,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       "edp2" to mapOf("edp2-eg-ref-1" to syntheticEventGroupSpec1),
       "edp3" to mapOf("edp3-eg-ref-1" to syntheticEventGroupSpec2),
       "edp4" to mapOf("edp4-eg-ref-1" to syntheticEventGroupSpec1),
+      "edp5" to mapOf("edp5-eg-ref-1" to syntheticEventGroupSpec1),
     )
 
   private val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents =
@@ -233,22 +234,26 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               DataProviderKt.capabilities {
                 honestMajorityShareShuffleSupported = true
                 trusTeeSupported = false
+                noiseMechanismNoneSupported = true
               },
             "edp2" to
               DataProviderKt.capabilities {
                 honestMajorityShareShuffleSupported = true
                 trusTeeSupported = true
+                noiseMechanismNoneSupported = true
               },
             "edp3" to
               DataProviderKt.capabilities {
                 honestMajorityShareShuffleSupported = false
                 trusTeeSupported = true
+                noiseMechanismNoneSupported = true
               },
             "edp4" to
               DataProviderKt.capabilities {
                 honestMajorityShareShuffleSupported = true
                 trusTeeSupported = true
               },
+            "edp5" to DataProviderKt.capabilities { trusTeeSupported = true },
           ),
           duchyMap,
           edpNoise =
@@ -256,7 +261,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               "edp1" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
               "edp2" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
               "edp3" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
-              "edp4" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
+              "edp4" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
+              "edp5" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
             ),
           edpMultiPartyNoiseTypes =
             mapOf(
@@ -571,36 +577,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   }
 
   @Test
-  fun `HMSS no noise basic report fails when EDP requires Gaussian noise`() = runBlocking {
-    val hmssEventGroups = getHmssEventGroupsIncludingRestrictedEdp()
-    check(hmssEventGroups.size > 1)
-
-    val createBasicReportRequest =
-      buildCreateBasicReportRequest(
-        hmssEventGroups,
-        "hmss-gaussian-campaign",
-        "hmss-gaussian-basicreport",
-        includeIqfFilter = false,
-      )
-
-    val createdBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .createBasicReport(createBasicReportRequest)
-
-    executeBasicReportsReportsJob(createdBasicReport.name)
-
-    val completedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
-  }
-
-  @Test
-  fun `TrusTee no noise basic report fails when EDP requires Gaussian noise`() = runBlocking {
-    val trusTeeEventGroups = getTrusTeeEventGroupsIncludingRestrictedEdp()
+  fun `TrusTee basic report selects Gaussian noise and has the expected result`() = runBlocking {
+    val trusTeeEventGroups = getTrusTeeGaussianEventGroups()
     check(trusTeeEventGroups.size > 1)
 
     val createBasicReportRequest =
@@ -616,14 +594,41 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         .withCallCredentials(credentials)
         .createBasicReport(createBasicReportRequest)
 
+    val retrievedBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+    assertRunningBasicReport(createBasicReportRequest, createdBasicReport, retrievedBasicReport)
+
     executeBasicReportsReportsJob(createdBasicReport.name)
+    executeReportProcessorJob()
 
     val completedBasicReport =
       reportingBasicReportsClient
         .withCallCredentials(credentials)
         .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
 
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
+    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+
+    val measurements = listMeasurements()
+    val trusTeeProtocolMeasurements =
+      measurements.filter { measurement ->
+        measurement.protocolConfig.protocolsList.any { it.hasTrusTee() }
+      }
+    assertWithMessage("at least one measurement used TrusTee protocol")
+      .that(trusTeeProtocolMeasurements)
+      .isNotEmpty()
+
+    assertStructuralResults(completedBasicReport)
+    assertGaussianResults(
+      completedBasicReport,
+      expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,
+      expectedCrossPublisherImpressions = EXPECTED_CROSS_PUBLISHER_IMPRESSIONS,
+      expectedKPlusReach = EXPECTED_K_PLUS_REACH,
+      expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
+      expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
+    )
   }
 
   /**
@@ -799,6 +804,119 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     assertWithMessage("cross-publisher reach < sum of individual EDP reaches")
       .that(reportingUnitCumulative.reach)
       .isLessThan(componentReaches.sum())
+  }
+
+  /**
+   * Asserts metric values for a Gaussian-noise basic report are within tolerance of expected
+   * values.
+   *
+   * With CONTINUOUS_GAUSSIAN noise, results are non-deterministic. Tolerances are derived from the
+   * Gaussian noise standard deviation: σ = sensitivity * √(2 * ln(1.25/δ)) / ε With ε=1.0, δ=1e-15:
+   * √(2 * ln(1.25/1e-15)) ≈ 8.34. Reach sensitivity ≈ 1 → σ_reach ≈ 8.34, 5σ ≈ 42. Impression
+   * sensitivity ≈ maximumFrequencyPerUser=60 → σ_impression ≈ 500, 5σ ≈ 2500. Tolerances include a
+   * safety margin for multi-party protocol noise composition.
+   */
+  private fun assertGaussianResults(
+    basicReport: BasicReport,
+    expectedCrossPublisherReach: Long,
+    expectedCrossPublisherImpressions: Long,
+    expectedKPlusReach: List<Long>,
+    expectedEdpSpec1Reach: Long,
+    expectedEdpSpec2Reach: Long,
+  ) {
+    assertWithMessage("result groups").that(basicReport.resultGroupsList).hasSize(1)
+
+    val resultGroup = basicReport.resultGroupsList.single()
+    val totalResults =
+      resultGroup.resultsList.filter {
+        it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
+      }
+    assertWithMessage("total results").that(totalResults).hasSize(1)
+
+    val result = totalResults.single()
+    val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
+
+    assertWithMessage("population size").that(result.metricSet.populationSize).isGreaterThan(0)
+
+    assertWithMessage("cross-publisher reach")
+      .that(reportingUnitCumulative.reach.toDouble())
+      .isWithin(GAUSSIAN_REACH_TOLERANCE)
+      .of(expectedCrossPublisherReach.toDouble())
+
+    assertWithMessage("Gaussian noise was applied to cross-publisher reach")
+      .that(reportingUnitCumulative.reach)
+      .isNotEqualTo(expectedCrossPublisherReach)
+
+    assertWithMessage("cross-publisher percent reach")
+      .that(reportingUnitCumulative.percentReach)
+      .isGreaterThan(0f)
+
+    assertWithMessage("cross-publisher impressions")
+      .that(reportingUnitCumulative.impressions.toDouble())
+      .isWithin(GAUSSIAN_IMPRESSION_TOLERANCE)
+      .of(expectedCrossPublisherImpressions.toDouble())
+
+    assertWithMessage("Gaussian noise was applied to cross-publisher impressions")
+      .that(reportingUnitCumulative.impressions)
+      .isNotEqualTo(expectedCrossPublisherImpressions)
+
+    assertWithMessage("cross-publisher average frequency")
+      .that(reportingUnitCumulative.averageFrequency)
+      .isGreaterThan(0f)
+
+    assertWithMessage("cross-publisher grps").that(reportingUnitCumulative.grps).isGreaterThan(0f)
+
+    for (k in expectedKPlusReach.indices) {
+      if (k < reportingUnitCumulative.kPlusReachList.size) {
+        assertWithMessage("cross-publisher k+${k + 1} reach")
+          .that(reportingUnitCumulative.kPlusReachList[k].toDouble())
+          .isWithin(GAUSSIAN_REACH_TOLERANCE)
+          .of(expectedKPlusReach[k].toDouble())
+      }
+    }
+
+    assertWithMessage("cross-publisher k+ reach is monotonically non-increasing")
+      .that(reportingUnitCumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it })
+      .isTrue()
+
+    assertWithMessage("stacked incremental reach is not empty")
+      .that(result.metricSet.reportingUnit.stackedIncrementalReachList)
+      .isNotEmpty()
+
+    assertWithMessage("number of components").that(result.metricSet.componentsCount).isEqualTo(2)
+
+    val componentReaches = mutableListOf<Long>()
+    result.metricSet.componentsList.forEach { component ->
+      val cumulative = component.value.cumulative
+      componentReaches.add(cumulative.reach)
+
+      assertWithMessage("component ${component.key} reach").that(cumulative.reach).isGreaterThan(0L)
+
+      assertWithMessage("component ${component.key} impressions")
+        .that(cumulative.impressions)
+        .isGreaterThan(0L)
+
+      assertWithMessage("component ${component.key} k+ reach is monotonically non-increasing")
+        .that(cumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it })
+        .isTrue()
+    }
+
+    val sortedComponentReaches = componentReaches.sorted()
+    assertWithMessage("smaller component reach")
+      .that(sortedComponentReaches[0].toDouble())
+      .isWithin(GAUSSIAN_REACH_TOLERANCE)
+      .of(expectedEdpSpec2Reach.toDouble())
+    assertWithMessage("larger component reach")
+      .that(sortedComponentReaches[1].toDouble())
+      .isWithin(GAUSSIAN_REACH_TOLERANCE)
+      .of(expectedEdpSpec1Reach.toDouble())
+
+    assertWithMessage("Gaussian noise was applied to at least one component reach")
+      .that(
+        sortedComponentReaches[0] != expectedEdpSpec2Reach ||
+          sortedComponentReaches[1] != expectedEdpSpec1Reach
+      )
+      .isTrue()
   }
 
   private fun assertRunningBasicReport(
@@ -1075,55 +1193,52 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   private suspend fun getHmssEventGroups(): List<EventGroup> =
     getEventGroupsByCapability(
       { it.honestMajorityShareShuffleSupported },
-      setOf(RESTRICTED_EDP_DISPLAY_NAME),
+      GAUSSIAN_ONLY_EDP_DISPLAY_NAMES,
     )
 
   private suspend fun getTrusTeeEventGroups(): List<EventGroup> =
-    getEventGroupsByCapability({ it.trusTeeSupported }, setOf(RESTRICTED_EDP_DISPLAY_NAME))
+    getEventGroupsByCapability({ it.trusTeeSupported }, GAUSSIAN_ONLY_EDP_DISPLAY_NAMES)
 
   /**
-   * Returns capable event groups that include exactly one restricted EDP (one whose multi-party
-   * noise config requires CONTINUOUS_GAUSSIAN) and one unrestricted EDP.
+   * Returns TrusTee-capable event groups that include exactly one Gaussian-only EDP
+   * (syntheticEventGroupSpec1) and edp3 (syntheticEventGroupSpec2, NONE-supporting). Using
+   * different event group specs ensures meaningful cross-publisher reach with VID overlap, matching
+   * the expected values from the no-noise tests. The Gaussian-only EDP forces the Kingdom to select
+   * CONTINUOUS_GAUSSIAN for TrusTee.
    */
-  private suspend fun getEventGroupsIncludingRestrictedEdp(
-    capabilityFilter: (DataProvider.Capabilities) -> Boolean
-  ): List<EventGroup> {
-    val allGroups = getEventGroupsByCapability(capabilityFilter, emptySet())
-    var restrictedGroup: EventGroup? = null
-    var unrestrictedGroup: EventGroup? = null
+  private suspend fun getTrusTeeGaussianEventGroups(): List<EventGroup> {
+    val allGroups = getEventGroupsByCapability({ it.trusTeeSupported }, emptySet())
+    var gaussianOnlyGroup: EventGroup? = null
+    var spec2NoneSupportingGroup: EventGroup? = null
     for (eventGroup in allGroups) {
-      val dataProvider =
-        reportingDataProvidersClient
-          .withCallCredentials(credentials)
-          .getDataProvider(getDataProviderRequest { name = eventGroup.cmmsDataProvider })
-      val displayName =
-        inProcessCmmsComponents.getDataProviderDisplayNameFromDataProviderName(dataProvider.name)
-      if (displayName == RESTRICTED_EDP_DISPLAY_NAME && restrictedGroup == null) {
-        restrictedGroup = eventGroup
-      } else if (displayName != RESTRICTED_EDP_DISPLAY_NAME && unrestrictedGroup == null) {
-        unrestrictedGroup = eventGroup
+      val displayName = getEdpDisplayName(eventGroup)
+      if (displayName in GAUSSIAN_ONLY_EDP_DISPLAY_NAMES && gaussianOnlyGroup == null) {
+        gaussianOnlyGroup = eventGroup
+      } else if (displayName == SPEC2_NONE_SUPPORTING_EDP && spec2NoneSupportingGroup == null) {
+        spec2NoneSupportingGroup = eventGroup
       }
-      if (restrictedGroup != null && unrestrictedGroup != null) break
+      if (gaussianOnlyGroup != null && spec2NoneSupportingGroup != null) break
     }
-    check(restrictedGroup != null) {
-      "No event group found for restricted EDP '$RESTRICTED_EDP_DISPLAY_NAME'"
-    }
-    check(unrestrictedGroup != null) { "No unrestricted event group found" }
-    return listOf(unrestrictedGroup, restrictedGroup)
+    check(gaussianOnlyGroup != null) { "No Gaussian-only TrusTee event group found" }
+    check(spec2NoneSupportingGroup != null) { "No spec2 NONE-supporting TrusTee event group found" }
+    return listOf(spec2NoneSupportingGroup, gaussianOnlyGroup)
   }
 
-  private suspend fun getHmssEventGroupsIncludingRestrictedEdp(): List<EventGroup> =
-    getEventGroupsIncludingRestrictedEdp {
-      it.honestMajorityShareShuffleSupported
+  private suspend fun getEdpDisplayName(eventGroup: EventGroup): String {
+    val dataProvider =
+      reportingDataProvidersClient
+        .withCallCredentials(credentials)
+        .getDataProvider(getDataProviderRequest { name = eventGroup.cmmsDataProvider })
+    return checkNotNull(
+      inProcessCmmsComponents.getDataProviderDisplayNameFromDataProviderName(dataProvider.name)
+    ) {
+      "No display name found for data provider ${dataProvider.name}"
     }
-
-  private suspend fun getTrusTeeEventGroupsIncludingRestrictedEdp(): List<EventGroup> =
-    getEventGroupsIncludingRestrictedEdp {
-      it.trusTeeSupported
-    }
+  }
 
   companion object {
-    private const val RESTRICTED_EDP_DISPLAY_NAME = "edp4"
+    private val GAUSSIAN_ONLY_EDP_DISPLAY_NAMES = setOf("edp4", "edp5")
+    private const val SPEC2_NONE_SUPPORTING_EDP = "edp3"
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val SECRETS_DIR: File =
       getRuntimePath(
@@ -1241,6 +1356,13 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     private const val EXPECTED_EDP_SPEC1_REACH = 3937L
     private const val EXPECTED_EDP_SPEC2_REACH = 3638L
 
+    // Gaussian noise tolerances for approximate result verification.
+    // Derived from σ = sensitivity * √(2 * ln(1.25/δ)) / ε with ε=1.0, δ=1e-15.
+    // Reach: sensitivity=1, σ≈8.34, 5σ≈42. Using 200 for multi-party noise margin.
+    // Impressions: sensitivity=maximumFrequencyPerUser=60, σ≈500, 5σ≈2500. Using 5000 for margin.
+    private const val GAUSSIAN_REACH_TOLERANCE = 200.0
+    private const val GAUSSIAN_IMPRESSION_TOLERANCE = 5000.0
+
     // Placeholder values required by the MeasurementSpec. Unused since NoiseMechanism is NONE.
     private val NO_NOISE_PRIVACY_PARAMS =
       MetricSpecConfigKt.differentialPrivacyParams {
@@ -1325,11 +1447,15 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           .getDefaultInstance()
     }
 
-    private val NO_NOISE_TRUSTEE_PROTOCOL_CONFIG_CONFIG: TrusTeeProtocolConfigConfig =
+    private val TRUSTEE_PROTOCOL_CONFIG_CONFIG: TrusTeeProtocolConfigConfig =
       trusTeeProtocolConfigConfig {
         protocolConfig =
-          ProtocolConfigKt.trusTee { noiseMechanism = ProtocolConfig.NoiseMechanism.NONE }
+          ProtocolConfigKt.trusTee {
+            noiseMechanism = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+          }
         duchyId = "aggregator"
+        noiseMechanisms += ProtocolConfig.NoiseMechanism.NONE
+        noiseMechanisms += ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
       }
 
     private val NO_NOISE_HMSS_PROTOCOL_CONFIG_CONFIG: HmssProtocolConfigConfig =
@@ -1349,7 +1475,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     @JvmStatic
     fun initConfig() {
       InProcessCmmsComponents.initConfig(
-        trusTeeProtocolConfigConfig = NO_NOISE_TRUSTEE_PROTOCOL_CONFIG_CONFIG,
+        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG,
         hmssProtocolConfigConfig = NO_NOISE_HMSS_PROTOCOL_CONFIG_CONFIG,
       )
     }

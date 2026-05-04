@@ -453,6 +453,7 @@ class InProcessCmmsComponents(
       TrusTeeProtocolConfig.setForTest(
         trusTeeProtocolConfigConfig.protocolConfig,
         trusTeeProtocolConfigConfig.duchyId,
+        trusTeeProtocolConfigConfig.noiseMechanismsList,
       )
       DuchyInfo.initializeFromConfig(
         loadTextProto("duchy_cert_config.textproto", DuchyCertConfig.getDefaultInstance())

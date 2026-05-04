@@ -24,4 +24,19 @@ message DataProviderCapabilities {
   bool honest_majority_share_shuffle_supported = 1;
   // Whether the TrusTEE protocol is supported.
   bool trus_tee_supported = 2;
+
+  // Whether the no-noise (NONE) mechanism is supported.
+  // CONTINUOUS_GAUSSIAN is always assumed to be supported.
+  bool noise_mechanism_none_supported = 3;
+
+  // Whether this `DataProvider` attests that ALL of its `Requisition`
+  // fulfillments are based on panel projections (statistical projections from
+  // a sample panel to a population), as opposed to event-level (e.g.
+  // impression-level) data.
+  //
+  // Default `false` is the privacy-conservative assumption (the
+  // `DataProvider` may be event-level). Used as input to noise-mechanism
+  // selection for protocols (such as TrusTEE) whose privacy properties
+  // depend on the data shape of the contributing `DataProvider`s.
+  bool is_panel_projection = 4;
 }

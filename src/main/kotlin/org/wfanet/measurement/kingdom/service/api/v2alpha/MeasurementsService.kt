@@ -481,7 +481,7 @@ class MeasurementsService(
     measurementConsumerName: String,
   ): InternalProtocolConfig {
     val dataProvidersCount = dataProviderCapabilities.size
-    val internalNoiseMechanisms = noiseMechanisms.map { it.toInternal() }
+    val directNoiseMechanisms = noiseMechanisms.map { it.toInternal() }
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (measurementSpec.measurementTypeCase) {
       MeasurementSpec.MeasurementTypeCase.REACH -> {
@@ -489,7 +489,7 @@ class MeasurementsService(
           protocolConfig {
             direct =
               ProtocolConfigKt.direct {
-                this.noiseMechanisms += internalNoiseMechanisms
+                this.noiseMechanisms += directNoiseMechanisms
                 customDirectMethodology =
                   InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
                 deterministicCountDistinct =
@@ -499,33 +499,11 @@ class MeasurementsService(
               }
           }
         } else {
-          if (
-            (measurementConsumerName in trusTeeEnabledMeasurementConsumers || trusTeeEnabled) &&
-              dataProviderCapabilities.all { it.trusTeeSupported }
-          ) {
-            protocolConfig {
-              externalProtocolConfigId = TrusTeeProtocolConfig.NAME
-              trusTee = TrusTeeProtocolConfig.protocolConfig
-            }
-          } else if (
-            (measurementConsumerName in hmssEnabledMeasurementConsumers || hmssEnabled) &&
-              dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
-          ) {
-            protocolConfig {
-              externalProtocolConfigId = HmssProtocolConfig.NAME
-              honestMajorityShareShuffle = HmssProtocolConfig.protocolConfig
-            }
-          } else if (reachOnlyLlV2Enabled) {
-            protocolConfig {
-              externalProtocolConfigId = RoLlv2ProtocolConfig.NAME
-              reachOnlyLiquidLegionsV2 = RoLlv2ProtocolConfig.protocolConfig
-            }
-          } else {
-            protocolConfig {
-              externalProtocolConfigId = Llv2ProtocolConfig.NAME
-              liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
-            }
-          }
+          buildMultiPartyProtocolConfig(
+            dataProviderCapabilities,
+            measurementConsumerName,
+            reachOnly = true,
+          )
         }
       }
       MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
@@ -533,7 +511,7 @@ class MeasurementsService(
           protocolConfig {
             direct =
               ProtocolConfigKt.direct {
-                this.noiseMechanisms += internalNoiseMechanisms
+                this.noiseMechanisms += directNoiseMechanisms
                 customDirectMethodology =
                   InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
                 deterministicCountDistinct =
@@ -547,35 +525,18 @@ class MeasurementsService(
               }
           }
         } else {
-          if (
-            (measurementConsumerName in trusTeeEnabledMeasurementConsumers || trusTeeEnabled) &&
-              dataProviderCapabilities.all { it.trusTeeSupported }
-          ) {
-            protocolConfig {
-              externalProtocolConfigId = TrusTeeProtocolConfig.NAME
-              trusTee = TrusTeeProtocolConfig.protocolConfig
-            }
-          } else if (
-            (measurementConsumerName in hmssEnabledMeasurementConsumers || hmssEnabled) &&
-              dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
-          ) {
-            protocolConfig {
-              externalProtocolConfigId = HmssProtocolConfig.NAME
-              honestMajorityShareShuffle = HmssProtocolConfig.protocolConfig
-            }
-          } else {
-            protocolConfig {
-              externalProtocolConfigId = Llv2ProtocolConfig.NAME
-              liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
-            }
-          }
+          buildMultiPartyProtocolConfig(
+            dataProviderCapabilities,
+            measurementConsumerName,
+            reachOnly = false,
+          )
         }
       }
       MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
         protocolConfig {
           direct =
             ProtocolConfigKt.direct {
-              this.noiseMechanisms += internalNoiseMechanisms
+              this.noiseMechanisms += directNoiseMechanisms
               customDirectMethodology =
                 InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
               deterministicCount =
@@ -587,7 +548,7 @@ class MeasurementsService(
         protocolConfig {
           direct =
             ProtocolConfigKt.direct {
-              this.noiseMechanisms += internalNoiseMechanisms
+              this.noiseMechanisms += directNoiseMechanisms
               customDirectMethodology =
                 InternalProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
               deterministicSum = InternalProtocolConfig.Direct.DeterministicSum.getDefaultInstance()
@@ -598,7 +559,7 @@ class MeasurementsService(
         protocolConfig {
           direct =
             ProtocolConfigKt.direct {
-              this.noiseMechanisms += internalNoiseMechanisms
+              this.noiseMechanisms += directNoiseMechanisms
               deterministicCount =
                 InternalProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
             }
@@ -606,6 +567,40 @@ class MeasurementsService(
       }
       MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
         error("MeasurementType not set.")
+    }
+  }
+
+  private fun buildMultiPartyProtocolConfig(
+    dataProviderCapabilities: Collection<InternalDataProviderCapabilities>,
+    measurementConsumerName: String,
+    reachOnly: Boolean,
+  ): InternalProtocolConfig {
+    if (
+      (measurementConsumerName in trusTeeEnabledMeasurementConsumers || trusTeeEnabled) &&
+        dataProviderCapabilities.all { it.trusTeeSupported }
+    ) {
+      return protocolConfig {
+        externalProtocolConfigId = TrusTeeProtocolConfig.NAME
+        trusTee = buildTrusTeeProtocolConfig(dataProviderCapabilities)
+      }
+    } else if (
+      (measurementConsumerName in hmssEnabledMeasurementConsumers || hmssEnabled) &&
+        dataProviderCapabilities.all { it.honestMajorityShareShuffleSupported }
+    ) {
+      return protocolConfig {
+        externalProtocolConfigId = HmssProtocolConfig.NAME
+        honestMajorityShareShuffle = HmssProtocolConfig.protocolConfig
+      }
+    } else if (reachOnly && reachOnlyLlV2Enabled) {
+      return protocolConfig {
+        externalProtocolConfigId = RoLlv2ProtocolConfig.NAME
+        reachOnlyLiquidLegionsV2 = RoLlv2ProtocolConfig.protocolConfig
+      }
+    } else {
+      return protocolConfig {
+        externalProtocolConfigId = Llv2ProtocolConfig.NAME
+        liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
+      }
     }
   }
 
@@ -669,6 +664,102 @@ class MeasurementsService(
     return internalCreateMeasurementRequest {
       measurement = internalMeasurement
       this.requestId = requestId
+    }
+  }
+
+  /**
+   * Builds the [InternalProtocolConfig.TrusTee] based on server config and EDP capabilities.
+   *
+   * If the server's `TrusTeeProtocolConfig.noiseMechanisms` is empty, falls back to
+   * `TrusTeeProtocolConfig.protocolConfig` (using the existing `noise_mechanism` value). Otherwise,
+   * intersects server and EDP mechanisms and selects the preferred noise mechanism (`NONE` >
+   * `CONTINUOUS_GAUSSIAN`).
+   */
+  private fun buildTrusTeeProtocolConfig(
+    dataProviderCapabilities: Collection<InternalDataProviderCapabilities>
+  ): InternalProtocolConfig.TrusTee {
+    val serverNoiseMechanisms = TrusTeeProtocolConfig.noiseMechanisms
+    if (serverNoiseMechanisms.isEmpty()) {
+      return TrusTeeProtocolConfig.protocolConfig
+    }
+
+    val selected =
+      selectNoiseMechanisms(
+        serverNoiseMechanisms,
+        dataProviderCapabilities.toList(),
+        TrusTeeProtocolConfig.maxNonPanelProjectionEdpsForNoneNoise,
+      )
+    val selectedSet = selected.toSet()
+    val preferred =
+      when (selectedSet) {
+        setOf(InternalProtocolConfig.NoiseMechanism.NONE) ->
+          InternalProtocolConfig.NoiseMechanism.NONE
+        setOf(InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN) ->
+          InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+        setOf(
+          InternalProtocolConfig.NoiseMechanism.NONE,
+          InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
+        ) -> InternalProtocolConfig.NoiseMechanism.NONE
+        else ->
+          throw Status.INTERNAL.withDescription(
+              "Unexpected noise mechanisms after selection: $selected"
+            )
+            .asRuntimeException()
+      }
+    return ProtocolConfigKt.trusTee { noiseMechanism = preferred }
+  }
+
+  companion object {
+    /**
+     * Returns the set of [InternalProtocolConfig.NoiseMechanism] values supported by this
+     * [InternalDataProviderCapabilities]. CONTINUOUS_GAUSSIAN is always included.
+     */
+    private fun InternalDataProviderCapabilities.toNoiseMechanismSet():
+      Set<InternalProtocolConfig.NoiseMechanism> {
+      return buildSet {
+        add(InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN)
+        if (noiseMechanismNoneSupported) add(InternalProtocolConfig.NoiseMechanism.NONE)
+      }
+    }
+
+    /**
+     * Narrows [serverNoiseMechanisms] to those allowed by all [dataProviderCapabilities].
+     *
+     * CONTINUOUS_GAUSSIAN is always assumed to be supported by every EDP.
+     *
+     * Additionally excludes [InternalProtocolConfig.NoiseMechanism.NONE] from the result when the
+     * number of [dataProviderCapabilities] entries with `isPanelProjection = false` exceeds
+     * [maxNonPanelProjectionEdpsForNoneNoise]. This implements the operator-controlled policy that
+     * disallows no-noise selection for `Measurement`s combining more than the configured number of
+     * non-panel-projection `DataProvider`s, since differential queries over a no-noise aggregate
+     * can otherwise expose precise cross-publisher overlap that no individual `DataProvider` has
+     * consented to. The default `0` is the strictest, privacy-conservative policy: `NONE` may only
+     * be selected when ALL `DataProvider`s have `isPanelProjection = true`.
+     */
+    fun selectNoiseMechanisms(
+      serverNoiseMechanisms: List<InternalProtocolConfig.NoiseMechanism>,
+      dataProviderCapabilities: List<InternalDataProviderCapabilities>,
+      maxNonPanelProjectionEdpsForNoneNoise: Int = 0,
+    ): List<InternalProtocolConfig.NoiseMechanism> {
+      require(serverNoiseMechanisms.isNotEmpty()) { "serverNoiseMechanisms must not be empty" }
+      require(dataProviderCapabilities.isNotEmpty()) {
+        "dataProviderCapabilities must not be empty"
+      }
+      require(maxNonPanelProjectionEdpsForNoneNoise >= 0) {
+        "maxNonPanelProjectionEdpsForNoneNoise must be non-negative"
+      }
+      var effectiveMechanisms = serverNoiseMechanisms.toSet()
+      for (capabilities in dataProviderCapabilities) {
+        effectiveMechanisms = effectiveMechanisms.intersect(capabilities.toNoiseMechanismSet())
+      }
+      val nonPanelProjectionCount = dataProviderCapabilities.count { !it.isPanelProjection }
+      if (nonPanelProjectionCount > maxNonPanelProjectionEdpsForNoneNoise) {
+        effectiveMechanisms = effectiveMechanisms - InternalProtocolConfig.NoiseMechanism.NONE
+      }
+      grpcRequire(effectiveMechanisms.isNotEmpty()) {
+        "No common noise mechanism across all DataProviders and the server"
+      }
+      return effectiveMechanisms.toList()
     }
   }
 }
