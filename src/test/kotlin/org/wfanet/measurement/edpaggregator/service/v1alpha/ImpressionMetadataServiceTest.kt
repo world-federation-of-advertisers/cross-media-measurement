@@ -1535,7 +1535,7 @@ class ImpressionMetadataServiceTest {
       val request = createImpressionMetadataRequest {
         parent = DATA_PROVIDER_KEY.toName()
         impressionMetadata =
-          IMPRESSION_METADATA.copy { entityKeys += entityKey { id = "x" } }
+          IMPRESSION_METADATA.copy { entityKeys += entityKey { entityId = "x" } }
       }
 
       val exception =
@@ -1567,7 +1567,7 @@ class ImpressionMetadataServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "impression_metadata.entity_keys.0.id"
+          metadata[Errors.Metadata.FIELD_NAME.key] = "impression_metadata.entity_keys.0.entity_id"
         }
       )
   }
@@ -1650,7 +1650,7 @@ class ImpressionMetadataServiceTest {
             ListImpressionMetadataRequestKt.filter {
               entityKeys += entityKey {
                 entityType = "ad_account"
-                id = "no-such-account"
+                entityId = "no-such-account"
               }
             }
         }
@@ -1726,17 +1726,17 @@ class ImpressionMetadataServiceTest {
 
     private val ENTITY_KEY_AD_1 = entityKey {
       entityType = "ad"
-      id = "ad-1"
+      entityId = "ad-1"
     }
 
     private val ENTITY_KEY_AD_2 = entityKey {
       entityType = "ad"
-      id = "ad-2"
+      entityId = "ad-2"
     }
 
     private val ENTITY_KEY_CAMPAIGN_1 = entityKey {
       entityType = "campaign"
-      id = "campaign-1"
+      entityId = "campaign-1"
     }
 
     private val IMPRESSION_METADATA_WITH_ENTITY_KEYS =
