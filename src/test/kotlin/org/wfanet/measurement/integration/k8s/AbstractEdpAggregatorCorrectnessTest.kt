@@ -135,10 +135,9 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
           )
 
       val byRefId = response.eventGroupsList.associateBy { it.eventGroupReferenceId }
-      val adGroup: EventGroup = byRefId.getValue(measurementSystem.adGroupEventGroupReferenceId)
+      val adGroup: EventGroup = byRefId.getValue(AD_GROUP_EDP_EVENT_GROUP_REF_ID)
       assertThat(adGroup.entityKey.entityType).isEqualTo("ad_group")
-      assertThat(adGroup.entityKey.entityId)
-        .isEqualTo(measurementSystem.adGroupEventGroupReferenceId)
+      assertThat(adGroup.entityKey.entityId).isEqualTo(AD_GROUP_EDP_EVENT_GROUP_REF_ID)
       assertThat(adGroup.eventGroupMetadata.entityMetadata.fieldsMap).containsKey("placement")
     }
 
@@ -158,7 +157,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
 
       val legacy: EventGroup =
         response.eventGroupsList.single {
-          it.eventGroupReferenceId == measurementSystem.legacyEventGroupReferenceId
+          it.eventGroupReferenceId == EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID
         }
       // Schema column DEFAULT "campaign"; EntityId stays NULL; entity_metadata not set.
       assertThat(legacy.entityKey.entityType).isEqualTo("campaign")
@@ -180,8 +179,8 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
         )
 
     val refIds = response.eventGroupsList.map { it.eventGroupReferenceId }.toSet()
-    assertThat(refIds).contains(measurementSystem.legacyEventGroupReferenceId)
-    assertThat(refIds).doesNotContain(measurementSystem.adGroupEventGroupReferenceId)
+    assertThat(refIds).contains(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID)
+    assertThat(refIds).doesNotContain(AD_GROUP_EDP_EVENT_GROUP_REF_ID)
   }
 
   interface MeasurementSystem {
@@ -190,16 +189,15 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
     val publicEventGroupsStub: EventGroupsCoroutineStub
     val measurementConsumerName: String
     val apiAuthenticationKey: String
-    /** Reference id of the EDPA-uploaded EventGroup created with no entity_key supplied. */
-    val legacyEventGroupReferenceId: String
-    /** Reference id of the EDPA-uploaded EventGroup whose entity_key.entity_type is "ad_group". */
-    val adGroupEventGroupReferenceId: String
   }
 
   companion object {
     private const val MC_ENCRYPTION_PRIVATE_KEY_NAME = "mc_enc_private.tink"
     private const val MC_CS_CERT_DER_NAME = "mc_cs_cert.der"
     private const val MC_CS_PRIVATE_KEY_DER_NAME = "mc_cs_private.der"
+
+    internal const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-1"
+    internal const val AD_GROUP_EDP_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-2"
 
     val OUTPUT_DP_PARAMS = differentialPrivacyParams {
       epsilon = 0.1

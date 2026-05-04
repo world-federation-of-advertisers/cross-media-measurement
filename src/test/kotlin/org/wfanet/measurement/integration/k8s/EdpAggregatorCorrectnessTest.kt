@@ -78,11 +78,12 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measurementSystem) {
 
   override val EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS: (CmmsEventGroup) -> Boolean = {
-    it.eventGroupReferenceId == GROUP_REFERENCE_ID_EDPA_EDP1
+    it.eventGroupReferenceId == EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID
   }
 
   override val EVENT_GROUP_FILTERING_LAMBDA_CROSS_PUB: (CmmsEventGroup) -> Boolean = {
-    it.eventGroupReferenceId in setOf(GROUP_REFERENCE_ID_EDPA_EDP1, GROUP_REFERENCE_ID_EDPA_EDP2)
+    it.eventGroupReferenceId in
+      setOf(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID, AD_GROUP_EDP_EVENT_GROUP_REF_ID)
   }
 
   private class UploadEventGroup : TestRule {
@@ -101,13 +102,13 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     private val eventGroupStorageMap: Map<String, EventGroupStorage> =
       mapOf(
-        GROUP_REFERENCE_ID_EDPA_EDP1 to
+        EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID to
           EventGroupStorage(
             objectMapKey = "edp7/event-groups-map/edp7-event-group.binpb",
             objectKey = "edp7/event-groups/edp7-event-group.binpb",
             blobUri = "gs://$bucket/edp7/event-groups/edp7-event-group.binpb",
           ),
-        GROUP_REFERENCE_ID_EDPA_EDP2 to
+        AD_GROUP_EDP_EVENT_GROUP_REF_ID to
           EventGroupStorage(
             objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.binpb",
             objectKey = "edpa_meta/event-groups/edpa_meta-event-group.binpb",
@@ -196,7 +197,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           // entity_type="campaign", leaves entity_id NULL, no entity_metadata.
           // EDP2 carries a non-default entity_type ("ad_group") so the deployed Kingdom +
           // Reporting stack exercises both paths end-to-end on cluster.
-          val isLegacyEdp = eventGroupReferenceId == GROUP_REFERENCE_ID_EDPA_EDP1
+          val isLegacyEdp = eventGroupReferenceId == EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID
           eventGroup {
             this.eventGroupReferenceId = eventGroupReferenceId
             measurementConsumer = TEST_CONFIG.measurementConsumer
@@ -317,8 +318,6 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
     override val measurementConsumerName: String = TEST_CONFIG.measurementConsumer
     override val apiAuthenticationKey: String = TEST_CONFIG.apiAuthenticationKey
-    override val legacyEventGroupReferenceId: String = GROUP_REFERENCE_ID_EDPA_EDP1
-    override val adGroupEventGroupReferenceId: String = GROUP_REFERENCE_ID_EDPA_EDP2
 
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
@@ -465,9 +464,6 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         "dataprovider",
       )
 
-    private const val GROUP_REFERENCE_ID_EDPA_EDP1 = "edpa-eg-reference-id-1"
-    private const val GROUP_REFERENCE_ID_EDPA_EDP2 = "edpa-eg-reference-id-2"
-
     private val TEST_DATA_RUNTIME_PATH =
       org.wfanet.measurement.common.getRuntimePath(TEST_DATA_PATH)!!
 
@@ -484,8 +480,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     val syntheticEventGroupMap =
       mapOf(
-        GROUP_REFERENCE_ID_EDPA_EDP1 to syntheticEventGroupSpec,
-        GROUP_REFERENCE_ID_EDPA_EDP2 to syntheticEventGroupSpec,
+        EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID to syntheticEventGroupSpec,
+        AD_GROUP_EDP_EVENT_GROUP_REF_ID to syntheticEventGroupSpec,
       )
 
     private val ZONE_ID = ZoneId.of("UTC")
