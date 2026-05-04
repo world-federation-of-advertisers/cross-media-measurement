@@ -136,6 +136,7 @@ class ClientAccountsService(
       throw when (e.status.code) {
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
         Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
         Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
         else -> Status.UNKNOWN
       }.toExternalStatusRuntimeException(e)
@@ -259,6 +260,7 @@ class ClientAccountsService(
     } catch (e: StatusException) {
       throw when (e.status.code) {
         Status.Code.NOT_FOUND -> permissionDeniedStatus()
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
         Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
         else -> Status.UNKNOWN
       }.toExternalStatusRuntimeException(e)
@@ -301,6 +303,7 @@ class ClientAccountsService(
         internalClientAccountsStub.listClientAccounts(internalRequest)
       } catch (e: StatusException) {
         throw when (e.status.code) {
+          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
           Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
           else -> Status.UNKNOWN
         }.toExternalStatusRuntimeException(e)
@@ -357,6 +360,7 @@ class ClientAccountsService(
     } catch (e: StatusException) {
       throw when (e.status.code) {
         Status.Code.NOT_FOUND -> permissionDeniedStatus()
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
         Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
         else -> Status.UNKNOWN
       }.toExternalStatusRuntimeException(e)
@@ -410,6 +414,7 @@ class ClientAccountsService(
     } catch (e: StatusException) {
       throw when (e.status.code) {
         Status.Code.NOT_FOUND -> permissionDeniedStatus()
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
         Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
         else -> Status.UNKNOWN
       }.toExternalStatusRuntimeException(e)
