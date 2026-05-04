@@ -196,8 +196,8 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
     private const val MC_CS_CERT_DER_NAME = "mc_cs_cert.der"
     private const val MC_CS_PRIVATE_KEY_DER_NAME = "mc_cs_private.der"
 
-    internal const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-1"
-    internal const val AD_GROUP_EDP_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-2"
+    const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-1"
+    const val AD_GROUP_EDP_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-2"
 
     val OUTPUT_DP_PARAMS = differentialPrivacyParams {
       epsilon = 0.1
