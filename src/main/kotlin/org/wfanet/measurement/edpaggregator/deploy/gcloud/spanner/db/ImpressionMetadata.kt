@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
+import com.google.cloud.spanner.Type
 import com.google.cloud.spanner.Value
 import com.google.type.Interval
 import com.google.type.interval
@@ -40,17 +41,27 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.gcloud.spanner.struct
 import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.EntityKey
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as State
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataKey
 import org.wfanet.measurement.internal.edpaggregator.copy
+import org.wfanet.measurement.internal.edpaggregator.entityKey
 import org.wfanet.measurement.internal.edpaggregator.impressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionMetadataKey
 
 private const val IMPRESSION_METADATA_RESOURCE_ID_PREFIX = "imp"
+
+// Struct shape for binding the ImpressionMetadataEntityKeys filter as an array parameter.
+private val ENTITY_KEY_FILTER_STRUCT: Type =
+  Type.struct(
+    Type.StructField.of("EntityType", Type.string()),
+    Type.StructField.of("EntityId", Type.string()),
+  )
 
 data class ImpressionMetadataResult(
   val impressionMetadata: ImpressionMetadata,
@@ -287,6 +298,28 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
+
+  for (entityKey in impressionMetadata.entityKeysList) {
+    insertImpressionMetadataEntityKey(
+      impressionMetadata.dataProviderResourceId,
+      impressionMetadataId,
+      entityKey,
+    )
+  }
+}
+
+/** Buffers an insert mutation for a single [ImpressionMetadataEntityKeys] row. */
+private fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadataEntityKey(
+  dataProviderResourceId: String,
+  impressionMetadataId: Long,
+  entityKey: EntityKey,
+) {
+  bufferInsertMutation("ImpressionMetadataEntityKeys") {
+    set("DataProviderResourceId").to(dataProviderResourceId)
+    set("ImpressionMetadataId").to(impressionMetadataId)
+    set("EntityType").to(entityKey.entityType)
+    set("EntityId").to(entityKey.entityId)
+  }
 }
 
 /**
@@ -395,6 +428,8 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
   limit: Int,
   after: ListImpressionMetadataPageToken.After? = null,
 ): Flow<ImpressionMetadataResult> {
+  val entityKeyFilter: List<EntityKey> = filter.entityKeysList
+
   val sql = buildString {
     appendLine(ImpressionMetadataEntity.BASE_SQL)
 
@@ -421,6 +456,25 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
 
     if (filter.blobUriPrefix.isNotEmpty()) {
       conjuncts.add("STARTS_WITH(ImpressionMetadata.BlobUri, @blobUriPrefix)")
+    }
+
+    if (entityKeyFilter.isNotEmpty()) {
+      conjuncts.add(
+        """
+        EXISTS (
+          SELECT 1
+          FROM ImpressionMetadataEntityKeys
+          WHERE ImpressionMetadataEntityKeys.DataProviderResourceId = ImpressionMetadata.DataProviderResourceId
+            AND ImpressionMetadataEntityKeys.ImpressionMetadataId = ImpressionMetadata.ImpressionMetadataId
+            AND EXISTS (
+              SELECT 1 FROM UNNEST(@entityKeyFilter) AS f
+              WHERE f.EntityType = ImpressionMetadataEntityKeys.EntityType
+                AND f.EntityId = ImpressionMetadataEntityKeys.EntityId
+            )
+        )
+        """
+          .trimIndent()
+      )
     }
 
     if (after != null) {
@@ -458,6 +512,19 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
 
       if (filter.blobUriPrefix.isNotEmpty()) {
         bind("blobUriPrefix").to(filter.blobUriPrefix)
+      }
+
+      if (entityKeyFilter.isNotEmpty()) {
+        bind("entityKeyFilter")
+          .toStructArray(
+            ENTITY_KEY_FILTER_STRUCT,
+            entityKeyFilter.map { ek ->
+              struct {
+                set("EntityType").to(ek.entityType)
+                set("EntityId").to(ek.entityId)
+              }
+            },
+          )
       }
 
       if (after != null) {
@@ -527,6 +594,15 @@ private object ImpressionMetadataEntity {
       ImpressionMetadata.UpdateTime,
       RawImpressionMetadataBatch.BatchResourceId AS RawImpressionBatchResourceId,
       RawImpressionMetadataBatchFile.FileResourceId AS RawImpressionFileResourceId,
+      ARRAY(
+        SELECT AS STRUCT
+          ImpressionMetadataEntityKeys.EntityType,
+          ImpressionMetadataEntityKeys.EntityId
+        FROM ImpressionMetadataEntityKeys
+        WHERE ImpressionMetadataEntityKeys.DataProviderResourceId = ImpressionMetadata.DataProviderResourceId
+          AND ImpressionMetadataEntityKeys.ImpressionMetadataId = ImpressionMetadata.ImpressionMetadataId
+        ORDER BY ImpressionMetadataEntityKeys.EntityType, ImpressionMetadataEntityKeys.EntityId
+      ) AS EntityKeys,
     FROM
       ImpressionMetadata
     LEFT JOIN (
@@ -562,6 +638,13 @@ private object ImpressionMetadataEntity {
             fileResourceId = struct.getString("RawImpressionFileResourceId")
           }
         }
+        entityKeys +=
+          struct.getStructList("EntityKeys").map { ekStruct ->
+            entityKey {
+              entityType = ekStruct.getString("EntityType")
+              entityId = ekStruct.getString("EntityId")
+            }
+          }
       },
       struct.getLong("ImpressionMetadataId"),
     )
