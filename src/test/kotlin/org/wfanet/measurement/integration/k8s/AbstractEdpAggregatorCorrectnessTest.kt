@@ -116,7 +116,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
     }
 
   @Test
-  fun `EDPA-registered EventGroups carry entity_key and entity_metadata via the CMMS public API`() =
+  fun `EDPA EventGroup with non-default entity_type round-trips via the CMMS public API`() =
     runBlocking {
       val response =
         measurementSystem.publicEventGroupsStub
@@ -135,15 +135,35 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
           )
 
       val byRefId = response.eventGroupsList.associateBy { it.eventGroupReferenceId }
-      val edp1 = byRefId.getValue("edpa-eg-reference-id-1")
-      assertThat(edp1.entityKey.entityType).isEqualTo("campaign")
-      assertThat(edp1.entityKey.entityId).isEqualTo("edpa-eg-reference-id-1")
-      assertThat(edp1.eventGroupMetadata.entityMetadata.fieldsMap).containsKey("placement")
+      val adGroup: EventGroup = byRefId.getValue(measurementSystem.adGroupEventGroupReferenceId)
+      assertThat(adGroup.entityKey.entityType).isEqualTo("ad_group")
+      assertThat(adGroup.entityKey.entityId)
+        .isEqualTo(measurementSystem.adGroupEventGroupReferenceId)
+      assertThat(adGroup.eventGroupMetadata.entityMetadata.fieldsMap).containsKey("placement")
+    }
 
-      val edp2 = byRefId.getValue("edpa-eg-reference-id-2")
-      assertThat(edp2.entityKey.entityType).isEqualTo("ad_group")
-      assertThat(edp2.entityKey.entityId).isEqualTo("edpa-eg-reference-id-2")
-      assertThat(edp2.eventGroupMetadata.entityMetadata.fieldsMap).containsKey("placement")
+  @Test
+  fun `EDPA EventGroup without entity_key defaults to campaign with no entity_id or metadata`() =
+    runBlocking {
+      val response =
+        measurementSystem.publicEventGroupsStub
+          .withAuthenticationKey(measurementSystem.apiAuthenticationKey)
+          .listEventGroups(
+            listEventGroupsRequest {
+              parent = measurementSystem.measurementConsumerName
+              pageSize = 100
+              // No filter — server defaults entity_type_in to ["campaign"].
+            }
+          )
+
+      val legacy: EventGroup =
+        response.eventGroupsList.single {
+          it.eventGroupReferenceId == measurementSystem.legacyEventGroupReferenceId
+        }
+      // Schema column DEFAULT "campaign"; EntityId stays NULL; entity_metadata not set.
+      assertThat(legacy.entityKey.entityType).isEqualTo("campaign")
+      assertThat(legacy.entityKey.entityId).isEmpty()
+      assertThat(legacy.eventGroupMetadata.hasEntityMetadata()).isFalse()
     }
 
   @Test
@@ -160,8 +180,8 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
         )
 
     val refIds = response.eventGroupsList.map { it.eventGroupReferenceId }.toSet()
-    assertThat(refIds).contains("edpa-eg-reference-id-1")
-    assertThat(refIds).doesNotContain("edpa-eg-reference-id-2")
+    assertThat(refIds).contains(measurementSystem.legacyEventGroupReferenceId)
+    assertThat(refIds).doesNotContain(measurementSystem.adGroupEventGroupReferenceId)
   }
 
   interface MeasurementSystem {
@@ -170,6 +190,10 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
     val publicEventGroupsStub: EventGroupsCoroutineStub
     val measurementConsumerName: String
     val apiAuthenticationKey: String
+    /** Reference id of the EDPA-uploaded EventGroup created with no entity_key supplied. */
+    val legacyEventGroupReferenceId: String
+    /** Reference id of the EDPA-uploaded EventGroup whose entity_key.entity_type is "ad_group". */
+    val adGroupEventGroupReferenceId: String
   }
 
   companion object {

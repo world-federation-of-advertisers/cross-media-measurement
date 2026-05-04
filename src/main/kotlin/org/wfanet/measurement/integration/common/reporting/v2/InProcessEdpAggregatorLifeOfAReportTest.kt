@@ -211,7 +211,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   // visible to the HMSS/TrusTee correctness tests despite its non-default entity_type.
   private val entityOverridesByEdp: Map<String, Map<String, EventGroupEntityOverride>> =
     syntheticEventGroupMapByEdp
-      .filterKeys { it != LEGACY_EDP_DISPLAY_NAME }
+      .filterKeys { it != EDP_NO_ENTITY_KEY_DISPLAY_NAME }
       .mapValues { (edpDisplayName, edpRefs) ->
         edpRefs.keys.associateWith { refId ->
           val entityType =
@@ -683,7 +683,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       val byRefId: Map<String, EventGroup> =
         listReportingEventGroups().associateBy { it.eventGroupReferenceId }
 
-      val legacy = byRefId.getValue(LEGACY_EDP_EVENT_GROUP_REF_ID)
+      val legacy: EventGroup = byRefId.getValue(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID)
       assertThat(legacy.entityKey.entityType).isEqualTo("campaign")
       assertThat(legacy.entityKey.entityId).isEmpty()
       assertThat(legacy.eventGroupMetadata.hasEntityMetadata()).isFalse()
@@ -1208,8 +1208,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     // edp4 is configured with multi-party noise CONTINUOUS_GAUSSIAN, so it's the "restricted"
     // EDP for the no-noise failure path tests; the same EDP also carries the non-default
     // entity_type ("ad_group") in this fixture.
-    private const val LEGACY_EDP_DISPLAY_NAME = "edp1"
-    private const val LEGACY_EDP_EVENT_GROUP_REF_ID = "edp1-eg-ref-1"
+    private const val EDP_NO_ENTITY_KEY_DISPLAY_NAME = "edp1"
+    private const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edp1-eg-ref-1"
     private const val AD_GROUP_EDP_DISPLAY_NAME = "edp4"
     private const val AD_GROUP_EDP_EVENT_GROUP_REF_ID = "edp4-eg-ref-1"
     private const val RESTRICTED_EDP_DISPLAY_NAME = AD_GROUP_EDP_DISPLAY_NAME

@@ -192,11 +192,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
               .atTime(23, 59, 59)
               .atZone(ZONE_ID)
               .toInstant()
-          // EDP1 carries the default-shape entity_key (entity_type="campaign"); EDP2 carries a
-          // non-default entity_type ("ad_group") so the deployed Kingdom + Reporting stack
-          // exercises both paths end-to-end on cluster.
-          val eventGroupEntityType =
-            if (eventGroupReferenceId == GROUP_REFERENCE_ID_EDPA_EDP2) "ad_group" else "campaign"
+          // EDP1 is the legacy path: no entity_key supplied → Kingdom schema defaults
+          // entity_type="campaign", leaves entity_id NULL, no entity_metadata.
+          // EDP2 carries a non-default entity_type ("ad_group") so the deployed Kingdom +
+          // Reporting stack exercises both paths end-to-end on cluster.
+          val isLegacyEdp = eventGroupReferenceId == GROUP_REFERENCE_ID_EDPA_EDP1
           eventGroup {
             this.eventGroupReferenceId = eventGroupReferenceId
             measurementConsumer = TEST_CONFIG.measurementConsumer
@@ -211,14 +211,18 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
                   campaign = "some-campaign"
                 }
               }
-              this.entityMetadata = struct {
-                fields["placement"] = value { stringValue = "homepage_top" }
-                fields["objective"] = value { stringValue = "awareness" }
+              if (!isLegacyEdp) {
+                this.entityMetadata = struct {
+                  fields["placement"] = value { stringValue = "homepage_top" }
+                  fields["objective"] = value { stringValue = "awareness" }
+                }
               }
             }
-            this.entityKey = entityKey {
-              entityType = eventGroupEntityType
-              entityId = eventGroupReferenceId
+            if (!isLegacyEdp) {
+              this.entityKey = entityKey {
+                entityType = "ad_group"
+                entityId = eventGroupReferenceId
+              }
             }
             mediaTypes += MediaType.valueOf("VIDEO")
           }
@@ -313,6 +317,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
     override val measurementConsumerName: String = TEST_CONFIG.measurementConsumer
     override val apiAuthenticationKey: String = TEST_CONFIG.apiAuthenticationKey
+    override val legacyEventGroupReferenceId: String = GROUP_REFERENCE_ID_EDPA_EDP1
+    override val adGroupEventGroupReferenceId: String = GROUP_REFERENCE_ID_EDPA_EDP2
 
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {

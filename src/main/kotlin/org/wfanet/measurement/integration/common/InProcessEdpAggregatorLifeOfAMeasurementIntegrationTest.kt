@@ -37,6 +37,7 @@ import org.junit.rules.TemporaryFolder
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
@@ -130,7 +131,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   // existing measurement tests.
   private val entityOverridesByEdp: Map<String, Map<String, EventGroupEntityOverride>> =
     syntheticEventGroupMapByEdp
-      .filterKeys { it != LEGACY_EDP_DISPLAY_NAME }
+      .filterKeys { it != EDP_NO_ENTITY_KEY_DISPLAY_NAME }
       .mapValues { (_, edpRefs) ->
         edpRefs.keys.associateWith { refId ->
           EventGroupEntityOverride(
@@ -419,7 +420,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   fun `EDPA EventGroups without entity_key default to campaign with no entity_id or metadata`() =
     runBlocking {
       val edpDisplayNameToResourceMap = inProcessCmmsComponents.edpDisplayNameToResourceMap
-      val edpResourceName = edpDisplayNameToResourceMap.getValue(LEGACY_EDP_DISPLAY_NAME).name
+      val edpResourceName =
+        edpDisplayNameToResourceMap.getValue(EDP_NO_ENTITY_KEY_DISPLAY_NAME).name
 
       val response =
         publicEventGroupsClient
@@ -431,9 +433,9 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
             }
           )
 
-      val legacy =
+      val legacy: EventGroup =
         response.eventGroupsList.single {
-          it.eventGroupReferenceId == LEGACY_EDP_EVENT_GROUP_REF_ID
+          it.eventGroupReferenceId == EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID
         }
       assertThat(legacy.entityKey.entityType).isEqualTo("campaign")
       assertThat(legacy.entityKey.entityId).isEmpty()
@@ -444,9 +446,9 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     // edp1 deliberately has no entity_key/entity_metadata override (legacy path); it also happens
     // to be the EDP that requires no measurement noise on the HMSS protocol, used by the
     // HMSS-failure path test.
-    private const val LEGACY_EDP_DISPLAY_NAME = "edp1"
-    private const val LEGACY_EDP_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-1"
-    private const val HMSS_NO_NOISE_EDP_EVENT_GROUP_REF_ID = LEGACY_EDP_EVENT_GROUP_REF_ID
+    private const val EDP_NO_ENTITY_KEY_DISPLAY_NAME = "edp1"
+    private const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-1"
+    private const val HMSS_NO_NOISE_EDP_EVENT_GROUP_REF_ID = EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID
     private const val TRUSTEE_NO_NOISE_EDP_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-3"
     private const val MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-4"
 
