@@ -274,7 +274,12 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         EventGroup.CREATE_TIME_FIELD_NUMBER,
         EventGroup.UPDATE_TIME_FIELD_NUMBER,
       )
-      .isEqualTo(request.eventGroup.copy { this.state = EventGroup.State.ACTIVE })
+      .isEqualTo(
+        request.eventGroup.copy {
+          this.state = EventGroup.State.ACTIVE
+          entityKey = entityKey { entityType = "campaign" }
+        }
+      )
     assertThat(response.externalEventGroupId).isNotEqualTo(0)
     assertThat(response.createTime.seconds).isGreaterThan(0)
     assertThat(response.updateTime).isEqualTo(response.createTime)
@@ -403,8 +408,14 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         EventGroup.UPDATE_TIME_FIELD_NUMBER,
       )
       .containsExactly(
-        request.requestsList[0].eventGroup.copy { this.state = EventGroup.State.ACTIVE },
-        request.requestsList[1].eventGroup.copy { this.state = EventGroup.State.ACTIVE },
+        request.requestsList[0].eventGroup.copy {
+          this.state = EventGroup.State.ACTIVE
+          entityKey = entityKey { entityType = "campaign" }
+        },
+        request.requestsList[1].eventGroup.copy {
+          this.state = EventGroup.State.ACTIVE
+          entityKey = entityKey { entityType = "campaign" }
+        },
       )
 
     for (eventGroup in response.eventGroupsList) {
@@ -2465,7 +2476,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     }
 
   @Test
-  fun `createEventGroup without entity_key leaves entity_key and entity_metadata unset on Get`() =
+  fun `createEventGroup without entity_key defaults entity_type to campaign on Get`() =
     runBlocking {
       val measurementConsumer =
         population.createMeasurementConsumer(measurementConsumersService, accountsService)
@@ -2490,7 +2501,9 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
             externalEventGroupId = created.externalEventGroupId
           }
         )
-      assertThat(fetched.hasEntityKey()).isFalse()
+      // EntityType column has NOT NULL DEFAULT "campaign" so the row carries that value;
+      // EntityId stays NULL, so entity_id is not surfaced.
+      assertThat(fetched.entityKey).isEqualTo(entityKey { entityType = "campaign" })
       assertThat(fetched.hasEntityMetadata()).isFalse()
     }
 
@@ -2797,7 +2810,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
-  fun `updateEventGroup without entity_key clears it`(): Unit = runBlocking {
+  fun `updateEventGroup without entity_key resets to default entity_type`(): Unit = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
@@ -2831,7 +2844,8 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
           externalEventGroupId = created.externalEventGroupId
         }
       )
-    assertThat(fetched.hasEntityKey()).isFalse()
+    // Update without entity_key writes EntityType="campaign" and EntityId=NULL.
+    assertThat(fetched.entityKey).isEqualTo(entityKey { entityType = "campaign" })
     assertThat(fetched.hasEntityMetadata()).isFalse()
   }
 
@@ -2874,7 +2888,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
-  fun `deleteEventGroup clears entity_key on Get`() = runBlocking {
+  fun `deleteEventGroup clears entity_id on Get`() = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
@@ -2906,7 +2920,8 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         }
       )
     assertThat(fetched.state).isEqualTo(EventGroup.State.DELETED)
-    assertThat(fetched.hasEntityKey()).isFalse()
+    // Delete nulls EntityId to free the entity_key slot for reuse; EntityType is left untouched.
+    assertThat(fetched.entityKey).isEqualTo(entityKey { entityType = ENTITY_KEY.entityType })
   }
 
   @Test
@@ -2930,8 +2945,8 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         }
       )
 
-    // Reader gates entity_key population on EntityId IS NOT NULL, so a blank entity_id input
-    // round-trips as an unset entity_key on the returned proto.
+    // Blank entity_id is persisted as NULL in EntityId; the entity_type round-trips unchanged
+    // since EntityType is NOT NULL.
     val fetched =
       eventGroupsService.getEventGroup(
         getEventGroupRequest {
@@ -2939,7 +2954,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
           externalEventGroupId = created.externalEventGroupId
         }
       )
-    assertThat(fetched.hasEntityKey()).isFalse()
+    assertThat(fetched.entityKey).isEqualTo(entityKey { entityType = "creative" })
 
     // Second EG with the same blank-entity_id key under the same (DP, MC) must succeed —
     // EventGroupsByEntityKey is NULL_FILTERED, so NULL EntityId rows are exempt from uniqueness.

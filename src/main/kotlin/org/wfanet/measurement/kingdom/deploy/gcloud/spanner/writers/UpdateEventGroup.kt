@@ -33,7 +33,9 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.to
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupDetails
+import org.wfanet.measurement.internal.kingdom.EventGroupKt
 import org.wfanet.measurement.internal.kingdom.MediaType
+import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
@@ -64,7 +66,15 @@ class UpdateEventGroup(private val request: EventGroup) : SpannerWriter<EventGro
   }
 
   override fun ResultScope<EventGroup>.buildResult(): EventGroup {
-    return request.toBuilder().apply { updateTime = commitTimestamp.toProto() }.build()
+    return request.copy {
+      updateTime = commitTimestamp.toProto()
+      // Mirror the writer above: when the caller doesn't supply entity_key, the row carries
+      // EntityType="campaign" and EntityId=NULL. Reflect that in the echoed response so it
+      // matches what a subsequent Get returns.
+      if (!request.hasEntityKey()) {
+        entityKey = EventGroupKt.entityKey { entityType = Table.DEFAULT_ENTITY_TYPE }
+      }
+    }
   }
 }
 
@@ -169,7 +179,7 @@ private suspend fun AsyncDatabaseClient.TransactionContext.syncMediaTypes(
   }
 }
 
-private object Table {
+internal object Table {
   const val EVENT_GROUPS = "EventGroups"
   const val EVENT_GROUP_MEDIA_TYPES = "EventGroupMediaTypes"
   /** Mirrors the column default declared in `add-event-group-entity-key.sql`. */
