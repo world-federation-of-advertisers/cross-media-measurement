@@ -224,8 +224,6 @@ class SpannerImpressionMetadataService(
         validateEntityKey(entityKey, "filter.entity_keys.$index")
       } catch (e: RequiredFieldNotSetException) {
         throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      } catch (e: InvalidFieldValueException) {
-        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
 
@@ -492,8 +490,8 @@ class SpannerImpressionMetadataService(
     if (entityKey.entityType.isEmpty()) {
       throw RequiredFieldNotSetException("$fieldPath.entity_type")
     }
-    if (entityKey.id.isEmpty()) {
-      throw RequiredFieldNotSetException("$fieldPath.id")
+    if (entityKey.entityId.isEmpty()) {
+      throw RequiredFieldNotSetException("$fieldPath.entity_id")
     }
   }
 

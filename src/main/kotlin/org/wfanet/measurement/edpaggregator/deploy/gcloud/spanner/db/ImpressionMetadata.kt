@@ -318,7 +318,7 @@ private fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadataEntit
     set("DataProviderResourceId").to(dataProviderResourceId)
     set("ImpressionMetadataId").to(impressionMetadataId)
     set("EntityType").to(entityKey.entityType)
-    set("EntityId").to(entityKey.id)
+    set("EntityId").to(entityKey.entityId)
   }
 }
 
@@ -521,7 +521,7 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
             entityKeyFilter.map { ek ->
               struct {
                 set("EntityType").to(ek.entityType)
-                set("EntityId").to(ek.id)
+                set("EntityId").to(ek.entityId)
               }
             },
           )
@@ -642,7 +642,7 @@ private object ImpressionMetadataEntity {
           struct.getStructList("EntityKeys").map { ekStruct ->
             entityKey {
               entityType = ekStruct.getString("EntityType")
-              id = ekStruct.getString("EntityId")
+              entityId = ekStruct.getString("EntityId")
             }
           }
       },
