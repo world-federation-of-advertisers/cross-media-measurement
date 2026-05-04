@@ -31,18 +31,18 @@ option java_multiple_files = true;
 // required to onboard a new EDP or to add new entity types to an existing
 // EDP's taxonomy).
 message EntityKey {
-  // ID of the entity in the DataProvider's system.
-  //
-  // Must be a URL-safe string, such that URL-encoding or -decoding results
-  // in the same string.
-  string id = 1;
-
   // Type of the entity in the DataProvider's system. Interpreted per-EDP
   // via configuration.
   //
   // Must be a URL-safe string, such that URL-encoding or -decoding results
   // in the same string.
-  string entity_type = 2;
+  string entity_type = 1;
+
+  // ID of the entity in the DataProvider's system, scoped to entity_type.
+  //
+  // Must be a URL-safe string, such that URL-encoding or -decoding results
+  // in the same string.
+  string entity_id = 2;
 }
 
 // Proto representation of the internal ImpressionMetadata entity type.
