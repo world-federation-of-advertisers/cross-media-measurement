@@ -565,20 +565,35 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
         clientAccount = clientAccount {
           externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
           externalDataProviderId = dataProvider.externalDataProviderId
-          clientAccountReferenceId = "batch-test-reference-id"
+          clientAccountReferenceId = "batch-multi-ref-1"
+        }
+      }
+      requests += createClientAccountRequest {
+        clientAccount = clientAccount {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          externalDataProviderId = dataProvider.externalDataProviderId
+          clientAccountReferenceId = "batch-multi-ref-2"
         }
       }
     }
 
     val response = clientAccountsService.batchCreateClientAccounts(request)
 
-    assertThat(response.clientAccountsList).hasSize(1)
-    val createdAccount = response.clientAccountsList.first()
-    assertThat(createdAccount.externalMeasurementConsumerId)
-      .isEqualTo(measurementConsumer.externalMeasurementConsumerId)
-    assertThat(createdAccount.externalClientAccountId).isGreaterThan(0L)
-    assertThat(createdAccount.externalDataProviderId).isEqualTo(dataProvider.externalDataProviderId)
-    assertThat(createdAccount.hasCreateTime()).isTrue()
+    assertThat(response.clientAccountsList).hasSize(2)
+    for (createdAccount in response.clientAccountsList) {
+      assertThat(createdAccount.externalMeasurementConsumerId)
+        .isEqualTo(measurementConsumer.externalMeasurementConsumerId)
+      assertThat(createdAccount.externalClientAccountId).isGreaterThan(0L)
+      assertThat(createdAccount.externalDataProviderId)
+        .isEqualTo(dataProvider.externalDataProviderId)
+      assertThat(createdAccount.hasCreateTime()).isTrue()
+    }
+    assertThat(response.clientAccountsList[0].clientAccountReferenceId)
+      .isEqualTo("batch-multi-ref-1")
+    assertThat(response.clientAccountsList[1].clientAccountReferenceId)
+      .isEqualTo("batch-multi-ref-2")
+    assertThat(response.clientAccountsList[0].externalClientAccountId)
+      .isNotEqualTo(response.clientAccountsList[1].externalClientAccountId)
   }
 
   companion object {
