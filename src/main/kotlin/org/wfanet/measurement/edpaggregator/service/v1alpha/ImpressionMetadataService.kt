@@ -646,8 +646,8 @@ class ImpressionMetadataService(
     if (entityKey.entityType.isEmpty()) {
       throw RequiredFieldNotSetException("$fieldPath.entity_type")
     }
-    if (entityKey.id.isEmpty()) {
-      throw RequiredFieldNotSetException("$fieldPath.id")
+    if (entityKey.entityId.isEmpty()) {
+      throw RequiredFieldNotSetException("$fieldPath.entity_id")
     }
   }
 
@@ -732,7 +732,7 @@ internal fun InternalEntityKey.toPublic(): EntityKey {
   val source = this
   return entityKey {
     entityType = source.entityType
-    id = source.id
+    entityId = source.entityId
   }
 }
 
@@ -741,6 +741,6 @@ internal fun EntityKey.toInternal(): InternalEntityKey {
   val source = this
   return internalEntityKey {
     entityType = source.entityType
-    id = source.id
+    entityId = source.entityId
   }
 }
