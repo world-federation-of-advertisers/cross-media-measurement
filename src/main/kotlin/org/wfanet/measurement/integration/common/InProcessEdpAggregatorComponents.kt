@@ -19,6 +19,7 @@ package org.wfanet.measurement.integration.common
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
+import com.google.protobuf.Struct
 import com.google.protobuf.timestamp
 import com.google.type.Interval
 import com.google.type.interval
@@ -72,6 +73,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
@@ -112,6 +114,17 @@ import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
+/**
+ * Per-EventGroup override for the EDPA-side `entity_key` and `entity_metadata` fields, keyed in
+ * [InProcessEdpAggregatorComponents] by `(edpAggregatorShortName, eventGroupReferenceId)`. Either
+ * field may be left null; null fields fall back to the proto default (no entity_key / no
+ * entity_metadata).
+ */
+data class EventGroupEntityOverride(
+  val entityKey: EventGroup.EntityKey? = null,
+  val entityMetadata: Struct? = null,
+)
+
 class InProcessEdpAggregatorComponents(
   secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
   private val storagePath: Path,
@@ -120,6 +133,7 @@ class InProcessEdpAggregatorComponents(
   private val syntheticEventGroupMapByEdp: Map<String, Map<String, SyntheticEventGroupSpec>>,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val externalKmsClient: FakeKmsClient,
+  private val entityOverridesByEdp: Map<String, Map<String, EventGroupEntityOverride>> = emptyMap(),
 ) : TestRule {
   private val modelLineName: String by lazy { requireSingleModelLineName(modelLineInfoMap.keys) }
 
@@ -477,8 +491,11 @@ class InProcessEdpAggregatorComponents(
     measurementConsumerData: MeasurementConsumerData,
     edpAggregatorShortName: String,
   ): List<EventGroup> {
+    val edpOverrides: Map<String, EventGroupEntityOverride> =
+      entityOverridesByEdp[edpAggregatorShortName].orEmpty()
     return syntheticEventGroupMapByEdp.getValue(edpAggregatorShortName).flatMap {
       (eventGroupReferenceId, syntheticEventGroupSpec) ->
+      val override: EventGroupEntityOverride? = edpOverrides[eventGroupReferenceId]
       syntheticEventGroupSpec.dateSpecsList.map { dateSpec ->
         val dateRange = dateSpec.dateRange
         val startTime =
@@ -508,6 +525,12 @@ class InProcessEdpAggregatorComponents(
                 campaign = "some-brand"
               }
             }
+            if (override?.entityMetadata != null) {
+              this.entityMetadata = override.entityMetadata
+            }
+          }
+          if (override?.entityKey != null) {
+            this.entityKey = override.entityKey
           }
           mediaTypes += MediaType.valueOf("VIDEO")
         }

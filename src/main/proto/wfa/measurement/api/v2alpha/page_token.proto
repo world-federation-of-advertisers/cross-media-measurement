@@ -67,6 +67,7 @@ message ListEventGroupsPageToken {
   google.protobuf.Timestamp data_availability_end_time_on_or_after = 14;
   string metadata_search_query = 11;
   DateInterval activity_contains = 15;
+  repeated string entity_type_in = 16;
   ListEventGroupsRequest.OrderBy order_by = 12;
 
   message PreviousPageEnd {

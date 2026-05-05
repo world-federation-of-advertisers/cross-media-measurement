@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupsResponse
+import org.wfanet.measurement.internal.kingdom.EventGroupKt
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
@@ -46,7 +47,19 @@ class BatchUpdateEventGroups(private val request: BatchUpdateEventGroupsRequest)
     }
 
     return batchUpdateEventGroupsResponse {
-      this.eventGroups += request.requestsList.map { it.eventGroup }
+      this.eventGroups +=
+        request.requestsList.map { subRequest ->
+          // Mirror UpdateEventGroup's writer: when entity_key isn't supplied the row carries
+          // EntityType="campaign" and EntityId=NULL. Reflect that in the echoed response so
+          // it matches what a subsequent Get returns.
+          if (subRequest.eventGroup.hasEntityKey()) {
+            subRequest.eventGroup
+          } else {
+            subRequest.eventGroup.copy {
+              entityKey = EventGroupKt.entityKey { entityType = Table.DEFAULT_ENTITY_TYPE }
+            }
+          }
+        }
     }
   }
 

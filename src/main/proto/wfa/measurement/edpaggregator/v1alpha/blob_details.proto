@@ -32,6 +32,17 @@ option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "BlobDetailsProto";
 
+// A group of entity IDs sharing the same entity type.
+message EntityKeyGroup {
+  // Type of the entity in the `DataProvider`'s system (a URL-safe string,
+  // e.g. "campaign", "ad_set", "ad").
+  string entity_type = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // Entity IDs of this type in the `DataProvider`'s system. Each must be
+  // a URL-safe string.
+  repeated string entity_ids = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
 // Message representing the info needed to retrieve a decrypted blob from
 // storage
 message BlobDetails {
@@ -41,7 +52,9 @@ message BlobDetails {
   // The encrypted dek used with KMS to decrypt data
   EncryptedDek encrypted_dek = 2 [(google.api.field_behavior) = REQUIRED];
 
-  // A map from event_group_reference_id to the EventGroup resource name.
+  // Reference ID of the `EventGroup` that produced this blob.
+  // Will be deprecated in favor of `entity_keys` when the `EventGroup` has an
+  // `entity_key` set.
   string event_group_reference_id = 3 [(google.api.field_behavior) = REQUIRED];
 
   // The resource name of the ModelLine associated with these impressions.
@@ -53,4 +66,13 @@ message BlobDetails {
   // Interval for when data from blob_uri is guaranteed to be available for a
   // Requisition fulfillment for the ModelLine indicated by model_line.
   google.type.Interval interval = 5 [(google.api.field_behavior) = REQUIRED];
+
+  // Entity keys of the `EventGroup` that produced this blob, grouped by
+  // entity type.
+  //
+  // When present, this replaces `event_group_reference_id` as the selector
+  // for identifying which events belong to this blob in the filtering
+  // pipeline.
+  repeated EntityKeyGroup entity_keys = 6
+      [(google.api.field_behavior) = OPTIONAL];
 }
