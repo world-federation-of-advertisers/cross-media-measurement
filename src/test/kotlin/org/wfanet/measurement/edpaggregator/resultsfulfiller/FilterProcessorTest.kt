@@ -109,6 +109,16 @@ class FilterProcessorTest {
       .build()
   }
 
+  /** Helper function to create an invalid interval (endTime <= startTime). */
+  private fun createInvalidInterval(): Interval {
+    val startTime = Instant.parse("2050-01-01T00:00:00Z")
+    val endTime = Instant.parse("2000-01-01T00:00:00Z")
+    return Interval.newBuilder()
+      .setStartTime(Timestamps.fromMillis(startTime.toEpochMilli()))
+      .setEndTime(Timestamps.fromMillis(endTime.toEpochMilli()))
+      .build()
+  }
+
   /** Helper function to create a FilterSpec for testing. */
   private fun createTestFilterSpec(
     celExpression: String = "",
@@ -116,12 +126,22 @@ class FilterProcessorTest {
     eventGroupReferenceIds: List<String> = listOf("test-group"),
     entityKeys: Set<LabeledImpression.EntityKey> = emptySet(),
   ): FilterSpec {
-    return FilterSpec(
-      celExpression = celExpression,
-      collectionInterval = collectionInterval,
-      eventGroupReferenceIds = eventGroupReferenceIds,
-      entityKeys = entityKeys,
-    )
+    // Picks the variant matching the requested selector. Tests that don't pass entityKeys
+    // get the legacy ByEventGroupReferenceIds variant; tests that pass entityKeys get
+    // ByEntityKeys (eventGroupReferenceIds is then ignored to keep the variant pure).
+    return if (entityKeys.isNotEmpty()) {
+      FilterSpec.ByEntityKeys(
+        celExpression = celExpression,
+        collectionInterval = collectionInterval,
+        entityKeys = entityKeys,
+      )
+    } else {
+      FilterSpec.ByEventGroupReferenceIds(
+        celExpression = celExpression,
+        collectionInterval = collectionInterval,
+        eventGroupReferenceIds = eventGroupReferenceIds,
+      )
+    }
   }
 
   /** Helper function to build a [LabeledImpression.EntityKey]. */
@@ -643,28 +663,79 @@ class FilterProcessorTest {
   }
 
   @Test
-  fun `FilterSpec init throws when both eventGroupReferenceIds and entityKeys are empty`() {
+  fun `FilterSpec ByEventGroupReferenceIds init throws when eventGroupReferenceIds is empty`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        FilterSpec(
+        FilterSpec.ByEventGroupReferenceIds(
           celExpression = "",
           collectionInterval = createDefaultInterval(),
           eventGroupReferenceIds = emptyList(),
-          entityKeys = emptySet(),
         )
       }
-    assertThat(exception).hasMessageThat().contains("Either eventGroupReferenceIds or entityKeys")
+    assertThat(exception).hasMessageThat().contains("eventGroupReferenceIds must not be empty")
   }
 
   @Test
-  fun `FilterSpec init accepts entityKeys-only spec`() {
+  fun `FilterSpec ByEntityKeys init throws when entityKeys is empty`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        FilterSpec.ByEntityKeys(
+          celExpression = "",
+          collectionInterval = createDefaultInterval(),
+          entityKeys = emptySet(),
+        )
+      }
+    assertThat(exception).hasMessageThat().contains("entityKeys must not be empty")
+  }
+
+  @Test
+  fun `FilterSpec ByEntityKeys init accepts non-empty entityKeys`() {
     // No exception expected.
-    FilterSpec(
+    FilterSpec.ByEntityKeys(
       celExpression = "",
       collectionInterval = createDefaultInterval(),
-      eventGroupReferenceIds = emptyList(),
       entityKeys = setOf(makeEntityKey("ad", "X")),
     )
+  }
+
+  @Test
+  fun `FilterSpec ByEventGroupReferenceIds init accepts non-empty eventGroupReferenceIds`() {
+    // No exception expected.
+    FilterSpec.ByEventGroupReferenceIds(
+      celExpression = "",
+      collectionInterval = createDefaultInterval(),
+      eventGroupReferenceIds = listOf("test-group"),
+    )
+  }
+
+  @Test
+  fun `FilterSpec ByEventGroupReferenceIds init throws when collectionInterval is invalid`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        FilterSpec.ByEventGroupReferenceIds(
+          celExpression = "",
+          collectionInterval = createInvalidInterval(),
+          eventGroupReferenceIds = listOf("test-group"),
+        )
+      }
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("collectionInterval startTime must be before endTime")
+  }
+
+  @Test
+  fun `FilterSpec ByEntityKeys init throws when collectionInterval is invalid`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        FilterSpec.ByEntityKeys(
+          celExpression = "",
+          collectionInterval = createInvalidInterval(),
+          entityKeys = setOf(makeEntityKey("ad", "X")),
+        )
+      }
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("collectionInterval startTime must be before endTime")
   }
 
   @Test
