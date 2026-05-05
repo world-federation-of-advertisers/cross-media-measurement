@@ -104,9 +104,7 @@ fun verifySyntheticData(
         val relativePath = metadataFile.relativeTo(storagePath.resolve(outputBucket)).path
         LOGGER.info("Reading metadata from: $relativePath")
 
-        val metadataBlob = runBlocking {
-          rootStorageClient.getBlob("$outputBucket/$relativePath")
-        }
+        val metadataBlob = runBlocking { rootStorageClient.getBlob("$outputBucket/$relativePath") }
         check(metadataBlob != null) { "Metadata blob not found: $outputBucket/$relativePath" }
 
         val blobDetailsBytes = runBlocking { metadataBlob.read().toList() }

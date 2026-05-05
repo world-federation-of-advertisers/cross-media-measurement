@@ -40,6 +40,8 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.loadtest.dataprovider.EntityKey
+import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
@@ -78,42 +80,60 @@ class ImpressionWriterTest {
       sequenceOf(
         LabeledEventDateShard(
           LocalDate.parse("2020-01-01"),
-          sequenceOf(
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
+          listOf(
+            EntityKeysWithLabeledEvents(
+              entityKeys = emptyList(),
+              labeledEvents =
+                sequenceOf(
+                  LabeledEvent(
+                    vid = 1,
+                    message = TestEvent.getDefaultInstance(),
+                    timestamp =
+                      LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+                  ),
+                  LabeledEvent(
+                    vid = 1,
+                    message = TestEvent.getDefaultInstance(),
+                    timestamp =
+                      LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+                  ),
+                  LabeledEvent(
+                    vid = 1,
+                    message = TestEvent.getDefaultInstance(),
+                    timestamp =
+                      LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+                  ),
+                ),
+            )
           ),
         ),
         LabeledEventDateShard(
           LocalDate.parse("2020-01-02"),
-          sequenceOf(
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
+          listOf(
+            EntityKeysWithLabeledEvents(
+              entityKeys = emptyList(),
+              labeledEvents =
+                sequenceOf(
+                  LabeledEvent(
+                    vid = 1,
+                    message = TestEvent.getDefaultInstance(),
+                    timestamp =
+                      LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+                  ),
+                  LabeledEvent(
+                    vid = 1,
+                    message = TestEvent.getDefaultInstance(),
+                    timestamp =
+                      LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+                  ),
+                  LabeledEvent(
+                    vid = 1,
+                    message = TestEvent.getDefaultInstance(),
+                    timestamp =
+                      LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+                  ),
+                ),
+            )
           ),
         ),
       )
@@ -188,11 +208,18 @@ class ImpressionWriterTest {
       sequenceOf(
         LabeledEventDateShard(
           LocalDate.parse("2020-01-01"),
-          sequenceOf(
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+          listOf(
+            EntityKeysWithLabeledEvents(
+              entityKeys = emptyList(),
+              labeledEvents =
+                sequenceOf(
+                  LabeledEvent(
+                    vid = 1,
+                    message = TestEvent.getDefaultInstance(),
+                    timestamp =
+                      LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+                  )
+                ),
             )
           ),
         )
@@ -231,26 +258,41 @@ class ImpressionWriterTest {
       sequenceOf(
         LabeledEventDateShard(
           LocalDate.parse("2020-01-01"),
-          sequenceOf(
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
-            LabeledEvent(
-              vid = 2,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
+          listOf(
+            EntityKeysWithLabeledEvents(
+              entityKeys = emptyList(),
+              labeledEvents =
+                sequenceOf(
+                  LabeledEvent(
+                    vid = 1,
+                    message = TestEvent.getDefaultInstance(),
+                    timestamp =
+                      LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+                  ),
+                  LabeledEvent(
+                    vid = 2,
+                    message = TestEvent.getDefaultInstance(),
+                    timestamp =
+                      LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+                  ),
+                ),
+            )
           ),
         ),
         LabeledEventDateShard(
           LocalDate.parse("2020-01-02"),
-          sequenceOf(
-            LabeledEvent(
-              vid = 3,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+          listOf(
+            EntityKeysWithLabeledEvents(
+              entityKeys = emptyList(),
+              labeledEvents =
+                sequenceOf(
+                  LabeledEvent(
+                    vid = 3,
+                    message = TestEvent.getDefaultInstance(),
+                    timestamp =
+                      LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+                  )
+                ),
             )
           ),
         ),
@@ -297,6 +339,100 @@ class ImpressionWriterTest {
             )
         }
       }
+    }
+  }
+
+  @Test
+  fun `writeLabeledImpressionData stamps per-group EntityKeys within a single blob`() {
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
+    val kmsClient = run {
+      val client = FakeKmsClient()
+      val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+      client.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+      client
+    }
+    tempFolder.root.resolve("multi-impression-bucket").mkdirs()
+    tempFolder.root.resolve("multi-metadata-bucket").mkdirs()
+    val impressionWriter =
+      ImpressionsWriter(
+        "some-event-group-ref",
+        "some-event-group-path",
+        kekUri,
+        kmsClient,
+        "multi-impression-bucket",
+        "multi-metadata-bucket",
+        tempFolder.root,
+        "file:///",
+      )
+
+    val date = LocalDate.parse("2020-01-01")
+    val timestamp = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
+    val groupAEntityKeys = listOf(EntityKey("type-a", "id-a"), EntityKey("type-a", "id-a2"))
+    val groupBEntityKeys = listOf(EntityKey("type-b", "id-b"))
+    val events: Sequence<LabeledEventDateShard<TestEvent>> =
+      sequenceOf(
+        LabeledEventDateShard(
+          date,
+          listOf(
+            EntityKeysWithLabeledEvents(
+              entityKeys = groupAEntityKeys,
+              labeledEvents =
+                sequenceOf(
+                  LabeledEvent(timestamp, vid = 10, message = TestEvent.getDefaultInstance()),
+                  LabeledEvent(timestamp, vid = 11, message = TestEvent.getDefaultInstance()),
+                ),
+            ),
+            EntityKeysWithLabeledEvents(
+              entityKeys = groupBEntityKeys,
+              labeledEvents =
+                sequenceOf(
+                  LabeledEvent(timestamp, vid = 20, message = TestEvent.getDefaultInstance())
+                ),
+            ),
+          ),
+        )
+      )
+
+    val modelLineName = "modelProviders/provider1/modelSuites/suite1/modelLines/some-model-line"
+    runBlocking {
+      impressionWriter.writeLabeledImpressionData(events, modelLineName, "edp/edp-test")
+    }
+
+    val storageClient = FileSystemStorageClient(tempFolder.root)
+    runBlocking {
+      val blobDetails =
+        BlobDetails.parseFrom(
+          storageClient
+            .getBlob(
+              "multi-metadata-bucket/edp/edp-test/ds/2020-01-01/some-event-group-path/metadata.binpb"
+            )!!
+            .read()
+            .flatten()
+        )
+      val selectedStorageClient = SelectedStorageClient(blobDetails.blobUri, tempFolder.root)
+      val decryptionClient =
+        selectedStorageClient.withEnvelopeEncryption(
+          kmsClient,
+          kekUri,
+          blobDetails.encryptedDek.ciphertext,
+        )
+      val impressions =
+        MesosRecordIoStorageClient(decryptionClient)
+          .getBlob("edp/edp-test/ds/2020-01-01/some-event-group-path/impressions")!!
+          .read()
+          .toList()
+          .map { LabeledImpression.parseFrom(it) }
+      assertThat(impressions).hasSize(3)
+
+      val byVid = impressions.associateBy { it.vid }
+      assertThat(byVid[10L]!!.entityKeysList.map { it.entityType to it.entityId })
+        .containsExactly("type-a" to "id-a", "type-a" to "id-a2")
+        .inOrder()
+      assertThat(byVid[11L]!!.entityKeysList.map { it.entityType to it.entityId })
+        .containsExactly("type-a" to "id-a", "type-a" to "id-a2")
+        .inOrder()
+      assertThat(byVid[20L]!!.entityKeysList.map { it.entityType to it.entityId })
+        .containsExactly("type-b" to "id-b")
     }
   }
 

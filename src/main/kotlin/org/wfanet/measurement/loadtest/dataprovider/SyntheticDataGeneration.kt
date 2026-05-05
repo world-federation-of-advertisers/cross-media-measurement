@@ -92,7 +92,9 @@ object SyntheticDataGeneration {
               numDays.toInt(),
               timeRange,
             )
-          yield(LabeledEventDateShard(date, events))
+          yield(
+            LabeledEventDateShard(date, listOf(EntityKeysWithLabeledEvents(emptyList(), events)))
+          )
         }
       }
     }

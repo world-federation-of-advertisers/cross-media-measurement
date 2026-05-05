@@ -69,7 +69,7 @@ abstract class SyntheticGeneratorEventQuery(
         timeRange,
         timeZone,
       )
-      .flatMap { it.labeledEvents }
+      .flatMap { shard -> shard.entityKeysWithLabeledEvents.flatMap { it.labeledEvents } }
       .filter { EventFilters.matches(it.message, program) }
   }
 

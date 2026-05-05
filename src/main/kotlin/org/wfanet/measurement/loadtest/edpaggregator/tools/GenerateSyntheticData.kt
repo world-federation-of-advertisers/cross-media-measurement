@@ -25,7 +25,9 @@ import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import java.io.File
 import java.nio.file.Paths
+import java.time.LocalDate
 import java.time.ZoneId
+import java.util.SortedMap
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
@@ -38,7 +40,8 @@ import org.wfanet.measurement.common.crypto.tink.AwsWebIdentityCredentials
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt.entityKey
+import org.wfanet.measurement.loadtest.dataprovider.EntityKey
+import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
@@ -293,27 +296,28 @@ class GenerateSyntheticData : Runnable {
 
     runBlocking {
       for (specFlags in eventGroupSpecFlags) {
-        val syntheticEventGroupSpec: SyntheticEventGroupSpec =
-          parseTextProto(
-            TEST_DATA_RUNTIME_PATH.resolve(specFlags.dataSpecResourcePath).toFile(),
-            SyntheticEventGroupSpec.getDefaultInstance(),
-          )
         // TODO(world-federation-of-advertisers/cross-media-measurement#2360): Consider supporting
         // other event types.
-        val events: Sequence<LabeledEventDateShard<TestEvent>> =
-          SyntheticDataGeneration.generateEvents(
-            messageInstance = TestEvent.getDefaultInstance(),
-            populationSpec = syntheticPopulationSpec,
-            syntheticEventGroupSpec = syntheticEventGroupSpec,
-            zoneId = ZoneId.of(zoneId),
-          )
-        val parsedEntityKeys =
-          specFlags.entityKeyFlags.map {
-            entityKey {
-              entityType = it.entityType
-              entityId = it.entityId
-            }
+        val perSubSpecShards: List<Sequence<LabeledEventDateShard<TestEvent>>> =
+          specFlags.subSpecFlags.map { subSpec ->
+            val syntheticEventGroupSpec: SyntheticEventGroupSpec =
+              parseTextProto(
+                TEST_DATA_RUNTIME_PATH.resolve(subSpec.dataSpecResourcePath).toFile(),
+                SyntheticEventGroupSpec.getDefaultInstance(),
+              )
+            SyntheticDataGeneration.generateEvents(
+              messageInstance = TestEvent.getDefaultInstance(),
+              populationSpec = syntheticPopulationSpec,
+              syntheticEventGroupSpec = syntheticEventGroupSpec,
+              zoneId = ZoneId.of(zoneId),
+            )
           }
+        val perSubSpecEntityKeys: List<List<EntityKey>> =
+          specFlags.subSpecFlags.map { subSpec ->
+            subSpec.entityKeyFlags.map { EntityKey(it.entityType, it.entityId) }
+          }
+        val coalescedShards: Sequence<LabeledEventDateShard<TestEvent>> =
+          coalesceByDate(perSubSpecShards, perSubSpecEntityKeys)
         val eventGroupPath =
           "model-line/$modelLineName/event-group-reference-id/${specFlags.eventGroupReferenceId}"
         val impressionWriter =
@@ -326,15 +330,43 @@ class GenerateSyntheticData : Runnable {
             outputBucket,
             storagePath,
             schema,
-            parsedEntityKeys,
           )
         impressionWriter.writeLabeledImpressionData(
-          events,
+          coalescedShards,
           modelLine,
           impressionsBasePath = impressionMetadataBasePath,
           flatOutputBasePath = flatOutputBasePath,
         )
       }
+    }
+  }
+
+  /**
+   * Coalesces per-sub-spec date shard sequences into a single per-event-group sequence. Each output
+   * shard contains one [EntityKeysWithLabeledEvents] group per sub-spec that emitted events for
+   * that date, so a single impressions blob can hold impressions with different entity keys.
+   */
+  private fun coalesceByDate(
+    perSubSpecShards: List<Sequence<LabeledEventDateShard<TestEvent>>>,
+    perSubSpecEntityKeys: List<List<EntityKey>>,
+  ): Sequence<LabeledEventDateShard<TestEvent>> {
+    require(perSubSpecShards.size == perSubSpecEntityKeys.size)
+    // Materialize per-sub-spec, per-date groups so we can join across sub-specs by date.
+    val groupsByDate: SortedMap<LocalDate, MutableList<EntityKeysWithLabeledEvents<TestEvent>>> =
+      sortedMapOf()
+    for ((index, shards) in perSubSpecShards.withIndex()) {
+      val entityKeys = perSubSpecEntityKeys[index]
+      for (shard in shards) {
+        // Each generated shard from generateEvents contains exactly one (empty-entity-keys) group.
+        val labeledEvents = shard.entityKeysWithLabeledEvents.flatMap { it.labeledEvents.toList() }
+        if (labeledEvents.isEmpty()) continue
+        groupsByDate
+          .getOrPut(shard.localDate) { mutableListOf() }
+          .add(EntityKeysWithLabeledEvents(entityKeys, labeledEvents.asSequence()))
+      }
+    }
+    return groupsByDate.asSequence().map { (date, groups) ->
+      LabeledEventDateShard(date, groups.toList())
     }
   }
 
@@ -364,9 +396,10 @@ class GenerateSyntheticData : Runnable {
 }
 
 /**
- * Flags describing a single synthetic event group to generate: which data-spec textproto to read,
- * what `event_group_reference_id` to associate it with, and which `LabeledImpression.EntityKey`s to
- * stamp on every impression in this event group.
+ * Flags describing a single synthetic event group to generate. An event group is identified by its
+ * [eventGroupReferenceId] and produces one impressions blob per date. Each blob is populated by one
+ * or more [EntityKeysSubSpecFlags]: each sub-spec contributes its own data-spec textproto and its
+ * own EntityKeys, allowing different impressions in the same blob to carry different EntityKeys.
  */
 private class EventGroupSpecFlags {
   @Option(
@@ -377,10 +410,28 @@ private class EventGroupSpecFlags {
   lateinit var eventGroupReferenceId: String
     private set
 
+  @ArgGroup(
+    exclusive = false,
+    multiplicity = "1..*",
+    heading =
+      "Sub-spec flags for this event group. Each sub-spec contributes its own data-spec textproto " +
+        "and EntityKeys; impressions from all sub-specs land in the same per-date impressions " +
+        "blob, with each impression stamped with its sub-spec's EntityKeys.%n",
+  )
+  lateinit var subSpecFlags: List<EntityKeysSubSpecFlags>
+    private set
+}
+
+/**
+ * One sub-spec contribution to an event group's per-date impressions blob: a data-spec textproto
+ * and a list of [LabeledImpression.EntityKey]s that should be stamped on every impression generated
+ * from this sub-spec.
+ */
+private class EntityKeysSubSpecFlags {
   @Option(
     names = ["--data-spec-resource-path"],
     description =
-      ["The path to the data-spec resource for this event group. Must be textproto format."],
+      ["The path to the data-spec resource for this sub-spec. Must be textproto format."],
     required = true,
   )
   lateinit var dataSpecResourcePath: String
@@ -390,7 +441,7 @@ private class EventGroupSpecFlags {
     exclusive = false,
     multiplicity = "1..*",
     heading =
-      "EntityKey to attach to every LabeledImpression in this event group. " +
+      "EntityKey to attach to every LabeledImpression contributed by this sub-spec. " +
         "At least one must be specified; pass the pair multiple times for multiple EntityKeys.%n",
   )
   lateinit var entityKeyFlags: List<EntityKeyFlags>
