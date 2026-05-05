@@ -86,6 +86,8 @@ class EdpAggregatorMeasurementConsumerSimulator(
     modelLineName = modelLineName,
   ) {
 
+  override val listEventGroupsEntityTypes = listOf("campaign", "ad_group")
+
   override fun Flow<EventGroup>.filterEventGroups(): Flow<EventGroup> {
     return filter { it.eventGroupReferenceId in syntheticEventGroupMap.keys }
   }

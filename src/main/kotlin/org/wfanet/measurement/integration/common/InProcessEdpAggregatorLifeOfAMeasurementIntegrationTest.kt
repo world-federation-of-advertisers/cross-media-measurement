@@ -39,6 +39,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
@@ -137,7 +138,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
           EventGroupEntityOverride(
             entityKey =
               edpaEntityKey {
-                entityType = "campaign"
+                entityType = "ad_group"
                 entityId = refId
               },
             entityMetadata = ENTITY_METADATA,
@@ -393,6 +394,11 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
               listEventGroupsRequest {
                 parent = edpResourceName
                 pageSize = 1000
+                filter =
+                  ListEventGroupsRequestKt.filter {
+                    entityTypeIn += "campaign"
+                    entityTypeIn += "ad_group"
+                  }
               }
             )
 
