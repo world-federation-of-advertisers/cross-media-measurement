@@ -1480,6 +1480,122 @@ class DataAvailabilitySyncTest {
     }
 
   @Test
+  fun `sync throws when EntityKeyGroup has empty entity_type`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+    seedBlobDetails(
+      storageClient,
+      folderPrefix,
+      listOf(300L to 400L),
+      entityKeyGroups =
+        listOf(
+          entityKeyGroup {
+            // entity_type intentionally left empty.
+            entityIds += "campaign-1"
+          }
+        ),
+    )
+
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+      )
+
+    assertFailsWith<IllegalArgumentException> {
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
+  @Test
+  fun `sync throws when EntityKeyGroup has empty entity_ids`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+    seedBlobDetails(
+      storageClient,
+      folderPrefix,
+      listOf(300L to 400L),
+      entityKeyGroups =
+        listOf(
+          entityKeyGroup {
+            entityType = "campaign"
+            // entity_ids intentionally left empty.
+          }
+        ),
+    )
+
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+      )
+
+    assertFailsWith<IllegalArgumentException> {
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
+  @Test
+  fun `sync throws when EntityKeyGroup has an empty entity_id`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+    seedBlobDetails(
+      storageClient,
+      folderPrefix,
+      listOf(300L to 400L),
+      entityKeyGroups =
+        listOf(
+          entityKeyGroup {
+            entityType = "campaign"
+            entityIds += "campaign-1"
+            // Second id intentionally empty.
+            entityIds += ""
+          }
+        ),
+    )
+
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+      )
+
+    assertFailsWith<IllegalArgumentException> {
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
+  @Test
   fun `BlobDetails with both event_group_reference_id and entity_keys propagates both`() =
     runBlocking {
       val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
@@ -1543,6 +1659,180 @@ class DataAvailabilitySyncTest {
         )
         .inOrder()
       // Data availability is updated regardless of which selectors BlobDetails carries.
+      verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+    }
+
+  @Test
+  fun `sync parses JSON-encoded BlobDetails with event_group_reference_id and entity_keys and propagates both`() =
+    runBlocking {
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+      val entityKeyGroups =
+        listOf(
+          entityKeyGroup {
+            entityType = "campaign"
+            entityIds += "campaign-1"
+            entityIds += "campaign-2"
+          },
+          entityKeyGroup {
+            entityType = "ad"
+            entityIds += "ad-1"
+          },
+        )
+
+      seedBlobDetails(
+        storageClient,
+        folderPrefix,
+        listOf(300L to 400L),
+        encoding = BlobEncoding.JSON,
+        entityKeyGroups = entityKeyGroups,
+      )
+
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
+        )
+
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+      val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock, times(1)) {
+        batchCreateImpressionMetadata(batchCaptor.capture())
+      }
+      val createdMetadata = batchCaptor.firstValue.requestsList.single().impressionMetadata
+      assertThat(createdMetadata.eventGroupReferenceId).isEqualTo("some-event-group-reference-id")
+      assertThat(createdMetadata.entityKeysList)
+        .containsExactly(
+          entityKey {
+            entityType = "campaign"
+            entityId = "campaign-1"
+          },
+          entityKey {
+            entityType = "campaign"
+            entityId = "campaign-2"
+          },
+          entityKey {
+            entityType = "ad"
+            entityId = "ad-1"
+          },
+        )
+        .inOrder()
+      verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+    }
+
+  @Test
+  fun `sync parses JSON-encoded BlobDetails without event_group_reference_id and propagates only entity_keys`() =
+    runBlocking {
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+      val entityKeyGroups =
+        listOf(
+          entityKeyGroup {
+            entityType = "campaign"
+            entityIds += "campaign-1"
+            entityIds += "campaign-2"
+          },
+          entityKeyGroup {
+            entityType = "ad"
+            entityIds += "ad-1"
+          },
+        )
+
+      seedBlobDetails(
+        storageClient,
+        folderPrefix,
+        listOf(300L to 400L),
+        encoding = BlobEncoding.JSON,
+        entityKeyGroups = entityKeyGroups,
+        populateEventGroupReferenceId = false,
+      )
+
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
+        )
+
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+      val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock, times(1)) {
+        batchCreateImpressionMetadata(batchCaptor.capture())
+      }
+      val createdMetadata = batchCaptor.firstValue.requestsList.single().impressionMetadata
+      assertThat(createdMetadata.eventGroupReferenceId).isEmpty()
+      assertThat(createdMetadata.entityKeysList)
+        .containsExactly(
+          entityKey {
+            entityType = "campaign"
+            entityId = "campaign-1"
+          },
+          entityKey {
+            entityType = "campaign"
+            entityId = "campaign-2"
+          },
+          entityKey {
+            entityType = "ad"
+            entityId = "ad-1"
+          },
+        )
+        .inOrder()
+      verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+    }
+
+  @Test
+  fun `sync parses JSON-encoded BlobDetails with only event_group_reference_id and propagates ref id and empty entity_keys`() =
+    runBlocking {
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+      // No entity_keys; legacy-style blob with only event_group_reference_id.
+      seedBlobDetails(
+        storageClient,
+        folderPrefix,
+        listOf(300L to 400L),
+        encoding = BlobEncoding.JSON,
+      )
+
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
+        )
+
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+      val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock, times(1)) {
+        batchCreateImpressionMetadata(batchCaptor.capture())
+      }
+      val createdMetadata = batchCaptor.firstValue.requestsList.single().impressionMetadata
+      assertThat(createdMetadata.eventGroupReferenceId).isEqualTo("some-event-group-reference-id")
+      assertThat(createdMetadata.entityKeysList).isEmpty()
       verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
     }
 

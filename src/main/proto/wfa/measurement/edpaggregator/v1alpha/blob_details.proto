@@ -53,9 +53,12 @@ message BlobDetails {
   EncryptedDek encrypted_dek = 2 [(google.api.field_behavior) = REQUIRED];
 
   // Reference ID of the `EventGroup` that produced this blob.
-  // Will be deprecated in favor of `entity_keys` when the `EventGroup` has an
-  // `entity_key` set.
-  string event_group_reference_id = 3 [(google.api.field_behavior) = REQUIRED];
+  //
+  // Retained for backwards compatibility with legacy blobs written before
+  // `entity_keys` was introduced. New writers should populate `entity_keys`
+  // instead; readers must still accept blobs that only have this field set.
+  // At least one of `event_group_reference_id` or `entity_keys` must be set.
+  string event_group_reference_id = 3 [(google.api.field_behavior) = OPTIONAL];
 
   // The resource name of the ModelLine associated with these impressions.
   string model_line = 4 [
@@ -70,14 +73,16 @@ message BlobDetails {
   // Entity keys of the `EventGroup` that produced this blob, grouped by
   // entity type.
   //
-  // When present, this replaces `event_group_reference_id` as the selector
-  // for identifying which events belong to this blob in the filtering
-  // pipeline.
+  // This is the canonical selector for identifying which events belong to
+  // this blob in the filtering pipeline and must be populated by new
+  // writers. Readers must still accept legacy blobs written before this
+  // field existed, which may carry only `event_group_reference_id`; at
+  // least one of `event_group_reference_id` or `entity_keys` must be set.
   //
   // For each entity key listed, the blob is guaranteed to contain at least
   // one impression associated with it. Conversely, every impression in the
   // blob is associated with at least one of these entity keys, though an
   // individual impression need not be associated with all of them.
   repeated EntityKeyGroup entity_keys = 6
-      [(google.api.field_behavior) = OPTIONAL];
+      [(google.api.field_behavior) = REQUIRED];
 }

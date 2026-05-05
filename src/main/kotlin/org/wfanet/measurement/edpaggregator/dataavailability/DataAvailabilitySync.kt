@@ -355,7 +355,8 @@ class DataAvailabilitySync(
    *     - Other extensions: throws [IllegalArgumentException].
    * - Validates that the parsed `BlobDetails` has both a start and end time in its interval.
    * - Validates that the parsed `BlobDetails` has at least one of `event_group_reference_id` or
-   *   `entity_keys` populated.
+   *   `entity_keys` populated, and that every value within `entity_keys` is populated and not
+   *   empty.
    * - Verifies that the referenced encrypted impressions blob exists in storage.
    * - Constructs an [ImpressionMetadata] and groups it by [ModelLineKey].
    *
@@ -406,6 +407,25 @@ class DataAvailabilitySync(
         ) {
           "BlobDetails must have either event_group_reference_id or entity_keys populated " +
             "for blob_uri = ${blobDetails.blobUri}"
+        }
+        // Every EntityKeyGroup must be well-formed: a non-empty entity_type and at least
+        // one non-empty entity_id. Malformed groups would create unusable EntityKey entries
+        // on the resulting ImpressionMetadata.
+        blobDetails.entityKeysList.forEachIndexed { groupIndex, group ->
+          require(group.entityType.isNotEmpty()) {
+            "BlobDetails entity_keys[$groupIndex].entity_type is empty " +
+              "for blob_uri = ${blobDetails.blobUri}"
+          }
+          require(group.entityIdsList.isNotEmpty()) {
+            "BlobDetails entity_keys[$groupIndex].entity_ids is empty " +
+              "for blob_uri = ${blobDetails.blobUri}"
+          }
+          group.entityIdsList.forEachIndexed { idIndex, entityId ->
+            require(entityId.isNotEmpty()) {
+              "BlobDetails entity_keys[$groupIndex].entity_ids[$idIndex] is empty " +
+                "for blob_uri = ${blobDetails.blobUri}"
+            }
+          }
         }
         val impressionBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
         val metadataBlobUri =
