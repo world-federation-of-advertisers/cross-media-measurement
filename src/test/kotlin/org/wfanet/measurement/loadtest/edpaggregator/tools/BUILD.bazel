@@ -1,0 +1,18 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "GenerateAndVerifySyntheticDataTest",
+    srcs = ["GenerateAndVerifySyntheticDataTest.kt"],
+    data = [
+        "//src/main/proto/wfa/measurement/loadtest/dataprovider:specs",
+    ],
+    test_class = "org.wfanet.measurement.loadtest.edpaggregator.tools.GenerateAndVerifySyntheticDataTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:generate_synthetic_data",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:verify_synthetic_data",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+    ],
+)

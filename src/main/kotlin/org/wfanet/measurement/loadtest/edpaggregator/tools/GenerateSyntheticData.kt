@@ -15,9 +15,11 @@
 package org.wfanet.measurement.loadtest.edpaggregator.tools
 
 import com.google.crypto.tink.Aead
+import com.google.crypto.tink.InsecureSecretKeyAccess
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
+import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
@@ -36,11 +38,11 @@ import org.wfanet.measurement.common.crypto.tink.AwsWebIdentityCredentials
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt.entityKey
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
+import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 
@@ -49,6 +51,43 @@ enum class KmsType {
   GCP,
   AWS,
   GCP_TO_AWS,
+}
+
+/**
+ * Builds a [FakeKmsClient] registered to serve [kekUri] from a fake KEK keyset persisted at
+ * [fakeKekKeysetFile].
+ *
+ * `FakeKmsClient` is in-memory only, so to round-trip envelope-encrypted data across processes the
+ * underlying fake KEK keyset must itself be persisted somewhere. Behavior:
+ * * `fakeKekKeysetFile == null` — generate a fresh fake KEK keyset in memory (process-local; cannot
+ *   be decrypted by a later process).
+ * * `fakeKekKeysetFile` exists — load and reuse the fake KEK keyset from disk.
+ * * `fakeKekKeysetFile` does not exist — generate a fresh fake KEK keyset and write it to disk so
+ *   it can be reloaded later.
+ *
+ * The keyset is serialized in cleartext via [TinkProtoKeysetFormat], which is appropriate because
+ * [FakeKmsClient] itself provides no protection — this is a testing-only KMS.
+ */
+fun buildFakeKmsClient(kekUri: String, fakeKekKeysetFile: File?): FakeKmsClient {
+  val fakeKekKeysetHandle: KeysetHandle =
+    if (fakeKekKeysetFile != null && fakeKekKeysetFile.exists()) {
+      TinkProtoKeysetFormat.parseKeyset(
+        fakeKekKeysetFile.readBytes(),
+        InsecureSecretKeyAccess.get(),
+      )
+    } else {
+      val newHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+      if (fakeKekKeysetFile != null) {
+        fakeKekKeysetFile.parentFile?.mkdirs()
+        fakeKekKeysetFile.writeBytes(
+          TinkProtoKeysetFormat.serializeKeyset(newHandle, InsecureSecretKeyAccess.get())
+        )
+      }
+      newHandle
+    }
+  return FakeKmsClient().apply {
+    setAead(kekUri, fakeKekKeysetHandle.getPrimitive(Aead::class.java))
+  }
 }
 
 @Command(
@@ -72,14 +111,6 @@ class GenerateSyntheticData : Runnable {
   private var storagePath: File? = null
 
   @Option(
-    names = ["--event-group-reference-id"],
-    description = ["The EDP generated event group reference id for this campaign."],
-    required = true,
-  )
-  lateinit var eventGroupReferenceId: String
-    private set
-
-  @Option(
     names = ["--model-line"],
     description = ["The full model line resource name for this campaign."],
     required = true,
@@ -95,6 +126,19 @@ class GenerateSyntheticData : Runnable {
   )
   lateinit var kekUri: String
     private set
+
+  @Option(
+    names = ["--fake-kek-keyset-file"],
+    description =
+      [
+        "Optional. Path to a Tink keyset file that backs the FAKE KEK identified by --kek-uri. " +
+          "Only valid when --kms-type=FAKE. When set, on first run the generated fake KEK " +
+          "keyset is written here so that VerifySyntheticData (in a separate process) can load " +
+          "the same keyset and decrypt the impressions. When the file already exists it is reused."
+      ],
+    required = false,
+  )
+  private var fakeKekKeysetFile: File? = null
 
   @Option(
     names = ["--output-bucket"],
@@ -134,14 +178,6 @@ class GenerateSyntheticData : Runnable {
     private set
 
   @Option(
-    names = ["--data-spec-resource-path"],
-    description = ["The path to the resource of the data-spec. Must be textproto format."],
-    required = true,
-  )
-  lateinit var dataSpecResourcePath: String
-    private set
-
-  @Option(
     names = ["--impression-metadata-base-path"],
     description = ["Base path where to store the Impressions files"],
     required = false,
@@ -160,17 +196,15 @@ class GenerateSyntheticData : Runnable {
   var flatOutputBasePath: String? = null
     private set
 
-  @Option(
-    names = ["--entity-key"],
-    description =
-      [
-        "Optional. An EntityKey to attach to every generated LabeledImpression, in the form " +
-          "'entity_type=entity_id'. May be repeated to attach multiple EntityKeys. " +
-          "Both 'entity_type' and 'entity_id' must be URL-safe."
-      ],
-    required = false,
+  @ArgGroup(
+    exclusive = false,
+    multiplicity = "1..*",
+    heading =
+      "Per-event-group flags. Repeat the group to generate multiple event groups in a single " +
+        "invocation; each event group has its own data-spec textproto, event group reference id, " +
+        "and EntityKeys.%n",
   )
-  private var entityKeySpecs: List<String> = emptyList()
+  private lateinit var eventGroupSpecFlags: List<EventGroupSpecFlags>
 
   @Option(
     names = ["--aws-role-arn"],
@@ -211,102 +245,96 @@ class GenerateSyntheticData : Runnable {
 
   @kotlin.io.path.ExperimentalPathApi
   override fun run() {
+    require(flatOutputBasePath == null || impressionMetadataBasePath == null) {
+      "Cannot specify both --impression-metadata-base-path and --flat-output-base-path; set exactly one or neither"
+    }
+    require(flatOutputBasePath == null || eventGroupSpecFlags.size == 1) {
+      "--flat-output-base-path is incompatible with multiple event group specs (output paths would collide)"
+    }
+    val eventGroupReferenceIds = eventGroupSpecFlags.map { it.eventGroupReferenceId }
+    require(eventGroupReferenceIds.toSet().size == eventGroupReferenceIds.size) {
+      "--event-group-reference-id values must be unique across event group specs: $eventGroupReferenceIds"
+    }
+    require(kmsType == KmsType.FAKE || fakeKekKeysetFile == null) {
+      "--fake-kek-keyset-file is only valid when --kms-type=FAKE"
+    }
+
     val syntheticPopulationSpec: SyntheticPopulationSpec =
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve(populationSpecResourcePath).toFile(),
         SyntheticPopulationSpec.getDefaultInstance(),
       )
-    val syntheticEventGroupSpec: SyntheticEventGroupSpec =
-      parseTextProto(
-        TEST_DATA_RUNTIME_PATH.resolve(dataSpecResourcePath).toFile(),
-        SyntheticEventGroupSpec.getDefaultInstance(),
-      )
-    // TODO(world-federation-of-advertisers/cross-media-measurement#2360): Consider supporting other
-    // event types.
-    val events: Sequence<LabeledEventDateShard<TestEvent>> =
-      SyntheticDataGeneration.generateEvents(
-        messageInstance = TestEvent.getDefaultInstance(),
-        populationSpec = syntheticPopulationSpec,
-        syntheticEventGroupSpec = syntheticEventGroupSpec,
-        zoneId = ZoneId.of(zoneId),
-      )
-    val kmsClient: KmsClient = run {
+    val kmsClient: KmsClient =
       when (kmsType) {
-        KmsType.FAKE -> {
-          val client = FakeKmsClient()
-          val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-          client.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
-          client
-        }
-        KmsType.GCP -> {
-          GcpKmsClient().withDefaultCredentials()
-        }
+        KmsType.FAKE -> buildFakeKmsClient(kekUri, fakeKekKeysetFile)
+        KmsType.GCP -> GcpKmsClient().withDefaultCredentials()
         KmsType.AWS -> {
           require(awsRoleArn.isNotEmpty()) { "--aws-role-arn is required when --kms-type=AWS" }
           require(awsWebIdentityTokenFile.isNotEmpty()) {
             "--aws-web-identity-token-file is required when --kms-type=AWS"
           }
           require(awsRegion.isNotEmpty()) { "--aws-region is required when --kms-type=AWS" }
-          val awsConfig =
-            AwsWebIdentityCredentials(
-              roleArn = awsRoleArn,
-              webIdentityTokenFilePath = awsWebIdentityTokenFile,
-              roleSessionName = awsRoleSessionName,
-              region = awsRegion,
+          AwsKmsClientFactory()
+            .getKmsClient(
+              AwsWebIdentityCredentials(
+                roleArn = awsRoleArn,
+                webIdentityTokenFilePath = awsWebIdentityTokenFile,
+                roleSessionName = awsRoleSessionName,
+                region = awsRegion,
+              )
             )
-          AwsKmsClientFactory().getKmsClient(awsConfig)
         }
-        KmsType.GCP_TO_AWS -> {
+        KmsType.GCP_TO_AWS ->
           throw UnsupportedOperationException(
             "GCP_TO_AWS is not yet supported in GenerateSyntheticData. Use VerifySyntheticData."
           )
-        }
       }
-    }
     val modelLineName = ModelLineKey.fromName(modelLine)?.modelLineId
-    val eventGroupPath = "model-line/$modelLineName/event-group-reference-id/$eventGroupReferenceId"
-    val parsedEntityKeys: List<LabeledImpression.EntityKey> = entityKeySpecs.map(::parseEntityKey)
-    runBlocking {
-      val impressionWriter =
-        ImpressionsWriter(
-          eventGroupReferenceId,
-          eventGroupPath,
-          kekUri,
-          kmsClient,
-          outputBucket,
-          outputBucket,
-          storagePath,
-          schema,
-          parsedEntityKeys,
-        )
-      require(flatOutputBasePath == null || impressionMetadataBasePath == null) {
-        "Cannot specify both --impression-metadata-base-path and --flat-output-base-path; set exactly one or neither"
-      }
-      impressionWriter.writeLabeledImpressionData(
-        events,
-        modelLine,
-        impressionsBasePath = impressionMetadataBasePath,
-        flatOutputBasePath = flatOutputBasePath,
-      )
-    }
-  }
 
-  /**
-   * Parses an `entity_type=entity_id` CLI value into a [LabeledImpression.EntityKey].
-   *
-   * Splits on the first `=` so that, e.g., `creative=creative-123` yields
-   * `entityType="creative"`, `entityId="creative-123"`. Both halves must be non-empty.
-   */
-  private fun parseEntityKey(spec: String): LabeledImpression.EntityKey {
-    val separatorIndex = spec.indexOf('=')
-    require(separatorIndex > 0 && separatorIndex < spec.length - 1) {
-      "Invalid --entity-key value '$spec'; expected 'entity_type=entity_id' with both sides non-empty"
-    }
-    val type = spec.substring(0, separatorIndex)
-    val id = spec.substring(separatorIndex + 1)
-    return entityKey {
-      entityType = type
-      entityId = id
+    runBlocking {
+      for (specFlags in eventGroupSpecFlags) {
+        val syntheticEventGroupSpec: SyntheticEventGroupSpec =
+          parseTextProto(
+            TEST_DATA_RUNTIME_PATH.resolve(specFlags.dataSpecResourcePath).toFile(),
+            SyntheticEventGroupSpec.getDefaultInstance(),
+          )
+        // TODO(world-federation-of-advertisers/cross-media-measurement#2360): Consider supporting
+        // other event types.
+        val events: Sequence<LabeledEventDateShard<TestEvent>> =
+          SyntheticDataGeneration.generateEvents(
+            messageInstance = TestEvent.getDefaultInstance(),
+            populationSpec = syntheticPopulationSpec,
+            syntheticEventGroupSpec = syntheticEventGroupSpec,
+            zoneId = ZoneId.of(zoneId),
+          )
+        val parsedEntityKeys =
+          specFlags.entityKeyFlags.map {
+            entityKey {
+              entityType = it.entityType
+              entityId = it.entityId
+            }
+          }
+        val eventGroupPath =
+          "model-line/$modelLineName/event-group-reference-id/${specFlags.eventGroupReferenceId}"
+        val impressionWriter =
+          ImpressionsWriter(
+            specFlags.eventGroupReferenceId,
+            eventGroupPath,
+            kekUri,
+            kmsClient,
+            outputBucket,
+            outputBucket,
+            storagePath,
+            schema,
+            parsedEntityKeys,
+          )
+        impressionWriter.writeLabeledImpressionData(
+          events,
+          modelLine,
+          impressionsBasePath = impressionMetadataBasePath,
+          flatOutputBasePath = flatOutputBasePath,
+        )
+      }
     }
   }
 
@@ -333,6 +361,65 @@ class GenerateSyntheticData : Runnable {
     AeadConfig.register()
     StreamingAeadConfig.register()
   }
+}
+
+/**
+ * Flags describing a single synthetic event group to generate: which data-spec textproto to read,
+ * what `event_group_reference_id` to associate it with, and which `LabeledImpression.EntityKey`s to
+ * stamp on every impression in this event group.
+ */
+private class EventGroupSpecFlags {
+  @Option(
+    names = ["--event-group-reference-id"],
+    description = ["The EDP-generated event group reference id for this synthetic event group."],
+    required = true,
+  )
+  lateinit var eventGroupReferenceId: String
+    private set
+
+  @Option(
+    names = ["--data-spec-resource-path"],
+    description =
+      ["The path to the data-spec resource for this event group. Must be textproto format."],
+    required = true,
+  )
+  lateinit var dataSpecResourcePath: String
+    private set
+
+  @ArgGroup(
+    exclusive = false,
+    multiplicity = "1..*",
+    heading =
+      "EntityKey to attach to every LabeledImpression in this event group. " +
+        "At least one must be specified; pass the pair multiple times for multiple EntityKeys.%n",
+  )
+  lateinit var entityKeyFlags: List<EntityKeyFlags>
+    private set
+}
+
+/**
+ * Flags describing a single `LabeledImpression.EntityKey` to stamp on every generated impression.
+ */
+private class EntityKeyFlags {
+  @Option(
+    names = ["--entity-key-type"],
+    description =
+      [
+        "Type of the entity in the DataProvider's system. Must be URL-safe. " +
+          "Pair with --entity-key-id; specify both flags together repeatedly to attach multiple EntityKeys."
+      ],
+    required = true,
+  )
+  lateinit var entityType: String
+    private set
+
+  @Option(
+    names = ["--entity-key-id"],
+    description = ["ID of the entity in the DataProvider's system. Must be URL-safe."],
+    required = true,
+  )
+  lateinit var entityId: String
+    private set
 }
 
 fun main(args: Array<String>) = commandLineMain(GenerateSyntheticData(), args)

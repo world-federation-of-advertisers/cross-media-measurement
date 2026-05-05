@@ -47,8 +47,10 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  *
  * Impressions are written using a Mesos Record IO format using streaming envelope encryption.
  *
- * @property eventGroupReferenceId The event group reference ID stamped on every emitted
- *   [LabeledImpression] and on the metadata blob.
+ * @property eventGroupReferenceId The event group reference ID recorded on the per-blob
+ *   `BlobDetails` metadata. Each impressions blob is homogeneous (all impressions come from a
+ *   single event group), so the id is recorded once at the metadata level rather than on every
+ *   `LabeledImpression`.
  * @property eventGroupPath The path to the event group where impressions are stored.
  * @property kekUri The URI of the Key Encryption Key (KEK) used for envelope encryption.
  * @property kmsClient The KMS client used for encryption operations.
@@ -106,7 +108,6 @@ class ImpressionsWriter(
             vid = it.vid
             event = Any.pack(it.message)
             eventTime = it.timestamp.toProtoTime()
-            eventGroupReferenceId = this@ImpressionsWriter.eventGroupReferenceId
             entityKeys += this@ImpressionsWriter.entityKeys
           }
         }
