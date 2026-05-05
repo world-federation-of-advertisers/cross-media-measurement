@@ -390,14 +390,17 @@ class RequisitionGrouperByReportId(
       .flatMap { it.eventGroupMapList }
       .groupBy { it.eventGroup }
       .map { (eventGroupName, entries) ->
-        val refId = entries.first().details.eventGroupReferenceId
+        val firstDetails = entries.first().details
         val intervals = entries.flatMap { it.details.collectionIntervalsList }
         val merged = unionIntervals(intervals)
         eventGroupMapEntry {
           eventGroup = eventGroupName
           details = eventGroupDetails {
-            eventGroupReferenceId = refId
+            eventGroupReferenceId = firstDetails.eventGroupReferenceId
             collectionIntervals += merged
+            if (firstDetails.hasEntityKey()) {
+              entityKey = firstDetails.entityKey
+            }
           }
         }
       }

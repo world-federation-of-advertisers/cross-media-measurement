@@ -32,6 +32,8 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.EventGroupDetailsKt.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 
 /**
@@ -140,10 +142,41 @@ abstract class RequisitionGrouper(
           val eventGroup = getEventGroup(eventGroupName)
           this.eventGroupReferenceId = eventGroup.eventGroupReferenceId
           this.collectionIntervals += eventGroupEntry.value.collectionInterval
+          if (eventGroup.hasEntityKey()) {
+            this.entityKey =
+              GroupedRequisitionsKt.EventGroupDetailsKt.entityKey {
+                entityType = eventGroup.entityKey.entityType
+                entityId = eventGroup.entityKey.entityId
+              }
+          }
         }
       }
     }
+
+    validateEventGroupSelectors(eventGroupMap)
+
     return eventGroupMap
+  }
+
+  /**
+   * Validates that event group selectors are consistent across all event groups.
+   *
+   * If any event group has an `entity_key`, all must. If none have an `entity_key`, all must have
+   * a non-empty `event_group_reference_id`.
+   */
+  private fun validateEventGroupSelectors(eventGroupMap: Map<String, EventGroupDetails>) {
+    require(eventGroupMap.isNotEmpty()) { "eventGroupMap must not be empty" }
+
+    val hasEntityKey = eventGroupMap.values.any { it.hasEntityKey() }
+    if (hasEntityKey) {
+      require(eventGroupMap.values.all { it.hasEntityKey() }) {
+        "Inconsistent selectors: if any event group has entity_key, all must"
+      }
+    } else {
+      require(eventGroupMap.values.all { it.eventGroupReferenceId.isNotEmpty() }) {
+        "All event groups must have event_group_reference_id when entity_key is not present"
+      }
+    }
   }
 
   /**
