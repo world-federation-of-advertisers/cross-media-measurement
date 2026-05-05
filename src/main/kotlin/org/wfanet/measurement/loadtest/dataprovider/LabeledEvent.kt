@@ -68,13 +68,15 @@ data class EntityKeyedLabeledEventDateShard<T : Message>(
 )
 
 /**
- * Convenience converter for callers that don't differentiate entity keys per event: wraps the
- * shard's events in a single [EntityKeysWithLabeledEvents] group with the given [entityKeys].
+ * Convenience converter for callers that don't attach any entity keys: wraps the shard's events in
+ * a single [EntityKeysWithLabeledEvents] group with no entity keys.
+ *
+ * Callers that need to attach entity keys (and especially callers that need within-file variation
+ * across multiple groups) should construct an [EntityKeyedLabeledEventDateShard] directly rather
+ * than going through this helper.
  */
-fun <T : Message> LabeledEventDateShard<T>.toEntityKeyed(
-  entityKeys: List<EntityKey> = emptyList()
-): EntityKeyedLabeledEventDateShard<T> =
+fun <T : Message> LabeledEventDateShard<T>.toEntityKeyed(): EntityKeyedLabeledEventDateShard<T> =
   EntityKeyedLabeledEventDateShard(
     localDate,
-    listOf(EntityKeysWithLabeledEvents(entityKeys, labeledEvents)),
+    listOf(EntityKeysWithLabeledEvents(emptyList(), labeledEvents)),
   )
