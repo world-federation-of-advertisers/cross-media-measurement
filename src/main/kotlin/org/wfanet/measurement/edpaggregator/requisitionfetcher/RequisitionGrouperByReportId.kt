@@ -311,7 +311,7 @@ class RequisitionGrouperByReportId(
       } else {
         try {
           groupValidRequisitions(reportValidationOutcome.requisitions, requisitionGroupId)
-        } catch (e: IllegalArgumentException) {
+        } catch (e: InconsistentEventGroupSelectorsException) {
           val refusal = refusal {
             justification = Requisition.Refusal.Justification.UNFULFILLABLE
             message = e.message ?: "Invalid event group configuration"
