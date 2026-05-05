@@ -1004,10 +1004,11 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
             eventGroup {
               name = request.name
               eventGroupReferenceId = "ref-1"
-              entityKey = EventGroupKt.entityKey {
-                entityType = "placement"
-                entityId = "P-123"
-              }
+              entityKey =
+                EventGroupKt.entityKey {
+                  entityType = "placement"
+                  entityId = "P-123"
+                }
             }
           } else {
             eventGroup {
@@ -1076,10 +1077,12 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
             name = request.name
             eventGroupReferenceId =
               if (request.name == TestRequisitionData.EVENT_GROUP_NAME) "ref-1" else "ref-2"
-            entityKey = EventGroupKt.entityKey {
-              entityType = "placement"
-              entityId = if (request.name == TestRequisitionData.EVENT_GROUP_NAME) "P-1" else "P-2"
-            }
+            entityKey =
+              EventGroupKt.entityKey {
+                entityType = "placement"
+                entityId =
+                  if (request.name == TestRequisitionData.EVENT_GROUP_NAME) "P-1" else "P-2"
+              }
           }
         }
     }

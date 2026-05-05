@@ -414,9 +414,7 @@ class RequisitionGrouperByReportId(
         }
 
         val entityKeys = allDetails.map { it.entityKey }.distinct()
-        require(entityKeys.size == 1) {
-          "Inconsistent entity_key for $eventGroupName: $entityKeys"
-        }
+        require(entityKeys.size == 1) { "Inconsistent entity_key for $eventGroupName: $entityKeys" }
 
         val intervals = allDetails.flatMap { it.collectionIntervalsList }
         val merged = unionIntervals(intervals)

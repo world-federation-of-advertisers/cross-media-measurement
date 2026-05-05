@@ -161,8 +161,8 @@ abstract class RequisitionGrouper(
   /**
    * Validates that event group selectors are consistent across all event groups.
    *
-   * If any event group has an `entity_key`, all must. If none have an `entity_key`, all must have
-   * a non-empty `event_group_reference_id`.
+   * If any event group has an `entity_key`, all must. If none have an `entity_key`, all must have a
+   * non-empty `event_group_reference_id`.
    */
   private fun validateEventGroupSelectors(eventGroupMap: Map<String, EventGroupDetails>) {
     require(eventGroupMap.isNotEmpty()) { "eventGroupMap must not be empty" }

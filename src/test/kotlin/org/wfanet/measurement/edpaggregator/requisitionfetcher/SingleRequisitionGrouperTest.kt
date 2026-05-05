@@ -138,10 +138,11 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
           eventGroup {
             name = request.name
             eventGroupReferenceId = "some-event-group-reference-id"
-            entityKey = EventGroupKt.entityKey {
-              entityType = "placement"
-              entityId = "P-123"
-            }
+            entityKey =
+              EventGroupKt.entityKey {
+                entityType = "placement"
+                entityId = "P-123"
+              }
           }
         }
     }
@@ -177,10 +178,11 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
             eventGroup {
               name = request.name
               eventGroupReferenceId = "ref-1"
-              entityKey = EventGroupKt.entityKey {
-                entityType = "placement"
-                entityId = "P-123"
-              }
+              entityKey =
+                EventGroupKt.entityKey {
+                  entityType = "placement"
+                  entityId = "P-123"
+                }
             }
           } else {
             eventGroup {
