@@ -39,163 +39,6 @@ import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 
-private val LOGGER: Logger = Logger.getLogger("VerifySyntheticData")
-
-/**
- * Aggregate result of a [verifySyntheticData] invocation.
- *
- * @property totalImpressions Total number of [LabeledImpression] records successfully decrypted and
- *   parsed across all metadata blobs.
- * @property totalDays Total number of metadata blobs that were processed without error. Each blob
- *   corresponds to a single (date, event group) shard, so multi-event-group runs report a count
- *   greater than the number of distinct dates.
- * @property errors Number of metadata blobs that failed to be processed.
- * @property impressionsByEventGroupReferenceId Number of impressions decrypted per
- *   `event_group_reference_id` recorded in `BlobDetails`. Useful for asserting that all streams in
- *   a multi-event-group run are present.
- */
-data class VerificationResult(
-  val totalImpressions: Int,
-  val totalDays: Int,
-  val errors: Int,
-  val impressionsByEventGroupReferenceId: Map<String, Int>,
-)
-
-/**
- * Walks the impression metadata directory tree, decrypts each impressions blob using [kmsClient],
- * validates every [LabeledImpression] record, and returns aggregate counts.
- *
- * The traversal handles multi-event-group output: each per-date directory may contain multiple
- * `metadata.binpb` files (one per event group reference id), and each is processed independently.
- */
-fun verifySyntheticData(
-  kmsClient: KmsClient,
-  kekUri: String,
-  storagePath: File,
-  outputBucket: String,
-  impressionMetadataBasePath: String,
-): VerificationResult {
-  val rootStorageClient = FileSystemStorageClient(storagePath)
-  val bucketDir = storagePath.resolve(outputBucket).resolve(impressionMetadataBasePath)
-
-  LOGGER.info("Scanning for date shards in: $bucketDir")
-  check(bucketDir.exists()) { "Directory does not exist: $bucketDir" }
-
-  val dsDir = bucketDir.resolve("ds")
-  check(dsDir.exists()) { "No ds/ directory found under: $bucketDir" }
-
-  val dateDirs = dsDir.listFiles()?.filter { it.isDirectory }?.sorted() ?: emptyList()
-  check(dateDirs.isNotEmpty()) { "No date shard directories found under: $dsDir" }
-
-  LOGGER.info("Found ${dateDirs.size} date shards")
-  var totalImpressions = 0
-  var totalDays = 0
-  var errors = 0
-  val impressionsByEventGroupReferenceId = mutableMapOf<String, Int>()
-
-  for (dateDir in dateDirs) {
-    val date = dateDir.name
-    val metadataFiles = dateDir.walkTopDown().filter { it.name == "metadata.binpb" }.toList()
-
-    for (metadataFile in metadataFiles) {
-      try {
-        LOGGER.info("\n=== Processing date: $date ===")
-
-        val relativePath = metadataFile.relativeTo(storagePath.resolve(outputBucket)).path
-        LOGGER.info("Reading metadata from: $relativePath")
-
-        val metadataBlob = runBlocking { rootStorageClient.getBlob("$outputBucket/$relativePath") }
-        check(metadataBlob != null) { "Metadata blob not found: $outputBucket/$relativePath" }
-
-        val blobDetailsBytes = runBlocking { metadataBlob.read().toList() }
-        val blobDetails =
-          BlobDetails.parseFrom(
-            blobDetailsBytes.fold(ByteString.EMPTY) { acc, bs -> acc.concat(bs) }
-          )
-
-        LOGGER.info("  Blob URI: ${blobDetails.blobUri}")
-        LOGGER.info("  KEK URI: ${blobDetails.encryptedDek.kekUri}")
-        LOGGER.info("  DEK type: ${blobDetails.encryptedDek.typeUrl}")
-        LOGGER.info("  DEK format: ${blobDetails.encryptedDek.protobufFormat}")
-        LOGGER.info("  Event group ref ID: ${blobDetails.eventGroupReferenceId}")
-        LOGGER.info("  Model line: ${blobDetails.modelLine}")
-        LOGGER.info(
-          "  Interval: ${blobDetails.interval.startTime} - ${blobDetails.interval.endTime}"
-        )
-
-        val encryptedDek = blobDetails.encryptedDek
-        check(encryptedDek.kekUri == kekUri) {
-          "KEK URI mismatch: expected $kekUri, got ${encryptedDek.kekUri}"
-        }
-
-        val impressionsBlobUri = blobDetails.blobUri
-        val selectedStorageClient = SelectedStorageClient(impressionsBlobUri, storagePath)
-        val decryptionClient =
-          selectedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, encryptedDek.ciphertext)
-
-        val impressionsBlobKey =
-          impressionsBlobUri.removePrefix("file:///").removePrefix("$outputBucket/")
-
-        LOGGER.info("  Decrypting impressions from blob key: $impressionsBlobKey")
-
-        val mesosClient = MesosRecordIoStorageClient(decryptionClient)
-        val impressionsBlob = runBlocking { mesosClient.getBlob(impressionsBlobKey) }
-        check(impressionsBlob != null) { "Impressions blob not found: $impressionsBlobKey" }
-
-        val records = runBlocking { impressionsBlob.read().toList() }
-        LOGGER.info("  Decrypted ${records.size} impression records")
-
-        for ((index, record) in records.withIndex()) {
-          val impression = LabeledImpression.parseFrom(record)
-          check(impression.vid > 0) { "Invalid VID: ${impression.vid}" }
-          check(impression.hasEvent()) { "Missing event in impression $index" }
-          check(impression.hasEventTime()) { "Missing event time in impression $index" }
-          for ((entityKeyIndex, entityKey) in impression.entityKeysList.withIndex()) {
-            check(entityKey.entityType.isNotEmpty()) {
-              "EntityKey[$entityKeyIndex] on impression $index has empty entity_type"
-            }
-            check(entityKey.entityId.isNotEmpty()) {
-              "EntityKey[$entityKeyIndex] on impression $index has empty entity_id"
-            }
-          }
-
-          val testEvent = impression.event.unpack(TestEvent::class.java)
-          check(testEvent != null) { "Failed to unpack TestEvent from impression $index" }
-
-          if (index < 3) {
-            val entityKeysSummary =
-              impression.entityKeysList.joinToString(", ") { "${it.entityType}=${it.entityId}" }
-            LOGGER.info(
-              "  Record[$index]: vid=${impression.vid}, eventTime=${impression.eventTime}, " +
-                "entityKeys=[$entityKeysSummary]"
-            )
-          }
-        }
-
-        totalImpressions += records.size
-        totalDays++
-        impressionsByEventGroupReferenceId.merge(blobDetails.eventGroupReferenceId, records.size) {
-          old,
-          new ->
-          old + new
-        }
-        LOGGER.info("  PASS: $date - ${records.size} impressions verified")
-      } catch (e: Exception) {
-        errors++
-        LOGGER.severe("  FAIL: $date - ${e.message}")
-        e.printStackTrace()
-      }
-    }
-  }
-
-  return VerificationResult(
-    totalImpressions = totalImpressions,
-    totalDays = totalDays,
-    errors = errors,
-    impressionsByEventGroupReferenceId = impressionsByEventGroupReferenceId.toMap(),
-  )
-}
-
 @Command(
   name = "verify-synthetic-data",
   description = ["Verifies generated synthetic data can be decrypted and parsed."],
@@ -471,13 +314,176 @@ class VerifySyntheticData : Runnable {
   var lastResult: VerificationResult? = null
     private set
 
-  companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
-  }
-
   init {
     AeadConfig.register()
     StreamingAeadConfig.register()
+  }
+
+  /**
+   * Aggregate result of a [Companion.verifySyntheticData] invocation.
+   *
+   * @property totalImpressions Total number of [LabeledImpression] records successfully decrypted
+   *   and parsed across all metadata blobs.
+   * @property totalDays Total number of metadata blobs that were processed without error. Each blob
+   *   corresponds to a single (date, event group) shard, so multi-event-group runs report a count
+   *   greater than the number of distinct dates.
+   * @property errors Number of metadata blobs that failed to be processed.
+   * @property impressionsByEventGroupReferenceId Number of impressions decrypted per
+   *   `event_group_reference_id` recorded in `BlobDetails`. Useful for asserting that all streams
+   *   in a multi-event-group run are present.
+   */
+  data class VerificationResult(
+    val totalImpressions: Int,
+    val totalDays: Int,
+    val errors: Int,
+    val impressionsByEventGroupReferenceId: Map<String, Int>,
+  )
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    /**
+     * Walks the impression metadata directory tree, decrypts each impressions blob using
+     * [kmsClient], validates every [LabeledImpression] record, and returns aggregate counts.
+     *
+     * The traversal handles multi-event-group output: each per-date directory may contain multiple
+     * `metadata.binpb` files (one per event group reference id), and each is processed
+     * independently.
+     */
+    private fun verifySyntheticData(
+      kmsClient: KmsClient,
+      kekUri: String,
+      storagePath: File,
+      outputBucket: String,
+      impressionMetadataBasePath: String,
+    ): VerificationResult {
+      val rootStorageClient = FileSystemStorageClient(storagePath)
+      val bucketDir = storagePath.resolve(outputBucket).resolve(impressionMetadataBasePath)
+
+      logger.info("Scanning for date shards in: $bucketDir")
+      check(bucketDir.exists()) { "Directory does not exist: $bucketDir" }
+
+      val dsDir = bucketDir.resolve("ds")
+      check(dsDir.exists()) { "No ds/ directory found under: $bucketDir" }
+
+      val dateDirs = dsDir.listFiles()?.filter { it.isDirectory }?.sorted() ?: emptyList()
+      check(dateDirs.isNotEmpty()) { "No date shard directories found under: $dsDir" }
+
+      logger.info("Found ${dateDirs.size} date shards")
+      var totalImpressions = 0
+      var totalDays = 0
+      var errors = 0
+      val impressionsByEventGroupReferenceId = mutableMapOf<String, Int>()
+
+      for (dateDir in dateDirs) {
+        val date = dateDir.name
+        val metadataFiles = dateDir.walkTopDown().filter { it.name == "metadata.binpb" }.toList()
+
+        for (metadataFile in metadataFiles) {
+          try {
+            logger.info("\n=== Processing date: $date ===")
+
+            val relativePath = metadataFile.relativeTo(storagePath.resolve(outputBucket)).path
+            logger.info("Reading metadata from: $relativePath")
+
+            val metadataBlob = runBlocking {
+              rootStorageClient.getBlob("$outputBucket/$relativePath")
+            }
+            check(metadataBlob != null) { "Metadata blob not found: $outputBucket/$relativePath" }
+
+            val blobDetailsBytes = runBlocking { metadataBlob.read().toList() }
+            val blobDetails =
+              BlobDetails.parseFrom(
+                blobDetailsBytes.fold(ByteString.EMPTY) { acc, bs -> acc.concat(bs) }
+              )
+
+            logger.info("  Blob URI: ${blobDetails.blobUri}")
+            logger.info("  KEK URI: ${blobDetails.encryptedDek.kekUri}")
+            logger.info("  DEK type: ${blobDetails.encryptedDek.typeUrl}")
+            logger.info("  DEK format: ${blobDetails.encryptedDek.protobufFormat}")
+            logger.info("  Event group ref ID: ${blobDetails.eventGroupReferenceId}")
+            logger.info("  Model line: ${blobDetails.modelLine}")
+            logger.info(
+              "  Interval: ${blobDetails.interval.startTime} - ${blobDetails.interval.endTime}"
+            )
+
+            val encryptedDek = blobDetails.encryptedDek
+            check(encryptedDek.kekUri == kekUri) {
+              "KEK URI mismatch: expected $kekUri, got ${encryptedDek.kekUri}"
+            }
+
+            val impressionsBlobUri = blobDetails.blobUri
+            val selectedStorageClient = SelectedStorageClient(impressionsBlobUri, storagePath)
+            val decryptionClient =
+              selectedStorageClient.withEnvelopeEncryption(
+                kmsClient,
+                kekUri,
+                encryptedDek.ciphertext,
+              )
+
+            val impressionsBlobKey =
+              impressionsBlobUri.removePrefix("file:///").removePrefix("$outputBucket/")
+
+            logger.info("  Decrypting impressions from blob key: $impressionsBlobKey")
+
+            val mesosClient = MesosRecordIoStorageClient(decryptionClient)
+            val impressionsBlob = runBlocking { mesosClient.getBlob(impressionsBlobKey) }
+            check(impressionsBlob != null) { "Impressions blob not found: $impressionsBlobKey" }
+
+            val records = runBlocking { impressionsBlob.read().toList() }
+            logger.info("  Decrypted ${records.size} impression records")
+
+            for ((index, record) in records.withIndex()) {
+              val impression = LabeledImpression.parseFrom(record)
+              check(impression.vid > 0) { "Invalid VID: ${impression.vid}" }
+              check(impression.hasEvent()) { "Missing event in impression $index" }
+              check(impression.hasEventTime()) { "Missing event time in impression $index" }
+              for ((entityKeyIndex, entityKey) in impression.entityKeysList.withIndex()) {
+                check(entityKey.entityType.isNotEmpty()) {
+                  "EntityKey[$entityKeyIndex] on impression $index has empty entity_type"
+                }
+                check(entityKey.entityId.isNotEmpty()) {
+                  "EntityKey[$entityKeyIndex] on impression $index has empty entity_id"
+                }
+              }
+
+              val testEvent = impression.event.unpack(TestEvent::class.java)
+              check(testEvent != null) { "Failed to unpack TestEvent from impression $index" }
+
+              if (index < 3) {
+                val entityKeysSummary =
+                  impression.entityKeysList.joinToString(", ") { "${it.entityType}=${it.entityId}" }
+                logger.info(
+                  "  Record[$index]: vid=${impression.vid}, eventTime=${impression.eventTime}, " +
+                    "entityKeys=[$entityKeysSummary]"
+                )
+              }
+            }
+
+            totalImpressions += records.size
+            totalDays++
+            impressionsByEventGroupReferenceId.merge(
+              blobDetails.eventGroupReferenceId,
+              records.size,
+            ) { old, new ->
+              old + new
+            }
+            logger.info("  PASS: $date - ${records.size} impressions verified")
+          } catch (e: Exception) {
+            errors++
+            logger.severe("  FAIL: $date - ${e.message}")
+            e.printStackTrace()
+          }
+        }
+      }
+
+      return VerificationResult(
+        totalImpressions = totalImpressions,
+        totalDays = totalDays,
+        errors = errors,
+        impressionsByEventGroupReferenceId = impressionsByEventGroupReferenceId.toMap(),
+      )
+    }
   }
 }
 

@@ -366,7 +366,7 @@ class GenerateSyntheticData : Runnable {
       }
     }
     return groupsByDate.asSequence().map { (date, groups) ->
-      EntityKeyedLabeledEventDateShard(date, groups.toList())
+      EntityKeyedLabeledEventDateShard(date, groups.asSequence())
     }
   }
 

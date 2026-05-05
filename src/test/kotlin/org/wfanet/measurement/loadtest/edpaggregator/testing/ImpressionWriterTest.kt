@@ -80,7 +80,7 @@ class ImpressionWriterTest {
       sequenceOf(
         EntityKeyedLabeledEventDateShard(
           LocalDate.parse("2020-01-01"),
-          listOf(
+          sequenceOf(
             EntityKeysWithLabeledEvents(
               entityKeys = emptyList(),
               labeledEvents =
@@ -109,7 +109,7 @@ class ImpressionWriterTest {
         ),
         EntityKeyedLabeledEventDateShard(
           LocalDate.parse("2020-01-02"),
-          listOf(
+          sequenceOf(
             EntityKeysWithLabeledEvents(
               entityKeys = emptyList(),
               labeledEvents =
@@ -208,7 +208,7 @@ class ImpressionWriterTest {
       sequenceOf(
         EntityKeyedLabeledEventDateShard(
           LocalDate.parse("2020-01-01"),
-          listOf(
+          sequenceOf(
             EntityKeysWithLabeledEvents(
               entityKeys = emptyList(),
               labeledEvents =
@@ -258,7 +258,7 @@ class ImpressionWriterTest {
       sequenceOf(
         EntityKeyedLabeledEventDateShard(
           LocalDate.parse("2020-01-01"),
-          listOf(
+          sequenceOf(
             EntityKeysWithLabeledEvents(
               entityKeys = emptyList(),
               labeledEvents =
@@ -281,7 +281,7 @@ class ImpressionWriterTest {
         ),
         EntityKeyedLabeledEventDateShard(
           LocalDate.parse("2020-01-02"),
-          listOf(
+          sequenceOf(
             EntityKeysWithLabeledEvents(
               entityKeys = emptyList(),
               labeledEvents =
@@ -373,7 +373,7 @@ class ImpressionWriterTest {
       sequenceOf(
         EntityKeyedLabeledEventDateShard(
           date,
-          listOf(
+          sequenceOf(
             EntityKeysWithLabeledEvents(
               entityKeys = groupAEntityKeys,
               labeledEvents =
@@ -424,15 +424,31 @@ class ImpressionWriterTest {
           .map { LabeledImpression.parseFrom(it) }
       assertThat(impressions).hasSize(3)
 
-      val byVid = impressions.associateBy { it.vid }
-      assertThat(byVid[10L]!!.entityKeysList.map { it.entityType to it.entityId })
-        .containsExactly("type-a" to "id-a", "type-a" to "id-a2")
-        .inOrder()
-      assertThat(byVid[11L]!!.entityKeysList.map { it.entityType to it.entityId })
-        .containsExactly("type-a" to "id-a", "type-a" to "id-a2")
-        .inOrder()
-      assertThat(byVid[20L]!!.entityKeysList.map { it.entityType to it.entityId })
-        .containsExactly("type-b" to "id-b")
+      val impressionsByEntityKeys: Map<List<Pair<String, String>>, List<LabeledImpression>> =
+        impressions.groupBy { impression ->
+          impression.entityKeysList.map { it.entityType to it.entityId }
+        }
+      val groupAKey: List<Pair<String, String>> =
+        groupAEntityKeys.map { it.entityType to it.entityId }
+      val groupBKey: List<Pair<String, String>> =
+        groupBEntityKeys.map { it.entityType to it.entityId }
+      assertThat(impressionsByEntityKeys.keys).containsExactly(groupAKey, groupBKey)
+
+      val groupAImpressions: List<LabeledImpression> = impressionsByEntityKeys.getValue(groupAKey)
+      assertThat(groupAImpressions.map { it.vid }).containsExactly(10L, 11L).inOrder()
+      groupAImpressions.forEach { impression ->
+        assertThat(impression.event.unpack(TestEvent::class.java))
+          .isEqualTo(TestEvent.getDefaultInstance())
+        assertThat(impression.eventTime).isEqualTo(timestamp.toProtoTime())
+      }
+
+      val groupBImpressions: List<LabeledImpression> = impressionsByEntityKeys.getValue(groupBKey)
+      assertThat(groupBImpressions.map { it.vid }).containsExactly(20L)
+      groupBImpressions.forEach { impression ->
+        assertThat(impression.event.unpack(TestEvent::class.java))
+          .isEqualTo(TestEvent.getDefaultInstance())
+        assertThat(impression.eventTime).isEqualTo(timestamp.toProtoTime())
+      }
     }
   }
 

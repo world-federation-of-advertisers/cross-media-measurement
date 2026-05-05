@@ -50,14 +50,15 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * Impressions are written using a Mesos Record IO format using streaming envelope encryption.
  *
  * Each emitted [LabeledImpression] is stamped with the [EntityKey]s from its containing
- * [EntityKeysWithLabeledEvents] group. Different groups within the same [LabeledEventDateShard]
- * therefore land in the same impressions blob with potentially different entity keys, while every
- * impression in a single blob still belongs to the same `event_group_reference_id` recorded on the
- * per-blob `BlobDetails` metadata.
+ * [EntityKeysWithLabeledEvents] group. Different groups within the same
+ * [EntityKeyedLabeledEventDateShard] therefore land in the same impressions blob with potentially
+ * different entity keys, while every impression in a single blob still belongs to the event group
+ * identified by [eventGroupReferenceId], which is recorded on the per-blob `BlobDetails` metadata.
  *
  * @property eventGroupReferenceId The event group reference ID recorded on the per-blob
- *   `BlobDetails` metadata. Each impressions blob is homogeneous with respect to event group, so
- *   the id is recorded once at the metadata level rather than on every `LabeledImpression`.
+ *   `BlobDetails` metadata. Every `LabeledImpression` written to a given blob belongs to the event
+ *   group identified by this id, so it is recorded once at the metadata level rather than on every
+ *   `LabeledImpression`.
  * @property eventGroupPath The path to the event group where impressions are stored.
  * @property kekUri The URI of the Key Encryption Key (KEK) used for envelope encryption.
  * @property kmsClient The KMS client used for encryption operations.
@@ -105,9 +106,9 @@ class ImpressionsWriter(
         .setProtobufFormat(EncryptedDek.ProtobufFormat.BINARY)
         .setTypeUrl("type.googleapis.com/google.crypto.tink.Keyset")
         .build()
-    events.forEach { (localDate: LocalDate, groups: List<EntityKeysWithLabeledEvents<T>>) ->
+    events.forEach { (localDate: LocalDate, groups: Sequence<EntityKeysWithLabeledEvents<T>>) ->
       val labeledImpressions: Sequence<LabeledImpression> =
-        groups.asSequence().flatMap { group: EntityKeysWithLabeledEvents<T> ->
+        groups.flatMap { group: EntityKeysWithLabeledEvents<T> ->
           val protoEntityKeys: List<LabeledImpression.EntityKey> =
             group.entityKeys.map { it.toProto() }
           group.labeledEvents.map { event ->
