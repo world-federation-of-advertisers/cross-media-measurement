@@ -36,6 +36,8 @@ import org.wfanet.measurement.common.crypto.tink.AwsWebIdentityCredentials
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt.entityKey
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
@@ -159,6 +161,18 @@ class GenerateSyntheticData : Runnable {
     private set
 
   @Option(
+    names = ["--entity-key"],
+    description =
+      [
+        "Optional. An EntityKey to attach to every generated LabeledImpression, in the form " +
+          "'entity_type=entity_id'. May be repeated to attach multiple EntityKeys. " +
+          "Both 'entity_type' and 'entity_id' must be URL-safe."
+      ],
+    required = false,
+  )
+  private var entityKeySpecs: List<String> = emptyList()
+
+  @Option(
     names = ["--aws-role-arn"],
     description =
       ["AWS IAM role ARN for STS AssumeRoleWithWebIdentity. Required when --kms-type=AWS."],
@@ -251,6 +265,7 @@ class GenerateSyntheticData : Runnable {
     }
     val modelLineName = ModelLineKey.fromName(modelLine)?.modelLineId
     val eventGroupPath = "model-line/$modelLineName/event-group-reference-id/$eventGroupReferenceId"
+    val parsedEntityKeys: List<LabeledImpression.EntityKey> = entityKeySpecs.map(::parseEntityKey)
     runBlocking {
       val impressionWriter =
         ImpressionsWriter(
@@ -262,6 +277,7 @@ class GenerateSyntheticData : Runnable {
           outputBucket,
           storagePath,
           schema,
+          parsedEntityKeys,
         )
       require(flatOutputBasePath == null || impressionMetadataBasePath == null) {
         "Cannot specify both --impression-metadata-base-path and --flat-output-base-path; set exactly one or neither"
@@ -272,6 +288,25 @@ class GenerateSyntheticData : Runnable {
         impressionsBasePath = impressionMetadataBasePath,
         flatOutputBasePath = flatOutputBasePath,
       )
+    }
+  }
+
+  /**
+   * Parses an `entity_type=entity_id` CLI value into a [LabeledImpression.EntityKey].
+   *
+   * Splits on the first `=` so that, e.g., `creative=creative-123` yields
+   * `entityType="creative"`, `entityId="creative-123"`. Both halves must be non-empty.
+   */
+  private fun parseEntityKey(spec: String): LabeledImpression.EntityKey {
+    val separatorIndex = spec.indexOf('=')
+    require(separatorIndex > 0 && separatorIndex < spec.length - 1) {
+      "Invalid --entity-key value '$spec'; expected 'entity_type=entity_id' with both sides non-empty"
+    }
+    val type = spec.substring(0, separatorIndex)
+    val id = spec.substring(separatorIndex + 1)
+    return entityKey {
+      entityType = type
+      entityId = id
     }
   }
 

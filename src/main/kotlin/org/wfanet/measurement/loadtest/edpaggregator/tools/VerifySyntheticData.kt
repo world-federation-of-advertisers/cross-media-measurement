@@ -327,18 +327,39 @@ class VerifySyntheticData : Runnable {
           val records = runBlocking { impressionsBlob.read().toList() }
           logger.info("  Decrypted ${records.size} impression records")
 
+          val expectedEventGroupReferenceId = blobDetails.eventGroupReferenceId
+
           for ((index, record) in records.withIndex()) {
             val impression = LabeledImpression.parseFrom(record)
             check(impression.vid > 0) { "Invalid VID: ${impression.vid}" }
             check(impression.hasEvent()) { "Missing event in impression $index" }
             check(impression.hasEventTime()) { "Missing event time in impression $index" }
+            check(impression.eventGroupReferenceId == expectedEventGroupReferenceId) {
+              "EventGroupReferenceId mismatch on impression $index: " +
+                "expected '$expectedEventGroupReferenceId', " +
+                "got '${impression.eventGroupReferenceId}'"
+            }
+            for ((entityKeyIndex, entityKey) in impression.entityKeysList.withIndex()) {
+              check(entityKey.entityType.isNotEmpty()) {
+                "EntityKey[$entityKeyIndex] on impression $index has empty entity_type"
+              }
+              check(entityKey.entityId.isNotEmpty()) {
+                "EntityKey[$entityKeyIndex] on impression $index has empty entity_id"
+              }
+            }
 
             val testEvent = impression.event.unpack(TestEvent::class.java)
             check(testEvent != null) { "Failed to unpack TestEvent from impression $index" }
 
             if (index < 3) {
+              val entityKeysSummary =
+                impression.entityKeysList.joinToString(", ") {
+                  "${it.entityType}=${it.entityId}"
+                }
               logger.info(
-                "  Record[$index]: vid=${impression.vid}, eventTime=${impression.eventTime}"
+                "  Record[$index]: vid=${impression.vid}, eventTime=${impression.eventTime}, " +
+                  "eventGroupReferenceId=${impression.eventGroupReferenceId}, " +
+                  "entityKeys=[$entityKeysSummary]"
               )
             }
           }
