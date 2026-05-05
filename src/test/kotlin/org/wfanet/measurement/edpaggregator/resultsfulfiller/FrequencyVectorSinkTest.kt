@@ -65,11 +65,10 @@ class FrequencyVectorSinkTest {
         startTime = timestamp { seconds = testInstant.epochSecond }
         endTime = timestamp { seconds = testInstant.epochSecond + 3600 }
       }
-      return FilterSpec(
+      return FilterSpec.ByEventGroupReferenceIds(
         celExpression = "true",
         collectionInterval = interval,
         eventGroupReferenceIds = listOf("test-event-group-1"),
-        entityKeys = emptySet(),
       )
     }
   }

@@ -23,37 +23,60 @@ import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 /**
  * Immutable specification for event filtering.
  *
- * This data class serves two purposes:
+ * This sealed type serves two purposes:
  * - as a unique key for looking up / deduplicating frequency vector sinks in the pipeline.
  * - as a parameter for the actual filtering.
  *
- * Either [eventGroupReferenceIds] or [entityKeys] must be non-empty. They are alternative
- * selectors for the same purpose: identifying which events belong to a given EventGroup. When
- * [entityKeys] is non-empty it takes precedence and replaces the [eventGroupReferenceIds] check;
- * this matches the upstream contract that an EventGroup with `entity_key` set is identified by
- * that key rather than by its reference ID.
- *
- * @property celExpression The CEL expression for filtering events
- * @property collectionInterval The time interval for event collection
- * @property eventGroupReferenceIds The reference IDs of the event groups to be filtered (legacy
- *   selector). Used only when [entityKeys] is empty.
- * @property entityKeys Entity keys identifying the EventGroup(s) to be filtered (replaces
- *   [eventGroupReferenceIds] when non-empty). An event passes when its `LabeledEvent.entityKeys`
- *   intersects this set (OR-semantics across the set).
+ * The two variants represent the two alternative selectors for identifying which events belong to
+ * an EventGroup: legacy reference IDs ([ByEventGroupReferenceIds]) and entity keys
+ * ([ByEntityKeys]). Selecting a variant at the type level guarantees that exactly one selector is
+ * populated and that empty placeholder values cannot be passed by callers.
  */
-data class FilterSpec(
-  val celExpression: String,
-  val collectionInterval: Interval,
-  val eventGroupReferenceIds: List<String>,
-  val entityKeys: Set<LabeledImpression.EntityKey>,
-) {
-  init {
-    require(eventGroupReferenceIds.isNotEmpty() || entityKeys.isNotEmpty()) {
-      "Either eventGroupReferenceIds or entityKeys must be non-empty"
+sealed class FilterSpec {
+  /** The CEL expression for filtering events. */
+  abstract val celExpression: String
+
+  /** The time interval for event collection. */
+  abstract val collectionInterval: Interval
+
+  /**
+   * Legacy selector: filter events by their batch's `eventGroupReferenceId`.
+   *
+   * @property eventGroupReferenceIds The reference IDs of the event groups to be filtered. Must
+   *   be non-empty.
+   */
+  data class ByEventGroupReferenceIds(
+    override val celExpression: String,
+    override val collectionInterval: Interval,
+    val eventGroupReferenceIds: List<String>,
+  ) : FilterSpec() {
+    init {
+      require(eventGroupReferenceIds.isNotEmpty()) { "eventGroupReferenceIds must not be empty" }
+      requireValidCollectionInterval(collectionInterval)
     }
-    require(
-      collectionInterval.startTime.toInstant().isBefore(collectionInterval.endTime.toInstant())
-    ) {
+  }
+
+  /**
+   * Entity-key selector: filter events by intersecting the blob's and per-impression entity keys
+   * against this set.
+   *
+   * @property entityKeys Entity keys identifying the EventGroup(s) to be filtered. An event passes
+   *   when its `LabeledEvent.entityKeys` intersects this set (OR-semantics across the set). Must
+   *   be non-empty.
+   */
+  data class ByEntityKeys(
+    override val celExpression: String,
+    override val collectionInterval: Interval,
+    val entityKeys: Set<LabeledImpression.EntityKey>,
+  ) : FilterSpec() {
+    init {
+      require(entityKeys.isNotEmpty()) { "entityKeys must not be empty" }
+      requireValidCollectionInterval(collectionInterval)
+    }
+  }
+
+  protected fun requireValidCollectionInterval(interval: Interval) {
+    require(interval.startTime.toInstant().isBefore(interval.endTime.toInstant())) {
       "collectionInterval startTime must be before endTime"
     }
   }
