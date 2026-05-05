@@ -37,6 +37,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.v2alpha.EventGroupKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
@@ -44,7 +45,6 @@ import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
-import org.wfanet.measurement.api.v2alpha.EventGroupKt
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
