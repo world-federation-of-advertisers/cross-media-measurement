@@ -45,6 +45,7 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.EventGroupKt
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.requisition
@@ -989,6 +990,142 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
     assertThat(groupedRequisitions).hasSize(0)
     assertThat(createRequisitionMetadataRequests).hasSize(2)
     assertThat(refuseRequisitionMetadataRequests).hasSize(2)
+  }
+
+  @Test
+  fun `throws when requisition has mixed entity key presence across event groups`() {
+    val secondEventGroupName = "${TestRequisitionData.EDP_NAME}/eventGroups/name2"
+
+    eventGroupsServiceMock.stub {
+      onBlocking { getEventGroup(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<GetEventGroupRequest>(0)
+          if (request.name == TestRequisitionData.EVENT_GROUP_NAME) {
+            eventGroup {
+              name = request.name
+              eventGroupReferenceId = "ref-1"
+              entityKey = EventGroupKt.entityKey {
+                entityType = "placement"
+                entityId = "P-123"
+              }
+            }
+          } else {
+            eventGroup {
+              name = request.name
+              eventGroupReferenceId = "ref-2"
+            }
+          }
+        }
+    }
+
+    val requisitionSpec =
+      TestRequisitionData.REQUISITION_SPEC.copy {
+        events =
+          RequisitionSpecKt.events {
+            eventGroups +=
+              RequisitionSpecKt.eventGroupEntry {
+                key = TestRequisitionData.EVENT_GROUP_NAME
+                value =
+                  RequisitionSpecKt.EventGroupEntryKt.value {
+                    collectionInterval = interval {
+                      startTime = TestRequisitionData.TIME_RANGE.start.toProtoTime()
+                      endTime = TestRequisitionData.TIME_RANGE.endExclusive.toProtoTime()
+                    }
+                  }
+              }
+            eventGroups +=
+              RequisitionSpecKt.eventGroupEntry {
+                key = secondEventGroupName
+                value =
+                  RequisitionSpecKt.EventGroupEntryKt.value {
+                    collectionInterval = interval {
+                      startTime = TestRequisitionData.TIME_RANGE.start.toProtoTime()
+                      endTime = TestRequisitionData.TIME_RANGE.endExclusive.toProtoTime()
+                    }
+                  }
+              }
+          }
+      }
+    val requisition =
+      TestRequisitionData.REQUISITION.copy {
+        encryptedRequisitionSpec =
+          encryptRequisitionSpec(
+            signedMessage { message = requisitionSpec.pack() },
+            TestRequisitionData.DATA_PROVIDER_PUBLIC_KEY,
+          )
+      }
+
+    assertFailsWith<IllegalArgumentException> {
+      runBlocking { requisitionGrouper.groupRequisitions(listOf(requisition)) }
+    }
+  }
+
+  @Test
+  fun `groups requisition when all event groups have entity key`() {
+    val secondEventGroupName = "${TestRequisitionData.EDP_NAME}/eventGroups/name2"
+
+    eventGroupsServiceMock.stub {
+      onBlocking { getEventGroup(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<GetEventGroupRequest>(0)
+          eventGroup {
+            name = request.name
+            eventGroupReferenceId =
+              if (request.name == TestRequisitionData.EVENT_GROUP_NAME) "ref-1" else "ref-2"
+            entityKey = EventGroupKt.entityKey {
+              entityType = "placement"
+              entityId = if (request.name == TestRequisitionData.EVENT_GROUP_NAME) "P-1" else "P-2"
+            }
+          }
+        }
+    }
+
+    val requisitionSpec =
+      TestRequisitionData.REQUISITION_SPEC.copy {
+        events =
+          RequisitionSpecKt.events {
+            eventGroups +=
+              RequisitionSpecKt.eventGroupEntry {
+                key = TestRequisitionData.EVENT_GROUP_NAME
+                value =
+                  RequisitionSpecKt.EventGroupEntryKt.value {
+                    collectionInterval = interval {
+                      startTime = TestRequisitionData.TIME_RANGE.start.toProtoTime()
+                      endTime = TestRequisitionData.TIME_RANGE.endExclusive.toProtoTime()
+                    }
+                  }
+              }
+            eventGroups +=
+              RequisitionSpecKt.eventGroupEntry {
+                key = secondEventGroupName
+                value =
+                  RequisitionSpecKt.EventGroupEntryKt.value {
+                    collectionInterval = interval {
+                      startTime = TestRequisitionData.TIME_RANGE.start.toProtoTime()
+                      endTime = TestRequisitionData.TIME_RANGE.endExclusive.toProtoTime()
+                    }
+                  }
+              }
+          }
+      }
+    val requisition =
+      TestRequisitionData.REQUISITION.copy {
+        encryptedRequisitionSpec =
+          encryptRequisitionSpec(
+            signedMessage { message = requisitionSpec.pack() },
+            TestRequisitionData.DATA_PROVIDER_PUBLIC_KEY,
+          )
+      }
+
+    val groupedRequisitions: List<GroupedRequisitions> = runBlocking {
+      requisitionGrouper.groupRequisitions(listOf(requisition))
+    }
+    assertThat(groupedRequisitions).hasSize(1)
+    val eventGroupMap = groupedRequisitions.single().eventGroupMapList
+    assertThat(eventGroupMap).hasSize(2)
+    eventGroupMap.forEach { entry ->
+      assertThat(entry.details.hasEntityKey()).isTrue()
+    }
   }
 
   companion object {
