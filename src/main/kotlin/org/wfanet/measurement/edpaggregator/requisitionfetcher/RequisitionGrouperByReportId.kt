@@ -390,16 +390,27 @@ class RequisitionGrouperByReportId(
       .flatMap { it.eventGroupMapList }
       .groupBy { it.eventGroup }
       .map { (eventGroupName, entries) ->
-        val firstDetails = entries.first().details
-        val intervals = entries.flatMap { it.details.collectionIntervalsList }
+        val allDetails = entries.map { it.details }
+
+        val refIds = allDetails.map { it.eventGroupReferenceId }.distinct()
+        require(refIds.size == 1) {
+          "Inconsistent event_group_reference_id for $eventGroupName: $refIds"
+        }
+
+        val entityKeys = allDetails.map { it.entityKey }.distinct()
+        require(entityKeys.size == 1) {
+          "Inconsistent entity_key for $eventGroupName: $entityKeys"
+        }
+
+        val intervals = allDetails.flatMap { it.collectionIntervalsList }
         val merged = unionIntervals(intervals)
         eventGroupMapEntry {
           eventGroup = eventGroupName
           details = eventGroupDetails {
-            eventGroupReferenceId = firstDetails.eventGroupReferenceId
+            eventGroupReferenceId = refIds.single()
             collectionIntervals += merged
-            if (firstDetails.hasEntityKey()) {
-              entityKey = firstDetails.entityKey
+            if (allDetails.first().hasEntityKey()) {
+              entityKey = entityKeys.single()
             }
           }
         }
