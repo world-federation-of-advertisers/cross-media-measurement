@@ -993,7 +993,7 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
   }
 
   @Test
-  fun `throws when requisition has mixed entity key presence across event groups`() {
+  fun `refuses requisition when event groups have mixed entity key presence`() {
     val secondEventGroupName = "${TestRequisitionData.EDP_NAME}/eventGroups/name2"
 
     eventGroupsServiceMock.stub {
