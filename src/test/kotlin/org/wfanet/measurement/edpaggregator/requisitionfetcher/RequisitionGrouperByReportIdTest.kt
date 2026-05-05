@@ -1055,9 +1055,13 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
           )
       }
 
-    assertFailsWith<IllegalArgumentException> {
-      runBlocking { requisitionGrouper.groupRequisitions(listOf(requisition)) }
+    val groupedRequisitions: List<GroupedRequisitions> = runBlocking {
+      requisitionGrouper.groupRequisitions(listOf(requisition))
     }
+    assertThat(groupedRequisitions).isEmpty()
+    assertThat(createRequisitionMetadataRequests).hasSize(1)
+    assertThat(refuseRequisitionMetadataRequests).hasSize(1)
+    assertThat(refuseRequisitionRequests).hasSize(1)
   }
 
   @Test

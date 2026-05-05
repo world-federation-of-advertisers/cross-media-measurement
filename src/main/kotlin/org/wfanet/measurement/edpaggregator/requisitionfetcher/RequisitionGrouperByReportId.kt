@@ -299,7 +299,7 @@ class RequisitionGrouperByReportId(
       requisitionsByReportId.filter { it.name !in existingCmmsRequisitionName }
     if (unregisteredRequisitionsByReportId.isEmpty()) return null
     val requisitionGroupId = UUID.randomUUID().toString()
-    val reportValidationOutcome =
+    var reportValidationOutcome =
       validateRequisitionsByReport(reportId, unregisteredRequisitionsByReportId)
     val groupedRequisitions =
       if (reportValidationOutcome.refusal != null) {
@@ -309,7 +309,23 @@ class RequisitionGrouperByReportId(
         }
         null
       } else {
-        groupValidRequisitions(reportValidationOutcome.requisitions, requisitionGroupId)
+        try {
+          groupValidRequisitions(reportValidationOutcome.requisitions, requisitionGroupId)
+        } catch (e: IllegalArgumentException) {
+          val refusal = refusal {
+            justification = Requisition.Refusal.Justification.UNFULFILLABLE
+            message = e.message ?: "Invalid event group configuration"
+          }
+          reportValidationOutcome =
+            ReportValidationOutcome(
+              requisitions = reportValidationOutcome.requisitions,
+              refusal = refusal,
+            )
+          reportValidationOutcome.requisitions.forEach { requisition ->
+            refuseRequisitionToCmms(requisition, refusal)
+          }
+          null
+        }
       }
     syncRequisitionMetadata(reportValidationOutcome, requisitionGroupId)
     return groupedRequisitions
