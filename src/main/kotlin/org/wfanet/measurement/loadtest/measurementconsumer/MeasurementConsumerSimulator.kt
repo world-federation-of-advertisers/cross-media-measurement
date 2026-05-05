@@ -46,6 +46,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
 import org.wfanet.measurement.api.v2alpha.Measurement.Failure
@@ -162,6 +163,8 @@ abstract class MeasurementConsumerSimulator(
   private val modelLineName: String = "some-model-line",
   private val onMeasurementsCreated: (() -> Unit)? = null,
 ) {
+  protected open val listEventGroupsEntityTypes: List<String> = emptyList()
+
   /** Cache of resource name to [Certificate]. */
   private val certificateCache = mutableMapOf<String, Certificate>()
 
@@ -1306,6 +1309,10 @@ abstract class MeasurementConsumerSimulator(
               listEventGroupsRequest {
                 parent = measurementConsumer
                 this.pageToken = pageToken
+                if (listEventGroupsEntityTypes.isNotEmpty()) {
+                  filter =
+                    ListEventGroupsRequestKt.filter { entityTypeIn += listEventGroupsEntityTypes }
+                }
               }
             )
           } catch (e: StatusException) {
