@@ -29,11 +29,11 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
  * This processor compiles a CEL expression once and reuses it for batch processing. It processes
  * events sequentially through the CEL filter and identifies matching events.
  *
- * The processor supports two alternative selectors for identifying which events belong to an
- * EventGroup: `eventGroupReferenceIds` (legacy) and `entityKeys` (new). When `entityKeys` is
- * non-empty it takes precedence and the `eventGroupReferenceIds` batch-level check is skipped;
- * a separate batch-level entity-key intersection check is applied instead, mirroring the legacy
- * fast-rejection pattern.
+ * The processor dispatches on [FilterSpec]'s variant to choose the EventGroup selector:
+ * - [FilterSpec.ByEventGroupReferenceIds] uses the legacy `eventGroupReferenceId` batch-level
+ *   match.
+ * - [FilterSpec.ByEntityKeys] uses a batch-level entity-key intersection short-circuit followed
+ *   by a per-event entity-key check.
  *
  * @param filterSpec immutable specification containing all filtering criteria
  */
@@ -75,24 +75,15 @@ class FilterProcessor<T : Message>(
     )
 
   /**
-   * Whether the spec uses entity keys as the selector.
-   *
-   * When `true`, both batch-level and per-event entity-key checks are applied and the legacy
-   * `event_group_reference_id` batch-level check is skipped. When `false`, the legacy
-   * `event_group_reference_id` check is used and no entity-key filter is applied.
-   */
-  private val entityKeyFilterEnabled: Boolean = filterSpec.entityKeys.isNotEmpty()
-
-  /**
    * Processes a batch of events and returns the matching events.
    *
    * Applies filtering in the following order for optimal performance:
-   * 1. Selector check (mutually exclusive):
-   *    - If [entityKeyFilterEnabled] is `false`: batch-level `event_group_reference_id` match.
-   *    - If `true`: batch-level entity-key intersection short-circuit.
+   * 1. Selector check, dispatched on [FilterSpec] variant:
+   *    - [FilterSpec.ByEventGroupReferenceIds]: batch-level `event_group_reference_id` match.
+   *    - [FilterSpec.ByEntityKeys]: batch-level entity-key intersection short-circuit.
    * 2. Batch time range overlap check (fast, avoids processing entire batch).
    * 3. Per-event time range filter.
-   * 4. Per-event entity-key intersection (only when [entityKeyFilterEnabled]).
+   * 4. Per-event entity-key intersection (only for [FilterSpec.ByEntityKeys]).
    * 5. Per-event CEL expression evaluation.
    *
    * @param batch The batch of events to process. Must contain a valid list of events.
@@ -104,13 +95,16 @@ class FilterProcessor<T : Message>(
       return batch
     }
 
-    if (entityKeyFilterEnabled) {
-      if (!batchEntityKeysOverlap(batch)) {
-        return emptyBatchLike(batch)
+    when (val spec = filterSpec) {
+      is FilterSpec.ByEventGroupReferenceIds -> {
+        if (!spec.eventGroupReferenceIds.contains(batch.eventGroupReferenceId)) {
+          return emptyBatchLike(batch)
+        }
       }
-    } else {
-      if (!filterSpec.eventGroupReferenceIds.contains(batch.eventGroupReferenceId)) {
-        return emptyBatchLike(batch)
+      is FilterSpec.ByEntityKeys -> {
+        if (!batchEntityKeysOverlap(batch, spec.entityKeys)) {
+          return emptyBatchLike(batch)
+        }
       }
     }
 
@@ -119,13 +113,16 @@ class FilterProcessor<T : Message>(
       return emptyBatchLike(batch)
     }
 
+    val entityKeyFilter: Set<LabeledImpressionEntityKey>? =
+      (filterSpec as? FilterSpec.ByEntityKeys)?.entityKeys
+
     val filteredEvents =
       batch.events.filter { event ->
         if (!isEventInTimeRange(event)) {
           return@filter false
         }
 
-        if (entityKeyFilterEnabled && !eventMatchesEntityKeyFilter(event)) {
+        if (entityKeyFilter != null && !eventMatchesEntityKeyFilter(event, entityKeyFilter)) {
           return@filter false
         }
 
@@ -188,31 +185,35 @@ class FilterProcessor<T : Message>(
   }
 
   /**
-   * Checks whether [event]'s `entityKeys` intersect the filter's selector.
+   * Checks whether [event]'s `entityKeys` intersect [filter].
    *
-   * Only called when [entityKeyFilterEnabled] is `true`. An event with empty `entityKeys` always
-   * fails this check.
-   *
-   * @param event the event to check
-   * @return `true` if at least one of [event]'s entity keys is in [FilterSpec.entityKeys]
+   * An event with empty `entityKeys` always fails this check (cannot match a non-empty filter).
    */
-  private fun eventMatchesEntityKeyFilter(event: LabeledEvent<T>): Boolean {
-    return event.entityKeys.any { it in filterSpec.entityKeys }
+  private fun eventMatchesEntityKeyFilter(
+    event: LabeledEvent<T>,
+    filter: Set<LabeledImpressionEntityKey>,
+  ): Boolean {
+    return event.entityKeys.any { it in filter }
   }
 
   /**
    * Checks whether any [org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup] on [batch]
-   * contains an `(entity_type, entity_id)` pair that matches the filter's selector.
+   * contains an `(entity_type, entity_id)` pair that matches [filter].
    *
-   * Only called when [entityKeyFilterEnabled] is `true`. A batch with empty `entityKeys` always
-   * fails this check (cannot match a non-empty filter).
+   * A batch with empty `entityKeys` always fails this check.
    */
-  private fun batchEntityKeysOverlap(batch: EventBatch<T>): Boolean {
+  private fun batchEntityKeysOverlap(
+    batch: EventBatch<T>,
+    filter: Set<LabeledImpressionEntityKey>,
+  ): Boolean {
     if (batch.entityKeys.isEmpty()) return false
-    return filterSpec.entityKeys.any { fk ->
+    return filter.any { fk ->
       batch.entityKeys.any { g ->
         g.entityType == fk.entityType && g.entityIdsList.contains(fk.entityId)
       }
     }
   }
 }
+
+private typealias LabeledImpressionEntityKey =
+  org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression.EntityKey
