@@ -108,11 +108,10 @@ data class FilterSpecIndex(
           eventGroups.map { eventGroupReferenceIdMap.getValue(it.key) }.sorted()
 
         val filterSpec =
-          FilterSpec(
+          FilterSpec.ByEventGroupReferenceIds(
             celExpression = firstEventGroup.value.filter.expression,
             collectionInterval = firstEventGroup.value.collectionInterval,
             eventGroupReferenceIds = eventGroupReferenceIds,
-            entityKeys = emptySet(),
           )
 
         filterSpecToReqNames.getOrPut(filterSpec) { mutableListOf() }.add(requisition.name)
