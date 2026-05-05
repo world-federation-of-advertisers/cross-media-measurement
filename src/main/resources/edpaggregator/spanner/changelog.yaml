@@ -37,3 +37,6 @@ databaseChangeLog:
   - include:
       file: refactor-raw-impression-schema.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-impression-metadata-entity-keys.sql
+      relativeToChangeLogFile: true

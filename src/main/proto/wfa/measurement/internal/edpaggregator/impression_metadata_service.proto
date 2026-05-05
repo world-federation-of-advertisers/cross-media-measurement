@@ -94,6 +94,10 @@ message ListImpressionMetadataRequest {
     ImpressionMetadataState state = 4;
     // The blob URI prefix to filter by.
     string blob_uri_prefix = 5;
+    // Filter by entity keys. OR-semantics: a metadata entry matches if its
+    // `entity_keys` set contains at least one of the entries listed here.
+    // Empty list means no entity-key restriction.
+    repeated EntityKey entity_keys = 6;
   }
   Filter filter = 4;
 }

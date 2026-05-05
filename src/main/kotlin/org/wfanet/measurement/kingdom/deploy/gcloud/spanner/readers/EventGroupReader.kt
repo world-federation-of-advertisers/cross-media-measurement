@@ -207,9 +207,12 @@ class EventGroupReader(private val view: EventGroup.View = EventGroup.View.BASIC
         details =
           struct.getProtoMessage("EventGroupDetails", EventGroupDetails.getDefaultInstance())
       }
-      if (!struct.isNull("EntityId")) {
-        entityKey = entityKey {
-          entityType = struct.getString("EntityType")
+      // EntityType is NOT NULL with a column default of "campaign" (see
+      // add-event-group-entity-key.sql), so every row has an entity_type. EntityId remains
+      // nullable for legacy rows that never specified one.
+      entityKey = entityKey {
+        entityType = struct.getString("EntityType")
+        if (!struct.isNull("EntityId")) {
           entityId = struct.getString("EntityId")
         }
       }
