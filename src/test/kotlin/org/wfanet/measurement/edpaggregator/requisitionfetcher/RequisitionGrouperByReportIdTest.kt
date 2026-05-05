@@ -44,8 +44,8 @@ import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
-import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.EventGroupKt
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.requisition
@@ -1130,9 +1130,7 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
     assertThat(groupedRequisitions).hasSize(1)
     val eventGroupMap = groupedRequisitions.single().eventGroupMapList
     assertThat(eventGroupMap).hasSize(2)
-    eventGroupMap.forEach { entry ->
-      assertThat(entry.details.hasEntityKey()).isTrue()
-    }
+    eventGroupMap.forEach { entry -> assertThat(entry.details.hasEntityKey()).isTrue() }
   }
 
   companion object {
