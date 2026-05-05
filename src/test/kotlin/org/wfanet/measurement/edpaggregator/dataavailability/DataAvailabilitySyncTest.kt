@@ -60,6 +60,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadat
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
@@ -67,6 +68,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataReques
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
@@ -828,7 +831,7 @@ class DataAvailabilitySyncTest {
             "file:///my-bucket/edp/edpa_edp/model-line/some-model-line/timestamp/metadata-$index.json"
           blobTypeUrl =
             "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
-          eventGroupReferenceId = "event${index+1}"
+          eventGroupReferenceId = "some-event-group-reference-id"
           modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
           this.interval = interval {
             startTime = timestamp { seconds = times.first }
@@ -985,7 +988,7 @@ class DataAvailabilitySyncTest {
             "file:///my-bucket/edp/edpa_edp/model-line/some-model-line/timestamp/metadata-$index.json"
           blobTypeUrl =
             "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
-          eventGroupReferenceId = "event${index+1}"
+          eventGroupReferenceId = "some-event-group-reference-id"
           modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
           this.interval = interval {
             startTime = timestamp { seconds = times.first }
@@ -1337,6 +1340,212 @@ class DataAvailabilitySyncTest {
       }
     }
 
+  @Test
+  fun `BlobDetails with only event_group_reference_id propagates ref id and empty entity_keys`() =
+    runBlocking {
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+      // seedBlobDetails populates event_group_reference_id by default and no entity_keys.
+      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
+        )
+
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+      val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock, times(1)) {
+        batchCreateImpressionMetadata(batchCaptor.capture())
+      }
+      val createdMetadata = batchCaptor.firstValue.requestsList.single().impressionMetadata
+      assertThat(createdMetadata.eventGroupReferenceId).isEqualTo("some-event-group-reference-id")
+      assertThat(createdMetadata.entityKeysList).isEmpty()
+      // Data availability is updated regardless of which selectors BlobDetails carries.
+      verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+    }
+
+  @Test
+  fun `BlobDetails with only entity_keys flattens entity_keys and leaves ref id empty`() =
+    runBlocking {
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+      val entityKeyGroups =
+        listOf(
+          entityKeyGroup {
+            entityType = "campaign"
+            entityIds += "campaign-1"
+            entityIds += "campaign-2"
+          },
+          entityKeyGroup {
+            entityType = "ad"
+            entityIds += "ad-1"
+          },
+        )
+
+      seedBlobDetails(
+        storageClient,
+        folderPrefix,
+        listOf(300L to 400L),
+        entityKeyGroups = entityKeyGroups,
+        populateEventGroupReferenceId = false,
+      )
+
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
+        )
+
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+      val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock, times(1)) {
+        batchCreateImpressionMetadata(batchCaptor.capture())
+      }
+      val createdMetadata = batchCaptor.firstValue.requestsList.single().impressionMetadata
+      assertThat(createdMetadata.eventGroupReferenceId).isEmpty()
+      assertThat(createdMetadata.entityKeysList)
+        .containsExactly(
+          entityKey {
+            entityType = "campaign"
+            entityId = "campaign-1"
+          },
+          entityKey {
+            entityType = "campaign"
+            entityId = "campaign-2"
+          },
+          entityKey {
+            entityType = "ad"
+            entityId = "ad-1"
+          },
+        )
+        .inOrder()
+      // Data availability is updated regardless of which selectors BlobDetails carries.
+      verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+    }
+
+  @Test
+  fun `sync throws when BlobDetails has neither event_group_reference_id nor entity_keys`() =
+    runBlocking {
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+      seedBlobDetails(
+        storageClient,
+        folderPrefix,
+        listOf(300L to 400L),
+        populateEventGroupReferenceId = false,
+      )
+
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
+        )
+
+      assertFailsWith<IllegalArgumentException> {
+        dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      }
+      // Neither metadata persistence nor data availability should happen on validation failure.
+      verifyBlocking(impressionMetadataServiceMock, times(0)) {
+        batchCreateImpressionMetadata(any())
+      }
+      verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    }
+
+  @Test
+  fun `BlobDetails with both event_group_reference_id and entity_keys propagates both`() =
+    runBlocking {
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+      val entityKeyGroups =
+        listOf(
+          entityKeyGroup {
+            entityType = "campaign"
+            entityIds += "campaign-1"
+            entityIds += "campaign-2"
+          },
+          entityKeyGroup {
+            entityType = "ad"
+            entityIds += "ad-1"
+          },
+        )
+
+      seedBlobDetails(
+        storageClient,
+        folderPrefix,
+        listOf(300L to 400L),
+        entityKeyGroups = entityKeyGroups,
+      )
+
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
+        )
+
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+      val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock, times(1)) {
+        batchCreateImpressionMetadata(batchCaptor.capture())
+      }
+      val createdMetadata = batchCaptor.firstValue.requestsList.single().impressionMetadata
+      assertThat(createdMetadata.eventGroupReferenceId).isEqualTo("some-event-group-reference-id")
+      assertThat(createdMetadata.entityKeysList)
+        .containsExactly(
+          entityKey {
+            entityType = "campaign"
+            entityId = "campaign-1"
+          },
+          entityKey {
+            entityType = "campaign"
+            entityId = "campaign-2"
+          },
+          entityKey {
+            entityType = "ad"
+            entityId = "ad-1"
+          },
+        )
+        .inOrder()
+      // Data availability is updated regardless of which selectors BlobDetails carries.
+      verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+    }
+
   /**
    * Seeds a directory (prefix) with BlobDetails files, one per interval. Returns the blob keys
    * written.
@@ -1348,6 +1557,8 @@ class DataAvailabilitySyncTest {
     encoding: BlobEncoding = BlobEncoding.PROTO,
     createImpressionFile: Boolean = true,
     edpImpressionPath: String = "edp/edpa_edp",
+    entityKeyGroups: List<EntityKeyGroup> = emptyList(),
+    populateEventGroupReferenceId: Boolean = true,
   ): List<String> {
     require(prefix.isEmpty() || prefix.endsWith("/")) { "prefix should end with '/'" }
 
@@ -1358,7 +1569,9 @@ class DataAvailabilitySyncTest {
       val objectKey = "${folderPrefix}some_blob_uri_$index"
       val details = blobDetails {
         this.blobUri = blobUri
-        eventGroupReferenceId = "event${index + 1}"
+        if (populateEventGroupReferenceId) {
+          eventGroupReferenceId = "some-event-group-reference-id"
+        }
         modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
         interval = interval {
           if (startSeconds != null) {
@@ -1374,6 +1587,7 @@ class DataAvailabilitySyncTest {
             }
           }
         }
+        entityKeys += entityKeyGroups
       }
 
       val filename =
@@ -1418,7 +1632,7 @@ class DataAvailabilitySyncTest {
       val objectKey = "${prefix}some_blob_uri_$index"
       val details = blobDetails {
         this.blobUri = blobUri
-        eventGroupReferenceId = "event${index + 1}"
+        eventGroupReferenceId = "some-event-group-reference-id"
         this.modelLine = modelLine
         interval = interval {
           if (startSeconds != null) {
@@ -1487,7 +1701,7 @@ class DataAvailabilitySyncTest {
       val blobUri = "$bucket/$impressionsBlobKey"
       val details = blobDetails {
         this.blobUri = blobUri
-        eventGroupReferenceId = "event${index + 1}"
+        eventGroupReferenceId = "some-event-group-reference-id"
         modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
         interval = interval {
           startTime = timestamp {

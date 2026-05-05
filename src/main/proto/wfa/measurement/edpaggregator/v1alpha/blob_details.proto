@@ -73,6 +73,11 @@ message BlobDetails {
   // When present, this replaces `event_group_reference_id` as the selector
   // for identifying which events belong to this blob in the filtering
   // pipeline.
+  //
+  // For each entity key listed, the blob is guaranteed to contain at least
+  // one impression associated with it. Conversely, every impression in the
+  // blob is associated with at least one of these entity keys, though an
+  // individual impression need not be associated with all of them.
   repeated EntityKeyGroup entity_keys = 6
       [(google.api.field_behavior) = OPTIONAL];
 }
