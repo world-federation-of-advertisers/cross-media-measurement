@@ -17,9 +17,6 @@
 package org.wfanet.measurement.loadtest.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
-import com.google.crypto.tink.InsecureSecretKeyAccess
-import com.google.crypto.tink.KmsClient
-import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import java.io.File
@@ -137,7 +134,7 @@ class GenerateAndVerifySyntheticDataTest {
 
     val result = verifyCmd.lastResult!!
     assertThat(result.errors).isEqualTo(0)
-    assertThat(result.totalDays).isEqualTo(EXPECTED_DATES.size * 2)
+    assertThat(result.totalBlobsProcessed).isEqualTo(EXPECTED_DATES.size * 2)
     assertThat(result.totalImpressions)
       .isEqualTo(SPEC_A.expectedImpressions + SPEC_B.expectedImpressions)
     assertThat(result.impressionsByEventGroupReferenceId)
@@ -178,7 +175,7 @@ class GenerateAndVerifySyntheticDataTest {
         )
     check(exitCode == 0) { "GenerateSyntheticData exited with code $exitCode" }
 
-    val kmsClient: KmsClient = readFakeKmsClient(KEK_URI, fakeKekKeysetFile())
+    val kmsClient = GenerateSyntheticData.buildFakeKmsClient(KEK_URI, fakeKekKeysetFile())
     val modelLineId = MODEL_LINE.substringAfterLast('/')
     val perEventGroupRelativeDir =
       "$IMPRESSION_METADATA_BASE_PATH/ds/$INSPECT_DATE/" +
@@ -242,15 +239,6 @@ class GenerateAndVerifySyntheticDataTest {
     fun registerTink() {
       AeadConfig.register()
       StreamingAeadConfig.register()
-    }
-
-    /** Reads a Tink keyset persisted by `GenerateSyntheticData`'s --fake-kek-keyset-file. */
-    private fun readFakeKmsClient(kekUri: String, keysetFile: File): KmsClient {
-      val handle =
-        TinkProtoKeysetFormat.parseKeyset(keysetFile.readBytes(), InsecureSecretKeyAccess.get())
-      val client = FakeKmsClient()
-      client.setAead(kekUri, handle.getPrimitive(com.google.crypto.tink.Aead::class.java))
-      return client
     }
 
     private const val KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "key1"

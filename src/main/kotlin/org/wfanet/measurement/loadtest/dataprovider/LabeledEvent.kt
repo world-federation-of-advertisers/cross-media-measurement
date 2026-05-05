@@ -34,12 +34,7 @@ data class LabeledEventDateShard<T : Message>(
   val labeledEvents: Sequence<LabeledEvent<T>>,
 )
 
-/**
- * Domain-level identity for an entity associated with a labeled impression.
- *
- * Mapped to the wire-format `LabeledImpression.EntityKey` at write time so that producers and
- * generators stay decoupled from the proto.
- */
+/** Domain-level identity for an entity associated with a labeled impression. */
 data class EntityKey(val entityType: String, val entityId: String)
 
 /**

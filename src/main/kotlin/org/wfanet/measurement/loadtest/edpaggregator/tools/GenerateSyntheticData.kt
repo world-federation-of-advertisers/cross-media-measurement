@@ -57,43 +57,6 @@ enum class KmsType {
   GCP_TO_AWS,
 }
 
-/**
- * Builds a [FakeKmsClient] registered to serve [kekUri] from a fake KEK keyset persisted at
- * [fakeKekKeysetFile].
- *
- * `FakeKmsClient` is in-memory only, so to round-trip envelope-encrypted data across processes the
- * underlying fake KEK keyset must itself be persisted somewhere. Behavior:
- * * `fakeKekKeysetFile == null` — generate a fresh fake KEK keyset in memory (process-local; cannot
- *   be decrypted by a later process).
- * * `fakeKekKeysetFile` exists — load and reuse the fake KEK keyset from disk.
- * * `fakeKekKeysetFile` does not exist — generate a fresh fake KEK keyset and write it to disk so
- *   it can be reloaded later.
- *
- * The keyset is serialized in cleartext via [TinkProtoKeysetFormat], which is appropriate because
- * [FakeKmsClient] itself provides no protection — this is a testing-only KMS.
- */
-fun buildFakeKmsClient(kekUri: String, fakeKekKeysetFile: File?): FakeKmsClient {
-  val fakeKekKeysetHandle: KeysetHandle =
-    if (fakeKekKeysetFile != null && fakeKekKeysetFile.exists()) {
-      TinkProtoKeysetFormat.parseKeyset(
-        fakeKekKeysetFile.readBytes(),
-        InsecureSecretKeyAccess.get(),
-      )
-    } else {
-      val newHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-      if (fakeKekKeysetFile != null) {
-        fakeKekKeysetFile.parentFile?.mkdirs()
-        fakeKekKeysetFile.writeBytes(
-          TinkProtoKeysetFormat.serializeKeyset(newHandle, InsecureSecretKeyAccess.get())
-        )
-      }
-      newHandle
-    }
-  return FakeKmsClient().apply {
-    setAead(kekUri, fakeKekKeysetHandle.getPrimitive(Aead::class.java))
-  }
-}
-
 @Command(
   name = "generate-synthetic-data",
   description = ["Generates synthetic data for Panel Match."],
@@ -387,11 +350,48 @@ class GenerateSyntheticData : Runnable {
         "dataprovider",
       )
     private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
-  }
 
-  init {
-    AeadConfig.register()
-    StreamingAeadConfig.register()
+    init {
+      AeadConfig.register()
+      StreamingAeadConfig.register()
+    }
+
+    /**
+     * Builds a [FakeKmsClient] registered to serve [kekUri] from a fake KEK keyset persisted at
+     * [fakeKekKeysetFile].
+     *
+     * `FakeKmsClient` is in-memory only, so to round-trip envelope-encrypted data across processes
+     * the underlying fake KEK keyset must itself be persisted somewhere. Behavior:
+     * * `fakeKekKeysetFile == null` — generate a fresh fake KEK keyset in memory (process-local;
+     *   cannot be decrypted by a later process).
+     * * `fakeKekKeysetFile` exists — load and reuse the fake KEK keyset from disk.
+     * * `fakeKekKeysetFile` does not exist — generate a fresh fake KEK keyset and write it to disk
+     *   so it can be reloaded later.
+     *
+     * The keyset is serialized in cleartext via [TinkProtoKeysetFormat], which is appropriate
+     * because [FakeKmsClient] itself provides no protection — this is a testing-only KMS.
+     */
+    fun buildFakeKmsClient(kekUri: String, fakeKekKeysetFile: File?): FakeKmsClient {
+      val fakeKekKeysetHandle: KeysetHandle =
+        if (fakeKekKeysetFile != null && fakeKekKeysetFile.exists()) {
+          TinkProtoKeysetFormat.parseKeyset(
+            fakeKekKeysetFile.readBytes(),
+            InsecureSecretKeyAccess.get(),
+          )
+        } else {
+          val newHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+          if (fakeKekKeysetFile != null) {
+            fakeKekKeysetFile.parentFile?.mkdirs()
+            fakeKekKeysetFile.writeBytes(
+              TinkProtoKeysetFormat.serializeKeyset(newHandle, InsecureSecretKeyAccess.get())
+            )
+          }
+          newHandle
+        }
+      return FakeKmsClient().apply {
+        setAead(kekUri, fakeKekKeysetHandle.getPrimitive(Aead::class.java))
+      }
+    }
   }
 }
 

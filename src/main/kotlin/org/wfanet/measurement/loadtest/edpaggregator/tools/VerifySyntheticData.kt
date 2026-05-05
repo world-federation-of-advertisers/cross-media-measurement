@@ -225,7 +225,7 @@ class VerifySyntheticData : Runnable {
             "--fake-kek-keyset-file '$file' does not exist; run GenerateSyntheticData with the " +
               "same --fake-kek-keyset-file first to materialize the FAKE KEK keyset"
           }
-          buildFakeKmsClient(kekUri, file)
+          GenerateSyntheticData.buildFakeKmsClient(kekUri, file)
         }
         KmsType.GCP -> GcpKmsClient().withDefaultCredentials()
         KmsType.AWS -> {
@@ -292,7 +292,7 @@ class VerifySyntheticData : Runnable {
     lastResult = result
 
     logger.info("\n========== VERIFICATION SUMMARY ==========")
-    logger.info("  Days processed: ${result.totalDays}")
+    logger.info("  Blobs processed: ${result.totalBlobsProcessed}")
     logger.info("  Total impressions decrypted: ${result.totalImpressions}")
     for ((eventGroupReferenceId, count) in
       result.impressionsByEventGroupReferenceId.toSortedMap()) {
@@ -314,19 +314,14 @@ class VerifySyntheticData : Runnable {
   var lastResult: VerificationResult? = null
     private set
 
-  init {
-    AeadConfig.register()
-    StreamingAeadConfig.register()
-  }
-
   /**
    * Aggregate result of a [Companion.verifySyntheticData] invocation.
    *
    * @property totalImpressions Total number of [LabeledImpression] records successfully decrypted
    *   and parsed across all metadata blobs.
-   * @property totalDays Total number of metadata blobs that were processed without error. Each blob
-   *   corresponds to a single (date, event group) shard, so multi-event-group runs report a count
-   *   greater than the number of distinct dates.
+   * @property totalBlobsProcessed Total number of metadata blobs that were processed without error.
+   *   Each blob corresponds to a single (date, event group) shard, so multi-event-group runs report
+   *   a count greater than the number of distinct dates.
    * @property errors Number of metadata blobs that failed to be processed.
    * @property impressionsByEventGroupReferenceId Number of impressions decrypted per
    *   `event_group_reference_id` recorded in `BlobDetails`. Useful for asserting that all streams
@@ -334,13 +329,18 @@ class VerifySyntheticData : Runnable {
    */
   data class VerificationResult(
     val totalImpressions: Int,
-    val totalDays: Int,
+    val totalBlobsProcessed: Int,
     val errors: Int,
     val impressionsByEventGroupReferenceId: Map<String, Int>,
   )
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    init {
+      AeadConfig.register()
+      StreamingAeadConfig.register()
+    }
 
     /**
      * Walks the impression metadata directory tree, decrypts each impressions blob using
@@ -371,7 +371,7 @@ class VerifySyntheticData : Runnable {
 
       logger.info("Found ${dateDirs.size} date shards")
       var totalImpressions = 0
-      var totalDays = 0
+      var totalBlobsProcessed = 0
       var errors = 0
       val impressionsByEventGroupReferenceId = mutableMapOf<String, Int>()
 
@@ -461,7 +461,7 @@ class VerifySyntheticData : Runnable {
             }
 
             totalImpressions += records.size
-            totalDays++
+            totalBlobsProcessed++
             impressionsByEventGroupReferenceId.merge(
               blobDetails.eventGroupReferenceId,
               records.size,
@@ -479,7 +479,7 @@ class VerifySyntheticData : Runnable {
 
       return VerificationResult(
         totalImpressions = totalImpressions,
-        totalDays = totalDays,
+        totalBlobsProcessed = totalBlobsProcessed,
         errors = errors,
         impressionsByEventGroupReferenceId = impressionsByEventGroupReferenceId.toMap(),
       )

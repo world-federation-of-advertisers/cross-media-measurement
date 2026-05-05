@@ -187,11 +187,11 @@ class ImpressionsWriter(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    private fun EntityKey.toProto(): LabeledImpression.EntityKey =
+      LabeledImpressionKt.entityKey {
+        entityType = this@toProto.entityType
+        entityId = this@toProto.entityId
+      }
   }
 }
-
-private fun EntityKey.toProto(): LabeledImpression.EntityKey =
-  LabeledImpressionKt.entityKey {
-    entityType = this@toProto.entityType
-    entityId = this@toProto.entityId
-  }
