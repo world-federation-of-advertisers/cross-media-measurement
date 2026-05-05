@@ -124,7 +124,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
             syntheticPopulationSpec,
             syntheticEventGroupSpec,
           )
-          .flatMap { shard -> shard.entityKeysWithLabeledEvents.flatMap { it.labeledEvents } }
+          .flatMap { it.labeledEvents }
           .filter { impression -> EventFilters.matches(impression.message, program) }
           .filter { impression ->
             targetDataProviderId != null ||

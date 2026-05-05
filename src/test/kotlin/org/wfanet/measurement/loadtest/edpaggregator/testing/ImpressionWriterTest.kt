@@ -41,9 +41,9 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
+import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -76,9 +76,9 @@ class ImpressionWriterTest {
         tempFolder.root,
         "file:///",
       )
-    val events: Sequence<LabeledEventDateShard<TestEvent>> =
+    val events: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
       sequenceOf(
-        LabeledEventDateShard(
+        EntityKeyedLabeledEventDateShard(
           LocalDate.parse("2020-01-01"),
           listOf(
             EntityKeysWithLabeledEvents(
@@ -107,7 +107,7 @@ class ImpressionWriterTest {
             )
           ),
         ),
-        LabeledEventDateShard(
+        EntityKeyedLabeledEventDateShard(
           LocalDate.parse("2020-01-02"),
           listOf(
             EntityKeysWithLabeledEvents(
@@ -206,7 +206,7 @@ class ImpressionWriterTest {
       )
     val events =
       sequenceOf(
-        LabeledEventDateShard(
+        EntityKeyedLabeledEventDateShard(
           LocalDate.parse("2020-01-01"),
           listOf(
             EntityKeysWithLabeledEvents(
@@ -254,9 +254,9 @@ class ImpressionWriterTest {
         tempFolder.root,
         "file:///",
       )
-    val events: Sequence<LabeledEventDateShard<TestEvent>> =
+    val events: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
       sequenceOf(
-        LabeledEventDateShard(
+        EntityKeyedLabeledEventDateShard(
           LocalDate.parse("2020-01-01"),
           listOf(
             EntityKeysWithLabeledEvents(
@@ -279,7 +279,7 @@ class ImpressionWriterTest {
             )
           ),
         ),
-        LabeledEventDateShard(
+        EntityKeyedLabeledEventDateShard(
           LocalDate.parse("2020-01-02"),
           listOf(
             EntityKeysWithLabeledEvents(
@@ -369,9 +369,9 @@ class ImpressionWriterTest {
     val timestamp = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
     val groupAEntityKeys = listOf(EntityKey("type-a", "id-a"), EntityKey("type-a", "id-a2"))
     val groupBEntityKeys = listOf(EntityKey("type-b", "id-b"))
-    val events: Sequence<LabeledEventDateShard<TestEvent>> =
+    val events: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
       sequenceOf(
-        LabeledEventDateShard(
+        EntityKeyedLabeledEventDateShard(
           date,
           listOf(
             EntityKeysWithLabeledEvents(

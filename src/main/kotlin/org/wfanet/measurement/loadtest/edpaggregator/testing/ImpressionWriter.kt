@@ -33,8 +33,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
+import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
@@ -78,15 +78,15 @@ class ImpressionsWriter(
 ) {
 
   /**
-   * Takes a sequence of [LabeledEventDateShard]s, encrypts the data with a KMS, and outputs the
-   * data to storage along with the necessary metadata for the ResultsFulfiller to be able to find
-   * and read the contents.
+   * Takes a sequence of [EntityKeyedLabeledEventDateShard]s, encrypts the data with a KMS, and
+   * outputs the data to storage along with the necessary metadata for the ResultsFulfiller to be
+   * able to find and read the contents.
    *
    * @param blobModelLine full ModelLine resource name. Must be a valid resource name because
    *   downstream services validate and persist the value as such.
    */
   suspend fun <T : Message> writeLabeledImpressionData(
-    events: Sequence<LabeledEventDateShard<T>>,
+    events: Sequence<EntityKeyedLabeledEventDateShard<T>>,
     blobModelLine: String,
     impressionsBasePath: String? = null,
     flatOutputBasePath: String? = null,

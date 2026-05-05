@@ -1414,23 +1414,12 @@ class SyntheticDataGenerationTest {
         )
       )
     // 8000 total reach / 7 days
-    eventsList.map {
-      assertThat(it.entityKeysWithLabeledEvents.flatMap { g -> g.labeledEvents.toList() }.size)
-        .isWithin(100)
-        .of(8000 / 7)
-    }
-    assertThat(
-        eventsList
-          .flatMap { it.entityKeysWithLabeledEvents }
-          .flatMap { it.labeledEvents.toList() }
-          .size
-      )
-      .isEqualTo(8001)
+    eventsList.map { assertThat(it.labeledEvents.toList().size).isWithin(100).of(8000 / 7) }
+    assertThat(eventsList.flatMap { it.labeledEvents.toList() }.size).isEqualTo(8001)
   }
 
   private fun <T : Message> Sequence<LabeledEventDateShard<T>>.toEventsList():
-    List<LabeledEvent<T>> =
-    flatMap { shard -> shard.entityKeysWithLabeledEvents.flatMap { it.labeledEvents } }.toList()
+    List<LabeledEvent<T>> = flatMap { it.labeledEvents }.toList()
 
   companion object {
     private val TEST_DATA_PATH =

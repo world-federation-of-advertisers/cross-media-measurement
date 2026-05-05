@@ -41,6 +41,7 @@ import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
+import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
@@ -316,7 +317,7 @@ class GenerateSyntheticData : Runnable {
           specFlags.subSpecFlags.map { subSpec ->
             subSpec.entityKeyFlags.map { EntityKey(it.entityType, it.entityId) }
           }
-        val coalescedShards: Sequence<LabeledEventDateShard<TestEvent>> =
+        val coalescedShards: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
           coalesceByDate(perSubSpecShards, perSubSpecEntityKeys)
         val eventGroupPath =
           "model-line/$modelLineName/event-group-reference-id/${specFlags.eventGroupReferenceId}"
@@ -349,7 +350,7 @@ class GenerateSyntheticData : Runnable {
   private fun coalesceByDate(
     perSubSpecShards: List<Sequence<LabeledEventDateShard<TestEvent>>>,
     perSubSpecEntityKeys: List<List<EntityKey>>,
-  ): Sequence<LabeledEventDateShard<TestEvent>> {
+  ): Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> {
     require(perSubSpecShards.size == perSubSpecEntityKeys.size)
     // Materialize per-sub-spec, per-date groups so we can join across sub-specs by date.
     val groupsByDate: SortedMap<LocalDate, MutableList<EntityKeysWithLabeledEvents<TestEvent>>> =
@@ -357,16 +358,15 @@ class GenerateSyntheticData : Runnable {
     for ((index, shards) in perSubSpecShards.withIndex()) {
       val entityKeys = perSubSpecEntityKeys[index]
       for (shard in shards) {
-        // Each generated shard from generateEvents contains exactly one (empty-entity-keys) group.
-        val labeledEvents = shard.entityKeysWithLabeledEvents.flatMap { it.labeledEvents.toList() }
-        if (labeledEvents.isEmpty()) continue
+        val materializedEvents = shard.labeledEvents.toList()
+        if (materializedEvents.isEmpty()) continue
         groupsByDate
           .getOrPut(shard.localDate) { mutableListOf() }
-          .add(EntityKeysWithLabeledEvents(entityKeys, labeledEvents.asSequence()))
+          .add(EntityKeysWithLabeledEvents(entityKeys, materializedEvents.asSequence()))
       }
     }
     return groupsByDate.asSequence().map { (date, groups) ->
-      LabeledEventDateShard(date, groups.toList())
+      EntityKeyedLabeledEventDateShard(date, groups.toList())
     }
   }
 
