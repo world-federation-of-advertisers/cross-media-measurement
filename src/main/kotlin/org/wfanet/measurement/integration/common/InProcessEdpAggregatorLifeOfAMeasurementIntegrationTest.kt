@@ -51,6 +51,7 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.identity.withPrincipalName
@@ -212,6 +213,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   }
 
   private lateinit var mcSimulator: EdpAggregatorMeasurementConsumerSimulator
+  private lateinit var mcName: String
+  private lateinit var mcApiKey: String
 
   private val publicMeasurementsClient by lazy {
     MeasurementsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
@@ -231,6 +234,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
 
   private fun initMcSimulator() {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    mcName = measurementConsumerData.name
+    mcApiKey = measurementConsumerData.apiAuthenticationKey
     mcSimulator =
       EdpAggregatorMeasurementConsumerSimulator(
         MeasurementConsumerData(
@@ -447,6 +452,27 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       assertThat(legacy.entityKey.entityId).isEmpty()
       assertThat(legacy.eventGroupMetadata.hasEntityMetadata()).isFalse()
     }
+
+  @Test
+  fun `default ListEventGroups filter hides non-campaign EventGroups`() = runBlocking {
+    val response =
+      publicEventGroupsClient
+        .withAuthenticationKey(mcApiKey)
+        .listEventGroups(
+          listEventGroupsRequest {
+            parent = mcName
+            pageSize = 1000
+          }
+        )
+
+    val refIds = response.eventGroupsList.map { it.eventGroupReferenceId }.toSet()
+    assertThat(refIds).contains(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID)
+    for ((_, refOverrides) in entityOverridesByEdp) {
+      for (refId in refOverrides.keys) {
+        assertThat(refIds).doesNotContain(refId)
+      }
+    }
+  }
 
   companion object {
     // edp1 deliberately has no entity_key/entity_metadata override (legacy path); it also happens
