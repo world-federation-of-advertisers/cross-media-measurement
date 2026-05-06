@@ -31,9 +31,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
  * @param eventGroupReferenceId identifier linking this event to a specific event group or campaign.
  *   Used for filtering events by group membership.
  * @param entityKeys Entity keys (grouped by type) carried by the blob that produced this batch,
- *   propagated from `BlobDetails.entity_keys`. Enables fast batch-level rejection in
- *   `FilterProcessor` when entity keys are the active selector — same two-tier optimisation as the
- *   existing `eventGroupReferenceId` path.
+ *   propagated from `BlobDetails.entity_keys`. The blob will have at least one impression for
+ *   each listed entity key; every impression is associated with at least one of these entity
+ *   keys; an individual impression may not be associated with all of them.
  */
 data class EventBatch<T : Message>(
   val events: List<LabeledEvent<T>>,
