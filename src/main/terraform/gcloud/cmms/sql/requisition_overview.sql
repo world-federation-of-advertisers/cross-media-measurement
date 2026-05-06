@@ -35,8 +35,8 @@ SELECT
   rpt.MetricCount,
   rpt.SucceededMetrics,
   rpt.FailedMetrics,
-  rpt.TimeIntervalStart,
-  rpt.TimeIntervalEndExclusive
+  rpt.ReportTimeStart,
+  rpt.ReportTimeEnd
 FROM (
   SELECT * FROM EXTERNAL_QUERY(
     'projects/${project_id}/locations/${region}/connections/edp-aggregator-conn',
@@ -74,8 +74,8 @@ LEFT JOIN (
         WHEN COUNT(m.metricid) = 0 THEN 'NO_METRICS'
         ELSE 'IN_PROGRESS'
       END AS ReportState,
-      MIN(m.timeintervalstart) AS TimeIntervalStart,
-      MAX(m.timeintervalendexclusive) AS TimeIntervalEndExclusive
+      json_extract_path_text(rp.reportdetailsjson::json, 'timeIntervals', 'timeIntervals', '0', 'startTime') AS ReportTimeStart,
+      json_extract_path_text(rp.reportdetailsjson::json, 'timeIntervals', 'timeIntervals', '0', 'endTime') AS ReportTimeEnd
     FROM reports rp
     LEFT JOIN metriccalculationspecreportingmetrics mcsrm
       ON rp.measurementconsumerid = mcsrm.measurementconsumerid
@@ -83,7 +83,7 @@ LEFT JOIN (
     LEFT JOIN metrics m
       ON mcsrm.measurementconsumerid = m.measurementconsumerid
       AND mcsrm.metricid = m.metricid
-    GROUP BY rp.externalreportid, rp.createtime''')
+    GROUP BY rp.externalreportid, rp.createtime, rp.reportdetailsjson''')
 ) rpt
   ON REGEXP_EXTRACT(r.Report, 'reports/(.+)$') = rpt.externalreportid
 %{ if data_provider_id != "" }
