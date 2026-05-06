@@ -131,7 +131,10 @@ class BatchCreateClientAccounts(private val request: BatchCreateClientAccountsRe
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }
 
-    return clientAccount.copy { this.externalClientAccountId = externalClientAccountId.value }
+    return clientAccount.copy {
+      this.externalClientAccountId = externalClientAccountId.value
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId.value
+    }
   }
 
   override fun ResultScope<BatchCreateClientAccountsResponse>.buildResult():
