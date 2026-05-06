@@ -355,3 +355,15 @@ variable "data_availability_monitor_uber_jar_path" {
   description = "Path to DataAvailabilityMonitor uber jar."
   type        = string
 }
+
+variable "data_provider_resource_ids" {
+  type = map(string)
+  default = {
+    meta     = "J3-pzhqS9Lo"
+    google   = "EObljF_vGDI"
+    comscore = "d9hrk_MNong"
+    tiktok   = "UDjWe1_vGAM"
+    amazon   = "MTcvLV_vGPw"
+  }
+  description = "Map of EDP name to DataProviderResourceId"
+}
