@@ -1,16 +1,18 @@
-// Copyright 2025 The Cross-Media Measurement Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Copyright 2025 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package org.wfanet.measurement.edpaggregator.service.v1alpha
 
@@ -40,6 +42,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRespon
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.DeleteImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.GetImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
@@ -48,6 +51,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRespon
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateImpressionMetadataResponse as InternalBatchCreateImpressionMetadataResponse
@@ -55,6 +59,7 @@ import org.wfanet.measurement.internal.edpaggregator.BatchDeleteImpressionMetada
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse as InternalComputeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest as InternalCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.DeleteImpressionMetadataRequest as InternalDeleteImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.EntityKey as InternalEntityKey
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata as InternalImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub as InternalImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as InternalImpressionMetadataState
@@ -67,6 +72,7 @@ import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetada
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsRequest as internalComputeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.createImpressionMetadataRequest as internalCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.deleteImpressionMetadataRequest as internalDeleteImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.entityKey as internalEntityKey
 import org.wfanet.measurement.internal.edpaggregator.getImpressionMetadataRequest as internalGetImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.impressionMetadata as internalImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataRequest as internalListImpressionMetadataRequest
@@ -422,6 +428,14 @@ class ImpressionMetadataService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    request.filter.entityKeysList.forEachIndexed { index, entityKey ->
+      try {
+        validateEntityKey(entityKey, "filter.entity_keys.$index")
+      } catch (e: RequiredFieldNotSetException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+
     val pageSize =
       if (request.pageSize == 0) {
         DEFAULT_PAGE_SIZE
@@ -455,6 +469,7 @@ class ImpressionMetadataService(
         if (request.filter.blobUriPrefix.isNotEmpty()) {
           blobUriPrefix = request.filter.blobUriPrefix
         }
+        entityKeys += request.filter.entityKeysList.map { it.toInternal() }
 
         state =
           if (!request.showDeleted) {
@@ -616,6 +631,24 @@ class ImpressionMetadataService(
     if (!request.impressionMetadata.hasInterval()) {
       throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.interval")
     }
+
+    request.impressionMetadata.entityKeysList.forEachIndexed { index, entityKey ->
+      validateEntityKey(entityKey, "${fieldPathPrefix}impression_metadata.entity_keys.$index")
+    }
+  }
+
+  /**
+   * Checks that the specified [EntityKey] has both `entity_type` and `id` set.
+   *
+   * @throws RequiredFieldNotSetException if a required field is unset
+   */
+  private fun validateEntityKey(entityKey: EntityKey, fieldPath: String) {
+    if (entityKey.entityType.isEmpty()) {
+      throw RequiredFieldNotSetException("$fieldPath.entity_type")
+    }
+    if (entityKey.entityId.isEmpty()) {
+      throw RequiredFieldNotSetException("$fieldPath.entity_id")
+    }
   }
 
   companion object {
@@ -639,6 +672,7 @@ fun InternalImpressionMetadata.toImpressionMetadata(): ImpressionMetadata {
     state = source.state.toState()
     createTime = source.createTime
     updateTime = source.updateTime
+    entityKeys += source.entityKeysList.map { it.toPublic() }
   }
 }
 
@@ -660,6 +694,7 @@ fun ImpressionMetadata.toInternal(
     eventGroupReferenceId = source.eventGroupReferenceId
     cmmsModelLine = source.modelLine
     interval = source.interval
+    entityKeys += source.entityKeysList.map { it.toInternal() }
   }
 }
 
@@ -689,5 +724,23 @@ internal fun ImpressionMetadata.State.toInternal(): InternalImpressionMetadataSt
       InternalImpressionMetadataState.IMPRESSION_METADATA_STATE_DELETED
     ImpressionMetadata.State.UNRECOGNIZED,
     ImpressionMetadata.State.STATE_UNSPECIFIED -> error("Unrecognized state")
+  }
+}
+
+/** Converts an internal [InternalEntityKey] to a public [EntityKey]. */
+internal fun InternalEntityKey.toPublic(): EntityKey {
+  val source = this
+  return entityKey {
+    entityType = source.entityType
+    entityId = source.entityId
+  }
+}
+
+/** Converts a public [EntityKey] to an internal [InternalEntityKey]. */
+internal fun EntityKey.toInternal(): InternalEntityKey {
+  val source = this
+  return internalEntityKey {
+    entityType = source.entityType
+    entityId = source.entityId
   }
 }
