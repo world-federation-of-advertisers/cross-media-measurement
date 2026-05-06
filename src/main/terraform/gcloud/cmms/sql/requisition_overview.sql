@@ -58,11 +58,11 @@ LEFT JOIN (
   SELECT * FROM EXTERNAL_QUERY(
     'projects/${project_id}/locations/${region}/connections/reporting-postgres-conn',
     '''SELECT
-      CAST("ExternalReportId" AS TEXT) AS "ExternalReportId",
-      "MeasurementConsumerId",
-      "State",
-      "CreateTime"
-    FROM "Reports"''')
+      CAST(externalreportid AS TEXT) AS externalreportid,
+      measurementconsumerid,
+      state,
+      createtime
+    FROM reports''')
 ) rpt
   ON REGEXP_EXTRACT(r.Report, 'reports/(.+)$') = rpt.ExternalReportId
 %{ if data_provider_id != "" }
