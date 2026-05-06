@@ -30,7 +30,6 @@ SELECT
   r.CmmsCreateTime,
   r.RequisitionCreateTime,
   TIMESTAMP_DIFF(r.FulfilledTime, r.StoredTime, SECOND) AS FulfillmentDurationSeconds,
-  rpt.State AS ReportState,
   rpt.CreateTime AS ReportCreateTime
 FROM (
   SELECT * FROM EXTERNAL_QUERY(
@@ -60,7 +59,6 @@ LEFT JOIN (
     '''SELECT
       CAST(externalreportid AS TEXT) AS externalreportid,
       measurementconsumerid,
-      state,
       createtime
     FROM reports''')
 ) rpt
