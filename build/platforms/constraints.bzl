@@ -24,5 +24,7 @@ DISTROLESS_JAVA = [
     "@wfa_measurement_system//build/platforms:glibc_2_31": [],
     "@wfa_measurement_system//build/platforms:glibc_2_35": [],
     "@wfa_measurement_system//build/platforms:glibc_2_36": [],
+    "@wfa_measurement_system//build/platforms:glibc_2_39": [],
+    "@wfa_measurement_system//build/platforms:glibc_2_41": [],
     "//conditions:default": ["@platforms//:incompatible"],
 })
