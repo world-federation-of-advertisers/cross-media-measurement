@@ -27,6 +27,7 @@ import java.nio.file.Paths
 import java.security.SecureRandom
 import java.time.Instant
 import java.time.LocalDate
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
@@ -179,6 +180,7 @@ class EventProcessingIntegrationTest {
         populationSpec = populationSpec,
         requisitions = requisitions,
         eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
+        eventGroupEntityKeyMap = emptyMap(),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -303,6 +305,7 @@ class EventProcessingIntegrationTest {
         populationSpec = populationSpec,
         requisitions = requisitions,
         eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
+        eventGroupEntityKeyMap = emptyMap(),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -408,6 +411,7 @@ class EventProcessingIntegrationTest {
         populationSpec = populationSpec,
         requisitions = requisitions,
         eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
+        eventGroupEntityKeyMap = emptyMap(),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -501,6 +505,7 @@ class EventProcessingIntegrationTest {
         requisitions = listOf(requisitionYesterday, requisitionBothDays),
         eventGroupReferenceIdMap =
           createEventGroupReferenceIdMap(listOf(requisitionYesterday, requisitionBothDays)),
+        eventGroupEntityKeyMap = emptyMap(),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -627,6 +632,7 @@ class EventProcessingIntegrationTest {
         populationSpec = populationSpec,
         requisitions = requisitions,
         eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
+        eventGroupEntityKeyMap = emptyMap(),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -752,6 +758,7 @@ class EventProcessingIntegrationTest {
         populationSpec = populationSpec,
         requisitions = requisitions,
         eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
+        eventGroupEntityKeyMap = emptyMap(),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -860,6 +867,7 @@ class EventProcessingIntegrationTest {
         populationSpec = populationSpec,
         requisitions = requisitions,
         eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
+        eventGroupEntityKeyMap = emptyMap(),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -998,6 +1006,7 @@ class EventProcessingIntegrationTest {
         populationSpec = populationSpec,
         requisitions = requisitions,
         eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
+        eventGroupEntityKeyMap = emptyMap(),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -1418,6 +1427,89 @@ class EventProcessingIntegrationTest {
     val reach = getReach()
     return if (reach > 0) getTotalCount().toDouble() / reach else 0.0
   }
+
+
+  @Test
+  fun `FilterSpecIndex fromRequisitions builds ByEntityKeys when all event groups have entity keys`() {
+    val timeRange = createTimeRange(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 31))
+    val req =
+      createRequisition(
+        name = "requisitions/r1",
+        eventGroupsMap = mapOf("eventGroups/eg1" to timeRange, "eventGroups/eg2" to timeRange),
+        filter = "person.age_group == 1",
+      )
+
+    val entityKey1 = labeledImpressionEntityKey("ad", "X")
+    val entityKey2 = labeledImpressionEntityKey("ad", "Y")
+
+    val index =
+      FilterSpecIndex.fromRequisitions(
+        requisitions = listOf(req),
+        eventGroupReferenceIdMap = mapOf("eventGroups/eg1" to "ref1", "eventGroups/eg2" to "ref2"),
+        eventGroupEntityKeyMap = mapOf("eventGroups/eg1" to entityKey1, "eventGroups/eg2" to entityKey2),
+        privateEncryptionKey = privateEncryptionKey,
+      )
+
+    val spec = index.requisitionNameToFilterSpec.getValue(req.name)
+    assertThat(spec).isInstanceOf(FilterSpec.ByEntityKeys::class.java)
+    assertThat((spec as FilterSpec.ByEntityKeys).entityKeys)
+      .containsExactly(entityKey1, entityKey2)
+  }
+
+  @Test
+  fun `FilterSpecIndex fromRequisitions builds ByEventGroupReferenceIds when no entity keys present`() {
+    val timeRange = createTimeRange(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 31))
+    val req =
+      createRequisition(
+        name = "requisitions/r1",
+        eventGroupsMap = mapOf("eventGroups/eg1" to timeRange, "eventGroups/eg2" to timeRange),
+        filter = "person.age_group == 1",
+      )
+
+    val index =
+      FilterSpecIndex.fromRequisitions(
+        requisitions = listOf(req),
+        eventGroupReferenceIdMap = mapOf("eventGroups/eg1" to "ref1", "eventGroups/eg2" to "ref2"),
+        eventGroupEntityKeyMap = emptyMap(),
+        privateEncryptionKey = privateEncryptionKey,
+      )
+
+    val spec = index.requisitionNameToFilterSpec.getValue(req.name)
+    assertThat(spec).isInstanceOf(FilterSpec.ByEventGroupReferenceIds::class.java)
+    assertThat((spec as FilterSpec.ByEventGroupReferenceIds).eventGroupReferenceIds)
+      .containsExactly("ref1", "ref2")
+      .inOrder()
+  }
+
+  @Test
+  fun `FilterSpecIndex fromRequisitions throws when entity key selectors are mixed across event groups`() {
+    val timeRange = createTimeRange(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 31))
+    val req =
+      createRequisition(
+        name = "requisitions/r1",
+        eventGroupsMap = mapOf("eventGroups/eg1" to timeRange, "eventGroups/eg2" to timeRange),
+        filter = "person.age_group == 1",
+      )
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        FilterSpecIndex.fromRequisitions(
+          requisitions = listOf(req),
+          eventGroupReferenceIdMap = mapOf("eventGroups/eg1" to "ref1", "eventGroups/eg2" to "ref2"),
+          // Only eg1 has an entity key — eg2 missing → mixed → must throw.
+          eventGroupEntityKeyMap = mapOf("eventGroups/eg1" to labeledImpressionEntityKey("ad", "X")),
+          privateEncryptionKey = privateEncryptionKey,
+        )
+      }
+    assertThat(exception).hasMessageThat().contains("Inconsistent selectors")
+    assertThat(exception).hasMessageThat().contains("eventGroups/eg2")
+  }
+
+  private fun labeledImpressionEntityKey(type: String, id: String): LabeledImpression.EntityKey =
+    org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt.entityKey {
+      entityType = type
+      entityId = id
+    }
 
   companion object {
     private val SECRET_FILES_PATH =

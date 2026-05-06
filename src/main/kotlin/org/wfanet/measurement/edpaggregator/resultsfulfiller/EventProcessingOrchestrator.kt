@@ -32,6 +32,7 @@ import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.size
 
@@ -72,6 +73,7 @@ data class FilterSpecIndex(
     fun fromRequisitions(
       requisitions: List<Requisition>,
       eventGroupReferenceIdMap: Map<String, String>,
+      eventGroupEntityKeyMap: Map<String, LabeledImpression.EntityKey>,
       privateEncryptionKey: PrivateKeyHandle,
     ): FilterSpecIndex {
       val filterSpecToReqNames = mutableMapOf<FilterSpec, MutableList<String>>()
@@ -103,16 +105,37 @@ data class FilterSpecIndex(
           "All event groups must have the same collection interval"
         }
 
-        // Canonicalize eventGroupReferenceIds for deduplication
-        val eventGroupReferenceIds =
-          eventGroups.map { eventGroupReferenceIdMap.getValue(it.key) }.sorted()
+        // All-or-nothing rule across event groups in this requisition: if any group has an
+        // entity_key, all must; otherwise all must have a reference_id (the legacy selector).
+        // Mixed configurations are an error per the upstream RequisitionGrouper contract.
+        val hasEntityKeys = eventGroups.any { eventGroupEntityKeyMap.containsKey(it.key) }
 
-        val filterSpec =
-          FilterSpec.ByEventGroupReferenceIds(
-            celExpression = firstEventGroup.value.filter.expression,
-            collectionInterval = firstEventGroup.value.collectionInterval,
-            eventGroupReferenceIds = eventGroupReferenceIds,
-          )
+        val filterSpec: FilterSpec =
+          if (hasEntityKeys) {
+            val entityKeys =
+              eventGroups
+                .map { entry ->
+                  requireNotNull(eventGroupEntityKeyMap[entry.key]) {
+                    "Inconsistent selectors for requisition ${requisition.name}: " +
+                      "event group ${entry.key} missing entity_key while others have one"
+                  }
+                }
+                .toSet()
+            FilterSpec.ByEntityKeys(
+              celExpression = firstEventGroup.value.filter.expression,
+              collectionInterval = firstEventGroup.value.collectionInterval,
+              entityKeys = entityKeys,
+            )
+          } else {
+            // Canonicalize eventGroupReferenceIds for deduplication
+            val eventGroupReferenceIds =
+              eventGroups.map { eventGroupReferenceIdMap.getValue(it.key) }.sorted()
+            FilterSpec.ByEventGroupReferenceIds(
+              celExpression = firstEventGroup.value.filter.expression,
+              collectionInterval = firstEventGroup.value.collectionInterval,
+              eventGroupReferenceIds = eventGroupReferenceIds,
+            )
+          }
 
         filterSpecToReqNames.getOrPut(filterSpec) { mutableListOf() }.add(requisition.name)
         reqNameToFilterSpec[requisition.name] = filterSpec
@@ -175,6 +198,9 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
    * @param config Pipeline configuration (batch size, workers, etc.).
    * @param requisitions Requisitions to fulfill
    * @param eventGroupReferenceIdMap Mapping from event group resource name to reference id.
+   * @param eventGroupEntityKeyMap Mapping from event group resource name to its entity key,
+   *   when set on the EventGroup. When non-empty for any event group of a requisition, all
+   *   that requisition's event groups must have entity keys (mixed → throws).
    * @param eventDescriptor Descriptor of the packed event messages (for CEL evaluation).
    * @return Map from requisition name to computed [StripedByteFrequencyVector].
    * @throws ImpressionReadException on impression read failures
@@ -187,6 +213,7 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
     populationSpec: PopulationSpec,
     requisitions: List<Requisition>,
     eventGroupReferenceIdMap: Map<String, String>,
+    eventGroupEntityKeyMap: Map<String, LabeledImpression.EntityKey>,
     config: PipelineConfiguration,
     eventDescriptor: Descriptors.Descriptor,
   ): Map<String, StripedByteFrequencyVector> {
@@ -211,6 +238,7 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
         FilterSpecIndex.fromRequisitions(
           requisitions,
           eventGroupReferenceIdMap,
+          eventGroupEntityKeyMap,
           privateEncryptionKey,
         )
       logger.info("Found ${filterSpecIndex.filterSpecToRequisitionNames.size} unique filter specs")
