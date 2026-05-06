@@ -261,6 +261,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
           )
           .toName(),
         modelLineName = modelLineName,
+        listEventGroupsEntityTypes = listOf("campaign", "ad_group"),
       )
   }
 

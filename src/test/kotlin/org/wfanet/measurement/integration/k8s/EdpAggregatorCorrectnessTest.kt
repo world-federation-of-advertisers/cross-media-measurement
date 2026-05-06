@@ -406,6 +406,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         syntheticEventGroupMap,
         reportName,
         TEST_CONFIG.modelLine,
+        listEventGroupsEntityTypes = listOf("campaign", "ad_group"),
         onMeasurementsCreated = ::triggerRequisitionFetcher,
       )
     }

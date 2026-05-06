@@ -161,10 +161,9 @@ abstract class MeasurementConsumerSimulator(
       )
       .toName(),
   private val modelLineName: String = "some-model-line",
+  private val listEventGroupsEntityTypes: List<String> = emptyList(),
   private val onMeasurementsCreated: (() -> Unit)? = null,
 ) {
-  protected open val listEventGroupsEntityTypes: List<String> = emptyList()
-
   /** Cache of resource name to [Certificate]. */
   private val certificateCache = mutableMapOf<String, Certificate>()
 
