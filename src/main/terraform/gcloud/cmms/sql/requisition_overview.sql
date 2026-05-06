@@ -30,7 +30,13 @@ SELECT
   r.CmmsCreateTime,
   r.RequisitionCreateTime,
   TIMESTAMP_DIFF(r.FulfilledTime, r.StoredTime, SECOND) AS FulfillmentDurationSeconds,
-  rpt.CreateTime AS ReportCreateTime
+  rpt.ReportCreateTime,
+  rpt.ReportState,
+  rpt.MetricCount,
+  rpt.SucceededMetrics,
+  rpt.FailedMetrics,
+  rpt.TimeIntervalStart,
+  rpt.TimeIntervalEndExclusive
 FROM (
   SELECT * FROM EXTERNAL_QUERY(
     'projects/${project_id}/locations/${region}/connections/edp-aggregator-conn',
@@ -57,12 +63,29 @@ LEFT JOIN (
   SELECT * FROM EXTERNAL_QUERY(
     'projects/${project_id}/locations/${region}/connections/reporting-postgres-conn',
     '''SELECT
-      CAST(externalreportid AS TEXT) AS externalreportid,
-      measurementconsumerid,
-      createtime
-    FROM reports''')
+      CAST(rp.externalreportid AS TEXT) AS externalreportid,
+      rp.createtime AS ReportCreateTime,
+      COUNT(m.metricid) AS MetricCount,
+      COUNT(CASE WHEN m.state = 4 THEN 1 END) AS SucceededMetrics,
+      COUNT(CASE WHEN m.state = 5 THEN 1 END) AS FailedMetrics,
+      CASE
+        WHEN COUNT(CASE WHEN m.state = 5 THEN 1 END) > 0 THEN 'FAILED'
+        WHEN COUNT(m.metricid) > 0 AND COUNT(m.metricid) = COUNT(CASE WHEN m.state = 4 THEN 1 END) THEN 'SUCCEEDED'
+        WHEN COUNT(m.metricid) = 0 THEN 'NO_METRICS'
+        ELSE 'IN_PROGRESS'
+      END AS ReportState,
+      MIN(m.timeintervalstart) AS TimeIntervalStart,
+      MAX(m.timeintervalendexclusive) AS TimeIntervalEndExclusive
+    FROM reports rp
+    LEFT JOIN metriccalculationspecreportingmetrics mcsrm
+      ON rp.measurementconsumerid = mcsrm.measurementconsumerid
+      AND rp.reportid = mcsrm.reportid
+    LEFT JOIN metrics m
+      ON mcsrm.measurementconsumerid = m.measurementconsumerid
+      AND mcsrm.metricid = m.metricid
+    GROUP BY rp.externalreportid, rp.createtime''')
 ) rpt
-  ON REGEXP_EXTRACT(r.Report, 'reports/(.+)$') = rpt.ExternalReportId
+  ON REGEXP_EXTRACT(r.Report, 'reports/(.+)$') = rpt.externalreportid
 %{ if data_provider_id != "" }
 WHERE r.DataProviderResourceId = '${data_provider_id}'
 %{ endif }
