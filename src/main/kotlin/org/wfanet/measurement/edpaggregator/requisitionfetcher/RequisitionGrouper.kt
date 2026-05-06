@@ -153,34 +153,9 @@ abstract class RequisitionGrouper(
       }
     }
 
-    validateEventGroupSelectors(eventGroupMap)
+    requisitionValidator.validateEventGroupSelectors(eventGroupMap)
 
     return eventGroupMap
-  }
-
-  /**
-   * Validates that event group selectors are consistent across all event groups.
-   *
-   * If any event group has an `entity_key`, all must. If none have an `entity_key`, all must have a
-   * non-empty `event_group_reference_id`.
-   */
-  private fun validateEventGroupSelectors(eventGroupMap: Map<String, EventGroupDetails>) {
-    require(eventGroupMap.isNotEmpty()) { "eventGroupMap must not be empty" }
-
-    val hasEntityKey = eventGroupMap.values.any { it.hasEntityKey() }
-    if (hasEntityKey) {
-      if (!eventGroupMap.values.all { it.hasEntityKey() }) {
-        throw InconsistentEventGroupSelectorsException(
-          "Inconsistent selectors: if any event group has entity_key, all must"
-        )
-      }
-    } else {
-      if (!eventGroupMap.values.all { it.eventGroupReferenceId.isNotEmpty() }) {
-        throw InconsistentEventGroupSelectorsException(
-          "All event groups must have event_group_reference_id when entity_key is not present"
-        )
-      }
-    }
   }
 
   /**
@@ -243,6 +218,3 @@ abstract class RequisitionGrouper(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
-
-/** Thrown when event group selectors (entity_key vs event_group_reference_id) are inconsistent. */
-class InconsistentEventGroupSelectorsException(message: String) : Exception(message)
