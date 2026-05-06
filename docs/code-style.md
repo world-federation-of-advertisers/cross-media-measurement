@@ -81,10 +81,12 @@ sections of this when reviewing others’ code.
     *   For example, assignments from constructors or factory functions.
     *   "Superfluous" explicit types are fine except in cases where they clearly
         hurt readability or safety.
-*   Use (companion) objects for constants and static properties.
-    *   This avoids polluting the global namespace.
-    *   This is a light recommendation, as much code has already been written in
-        this repository that does not follow this.
+*   Avoid polluting the global namespace.
+    *   Don't declare public non-extension functions at the top level.
+    *   Use (companion) objects for constants and static properties.
+    *   Note that some existing files in the repository do not follow this. You
+        may continue to follow the existing style in those files until they can
+        be refactored.
 *   Avoid defining extensions on common types when it may appear that they could
     work on all instances of that type.
     *   For example, `String.toFoo()` where the String must be a specific
