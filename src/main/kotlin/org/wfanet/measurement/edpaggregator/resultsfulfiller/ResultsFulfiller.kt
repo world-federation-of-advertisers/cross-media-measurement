@@ -60,6 +60,7 @@ import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataResponse
@@ -139,9 +140,21 @@ class ResultsFulfiller(
         it.eventGroup to it.details.eventGroupReferenceId
       }
 
-    // Built per the same pattern as eventGroupReferenceIdMap. Empty until upstream
-    // RequisitionGrouper populates EventGroupDetails.entity_key (see PR #3752).
-    val eventGroupEntityKeyMap: Map<String, LabeledImpression.EntityKey> = emptyMap()
+    // Built per the same pattern as eventGroupReferenceIdMap, extracting the entity_key
+    // populated upstream by `RequisitionGrouper` from `EventGroup.entity_key`. Only event
+    // groups whose details carry `entity_key` are included; the all-or-nothing consistency
+    // rule is enforced downstream by `FilterSpecIndex.fromRequisitions`.
+    val eventGroupEntityKeyMap: Map<String, LabeledImpression.EntityKey> =
+      groupedRequisitions.eventGroupMapList
+        .filter { it.details.hasEntityKey() }
+        .associate { entry ->
+          val key = entry.details.entityKey
+          entry.eventGroup to
+            LabeledImpressionKt.entityKey {
+              entityType = key.entityType
+              entityId = key.entityId
+            }
+        }
 
     // Filter requisitions that are not in the requisitions metadata storage or have been either
     // fulfilled or refused already
