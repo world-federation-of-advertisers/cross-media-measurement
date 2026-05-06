@@ -47,7 +47,6 @@ import org.wfanet.measurement.edpaggregator.service.Errors
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.DeleteImpressionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.GetImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
@@ -1468,7 +1467,6 @@ class ImpressionMetadataServiceTest {
     }
   }
 
-
   @Test
   fun `createImpressionMetadata returns entity_keys`() = runBlocking {
     val response =
@@ -1508,16 +1506,14 @@ class ImpressionMetadataServiceTest {
       service.batchCreateImpressionMetadata(
         batchCreateImpressionMetadataRequest {
           parent = DATA_PROVIDER_KEY.toName()
-          requests +=
-            createImpressionMetadataRequest {
-              parent = DATA_PROVIDER_KEY.toName()
-              impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS
-            }
-          requests +=
-            createImpressionMetadataRequest {
-              parent = DATA_PROVIDER_KEY.toName()
-              impressionMetadata = IMPRESSION_METADATA_2.copy { entityKeys += ENTITY_KEY_AD_2 }
-            }
+          requests += createImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS
+          }
+          requests += createImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            impressionMetadata = IMPRESSION_METADATA_2.copy { entityKeys += ENTITY_KEY_AD_2 }
+          }
         }
       )
 
@@ -1529,13 +1525,13 @@ class ImpressionMetadataServiceTest {
       .containsExactly(ENTITY_KEY_AD_2)
       .inOrder()
   }
+
   @Test
   fun `createImpressionMetadata throws INVALID_ARGUMENT when entity_key entity_type is empty`() =
     runBlocking {
       val request = createImpressionMetadataRequest {
         parent = DATA_PROVIDER_KEY.toName()
-        impressionMetadata =
-          IMPRESSION_METADATA.copy { entityKeys += entityKey { entityId = "x" } }
+        impressionMetadata = IMPRESSION_METADATA.copy { entityKeys += entityKey { entityId = "x" } }
       }
 
       val exception =
@@ -1546,31 +1542,33 @@ class ImpressionMetadataServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "impression_metadata.entity_keys.0.entity_type"
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "impression_metadata.entity_keys.0.entity_type"
           }
         )
     }
 
   @Test
-  fun `createImpressionMetadata throws INVALID_ARGUMENT when entity_key id is empty`() = runBlocking {
-    val request = createImpressionMetadataRequest {
-      parent = DATA_PROVIDER_KEY.toName()
-      impressionMetadata =
-        IMPRESSION_METADATA.copy { entityKeys += entityKey { entityType = "ad" } }
-    }
+  fun `createImpressionMetadata throws INVALID_ARGUMENT when entity_key id is empty`() =
+    runBlocking {
+      val request = createImpressionMetadataRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        impressionMetadata =
+          IMPRESSION_METADATA.copy { entityKeys += entityKey { entityType = "ad" } }
+      }
 
-    val exception =
-      assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "impression_metadata.entity_keys.0.entity_id"
-        }
-      )
-  }
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "impression_metadata.entity_keys.0.entity_id"
+          }
+        )
+    }
 
   @Test
   fun `listImpressionMetadata filters by single meta entity_key`() = runBlocking {
