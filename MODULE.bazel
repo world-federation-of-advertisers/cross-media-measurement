@@ -39,7 +39,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.140.0",
+    version = "0.141.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -385,15 +385,15 @@ oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
 oci.pull(
     name = "go_image_base",
     # Digest of `nonroot` tag.
-    digest = "sha256:8b9f2e503e55aff85b79d6b22c7a63a65170e8698ae80de680e3f5ea600977bf",
-    image = "gcr.io/distroless/base-debian12",
+    digest = "sha256:fb282f8ed3057f71dbfe3ea0f5fa7e961415dafe4761c23948a9d4628c6166fe",
+    image = "gcr.io/distroless/base-debian13",
     platforms = ["linux/amd64"],
 )
 oci.pull(
     name = "py_image_base",
     # Digest of `nonroot` tag.
-    digest = "sha256:3aa5d1eb6e9f83a4ed806174bb40296e04758ab95f53b61f976d3df2b57ca289",
-    image = "gcr.io/distroless/python3-debian12",
+    digest = "sha256:51b1acc177d535f20fa30a175a657079ee7dce6e326541cfd83a474d9928e123",
+    image = "gcr.io/distroless/python3-debian13",
     platforms = ["linux/amd64"],
 )
 
@@ -401,8 +401,8 @@ oci.pull(
 oci.pull(
     name = "java_image_base_root",
     # Digest of `latest` tag.
-    digest = "sha256:0210d5b77dfbe851916184405ddfc8297e7bc652029f7a485274cb71ea2462bc",
-    image = "gcr.io/distroless/java17-debian12",
+    digest = "sha256:44774ae0ebcab067d8479c4325d37b29151408f03f8d1d200fd71fc435eaa51a",
+    image = "gcr.io/distroless/java17-debian13",
     platforms = ["linux/amd64"],
 )
 use_repo(

@@ -35,7 +35,12 @@ constraint_value(
 )
 
 constraint_value(
-    name = "glibc_2_37",
+    name = "glibc_2_39",
+    constraint_setting = ":glibc_version",
+)
+
+constraint_value(
+    name = "glibc_2_41",
     constraint_setting = ":glibc_version",
 )
 
@@ -75,15 +80,15 @@ platform(
 platform(
     name = "debian_trixie",
     constraint_values = [
-        ":glibc_2_37",
+        ":glibc_2_41",
     ],
     parents = [":debian_bookworm"],
 )
 
 platform(
-    name = "debian_bookworm_rbe",
+    name = "debian_trixie_rbe",
     constraint_values = [
-        ":glibc_2_36",
+        ":glibc_2_41",
     ],
     parents = [
         "//third_party/rbe_configs/config:platform",
@@ -92,7 +97,7 @@ platform(
 
 alias(
     name = "distroless",
-    actual = ":debian_bookworm",
+    actual = ":debian_trixie",
 )
 
 platform(
@@ -144,5 +149,18 @@ platform(
 
 alias(
     name = "ubuntu_22_04",
-    actual = ":ubuntu_focal",
+    actual = ":ubuntu_jammy",
+)
+
+platform(
+    name = "ubuntu_noble",
+    constraint_values = [
+        ":glibc_2_39",
+    ],
+    parents = [":ubuntu_jammy"],
+)
+
+alias(
+    name = "ubuntu_24_04",
+    actual = ":ubuntu_noble",
 )
