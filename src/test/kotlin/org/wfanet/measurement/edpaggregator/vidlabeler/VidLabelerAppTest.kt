@@ -99,6 +99,7 @@ class VidLabelerAppTest {
           gcsProjectId = "test-project"
           impressionsBlobPrefix = "gs://output-bucket/labeled"
         }
+      rawImpressionMetadataBatch = "$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/batch-1"
     }
 
     app.runWork(buildMessage(params))
@@ -119,6 +120,7 @@ class VidLabelerAppTest {
           gcsProjectId = "test-project"
           impressionsBlobPrefix = "gs://output-bucket/labeled"
         }
+      rawImpressionMetadataBatch = "$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/batch-1"
     }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
@@ -141,6 +143,7 @@ class VidLabelerAppTest {
           gcsProjectId = "test-project"
           impressionsBlobPrefix = "gs://output-bucket/labeled"
         }
+      rawImpressionMetadataBatch = "$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/batch-1"
     }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
@@ -162,6 +165,7 @@ class VidLabelerAppTest {
           gcsProjectId = "test-project"
           impressionsBlobPrefix = "gs://output-bucket/labeled"
         }
+      rawImpressionMetadataBatch = "$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/batch-1"
     }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
@@ -171,10 +175,36 @@ class VidLabelerAppTest {
   @Test
   fun `runWork throws when raw_impressions_storage_params is not set`() = runBlocking {
     val app = createApp()
-    val params = vidLabelerParams { dataProvider = DATA_PROVIDER_NAME }
+    val params = vidLabelerParams {
+      dataProvider = DATA_PROVIDER_NAME
+      rawImpressionMetadataBatch = "$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/batch-1"
+    }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
     assertThat(exception).hasMessageThat().contains("raw_impressions_storage_params must be set")
+  }
+
+  @Test
+  fun `runWork throws when raw_impression_metadata_batch is empty`() = runBlocking {
+    val app = createApp()
+    val params = vidLabelerParams {
+      dataProvider = DATA_PROVIDER_NAME
+      rawImpressionsStorageParams =
+        VidLabelerParamsKt.storageParams {
+          gcsProjectId = "test-project"
+          impressionsBlobPrefix = "gs://raw-bucket/impressions"
+        }
+      vidLabeledImpressionsStorageParams =
+        VidLabelerParamsKt.storageParams {
+          gcsProjectId = "test-project"
+          impressionsBlobPrefix = "gs://output-bucket/labeled"
+        }
+    }
+
+    val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("raw_impression_metadata_batch must not be empty")
   }
 
   companion object {
