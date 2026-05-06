@@ -59,6 +59,7 @@ import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataResponse
@@ -138,6 +139,10 @@ class ResultsFulfiller(
         it.eventGroup to it.details.eventGroupReferenceId
       }
 
+    // Built per the same pattern as eventGroupReferenceIdMap. Empty until upstream
+    // RequisitionGrouper populates EventGroupDetails.entity_key (see PR #3752).
+    val eventGroupEntityKeyMap: Map<String, LabeledImpression.EntityKey> = emptyMap()
+
     // Filter requisitions that are not in the requisitions metadata storage or have been either
     // fulfilled or refused already
     val requisitionsMetadata: List<RequisitionMetadata> = listRequisitionMetadata()
@@ -195,6 +200,7 @@ class ResultsFulfiller(
             populationSpec = populationSpec,
             requisitions = filteredRequisitions,
             eventGroupReferenceIdMap = eventGroupReferenceIdMap,
+            eventGroupEntityKeyMap = eventGroupEntityKeyMap,
             config = pipelineConfiguration,
             eventDescriptor = eventDescriptor,
           )
