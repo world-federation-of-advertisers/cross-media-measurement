@@ -78,6 +78,7 @@ class ParallelBatchedPipelineTest {
           minTime = minTime,
           maxTime = maxTime,
           eventGroupReferenceId = "test-group",
+          entityKeys = emptyList(),
         )
       }
     }
@@ -102,7 +103,7 @@ class ParallelBatchedPipelineTest {
           filterProcessor =
             FilterProcessor<TestEvent>(
               filterSpec =
-                FilterSpec(
+                FilterSpec.ByEventGroupReferenceIds(
                   celExpression = "", // Empty expression matches all events
                   collectionInterval = timeInterval,
                   eventGroupReferenceIds = listOf("test-group"),
@@ -130,6 +131,7 @@ class ParallelBatchedPipelineTest {
         timestamp = eventTimestamp,
         vid = 500L, // Within our TEST_POPULATION_SPEC range (1-1000)
         message = testEvent,
+        entityKeys = emptyList(),
       )
 
     // Create a time interval that includes the current event
@@ -146,7 +148,7 @@ class ParallelBatchedPipelineTest {
           filterProcessor =
             FilterProcessor<TestEvent>(
               filterSpec =
-                FilterSpec(
+                FilterSpec.ByEventGroupReferenceIds(
                   celExpression = "", // Empty expression matches all events
                   collectionInterval = timeInterval,
                   eventGroupReferenceIds = listOf("test-group"),
@@ -180,18 +182,21 @@ class ParallelBatchedPipelineTest {
         timestamp = now.minusSeconds(7200), // 2 hours ago
         vid = 600L,
         message = testEvent,
+        entityKeys = emptyList(),
       )
     val currentEvent =
       LabeledEvent(
         timestamp = now.minusSeconds(1800), // 30 minutes ago
         vid = 601L,
         message = testEvent,
+        entityKeys = emptyList(),
       )
     val futureEvent =
       LabeledEvent(
         timestamp = now.plusSeconds(3600), // 1 hour in future
         vid = 602L,
         message = testEvent,
+        entityKeys = emptyList(),
       )
 
     // Time interval: 1 hour ago to now (should only include currentEvent)
@@ -209,7 +214,7 @@ class ParallelBatchedPipelineTest {
           filterProcessor =
             FilterProcessor<TestEvent>(
               filterSpec =
-                FilterSpec(
+                FilterSpec.ByEventGroupReferenceIds(
                   celExpression = "", // Empty expression matches all events
                   collectionInterval = timeInterval,
                   eventGroupReferenceIds = listOf("test-group"),
@@ -248,6 +253,7 @@ class ParallelBatchedPipelineTest {
           timestamp = now,
           vid = (i * 10).toLong(), // VIDs: 10, 20, 30, 40, 50
           message = testEvent { person = person { ageGroup = Person.AgeGroup.YEARS_18_TO_34 } },
+          entityKeys = emptyList(),
         )
       }
 
@@ -266,7 +272,7 @@ class ParallelBatchedPipelineTest {
           filterProcessor =
             FilterProcessor<TestEvent>(
               filterSpec =
-                FilterSpec(
+                FilterSpec.ByEventGroupReferenceIds(
                   celExpression = "", // Empty expression matches all events
                   collectionInterval = timeInterval,
                   eventGroupReferenceIds = listOf("test-group"),
@@ -303,41 +309,49 @@ class ParallelBatchedPipelineTest {
           timestamp = now,
           vid = 100L,
           message = testEvent { person = person { ageGroup = Person.AgeGroup.YEARS_18_TO_34 } },
+          entityKeys = emptyList(),
         ),
         LabeledEvent(
           timestamp = now,
           vid = 100L,
           message = testEvent { person = person { ageGroup = Person.AgeGroup.YEARS_18_TO_34 } },
+          entityKeys = emptyList(),
         ),
         LabeledEvent(
           timestamp = now,
           vid = 200L,
           message = testEvent { person = person { ageGroup = Person.AgeGroup.YEARS_18_TO_34 } },
+          entityKeys = emptyList(),
         ),
         LabeledEvent(
           timestamp = now,
           vid = 200L,
           message = testEvent { person = person { ageGroup = Person.AgeGroup.YEARS_18_TO_34 } },
+          entityKeys = emptyList(),
         ),
         LabeledEvent(
           timestamp = now,
           vid = 200L,
           message = testEvent { person = person { ageGroup = Person.AgeGroup.YEARS_18_TO_34 } },
+          entityKeys = emptyList(),
         ),
         LabeledEvent(
           timestamp = now,
           vid = 300L,
           message = testEvent { person = person { ageGroup = Person.AgeGroup.YEARS_18_TO_34 } },
+          entityKeys = emptyList(),
         ),
         LabeledEvent(
           timestamp = now,
           vid = 400L,
           message = testEvent { person = person { ageGroup = Person.AgeGroup.YEARS_18_TO_34 } },
+          entityKeys = emptyList(),
         ),
         LabeledEvent(
           timestamp = now,
           vid = 500L,
           message = testEvent { person = person { ageGroup = Person.AgeGroup.YEARS_18_TO_34 } },
+          entityKeys = emptyList(),
         ),
       )
 
@@ -356,7 +370,7 @@ class ParallelBatchedPipelineTest {
           filterProcessor =
             FilterProcessor<TestEvent>(
               filterSpec =
-                FilterSpec(
+                FilterSpec.ByEventGroupReferenceIds(
                   celExpression = "", // Empty expression matches all events
                   collectionInterval = timeInterval,
                   eventGroupReferenceIds = listOf("test-group"),
@@ -388,7 +402,9 @@ class ParallelBatchedPipelineTest {
     val now = Instant.now()
     val events =
       (1..6).map { i ->
-        LabeledEvent(timestamp = now, vid = i.toLong(), message = TestEvent.getDefaultInstance())
+        LabeledEvent(timestamp = now, vid = i.toLong(), message = TestEvent.getDefaultInstance(),
+          entityKeys = emptyList(),
+        )
       }
 
     val baseSink =
@@ -396,7 +412,7 @@ class ParallelBatchedPipelineTest {
         filterProcessor =
           FilterProcessor<TestEvent>(
             filterSpec =
-              FilterSpec(
+              FilterSpec.ByEventGroupReferenceIds(
                 celExpression = "",
                 collectionInterval =
                   interval {
@@ -452,6 +468,7 @@ class ParallelBatchedPipelineTest {
                 timestamp = now,
                 vid = (i + 1).toLong(),
                 message = TestEvent.getDefaultInstance(),
+                entityKeys = emptyList(),
               )
             emit(
               EventBatch<TestEvent>(
@@ -459,6 +476,7 @@ class ParallelBatchedPipelineTest {
                 minTime = now,
                 maxTime = now.plusSeconds(1),
                 eventGroupReferenceId = "reference-id-1",
+                entityKeys = emptyList(),
               )
             )
           }
@@ -471,7 +489,7 @@ class ParallelBatchedPipelineTest {
           filterProcessor =
             FilterProcessor<TestEvent>(
               filterSpec =
-                FilterSpec(
+                FilterSpec.ByEventGroupReferenceIds(
                   celExpression = "",
                   collectionInterval =
                     interval {
@@ -508,6 +526,7 @@ class ParallelBatchedPipelineTest {
           timestamp = now,
           vid = (i * 10).toLong(),
           message = testEvent { person = person { ageGroup = Person.AgeGroup.YEARS_18_TO_34 } },
+          entityKeys = emptyList(),
         )
       }
 
@@ -516,7 +535,7 @@ class ParallelBatchedPipelineTest {
         filterProcessor =
           FilterProcessor<TestEvent>(
             filterSpec =
-              FilterSpec(
+              FilterSpec.ByEventGroupReferenceIds(
                 celExpression = "",
                 collectionInterval =
                   interval {
@@ -535,7 +554,7 @@ class ParallelBatchedPipelineTest {
         filterProcessor =
           FilterProcessor<TestEvent>(
             filterSpec =
-              FilterSpec(
+              FilterSpec.ByEventGroupReferenceIds(
                 celExpression = "person.age_group == 1", // YEARS_18_TO_34 enum value
                 collectionInterval =
                   interval {
@@ -594,6 +613,7 @@ class ParallelBatchedPipelineTest {
                 timestamp = now,
                 vid = batchId.toLong(),
                 message = TestEvent.getDefaultInstance(),
+                entityKeys = emptyList(),
               )
             emit(
               EventBatch(
@@ -601,6 +621,7 @@ class ParallelBatchedPipelineTest {
                 minTime = now,
                 maxTime = now.plusSeconds(1),
                 eventGroupReferenceId = "reference-id-1",
+                entityKeys = emptyList(),
               )
             )
           }
@@ -613,7 +634,7 @@ class ParallelBatchedPipelineTest {
         filterProcessor =
           FilterProcessor<TestEvent>(
             filterSpec =
-              FilterSpec(
+              FilterSpec.ByEventGroupReferenceIds(
                 celExpression = "",
                 collectionInterval =
                   interval {
@@ -664,6 +685,7 @@ class ParallelBatchedPipelineTest {
                 timestamp = now,
                 vid = (i + 1).toLong(),
                 message = TestEvent.getDefaultInstance(),
+                entityKeys = emptyList(),
               )
             emit(
               EventBatch(
@@ -671,6 +693,7 @@ class ParallelBatchedPipelineTest {
                 minTime = now,
                 maxTime = now.plusSeconds(1),
                 eventGroupReferenceId = "reference-id-1",
+                entityKeys = emptyList(),
               )
             )
             kotlinx.coroutines.yield() // Allow cancellation
@@ -684,7 +707,7 @@ class ParallelBatchedPipelineTest {
         filterProcessor =
           FilterProcessor<TestEvent>(
             filterSpec =
-              FilterSpec(
+              FilterSpec.ByEventGroupReferenceIds(
                 celExpression = "",
                 collectionInterval =
                   interval {
