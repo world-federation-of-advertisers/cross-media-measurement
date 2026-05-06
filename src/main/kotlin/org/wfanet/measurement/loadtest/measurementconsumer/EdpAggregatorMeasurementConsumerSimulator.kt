@@ -67,6 +67,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
   private val filterExpression: String = DEFAULT_FILTER_EXPRESSION,
   initialResultPollingDelay: Duration = Duration.ofSeconds(1),
   maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
+  listEventGroupsEntityTypes: List<String>,
   onMeasurementsCreated: (() -> Unit)? = null,
 ) :
   MeasurementConsumerSimulator(
@@ -84,6 +85,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
     onMeasurementsCreated = onMeasurementsCreated,
     reportName = reportName,
     modelLineName = modelLineName,
+    listEventGroupsEntityTypes = listEventGroupsEntityTypes,
   ) {
 
   override fun Flow<EventGroup>.filterEventGroups(): Flow<EventGroup> {

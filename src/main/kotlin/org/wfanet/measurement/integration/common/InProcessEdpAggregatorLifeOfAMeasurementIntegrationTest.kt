@@ -39,6 +39,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
@@ -50,6 +51,7 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.identity.withPrincipalName
@@ -137,7 +139,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
           EventGroupEntityOverride(
             entityKey =
               edpaEntityKey {
-                entityType = "campaign"
+                entityType = "ad_group"
                 entityId = refId
               },
             entityMetadata = ENTITY_METADATA,
@@ -211,6 +213,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   }
 
   private lateinit var mcSimulator: EdpAggregatorMeasurementConsumerSimulator
+  private lateinit var mcName: String
+  private lateinit var mcApiKey: String
 
   private val publicMeasurementsClient by lazy {
     MeasurementsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
@@ -230,6 +234,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
 
   private fun initMcSimulator() {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    mcName = measurementConsumerData.name
+    mcApiKey = measurementConsumerData.apiAuthenticationKey
     mcSimulator =
       EdpAggregatorMeasurementConsumerSimulator(
         MeasurementConsumerData(
@@ -255,6 +261,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
           )
           .toName(),
         modelLineName = modelLineName,
+        listEventGroupsEntityTypes = listOf("campaign", "ad_group"),
       )
   }
 
@@ -393,6 +400,11 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
               listEventGroupsRequest {
                 parent = edpResourceName
                 pageSize = 1000
+                filter =
+                  ListEventGroupsRequestKt.filter {
+                    entityTypeIn += "campaign"
+                    entityTypeIn += "ad_group"
+                  }
               }
             )
 
@@ -441,6 +453,27 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       assertThat(legacy.entityKey.entityId).isEmpty()
       assertThat(legacy.eventGroupMetadata.hasEntityMetadata()).isFalse()
     }
+
+  @Test
+  fun `default ListEventGroups filter hides non-campaign EventGroups`() = runBlocking {
+    val response =
+      publicEventGroupsClient
+        .withAuthenticationKey(mcApiKey)
+        .listEventGroups(
+          listEventGroupsRequest {
+            parent = mcName
+            pageSize = 1000
+          }
+        )
+
+    val refIds = response.eventGroupsList.map { it.eventGroupReferenceId }.toSet()
+    assertThat(refIds).contains(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID)
+    for ((_, refOverrides) in entityOverridesByEdp) {
+      for (refId in refOverrides.keys) {
+        assertThat(refIds).doesNotContain(refId)
+      }
+    }
+  }
 
   companion object {
     // edp1 deliberately has no entity_key/entity_metadata override (legacy path); it also happens
