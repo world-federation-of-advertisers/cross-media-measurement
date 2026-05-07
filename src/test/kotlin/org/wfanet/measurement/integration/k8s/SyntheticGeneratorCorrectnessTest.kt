@@ -59,8 +59,8 @@ import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.listModelReleasesRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
@@ -94,8 +94,7 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt
  */
 class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
   private class RunningMeasurementSystem : MeasurementSystem(), TestRule {
-    override val syntheticPopulationSpec: SyntheticPopulationSpec =
-      SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE
+    override val populationSpec: PopulationSpec = SyntheticGenerationSpecs.POPULATION_SPEC_LARGE
     override val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
       SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_LARGE_2M
     override val populationDataProviderName: String

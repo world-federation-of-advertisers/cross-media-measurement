@@ -67,7 +67,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
@@ -269,7 +269,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       storagePath = tempPath,
       pubSubClient = pubSubClient,
       eventGroupConfigsByEdp = eventGroupConfigsByEdp,
-      syntheticPopulationSpec = syntheticPopulationSpec,
+      populationSpec = populationSpec,
       modelLineInfoMap = modelLineInfoMap,
       externalKmsClient = sharedKmsClient,
     )
@@ -1563,10 +1563,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       )
     private val TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH =
       getRuntimePath(TEST_RESULTS_FULFILLER_DATA_PATH)!!
-    val syntheticPopulationSpec: SyntheticPopulationSpec =
+    val populationSpec: PopulationSpec =
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
-        SyntheticPopulationSpec.getDefaultInstance(),
+        PopulationSpec.getDefaultInstance(),
       )
     val syntheticEventGroupSpec1: SyntheticEventGroupSpec =
       parseTextProto(

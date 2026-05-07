@@ -229,8 +229,7 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
     syntheticDataTimeZone: ZoneId,
     eventMessageDescriptor: Descriptors.Descriptor,
     eventGroupsOptions: Iterable<AbstractEdpSimulator.EventGroupOptions>,
-  ) :
-    SyntheticGeneratorEventQuery(populationSpec, eventMessageDescriptor, syntheticDataTimeZone) {
+  ) : SyntheticGeneratorEventQuery(populationSpec, eventMessageDescriptor, syntheticDataTimeZone) {
     private val syntheticDataSpecByReferenceId: Map<String, SyntheticEventGroupSpec>
 
     init {

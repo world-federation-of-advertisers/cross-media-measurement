@@ -18,8 +18,8 @@ package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.Message
 import java.nio.file.Paths
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 
@@ -29,15 +29,15 @@ object SyntheticGenerationSpecs {
     Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "data")
   private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
 
-  /** Population spec for synthetic generation of population ~34,000,000. */
-  val SYNTHETIC_POPULATION_SPEC_LARGE: SyntheticPopulationSpec by lazy {
+  /** v2alpha [PopulationSpec] for synthetic generation of population ~34,000,000. */
+  val POPULATION_SPEC_LARGE: PopulationSpec by lazy {
     loadTestData(
       "synthetic_population_spec_large.textproto",
-      SyntheticPopulationSpec.getDefaultInstance(),
+      PopulationSpec.getDefaultInstance(),
     )
   }
 
-  /** EventGroup specs for synthetic generation based on [SYNTHETIC_POPULATION_SPEC_LARGE]. */
+  /** EventGroup specs for synthetic generation based on [POPULATION_SPEC_LARGE]. */
   val SYNTHETIC_DATA_SPECS_LARGE: List<SyntheticEventGroupSpec> by lazy {
     listOf(
       loadTestData(
@@ -52,7 +52,7 @@ object SyntheticGenerationSpecs {
   }
 
   /**
-   * EventGroup specs for synthetic generation based on [SYNTHETIC_POPULATION_SPEC_LARGE].
+   * EventGroup specs for synthetic generation based on [POPULATION_SPEC_LARGE].
    *
    * The total reach is ~2,000,000.
    */
@@ -73,15 +73,15 @@ object SyntheticGenerationSpecs {
     )
   }
 
-  /** Population spec for synthetic generation of population ~100,000. */
-  val SYNTHETIC_POPULATION_SPEC_SMALL: SyntheticPopulationSpec by lazy {
+  /** v2alpha [PopulationSpec] for synthetic generation of population ~100,000. */
+  val POPULATION_SPEC_SMALL: PopulationSpec by lazy {
     loadTestData(
       "synthetic_population_spec_small.textproto",
-      SyntheticPopulationSpec.getDefaultInstance(),
+      PopulationSpec.getDefaultInstance(),
     )
   }
 
-  /** EventGroup specs for synthetic generation based on [SYNTHETIC_POPULATION_SPEC_SMALL]. */
+  /** EventGroup specs for synthetic generation based on [POPULATION_SPEC_SMALL]. */
   val SYNTHETIC_DATA_SPECS_SMALL: List<SyntheticEventGroupSpec> by lazy {
     listOf(
       loadTestData(
@@ -95,7 +95,7 @@ object SyntheticGenerationSpecs {
     )
   }
 
-  /** EventGroup specs for synthetic generation based on [SYNTHETIC_POPULATION_SPEC_SMALL]. */
+  /** EventGroup specs for synthetic generation based on [POPULATION_SPEC_SMALL]. */
   val SYNTHETIC_DATA_SPECS_SMALL_36K: List<SyntheticEventGroupSpec> by lazy {
     listOf(
       loadTestData(

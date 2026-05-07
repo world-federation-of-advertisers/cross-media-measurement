@@ -190,8 +190,8 @@ kt_jvm_library(
         "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
     ],
     deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
@@ -203,6 +203,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_event_query",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
     ],
@@ -323,6 +324,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_event_query",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:event_query_measurement_consumer_simulator",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
@@ -370,6 +372,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:services",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:work_item_publisher",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/securecomputation:queues_config_kt_jvm_proto",
@@ -439,7 +442,6 @@ kt_jvm_library(
         "InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest.kt",
     ],
     data = [
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/testing:specs",
         "//src/main/proto/wfa/measurement/loadtest/dataprovider:specs",
     ],
     deps = [

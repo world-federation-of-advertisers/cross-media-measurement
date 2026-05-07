@@ -25,9 +25,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
@@ -36,10 +36,10 @@ import org.wfanet.measurement.common.toProtoTime
 @RunWith(JUnit4::class)
 class SyntheticGeneratorEventQueryTest {
   private class EventQueryImpl(
-    syntheticPopulationSpec: SyntheticPopulationSpec,
+    populationSpec: PopulationSpec,
     private val syntheticEventGroupSpec: SyntheticEventGroupSpec,
     eventMessageDescriptor: Descriptors.Descriptor,
-  ) : SyntheticGeneratorEventQuery(syntheticPopulationSpec, eventMessageDescriptor, ZONE_ID) {
+  ) : SyntheticGeneratorEventQuery(populationSpec, eventMessageDescriptor, ZONE_ID) {
     override fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec {
       return syntheticEventGroupSpec
     }
@@ -47,10 +47,10 @@ class SyntheticGeneratorEventQueryTest {
 
   @Test
   fun `getLabeledEvents returns events distributed across date range`() {
-    val syntheticPopulationSpec: SyntheticPopulationSpec =
+    val populationSpec: PopulationSpec =
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
-        SyntheticPopulationSpec.getDefaultInstance(),
+        PopulationSpec.getDefaultInstance(),
       )
     val syntheticEventGroupSpec: SyntheticEventGroupSpec =
       parseTextProto(
@@ -58,7 +58,7 @@ class SyntheticGeneratorEventQueryTest {
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
     val eventQuery: SyntheticGeneratorEventQuery =
-      EventQueryImpl(syntheticPopulationSpec, syntheticEventGroupSpec, TestEvent.getDescriptor())
+      EventQueryImpl(populationSpec, syntheticEventGroupSpec, TestEvent.getDescriptor())
     val dateRange = syntheticEventGroupSpec.getDateSpecs(0).dateRange
     val startTime =
       LocalDate.of(dateRange.start.year, dateRange.start.month, dateRange.start.day)
