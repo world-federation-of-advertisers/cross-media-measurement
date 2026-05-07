@@ -19,7 +19,10 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.DynamicMessage
+import com.google.protobuf.TypeRegistry
 import com.google.type.date
+import java.nio.file.Paths
+import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -45,6 +48,9 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.common.toProtoDuration
 
 /** Tests for the v2alpha [PopulationSpec] overload of [SyntheticDataGeneration.generateEvents]. */
 @RunWith(JUnit4::class)
@@ -390,6 +396,60 @@ class SyntheticDataGenerationTest {
   }
 
   @Test
+  fun `generateEvents with PopulationSpec throws when vid ranges within a frequency spec overlap`() {
+    // Two vidRangeSpecs in the same FrequencySpec overlap (1..25 and 20..50). The engine validates
+    // VidRangeSpecs are non-overlapping within a FrequencySpec and surfaces this as
+    // IllegalStateException.
+    val populationSpec = TWO_SUBPOP_POPULATION_SPEC
+    val eventGroupSpec = syntheticEventGroupSpec {
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 27
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 0L
+                    endExclusive = 25L
+                  }
+                }
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    // 20 sits inside the previous range [0, 25), creating an overlap.
+                    start = 20L
+                    endExclusive = 50L
+                  }
+                }
+            }
+        }
+    }
+
+    assertFailsWith<IllegalStateException> {
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          populationSpec,
+          eventGroupSpec,
+        )
+        .toEventsList()
+    }
+  }
+
+  @Test
   fun `generateEvents with PopulationSpec produces expected per-(gender, age_group) counts`() {
     // Four subpopulations covering disjoint VID ranges, each with a distinct (gender, age_group)
     // tuple. The event group spec spans every subpopulation with varying frequencies, so the
@@ -538,6 +598,71 @@ class SyntheticDataGenerationTest {
   }
 
   @Test
+  fun `generateEvents with PopulationSpec produces messages with a Duration nonPopulation field`() {
+    // Exercises the FieldValue.durationValue branch of the engine: video_ad.length is a
+    // google.protobuf.Duration field on TestEvent. Each generated event should carry the same
+    // duration value as configured in the vidRangeSpec.
+    val populationSpec = populationSpec {
+      subpopulations +=
+        PopulationSpecKt.subPopulation {
+          vidRanges +=
+            PopulationSpecKt.vidRange {
+              startVid = 1L
+              endVidInclusive = 10L
+            }
+          attributes += ProtoAny.pack(person { gender = Person.Gender.FEMALE })
+        }
+    }
+    val videoLength = Duration.ofMinutes(5).toProtoDuration()
+    val eventGroupSpec = syntheticEventGroupSpec {
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 7
+                day = 30
+              }
+              endExclusive = date {
+                year = 2023
+                month = 7
+                day = 31
+              }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 1L
+                    endExclusive = 11L
+                  }
+                  nonPopulationFieldValues["video_ad.length"] = fieldValue {
+                    durationValue = videoLength
+                  }
+                }
+            }
+        }
+    }
+
+    val events: List<LabeledEvent<TestEvent>> =
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          populationSpec,
+          eventGroupSpec,
+        )
+        .toEventsList()
+
+    assertThat(events).hasSize(10)
+    for (event in events) {
+      assertThat(event.message.person.gender).isEqualTo(Person.Gender.FEMALE)
+      assertThat(event.message.videoAd.length).isEqualTo(videoLength)
+    }
+  }
+
+  @Test
   fun `generateEvents with PopulationSpec filters by time range`() {
     val populationSpec = populationSpec {
       subpopulations +=
@@ -663,6 +788,100 @@ class SyntheticDataGenerationTest {
   }
 
   @Test
+  fun `generateEvents with PopulationSpec throws when sampling rate is invalid`() {
+    // samplingRate must lie in [0.0, 1.0]. A value > 1.0 is rejected at iteration time.
+    val populationSpec = TWO_SUBPOP_POPULATION_SPEC
+    val eventGroupSpec = syntheticEventGroupSpec {
+      samplingNonce = 42L
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 27
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 0L
+                    endExclusive = 25L
+                  }
+                  samplingRate = 2.0 // out of range
+                }
+            }
+        }
+    }
+
+    assertFailsWith<IllegalStateException> {
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          populationSpec,
+          eventGroupSpec,
+        )
+        .toEventsList()
+    }
+  }
+
+  @Test
+  fun `generateEvents with PopulationSpec throws when sampling nonce required but missing`() {
+    // A vidRangeSpec with a non-trivial samplingRate (0 < r < 1) requires the EventGroupSpec to
+    // carry a non-zero samplingNonce. Otherwise the sampler cannot deterministically partition VIDs
+    // and the engine raises IllegalStateException.
+    val populationSpec = TWO_SUBPOP_POPULATION_SPEC
+    val eventGroupSpec = syntheticEventGroupSpec {
+      // No samplingNonce set (default 0L).
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 27
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 25L
+                    endExclusive = 50L
+                  }
+                  samplingRate = 0.4
+                }
+            }
+        }
+    }
+
+    assertFailsWith<IllegalStateException> {
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          populationSpec,
+          eventGroupSpec,
+        )
+        .toEventsList()
+    }
+  }
+
+  @Test
   fun `generateEvents with PopulationSpec works for a different compiled event template (MarketEvent)`() {
     // This test exercises the engine layer with a *different* compiled event-template class
     // (MarketEvent) than the default TestEvent. It is the engine-level analogue of the
@@ -769,6 +988,54 @@ class SyntheticDataGenerationTest {
     }
   }
 
+  @Test
+  fun `generateEvents with PopulationSpec spreads data correctly across days`() {
+    // Drives the engine end-to-end against the small_population_spec.textproto and
+    // small_data_spec.textproto fixtures used by EDP simulator integration tests. Confirms the
+    // fixture pair yields exactly one labeled-event shard per day across the 2021-03-15..2021-03-21
+    // window and that the total impression count matches the spec.
+    // PopulationSpec embeds Person attributes inside google.protobuf.Any, so we must register the
+    // Person descriptor with the TypeRegistry used by parseTextProto.
+    val typeRegistry = TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
+    val populationSpec: PopulationSpec =
+      parseTextProto(
+        TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
+        PopulationSpec.getDefaultInstance(),
+        typeRegistry,
+      )
+    val syntheticEventGroupSpec: SyntheticEventGroupSpec =
+      parseTextProto(
+        TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
+        SyntheticEventGroupSpec.getDefaultInstance(),
+      )
+
+    val shards: List<LabeledEventDateShard<TestEvent>> =
+      SyntheticDataGeneration.generateEvents(
+          messageInstance = TestEvent.getDefaultInstance(),
+          populationSpec = populationSpec,
+          syntheticEventGroupSpec = syntheticEventGroupSpec,
+        )
+        .toList()
+
+    assertThat(shards.map { it.localDate.toString() })
+      .isEqualTo(
+        listOf(
+          "2021-03-15",
+          "2021-03-16",
+          "2021-03-17",
+          "2021-03-18",
+          "2021-03-19",
+          "2021-03-20",
+          "2021-03-21",
+        )
+      )
+    // ~8000 total impressions split across 7 days; allow ample slack on per-day distribution.
+    for (shard in shards) {
+      assertThat(shard.labeledEvents.toList().size).isWithin(100).of(8000 / 7)
+    }
+    assertThat(shards.flatMap { it.labeledEvents.toList() }.size).isEqualTo(8001)
+  }
+
   private fun subPopWithPerson(
     startVid: Long,
     endVidInclusive: Long,
@@ -854,6 +1121,19 @@ class SyntheticDataGenerationTest {
     List<LabeledEvent<T>> = flatMap { it.labeledEvents }.toList()
 
   companion object {
+    private val TEST_DATA_PATH =
+      Paths.get(
+        "wfa_measurement_system",
+        "src",
+        "main",
+        "proto",
+        "wfa",
+        "measurement",
+        "loadtest",
+        "dataprovider",
+      )
+    private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
+
     /**
      * A two-subpopulation [PopulationSpec] covering VIDs 0..99 with Person attributes set per
      * subpopulation. Mirrors the legacy two-subpopulation spec used in
