@@ -155,6 +155,11 @@ jobs:
         </settings>
         EOF
 
+    - name: Set up terraform
+      uses: hashicorp/setup-terraform@v4
+      with:
+        terraform_version: "1.14.8"
+
     - id: get-artifact-version
       uses: ./.github/actions/get-maven-artifact-version
       with:
