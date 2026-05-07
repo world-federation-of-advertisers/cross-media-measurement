@@ -19,11 +19,11 @@ import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
+import com.google.protobuf.Message
 import java.io.File
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.aws.kms.AwsKmsClientFactory
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.tink.AwsWebIdentityCredentials
@@ -90,6 +90,34 @@ class VerifySyntheticData : Runnable {
     required = true,
   )
   lateinit var impressionMetadataBasePath: String
+    private set
+
+  @Option(
+    names = ["--event-message-type-url"],
+    description =
+      [
+        "Type URL of the event message type carried by each LabeledImpression. " +
+          "Defaults to TestEvent.",
+        "When set to a type other than TestEvent, --event-message-descriptor-set must be supplied.",
+      ],
+    required = false,
+    defaultValue = GenerateSyntheticData.DEFAULT_EVENT_MESSAGE_TYPE_URL,
+  )
+  lateinit var eventMessageTypeUrl: String
+    private set
+
+  @Option(
+    names = ["--event-message-descriptor-set"],
+    description =
+      [
+        "Path to a serialized FileDescriptorSet containing the event message type referenced by " +
+          "--event-message-type-url and its dependencies.",
+        "May be specified multiple times.",
+        "May be omitted only when the event message type is TestEvent (the default).",
+      ],
+    required = false,
+  )
+  var eventMessageDescriptorSetFiles: List<File> = emptyList()
     private set
 
   @CommandLine.ArgGroup(exclusive = false, heading = "AWS flags (used with --kms-type=AWS)%n")
@@ -281,6 +309,12 @@ class VerifySyntheticData : Runnable {
         }
       }
 
+    val eventMessageInstance: Message =
+      GenerateSyntheticData.resolveEventMessageInstance(
+        eventMessageTypeUrl,
+        eventMessageDescriptorSetFiles,
+      )
+
     val result =
       verifySyntheticData(
         kmsClient = kmsClient,
@@ -288,6 +322,8 @@ class VerifySyntheticData : Runnable {
         storagePath = storagePath,
         outputBucket = outputBucket,
         impressionMetadataBasePath = impressionMetadataBasePath,
+        eventMessageInstance = eventMessageInstance,
+        expectedEventTypeUrl = eventMessageTypeUrl,
       )
     lastResult = result
 
@@ -356,6 +392,8 @@ class VerifySyntheticData : Runnable {
       storagePath: File,
       outputBucket: String,
       impressionMetadataBasePath: String,
+      eventMessageInstance: Message,
+      expectedEventTypeUrl: String,
     ): VerificationResult {
       val rootStorageClient = FileSystemStorageClient(storagePath)
       val bucketDir = storagePath.resolve(outputBucket).resolve(impressionMetadataBasePath)
@@ -447,8 +485,11 @@ class VerifySyntheticData : Runnable {
                 }
               }
 
-              val testEvent = impression.event.unpack(TestEvent::class.java)
-              check(testEvent != null) { "Failed to unpack TestEvent from impression $index" }
+              check(impression.event.typeUrl == expectedEventTypeUrl) {
+                "Event type URL mismatch on impression $index: expected $expectedEventTypeUrl, " +
+                  "got ${impression.event.typeUrl}"
+              }
+              eventMessageInstance.newBuilderForType().mergeFrom(impression.event.value).build()
 
               if (index < 3) {
                 val entityKeysSummary =
