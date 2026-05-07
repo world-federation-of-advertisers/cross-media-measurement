@@ -32,6 +32,8 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.EventGroupDetailsKt.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 
 /**
@@ -140,9 +142,19 @@ abstract class RequisitionGrouper(
           val eventGroup = getEventGroup(eventGroupName)
           this.eventGroupReferenceId = eventGroup.eventGroupReferenceId
           this.collectionIntervals += eventGroupEntry.value.collectionInterval
+          if (eventGroup.hasEntityKey()) {
+            this.entityKey =
+              GroupedRequisitionsKt.EventGroupDetailsKt.entityKey {
+                entityType = eventGroup.entityKey.entityType
+                entityId = eventGroup.entityKey.entityId
+              }
+          }
         }
       }
     }
+
+    requisitionValidator.validateEventGroupSelectors(eventGroupMap)
+
     return eventGroupMap
   }
 

@@ -26,6 +26,6 @@ alias(
 
 local_java_runtime(
     name = "rbe_jdk",
-    java_home = "/usr/lib/jvm/java-17-openjdk-amd64",
-    version = "17.0.10",
+    java_home = "/usr/lib/jvm/temurin-17-jdk-amd64",
+    version = "17.0.18",
 )

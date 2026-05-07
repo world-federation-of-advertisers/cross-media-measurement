@@ -32,7 +32,7 @@ permissions:
 
 jobs:
   compute-existing-release-tag:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     outputs:
       tag: ${{ steps.compute-tag.outputs.tag }}
     steps:
@@ -55,7 +55,7 @@ jobs:
           echo "tag=${tag}" | tee -a $GITHUB_OUTPUT
 
   compute-notes-start-commitish:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     outputs:
       commitish: ${{ steps.compute-notes-start-commitish.outputs.commitish }}
     steps:
@@ -93,7 +93,7 @@ jobs:
             core.setOutput('commitish', startCommitish);
 
   compute-milestone-name:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [compute-existing-release-tag]
     outputs:
       name: ${{ steps.compute-milestone-name.outputs.name }}
@@ -113,7 +113,7 @@ jobs:
           echo "name=${name}" | tee -a $GITHUB_OUTPUT
 
   compute-release-target:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [compute-existing-release-tag]
     outputs:
       sha: ${{ steps.compute-release-target.outputs.sha }}

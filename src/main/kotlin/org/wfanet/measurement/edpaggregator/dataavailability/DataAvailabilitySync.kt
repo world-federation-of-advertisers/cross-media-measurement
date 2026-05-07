@@ -40,11 +40,14 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadat
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
+import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.BlobUri
@@ -351,6 +354,9 @@ class DataAvailabilitySync(
    *       `ignoringUnknownFields()`.
    *     - Other extensions: throws [IllegalArgumentException].
    * - Validates that the parsed `BlobDetails` has both a start and end time in its interval.
+   * - Validates that the parsed `BlobDetails` has at least one of `event_group_reference_id` or
+   *   `entity_keys` populated, and that every value within `entity_keys` is populated and not
+   *   empty.
    * - Verifies that the referenced encrypted impressions blob exists in storage.
    * - Constructs an [ImpressionMetadata] and groups it by [ModelLineKey].
    *
@@ -393,6 +399,34 @@ class DataAvailabilitySync(
         require(blobDetails.interval.hasStartTime() && blobDetails.interval.hasEndTime()) {
           "Found interval without start or end time for blob detail with blob_uri = ${blobDetails.blobUri}"
         }
+        // At least one of event_group_reference_id or entity_keys must identify the
+        // EventGroup that produced this blob. Both empty means the metadata cannot be
+        // associated with any EventGroup downstream.
+        require(
+          blobDetails.eventGroupReferenceId.isNotEmpty() || blobDetails.entityKeysList.isNotEmpty()
+        ) {
+          "BlobDetails must have either event_group_reference_id or entity_keys populated " +
+            "for blob_uri = ${blobDetails.blobUri}"
+        }
+        // Every EntityKeyGroup must be well-formed: a non-empty entity_type and at least
+        // one non-empty entity_id. Malformed groups would create unusable EntityKey entries
+        // on the resulting ImpressionMetadata.
+        blobDetails.entityKeysList.forEachIndexed { groupIndex, group ->
+          require(group.entityType.isNotEmpty()) {
+            "BlobDetails entity_keys[$groupIndex].entity_type is empty " +
+              "for blob_uri = ${blobDetails.blobUri}"
+          }
+          require(group.entityIdsList.isNotEmpty()) {
+            "BlobDetails entity_keys[$groupIndex].entity_ids is empty " +
+              "for blob_uri = ${blobDetails.blobUri}"
+          }
+          group.entityIdsList.forEachIndexed { idIndex, entityId ->
+            require(entityId.isNotEmpty()) {
+              "BlobDetails entity_keys[$groupIndex].entity_ids[$idIndex] is empty " +
+                "for blob_uri = ${blobDetails.blobUri}"
+            }
+          }
+        }
         val impressionBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
         val metadataBlobUri =
           when (doneBlobUri.scheme) {
@@ -416,6 +450,7 @@ class DataAvailabilitySync(
             eventGroupReferenceId = blobDetails.eventGroupReferenceId
             modelLine = blobDetails.modelLine
             interval = blobDetails.interval
+            entityKeys += blobDetails.entityKeysList.flatMap { it.toEntityKeys() }
           }
           val modelLineKey =
             requireNotNull(ModelLineKey.fromName(blobDetails.modelLine)) {
@@ -456,6 +491,20 @@ class DataAvailabilitySync(
     } else {
       "$scheme://$bucket/$key"
     }
+
+  /**
+   * Flattens an [EntityKeyGroup] (one entity_type with many entity_ids) into a list of [EntityKey]
+   * entries (one entity_type/entity_id pair per id).
+   */
+  private fun EntityKeyGroup.toEntityKeys(): List<EntityKey> {
+    val source = this
+    return source.entityIdsList.map { id ->
+      entityKey {
+        entityType = source.entityType
+        entityId = id
+      }
+    }
+  }
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
