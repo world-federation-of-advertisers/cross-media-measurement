@@ -28,6 +28,7 @@ syntax = "proto3";
 package wfa.measurement.api.v2alpha.event_templates.testing.market.v1;
 
 import "wfa/measurement/api/v2alpha/event_annotations.proto";
+import "wfa/measurement/api/v2alpha/event_templates/testing/market/v1/edp1.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1";
 option java_multiple_files = true;
@@ -67,4 +68,12 @@ message Common {
     reporting_features: GROUPABLE
     version_added: 1
   }];
+
+  // EDP-specific event fields. Exactly one of these may be set, identifying
+  // the EDP that originated the event. Mirrors the `oneof edp_specific` shape
+  // used by real market templates (e.g. Aquila US `Common.edp_specific`) so
+  // the synthetic data tooling exercises that structural pattern.
+  oneof edp_specific {
+    Edp1 edp1 = 3;
+  }
 }

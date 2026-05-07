@@ -42,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.banner
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.Common as MarketCommon
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.Edp1
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.MarketEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
@@ -984,6 +985,79 @@ class SyntheticDataGenerationTest {
       assertThat(event.message.common.sex).isEqualTo(expectedSex)
       assertThat(event.message.common.ageGroup).isEqualTo(expectedAgeGroup)
       assertThat(event.message.video.completed50PercentPlus).isTrue()
+    }
+  }
+
+  @Test
+  fun `generateEvents with PopulationSpec selects oneof arm via nested nonPopulation field path`() {
+    // MarketEvent.common contains `oneof edp_specific { Edp1 edp1 = 3; }` modeled after the
+    // Aquila US Common.edp_specific oneof. Setting a leaf scalar on a oneof arm via a nested
+    // field path (`common.edp1.placement`) must auto-select that arm without any explicit
+    // oneof-handling logic in the engine.
+    val populationSpec = populationSpec {
+      subpopulations +=
+        PopulationSpecKt.subPopulation {
+          vidRanges +=
+            PopulationSpecKt.vidRange {
+              startVid = 1L
+              endVidInclusive = 10L
+            }
+          attributes +=
+            ProtoAny.pack(
+              MarketCommon.newBuilder()
+                .setSex(MarketCommon.Sex.FEMALE)
+                .setAgeGroup(MarketCommon.AgeGroup.YEARS_35_TO_54)
+                .build()
+            )
+        }
+    }
+    val eventGroupSpec = syntheticEventGroupSpec {
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2024
+                month = 1
+                day = 1
+              }
+              endExclusive = date {
+                year = 2024
+                month = 1
+                day = 2
+              }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 1L
+                    endExclusive = 11L
+                  }
+                  nonPopulationFieldValues["common.edp1.placement"] = fieldValue {
+                    enumValue = Edp1.Placement.HOMEPAGE_VALUE
+                  }
+                }
+            }
+        }
+    }
+
+    val events: List<LabeledEvent<MarketEvent>> =
+      SyntheticDataGeneration.generateEvents(
+          MarketEvent.getDefaultInstance(),
+          populationSpec,
+          eventGroupSpec,
+        )
+        .toEventsList()
+
+    assertThat(events).hasSize(10)
+    for (event in events) {
+      // The oneof arm `edp_specific.edp1` must be selected.
+      assertThat(event.message.common.edpSpecificCase).isEqualTo(MarketCommon.EdpSpecificCase.EDP1)
+      // And its leaf scalar must carry the configured value.
+      assertThat(event.message.common.edp1.placement).isEqualTo(Edp1.Placement.HOMEPAGE)
     }
   }
 

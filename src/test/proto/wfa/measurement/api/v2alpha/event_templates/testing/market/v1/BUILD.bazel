@@ -18,10 +18,20 @@ package(
 IMPORT_PREFIX = "/src/test/proto"
 
 proto_library(
+    name = "edp1_proto",
+    srcs = ["edp1.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto"],
+)
+
+proto_library(
     name = "common_proto",
     srcs = ["common.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto"],
+    deps = [
+        ":edp1_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto",
+    ],
 )
 
 proto_library(
