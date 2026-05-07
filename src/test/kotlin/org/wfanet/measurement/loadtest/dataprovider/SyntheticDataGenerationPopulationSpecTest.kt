@@ -37,6 +37,8 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.vidRange
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.banner
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.Common as MarketCommon
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.MarketEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
@@ -599,6 +601,113 @@ class SyntheticDataGenerationPopulationSpecTest {
     // Sampling must be a strict subset of the unsampled output.
     val unsampledCount = (1L..1000L).count() // frequency 1 over 1000 VIDs
     assertThat(sampled.size).isLessThan(unsampledCount)
+  }
+
+  @Test
+  fun `generateEvents with PopulationSpec works for a different compiled event template (MarketEvent)`() {
+    // This test exercises the engine layer with a *different* compiled event-template class
+    // (MarketEvent) than the default TestEvent. It is the engine-level analogue of the
+    // GenerateAndVerifySyntheticDataTest CLI MarketEvent case: it proves the generator handles
+    // arbitrary user-defined event templates without going through DynamicMessage. It also
+    // exercises non-population fields whose paths and types differ from anything on TestEvent
+    // (e.g. boolean engagement-bucket fields under `video.*`).
+    val populationSpec = populationSpec {
+      subpopulations +=
+        PopulationSpecKt.subPopulation {
+          vidRanges +=
+            PopulationSpecKt.vidRange {
+              startVid = 1L
+              endVidInclusive = 10L
+            }
+          attributes +=
+            ProtoAny.pack(
+              MarketCommon.newBuilder()
+                .setSex(MarketCommon.Sex.MALE)
+                .setAgeGroup(MarketCommon.AgeGroup.YEARS_16_TO_34)
+                .build()
+            )
+        }
+      subpopulations +=
+        PopulationSpecKt.subPopulation {
+          vidRanges +=
+            PopulationSpecKt.vidRange {
+              startVid = 11L
+              endVidInclusive = 20L
+            }
+          attributes +=
+            ProtoAny.pack(
+              MarketCommon.newBuilder()
+                .setSex(MarketCommon.Sex.FEMALE)
+                .setAgeGroup(MarketCommon.AgeGroup.YEARS_55_PLUS)
+                .build()
+            )
+        }
+    }
+    val eventGroupSpec = syntheticEventGroupSpec {
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2024
+                month = 1
+                day = 1
+              }
+              endExclusive = date {
+                year = 2024
+                month = 1
+                day = 2
+              }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+              // One vidRangeSpec per subpopulation: each must be fully contained within a single
+              // subpopulation's vid_ranges. Path resolves on
+              // MarketEvent.video.completed_50_percent_plus, a bool field that has no analogue on
+              // TestEvent.
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 1L
+                    endExclusive = 11L
+                  }
+                  nonPopulationFieldValues["video.completed_50_percent_plus"] = fieldValue {
+                    boolValue = true
+                  }
+                }
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 11L
+                    endExclusive = 21L
+                  }
+                  nonPopulationFieldValues["video.completed_50_percent_plus"] = fieldValue {
+                    boolValue = true
+                  }
+                }
+            }
+        }
+    }
+
+    val events: List<LabeledEvent<MarketEvent>> =
+      SyntheticDataGeneration.generateEvents(
+          MarketEvent.getDefaultInstance(),
+          populationSpec,
+          eventGroupSpec,
+        )
+        .toEventsList()
+
+    assertThat(events).hasSize(20)
+    for (event in events) {
+      val expectedSex = if (event.vid <= 10L) MarketCommon.Sex.MALE else MarketCommon.Sex.FEMALE
+      val expectedAgeGroup =
+        if (event.vid <= 10L) MarketCommon.AgeGroup.YEARS_16_TO_34
+        else MarketCommon.AgeGroup.YEARS_55_PLUS
+      assertThat(event.message.common.sex).isEqualTo(expectedSex)
+      assertThat(event.message.common.ageGroup).isEqualTo(expectedAgeGroup)
+      assertThat(event.message.video.completed50PercentPlus).isTrue()
+    }
   }
 
   private fun subPopWithPerson(

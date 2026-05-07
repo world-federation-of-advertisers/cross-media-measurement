@@ -1,0 +1,204 @@
+# proto-file: wfa/measurement/api/v2alpha/population_spec.proto
+# proto-message: PopulationSpec
+
+# v2alpha PopulationSpec equivalent of synthetic_population_spec_large.textproto.
+#
+# 2011 UK population by sex, age, and social grade.
+# See https://www.ons.gov.uk/peoplepopulationandcommunity/birthsdeathsandmarriages/families/adhocs/005317ct05672011censussexbyagesyoabyapproximatedsocialgradenationaltocountry
+#
+# This is a direct conversion of the legacy SyntheticPopulationSpec layout to
+# the v2alpha PopulationSpec wire format:
+#   * The legacy top-level vid_range, event_message_type_url, population_fields
+#     and non_population_fields have no analogue in PopulationSpec. The event
+#     message type URL is supplied via the --event-message-type-url CLI flag,
+#     and population/non-population field paths are introspected from the event
+#     message descriptor at runtime.
+#   * Each legacy sub_populations entry becomes a v2alpha SubPopulation with:
+#       - a single vid_ranges entry, where end_vid_inclusive = end_exclusive - 1
+#       - a single attributes entry, an Any-packed Person carrying the same
+#         gender / age_group / social_grade_group enum values.
+#
+# The companion synthetic_event_group_spec_large_*.textproto files are NOT
+# affected by this conversion: SyntheticEventGroupSpec is unchanged across the
+# two formats, and its non-population field paths (e.g. video_ad.viewed_fraction)
+# are looked up directly on the event message's compiled descriptor.
+
+# Sub-population 1: MALE, YEARS_18_TO_34, A_B_C1
+subpopulations {
+  vid_ranges {
+    start_vid: 1
+    end_vid_inclusive: 3274021
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: MALE
+      age_group: YEARS_18_TO_34
+      social_grade_group: A_B_C1
+    }
+  }
+}
+
+# Sub-population 2: MALE, YEARS_18_TO_34, C2_D_E
+subpopulations {
+  vid_ranges {
+    start_vid: 3274022
+    end_vid_inclusive: 6151244
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: MALE
+      age_group: YEARS_18_TO_34
+      social_grade_group: C2_D_E
+    }
+  }
+}
+
+# Sub-population 3: MALE, YEARS_35_TO_54, A_B_C1
+subpopulations {
+  vid_ranges {
+    start_vid: 6151245
+    end_vid_inclusive: 10177154
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: MALE
+      age_group: YEARS_35_TO_54
+      social_grade_group: A_B_C1
+    }
+  }
+}
+
+# Sub-population 4: MALE, YEARS_35_TO_54, C2_D_E
+subpopulations {
+  vid_ranges {
+    start_vid: 10177155
+    end_vid_inclusive: 13782704
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: MALE
+      age_group: YEARS_35_TO_54
+      social_grade_group: C2_D_E
+    }
+  }
+}
+
+# Sub-population 5: MALE, YEARS_55_PLUS, A_B_C1
+subpopulations {
+  vid_ranges {
+    start_vid: 13782705
+    end_vid_inclusive: 15341498
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: MALE
+      age_group: YEARS_55_PLUS
+      social_grade_group: A_B_C1
+    }
+  }
+}
+
+# Sub-population 6: MALE, YEARS_55_PLUS, C2_D_E
+subpopulations {
+  vid_ranges {
+    start_vid: 15341499
+    end_vid_inclusive: 16991687
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: MALE
+      age_group: YEARS_55_PLUS
+      social_grade_group: C2_D_E
+    }
+  }
+}
+
+# Sub-population 7: FEMALE, YEARS_18_TO_34, A_B_C1
+subpopulations {
+  vid_ranges {
+    start_vid: 16991688
+    end_vid_inclusive: 20310055
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: FEMALE
+      age_group: YEARS_18_TO_34
+      social_grade_group: A_B_C1
+    }
+  }
+}
+
+# Sub-population 8: FEMALE, YEARS_18_TO_34, C2_D_E
+subpopulations {
+  vid_ranges {
+    start_vid: 20310056
+    end_vid_inclusive: 23166642
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: FEMALE
+      age_group: YEARS_18_TO_34
+      social_grade_group: C2_D_E
+    }
+  }
+}
+
+# Sub-population 9: FEMALE, YEARS_35_TO_54, A_B_C1
+subpopulations {
+  vid_ranges {
+    start_vid: 23166643
+    end_vid_inclusive: 27494479
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: FEMALE
+      age_group: YEARS_35_TO_54
+      social_grade_group: A_B_C1
+    }
+  }
+}
+
+# Sub-population 10: FEMALE, YEARS_35_TO_54, C2_D_E
+subpopulations {
+  vid_ranges {
+    start_vid: 27494480
+    end_vid_inclusive: 30973857
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: FEMALE
+      age_group: YEARS_35_TO_54
+      social_grade_group: C2_D_E
+    }
+  }
+}
+
+# Sub-population 11: FEMALE, YEARS_55_PLUS, A_B_C1
+subpopulations {
+  vid_ranges {
+    start_vid: 30973858
+    end_vid_inclusive: 32679539
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: FEMALE
+      age_group: YEARS_55_PLUS
+      social_grade_group: A_B_C1
+    }
+  }
+}
+
+# Sub-population 12: FEMALE, YEARS_55_PLUS, C2_D_E
+subpopulations {
+  vid_ranges {
+    start_vid: 32679540
+    end_vid_inclusive: 34288880
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: FEMALE
+      age_group: YEARS_55_PLUS
+      social_grade_group: C2_D_E
+    }
+  }
+}
