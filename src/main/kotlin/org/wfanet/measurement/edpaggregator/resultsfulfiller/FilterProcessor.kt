@@ -21,7 +21,20 @@ import com.google.protobuf.Message
 import java.time.Instant
 import org.projectnessie.cel.Program
 import org.projectnessie.cel.common.types.BoolT
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
+
+/**
+ * Thrown by [FilterProcessor.processBatch] when the active selector is
+ * [FilterSpec.ByEntityKeys] but the incoming [EventBatch] carries no `entity_keys`.
+ *
+ * Indicates a wiring/data invariant violation upstream (the blob's `BlobDetails.entity_keys`
+ * was not populated despite the consumer requesting entity-key filtering).
+ */
+class MissingBatchEntityKeysException :
+  IllegalStateException(
+    "ByEntityKeys filter requires the batch to carry entity_keys, but batch.entityKeys is empty"
+  )
 
 /**
  * Filter processor for event filtering with CEL expressions and time ranges.
@@ -80,7 +93,9 @@ class FilterProcessor<T : Message>(
    * Applies filtering in the following order for optimal performance:
    * 1. Selector check, dispatched on [FilterSpec] variant:
    *    - [FilterSpec.ByEventGroupReferenceIds]: batch-level `event_group_reference_id` match.
-   *    - [FilterSpec.ByEntityKeys]: batch-level entity-key intersection short-circuit.
+   *    - [FilterSpec.ByEntityKeys]: batch-level entity-key intersection short-circuit. Throws
+   *      [MissingBatchEntityKeysException] when the batch carries no entity_keys (data invariant
+   *      violation).
    * 2. Batch time range overlap check (fast, avoids processing entire batch).
    * 3. Per-event time range filter.
    * 4. Per-event entity-key intersection (only for [FilterSpec.ByEntityKeys]).
@@ -89,32 +104,35 @@ class FilterProcessor<T : Message>(
    * @param batch The batch of events to process. Must contain a valid list of events.
    * @return An EventBatch containing events that match all configured filters. The batch may be
    *   empty if no events match the criteria.
+   * @throws MissingBatchEntityKeysException when [filterSpec] is [FilterSpec.ByEntityKeys] and
+   *   [batch.entityKeys] is empty.
    */
   fun processBatch(batch: EventBatch<T>): EventBatch<T> {
     if (batch.events.isEmpty()) {
       return batch
     }
 
-    when (val spec = filterSpec) {
-      is FilterSpec.ByEventGroupReferenceIds -> {
-        if (!spec.eventGroupReferenceIds.contains(batch.eventGroupReferenceId)) {
-          return emptyBatchLike(batch)
+    val entityKeyFilter: Set<LabeledImpression.EntityKey>? =
+      when (val spec = filterSpec) {
+        is FilterSpec.ByEventGroupReferenceIds -> {
+          if (!spec.eventGroupReferenceIds.contains(batch.eventGroupReferenceId)) {
+            return emptyBatchLike(batch)
+          }
+          null
+        }
+        is FilterSpec.ByEntityKeys -> {
+          if (batch.entityKeys.isEmpty()) throw MissingBatchEntityKeysException()
+          if (!batchEntityKeysOverlap(batch, spec.entityKeys)) {
+            return emptyBatchLike(batch)
+          }
+          spec.entityKeys
         }
       }
-      is FilterSpec.ByEntityKeys -> {
-        if (!batchEntityKeysOverlap(batch, spec.entityKeys)) {
-          return emptyBatchLike(batch)
-        }
-      }
-    }
 
     // Fast batch-level time range check: skip entire batch if no overlap
     if (!batchTimeRangeOverlaps(batch)) {
       return emptyBatchLike(batch)
     }
-
-    val entityKeyFilter: Set<LabeledImpressionEntityKey>? =
-      (filterSpec as? FilterSpec.ByEntityKeys)?.entityKeys
 
     val filteredEvents =
       batch.events.filter { event ->
@@ -159,14 +177,8 @@ class FilterProcessor<T : Message>(
    *
    * This is a fast batch-level check to avoid processing events when the entire batch is outside
    * the collection interval.
-   *
-   * @param batch the batch to check
-   * @return `true` if the batch time range overlaps with the collection interval, `false` otherwise
    */
   private fun batchTimeRangeOverlaps(batch: EventBatch<T>): Boolean {
-    // Check if batch [minTime, maxTime] overlaps with filter [startInstant, endInstant)
-    // For the collection interval [start, end), events at exactly start time should be included
-    // Overlap exists if: batch.maxTime >= startInstant AND batch.minTime < endInstant
     return !batch.maxTime.isBefore(startInstant) && batch.minTime.isBefore(endInstant)
   }
 
@@ -174,10 +186,7 @@ class FilterProcessor<T : Message>(
    * Checks if an event's timestamp falls within the collection interval.
    *
    * Uses a half-open interval [start, end) where the start time is inclusive and the end time is
-   * exclusive. This follows standard time interval conventions.
-   *
-   * @param event the event to check
-   * @return `true` if the event timestamp is within the interval, `false` otherwise
+   * exclusive.
    */
   private fun isEventInTimeRange(event: LabeledEvent<T>): Boolean {
     val eventTime = event.timestamp
@@ -191,7 +200,7 @@ class FilterProcessor<T : Message>(
    */
   private fun eventMatchesEntityKeyFilter(
     event: LabeledEvent<T>,
-    filter: Set<LabeledImpressionEntityKey>,
+    filter: Set<LabeledImpression.EntityKey>,
   ): Boolean {
     return event.entityKeys.any { it in filter }
   }
@@ -200,20 +209,23 @@ class FilterProcessor<T : Message>(
    * Checks whether any [org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup] on [batch]
    * contains an `(entity_type, entity_id)` pair that matches [filter].
    *
-   * A batch with empty `entityKeys` always fails this check.
+   * Pre-flattens the batch's grouped entity keys into a `Set<EntityKeyPair>` once, then performs
+   * O(1) membership lookups for each filter element. Faster than nested `any { contains(...) }`
+   * for batches with many entity keys.
+   *
+   * Caller must ensure `batch.entityKeys` is non-empty before invoking.
    */
   private fun batchEntityKeysOverlap(
     batch: EventBatch<T>,
-    filter: Set<LabeledImpressionEntityKey>,
+    filter: Set<LabeledImpression.EntityKey>,
   ): Boolean {
-    if (batch.entityKeys.isEmpty()) return false
-    return filter.any { fk ->
-      batch.entityKeys.any { g ->
-        g.entityType == fk.entityType && g.entityIdsList.contains(fk.entityId)
-      }
-    }
+    val batchKeyPairs: Set<EntityKeyPair> =
+      batch.entityKeys
+        .flatMap { g -> g.entityIdsList.map { id -> EntityKeyPair(g.entityType, id) } }
+        .toSet()
+    return filter.any { fk -> EntityKeyPair(fk.entityType, fk.entityId) in batchKeyPairs }
   }
-}
 
-private typealias LabeledImpressionEntityKey =
-  org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression.EntityKey
+  /** Flattened (entity_type, entity_id) pair for O(1) batch entity-key lookups. */
+  private data class EntityKeyPair(val entityType: String, val entityId: String)
+}
