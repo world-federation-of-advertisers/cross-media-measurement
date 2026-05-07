@@ -12,16 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Test-only mirror of the Origin UK Display event template from
-// https://github.com/world-federation-of-advertisers/local-market-configuration/tree/main/origin/uk/eventtemplate/v1.
+// Display engagement template for the test-only `MarketEvent`.
+//
+// Mirrors the discretized boolean modeling style used by some markets for
+// display ad viewability (separate fields per viewability bucket, instead of
+// a single continuous metric). See //src/test/proto/.../market/v1/common.proto
+// for the broader motivation behind the `MarketEvent` template.
 
 syntax = "proto3";
 
-package halo_cmm.origin.uk.eventtemplate.v1;
+package wfa.measurement.api.v2alpha.event_templates.testing.market.v1;
 
 import "wfa/measurement/api/v2alpha/event_annotations.proto";
 
-option java_package = "org.halo_cmm.origin.uk.eventtemplate.v1";
+option java_package =
+    "org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1";
 option java_multiple_files = true;
 
 message Display {
@@ -29,7 +34,7 @@ message Display {
     name: "display"
     media_type: DISPLAY
     display_name: "Display Ad"
-    description: "An Event Template for display ad events."
+    description: "Display ad engagement attributes for MarketEvent."
   };
 
   bool viewable_0_percent_plus = 1
@@ -46,7 +51,7 @@ message Display {
       }];
   bool viewable_100_percent = 3
       [(.wfa.measurement.api.v2alpha.template_field) = {
-        display_name: "Viewable 100%+"
+        display_name: "Viewable 100%"
         reporting_features: IMPRESSION_QUALIFICATION
         version_added: 1
       }];
