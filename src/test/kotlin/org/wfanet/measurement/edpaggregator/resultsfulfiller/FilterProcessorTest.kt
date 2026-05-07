@@ -22,6 +22,8 @@ import com.google.protobuf.DynamicMessage
 import com.google.protobuf.Message
 import com.google.protobuf.util.Timestamps
 import com.google.type.Interval
+import com.google.protobuf.timestamp
+import com.google.type.interval
 import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -84,6 +86,7 @@ class FilterProcessorTest {
   /** Helper function to create an EventBatch with proper minTime and maxTime. */
   private fun createEventBatch(
     events: List<LabeledEvent<Message>>,
+    eventGroupReferenceId: String = "test-group",
     entityKeys: List<EntityKeyGroup> = emptyList(),
   ): EventBatch<Message> {
     val timestamps = events.map { it.timestamp }
@@ -93,30 +96,21 @@ class FilterProcessorTest {
       events,
       minTime,
       maxTime,
-      eventGroupReferenceId = "test-group",
+      eventGroupReferenceId = eventGroupReferenceId,
       entityKeys = entityKeys,
     )
   }
 
   /** Helper function to create a default interval that covers a wide time range. */
-  private fun createDefaultInterval(): Interval {
-    val startTime = Instant.parse("2000-01-01T00:00:00Z")
-    val endTime = Instant.parse("2050-12-31T23:59:59Z")
-
-    return Interval.newBuilder()
-      .setStartTime(Timestamps.fromMillis(startTime.toEpochMilli()))
-      .setEndTime(Timestamps.fromMillis(endTime.toEpochMilli()))
-      .build()
+  private fun createDefaultInterval(): Interval = interval {
+    startTime = timestamp { seconds = Instant.parse("2000-01-01T00:00:00Z").epochSecond }
+    endTime = timestamp { seconds = Instant.parse("2050-12-31T23:59:59Z").epochSecond }
   }
 
   /** Helper function to create an invalid interval (endTime <= startTime). */
-  private fun createInvalidInterval(): Interval {
-    val startTime = Instant.parse("2050-01-01T00:00:00Z")
-    val endTime = Instant.parse("2000-01-01T00:00:00Z")
-    return Interval.newBuilder()
-      .setStartTime(Timestamps.fromMillis(startTime.toEpochMilli()))
-      .setEndTime(Timestamps.fromMillis(endTime.toEpochMilli()))
-      .build()
+  private fun createInvalidInterval(): Interval = interval {
+    startTime = timestamp { seconds = Instant.parse("2050-01-01T00:00:00Z").epochSecond }
+    endTime = timestamp { seconds = Instant.parse("2000-01-01T00:00:00Z").epochSecond }
   }
 
   /** Helper function to create a FilterSpec for testing. */
@@ -575,14 +569,17 @@ class FilterProcessorTest {
           ),
         )
 
-      val result = filterProcessor.processBatch(createEventBatch(events))
+      val result =
+        filterProcessor.processBatch(
+          createEventBatch(events, entityKeys = listOf(makeEntityKeyGroup("ad", "X")))
+        )
 
       assertThat(result.events).isEmpty()
     }
   }
 
   @Test
-  fun `processBatch with entityKeys filter drops events whose entityKeys are empty`() {
+  fun `processBatch throws MissingBatchEntityKeysException when ByEntityKeys filter is given a batch with empty entity_keys`() {
     runBlocking {
       val filterSpec =
         createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X")))
@@ -590,9 +587,9 @@ class FilterProcessorTest {
 
       val events = listOf(createTestLabeledEvent(1, entityKeys = emptyList()))
 
-      val result = filterProcessor.processBatch(createEventBatch(events))
-
-      assertThat(result.events).isEmpty()
+      assertFailsWith<MissingBatchEntityKeysException> {
+        filterProcessor.processBatch(createEventBatch(events))
+      }
     }
   }
 
@@ -663,33 +660,29 @@ class FilterProcessorTest {
   }
 
   @Test
-  fun `FilterSpec ByEventGroupReferenceIds init throws when eventGroupReferenceIds is empty`() {
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        FilterSpec.ByEventGroupReferenceIds(
-          celExpression = "",
-          collectionInterval = createDefaultInterval(),
-          eventGroupReferenceIds = emptyList(),
-        )
-      }
-    assertThat(exception).hasMessageThat().contains("eventGroupReferenceIds must not be empty")
+  fun `FilterSpec ByEventGroupReferenceIds construction throws when eventGroupReferenceIds selector is empty`() {
+    assertFailsWith<EmptyEventGroupReferenceIdsException> {
+      FilterSpec.ByEventGroupReferenceIds(
+        celExpression = "",
+        collectionInterval = createDefaultInterval(),
+        eventGroupReferenceIds = emptyList(),
+      )
+    }
   }
 
   @Test
-  fun `FilterSpec ByEntityKeys init throws when entityKeys is empty`() {
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        FilterSpec.ByEntityKeys(
-          celExpression = "",
-          collectionInterval = createDefaultInterval(),
-          entityKeys = emptySet(),
-        )
-      }
-    assertThat(exception).hasMessageThat().contains("entityKeys must not be empty")
+  fun `FilterSpec ByEntityKeys construction throws when entityKeys selector is empty`() {
+    assertFailsWith<EmptyEntityKeysException> {
+      FilterSpec.ByEntityKeys(
+        celExpression = "",
+        collectionInterval = createDefaultInterval(),
+        entityKeys = emptySet(),
+      )
+    }
   }
 
   @Test
-  fun `FilterSpec ByEntityKeys init accepts non-empty entityKeys`() {
+  fun `FilterSpec ByEntityKeys construction accepts non-empty entityKeys`() {
     // No exception expected.
     FilterSpec.ByEntityKeys(
       celExpression = "",
@@ -699,7 +692,7 @@ class FilterProcessorTest {
   }
 
   @Test
-  fun `FilterSpec ByEventGroupReferenceIds init accepts non-empty eventGroupReferenceIds`() {
+  fun `FilterSpec ByEventGroupReferenceIds construction accepts non-empty eventGroupReferenceIds`() {
     // No exception expected.
     FilterSpec.ByEventGroupReferenceIds(
       celExpression = "",
@@ -709,33 +702,25 @@ class FilterProcessorTest {
   }
 
   @Test
-  fun `FilterSpec ByEventGroupReferenceIds init throws when collectionInterval is invalid`() {
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        FilterSpec.ByEventGroupReferenceIds(
-          celExpression = "",
-          collectionInterval = createInvalidInterval(),
-          eventGroupReferenceIds = listOf("test-group"),
-        )
-      }
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("collectionInterval startTime must be before endTime")
+  fun `FilterSpec ByEventGroupReferenceIds construction throws when collectionInterval is invalid`() {
+    assertFailsWith<InvalidCollectionIntervalException> {
+      FilterSpec.ByEventGroupReferenceIds(
+        celExpression = "",
+        collectionInterval = createInvalidInterval(),
+        eventGroupReferenceIds = listOf("test-group"),
+      )
+    }
   }
 
   @Test
-  fun `FilterSpec ByEntityKeys init throws when collectionInterval is invalid`() {
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        FilterSpec.ByEntityKeys(
-          celExpression = "",
-          collectionInterval = createInvalidInterval(),
-          entityKeys = setOf(makeEntityKey("ad", "X")),
-        )
-      }
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("collectionInterval startTime must be before endTime")
+  fun `FilterSpec ByEntityKeys construction throws when collectionInterval is invalid`() {
+    assertFailsWith<InvalidCollectionIntervalException> {
+      FilterSpec.ByEntityKeys(
+        celExpression = "",
+        collectionInterval = createInvalidInterval(),
+        entityKeys = setOf(makeEntityKey("ad", "X")),
+      )
+    }
   }
 
   @Test
@@ -761,7 +746,7 @@ class FilterProcessorTest {
   }
 
   @Test
-  fun `processBatch with batch entityKeys not overlapping the filter short-circuits`() {
+  fun `processBatch with batch entityKeys not overlapping the filter returns empty batch`() {
     runBlocking {
       val filterSpec =
         createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X")))
@@ -774,23 +759,6 @@ class FilterProcessorTest {
       val batchKeys = listOf(makeEntityKeyGroup("placement", "P"))
 
       val result = filterProcessor.processBatch(createEventBatch(events, entityKeys = batchKeys))
-
-      assertThat(result.events).isEmpty()
-    }
-  }
-
-  @Test
-  fun `processBatch with empty batch entityKeys and non-empty filter drops the batch`() {
-    runBlocking {
-      val filterSpec =
-        createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X")))
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
-
-      val events =
-        listOf(createTestLabeledEvent(1, entityKeys = listOf(makeEntityKey("ad", "X"))))
-
-      // No batch-level entity_keys — cannot match a non-empty filter.
-      val result = filterProcessor.processBatch(createEventBatch(events, entityKeys = emptyList()))
 
       assertThat(result.events).isEmpty()
     }
