@@ -30,7 +30,12 @@ SELECT
   r.CmmsCreateTime,
   r.RequisitionCreateTime,
   TIMESTAMP_DIFF(r.FulfilledTime, r.StoredTime, SECOND) AS FulfillmentDurationSeconds,
-  rpt.ReportState,
+  CASE
+    WHEN rpt.FailedMetrics > 0 THEN 'FAILED'
+    WHEN rpt.MetricCount > 0 AND rpt.MetricCount = rpt.SucceededMetrics THEN 'SUCCEEDED'
+    WHEN rpt.MetricCount = 0 THEN 'NO_METRICS'
+    ELSE 'IN_PROGRESS'
+  END AS ReportState,
   rpt.MetricCount,
   rpt.SucceededMetrics,
   rpt.FailedMetrics,
@@ -69,14 +74,8 @@ LEFT JOIN (
       COUNT(m.metricid) AS MetricCount,
       COUNT(CASE WHEN m.state = 4 THEN 1 END) AS SucceededMetrics,
       COUNT(CASE WHEN m.state = 5 THEN 1 END) AS FailedMetrics,
-      CASE
-        WHEN COUNT(CASE WHEN m.state = 5 THEN 1 END) > 0 THEN ''FAILED''
-        WHEN COUNT(m.metricid) > 0 AND COUNT(m.metricid) = COUNT(CASE WHEN m.state = 4 THEN 1 END) THEN ''SUCCEEDED''
-        WHEN COUNT(m.metricid) = 0 THEN ''NO_METRICS''
-        ELSE ''IN_PROGRESS''
-      END AS ReportState,
-      json_extract_path_text(rp.reportdetailsjson::json, ''timeIntervals'', ''timeIntervals'', ''0'', ''startTime'') AS ReportTimeStart,
-      json_extract_path_text(rp.reportdetailsjson::json, ''timeIntervals'', ''timeIntervals'', ''0'', ''endTime'') AS ReportTimeEnd
+      json_extract_path_text(rp.reportdetailsjson::json, 'timeIntervals', 'timeIntervals', '0', 'startTime') AS ReportTimeStart,
+      json_extract_path_text(rp.reportdetailsjson::json, 'timeIntervals', 'timeIntervals', '0', 'endTime') AS ReportTimeEnd
     FROM reports rp
     LEFT JOIN metriccalculationspecreportingmetrics mcsrm
       ON rp.measurementconsumerid = mcsrm.measurementconsumerid
