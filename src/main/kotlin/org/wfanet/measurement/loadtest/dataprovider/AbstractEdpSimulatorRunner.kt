@@ -29,9 +29,9 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.FileExistsHealth
 import org.wfanet.measurement.common.ProtoReflection
@@ -51,8 +51,8 @@ import picocli.CommandLine
 abstract class AbstractEdpSimulatorRunner : Runnable {
   @CommandLine.Mixin private lateinit var flags: EdpSimulatorFlags
 
-  protected val syntheticPopulationSpec: SyntheticPopulationSpec by lazy {
-    parseTextProto(flags.populationSpecFile, SyntheticPopulationSpec.getDefaultInstance())
+  protected val populationSpec: PopulationSpec by lazy {
+    parseTextProto(flags.populationSpecFile, PopulationSpec.getDefaultInstance())
   }
 
   protected val typeRegistry: TypeRegistry by lazy {
@@ -66,7 +66,7 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
   }
 
   protected val eventMessageDescriptor: Descriptors.Descriptor
-    get() = typeRegistry.getNonNullDescriptorForTypeUrl(syntheticPopulationSpec.eventMessageTypeUrl)
+    get() = typeRegistry.getNonNullDescriptorForTypeUrl(flags.eventMessageTypeUrl)
 
   protected val edpData: DataProviderData by lazy {
     val signingKeyHandle =
@@ -135,8 +135,7 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
         it.duchyId to stub
       }
 
-    val vidIndexMap: InMemoryVidIndexMap =
-      InMemoryVidIndexMap.build(syntheticPopulationSpec.toPopulationSpecWithoutAttributes())
+    val vidIndexMap: InMemoryVidIndexMap = InMemoryVidIndexMap.build(populationSpec)
 
     val randomSeed = flags.randomSeed
     val random =
@@ -152,9 +151,9 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
     val eventQuery =
       EventQuery(
         flags.dataProviderDisplayName,
-        syntheticPopulationSpec,
+        populationSpec,
         syntheticDataTimeZone,
-        typeRegistry.getDescriptorForTypeUrl(syntheticPopulationSpec.eventMessageTypeUrl),
+        typeRegistry.getNonNullDescriptorForTypeUrl(flags.eventMessageTypeUrl),
         eventGroupsOptions,
       )
 
@@ -226,16 +225,12 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
 
   protected class EventQuery(
     edpDisplayName: String,
-    syntheticPopulationSpec: SyntheticPopulationSpec,
+    populationSpec: PopulationSpec,
     syntheticDataTimeZone: ZoneId,
     eventMessageDescriptor: Descriptors.Descriptor,
     eventGroupsOptions: Iterable<AbstractEdpSimulator.EventGroupOptions>,
   ) :
-    SyntheticGeneratorEventQuery(
-      syntheticPopulationSpec,
-      eventMessageDescriptor,
-      syntheticDataTimeZone,
-    ) {
+    SyntheticGeneratorEventQuery(populationSpec, eventMessageDescriptor, syntheticDataTimeZone) {
     private val syntheticDataSpecByReferenceId: Map<String, SyntheticEventGroupSpec>
 
     init {
