@@ -12,23 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Test-only mirror of the Origin UK Common event template from
-// https://github.com/world-federation-of-advertisers/local-market-configuration/tree/main/origin/uk/eventtemplate/v1.
+// Common (population) attributes for the test-only `MarketEvent` template.
+//
+// `MarketEvent` is a synthetic event template that mimics the shape of
+// event templates defined by individual markets (for example, the layout used
+// by the Origin UK market: a single `Common` message carrying demographic
+// population attributes, plus separate `Video` / `Display` / `Other`
+// engagement templates with discretized boolean fields). It is intentionally
+// NOT kept in sync with any external market-specific definition; it exists
+// only to exercise the descriptor-set / DynamicMessage code path of the
+// synthetic data generation tooling against a non-`TestEvent` message type.
 
 syntax = "proto3";
 
-package halo_cmm.origin.uk.eventtemplate.v1;
+package wfa.measurement.api.v2alpha.event_templates.testing.market.v1;
 
 import "wfa/measurement/api/v2alpha/event_annotations.proto";
 
-option java_package = "org.halo_cmm.origin.uk.eventtemplate.v1";
+option java_package =
+    "org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1";
 option java_multiple_files = true;
 
 message Common {
   option (.wfa.measurement.api.v2alpha.event_template) = {
     name: "common"
-    display_name: "Origin Common Template"
-    description: "A common base template for Origin event filtering."
+    display_name: "Market Common Template"
+    description: "Population (demographic) attributes for MarketEvent."
   };
 
   enum Sex {

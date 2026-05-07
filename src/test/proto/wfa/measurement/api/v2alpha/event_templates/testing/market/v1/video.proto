@@ -12,16 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Test-only mirror of the Origin UK Video event template from
-// https://github.com/world-federation-of-advertisers/local-market-configuration/tree/main/origin/uk/eventtemplate/v1.
+// Video engagement template for the test-only `MarketEvent`.
+//
+// Modeled after market-style video templates that report discretized
+// completion / viewability buckets as boolean flags rather than continuous
+// metrics. See //src/test/proto/.../market/v1/common.proto for the broader
+// motivation behind the `MarketEvent` template.
 
 syntax = "proto3";
 
-package halo_cmm.origin.uk.eventtemplate.v1;
+package wfa.measurement.api.v2alpha.event_templates.testing.market.v1;
 
 import "wfa/measurement/api/v2alpha/event_annotations.proto";
 
-option java_package = "org.halo_cmm.origin.uk.eventtemplate.v1";
+option java_package =
+    "org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1";
 option java_multiple_files = true;
 
 message Video {
@@ -29,7 +34,7 @@ message Video {
     name: "video"
     media_type: VIDEO
     display_name: "Video Ad"
-    description: "An Event Template for video ad events."
+    description: "Video ad engagement attributes for MarketEvent."
   };
 
   bool completed_0_percent_plus = 1

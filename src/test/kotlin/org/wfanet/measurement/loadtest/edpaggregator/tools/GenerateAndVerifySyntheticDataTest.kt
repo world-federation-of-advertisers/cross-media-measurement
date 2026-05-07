@@ -35,6 +35,8 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.Common as MarketCommon
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.MarketEvent
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.flatten
@@ -335,13 +337,13 @@ class GenerateAndVerifySyntheticDataTest {
   }
 
   @Test
-  fun `generate and verify with non-TestEvent Origin UK Event via descriptor set`() {
+  fun `generate and verify with non-TestEvent MarketEvent via descriptor set`() {
     val outputBucketDir = tempFolder.root.resolve(OUTPUT_BUCKET)
     outputBucketDir.mkdirs()
 
-    val descriptorSetFile = ORIGIN_UK_DESCRIPTOR_SET_RUNTIME_PATH.toFile()
+    val descriptorSetFile = MARKET_EVENT_DESCRIPTOR_SET_RUNTIME_PATH.toFile()
     check(descriptorSetFile.exists()) {
-      "Origin UK Event descriptor set runfile not found at $descriptorSetFile"
+      "MarketEvent descriptor set runfile not found at $descriptorSetFile"
     }
 
     val generateCmd = GenerateSyntheticData()
@@ -355,14 +357,14 @@ class GenerateAndVerifySyntheticDataTest {
           "--model-line=$MODEL_LINE",
           "--output-bucket=$OUTPUT_BUCKET",
           "--schema=file:///",
-          "--population-spec-resource-path=$ORIGIN_UK_POPULATION_SPEC",
+          "--population-spec-resource-path=$MARKET_POPULATION_SPEC",
           "--impression-metadata-base-path=$IMPRESSION_METADATA_BASE_PATH",
-          "--event-message-type-url=$ORIGIN_UK_EVENT_TYPE_URL",
+          "--event-message-type-url=$MARKET_EVENT_TYPE_URL",
           "--event-message-descriptor-set=${descriptorSetFile.path}",
-          "--event-group-reference-id=eg-origin-uk",
-          "--data-spec-resource-path=$ORIGIN_UK_DATA_SPEC",
+          "--event-group-reference-id=eg-market",
+          "--data-spec-resource-path=$MARKET_DATA_SPEC",
           "--entity-key-type=creative",
-          "--entity-key-id=creative-uk",
+          "--entity-key-id=creative-market",
         )
     assertThat(generateExitCode).isEqualTo(0)
 
@@ -379,24 +381,24 @@ class GenerateAndVerifySyntheticDataTest {
           "--local-storage-path=${tempFolder.root.path}",
           "--output-bucket=$OUTPUT_BUCKET",
           "--impression-metadata-base-path=$IMPRESSION_METADATA_BASE_PATH",
-          "--event-message-type-url=$ORIGIN_UK_EVENT_TYPE_URL",
+          "--event-message-type-url=$MARKET_EVENT_TYPE_URL",
           "--event-message-descriptor-set=${descriptorSetFile.path}",
         )
     assertThat(verifyExitCode).isEqualTo(0)
     val result = verifyCmd.lastResult!!
     assertThat(result.errors).isEqualTo(0)
-    assertThat(result.totalImpressions).isEqualTo(ORIGIN_UK_EXPECTED_IMPRESSIONS)
+    assertThat(result.totalImpressions).isEqualTo(MARKET_EVENT_EXPECTED_IMPRESSIONS)
     assertThat(result.impressionsByEventGroupReferenceId)
-      .containsExactly("eg-origin-uk", ORIGIN_UK_EXPECTED_IMPRESSIONS)
+      .containsExactly("eg-market", MARKET_EVENT_EXPECTED_IMPRESSIONS)
 
-    // Independently re-decrypt one impression and parse it as a compiled
-    // halo_cmm.origin.uk.eventtemplate.v1.Event to confirm the bytes are valid wire form for the
-    // real Event message and carry the expected attribute values.
+    // Independently re-decrypt one impression and parse it as a compiled MarketEvent to confirm
+    // the bytes are valid wire form for the real MarketEvent message and carry the expected
+    // attribute values.
     val kmsClient = GenerateSyntheticData.buildFakeKmsClient(KEK_URI, fakeKekKeysetFile())
     val modelLineId = MODEL_LINE.substringAfterLast('/')
     val perEventGroupRelativeDir =
       "$IMPRESSION_METADATA_BASE_PATH/ds/2024-01-01/" +
-        "model-line/$modelLineId/event-group-reference-id/eg-origin-uk"
+        "model-line/$modelLineId/event-group-reference-id/eg-market"
     val storageClient = FileSystemStorageClient(tempFolder.root)
     val blobDetails = runBlocking {
       BlobDetails.parseFrom(
@@ -422,44 +424,32 @@ class GenerateAndVerifySyntheticDataTest {
     }
     assertThat(impressions).isNotEmpty()
     val sampleImpression = impressions.first()
-    assertThat(sampleImpression.event.typeUrl).isEqualTo(ORIGIN_UK_EVENT_TYPE_URL)
-    val parsedEvent =
-      org.halo_cmm.origin.uk.eventtemplate.v1.Event.parseFrom(sampleImpression.event.value)
-    assertThat(parsedEvent.common.sex)
-      .isNotEqualTo(org.halo_cmm.origin.uk.eventtemplate.v1.Common.Sex.SEX_UNSPECIFIED)
+    assertThat(sampleImpression.event.typeUrl).isEqualTo(MARKET_EVENT_TYPE_URL)
+    val parsedEvent = MarketEvent.parseFrom(sampleImpression.event.value)
+    assertThat(parsedEvent.common.sex).isNotEqualTo(MarketCommon.Sex.SEX_UNSPECIFIED)
     assertThat(parsedEvent.common.ageGroup)
-      .isNotEqualTo(org.halo_cmm.origin.uk.eventtemplate.v1.Common.AgeGroup.AGE_GROUP_UNSPECIFIED)
+      .isNotEqualTo(MarketCommon.AgeGroup.AGE_GROUP_UNSPECIFIED)
 
     // Verify counts grouped by (Common.sex, Common.age_group) across all impressions.
     val allImpressions: List<LabeledImpression> = decryptAllImpressions()
-    val parsedEvents: List<org.halo_cmm.origin.uk.eventtemplate.v1.Event> =
-      allImpressions.map { org.halo_cmm.origin.uk.eventtemplate.v1.Event.parseFrom(it.event.value) }
+    val parsedEvents: List<MarketEvent> =
+      allImpressions.map { MarketEvent.parseFrom(it.event.value) }
 
-    val countsBySexAndAge:
-      Map<
-        Pair<
-          org.halo_cmm.origin.uk.eventtemplate.v1.Common.Sex,
-          org.halo_cmm.origin.uk.eventtemplate.v1.Common.AgeGroup,
-        >,
-        Int,
-      > =
+    val countsBySexAndAge: Map<Pair<MarketCommon.Sex, MarketCommon.AgeGroup>, Int> =
       parsedEvents.groupingBy { it.common.sex to it.common.ageGroup }.eachCount()
 
-    // Expected counts derived from small_origin_uk_population_spec.textproto +
-    // small_origin_uk_data_spec.textproto:
+    // Expected counts derived from small_market_population_spec.textproto +
+    // small_market_data_spec.textproto:
     //   VID 1..200      -> sub-pop 1 (MALE,   16-34) freq 1 -> 200
     //   VID 10001..10100-> sub-pop 2 (MALE,   35-54) freq 2 -> 200
     //   VID 20001..20050-> sub-pop 3 (FEMALE, 16-34) freq 3 -> 150
     assertThat(countsBySexAndAge)
       .containsExactly(
-        org.halo_cmm.origin.uk.eventtemplate.v1.Common.Sex.MALE to
-          org.halo_cmm.origin.uk.eventtemplate.v1.Common.AgeGroup.YEARS_16_TO_34,
+        MarketCommon.Sex.MALE to MarketCommon.AgeGroup.YEARS_16_TO_34,
         200,
-        org.halo_cmm.origin.uk.eventtemplate.v1.Common.Sex.MALE to
-          org.halo_cmm.origin.uk.eventtemplate.v1.Common.AgeGroup.YEARS_35_TO_54,
+        MarketCommon.Sex.MALE to MarketCommon.AgeGroup.YEARS_35_TO_54,
         200,
-        org.halo_cmm.origin.uk.eventtemplate.v1.Common.Sex.FEMALE to
-          org.halo_cmm.origin.uk.eventtemplate.v1.Common.AgeGroup.YEARS_16_TO_34,
+        MarketCommon.Sex.FEMALE to MarketCommon.AgeGroup.YEARS_16_TO_34,
         150,
       )
   }
@@ -506,9 +496,9 @@ class GenerateAndVerifySyntheticDataTest {
   fun `verify reports errors when event-message-type-url does not match impression type URL`() {
     runGenerate()
 
-    val descriptorSetFile = ORIGIN_UK_DESCRIPTOR_SET_RUNTIME_PATH.toFile()
+    val descriptorSetFile = MARKET_EVENT_DESCRIPTOR_SET_RUNTIME_PATH.toFile()
     check(descriptorSetFile.exists()) {
-      "Origin UK Event descriptor set runfile not found at $descriptorSetFile"
+      "MarketEvent descriptor set runfile not found at $descriptorSetFile"
     }
 
     val verifyCmd = VerifySyntheticData()
@@ -522,11 +512,11 @@ class GenerateAndVerifySyntheticDataTest {
           "--output-bucket=$OUTPUT_BUCKET",
           "--impression-metadata-base-path=$IMPRESSION_METADATA_BASE_PATH",
           // Impressions on disk were written with the TestEvent type URL but we deliberately ask
-          // the verifier to expect Origin UK Event. The resolver will succeed (descriptor set has
-          // the Origin UK Event), so the failure must come from the per-impression type URL check
-          // inside verifySyntheticData(). Every blob (= EXPECTED_DATES.size * 2) must be marked as
-          // an error and totalImpressions must remain 0.
-          "--event-message-type-url=$ORIGIN_UK_EVENT_TYPE_URL",
+          // the verifier to expect MarketEvent. The resolver will succeed (the descriptor set
+          // contains MarketEvent), so the failure must come from the per-impression type URL
+          // check inside verifySyntheticData(). Every blob (= EXPECTED_DATES.size * 2) must be
+          // marked as an error and totalImpressions must remain 0.
+          "--event-message-type-url=$MARKET_EVENT_TYPE_URL",
           "--event-message-descriptor-set=${descriptorSetFile.path}",
         )
 
@@ -658,45 +648,53 @@ class GenerateAndVerifySyntheticDataTest {
         "2021-03-21",
       )
 
-    /** Type URL for the test-only mirror of the Origin UK Event message. */
-    private const val ORIGIN_UK_EVENT_TYPE_URL =
-      "type.googleapis.com/halo_cmm.origin.uk.eventtemplate.v1.Event"
+    /**
+     * Type URL for the test-only [MarketEvent] message
+     * (`wfa.measurement.api.v2alpha.event_templates.testing.market.v1.MarketEvent`). Used to
+     * exercise GenerateSyntheticData/VerifySyntheticData against a non-`TestEvent` message type.
+     */
+    private const val MARKET_EVENT_TYPE_URL =
+      "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.market.v1.MarketEvent"
 
     /**
-     * v2alpha PopulationSpec textproto under [TEST_DATA_PATH] sized to match [ORIGIN_UK_DATA_SPEC];
-     * references the Origin UK Common attribute message.
+     * v2alpha PopulationSpec textproto under [TEST_DATA_PATH] sized to match [MARKET_DATA_SPEC];
+     * references the MarketEvent `Common` attribute message.
      */
-    private const val ORIGIN_UK_POPULATION_SPEC = "small_origin_uk_population_spec.textproto"
+    private const val MARKET_POPULATION_SPEC = "small_market_population_spec.textproto"
 
     /**
      * SyntheticEventGroupSpec textproto under [TEST_DATA_PATH] using non-population field paths
-     * exposed by the Origin UK Video and Display templates.
+     * exposed by the MarketEvent `Video` and `Display` templates.
      */
-    private const val ORIGIN_UK_DATA_SPEC = "small_origin_uk_data_spec.textproto"
+    private const val MARKET_DATA_SPEC = "small_market_data_spec.textproto"
 
     /**
-     * Total impressions produced by [ORIGIN_UK_DATA_SPEC]: (200 VIDs * 1) + (100 VIDs * 2) + (50
-     * VIDs * 3) = 550.
+     * Total impressions produced by [MARKET_DATA_SPEC]: (200 VIDs * 1) + (100 VIDs * 2) + (50 VIDs
+     * * 3) = 550.
      */
-    private const val ORIGIN_UK_EXPECTED_IMPRESSIONS = 550
+    private const val MARKET_EVENT_EXPECTED_IMPRESSIONS = 550
 
     /**
-     * Runtime path of the [proto_descriptor_set]-generated FileDescriptorSet for the Origin UK
-     * Event message and its template/dependency files. The file is added to the test target's
-     * `data` deps and resolved through the Bazel runfiles tree.
+     * Runtime path of the [proto_descriptor_set]-generated FileDescriptorSet for the test-only
+     * [MarketEvent] message and its template/dependency files. The file is added to the test
+     * target's `data` deps and resolved through the Bazel runfiles tree.
      */
-    private val ORIGIN_UK_DESCRIPTOR_SET_RUNTIME_PATH =
+    private val MARKET_EVENT_DESCRIPTOR_SET_RUNTIME_PATH =
       getRuntimePath(
         Paths.get(
           "wfa_measurement_system",
           "src",
           "test",
           "proto",
-          "origin",
-          "uk",
-          "eventtemplate",
+          "wfa",
+          "measurement",
+          "api",
+          "v2alpha",
+          "event_templates",
+          "testing",
+          "market",
           "v1",
-          "event_descriptor_set.pb",
+          "market_event_descriptor_set.pb",
         )
       )!!
   }
