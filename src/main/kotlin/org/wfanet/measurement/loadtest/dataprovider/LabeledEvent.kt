@@ -33,3 +33,31 @@ data class LabeledEventDateShard<T : Message>(
   val localDate: LocalDate,
   val labeledEvents: Sequence<LabeledEvent<T>>,
 )
+
+/** Domain-level identity for an entity associated with a labeled impression. */
+data class EntityKey(val entityType: String, val entityId: String)
+
+/**
+ * A group of [LabeledEvent]s that share the same [entityKeys].
+ *
+ * Multiple groups may live inside a single [EntityKeyedLabeledEventDateShard]. When the shard is
+ * written, all groups land in the same impressions blob, but each event is stamped with the
+ * [entityKeys] from its containing group, allowing different impressions in the same file to carry
+ * different entity keys.
+ */
+data class EntityKeysWithLabeledEvents<T : Message>(
+  val entityKeys: List<EntityKey>,
+  val labeledEvents: Sequence<LabeledEvent<T>>,
+)
+
+/**
+ * A date shard intended for the impressions writer: groups of labeled events for a single date,
+ * each annotated with the [EntityKey]s to attach to every event in the group.
+ *
+ * A shard with a single group containing `entityKeys = emptyList()` represents the legacy "no
+ * entity keys" behavior.
+ */
+data class EntityKeyedLabeledEventDateShard<T : Message>(
+  val localDate: LocalDate,
+  val entityKeysWithLabeledEvents: Sequence<EntityKeysWithLabeledEvents<T>>,
+)

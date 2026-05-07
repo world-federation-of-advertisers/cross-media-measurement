@@ -97,6 +97,8 @@ import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.deploy.gcloud.SecureComputationServicesProviderRule
+import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
+import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
@@ -569,7 +571,14 @@ class InProcessEdpAggregatorComponents(
           storagePath.toFile(),
           "file:///",
         )
-      impressionWriter.writeLabeledImpressionData(events, modelLineName, null)
+      val entityKeyedEvents: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
+        events.map {
+          EntityKeyedLabeledEventDateShard(
+            it.localDate,
+            sequenceOf(EntityKeysWithLabeledEvents(emptyList(), it.labeledEvents)),
+          )
+        }
+      impressionWriter.writeLabeledImpressionData(entityKeyedEvents, modelLineName, null)
     }
   }
 
