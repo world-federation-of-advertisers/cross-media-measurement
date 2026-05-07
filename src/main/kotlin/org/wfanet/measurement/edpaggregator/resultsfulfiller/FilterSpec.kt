@@ -20,6 +20,21 @@ import com.google.type.Interval
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 
+/** Thrown when a [FilterSpec] is constructed with an empty `eventGroupReferenceIds` selector. */
+class EmptyEventGroupReferenceIdsException :
+  IllegalArgumentException("eventGroupReferenceIds must not be empty")
+
+/** Thrown when a [FilterSpec] is constructed with an empty `entityKeys` selector. */
+class EmptyEntityKeysException :
+  IllegalArgumentException("entityKeys must not be empty")
+
+/**
+ * Thrown when a [FilterSpec] is constructed with a `collectionInterval` whose `startTime` is
+ * not strictly before its `endTime`.
+ */
+class InvalidCollectionIntervalException :
+  IllegalArgumentException("collectionInterval startTime must be before endTime")
+
 /**
  * Immutable specification for event filtering.
  *
@@ -51,8 +66,12 @@ sealed class FilterSpec {
     val eventGroupReferenceIds: List<String>,
   ) : FilterSpec() {
     init {
-      require(eventGroupReferenceIds.isNotEmpty()) { "eventGroupReferenceIds must not be empty" }
-      requireValidCollectionInterval(collectionInterval)
+      if (eventGroupReferenceIds.isEmpty()) throw EmptyEventGroupReferenceIdsException()
+      if (
+        !collectionInterval.startTime.toInstant().isBefore(collectionInterval.endTime.toInstant())
+      ) {
+        throw InvalidCollectionIntervalException()
+      }
     }
   }
 
@@ -70,14 +89,12 @@ sealed class FilterSpec {
     val entityKeys: Set<LabeledImpression.EntityKey>,
   ) : FilterSpec() {
     init {
-      require(entityKeys.isNotEmpty()) { "entityKeys must not be empty" }
-      requireValidCollectionInterval(collectionInterval)
-    }
-  }
-
-  protected fun requireValidCollectionInterval(interval: Interval) {
-    require(interval.startTime.toInstant().isBefore(interval.endTime.toInstant())) {
-      "collectionInterval startTime must be before endTime"
+      if (entityKeys.isEmpty()) throw EmptyEntityKeysException()
+      if (
+        !collectionInterval.startTime.toInstant().isBefore(collectionInterval.endTime.toInstant())
+      ) {
+        throw InvalidCollectionIntervalException()
+      }
     }
   }
 }
