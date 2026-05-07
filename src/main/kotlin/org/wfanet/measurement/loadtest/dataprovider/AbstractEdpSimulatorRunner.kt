@@ -51,8 +51,15 @@ import picocli.CommandLine
 abstract class AbstractEdpSimulatorRunner : Runnable {
   @CommandLine.Mixin private lateinit var flags: EdpSimulatorFlags
 
+  /**
+   * v2alpha [PopulationSpec] parsed from [EdpSimulatorFlags.populationSpecFile].
+   *
+   * Parsed lazily so that [typeRegistry] is constructed first; the textproto is parsed with the
+   * runner's [typeRegistry] so that template attribute messages packed in `google.protobuf.Any`
+   * (e.g. a `Person` event template attribute) can be resolved.
+   */
   protected val populationSpec: PopulationSpec by lazy {
-    parseTextProto(flags.populationSpecFile, PopulationSpec.getDefaultInstance())
+    parseTextProto(flags.populationSpecFile, PopulationSpec.getDefaultInstance(), typeRegistry)
   }
 
   protected val typeRegistry: TypeRegistry by lazy {

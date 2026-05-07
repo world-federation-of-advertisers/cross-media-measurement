@@ -192,6 +192,7 @@ kt_jvm_library(
     deps = [
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
@@ -263,7 +264,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/testing",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:edp_simulator",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:population_spec_converter",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_event_query",
         "@wfa_common_jvm//imports/java/io/grpc:core",
         "@wfa_common_jvm//imports/java/org/junit",
@@ -292,7 +292,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:model_releases_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:model_rollouts_service",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:edp_simulator",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:population_spec_converter",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_event_query",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:core",

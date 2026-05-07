@@ -314,7 +314,7 @@ environment because
 
     Single machines tend not to have enough memory to handle large populations.
     You can swap the test to use the small population by updating
-    `syntheticPopulationSpec` and `syntheticEventGroupSpecs` in
+    `populationSpec` and `syntheticEventGroupSpecs` in
     `SyntheticGeneratorCorrectnessTest.RunningMeasurementSystem`, as is done in
     [EmptyClusterCorrectnessTest](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/v0.5.29/src/test/kotlin/org/wfanet/measurement/integration/k8s/EmptyClusterCorrectnessTest.kt#L234).
 
