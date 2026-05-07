@@ -47,9 +47,9 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
 import org.wfanet.measurement.api.v2alpha.populationSpec
-import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.common.toOpenEndInstantRange
 import org.wfanet.measurement.common.toProtoDuration
 
 /** Tests for the v2alpha [PopulationSpec] overload of [SyntheticDataGeneration.generateEvents]. */
@@ -694,8 +694,7 @@ class SyntheticDataGenerationTest {
           frequencySpecs += freqSpec(frequency = 1L, start = 1L, endExclusive = 101L)
         }
     }
-    val timeRange =
-      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2024, 1, 2)..LocalDate.of(2024, 1, 3))
+    val timeRange = (LocalDate.of(2024, 1, 2)..LocalDate.of(2024, 1, 3)).toOpenEndInstantRange()
 
     val unfilteredEvents =
       SyntheticDataGeneration.generateEvents(
