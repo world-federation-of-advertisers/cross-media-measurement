@@ -31,6 +31,7 @@ import java.util.logging.Logger
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec
@@ -39,6 +40,7 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.VidRange
 import org.wfanet.measurement.common.LocalDateProgression
 import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.rangeTo
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.common.toLocalDate
@@ -49,24 +51,34 @@ object SyntheticDataGeneration {
   private const val SECONDS_PER_DAY = 86400
 
   /**
-   * Generates events deterministically. Given a total frequency across a date period, it will
-   * generate events across that time period based on a hash function. For example, for a user with
-   * frequency of 5, over a 10-day period, that user will have exactly 5 events with their VID in
-   * the output over the 10-day period.
+   * Generates events deterministically from a v2alpha [PopulationSpec]. Given a total frequency
+   * across a date period, it will generate events across that time period based on a hash function.
+   * For example, for a user with frequency of 5, over a 10-day period, that user will have exactly
+   * 5 events with their VID in the output over the 10-day period.
+   *
+   * The event message type is taken from [messageInstance]'s descriptor. Each
+   * [PopulationSpec.SubPopulation.attributes] entry must be a [com.google.protobuf.Any] holding an
+   * event template message whose type matches one of the template fields of the event message (e.g.
+   * for `TestEvent` an attribute may carry a `Person` message). Population field values are taken
+   * from these attribute messages; non-population field values are taken from
+   * [VidRangeSpec.nonPopulationFieldValuesMap], whose keys are template field paths of the form
+   * `<template_name>.<field_name>` (or `<template_name>.<sub_message>.<field_name>` for nested
+   * scalar fields).
    *
    * @param messageInstance an instance of the event message type [T]
-   * @param populationSpec specification of the synthetic population
+   * @param populationSpec specification of the population (v2alpha)
    * @param syntheticEventGroupSpec specification of the synthetic event group
    * @param timeRange range in which to generate events
    * @param zoneId timezone for date shards
    */
   fun <T : Message> generateEvents(
     messageInstance: T,
-    populationSpec: SyntheticPopulationSpec,
+    populationSpec: PopulationSpec,
     syntheticEventGroupSpec: SyntheticEventGroupSpec,
     timeRange: OpenEndTimeRange = OpenEndTimeRange(Instant.MIN, Instant.MAX),
     zoneId: ZoneId = ZoneOffset.UTC,
   ): Sequence<LabeledEventDateShard<T>> {
+    val context = PopulationSpecGenerationContext(messageInstance, populationSpec)
     return sequence {
       for (dateSpec: SyntheticEventGroupSpec.DateSpec in syntheticEventGroupSpec.dateSpecsList) {
         val dateProgression: LocalDateProgression = dateSpec.dateRange.toProgression()
@@ -82,6 +94,52 @@ object SyntheticDataGeneration {
         for (date in dateProgression) {
           val events: Sequence<LabeledEvent<T>> =
             generateDayEvents(
+              context,
+              dateProgression,
+              date,
+              zoneId,
+              syntheticEventGroupSpec,
+              dateSpec,
+              numDays.toInt(),
+              timeRange,
+            )
+          yield(LabeledEventDateShard(date, events))
+        }
+      }
+    }
+  }
+
+  /**
+   * Legacy overload of [generateEvents] that accepts a [SyntheticPopulationSpec] for callers that
+   * have not yet migrated to [PopulationSpec] (e.g. the EdpSimulator path). Uses the population
+   * field paths declared on [SyntheticPopulationSpec] (rather than the descriptor) and so retains
+   * the original semantics: only the field paths explicitly listed in
+   * [SyntheticPopulationSpec.populationFieldsList] are populated from
+   * [SubPopulation.populationFieldsValuesMap].
+   *
+   * New callers should use the [PopulationSpec] overload.
+   */
+  fun <T : Message> generateEvents(
+    messageInstance: T,
+    populationSpec: SyntheticPopulationSpec,
+    syntheticEventGroupSpec: SyntheticEventGroupSpec,
+    timeRange: OpenEndTimeRange = OpenEndTimeRange(Instant.MIN, Instant.MAX),
+    zoneId: ZoneId = ZoneOffset.UTC,
+  ): Sequence<LabeledEventDateShard<T>> {
+    return sequence {
+      for (dateSpec: SyntheticEventGroupSpec.DateSpec in syntheticEventGroupSpec.dateSpecsList) {
+        val dateProgression: LocalDateProgression = dateSpec.dateRange.toProgression()
+
+        val dateSpecTimeRange = OpenEndTimeRange.fromClosedDateRange(dateProgression)
+        if (!dateSpecTimeRange.overlaps(timeRange)) {
+          continue
+        }
+        val numDays =
+          ChronoUnit.DAYS.between(dateProgression.start, dateProgression.endInclusive) + 1
+        logger.info("Writing $numDays days of data")
+        for (date in dateProgression) {
+          val events: Sequence<LabeledEvent<T>> =
+            generateLegacyDayEvents(
               dateProgression,
               date,
               zoneId,
@@ -98,7 +156,148 @@ object SyntheticDataGeneration {
     }
   }
 
+  /**
+   * Holds per-invocation derived data shared across all date shards: the prebuilt subpopulation
+   * "prototype" messages with all population template attributes already merged in, and the lookup
+   * tables for finding the right subpopulation for a given [VidRangeSpec].
+   */
+  private class PopulationSpecGenerationContext<T : Message>(
+    val messageInstance: T,
+    populationSpec: PopulationSpec,
+  ) {
+    private val templateFieldsByTypeUrl: Map<String, FieldDescriptor> =
+      buildTemplateFieldsByTypeUrl(messageInstance)
+
+    /**
+     * Pre-built prototypes for each [PopulationSpec.SubPopulation], with all population attribute
+     * template messages merged into the event message. Indexed by subpopulation index.
+     */
+    val subPopulationPrototypes: List<T> =
+      populationSpec.subpopulationsList.map { buildPrototype(it) }
+
+    /**
+     * Per-subpopulation list of [PopulationSpec.VidRange]s, used to find which subpopulation a
+     * given [VidRangeSpec.vidRange] belongs to.
+     */
+    private val subPopulationVidRanges: List<List<PopulationSpec.VidRange>> =
+      populationSpec.subpopulationsList.map { it.vidRangesList }
+
+    /**
+     * Returns the index of the subpopulation that fully contains [vidRange], or null if none does.
+     */
+    fun findSubPopulationIndex(vidRange: VidRange): Int? {
+      for ((index, vidRanges) in subPopulationVidRanges.withIndex()) {
+        for (subRange in vidRanges) {
+          // VidRangeSpec.vidRange.endExclusive is exclusive;
+          // PopulationSpec.VidRange.endVidInclusive
+          // is inclusive. The spec range fits inside the subpopulation range when:
+          //   spec.start >= sub.startVid && spec.endExclusive - 1 <= sub.endVidInclusive
+          if (
+            vidRange.start >= subRange.startVid &&
+              vidRange.endExclusive - 1 <= subRange.endVidInclusive
+          ) {
+            return index
+          }
+        }
+      }
+      return null
+    }
+
+    private fun buildPrototype(subPopulation: PopulationSpec.SubPopulation): T {
+      val builder = messageInstance.newBuilderForType()
+      for (attribute in subPopulation.attributesList) {
+        val templateField =
+          templateFieldsByTypeUrl[attribute.typeUrl]
+            ?: throw IllegalArgumentException(
+              "Attribute type_url ${attribute.typeUrl} does not correspond to any template " +
+                "field of ${messageInstance.descriptorForType.fullName}"
+            )
+        // Get the typed sub-builder for this template field then mergeFrom the Any's bytes. This
+        // works regardless of whether the event message type is a generated class or a
+        // DynamicMessage, because mergeFrom uses the sub-builder's own descriptor to parse.
+        builder.getFieldBuilder(templateField).mergeFrom(attribute.value)
+      }
+      @Suppress("UNCHECKED_CAST") // Safe per protobuf API.
+      return builder.build() as T
+    }
+
+    private fun buildTemplateFieldsByTypeUrl(messageInstance: T): Map<String, FieldDescriptor> =
+      buildMap {
+        for (field in messageInstance.descriptorForType.fields) {
+          if (field.type != FieldDescriptor.Type.MESSAGE) {
+            continue
+          }
+          put(ProtoReflection.getTypeUrl(field.messageType), field)
+        }
+      }
+  }
+
   private fun <T : Message> generateDayEvents(
+    context: PopulationSpecGenerationContext<T>,
+    dateProgression: LocalDateProgression,
+    date: LocalDate,
+    zoneId: ZoneId,
+    syntheticEventGroupSpec: SyntheticEventGroupSpec,
+    dateSpec: SyntheticEventGroupSpec.DateSpec,
+    numDays: Int,
+    timeRange: OpenEndTimeRange,
+  ): Sequence<LabeledEvent<T>> = sequence {
+    val dayNumber = ChronoUnit.DAYS.between(dateProgression.start, date)
+    logger.info("Generating data for day: $dayNumber date: $date")
+    for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in dateSpec.frequencySpecsList) {
+
+      check(!frequencySpec.hasOverlaps()) { "The VID ranges should be non-overlapping." }
+
+      for (vidRangeSpec: VidRangeSpec in frequencySpec.vidRangeSpecsList) {
+        val subPopulationIndex: Int =
+          context.findSubPopulationIndex(vidRangeSpec.vidRange)
+            ?: error("Sub-population not found for ${vidRangeSpec.vidRange}")
+        check(vidRangeSpec.samplingRate in 0.0..1.0) { "Invalid sampling_rate" }
+        if (vidRangeSpec.sampled) {
+          check(syntheticEventGroupSpec.samplingNonce != 0L) {
+            "sampling_nonce is required for VID sampling"
+          }
+        }
+
+        val builder: Message.Builder =
+          context.subPopulationPrototypes[subPopulationIndex].toBuilder()
+
+        for ((path, fieldValue) in vidRangeSpec.nonPopulationFieldValuesMap.entries) {
+          val fieldPath = path.split('.')
+          try {
+            builder.setField(fieldPath, fieldValue)
+          } catch (e: IllegalArgumentException) {
+            throw IllegalStateException(e)
+          }
+        }
+
+        @Suppress("UNCHECKED_CAST") // Safe per protobuf API.
+        val message = builder.build() as T
+        for (vid in vidRangeSpec.sampledVids(syntheticEventGroupSpec.samplingNonce)) {
+          for (i in 1..frequencySpec.frequency) {
+            val dayToLog =
+              (VID_SAMPLING_FINGERPRINT_FUNCTION.hashLong(vid * i).asLong() % numDays + numDays) %
+                numDays
+            if (dayToLog == dayNumber) {
+              val hashInput =
+                vid
+                  .toByteString(ByteOrder.BIG_ENDIAN)
+                  .concat(dayToLog.toByteString(ByteOrder.BIG_ENDIAN))
+              val hashValue =
+                abs(Hashing.farmHashFingerprint64().hashBytes(hashInput.toByteArray()).asLong())
+              val impressionTime =
+                date.atStartOfDay(zoneId).plusSeconds(hashValue % SECONDS_PER_DAY)
+              if (impressionTime.toInstant() in timeRange) {
+                yield(LabeledEvent(impressionTime.toInstant(), vid, message))
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private fun <T : Message> generateLegacyDayEvents(
     dateProgression: LocalDateProgression,
     date: LocalDate,
     zoneId: ZoneId,
