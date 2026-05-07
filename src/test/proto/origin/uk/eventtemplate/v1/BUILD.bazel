@@ -1,0 +1,67 @@
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_descriptor_set")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
+
+# Test-only protos that mimic the Origin UK event templates from
+# https://github.com/world-federation-of-advertisers/local-market-configuration/tree/main/origin/uk/eventtemplate/v1.
+# Used by GenerateAndVerifySyntheticDataTest to exercise the descriptor-set
+# (DynamicMessage) code path of GenerateSyntheticData and VerifySyntheticData
+# with a non-TestEvent event message type.
+
+package(
+    default_testonly = True,
+    default_visibility = ["//visibility:public"],
+)
+
+IMPORT_PREFIX = "/src/test/proto"
+
+proto_library(
+    name = "common_proto",
+    srcs = ["common.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto"],
+)
+
+proto_library(
+    name = "display_proto",
+    srcs = ["display.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto"],
+)
+
+proto_library(
+    name = "video_proto",
+    srcs = ["video.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto"],
+)
+
+proto_library(
+    name = "other_proto",
+    srcs = ["other.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto"],
+)
+
+proto_library(
+    name = "event_proto",
+    srcs = ["event.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":common_proto",
+        ":display_proto",
+        ":other_proto",
+        ":video_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "event_kt_jvm_proto",
+    deps = [":event_proto"],
+)
+
+proto_descriptor_set(
+    name = "event_descriptor_set",
+    deps = [":event_proto"],
+)
