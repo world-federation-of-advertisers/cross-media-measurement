@@ -12,8 +12,8 @@ tests, your build environment must have the following:
 *   Bazel
     *   See [`.bazelversion`](../.bazelversion)
 *   GNU/Linux OS with x86-64 architecture
-    *   Some image targets require building with glibc <= 2.36
-    *   Known to work on Debian Bookworm and Ubuntu 22.04
+    *   Some image targets require building with glibc <= 2.41
+    *   Known to work on Debian Trixie and Ubuntu 24.04
 *   [Clang](https://clang.llvm.org/)
 *   [SWIG](http://swig.org/)
 *   Bash
