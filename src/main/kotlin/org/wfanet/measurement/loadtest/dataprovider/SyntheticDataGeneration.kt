@@ -37,11 +37,12 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.VidRange
 import org.wfanet.measurement.common.LocalDateProgression
-import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.ProtoReflection
+import org.wfanet.measurement.common.overlaps
 import org.wfanet.measurement.common.rangeTo
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.common.toOpenEndInstantRange
 
 object SyntheticDataGeneration {
   private val VID_SAMPLING_FINGERPRINT_FUNCTION = Hashing.farmHashFingerprint64()
@@ -73,7 +74,7 @@ object SyntheticDataGeneration {
     messageInstance: T,
     populationSpec: PopulationSpec,
     syntheticEventGroupSpec: SyntheticEventGroupSpec,
-    timeRange: OpenEndTimeRange = OpenEndTimeRange(Instant.MIN, Instant.MAX),
+    timeRange: OpenEndRange<Instant> = Instant.MIN..<Instant.MAX,
     zoneId: ZoneId = ZoneOffset.UTC,
   ): Sequence<LabeledEventDateShard<T>> {
     val context = PopulationSpecGenerationContext(messageInstance, populationSpec)
@@ -82,7 +83,7 @@ object SyntheticDataGeneration {
         val dateProgression: LocalDateProgression = dateSpec.dateRange.toProgression()
 
         // Optimization: Skip the entire DateSpec if it does not overlap the specified time range.
-        val dateSpecTimeRange = OpenEndTimeRange.fromClosedDateRange(dateProgression)
+        val dateSpecTimeRange: OpenEndRange<Instant> = dateProgression.toOpenEndInstantRange()
         if (!dateSpecTimeRange.overlaps(timeRange)) {
           continue
         }
@@ -191,7 +192,7 @@ object SyntheticDataGeneration {
     syntheticEventGroupSpec: SyntheticEventGroupSpec,
     dateSpec: SyntheticEventGroupSpec.DateSpec,
     numDays: Int,
-    timeRange: OpenEndTimeRange,
+    timeRange: OpenEndRange<Instant>,
   ): Sequence<LabeledEvent<T>> = sequence {
     val dayNumber = ChronoUnit.DAYS.between(dateProgression.start, date)
     logger.info("Generating data for day: $dayNumber date: $date")
