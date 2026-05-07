@@ -1,0 +1,57 @@
+# proto-file: wfa/measurement/api/v2alpha/population_spec.proto
+# proto-message: PopulationSpec
+
+# Test fixture: a small v2alpha PopulationSpec for the Origin UK Event template
+# (halo_cmm.origin.uk.eventtemplate.v1.Event). Each subpopulation declares its
+# population attributes inline as a Common event template message embedded in a
+# google.protobuf.Any. Used by GenerateAndVerifySyntheticDataTest to exercise
+# the descriptor-set (DynamicMessage) flow with a non-TestEvent message type.
+
+subpopulations {
+  vid_ranges {
+    start_vid: 1
+    end_vid_inclusive: 9999
+  }
+  attributes {
+    [type.googleapis.com/halo_cmm.origin.uk.eventtemplate.v1.Common] {
+      sex: MALE
+      age_group: YEARS_16_TO_34
+    }
+  }
+}
+subpopulations {
+  vid_ranges {
+    start_vid: 10000
+    end_vid_inclusive: 19999
+  }
+  attributes {
+    [type.googleapis.com/halo_cmm.origin.uk.eventtemplate.v1.Common] {
+      sex: MALE
+      age_group: YEARS_35_TO_54
+    }
+  }
+}
+subpopulations {
+  vid_ranges {
+    start_vid: 20000
+    end_vid_inclusive: 29999
+  }
+  attributes {
+    [type.googleapis.com/halo_cmm.origin.uk.eventtemplate.v1.Common] {
+      sex: FEMALE
+      age_group: YEARS_16_TO_34
+    }
+  }
+}
+subpopulations {
+  vid_ranges {
+    start_vid: 30000
+    end_vid_inclusive: 39999
+  }
+  attributes {
+    [type.googleapis.com/halo_cmm.origin.uk.eventtemplate.v1.Common] {
+      sex: FEMALE
+      age_group: YEARS_55_PLUS
+    }
+  }
+}
