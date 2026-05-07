@@ -119,6 +119,8 @@ class ImpressionQualificationFilterMapping(
         EventAnnotationMediaType.DISPLAY
       ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.OTHER ->
         EventAnnotationMediaType.OTHER
+      ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.NATIVE ->
+        EventAnnotationMediaType.NATIVE
       ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
         .MEDIA_TYPE_UNSPECIFIED,
       ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
@@ -211,6 +213,8 @@ class ImpressionQualificationFilterMapping(
           MediaType.DISPLAY
         ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.OTHER ->
           MediaType.OTHER
+        ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.NATIVE ->
+          MediaType.NATIVE
         ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
           .MEDIA_TYPE_UNSPECIFIED -> MediaType.MEDIA_TYPE_UNSPECIFIED
         ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType

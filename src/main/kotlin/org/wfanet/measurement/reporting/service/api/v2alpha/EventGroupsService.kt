@@ -276,6 +276,7 @@ private fun CmmsMediaType.toMediaType(): MediaType {
     CmmsMediaType.VIDEO -> MediaType.VIDEO
     CmmsMediaType.DISPLAY -> MediaType.DISPLAY
     CmmsMediaType.OTHER -> MediaType.OTHER
+    CmmsMediaType.NATIVE -> MediaType.NATIVE
     CmmsMediaType.MEDIA_TYPE_UNSPECIFIED -> MediaType.MEDIA_TYPE_UNSPECIFIED
     CmmsMediaType.UNRECOGNIZED -> error("MediaType unrecognized")
   }
@@ -286,6 +287,7 @@ private fun MediaType.toCmmsMediaType(): CmmsMediaType {
     MediaType.VIDEO -> CmmsMediaType.VIDEO
     MediaType.DISPLAY -> CmmsMediaType.DISPLAY
     MediaType.OTHER -> CmmsMediaType.OTHER
+    MediaType.NATIVE -> CmmsMediaType.NATIVE
     MediaType.MEDIA_TYPE_UNSPECIFIED -> CmmsMediaType.MEDIA_TYPE_UNSPECIFIED
     MediaType.UNRECOGNIZED -> error("MediaType unrecognized")
   }
