@@ -20,6 +20,8 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.DynamicMessage
 import com.google.type.date
+import java.nio.file.Paths
+import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -44,6 +46,9 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.common.toProtoDuration
 
 /** Tests for the v2alpha [PopulationSpec] overload of [SyntheticDataGeneration.generateEvents]. */
 @RunWith(JUnit4::class)

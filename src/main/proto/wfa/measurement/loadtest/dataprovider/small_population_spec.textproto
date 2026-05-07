@@ -1,302 +1,165 @@
-# proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto
-# proto-message: SyntheticPopulationSpec
+# proto-file: wfa/measurement/api/v2alpha/population_spec.proto
+# proto-message: PopulationSpec
 
-# Synthetic Population.
+# Small synthetic v2alpha PopulationSpec used by integration / load-test fixtures.
+# Each sub-population declares its population attributes inline as a Person event
+# template message embedded in a google.protobuf.Any. The 12 sub-populations
+# together cover VIDs 1..99999 and are paired with small_data_spec.textproto and
+# small_data_spec_b.textproto.
 
-vid_range {
-  start: 1
-  end_exclusive: 100000  # 100K
-}
-event_message_type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
-population_fields: "person.gender"
-population_fields: "person.age_group"
-population_fields: "person.social_grade_group"
-non_population_fields: "video_ad.viewed_fraction"
-sub_populations {
-  vid_sub_range {
-    start: 1
-    end_exclusive: 10000
+subpopulations {
+  vid_ranges {
+    start_vid: 1
+    end_vid_inclusive: 9999
   }
-  population_fields_values {
-    key: "person.age_group"
-    value {
-      enum_value: 1
-    }
-  }
-  population_fields_values {
-    key: "person.gender"
-    value {
-      enum_value: 1
-    }
-  }
-  population_fields_values {
-    key: "person.social_grade_group"
-    value {
-      enum_value: 1
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: MALE
+      age_group: YEARS_18_TO_34
+      social_grade_group: A_B_C1
     }
   }
 }
-sub_populations {
-  vid_sub_range {
-    start: 10000
-    end_exclusive: 20000
+subpopulations {
+  vid_ranges {
+    start_vid: 10000
+    end_vid_inclusive: 19999
   }
-  population_fields_values {
-    key: "person.age_group"
-    value {
-      enum_value: 1
-    }
-  }
-  population_fields_values {
-    key: "person.gender"
-    value {
-      enum_value: 1
-    }
-  }
-  population_fields_values {
-    key: "person.social_grade_group"
-    value {
-      enum_value: 2
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: MALE
+      age_group: YEARS_18_TO_34
+      social_grade_group: C2_D_E
     }
   }
 }
-sub_populations {
-  vid_sub_range {
-    start: 20000
-    end_exclusive: 30000
+subpopulations {
+  vid_ranges {
+    start_vid: 20000
+    end_vid_inclusive: 29999
   }
-  population_fields_values {
-    key: "person.age_group"
-    value {
-      enum_value: 2
-    }
-  }
-  population_fields_values {
-    key: "person.gender"
-    value {
-      enum_value: 1
-    }
-  }
-  population_fields_values {
-    key: "person.social_grade_group"
-    value {
-      enum_value: 1
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: MALE
+      age_group: YEARS_35_TO_54
+      social_grade_group: A_B_C1
     }
   }
 }
-sub_populations {
-  vid_sub_range {
-    start: 30000
-    end_exclusive: 40000
+subpopulations {
+  vid_ranges {
+    start_vid: 30000
+    end_vid_inclusive: 39999
   }
-  population_fields_values {
-    key: "person.age_group"
-    value {
-      enum_value: 2
-    }
-  }
-  population_fields_values {
-    key: "person.gender"
-    value {
-      enum_value: 1
-    }
-  }
-  population_fields_values {
-    key: "person.social_grade_group"
-    value {
-      enum_value: 2
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: MALE
+      age_group: YEARS_35_TO_54
+      social_grade_group: C2_D_E
     }
   }
 }
-sub_populations {
-  vid_sub_range {
-    start: 40000
-    end_exclusive: 50000
+subpopulations {
+  vid_ranges {
+    start_vid: 40000
+    end_vid_inclusive: 49999
   }
-  population_fields_values {
-    key: "person.age_group"
-    value {
-      enum_value: 3
-    }
-  }
-  population_fields_values {
-    key: "person.gender"
-    value {
-      enum_value: 1
-    }
-  }
-  population_fields_values {
-    key: "person.social_grade_group"
-    value {
-      enum_value: 1
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: MALE
+      age_group: YEARS_55_PLUS
+      social_grade_group: A_B_C1
     }
   }
 }
-sub_populations {
-  vid_sub_range {
-    start: 50000
-    end_exclusive: 60000
+subpopulations {
+  vid_ranges {
+    start_vid: 50000
+    end_vid_inclusive: 59999
   }
-  population_fields_values {
-    key: "person.age_group"
-    value {
-      enum_value: 3
-    }
-  }
-  population_fields_values {
-    key: "person.gender"
-    value {
-      enum_value: 1
-    }
-  }
-  population_fields_values {
-    key: "person.social_grade_group"
-    value {
-      enum_value: 2
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: MALE
+      age_group: YEARS_55_PLUS
+      social_grade_group: C2_D_E
     }
   }
 }
-sub_populations {
-  vid_sub_range {
-    start: 60000
-    end_exclusive: 70000
+subpopulations {
+  vid_ranges {
+    start_vid: 60000
+    end_vid_inclusive: 69999
   }
-  population_fields_values {
-    key: "person.age_group"
-    value {
-      enum_value: 1
-    }
-  }
-  population_fields_values {
-    key: "person.gender"
-    value {
-      enum_value: 2
-    }
-  }
-  population_fields_values {
-    key: "person.social_grade_group"
-    value {
-      enum_value: 1
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: FEMALE
+      age_group: YEARS_18_TO_34
+      social_grade_group: A_B_C1
     }
   }
 }
-sub_populations {
-  vid_sub_range {
-    start: 70000
-    end_exclusive: 80000
+subpopulations {
+  vid_ranges {
+    start_vid: 70000
+    end_vid_inclusive: 79999
   }
-  population_fields_values {
-    key: "person.age_group"
-    value {
-      enum_value: 1
-    }
-  }
-  population_fields_values {
-    key: "person.gender"
-    value {
-      enum_value: 2
-    }
-  }
-  population_fields_values {
-    key: "person.social_grade_group"
-    value {
-      enum_value: 2
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: FEMALE
+      age_group: YEARS_18_TO_34
+      social_grade_group: C2_D_E
     }
   }
 }
-sub_populations {
-  vid_sub_range {
-    start: 80000
-    end_exclusive: 85000
+subpopulations {
+  vid_ranges {
+    start_vid: 80000
+    end_vid_inclusive: 84999
   }
-  population_fields_values {
-    key: "person.age_group"
-    value {
-      enum_value: 2
-    }
-  }
-  population_fields_values {
-    key: "person.gender"
-    value {
-      enum_value: 2
-    }
-  }
-  population_fields_values {
-    key: "person.social_grade_group"
-    value {
-      enum_value: 1
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: FEMALE
+      age_group: YEARS_35_TO_54
+      social_grade_group: A_B_C1
     }
   }
 }
-sub_populations {
-  vid_sub_range {
-    start: 85000
-    end_exclusive: 90000
+subpopulations {
+  vid_ranges {
+    start_vid: 85000
+    end_vid_inclusive: 89999
   }
-  population_fields_values {
-    key: "person.age_group"
-    value {
-      enum_value: 2
-    }
-  }
-  population_fields_values {
-    key: "person.gender"
-    value {
-      enum_value: 2
-    }
-  }
-  population_fields_values {
-    key: "person.social_grade_group"
-    value {
-      enum_value: 2
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: FEMALE
+      age_group: YEARS_35_TO_54
+      social_grade_group: C2_D_E
     }
   }
 }
-sub_populations {
-  vid_sub_range {
-    start: 90000
-    end_exclusive: 95000
+subpopulations {
+  vid_ranges {
+    start_vid: 90000
+    end_vid_inclusive: 94999
   }
-  population_fields_values {
-    key: "person.age_group"
-    value {
-      enum_value: 3
-    }
-  }
-  population_fields_values {
-    key: "person.gender"
-    value {
-      enum_value: 2
-    }
-  }
-  population_fields_values {
-    key: "person.social_grade_group"
-    value {
-      enum_value: 1
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: FEMALE
+      age_group: YEARS_55_PLUS
+      social_grade_group: A_B_C1
     }
   }
 }
-sub_populations {
-  vid_sub_range {
-    start: 95000
-    end_exclusive: 100000
+subpopulations {
+  vid_ranges {
+    start_vid: 95000
+    end_vid_inclusive: 99999
   }
-  population_fields_values {
-    key: "person.age_group"
-    value {
-      enum_value: 3
-    }
-  }
-  population_fields_values {
-    key: "person.gender"
-    value {
-      enum_value: 2
-    }
-  }
-  population_fields_values {
-    key: "person.social_grade_group"
-    value {
-      enum_value: 2
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: FEMALE
+      age_group: YEARS_55_PLUS
+      social_grade_group: C2_D_E
     }
   }
 }

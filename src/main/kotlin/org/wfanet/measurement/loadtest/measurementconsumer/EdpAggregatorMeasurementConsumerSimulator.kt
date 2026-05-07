@@ -34,10 +34,10 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
@@ -60,7 +60,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
   trustedCertificates: Map<ByteString, X509Certificate>,
   private val messageInstance: Message,
   expectedDirectNoiseMechanism: NoiseMechanism,
-  private val syntheticPopulationSpec: SyntheticPopulationSpec,
+  private val populationSpec: PopulationSpec,
   private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec>,
   reportName: String,
   modelLineName: String,
@@ -123,7 +123,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
           EventFilters.compileProgram(messageInstance.descriptorForType, expression)
         SyntheticDataGeneration.generateEvents(
             messageInstance,
-            syntheticPopulationSpec,
+            populationSpec,
             syntheticEventGroupSpec,
           )
           .flatMap { it.labeledEvents }

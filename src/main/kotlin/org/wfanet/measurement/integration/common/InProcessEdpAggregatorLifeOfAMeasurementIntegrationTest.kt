@@ -48,7 +48,6 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.withAuthenticationKey
@@ -154,7 +153,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       storagePath = tempPath,
       pubSubClient = pubSubClient,
       syntheticEventGroupMapByEdp = syntheticEventGroupMapByEdp,
-      syntheticPopulationSpec = syntheticPopulationSpec,
+      populationSpec = populationSpec,
       modelLineInfoMap = modelLineInfoMap,
       externalKmsClient = sharedKmsClient,
       entityOverridesByEdp = entityOverridesByEdp,
@@ -253,7 +252,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         InProcessCmmsComponents.TRUSTED_CERTIFICATES,
         TestEvent.getDefaultInstance(),
         NoiseMechanism.CONTINUOUS_GAUSSIAN,
-        syntheticPopulationSpec,
+        populationSpec,
         syntheticEventGroupMap,
         ReportKey(
             MeasurementConsumerKey.fromName(measurementConsumerData.name)!!.measurementConsumerId,
@@ -520,37 +519,15 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       )
     private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
 
-    private val TEST_RESULTS_FULFILLER_DATA_PATH =
-      Paths.get(
-        "wfa_measurement_system",
-        "src",
-        "main",
-        "kotlin",
-        "org",
-        "wfanet",
-        "measurement",
-        "edpaggregator",
-        "resultsfulfiller",
-        "testing",
-      )
-    private val TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH =
-      getRuntimePath(TEST_RESULTS_FULFILLER_DATA_PATH)!!
-
-    val syntheticPopulationSpec: SyntheticPopulationSpec =
+    val populationSpec: PopulationSpec =
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
-        SyntheticPopulationSpec.getDefaultInstance(),
+        PopulationSpec.getDefaultInstance(),
       )
     val syntheticEventGroupSpec: SyntheticEventGroupSpec =
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
         SyntheticEventGroupSpec.getDefaultInstance(),
-      )
-    val populationSpec =
-      parseTextProto(
-        TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto")
-          .toFile(),
-        PopulationSpec.getDefaultInstance(),
       )
     val modelLineInfoMap =
       mapOf(

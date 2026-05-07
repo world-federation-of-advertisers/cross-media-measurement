@@ -56,8 +56,8 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderCapabilitiesRequest
@@ -131,7 +131,7 @@ class InProcessEdpAggregatorComponents(
   secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
   private val storagePath: Path,
   private val pubSubClient: GooglePubSubEmulatorClient,
-  private val syntheticPopulationSpec: SyntheticPopulationSpec,
+  private val populationSpec: PopulationSpec,
   private val syntheticEventGroupMapByEdp: Map<String, Map<String, SyntheticEventGroupSpec>>,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val externalKmsClient: FakeKmsClient,
@@ -374,7 +374,7 @@ class InProcessEdpAggregatorComponents(
         val events =
           SyntheticDataGeneration.generateEvents(
             TestEvent.getDefaultInstance(),
-            syntheticPopulationSpec,
+            populationSpec,
             syntheticEventGroupMapByEdp
               .getValue(edpAggregatorShortName)
               .getValue(mappedEventGroup.eventGroupReferenceId),
@@ -555,7 +555,7 @@ class InProcessEdpAggregatorComponents(
       val events: Sequence<LabeledEventDateShard<TestEvent>> =
         SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
-          syntheticPopulationSpec,
+          populationSpec,
           syntheticEventGroupMapByEdp
             .getValue(edpAggregatorShortName)
             .getValue(mappedEventGroup.eventGroupReferenceId),

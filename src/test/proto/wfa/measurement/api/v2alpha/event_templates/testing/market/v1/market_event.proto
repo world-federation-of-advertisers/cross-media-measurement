@@ -50,8 +50,7 @@ import "wfa/measurement/api/v2alpha/event_templates/testing/market/v1/display.pr
 import "wfa/measurement/api/v2alpha/event_templates/testing/market/v1/other.proto";
 import "wfa/measurement/api/v2alpha/event_templates/testing/market/v1/video.proto";
 
-option java_package =
-    "org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1";
+option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1";
 option java_multiple_files = true;
 
 message MarketEvent {

@@ -67,7 +67,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
@@ -233,7 +232,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       storagePath = tempPath,
       pubSubClient = pubSubClient,
       syntheticEventGroupMapByEdp = syntheticEventGroupMapByEdp,
-      syntheticPopulationSpec = syntheticPopulationSpec,
+      populationSpec = populationSpec,
       modelLineInfoMap = modelLineInfoMap,
       externalKmsClient = sharedKmsClient,
       entityOverridesByEdp = entityOverridesByEdp,
@@ -1255,25 +1254,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         "dataprovider",
       )
     private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
-    private val TEST_RESULTS_FULFILLER_DATA_PATH =
-      Paths.get(
-        "wfa_measurement_system",
-        "src",
-        "main",
-        "kotlin",
-        "org",
-        "wfanet",
-        "measurement",
-        "edpaggregator",
-        "resultsfulfiller",
-        "testing",
-      )
-    private val TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH =
-      getRuntimePath(TEST_RESULTS_FULFILLER_DATA_PATH)!!
-    val syntheticPopulationSpec: SyntheticPopulationSpec =
+    val populationSpec: PopulationSpec =
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
-        SyntheticPopulationSpec.getDefaultInstance(),
+        PopulationSpec.getDefaultInstance(),
       )
     val syntheticEventGroupSpec1: SyntheticEventGroupSpec =
       parseTextProto(
@@ -1284,12 +1268,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve("small_data_spec_2.textproto").toFile(),
         SyntheticEventGroupSpec.getDefaultInstance(),
-      )
-    val populationSpec: PopulationSpec =
-      parseTextProto(
-        TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto")
-          .toFile(),
-        PopulationSpec.getDefaultInstance(),
       )
     private val MODEL_LINE_INFO =
       ModelLineInfo(
