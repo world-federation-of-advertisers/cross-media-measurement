@@ -29,13 +29,6 @@ class EmptyEntityKeysException :
   IllegalArgumentException("entityKeys must not be empty")
 
 /**
- * Thrown when a [FilterSpec] is constructed with a `collectionInterval` whose `startTime` is
- * not strictly before its `endTime`.
- */
-class InvalidCollectionIntervalException :
-  IllegalArgumentException("collectionInterval startTime must be before endTime")
-
-/**
  * Immutable specification for event filtering.
  *
  * This sealed type serves two purposes:
@@ -54,6 +47,12 @@ sealed class FilterSpec {
   /** The time interval for event collection. */
   abstract val collectionInterval: Interval
 
+  protected fun requireValidCollectionInterval(interval: Interval) {
+    require(interval.startTime.toInstant().isBefore(interval.endTime.toInstant())) {
+      "collectionInterval startTime must be before endTime"
+    }
+  }
+
   /**
    * Legacy selector: filter events by their batch's `eventGroupReferenceId`.
    *
@@ -67,11 +66,7 @@ sealed class FilterSpec {
   ) : FilterSpec() {
     init {
       if (eventGroupReferenceIds.isEmpty()) throw EmptyEventGroupReferenceIdsException()
-      if (
-        !collectionInterval.startTime.toInstant().isBefore(collectionInterval.endTime.toInstant())
-      ) {
-        throw InvalidCollectionIntervalException()
-      }
+      requireValidCollectionInterval(collectionInterval)
     }
   }
 
@@ -90,11 +85,7 @@ sealed class FilterSpec {
   ) : FilterSpec() {
     init {
       if (entityKeys.isEmpty()) throw EmptyEntityKeysException()
-      if (
-        !collectionInterval.startTime.toInstant().isBefore(collectionInterval.endTime.toInstant())
-      ) {
-        throw InvalidCollectionIntervalException()
-      }
+      requireValidCollectionInterval(collectionInterval)
     }
   }
 }
