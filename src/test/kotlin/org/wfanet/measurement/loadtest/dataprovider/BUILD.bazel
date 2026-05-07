@@ -111,12 +111,12 @@ java_test(
 )
 
 kt_jvm_test(
-    name = "SyntheticDataGenerationPopulationSpecTest",
-    srcs = ["SyntheticDataGenerationPopulationSpecTest.kt"],
+    name = "SyntheticDataGenerationTest",
+    srcs = ["SyntheticDataGenerationTest.kt"],
     data = [
         "//src/main/proto/wfa/measurement/loadtest/dataprovider:specs",
     ],
-    test_class = "org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGenerationPopulationSpecTest",
+    test_class = "org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGenerationTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_data_generation",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
@@ -141,7 +141,6 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQueryTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_event_query",
-        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
