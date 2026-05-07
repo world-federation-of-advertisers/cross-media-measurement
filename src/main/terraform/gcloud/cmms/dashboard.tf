@@ -22,7 +22,6 @@ resource "google_bigquery_dataset" "dashboard_views" {
   location   = data.google_client_config.default.region
 }
 
-
 # --- UDFs ---
 
 resource "google_bigquery_routine" "external_id_to_api_id" {
@@ -92,33 +91,6 @@ resource "google_bigquery_routine" "decode_event_group_details" {
   JS
 }
 
-resource "google_bigquery_routine" "decode_basic_report_details" {
-  dataset_id   = google_bigquery_dataset.dashboard_views.dataset_id
-  project      = data.google_client_config.default.project
-  routine_id   = "decode_BasicReportDetails"
-  routine_type = "SCALAR_FUNCTION"
-  language     = "JAVASCRIPT"
-
-  arguments {
-    name      = "b"
-    data_type = jsonencode({ "typeKind" : "BYTES" })
-  }
-
-  return_type = jsonencode({ "typeKind" : "STRING" })
-
-  imported_libraries = [
-    "gs://xmm-dashboard/lib/protobuf.global.min.js",
-    "gs://xmm-dashboard/descriptors/BasicReportDetails_descriptor.js",
-  ]
-
-  definition_body = <<-JS
-    const root = protobuf.Root.fromJSON(DESCRIPTOR_BasicReportDetails);
-    const T = root.lookupType('wfa.measurement.internal.reporting.v2.BasicReportDetails');
-    const m = T.decode(new Uint8Array(b));
-    return JSON.stringify(T.toObject(m, {longs: Number, enums: String, defaults: true}));
-  JS
-}
-
 resource "google_bigquery_routine" "decode_data_provider_details" {
   dataset_id   = google_bigquery_dataset.dashboard_views.dataset_id
   project      = data.google_client_config.default.project
@@ -145,6 +117,7 @@ resource "google_bigquery_routine" "decode_data_provider_details" {
     return JSON.stringify(T.toObject(m, {longs: Number, enums: String, defaults: true}));
   JS
 }
+
 # --- BigQuery Connections (Spanner with Data Boost) ---
 
 resource "google_bigquery_connection" "edp_aggregator" {
@@ -166,18 +139,6 @@ resource "google_bigquery_connection" "kingdom" {
 
   cloud_spanner {
     database        = "projects/${data.google_client_config.default.project}/instances/${google_spanner_instance.spanner_instance.name}/databases/kingdom"
-    use_data_boost  = true
-    use_parallelism = true
-  }
-}
-
-resource "google_bigquery_connection" "reporting" {
-  connection_id = "reporting-conn"
-  project       = data.google_client_config.default.project
-  location      = data.google_client_config.default.region
-
-  cloud_spanner {
-    database        = "projects/${data.google_client_config.default.project}/instances/${google_spanner_instance.spanner_instance.name}/databases/reporting"
     use_data_boost  = true
     use_parallelism = true
   }
@@ -231,30 +192,14 @@ resource "google_bigquery_table" "requisition_overview" {
   }
 }
 
-resource "google_bigquery_table" "event_groups_summary" {
+resource "google_bigquery_table" "mc_details" {
   for_each   = var.data_provider_resource_ids
   dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
   project    = data.google_client_config.default.project
-  table_id   = "event_groups_summary_${each.key}"
+  table_id   = "mc_details_${each.key}"
 
   view {
-    query = templatefile("${path.module}/sql/event_groups_summary.sql", {
-      project_id       = data.google_client_config.default.project
-      region           = data.google_client_config.default.region
-      data_provider_id = each.value
-    })
-    use_legacy_sql = false
-  }
-}
-
-resource "google_bigquery_table" "account_ids" {
-  for_each   = var.data_provider_resource_ids
-  dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
-  project    = data.google_client_config.default.project
-  table_id   = "account_ids_${each.key}"
-
-  view {
-    query = templatefile("${path.module}/sql/account_ids.sql", {
+    query = templatefile("${path.module}/sql/mc_details.sql", {
       project_id       = data.google_client_config.default.project
       region           = data.google_client_config.default.region
       data_provider_id = each.value
@@ -296,28 +241,13 @@ resource "google_bigquery_table" "requisition_overview_platform" {
   }
 }
 
-resource "google_bigquery_table" "event_groups_summary_platform" {
+resource "google_bigquery_table" "mc_details_platform" {
   dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
   project    = data.google_client_config.default.project
-  table_id   = "event_groups_summary_platform"
+  table_id   = "mc_details_platform"
 
   view {
-    query = templatefile("${path.module}/sql/event_groups_summary.sql", {
-      project_id       = data.google_client_config.default.project
-      region           = data.google_client_config.default.region
-      data_provider_id = ""
-    })
-    use_legacy_sql = false
-  }
-}
-
-resource "google_bigquery_table" "account_ids_platform" {
-  dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
-  project    = data.google_client_config.default.project
-  table_id   = "account_ids_platform"
-
-  view {
-    query = templatefile("${path.module}/sql/account_ids.sql", {
+    query = templatefile("${path.module}/sql/mc_details.sql", {
       project_id       = data.google_client_config.default.project
       region           = data.google_client_config.default.region
       data_provider_id = ""
@@ -360,20 +290,11 @@ resource "google_bigquery_table_iam_member" "requisition_overview_viewer" {
   member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }
 
-resource "google_bigquery_table_iam_member" "event_groups_summary_viewer" {
+resource "google_bigquery_table_iam_member" "mc_details_viewer" {
   for_each   = var.data_provider_resource_ids
   project    = data.google_client_config.default.project
   dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
-  table_id   = google_bigquery_table.event_groups_summary[each.key].table_id
-  role       = "roles/bigquery.dataViewer"
-  member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
-}
-
-resource "google_bigquery_table_iam_member" "account_ids_viewer" {
-  for_each   = var.data_provider_resource_ids
-  project    = data.google_client_config.default.project
-  dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
-  table_id   = google_bigquery_table.account_ids[each.key].table_id
+  table_id   = google_bigquery_table.mc_details[each.key].table_id
   role       = "roles/bigquery.dataViewer"
   member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }
