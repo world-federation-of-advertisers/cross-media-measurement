@@ -464,7 +464,7 @@ class GenerateAndVerifySyntheticDataTest {
     val countsByGenderAndAge: Map<Pair<Person.Gender, Person.AgeGroup>, Int> =
       testEvents.groupingBy { it.person.gender to it.person.ageGroup }.eachCount()
 
-    // Expected counts derived from small_population_spec_v2alpha.textproto +
+    // Expected counts derived from small_population_spec.textproto +
     // small_data_spec.textproto + small_data_spec_b.textproto:
     //
     //   small_data_spec.textproto (event group eg-a, 8001 impressions):
@@ -612,7 +612,7 @@ class GenerateAndVerifySyntheticDataTest {
     private const val MODEL_LINE =
       "modelProviders/provider1/modelSuites/suite1/modelLines/some-model-line"
     private const val OUTPUT_BUCKET = "test-bucket"
-    private const val POPULATION_SPEC = "small_population_spec_v2alpha.textproto"
+    private const val POPULATION_SPEC = "small_population_spec.textproto"
     private const val IMPRESSION_METADATA_BASE_PATH = "run1"
     private const val INSPECT_DATE = "2021-03-15"
 
