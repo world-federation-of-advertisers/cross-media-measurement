@@ -91,32 +91,6 @@ resource "google_bigquery_routine" "decode_event_group_details" {
   JS
 }
 
-resource "google_bigquery_routine" "decode_data_provider_details" {
-  dataset_id   = google_bigquery_dataset.dashboard_views.dataset_id
-  project      = data.google_client_config.default.project
-  routine_id   = "decode_DataProviderDetails"
-  routine_type = "SCALAR_FUNCTION"
-  language     = "JAVASCRIPT"
-
-  arguments {
-    name      = "b"
-    data_type = jsonencode({ "typeKind" : "BYTES" })
-  }
-
-  return_type = jsonencode({ "typeKind" : "STRING" })
-
-  imported_libraries = [
-    "gs://xmm-dashboard/lib/protobuf.global.min.js",
-    "gs://xmm-dashboard/descriptors/kingdom_descriptor.js",
-  ]
-
-  definition_body = <<-JS
-    const root = protobuf.Root.fromJSON(DESCRIPTOR_kingdom);
-    const T = root.lookupType('wfa.measurement.internal.kingdom.DataProviderDetails');
-    const m = T.decode(new Uint8Array(b));
-    return JSON.stringify(T.toObject(m, {longs: Number, enums: String, defaults: true}));
-  JS
-}
 
 # --- BigQuery Connections (Spanner with Data Boost) ---
 
@@ -182,6 +156,8 @@ resource "google_bigquery_table" "requisition_overview" {
   project    = data.google_client_config.default.project
   table_id   = "requisition_overview_${each.key}"
 
+  deletion_protection = false
+
   view {
     query = templatefile("${path.module}/sql/requisition_overview.sql", {
       project_id       = data.google_client_config.default.project
@@ -198,6 +174,8 @@ resource "google_bigquery_table" "mc_details" {
   project    = data.google_client_config.default.project
   table_id   = "mc_details_${each.key}"
 
+  deletion_protection = false
+
   view {
     query = templatefile("${path.module}/sql/mc_details.sql", {
       project_id       = data.google_client_config.default.project
@@ -213,6 +191,8 @@ resource "google_bigquery_table" "edp_coverage" {
   dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
   project    = data.google_client_config.default.project
   table_id   = "edp_coverage_${each.key}"
+
+  deletion_protection = false
 
   view {
     query = templatefile("${path.module}/sql/edp_coverage.sql", {
@@ -231,6 +211,8 @@ resource "google_bigquery_table" "requisition_overview_platform" {
   project    = data.google_client_config.default.project
   table_id   = "requisition_overview_platform"
 
+  deletion_protection = false
+
   view {
     query = templatefile("${path.module}/sql/requisition_overview.sql", {
       project_id       = data.google_client_config.default.project
@@ -246,6 +228,8 @@ resource "google_bigquery_table" "mc_details_platform" {
   project    = data.google_client_config.default.project
   table_id   = "mc_details_platform"
 
+  deletion_protection = false
+
   view {
     query = templatefile("${path.module}/sql/mc_details.sql", {
       project_id       = data.google_client_config.default.project
@@ -260,6 +244,8 @@ resource "google_bigquery_table" "edp_coverage_platform" {
   dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
   project    = data.google_client_config.default.project
   table_id   = "edp_coverage_platform"
+
+  deletion_protection = false
 
   view {
     query = templatefile("${path.module}/sql/edp_coverage.sql", {
