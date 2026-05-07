@@ -703,24 +703,28 @@ class FilterProcessorTest {
 
   @Test
   fun `FilterSpec ByEventGroupReferenceIds construction throws when collectionInterval is invalid`() {
-    assertFailsWith<InvalidCollectionIntervalException> {
-      FilterSpec.ByEventGroupReferenceIds(
-        celExpression = "",
-        collectionInterval = createInvalidInterval(),
-        eventGroupReferenceIds = listOf("test-group"),
-      )
-    }
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        FilterSpec.ByEventGroupReferenceIds(
+          celExpression = "",
+          collectionInterval = createInvalidInterval(),
+          eventGroupReferenceIds = listOf("test-group"),
+        )
+      }
+    assertThat(exception).hasMessageThat().contains("collectionInterval startTime must be before endTime")
   }
 
   @Test
   fun `FilterSpec ByEntityKeys construction throws when collectionInterval is invalid`() {
-    assertFailsWith<InvalidCollectionIntervalException> {
-      FilterSpec.ByEntityKeys(
-        celExpression = "",
-        collectionInterval = createInvalidInterval(),
-        entityKeys = setOf(makeEntityKey("ad", "X")),
-      )
-    }
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        FilterSpec.ByEntityKeys(
+          celExpression = "",
+          collectionInterval = createInvalidInterval(),
+          entityKeys = setOf(makeEntityKey("ad", "X")),
+        )
+      }
+    assertThat(exception).hasMessageThat().contains("collectionInterval startTime must be before endTime")
   }
 
   @Test
