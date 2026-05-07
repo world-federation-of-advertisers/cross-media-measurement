@@ -30,13 +30,15 @@ SELECT
   r.CmmsCreateTime,
   r.RequisitionCreateTime,
   TIMESTAMP_DIFF(r.FulfilledTime, r.StoredTime, SECOND) AS FulfillmentDurationSeconds,
-  rpt.ReportCreateTime,
   rpt.ReportState,
   rpt.MetricCount,
   rpt.SucceededMetrics,
   rpt.FailedMetrics,
   rpt.ReportTimeStart,
-  rpt.ReportTimeEnd
+  rpt.ReportTimeEnd,
+  rd.ReportingSetFilter,
+  rd.MetricCalcSpecDetails,
+  rd.EventGroupCount
 FROM (
   SELECT * FROM EXTERNAL_QUERY(
     'projects/${project_id}/locations/${region}/connections/edp-aggregator-conn',
@@ -64,18 +66,17 @@ LEFT JOIN (
     'projects/${project_id}/locations/${region}/connections/reporting-postgres-conn',
     '''SELECT
       CAST(rp.externalreportid AS TEXT) AS externalreportid,
-      rp.createtime AS ReportCreateTime,
       COUNT(m.metricid) AS MetricCount,
       COUNT(CASE WHEN m.state = 4 THEN 1 END) AS SucceededMetrics,
       COUNT(CASE WHEN m.state = 5 THEN 1 END) AS FailedMetrics,
       CASE
-        WHEN COUNT(CASE WHEN m.state = 5 THEN 1 END) > 0 THEN 'FAILED'
-        WHEN COUNT(m.metricid) > 0 AND COUNT(m.metricid) = COUNT(CASE WHEN m.state = 4 THEN 1 END) THEN 'SUCCEEDED'
-        WHEN COUNT(m.metricid) = 0 THEN 'NO_METRICS'
-        ELSE 'IN_PROGRESS'
+        WHEN COUNT(CASE WHEN m.state = 5 THEN 1 END) > 0 THEN ''FAILED''
+        WHEN COUNT(m.metricid) > 0 AND COUNT(m.metricid) = COUNT(CASE WHEN m.state = 4 THEN 1 END) THEN ''SUCCEEDED''
+        WHEN COUNT(m.metricid) = 0 THEN ''NO_METRICS''
+        ELSE ''IN_PROGRESS''
       END AS ReportState,
-      json_extract_path_text(rp.reportdetailsjson::json, 'timeIntervals', 'timeIntervals', '0', 'startTime') AS ReportTimeStart,
-      json_extract_path_text(rp.reportdetailsjson::json, 'timeIntervals', 'timeIntervals', '0', 'endTime') AS ReportTimeEnd
+      json_extract_path_text(rp.reportdetailsjson::json, ''timeIntervals'', ''timeIntervals'', ''0'', ''startTime'') AS ReportTimeStart,
+      json_extract_path_text(rp.reportdetailsjson::json, ''timeIntervals'', ''timeIntervals'', ''0'', ''endTime'') AS ReportTimeEnd
     FROM reports rp
     LEFT JOIN metriccalculationspecreportingmetrics mcsrm
       ON rp.measurementconsumerid = mcsrm.measurementconsumerid
@@ -83,9 +84,36 @@ LEFT JOIN (
     LEFT JOIN metrics m
       ON mcsrm.measurementconsumerid = m.measurementconsumerid
       AND mcsrm.metricid = m.metricid
-    GROUP BY rp.externalreportid, rp.createtime, rp.reportdetailsjson''')
+    GROUP BY rp.externalreportid, rp.reportdetailsjson''')
 ) rpt
   ON REGEXP_EXTRACT(r.Report, 'reports/(.+)$') = rpt.externalreportid
+LEFT JOIN (
+  SELECT * FROM EXTERNAL_QUERY(
+    'projects/${project_id}/locations/${region}/connections/reporting-postgres-conn',
+    '''SELECT
+      CAST(rp.externalreportid AS TEXT) AS externalreportid,
+      rs.filter AS ReportingSetFilter,
+      mcs.metriccalculationspecdetailsjson AS MetricCalcSpecDetails,
+      COUNT(DISTINCT rseg.eventgroupid) AS EventGroupCount
+    FROM reports rp
+    LEFT JOIN metriccalculationspecreportingmetrics mcsrm
+      ON rp.measurementconsumerid = mcsrm.measurementconsumerid
+      AND rp.reportid = mcsrm.reportid
+    LEFT JOIN metriccalculationspecs mcs
+      ON mcsrm.measurementconsumerid = mcs.measurementconsumerid
+      AND mcsrm.metriccalculationspecid = mcs.metriccalculationspecid
+    LEFT JOIN metrics m
+      ON mcsrm.measurementconsumerid = m.measurementconsumerid
+      AND mcsrm.metricid = m.metricid
+    LEFT JOIN reportingsets rs
+      ON m.reportingsetid = rs.reportingsetid
+      AND m.measurementconsumerid = rs.measurementconsumerid
+    LEFT JOIN reportingseteventgroups rseg
+      ON rs.measurementconsumerid = rseg.measurementconsumerid
+      AND rs.reportingsetid = rseg.reportingsetid
+    GROUP BY rp.externalreportid, rs.filter, mcs.metriccalculationspecdetailsjson''')
+) rd
+  ON REGEXP_EXTRACT(r.Report, 'reports/(.+)$') = rd.externalreportid
 %{ if data_provider_id != "" }
 WHERE r.DataProviderResourceId = '${data_provider_id}'
 %{ endif }

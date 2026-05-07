@@ -13,29 +13,41 @@
 -- limitations under the License.
 
 SELECT
-  `${project_id}.dashboard_views.externalIdToApiId`(MeasurementConsumerId) AS CmmsMeasurementConsumer,
-  `${project_id}.dashboard_views.externalIdToApiId`(DataProviderId) AS CmmsDataProvider,
+  `${project_id}.dashboard_views.externalIdToApiId`(eg.MeasurementConsumerId) AS CmmsMeasurementConsumer,
+  `${project_id}.dashboard_views.externalIdToApiId`(eg.DataProviderId) AS CmmsDataProvider,
   COUNT(*) AS EventGroupCount,
-  ARRAY_AGG(IFNULL(ProvidedEventGroupId, '')) AS EventGroupIds,
+  ARRAY_AGG(IFNULL(eg.ProvidedEventGroupId, '')) AS EventGroupIds,
   ARRAY_AGG(IFNULL(JSON_VALUE(
-    `${project_id}.dashboard_views.decode_EventGroupDetails`(EventGroupDetails),
+    `${project_id}.dashboard_views.decode_EventGroupDetails`(eg.EventGroupDetails),
     '$.metadata.ad_metadata.campaign_metadata.campaign_name'
   ), '')) AS CampaignNames,
   ARRAY_AGG(IFNULL(JSON_VALUE(
-    `${project_id}.dashboard_views.decode_EventGroupDetails`(EventGroupDetails),
+    `${project_id}.dashboard_views.decode_EventGroupDetails`(eg.EventGroupDetails),
     '$.metadata.ad_metadata.campaign_metadata.brand_name'
-  ), '')) AS BrandNames
+  ), '')) AS BrandNames,
+  ARRAY_AGG(IFNULL(ca.ClientAccountReferenceId, '')) AS AccountIds
 FROM (
   SELECT * FROM EXTERNAL_QUERY(
     'projects/${project_id}/locations/${region}/connections/kingdom-conn',
     '''SELECT
-      eg.MeasurementConsumerId,
       eg.DataProviderId,
+      eg.MeasurementConsumerId,
       eg.ProvidedEventGroupId,
       CAST(eg.EventGroupDetails AS BYTES) AS EventGroupDetails
     FROM EventGroups eg''')
-)
+) eg
+LEFT JOIN (
+  SELECT * FROM EXTERNAL_QUERY(
+    'projects/${project_id}/locations/${region}/connections/kingdom-conn',
+    '''SELECT
+      ca.MeasurementConsumerId,
+      ca.DataProviderId,
+      ca.ClientAccountReferenceId
+    FROM ClientAccounts ca''')
+) ca
+  ON eg.MeasurementConsumerId = ca.MeasurementConsumerId
+  AND eg.DataProviderId = ca.DataProviderId
 %{ if data_provider_id != "" }
-WHERE `${project_id}.dashboard_views.externalIdToApiId`(DataProviderId) = '${data_provider_id}'
+WHERE `${project_id}.dashboard_views.externalIdToApiId`(eg.DataProviderId) = '${data_provider_id}'
 %{ endif }
 GROUP BY 1, 2
