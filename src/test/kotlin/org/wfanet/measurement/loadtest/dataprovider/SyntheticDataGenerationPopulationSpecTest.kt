@@ -19,6 +19,7 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.DynamicMessage
+import com.google.protobuf.TypeRegistry
 import com.google.type.date
 import java.nio.file.Paths
 import java.time.Duration
@@ -715,6 +716,251 @@ class SyntheticDataGenerationPopulationSpecTest {
     }
   }
 
+  @Test
+  fun `generateEvents with PopulationSpec throws when sampling rate is invalid`() {
+    val populationSpec = TWO_SUBPOP_POPULATION_SPEC
+    val eventGroupSpec = syntheticEventGroupSpec {
+      samplingNonce = 42L
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 27
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 2
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 0L
+                    endExclusive = 25L
+                  }
+                  samplingRate = 2.0
+                }
+            }
+        }
+    }
+
+    assertFailsWith<IllegalStateException> {
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          populationSpec,
+          eventGroupSpec,
+        )
+        .toEventsList()
+    }
+  }
+
+  @Test
+  fun `generateEvents with PopulationSpec throws when samplingNonce is required but missing`() {
+    val populationSpec = TWO_SUBPOP_POPULATION_SPEC
+    val eventGroupSpec = syntheticEventGroupSpec {
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 27
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 0L
+                    endExclusive = 25L
+                  }
+                  samplingRate = 0.5
+                }
+            }
+        }
+    }
+
+    assertFailsWith<IllegalStateException> {
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          populationSpec,
+          eventGroupSpec,
+        )
+        .toEventsList()
+    }
+  }
+
+  @Test
+  fun `generateEvents with PopulationSpec throws when vidRange specs overlap`() {
+    val populationSpec = TWO_SUBPOP_POPULATION_SPEC
+    val eventGroupSpec = syntheticEventGroupSpec {
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 27
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 2
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 0L
+                    endExclusive = 25L
+                  }
+                }
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    // 20 lies inside the previous range (0..25), so the two specs overlap.
+                    start = 20L
+                    endExclusive = 50L
+                  }
+                }
+            }
+        }
+    }
+
+    assertFailsWith<IllegalStateException> {
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          populationSpec,
+          eventGroupSpec,
+        )
+        .toEventsList()
+    }
+  }
+
+  @Test
+  fun `generateEvents with PopulationSpec emits Duration nonPopulation field values`() {
+    val populationSpec = populationSpec {
+      subpopulations +=
+        PopulationSpecKt.subPopulation {
+          vidRanges +=
+            PopulationSpecKt.vidRange {
+              startVid = 1L
+              endVidInclusive = 10L
+            }
+          attributes += ProtoAny.pack(person { gender = Person.Gender.FEMALE })
+        }
+    }
+    val videoLength = Duration.ofMinutes(5).toProtoDuration()
+    val eventGroupSpec = syntheticEventGroupSpec {
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 7
+                day = 30
+              }
+              endExclusive = date {
+                year = 2023
+                month = 7
+                day = 31
+              }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 1L
+                    endExclusive = 11L
+                  }
+                  nonPopulationFieldValues["video_ad.length"] = fieldValue {
+                    durationValue = videoLength
+                  }
+                }
+            }
+        }
+    }
+
+    val testEvents: List<TestEvent> =
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          populationSpec,
+          eventGroupSpec,
+        )
+        .toEventsList()
+        .map { it.message }
+
+    assertThat(testEvents).hasSize(10)
+    assertThat(testEvents)
+      .contains(
+        testEvent {
+          person = person { gender = Person.Gender.FEMALE }
+          videoAd = video { length = videoLength }
+        }
+      )
+  }
+
+  @Test
+  fun `generateEvents with PopulationSpec spreads events evenly across days from a textproto fixture`() {
+    val populationSpec: PopulationSpec =
+      parseTextProto(
+        TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
+        PopulationSpec.getDefaultInstance(),
+        TYPE_REGISTRY,
+      )
+    val syntheticEventGroupSpec: SyntheticEventGroupSpec =
+      parseTextProto(
+        TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
+        SyntheticEventGroupSpec.getDefaultInstance(),
+      )
+
+    val shards: List<LabeledEventDateShard<TestEvent>> =
+      SyntheticDataGeneration.generateEvents(
+          messageInstance = TestEvent.getDefaultInstance(),
+          populationSpec = populationSpec,
+          syntheticEventGroupSpec = syntheticEventGroupSpec,
+        )
+        .toList()
+
+    assertThat(shards.map { it.localDate.toString() })
+      .isEqualTo(
+        listOf(
+          "2021-03-15",
+          "2021-03-16",
+          "2021-03-17",
+          "2021-03-18",
+          "2021-03-19",
+          "2021-03-20",
+          "2021-03-21",
+        )
+      )
+    // 8000 total reach / 7 days, allow ±100 per day.
+    shards.forEach { assertThat(it.labeledEvents.toList().size).isWithin(100).of(8000 / 7) }
+    assertThat(shards.flatMap { it.labeledEvents.toList() }.size).isEqualTo(8001)
+  }
+
   private fun subPopWithPerson(
     startVid: Long,
     endVidInclusive: Long,
@@ -756,10 +1002,25 @@ class SyntheticDataGenerationPopulationSpecTest {
     List<LabeledEvent<T>> = flatMap { it.labeledEvents }.toList()
 
   companion object {
+    private val TEST_DATA_PATH =
+      Paths.get(
+        "wfa_measurement_system",
+        "src",
+        "main",
+        "proto",
+        "wfa",
+        "measurement",
+        "loadtest",
+        "dataprovider",
+      )
+    private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
+
+    private val TYPE_REGISTRY: TypeRegistry =
+      TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
+
     /**
      * A two-subpopulation [PopulationSpec] covering VIDs 0..99 with Person attributes set per
-     * subpopulation. Mirrors the legacy two-subpopulation spec used in
-     * [SyntheticDataGenerationTest].
+     * subpopulation.
      */
     private val TWO_SUBPOP_POPULATION_SPEC: PopulationSpec = populationSpec {
       subpopulations +=

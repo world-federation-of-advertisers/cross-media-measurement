@@ -35,8 +35,6 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec.SubPopulation
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.VidRange
 import org.wfanet.measurement.common.LocalDateProgression
 import org.wfanet.measurement.common.OpenEndTimeRange
@@ -100,53 +98,6 @@ object SyntheticDataGeneration {
               zoneId,
               syntheticEventGroupSpec,
               dateSpec,
-              numDays.toInt(),
-              timeRange,
-            )
-          yield(LabeledEventDateShard(date, events))
-        }
-      }
-    }
-  }
-
-  /**
-   * Legacy overload of [generateEvents] that accepts a [SyntheticPopulationSpec] for callers that
-   * have not yet migrated to [PopulationSpec] (e.g. the EdpSimulator path). Uses the population
-   * field paths declared on [SyntheticPopulationSpec] (rather than the descriptor) and so retains
-   * the original semantics: only the field paths explicitly listed in
-   * [SyntheticPopulationSpec.populationFieldsList] are populated from
-   * [SubPopulation.populationFieldsValuesMap].
-   *
-   * New callers should use the [PopulationSpec] overload.
-   */
-  fun <T : Message> generateEvents(
-    messageInstance: T,
-    populationSpec: SyntheticPopulationSpec,
-    syntheticEventGroupSpec: SyntheticEventGroupSpec,
-    timeRange: OpenEndTimeRange = OpenEndTimeRange(Instant.MIN, Instant.MAX),
-    zoneId: ZoneId = ZoneOffset.UTC,
-  ): Sequence<LabeledEventDateShard<T>> {
-    return sequence {
-      for (dateSpec: SyntheticEventGroupSpec.DateSpec in syntheticEventGroupSpec.dateSpecsList) {
-        val dateProgression: LocalDateProgression = dateSpec.dateRange.toProgression()
-
-        val dateSpecTimeRange = OpenEndTimeRange.fromClosedDateRange(dateProgression)
-        if (!dateSpecTimeRange.overlaps(timeRange)) {
-          continue
-        }
-        val numDays =
-          ChronoUnit.DAYS.between(dateProgression.start, dateProgression.endInclusive) + 1
-        logger.info("Writing $numDays days of data")
-        for (date in dateProgression) {
-          val events: Sequence<LabeledEvent<T>> =
-            generateLegacyDayEvents(
-              dateProgression,
-              date,
-              zoneId,
-              messageInstance,
-              syntheticEventGroupSpec,
-              dateSpec,
-              populationSpec,
               numDays.toInt(),
               timeRange,
             )
@@ -297,85 +248,6 @@ object SyntheticDataGeneration {
     }
   }
 
-  private fun <T : Message> generateLegacyDayEvents(
-    dateProgression: LocalDateProgression,
-    date: LocalDate,
-    zoneId: ZoneId,
-    messageInstance: T,
-    syntheticEventGroupSpec: SyntheticEventGroupSpec,
-    dateSpec: SyntheticEventGroupSpec.DateSpec,
-    populationSpec: SyntheticPopulationSpec,
-    numDays: Int,
-    timeRange: OpenEndTimeRange,
-  ): Sequence<LabeledEvent<T>> = sequence {
-    val subPopulations = populationSpec.subPopulationsList
-    val dayNumber = ChronoUnit.DAYS.between(dateProgression.start, date)
-    logger.info("Generating data for day: $dayNumber date: $date")
-    for (frequencySpec: SyntheticEventGroupSpec.FrequencySpec in dateSpec.frequencySpecsList) {
-
-      check(!frequencySpec.hasOverlaps()) { "The VID ranges should be non-overlapping." }
-
-      for (vidRangeSpec: VidRangeSpec in frequencySpec.vidRangeSpecsList) {
-        val subPopulation: SubPopulation =
-          vidRangeSpec.vidRange.findSubPopulation(subPopulations)
-            ?: error("Sub-population not found")
-        check(vidRangeSpec.samplingRate in 0.0..1.0) { "Invalid sampling_rate" }
-        if (vidRangeSpec.sampled) {
-          check(syntheticEventGroupSpec.samplingNonce != 0L) {
-            "sampling_nonce is required for VID sampling"
-          }
-        }
-
-        val builder: Message.Builder = messageInstance.newBuilderForType()
-
-        populationSpec.populationFieldsList.forEach {
-          val subPopulationFieldValue: FieldValue =
-            subPopulation.populationFieldsValuesMap.getValue(it)
-          val fieldPath = it.split('.')
-          try {
-            builder.setField(fieldPath, subPopulationFieldValue)
-          } catch (e: IllegalArgumentException) {
-            throw IllegalStateException(e)
-          }
-        }
-
-        populationSpec.nonPopulationFieldsList.forEach {
-          val nonPopulationFieldValue: FieldValue =
-            vidRangeSpec.nonPopulationFieldValuesMap.getValue(it)
-          val fieldPath = it.split('.')
-          try {
-            builder.setField(fieldPath, nonPopulationFieldValue)
-          } catch (e: IllegalArgumentException) {
-            throw IllegalStateException(e)
-          }
-        }
-
-        @Suppress("UNCHECKED_CAST") // Safe per protobuf API.
-        val message = builder.build() as T
-        for (vid in vidRangeSpec.sampledVids(syntheticEventGroupSpec.samplingNonce)) {
-          for (i in 1..frequencySpec.frequency) {
-            val dayToLog =
-              (VID_SAMPLING_FINGERPRINT_FUNCTION.hashLong(vid * i).asLong() % numDays + numDays) %
-                numDays
-            if (dayToLog == dayNumber) {
-              val hashInput =
-                vid
-                  .toByteString(ByteOrder.BIG_ENDIAN)
-                  .concat(dayToLog.toByteString(ByteOrder.BIG_ENDIAN))
-              val hashValue =
-                abs(Hashing.farmHashFingerprint64().hashBytes(hashInput.toByteArray()).asLong())
-              val impressionTime =
-                date.atStartOfDay(zoneId).plusSeconds(hashValue % SECONDS_PER_DAY)
-              if (impressionTime.toInstant() in timeRange) {
-                yield(LabeledEvent(impressionTime.toInstant(), vid, message))
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
   /** Returns the VIDs which are in the sample for this [VidRangeSpec]. */
   private fun VidRangeSpec.sampledVids(samplingNonce: Long): Sequence<Long> {
     return (vidRange.start until vidRange.endExclusive).asSequence().filter {
@@ -404,26 +276,6 @@ object SyntheticDataGeneration {
   /** Whether the [VidRange] in this [VidRangeSpec] should be sampled. */
   private val VidRangeSpec.sampled: Boolean
     get() = samplingRate > 0.0 && samplingRate < 1.0
-
-  /**
-   * Returns the [SubPopulation] from a list of [SubPopulation] that contains the [VidRange] in its
-   * range.
-   *
-   * Returns null if no [SubPopulation] contains the range.
-   */
-  private fun VidRange.findSubPopulation(subPopulations: List<SubPopulation>): SubPopulation? {
-    val vidRange = this
-    subPopulations.forEach {
-      val vidSubRange = it.vidSubRange
-      if (
-        vidRange.start >= vidSubRange.start && vidRange.endExclusive <= vidSubRange.endExclusive
-      ) {
-        return it
-      }
-    }
-
-    return null
-  }
 
   /**
    * Helper function for setting a field value in a [Message.Builder].

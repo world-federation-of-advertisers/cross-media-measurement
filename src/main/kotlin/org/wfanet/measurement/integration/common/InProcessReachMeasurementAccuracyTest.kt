@@ -454,7 +454,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    private val SYNTHETIC_POPULATION_SPEC = SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL
+    private val SYNTHETIC_POPULATION_SPEC = SyntheticGenerationSpecs.POPULATION_SPEC_SMALL
     private val SYNTHETIC_EVENT_GROUP_SPECS =
       SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL_36K
 

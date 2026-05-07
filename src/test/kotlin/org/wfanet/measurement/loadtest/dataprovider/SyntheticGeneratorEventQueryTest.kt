@@ -16,6 +16,7 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Descriptors
+import com.google.protobuf.TypeRegistry
 import com.google.type.interval
 import java.nio.file.Paths
 import java.time.LocalDate
@@ -28,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
@@ -51,6 +53,7 @@ class SyntheticGeneratorEventQueryTest {
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
         PopulationSpec.getDefaultInstance(),
+        TYPE_REGISTRY,
       )
     val syntheticEventGroupSpec: SyntheticEventGroupSpec =
       parseTextProto(
@@ -94,5 +97,8 @@ class SyntheticGeneratorEventQueryTest {
     private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
 
     private val ZONE_ID: ZoneId = ZoneOffset.UTC
+
+    private val TYPE_REGISTRY: TypeRegistry =
+      TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
   }
 }

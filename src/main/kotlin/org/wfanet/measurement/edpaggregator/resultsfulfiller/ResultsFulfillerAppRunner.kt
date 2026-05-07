@@ -25,6 +25,7 @@ import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Parser
+import com.google.protobuf.TypeRegistry
 import io.grpc.ClientInterceptors
 import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
@@ -502,10 +503,6 @@ class ResultsFulfillerAppRunner : Runnable {
     return modelLines.associate { it: ModelLineFlags ->
       val configContent: ByteArray =
         getResultsFulfillerConfigAsByteArray(googleProjectId, it.populationSpecFileBlobUri)
-      val populationSpec =
-        configContent.inputStream().reader(Charsets.UTF_8).use { reader ->
-          parseTextProto(reader, PopulationSpec.getDefaultInstance())
-        }
       val eventDescriptorBytes =
         getResultsFulfillerConfigAsByteArray(googleProjectId, it.eventTemplateDescriptorBlobUri)
       val fileDescriptorSet =
@@ -516,6 +513,16 @@ class ResultsFulfillerAppRunner : Runnable {
       val eventDescriptor =
         descriptors.firstOrNull { it.fullName == typeName }
           ?: error("Descriptor not found for type: $typeName")
+      // Build a TypeRegistry containing all descriptors from the supplied
+      // FileDescriptorSet so that the PopulationSpec textproto can resolve any
+      // event template attribute messages packed in google.protobuf.Any (e.g. a
+      // Person event template attribute on each SubPopulation).
+      val populationSpecTypeRegistry: TypeRegistry =
+        TypeRegistry.newBuilder().add(descriptors).build()
+      val populationSpec =
+        configContent.inputStream().reader(Charsets.UTF_8).use { reader ->
+          parseTextProto(reader, PopulationSpec.getDefaultInstance(), populationSpecTypeRegistry)
+        }
       val vidIndexMap =
         metrics.vidIndexBuildDuration.measured { ParallelInMemoryVidIndexMap.build(populationSpec) }
       it.modelLine to
