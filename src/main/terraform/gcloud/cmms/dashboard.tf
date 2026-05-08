@@ -29,12 +29,6 @@ resource "google_bigquery_dataset" "dashboard_views_edp" {
 }
 
 # Remove default projectReaders access from EDP dataset
-resource "google_bigquery_dataset_iam_binding" "edp_dataset_no_project_readers" {
-  dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
-  project    = data.google_client_config.default.project
-  role       = "roles/bigquery.dataViewer"
-  members    = []
-}
 
 # --- UDFs ---
 
