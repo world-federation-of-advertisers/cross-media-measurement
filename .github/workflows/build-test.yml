@@ -25,7 +25,7 @@ on:
 jobs:
   build-test:
     name: Build and test
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out revision
         uses: actions/checkout@v2
