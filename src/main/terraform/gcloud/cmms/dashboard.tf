@@ -214,6 +214,7 @@ resource "google_bigquery_table" "requisition_overview_platform" {
   dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
   project    = data.google_client_config.default.project
   table_id   = "requisition_overview_platform"
+  description = "Platform view - all EDPs"
 
   deletion_protection = false
   view {
@@ -230,6 +231,7 @@ resource "google_bigquery_table" "mc_details_platform" {
   dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
   project    = data.google_client_config.default.project
   table_id   = "mc_details_platform"
+  description = "Platform view - all EDPs"
 
   deletion_protection = false
   view {
@@ -246,6 +248,7 @@ resource "google_bigquery_table" "edp_coverage_platform" {
   dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
   project    = data.google_client_config.default.project
   table_id   = "edp_coverage_platform"
+  description = "Platform view - all EDPs"
 
   deletion_protection = false
   view {
@@ -293,4 +296,12 @@ resource "google_bigquery_table_iam_member" "edp_coverage_viewer" {
   table_id   = google_bigquery_table.edp_coverage[each.key].table_id
   role       = "roles/bigquery.dataViewer"
   member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
+}
+
+# EDP service accounts need bigquery.jobUser to run queries
+resource "google_project_iam_member" "edp_bigquery_job_user" {
+  for_each = var.data_provider_resource_ids
+  project  = data.google_client_config.default.project
+  role     = "roles/bigquery.jobUser"
+  member   = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }
