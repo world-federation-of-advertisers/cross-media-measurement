@@ -24,6 +24,7 @@ fun MediaType.toEventAnnotationMediaType(): EventAnnotationMediaType {
     MediaType.VIDEO -> EventAnnotationMediaType.VIDEO
     MediaType.DISPLAY -> EventAnnotationMediaType.DISPLAY
     MediaType.OTHER -> EventAnnotationMediaType.OTHER
+    MediaType.NATIVE -> EventAnnotationMediaType.NATIVE
     MediaType.MEDIA_TYPE_UNSPECIFIED,
     MediaType.UNRECOGNIZED -> throw UnsupportedOperationException()
   }

@@ -219,6 +219,7 @@ private fun MediaType.toCmmsMediaType(): CmmsMediaType {
     MediaType.VIDEO -> CmmsMediaType.VIDEO
     MediaType.DISPLAY -> CmmsMediaType.DISPLAY
     MediaType.OTHER -> CmmsMediaType.OTHER
+    MediaType.NATIVE -> CmmsMediaType.NATIVE
     MediaType.UNRECOGNIZED -> error("Unrecognized media type")
   }
 }

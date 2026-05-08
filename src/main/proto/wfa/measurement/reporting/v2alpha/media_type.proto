@@ -32,4 +32,7 @@ enum MediaType {
   DISPLAY = 2;
   // Interpret as set of artifacts as Other
   OTHER = 3;
+  // Interpret a set of artifacts as Native, capturing EDP-specific formats
+  // such as carousels or other non-standard format types.
+  NATIVE = 4;
 }

@@ -25,4 +25,5 @@ enum MediaType {
   VIDEO = 1;
   DISPLAY = 2;
   OTHER = 3;
+  NATIVE = 4;
 }

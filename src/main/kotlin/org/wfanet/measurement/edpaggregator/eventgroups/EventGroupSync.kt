@@ -435,6 +435,7 @@ class EventGroupSync(
       MediaType.VIDEO -> CmmsMediaType.VIDEO
       MediaType.DISPLAY -> CmmsMediaType.DISPLAY
       MediaType.OTHER -> CmmsMediaType.OTHER
+      MediaType.NATIVE -> CmmsMediaType.NATIVE
       MediaType.UNRECOGNIZED -> error("Not a real media type")
     }
   }

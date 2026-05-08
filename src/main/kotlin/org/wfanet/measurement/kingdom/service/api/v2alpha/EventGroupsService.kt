@@ -825,6 +825,7 @@ private fun InternalMediaType.toMediaType(): MediaType {
     InternalMediaType.VIDEO -> MediaType.VIDEO
     InternalMediaType.DISPLAY -> MediaType.DISPLAY
     InternalMediaType.OTHER -> MediaType.OTHER
+    InternalMediaType.NATIVE -> MediaType.NATIVE
     InternalMediaType.MEDIA_TYPE_UNSPECIFIED -> MediaType.MEDIA_TYPE_UNSPECIFIED
     InternalMediaType.UNRECOGNIZED -> error("MediaType unrecognized")
   }
@@ -915,6 +916,7 @@ private fun MediaType.toInternal(): InternalMediaType {
     MediaType.VIDEO -> InternalMediaType.VIDEO
     MediaType.DISPLAY -> InternalMediaType.DISPLAY
     MediaType.OTHER -> InternalMediaType.OTHER
+    MediaType.NATIVE -> InternalMediaType.NATIVE
     MediaType.MEDIA_TYPE_UNSPECIFIED -> InternalMediaType.MEDIA_TYPE_UNSPECIFIED
     MediaType.UNRECOGNIZED -> error("Media type unrecognized")
   }
