@@ -116,14 +116,38 @@ module "default_node_pools" {
   max_node_count  = 3
 }
 
-module "highmem_node_pools" {
+module "highmem_node_pools_1" {
   source   = "../modules/node-pool"
   for_each = module.clusters
 
   cluster         = each.value.cluster
-  name            = "highmem"
+  name            = "highmem_1"
+  service_account = module.common.cluster_service_account
+  machine_type    = "c2-standard-4"
+  max_node_count  = 20
+  spot            = true
+}
+
+module "highmem_node_pools_2" {
+  source   = "../modules/node-pool"
+  for_each = module.clusters
+
+  cluster         = each.value.cluster
+  name            = "highmem_2"
   service_account = module.common.cluster_service_account
   machine_type    = "c3-standard-4"
+  max_node_count  = 20
+  spot            = true
+}
+
+module "highmem_node_pools_3" {
+  source   = "../modules/node-pool"
+  for_each = module.clusters
+
+  cluster         = each.value.cluster
+  name            = "highmem_3"
+  service_account = module.common.cluster_service_account
+  machine_type    = "c3d-standard-4"
   max_node_count  = 20
   spot            = true
 }
