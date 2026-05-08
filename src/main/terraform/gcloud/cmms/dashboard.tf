@@ -14,12 +14,26 @@
 
 # BigQuery Dashboard Resources for EDPA Reporting Dashboard
 
-# --- Dataset ---
+# --- Datasets ---
 
 resource "google_bigquery_dataset" "dashboard_views" {
   dataset_id = "dashboard_views"
   project    = data.google_client_config.default.project
   location   = data.google_client_config.default.region
+}
+
+resource "google_bigquery_dataset" "dashboard_views_edp" {
+  dataset_id = "dashboard_views_edp"
+  project    = data.google_client_config.default.project
+  location   = data.google_client_config.default.region
+}
+
+# Remove default projectReaders access from EDP dataset
+resource "google_bigquery_dataset_iam_binding" "edp_dataset_no_project_readers" {
+  dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
+  project    = data.google_client_config.default.project
+  role       = "roles/bigquery.dataViewer"
+  members    = []
 }
 
 # --- UDFs ---
@@ -91,7 +105,6 @@ resource "google_bigquery_routine" "decode_event_group_details" {
   JS
 }
 
-
 # --- BigQuery Connections (Spanner with Data Boost) ---
 
 resource "google_bigquery_connection" "edp_aggregator" {
@@ -148,15 +161,13 @@ data "google_project" "project" {
   project_id = data.google_client_config.default.project
 }
 
-# --- Per-EDP Views ---
+# --- Per-EDP Views (in isolated dataset) ---
 
 resource "google_bigquery_table" "requisition_overview" {
   for_each   = var.data_provider_resource_ids
-  dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
+  dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
   project    = data.google_client_config.default.project
   table_id   = "requisition_overview_${each.key}"
-
-  deletion_protection = false
 
   view {
     query = templatefile("${path.module}/sql/requisition_overview.sql", {
@@ -170,11 +181,9 @@ resource "google_bigquery_table" "requisition_overview" {
 
 resource "google_bigquery_table" "mc_details" {
   for_each   = var.data_provider_resource_ids
-  dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
+  dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
   project    = data.google_client_config.default.project
   table_id   = "mc_details_${each.key}"
-
-  deletion_protection = false
 
   view {
     query = templatefile("${path.module}/sql/mc_details.sql", {
@@ -188,11 +197,9 @@ resource "google_bigquery_table" "mc_details" {
 
 resource "google_bigquery_table" "edp_coverage" {
   for_each   = var.data_provider_resource_ids
-  dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
+  dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
   project    = data.google_client_config.default.project
   table_id   = "edp_coverage_${each.key}"
-
-  deletion_protection = false
 
   view {
     query = templatefile("${path.module}/sql/edp_coverage.sql", {
@@ -204,14 +211,12 @@ resource "google_bigquery_table" "edp_coverage" {
   }
 }
 
-# --- Platform Views (no EDP filter) ---
+# --- Platform Views (in main dataset, accessible via project-level access) ---
 
 resource "google_bigquery_table" "requisition_overview_platform" {
   dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
   project    = data.google_client_config.default.project
   table_id   = "requisition_overview_platform"
-
-  deletion_protection = false
 
   view {
     query = templatefile("${path.module}/sql/requisition_overview.sql", {
@@ -228,8 +233,6 @@ resource "google_bigquery_table" "mc_details_platform" {
   project    = data.google_client_config.default.project
   table_id   = "mc_details_platform"
 
-  deletion_protection = false
-
   view {
     query = templatefile("${path.module}/sql/mc_details.sql", {
       project_id       = data.google_client_config.default.project
@@ -244,8 +247,6 @@ resource "google_bigquery_table" "edp_coverage_platform" {
   dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
   project    = data.google_client_config.default.project
   table_id   = "edp_coverage_platform"
-
-  deletion_protection = false
 
   view {
     query = templatefile("${path.module}/sql/edp_coverage.sql", {
@@ -270,7 +271,7 @@ resource "google_service_account" "edp_dashboard" {
 resource "google_bigquery_table_iam_member" "requisition_overview_viewer" {
   for_each   = var.data_provider_resource_ids
   project    = data.google_client_config.default.project
-  dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
+  dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
   table_id   = google_bigquery_table.requisition_overview[each.key].table_id
   role       = "roles/bigquery.dataViewer"
   member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
@@ -279,7 +280,7 @@ resource "google_bigquery_table_iam_member" "requisition_overview_viewer" {
 resource "google_bigquery_table_iam_member" "mc_details_viewer" {
   for_each   = var.data_provider_resource_ids
   project    = data.google_client_config.default.project
-  dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
+  dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
   table_id   = google_bigquery_table.mc_details[each.key].table_id
   role       = "roles/bigquery.dataViewer"
   member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
@@ -288,7 +289,7 @@ resource "google_bigquery_table_iam_member" "mc_details_viewer" {
 resource "google_bigquery_table_iam_member" "edp_coverage_viewer" {
   for_each   = var.data_provider_resource_ids
   project    = data.google_client_config.default.project
-  dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
+  dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
   table_id   = google_bigquery_table.edp_coverage[each.key].table_id
   role       = "roles/bigquery.dataViewer"
   member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
