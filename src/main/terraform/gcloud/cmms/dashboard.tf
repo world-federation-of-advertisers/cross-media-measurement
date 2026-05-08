@@ -386,7 +386,7 @@ resource "google_spanner_database_iam_member" "edp_aggregator_reader" {
   for_each = var.data_provider_resource_ids
   instance = google_spanner_instance.spanner_instance.name
   database = "edp-aggregator"
-  role     = "roles/spanner.databaseReader"
+  role     = "roles/spanner.databaseReaderWithDataBoost"
   member   = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }
 
@@ -394,6 +394,6 @@ resource "google_spanner_database_iam_member" "kingdom_reader" {
   for_each = var.data_provider_resource_ids
   instance = google_spanner_instance.spanner_instance.name
   database = "kingdom"
-  role     = "roles/spanner.databaseReader"
+  role     = "roles/spanner.databaseReaderWithDataBoost"
   member   = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }
