@@ -305,3 +305,16 @@ resource "google_project_iam_member" "edp_bigquery_job_user" {
   role     = "roles/bigquery.jobUser"
   member   = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }
+
+# Authorize dashboard_views_edp to access UDFs in dashboard_views
+resource "google_bigquery_dataset_access" "edp_authorized_routines" {
+  dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
+  project    = data.google_client_config.default.project
+  dataset {
+    dataset {
+      project_id = data.google_client_config.default.project
+      dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
+    }
+    target_types = ["ROUTINE"]
+  }
+}
