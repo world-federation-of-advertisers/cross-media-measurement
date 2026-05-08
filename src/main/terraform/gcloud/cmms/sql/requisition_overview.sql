@@ -72,8 +72,8 @@ LEFT JOIN (
     '''SELECT
       CAST(rp.externalreportid AS TEXT) AS externalreportid,
       COUNT(m.metricid) AS MetricCount,
-      COUNT(CASE WHEN m.state = 4 THEN 1 END) AS SucceededMetrics,
-      COUNT(CASE WHEN m.state = 5 THEN 1 END) AS FailedMetrics,
+      COUNT(CASE WHEN m.state = 2 THEN 1 END) AS SucceededMetrics,
+      COUNT(CASE WHEN m.state = 3 THEN 1 END) AS FailedMetrics,
       json_extract_path_text(rp.reportdetailsjson::json, 'timeIntervals', 'timeIntervals', '0', 'startTime') AS ReportTimeStart,
       json_extract_path_text(rp.reportdetailsjson::json, 'timeIntervals', 'timeIntervals', '0', 'endTime') AS ReportTimeEnd
     FROM reports rp
