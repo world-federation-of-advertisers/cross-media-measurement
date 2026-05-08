@@ -318,3 +318,65 @@ resource "google_bigquery_dataset_access" "edp_authorized_routines" {
     target_types = ["VIEWS"]
   }
 }
+
+# Authorize per-EDP views in dashboard_views dataset (for connection access)
+resource "google_bigquery_dataset_access" "edp_requisition_overview_authorized" {
+  for_each   = google_bigquery_table.requisition_overview
+  dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
+  project    = data.google_client_config.default.project
+  view {
+    project_id = data.google_client_config.default.project
+    dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
+    table_id   = each.value.table_id
+  }
+}
+
+resource "google_bigquery_dataset_access" "edp_mc_details_authorized" {
+  for_each   = google_bigquery_table.mc_details
+  dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
+  project    = data.google_client_config.default.project
+  view {
+    project_id = data.google_client_config.default.project
+    dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
+    table_id   = each.value.table_id
+  }
+}
+
+resource "google_bigquery_dataset_access" "edp_coverage_authorized" {
+  for_each   = google_bigquery_table.edp_coverage
+  dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
+  project    = data.google_client_config.default.project
+  view {
+    project_id = data.google_client_config.default.project
+    dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
+    table_id   = each.value.table_id
+  }
+}
+
+# EDP service accounts need connection access for EXTERNAL_QUERY in views
+resource "google_bigquery_connection_iam_member" "edp_aggregator_user" {
+  for_each      = var.data_provider_resource_ids
+  project       = data.google_client_config.default.project
+  location      = data.google_client_config.default.region
+  connection_id = google_bigquery_connection.edp_aggregator.connection_id
+  role          = "roles/bigquery.connectionUser"
+  member        = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
+}
+
+resource "google_bigquery_connection_iam_member" "kingdom_user" {
+  for_each      = var.data_provider_resource_ids
+  project       = data.google_client_config.default.project
+  location      = data.google_client_config.default.region
+  connection_id = google_bigquery_connection.kingdom.connection_id
+  role          = "roles/bigquery.connectionUser"
+  member        = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
+}
+
+resource "google_bigquery_connection_iam_member" "reporting_postgres_user" {
+  for_each      = var.data_provider_resource_ids
+  project       = data.google_client_config.default.project
+  location      = data.google_client_config.default.region
+  connection_id = google_bigquery_connection.reporting_postgres.connection_id
+  role          = "roles/bigquery.connectionUser"
+  member        = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
+}
