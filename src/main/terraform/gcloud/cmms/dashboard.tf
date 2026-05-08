@@ -315,6 +315,6 @@ resource "google_bigquery_dataset_access" "edp_authorized_routines" {
       project_id = data.google_client_config.default.project
       dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
     }
-    target_types = ["ROUTINE"]
+    target_types = ["VIEWS"]
   }
 }
