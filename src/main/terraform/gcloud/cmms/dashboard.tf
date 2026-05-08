@@ -87,8 +87,8 @@ resource "google_bigquery_routine" "decode_event_group_details" {
   return_type = jsonencode({ "typeKind" : "STRING" })
 
   imported_libraries = [
-    "gs://xmm-dashboard/lib/protobuf.global.min.js",
-    "gs://xmm-dashboard/descriptors/kingdom_descriptor.js",
+    "gs://${google_storage_bucket.dashboard_udfs.name}/lib/protobuf.global.min.js",
+    "gs://${google_storage_bucket.dashboard_udfs.name}/descriptors/kingdom_descriptor.js",
   ]
 
   definition_body = <<-JS
@@ -395,5 +395,35 @@ resource "google_spanner_database_iam_member" "kingdom_reader" {
   instance = google_spanner_instance.spanner_instance.name
   database = "kingdom"
   role     = "roles/spanner.databaseReaderWithDataBoost"
+  member   = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
+}
+
+# --- GCS Bucket for UDF Libraries ---
+
+resource "google_storage_bucket" "dashboard_udfs" {
+  name     = "${data.google_client_config.default.project}-dashboard-udfs"
+  project  = data.google_client_config.default.project
+  location = data.google_client_config.default.region
+
+  uniform_bucket_level_access = true
+}
+
+resource "google_storage_bucket_object" "protobuf_lib" {
+  name   = "lib/protobuf.global.min.js"
+  bucket = google_storage_bucket.dashboard_udfs.name
+  source = "${path.module}/udf_libs/protobuf.global.min.js"
+}
+
+resource "google_storage_bucket_object" "kingdom_descriptor" {
+  name   = "descriptors/kingdom_descriptor.js"
+  bucket = google_storage_bucket.dashboard_udfs.name
+  source = "${path.module}/udf_libs/kingdom_descriptor.js"
+}
+
+# EDP service accounts need read access to UDF library files
+resource "google_storage_bucket_iam_member" "edp_udf_reader" {
+  for_each = var.data_provider_resource_ids
+  bucket   = google_storage_bucket.dashboard_udfs.name
+  role     = "roles/storage.objectViewer"
   member   = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }
