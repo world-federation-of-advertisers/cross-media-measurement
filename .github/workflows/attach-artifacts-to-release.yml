@@ -34,6 +34,14 @@ jobs:
 
       - name: Set up Bazel
         uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
+      - name: Cache Bazel repository downloads
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/.cache/bazel-repo-cache
+          key: bazel-repo-${{ runner.os }}-${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock') }}
+          restore-keys: |
+            bazel-repo-${{ runner.os }}-
+
 
       - name: Write auth.bazelrc
         env:

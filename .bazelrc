@@ -56,6 +56,7 @@ common:ci --action_env=ANDROID_HOME=""
 common:ci --action_env=ANDROID_SDK_ROOT=""
 common:ci --lockfile_mode=error
 build:ci --experimental_repository_downloader_retries=5
+build:ci --repository_cache=~/.cache/bazel-repo-cache
 build:ci --compilation_mode=opt
 build:ci --build_metadata=ROLE=CI
 build:ci --build_metadata=VISIBILITY=PUBLIC

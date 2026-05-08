@@ -77,6 +77,14 @@ jobs:
 
     - name: Export GCLOUD_PROJECT_NUMBER
       run: echo "GCLOUD_PROJECT_NUMBER=$(gcloud projects describe $GCLOUD_PROJECT --format="value(projectNumber)")" >> $GITHUB_ENV
+    - name: Cache Bazel repository downloads
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      with:
+        path: ~/.cache/bazel-repo-cache
+        key: bazel-repo-${{ runner.os }}-${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock') }}
+        restore-keys: |
+          bazel-repo-${{ runner.os }}-
+
 
     - name: Write auth.bazelrc
       env:

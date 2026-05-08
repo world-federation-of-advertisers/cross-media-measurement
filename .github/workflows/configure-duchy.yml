@@ -91,6 +91,14 @@ jobs:
         WORKER1_DUCHY_CERT_ID: ${{ vars.WORKER1_DUCHY_CERT_ID }}
         WORKER2_DUCHY_CERT_ID: ${{ vars.WORKER2_DUCHY_CERT_ID }}
       run: ./.github/workflows/export-duchy-cert-id.sh
+    - name: Cache Bazel repository downloads
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      with:
+        path: ~/.cache/bazel-repo-cache
+        key: bazel-repo-${{ runner.os }}-${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock') }}
+        restore-keys: |
+          bazel-repo-${{ runner.os }}-
+
 
     - name: Write auth.bazelrc
       env:
