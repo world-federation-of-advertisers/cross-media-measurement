@@ -29,6 +29,13 @@ class EmptyEntityKeysException :
   IllegalArgumentException("entityKeys must not be empty")
 
 /**
+ * Thrown when a [FilterSpec] is constructed with a `collectionInterval` whose `startTime` is
+ * not strictly before its `endTime`.
+ */
+class InvalidCollectionIntervalException :
+  IllegalArgumentException("collectionInterval startTime must be before endTime")
+
+/**
  * Immutable specification for event filtering.
  *
  * This sealed type serves two purposes:
@@ -48,8 +55,8 @@ sealed class FilterSpec {
   abstract val collectionInterval: Interval
 
   protected fun requireValidCollectionInterval(interval: Interval) {
-    require(interval.startTime.toInstant().isBefore(interval.endTime.toInstant())) {
-      "collectionInterval startTime must be before endTime"
+    if (!interval.startTime.toInstant().isBefore(interval.endTime.toInstant())) {
+      throw InvalidCollectionIntervalException()
     }
   }
 
