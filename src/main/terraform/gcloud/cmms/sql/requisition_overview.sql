@@ -28,21 +28,17 @@ SELECT
     ELSE CAST(r.State AS STRING)
   END AS RequisitionState,
   r.CmmsCreateTime,
-  r.RequisitionCreateTime,
-  TIMESTAMP_DIFF(r.FulfilledTime, r.StoredTime, SECOND) AS FulfillmentDurationSeconds,
+  r.FulfilledTime,
+  TIMESTAMP_DIFF(r.FulfilledTime, r.CmmsCreateTime, SECOND) AS FulfillmentDurationSeconds,
   CASE
     WHEN rpt.FailedMetrics > 0 THEN 'FAILED'
     WHEN rpt.MetricCount > 0 AND rpt.MetricCount = rpt.SucceededMetrics THEN 'SUCCEEDED'
     WHEN rpt.MetricCount = 0 THEN 'NO_METRICS'
     ELSE 'IN_PROGRESS'
   END AS ReportState,
-  rpt.MetricCount,
-  rpt.SucceededMetrics,
-  rpt.FailedMetrics,
   rpt.ReportTimeStart,
   rpt.ReportTimeEnd,
   rd.ReportingSetFilter,
-  rd.MetricCalcSpecDetails,
   rd.EventGroupCount
 FROM (
   SELECT * FROM EXTERNAL_QUERY(
@@ -53,14 +49,8 @@ FROM (
       REGEXP_EXTRACT(rm.Report, 'measurementConsumers/([^/]+)/') AS CmmsMeasurementConsumer,
       CAST(rm.State AS INT64) AS State,
       rm.CmmsCreateTime,
-      rm.CreateTime AS RequisitionCreateTime,
-      rma_stored.CreateTime AS StoredTime,
       rma_fulfilled.CreateTime AS FulfilledTime
     FROM RequisitionMetadata rm
-    LEFT JOIN RequisitionMetadataActions rma_stored
-      ON rm.DataProviderResourceId = rma_stored.DataProviderResourceId
-      AND rm.RequisitionMetadataId = rma_stored.RequisitionMetadataId
-      AND CAST(rma_stored.CurrentState AS INT64) = 1
     LEFT JOIN RequisitionMetadataActions rma_fulfilled
       ON rm.DataProviderResourceId = rma_fulfilled.DataProviderResourceId
       AND rm.RequisitionMetadataId = rma_fulfilled.RequisitionMetadataId
@@ -92,15 +82,11 @@ LEFT JOIN (
     '''SELECT
       CAST(rp.externalreportid AS TEXT) AS externalreportid,
       rs.filter AS ReportingSetFilter,
-      mcs.metriccalculationspecdetailsjson AS MetricCalcSpecDetails,
       COUNT(DISTINCT rseg.eventgroupid) AS EventGroupCount
     FROM reports rp
     LEFT JOIN metriccalculationspecreportingmetrics mcsrm
       ON rp.measurementconsumerid = mcsrm.measurementconsumerid
       AND rp.reportid = mcsrm.reportid
-    LEFT JOIN metriccalculationspecs mcs
-      ON mcsrm.measurementconsumerid = mcs.measurementconsumerid
-      AND mcsrm.metriccalculationspecid = mcs.metriccalculationspecid
     LEFT JOIN metrics m
       ON mcsrm.measurementconsumerid = m.measurementconsumerid
       AND mcsrm.metricid = m.metricid
@@ -110,7 +96,7 @@ LEFT JOIN (
     LEFT JOIN reportingseteventgroups rseg
       ON rs.measurementconsumerid = rseg.measurementconsumerid
       AND rs.reportingsetid = rseg.reportingsetid
-    GROUP BY rp.externalreportid, rs.filter, mcs.metriccalculationspecdetailsjson''')
+    GROUP BY rp.externalreportid, rs.filter''')
 ) rd
   ON REGEXP_EXTRACT(r.Report, 'reports/(.+)$') = rd.externalreportid
 %{ if data_provider_id != "" }
