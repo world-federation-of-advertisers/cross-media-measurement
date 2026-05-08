@@ -168,6 +168,7 @@ resource "google_bigquery_table" "requisition_overview" {
   dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
   project    = data.google_client_config.default.project
   table_id   = "requisition_overview_${each.key}"
+  deletion_protection = false
 
   view {
     query = templatefile("${path.module}/sql/requisition_overview.sql", {
@@ -184,6 +185,7 @@ resource "google_bigquery_table" "mc_details" {
   dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
   project    = data.google_client_config.default.project
   table_id   = "mc_details_${each.key}"
+  deletion_protection = false
 
   view {
     query = templatefile("${path.module}/sql/mc_details.sql", {
@@ -200,6 +202,7 @@ resource "google_bigquery_table" "edp_coverage" {
   dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
   project    = data.google_client_config.default.project
   table_id   = "edp_coverage_${each.key}"
+  deletion_protection = false
 
   view {
     query = templatefile("${path.module}/sql/edp_coverage.sql", {
@@ -218,6 +221,7 @@ resource "google_bigquery_table" "requisition_overview_platform" {
   project    = data.google_client_config.default.project
   table_id   = "requisition_overview_platform"
 
+  deletion_protection = false
   view {
     query = templatefile("${path.module}/sql/requisition_overview.sql", {
       project_id       = data.google_client_config.default.project
@@ -233,6 +237,7 @@ resource "google_bigquery_table" "mc_details_platform" {
   project    = data.google_client_config.default.project
   table_id   = "mc_details_platform"
 
+  deletion_protection = false
   view {
     query = templatefile("${path.module}/sql/mc_details.sql", {
       project_id       = data.google_client_config.default.project
@@ -248,6 +253,7 @@ resource "google_bigquery_table" "edp_coverage_platform" {
   project    = data.google_client_config.default.project
   table_id   = "edp_coverage_platform"
 
+  deletion_protection = false
   view {
     query = templatefile("${path.module}/sql/edp_coverage.sql", {
       project_id       = data.google_client_config.default.project
