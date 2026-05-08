@@ -380,3 +380,20 @@ resource "google_bigquery_connection_iam_member" "reporting_postgres_user" {
   role          = "roles/bigquery.connectionUser"
   member        = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }
+
+# EDP service accounts need Spanner read access for EXTERNAL_QUERY
+resource "google_spanner_database_iam_member" "edp_aggregator_reader" {
+  for_each = var.data_provider_resource_ids
+  instance = google_spanner_instance.spanner_instance.name
+  database = "edp-aggregator"
+  role     = "roles/spanner.databaseReader"
+  member   = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
+}
+
+resource "google_spanner_database_iam_member" "kingdom_reader" {
+  for_each = var.data_provider_resource_ids
+  instance = google_spanner_instance.spanner_instance.name
+  database = "kingdom"
+  role     = "roles/spanner.databaseReader"
+  member   = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
+}
