@@ -121,7 +121,7 @@ module "highmem_node_pools_1" {
   for_each = module.clusters
 
   cluster         = each.value.cluster
-  name            = "highmem_1"
+  name            = "highmem-1"
   service_account = module.common.cluster_service_account
   machine_type    = "c2-standard-4"
   max_node_count  = 20
@@ -133,7 +133,7 @@ module "highmem_node_pools_2" {
   for_each = module.clusters
 
   cluster         = each.value.cluster
-  name            = "highmem_2"
+  name            = "highmem-2"
   service_account = module.common.cluster_service_account
   machine_type    = "c3-standard-4"
   max_node_count  = 20
@@ -145,7 +145,7 @@ module "highmem_node_pools_3" {
   for_each = module.clusters
 
   cluster         = each.value.cluster
-  name            = "highmem_3"
+  name            = "highmem-3"
   service_account = module.common.cluster_service_account
   machine_type    = "c3d-standard-4"
   max_node_count  = 20
