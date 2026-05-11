@@ -83,14 +83,12 @@ message BatchCreateImpressionMetadataResponse {
 message UpdateImpressionMetadataRequest {
   ImpressionMetadata impression_metadata = 1;
 
-  reserved 2;
-
   // If true and the resource does not exist (looked up by blob_uri),
   // a new resource will be created.
-  bool allow_missing = 3;
+  bool allow_missing = 2;
 
   // A client-provided request ID for idempotency. Must be a UUID4 string.
-  string request_id = 4;
+  string request_id = 3;
 }
 
 message BatchUpdateImpressionMetadataRequest {
@@ -166,7 +164,6 @@ message BatchDeleteImpressionMetadataResponse {
 message ComputeModelLineBoundsRequest {
   string data_provider_resource_id = 1;
 
-  reserved 2;
   reserved "cmms_model_line";
 }
 

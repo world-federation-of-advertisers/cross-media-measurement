@@ -155,15 +155,13 @@ message UpdateImpressionMetadataRequest {
   ImpressionMetadata impression_metadata = 2
       [(google.api.field_behavior) = REQUIRED];
 
-  reserved 3;  // Reserved for future update_mask field.
-
   // If true and the resource does not exist, a new resource will be created.
-  bool allow_missing = 4 [(google.api.field_behavior) = OPTIONAL];
+  bool allow_missing = 3 [(google.api.field_behavior) = OPTIONAL];
 
   // A request ID provided by the client to ensure idempotency.
   //
   // This field must be a UUID4 (RFC 4122) string.
-  string request_id = 10 [
+  string request_id = 4 [
     (google.api.field_behavior) = OPTIONAL,
     (google.api.field_info).format = UUID4
   ];
@@ -327,7 +325,6 @@ message ComputeModelLineBoundsRequest {
     }
   ];
 
-  reserved 2;
   reserved "model_lines";
 }
 
