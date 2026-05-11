@@ -1436,3 +1436,5 @@ class SyntheticDataGenerationTest {
     private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
   }
 }
+
+}

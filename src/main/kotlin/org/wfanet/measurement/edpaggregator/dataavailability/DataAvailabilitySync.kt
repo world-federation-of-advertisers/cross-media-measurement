@@ -22,6 +22,7 @@ import com.google.type.interval
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
+import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.UUID
 import java.util.logging.Logger
@@ -481,9 +482,9 @@ class DataAvailabilitySync(
   private fun contentAwareRequestId(metadata: ImpressionMetadata): String {
     val canonicalParts = buildString {
       append(metadata.blobUri)
-      append("\t")
+      append(FIELD_SEPARATOR)
       append(metadata.modelLine)
-      append("\t")
+      append(FIELD_SEPARATOR)
       append(metadata.interval.startTime.seconds)
       append(':')
       append(metadata.interval.startTime.nanos)
@@ -491,17 +492,18 @@ class DataAvailabilitySync(
       append(metadata.interval.endTime.seconds)
       append(':')
       append(metadata.interval.endTime.nanos)
-      append("\t")
+      append(FIELD_SEPARATOR)
       append(metadata.eventGroupReferenceId)
-      append("\t")
-      val sortedKeys = metadata.entityKeysList.map { "${it.entityType}\t${it.entityId}" }.sorted()
-      append(sortedKeys.joinToString("\t"))
+      append(FIELD_SEPARATOR)
+      val sortedKeys =
+        metadata.entityKeysList.map { "${it.entityType}$FIELD_SEPARATOR${it.entityId}" }.sorted()
+      append(sortedKeys.joinToString(FIELD_SEPARATOR))
     }
     val hash = MessageDigest.getInstance("SHA-256").digest(canonicalParts.toByteArray())
     val bytes = hash.copyOf(16)
     bytes[6] = (bytes[6].toInt() and 0x0F or 0x40).toByte()
     bytes[8] = (bytes[8].toInt() and 0x3F or 0x80).toByte()
-    val buffer = java.nio.ByteBuffer.wrap(bytes)
+    val buffer = ByteBuffer.wrap(bytes)
     return UUID(buffer.long, buffer.long).toString()
   }
 
@@ -541,6 +543,8 @@ class DataAvailabilitySync(
     private const val SYNC_STATUS_SKIPPED_GAPS = "skipped_gaps"
     private const val RPC_METHOD_REPLACE_DATA_AVAILABILITY_INTERVALS =
       "ReplaceDataAvailabilityIntervals"
+    // Protobuf string fields cannot contain null bytes, so this eliminates any collision risk.
+    private const val FIELD_SEPARATOR = "\u0000"
     private const val METADATA_FILE_NAME = "metadata"
     private const val PROTO_FILE_SUFFIX = ".binpb"
     private const val JSON_FILE_SUFFIX = ".json"

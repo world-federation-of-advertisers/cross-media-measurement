@@ -284,6 +284,7 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
     set("DataProviderResourceId").to(impressionMetadata.dataProviderResourceId)
     set("ImpressionMetadataId").to(impressionMetadataId)
     set("ImpressionMetadataResourceId").to(impressionMetadata.impressionMetadataResourceId)
+    // Reused for update idempotency; the column name predates the update path.
     if (createRequestId.isNotEmpty()) {
       set("CreateRequestId").to(createRequestId)
     }
@@ -608,12 +609,14 @@ private fun AsyncDatabaseClient.TransactionContext.updateImpressionMetadataField
     set("CmmsModelLine").to(impressionMetadata.cmmsModelLine)
     set("IntervalStartTime").to(impressionMetadata.interval.startTime.toGcloudTimestamp())
     set("IntervalEndTime").to(impressionMetadata.interval.endTime.toGcloudTimestamp())
+    // Reused for update idempotency; the column name predates the update path.
     if (createRequestId.isNotEmpty()) {
       set("CreateRequestId").to(createRequestId)
     }
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
 
+  // Replace entity keys: delete all existing rows, then insert the new set.
   deleteImpressionMetadataEntityKeys(dataProviderResourceId, impressionMetadataId)
 
   for (entityKey in impressionMetadata.entityKeysList) {
