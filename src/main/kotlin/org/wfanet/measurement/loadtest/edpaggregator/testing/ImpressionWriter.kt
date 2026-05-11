@@ -30,7 +30,9 @@ import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
+import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
@@ -107,8 +109,22 @@ class ImpressionsWriter(
         .setTypeUrl("type.googleapis.com/google.crypto.tink.Keyset")
         .build()
     events.forEach { (localDate: LocalDate, groups: Sequence<EntityKeysWithLabeledEvents<T>>) ->
+      // Materialize groups so we can both derive the per-blob entity-key aggregate (written to
+      // BlobDetails below) and stamp each impression with its group's entity keys without
+      // consuming the same Sequence twice.
+      val materializedGroups: List<EntityKeysWithLabeledEvents<T>> = groups.toList()
+      val blobEntityKeyGroups: List<EntityKeyGroup> =
+        materializedGroups
+          .flatMap { it.entityKeys }
+          .groupBy { it.entityType }
+          .map { (type, keys) ->
+            entityKeyGroup {
+              entityType = type
+              entityIds += keys.map { it.entityId }.distinct()
+            }
+          }
       val labeledImpressions: Sequence<LabeledImpression> =
-        groups.flatMap { group: EntityKeysWithLabeledEvents<T> ->
+        materializedGroups.asSequence().flatMap { group: EntityKeysWithLabeledEvents<T> ->
           val protoEntityKeys: List<LabeledImpression.EntityKey> =
             group.entityKeys.map { it.toProto() }
           group.labeledEvents.map { event ->
@@ -177,6 +193,7 @@ class ImpressionsWriter(
           endTime = endOfDay
         }
         this.modelLine = modelLineName
+        this.entityKeys += blobEntityKeyGroups
       }
       impressionsMetadataStorageClient.writeBlob(
         impressionsMetaDataBlobKey,
