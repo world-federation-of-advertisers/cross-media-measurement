@@ -77,6 +77,32 @@ LEFT JOIN (
 ) rpt
   ON REGEXP_EXTRACT(r.Report, 'reports/(.+)$') = rpt.externalreportid
 LEFT JOIN (
+%{ if data_provider_id != "" }
+  SELECT * FROM EXTERNAL_QUERY(
+    'projects/${project_id}/locations/${region}/connections/reporting-postgres-conn',
+    '''SELECT
+      CAST(rp.externalreportid AS TEXT) AS externalreportid,
+      rs.filter AS ReportingSetFilter,
+      COUNT(DISTINCT rseg.eventgroupid) AS EventGroupCount
+    FROM reports rp
+    LEFT JOIN metriccalculationspecreportingmetrics mcsrm
+      ON rp.measurementconsumerid = mcsrm.measurementconsumerid
+      AND rp.reportid = mcsrm.reportid
+    LEFT JOIN metrics m
+      ON mcsrm.measurementconsumerid = m.measurementconsumerid
+      AND mcsrm.metricid = m.metricid
+    LEFT JOIN reportingsets rs
+      ON m.reportingsetid = rs.reportingsetid
+      AND m.measurementconsumerid = rs.measurementconsumerid
+    LEFT JOIN reportingseteventgroups rseg
+      ON rs.measurementconsumerid = rseg.measurementconsumerid
+      AND rs.reportingsetid = rseg.reportingsetid
+    LEFT JOIN eventgroups eg
+      ON rseg.measurementconsumerid = eg.measurementconsumerid
+      AND rseg.eventgroupid = eg.eventgroupid
+    WHERE eg.cmmsdataproviderid = '${data_provider_id}'
+    GROUP BY rp.externalreportid, rs.filter''')
+%{ else }
   SELECT * FROM EXTERNAL_QUERY(
     'projects/${project_id}/locations/${region}/connections/reporting-postgres-conn',
     '''SELECT
@@ -97,9 +123,9 @@ LEFT JOIN (
       ON rs.measurementconsumerid = rseg.measurementconsumerid
       AND rs.reportingsetid = rseg.reportingsetid
     GROUP BY rp.externalreportid, rs.filter''')
+%{ endif }
 ) rd
   ON REGEXP_EXTRACT(r.Report, 'reports/(.+)$') = rd.externalreportid
 %{ if data_provider_id != "" }
 WHERE r.DataProviderResourceId = '${data_provider_id}'
 %{ endif }
--- Updated: 2026-05-08
