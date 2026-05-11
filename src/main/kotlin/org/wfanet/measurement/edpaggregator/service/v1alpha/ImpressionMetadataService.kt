@@ -152,7 +152,10 @@ class ImpressionMetadataService(
 
     val internalResponse: InternalImpressionMetadata =
       try {
-        val dataProviderKey: DataProviderKey = DataProviderKey.fromName(request.parent)!!
+        val dataProviderKey: DataProviderKey =
+          DataProviderKey.fromName(request.parent)
+            ?: throw InvalidFieldValueException("parent")
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
         internalImpressionMetadataStub.createImpressionMetadata(
           internalCreateImpressionMetadataRequest {
@@ -214,7 +217,7 @@ class ImpressionMetadataService(
 
         val blobUri = it.impressionMetadata.blobUri
         if (!blobUriSet.add(blobUri)) {
-          throw InvalidFieldValueException("requests.$index.blob_uri") {
+          throw InvalidFieldValueException("requests.$index.impression_metadata.blob_uri") {
               "blob uri $blobUri is duplicate in the batch of requests"
             }
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -297,7 +300,10 @@ class ImpressionMetadataService(
 
     val internalResponse: InternalImpressionMetadata =
       try {
-        val dataProviderKey: DataProviderKey = DataProviderKey.fromName(request.parent)!!
+        val dataProviderKey: DataProviderKey =
+          DataProviderKey.fromName(request.parent)
+            ?: throw InvalidFieldValueException("parent")
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
         internalImpressionMetadataStub.updateImpressionMetadata(
           internalUpdateImpressionMetadataRequest {
@@ -362,7 +368,7 @@ class ImpressionMetadataService(
 
         val blobUri = it.impressionMetadata.blobUri
         if (!blobUriSet.add(blobUri)) {
-          throw InvalidFieldValueException("requests.$index.blob_uri") {
+          throw InvalidFieldValueException("requests.$index.impression_metadata.blob_uri") {
               "blob uri $blobUri is duplicate in the batch of requests"
             }
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -839,7 +845,6 @@ class ImpressionMetadataService(
 
     ModelLineKey.fromName(request.impressionMetadata.modelLine)
       ?: throw InvalidFieldValueException("${fieldPathPrefix}impression_metadata.model_line")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     if (!request.impressionMetadata.hasInterval()) {
       throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.interval")

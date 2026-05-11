@@ -62,8 +62,7 @@ import org.wfanet.measurement.storage.StorageClient
  * - Crawling the folder where the "done" blob resides to find and parse impression metadata files
  *   (`.binpb` or `.json`).
  * - Persisting impression metadata records via the
- *   [ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub] using
- *   `BatchUpdateImpressionMetadata` with `allow_missing = true` (upsert semantics).
+ *   [ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub].
  * - Computing model line availability intervals using the impression metadata service.
  * - Updating the kingdom data provider's availability intervals through
  *   [DataProvidersGrpcKt.DataProvidersCoroutineStub].
@@ -483,9 +482,9 @@ class DataAvailabilitySync(
   private fun contentAwareRequestId(metadata: ImpressionMetadata): String {
     val canonicalParts = buildString {
       append(metadata.blobUri)
-      append(' ')
+      append("\t")
       append(metadata.modelLine)
-      append(' ')
+      append("\t")
       append(metadata.interval.startTime.seconds)
       append(':')
       append(metadata.interval.startTime.nanos)
@@ -493,12 +492,11 @@ class DataAvailabilitySync(
       append(metadata.interval.endTime.seconds)
       append(':')
       append(metadata.interval.endTime.nanos)
-      append(' ')
+      append("\t")
       append(metadata.eventGroupReferenceId)
-      append(' ')
-      // Sort entity keys for deterministic ordering
-      val sortedKeys = metadata.entityKeysList.map { "${it.entityType}${it.entityId}" }.sorted()
-      append(sortedKeys.joinToString(""))
+      append("\t")
+      val sortedKeys = metadata.entityKeysList.map { "${it.entityType}\t${it.entityId}" }.sorted()
+      append(sortedKeys.joinToString("\t"))
     }
     val hash = MessageDigest.getInstance("SHA-256").digest(canonicalParts.toByteArray())
     val bytes = hash.copyOf(16)

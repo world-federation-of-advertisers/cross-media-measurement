@@ -652,8 +652,6 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchUpdateImpressionMetadata
   val existingByBlobUri: Map<String, ImpressionMetadataResult> =
     findExistingImpressionMetadataByBlobUris(dataProviderResourceId, blobUris)
 
-  val newCreations = mutableListOf<ImpressionMetadata>()
-
   val results: List<ImpressionMetadata> =
     requests.map { request ->
       // 1. Idempotency: same request_id → return previous result
@@ -705,7 +703,6 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchUpdateImpressionMetadata
         }
 
       insertImpressionMetadata(impressionMetadataId, created, request.requestId)
-      newCreations.add(created)
       created
     }
 
