@@ -1,0 +1,120 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Test mvn cache
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test-mvn-cache:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Set up Bazel
+        uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
+
+      - name: Write auth.bazelrc
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+        run: |
+          cat << EOF > auth.bazelrc
+          build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+          EOF
+
+      - name: Write ~/.bazelrc
+        run: |
+          cat << EOF > ~/.bazelrc
+          common --config=ci
+          build --remote_upload_local_results
+          build --define container_registry=localhost:5001
+          build --define image_repo_prefix=halo
+          build --define image_tag=latest
+          build --define kingdom_public_api_target=kingdom.example.com:8443
+          build --define worker1_id=worker1
+          build --define worker1_cert_name=duchies/worker1/certificates/foo
+          build --define worker1_public_api_target=worker1.example.com:8443
+          build --define worker2_id=worker2
+          build --define worker2_cert_name=duchies/worker2/certificates/foo
+          build --define worker2_public_api_target=worker2.example.com:8443
+          build --define aggregator_id=aggregator
+          build --define aggregator_cert_name=duchies/aggregator/certificates/foo
+          build --define aggregator_public_api_target=aggregator.example.com:8443
+          build --define mc_name=measurementConsumers/foo
+          build --define mc_api_key=foo
+          build --define mc_cert_name=measurementConsumers/foo/certificates/bar
+          build --define edp1_name=dataProviders/foo1
+          build --define edp1_cert_name=dataProviders/foo1/certificates/bar1
+          build --define edp2_name=dataProviders/foo2
+          build --define edp2_cert_name=dataProviders/foo2/certificates/bar2
+          build --define edp3_name=dataProviders/foo3
+          build --define edp3_cert_name=dataProviders/foo3/certificates/bar3
+          build --define edp4_name=dataProviders/foo4
+          build --define edp4_cert_name=dataProviders/foo4/certificates/bar4
+          build --define edp5_name=dataProviders/foo5
+          build --define edp5_cert_name=dataProviders/foo5/certificates/bar5
+          build --define edp6_name=dataProviders/foo6
+          build --define edp6_cert_name=dataProviders/foo6/certificates/bar6
+          build --define pdp_name=dataProviders/foodp1
+          build --define pdp_cert_name=dataProviders/foodp1/certificates/bar1
+          build --define google_cloud_project=example-project
+          build --define google_cloud_project_number=12345
+          build --define key_ring_location=us-central1
+          build --define basic_reports_enabled=true
+          EOF
+
+      # Reduce chance of disconnection from the Build Event Service.
+      - name: Set TCP keepalive
+        run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
+
+      - name: Check lockfile
+        run: bazel mod deps
+
+      - name: Compute bazel cache dir
+        id: compute-bazel-cache-dir
+        run:
+          echo "cache_dir=$(bazel info repository_cache)" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Cache local Maven repository
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.compute-bazel-cache-dir.outputs.cache_dir }}
+          key: ${{ runner.os }}-maven-${{ hashFiles('maven_install.json') }}
+          restore-keys: |
+            ${{ runner.os }}-maven
+
+      - name: Warm up
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for attempt in {1..5}; do
+            echo "Maven cache warmup attempt ${attempt}"
+
+            if bazel fetch @maven//... \
+              --http_max_parallel_downloads=1 \
+              --loading_phase_threads=1 ; then
+              exit 0
+            fi
+
+            sleep_seconds=$(( attempt * 60 ))
+            echo "Fetch failed, sleeping ${sleep_seconds}s before retry..."
+            sleep "${sleep_seconds}"
+          done
+          exit 1
