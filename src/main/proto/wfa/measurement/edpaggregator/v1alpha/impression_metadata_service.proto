@@ -158,7 +158,12 @@ message UpdateImpressionMetadataRequest {
   // If true and the resource does not exist, a new resource will be created.
   bool allow_missing = 3 [(google.api.field_behavior) = OPTIONAL];
 
-  // A request ID provided by the client to ensure idempotency.
+  // A unique identifier for this request, used for idempotency.
+  //
+  // If a previous request with the same `request_id` was already processed
+  // for the same `ImpressionMetadata`, the previously stored result is
+  // returned and no update is applied. This applies regardless of whether
+  // the request results in a creation (`allow_missing`) or an update.
   //
   // This field must be a UUID4 (RFC 4122) string.
   string request_id = 4 [
