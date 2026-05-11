@@ -802,6 +802,48 @@ abstract class ImpressionMetadataServiceTest {
   }
 
   @Test
+  fun `batchUpdateImpressionMetadata updates model_line and interval on existing entry`() =
+    runBlocking {
+      service.batchCreateImpressionMetadata(
+        batchCreateImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          requests += createImpressionMetadataRequest {
+            impressionMetadata = IMPRESSION_METADATA
+            requestId = CREATE_REQUEST_ID
+          }
+        }
+      )
+
+      val newModelLine = MODEL_LINE_2
+      val newInterval = interval {
+        startTime = timestamp { seconds = 999 }
+        endTime = timestamp { seconds = 1999 }
+      }
+      val updateRequestId = UUID.randomUUID().toString()
+      val response =
+        service.batchUpdateImpressionMetadata(
+          batchUpdateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += updateImpressionMetadataRequest {
+              impressionMetadata =
+                IMPRESSION_METADATA.copy {
+                  cmmsModelLine = newModelLine
+                  this.interval = newInterval
+                }
+              allowMissing = true
+              requestId = updateRequestId
+            }
+          }
+        )
+
+      assertThat(response.impressionMetadataList).hasSize(1)
+      val updated = response.impressionMetadataList.single()
+      assertThat(updated.cmmsModelLine).isEqualTo(newModelLine)
+      assertThat(updated.interval).isEqualTo(newInterval)
+      assertThat(updated.blobUri).isEqualTo(BLOB_URI)
+    }
+
+  @Test
   fun `deleteImpressionMetadata soft deletes and returns updated ImpressionMetadata`() =
     runBlocking {
       val created =

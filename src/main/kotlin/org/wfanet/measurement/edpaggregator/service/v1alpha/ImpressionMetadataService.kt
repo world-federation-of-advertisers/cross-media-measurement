@@ -298,17 +298,22 @@ class ImpressionMetadataService(
       throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    val impressionMetadataKey = ImpressionMetadataKey.fromName(request.impressionMetadata.name)
+    val dataProviderKey =
+      if (impressionMetadataKey != null) {
+        DataProviderKey(impressionMetadataKey.dataProviderId)
+      } else {
+        throw RequiredFieldNotSetException("impression_metadata.name")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
     val internalResponse: InternalImpressionMetadata =
       try {
-        val dataProviderKey: DataProviderKey =
-          DataProviderKey.fromName(request.parent)
-            ?: throw InvalidFieldValueException("parent")
-              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-
         internalImpressionMetadataStub.updateImpressionMetadata(
           internalUpdateImpressionMetadataRequest {
             this.requestId = request.requestId
-            impressionMetadata = request.impressionMetadata.toInternal(dataProviderKey, null)
+            impressionMetadata =
+              request.impressionMetadata.toInternal(dataProviderKey, impressionMetadataKey)
             allowMissing = request.allowMissing
           }
         )
@@ -361,11 +366,6 @@ class ImpressionMetadataService(
 
     val internalRequests: List<InternalUpdateImpressionMetadataRequest> =
       request.requestsList.mapIndexed { index, it ->
-        if (it.parent.isNotEmpty() && it.parent != request.parent) {
-          throw DataProviderMismatchException(request.parent, it.parent)
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
-
         val blobUri = it.impressionMetadata.blobUri
         if (!blobUriSet.add(blobUri)) {
           throw InvalidFieldValueException("requests.$index.impression_metadata.blob_uri") {
@@ -811,13 +811,6 @@ class ImpressionMetadataService(
     request: UpdateImpressionMetadataRequest,
     fieldPathPrefix: String,
   ) {
-    if (request.parent.isEmpty()) {
-      throw RequiredFieldNotSetException("${fieldPathPrefix}parent")
-    }
-
-    DataProviderKey.fromName(request.parent)
-      ?: throw InvalidFieldValueException("${fieldPathPrefix}parent")
-
     val requestId = request.requestId
     if (requestId.isNotEmpty()) {
       try {

@@ -304,7 +304,6 @@ class DataAvailabilitySync(
             parent = dataProviderName
             chunk.forEach { metadataWithBlobKey ->
               requests += updateImpressionMetadataRequest {
-                parent = dataProviderName
                 impressionMetadata = metadataWithBlobKey.impressionMetadata
                 allowMissing = true
                 requestId = contentAwareRequestId(metadataWithBlobKey.impressionMetadata)

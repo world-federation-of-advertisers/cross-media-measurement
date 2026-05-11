@@ -137,26 +137,22 @@ message BatchCreateImpressionMetadataResponse {
 }
 
 // Request message for the `UpdateImpressionMetadata` method.
+// (-- api-linter: core::0134::request-mask-required=disabled
+//     aip.dev/not-precedent: Partial update not supported;
+//     all mutable fields are always updated together. --)
+// (-- api-linter: core::0134::method-signature=disabled
+//     aip.dev/not-precedent: No update_mask field. --)
 message UpdateImpressionMetadataRequest {
-  // The parent data provider resource name.
-  // Format: `dataProviders/{data_provider}`
-  string parent = 1 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = {
-      child_type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
-    }
-  ];
-
   // The ImpressionMetadata to update.
   //
   // The `blob_uri` field is used as the lookup key when `name` is not set.
   // If `allow_missing` is true and no resource with the given `blob_uri`
   // exists, a new resource is created.
-  ImpressionMetadata impression_metadata = 2
+  ImpressionMetadata impression_metadata = 1
       [(google.api.field_behavior) = REQUIRED];
 
   // If true and the resource does not exist, a new resource will be created.
-  bool allow_missing = 3 [(google.api.field_behavior) = OPTIONAL];
+  bool allow_missing = 2 [(google.api.field_behavior) = OPTIONAL];
 
   // A unique identifier for this request, used for idempotency.
   //
@@ -166,7 +162,7 @@ message UpdateImpressionMetadataRequest {
   // the request results in a creation (`allow_missing`) or an update.
   //
   // This field must be a UUID4 (RFC 4122) string.
-  string request_id = 4 [
+  string request_id = 3 [
     (google.api.field_behavior) = OPTIONAL,
     (google.api.field_info).format = UUID4
   ];
