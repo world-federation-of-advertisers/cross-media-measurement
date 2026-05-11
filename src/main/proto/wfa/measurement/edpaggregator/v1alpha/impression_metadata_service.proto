@@ -330,6 +330,7 @@ message ComputeModelLineBoundsRequest {
     }
   ];
 
+  reserved 2;
   reserved "model_lines";
 }
 

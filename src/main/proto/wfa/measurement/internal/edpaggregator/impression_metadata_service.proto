@@ -164,6 +164,7 @@ message BatchDeleteImpressionMetadataResponse {
 message ComputeModelLineBoundsRequest {
   string data_provider_resource_id = 1;
 
+  reserved 2;
   reserved "cmms_model_line";
 }
 
