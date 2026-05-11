@@ -83,7 +83,6 @@ message BatchCreateImpressionMetadataResponse {
 message UpdateImpressionMetadataRequest {
   ImpressionMetadata impression_metadata = 1;
 
-
   // If true and the resource does not exist (looked up by blob_uri),
   // a new resource will be created.
   bool allow_missing = 3;

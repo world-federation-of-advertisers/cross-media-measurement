@@ -231,13 +231,15 @@ class SpannerImpressionMetadataService(
         }
         .single()
 
-    if (result.hasCreateTime()) {
+    if (result.hasUpdateTime()) {
       return result
     }
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
     return result.copy {
-      createTime = commitTimestamp
+      if (!result.hasCreateTime()) {
+        createTime = commitTimestamp
+      }
       updateTime = commitTimestamp
       etag = ETags.computeETag(commitTimestamp.toInstant())
     }
@@ -304,11 +306,13 @@ class SpannerImpressionMetadataService(
     return batchUpdateImpressionMetadataResponse {
       impressionMetadata +=
         results.map { result ->
-          if (result.hasCreateTime()) {
+          if (result.hasUpdateTime()) {
             result
           } else {
             result.copy {
-              createTime = commitTimestamp
+              if (!result.hasCreateTime()) {
+                createTime = commitTimestamp
+              }
               updateTime = commitTimestamp
               etag = ETags.computeETag(commitTimestamp.toInstant())
             }

@@ -674,6 +674,7 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchUpdateImpressionMetadata
         return@map request.impressionMetadata.copy {
           impressionMetadataResourceId = byBlobUri.impressionMetadata.impressionMetadataResourceId
           state = byBlobUri.impressionMetadata.state
+          createTime = byBlobUri.impressionMetadata.createTime
         }
       }
 
