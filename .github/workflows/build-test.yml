@@ -103,9 +103,22 @@ jobs:
       - name: Check lockfile
         run: bazel mod deps
 
+      - name: Cache local Maven repository
+        uses: actions/cache@v5
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('maven_install.json') }}
+          restore-keys: |
+            ${{ runner.os }}-maven
+
+      - name: Maven repin
+        run: |
+          RJE_UNSAFE_CACHE=1 REPIN=1 RJE_VERBOSE=true bazel run @maven//:pin
+          git restore maven_install.json
+
       - name: Build
         run: >
-          bazel build --worker_quit_after_build
+          bazel build --worker_quit_after_build --repo_env RJE_UNSAFE_CACHE=1
           //...
           //src/main/k8s/local:cmms
           //src/main/k8s/dev:edp_simulators
