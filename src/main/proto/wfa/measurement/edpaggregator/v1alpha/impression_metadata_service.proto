@@ -155,7 +155,7 @@ message UpdateImpressionMetadataRequest {
   ImpressionMetadata impression_metadata = 2
       [(google.api.field_behavior) = REQUIRED];
 
-  // The list of fields to update. If omitted, all mutable fields are updated.
+  reserved 3;  // Reserved for future update_mask field.
 
   // If true and the resource does not exist, a new resource will be created.
   bool allow_missing = 4 [(google.api.field_behavior) = OPTIONAL];

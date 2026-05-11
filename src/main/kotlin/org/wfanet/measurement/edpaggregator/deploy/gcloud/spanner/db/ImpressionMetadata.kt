@@ -595,7 +595,7 @@ private fun AsyncDatabaseClient.TransactionContext.deleteImpressionMetadataEntit
  * Buffers an update mutation for mutable fields on an [ImpressionMetadata] row, and replaces all
  * associated entity keys.
  */
-fun AsyncDatabaseClient.TransactionContext.updateImpressionMetadataFields(
+private fun AsyncDatabaseClient.TransactionContext.updateImpressionMetadataFields(
   dataProviderResourceId: String,
   impressionMetadataId: Long,
   impressionMetadata: ImpressionMetadata,

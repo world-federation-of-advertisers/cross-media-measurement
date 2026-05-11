@@ -224,12 +224,7 @@ class SpannerImpressionMetadataService(
       databaseClient.readWriteTransaction(Options.tag("action=updateImpressionMetadata"))
 
     val result =
-      try {
-          transactionRunner.run { txn -> txn.batchUpdateImpressionMetadata(listOf(request)) }
-        } catch (e: SpannerException) {
-          throw e
-        }
-        .single()
+      transactionRunner.run { txn -> txn.batchUpdateImpressionMetadata(listOf(request)) }.single()
 
     if (result.hasUpdateTime()) {
       return result
@@ -296,11 +291,7 @@ class SpannerImpressionMetadataService(
       databaseClient.readWriteTransaction(Options.tag("action=batchUpdateImpressionMetadata"))
 
     val results =
-      try {
-        transactionRunner.run { txn -> txn.batchUpdateImpressionMetadata(request.requestsList) }
-      } catch (e: SpannerException) {
-        throw e
-      }
+      transactionRunner.run { txn -> txn.batchUpdateImpressionMetadata(request.requestsList) }
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
     return batchUpdateImpressionMetadataResponse {

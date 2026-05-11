@@ -472,7 +472,7 @@ class DataAvailabilitySync(
   }
 
   /**
-   * Generates a deterministic UUIDv4 string from the content-bearing fields of an
+   * Generates a deterministic UUID string from the content-bearing fields of an
    * [ImpressionMetadata].
    *
    * The hash includes blob_uri, model_line, interval, event_group_reference_id, and entity_keys
@@ -480,7 +480,7 @@ class DataAvailabilitySync(
    * identical, enabling idempotent skipping. When any field changes (e.g., entity_keys are added),
    * a new request_id is generated, signaling the server to apply the update.
    */
-  internal fun contentAwareRequestId(metadata: ImpressionMetadata): String {
+  private fun contentAwareRequestId(metadata: ImpressionMetadata): String {
     val canonicalParts = buildString {
       append(metadata.blobUri)
       append(' ')
@@ -504,7 +504,8 @@ class DataAvailabilitySync(
     val bytes = hash.copyOf(16)
     bytes[6] = (bytes[6].toInt() and 0x0F or 0x40).toByte()
     bytes[8] = (bytes[8].toInt() and 0x3F or 0x80).toByte()
-    return UUID.nameUUIDFromBytes(bytes).toString()
+    val buffer = java.nio.ByteBuffer.wrap(bytes)
+    return UUID(buffer.long, buffer.long).toString()
   }
 
   fun BlobUri.asUriString(): String =

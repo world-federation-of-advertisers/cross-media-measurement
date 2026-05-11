@@ -68,6 +68,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataReques
 import org.wfanet.measurement.edpaggregator.v1alpha.batchUpdateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
@@ -149,10 +150,9 @@ class DataAvailabilitySyncTest {
             impressionMetadata +=
               request.requestsList.mapIndexed { index, updateRequest ->
                 // Return the input metadata with a name set (simulating server response)
-                updateRequest.impressionMetadata
-                  .toBuilder()
-                  .setName("${request.parent}/impressionMetadata/im-$index")
-                  .build()
+                updateRequest.impressionMetadata.copy {
+                  name = "${request.parent}/impressionMetadata/im-$index"
+                }
               }
           }
         }

@@ -83,10 +83,13 @@ message BatchCreateImpressionMetadataResponse {
 message UpdateImpressionMetadataRequest {
   ImpressionMetadata impression_metadata = 1;
 
+  reserved 2;
+
   // If true and the resource does not exist (looked up by blob_uri),
   // a new resource will be created.
   bool allow_missing = 3;
 
+  // A client-provided request ID for idempotency. Must be a UUID4 string.
   string request_id = 4;
 }
 
