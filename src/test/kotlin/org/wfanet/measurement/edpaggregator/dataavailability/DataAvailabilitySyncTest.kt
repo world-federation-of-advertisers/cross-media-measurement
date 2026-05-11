@@ -56,7 +56,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchUpdateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
@@ -65,7 +65,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.batchUpdateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
@@ -142,14 +142,14 @@ class DataAvailabilitySyncTest {
               )
           }
         }
-      onBlocking { batchCreateImpressionMetadata(any<BatchCreateImpressionMetadataRequest>()) }
+      onBlocking { batchUpdateImpressionMetadata(any<BatchUpdateImpressionMetadataRequest>()) }
         .thenAnswer { invocation ->
-          val request = invocation.getArgument<BatchCreateImpressionMetadataRequest>(0)
-          batchCreateImpressionMetadataResponse {
+          val request = invocation.getArgument<BatchUpdateImpressionMetadataRequest>(0)
+          batchUpdateImpressionMetadataResponse {
             impressionMetadata +=
-              request.requestsList.mapIndexed { index, createRequest ->
+              request.requestsList.mapIndexed { index, updateRequest ->
                 // Return the input metadata with a name set (simulating server response)
-                createRequest.impressionMetadata
+                updateRequest.impressionMetadata
                   .toBuilder()
                   .setName("${request.parent}/impressionMetadata/im-$index")
                   .build()
@@ -247,9 +247,9 @@ class DataAvailabilitySyncTest {
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
-    val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    val batchCaptor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
-      batchCreateImpressionMetadata(batchCaptor.capture())
+      batchUpdateImpressionMetadata(batchCaptor.capture())
     }
     assertThat(batchCaptor.firstValue.requestsCount).isEqualTo(1)
     val boundsRequestCaptor = argumentCaptor<ComputeModelLineBoundsRequest>()
@@ -281,9 +281,9 @@ class DataAvailabilitySyncTest {
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
-    val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    val batchCaptor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
-      batchCreateImpressionMetadata(batchCaptor.capture())
+      batchUpdateImpressionMetadata(batchCaptor.capture())
     }
     assertThat(batchCaptor.firstValue.requestsCount).isEqualTo(1)
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
@@ -406,9 +406,9 @@ class DataAvailabilitySyncTest {
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
-    val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    val batchCaptor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
-      batchCreateImpressionMetadata(batchCaptor.capture())
+      batchUpdateImpressionMetadata(batchCaptor.capture())
     }
     assertThat(batchCaptor.firstValue.requestsCount).isEqualTo(1)
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
@@ -438,7 +438,7 @@ class DataAvailabilitySyncTest {
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
       verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
       verifyBlocking(impressionMetadataServiceMock, times(1)) {
-        batchCreateImpressionMetadata(any())
+        batchUpdateImpressionMetadata(any())
       }
       verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
     }
@@ -470,7 +470,7 @@ class DataAvailabilitySyncTest {
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchUpdateImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
 
@@ -585,7 +585,7 @@ class DataAvailabilitySyncTest {
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
-    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchUpdateImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(0)) { computeModelLineBounds(any()) }
   }
 
@@ -717,9 +717,9 @@ class DataAvailabilitySyncTest {
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
 
     // Capture both requests
-    val captor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    val captor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(2)) {
-      batchCreateImpressionMetadata(captor.capture())
+      batchUpdateImpressionMetadata(captor.capture())
     }
 
     val requestIds =
@@ -756,9 +756,9 @@ class DataAvailabilitySyncTest {
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
 
-      val captor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      val captor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
       verifyBlocking(impressionMetadataServiceMock, times(2)) {
-        batchCreateImpressionMetadata(captor.capture())
+        batchUpdateImpressionMetadata(captor.capture())
       }
       assertThat(captor.allValues.map { it.requestsCount }).containsExactly(2, 1).inOrder()
       // Two batches plus one call when updating availability intervals.
@@ -839,9 +839,9 @@ class DataAvailabilitySyncTest {
           }
         }
       }
-    val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    val batchCaptor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
-      batchCreateImpressionMetadata(batchCaptor.capture())
+      batchUpdateImpressionMetadata(batchCaptor.capture())
     }
     val createdItems = batchCaptor.firstValue.requestsList.map { it.impressionMetadata }
     // File system traversal order is non-deterministic, so use unordered comparison
@@ -996,9 +996,9 @@ class DataAvailabilitySyncTest {
           }
         }
       }
-    val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    val batchCaptor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
-      batchCreateImpressionMetadata(batchCaptor.capture())
+      batchUpdateImpressionMetadata(batchCaptor.capture())
     }
     val createdItems = batchCaptor.firstValue.requestsList.map { it.impressionMetadata }
     // File system traversal order is non-deterministic, so use unordered comparison
@@ -1042,7 +1042,7 @@ class DataAvailabilitySyncTest {
 
       // Impression metadata should still be saved
       verifyBlocking(impressionMetadataServiceMock, times(1)) {
-        batchCreateImpressionMetadata(any())
+        batchUpdateImpressionMetadata(any())
       }
 
       // Model line bounds should still be computed
@@ -1234,7 +1234,7 @@ class DataAvailabilitySyncTest {
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
 
     // Impression metadata should still be saved
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchUpdateImpressionMetadata(any()) }
 
     // Model line bounds should still be computed
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
@@ -1364,9 +1364,9 @@ class DataAvailabilitySyncTest {
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
 
-      val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      val batchCaptor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
       verifyBlocking(impressionMetadataServiceMock, times(1)) {
-        batchCreateImpressionMetadata(batchCaptor.capture())
+        batchUpdateImpressionMetadata(batchCaptor.capture())
       }
       val createdMetadata = batchCaptor.firstValue.requestsList.single().impressionMetadata
       assertThat(createdMetadata.eventGroupReferenceId).isEqualTo("some-event-group-reference-id")
@@ -1417,9 +1417,9 @@ class DataAvailabilitySyncTest {
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
 
-      val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      val batchCaptor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
       verifyBlocking(impressionMetadataServiceMock, times(1)) {
-        batchCreateImpressionMetadata(batchCaptor.capture())
+        batchUpdateImpressionMetadata(batchCaptor.capture())
       }
       val createdMetadata = batchCaptor.firstValue.requestsList.single().impressionMetadata
       assertThat(createdMetadata.eventGroupReferenceId).isEmpty()
@@ -1474,7 +1474,7 @@ class DataAvailabilitySyncTest {
       }
       // Neither metadata persistence nor data availability should happen on validation failure.
       verifyBlocking(impressionMetadataServiceMock, times(0)) {
-        batchCreateImpressionMetadata(any())
+        batchUpdateImpressionMetadata(any())
       }
       verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
     }
@@ -1513,7 +1513,7 @@ class DataAvailabilitySyncTest {
     assertFailsWith<IllegalArgumentException> {
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
     }
-    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchUpdateImpressionMetadata(any()) }
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
   }
 
@@ -1551,7 +1551,7 @@ class DataAvailabilitySyncTest {
     assertFailsWith<IllegalArgumentException> {
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
     }
-    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchUpdateImpressionMetadata(any()) }
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
   }
 
@@ -1591,7 +1591,7 @@ class DataAvailabilitySyncTest {
     assertFailsWith<IllegalArgumentException> {
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
     }
-    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchUpdateImpressionMetadata(any()) }
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
   }
 
@@ -1636,9 +1636,9 @@ class DataAvailabilitySyncTest {
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
 
-      val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      val batchCaptor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
       verifyBlocking(impressionMetadataServiceMock, times(1)) {
-        batchCreateImpressionMetadata(batchCaptor.capture())
+        batchUpdateImpressionMetadata(batchCaptor.capture())
       }
       val createdMetadata = batchCaptor.firstValue.requestsList.single().impressionMetadata
       assertThat(createdMetadata.eventGroupReferenceId).isEqualTo("some-event-group-reference-id")
@@ -1704,9 +1704,9 @@ class DataAvailabilitySyncTest {
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
 
-      val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      val batchCaptor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
       verifyBlocking(impressionMetadataServiceMock, times(1)) {
-        batchCreateImpressionMetadata(batchCaptor.capture())
+        batchUpdateImpressionMetadata(batchCaptor.capture())
       }
       val createdMetadata = batchCaptor.firstValue.requestsList.single().impressionMetadata
       assertThat(createdMetadata.eventGroupReferenceId).isEqualTo("some-event-group-reference-id")
@@ -1772,9 +1772,9 @@ class DataAvailabilitySyncTest {
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
 
-      val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      val batchCaptor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
       verifyBlocking(impressionMetadataServiceMock, times(1)) {
-        batchCreateImpressionMetadata(batchCaptor.capture())
+        batchUpdateImpressionMetadata(batchCaptor.capture())
       }
       val createdMetadata = batchCaptor.firstValue.requestsList.single().impressionMetadata
       assertThat(createdMetadata.eventGroupReferenceId).isEmpty()
@@ -1826,14 +1826,98 @@ class DataAvailabilitySyncTest {
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
 
-      val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      val batchCaptor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
       verifyBlocking(impressionMetadataServiceMock, times(1)) {
-        batchCreateImpressionMetadata(batchCaptor.capture())
+        batchUpdateImpressionMetadata(batchCaptor.capture())
       }
       val createdMetadata = batchCaptor.firstValue.requestsList.single().impressionMetadata
       assertThat(createdMetadata.eventGroupReferenceId).isEqualTo("some-event-group-reference-id")
       assertThat(createdMetadata.entityKeysList).isEmpty()
       verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+    }
+
+  @Test
+  fun `overwriting blob_details with entity_keys sends batchUpdate with updated metadata`() =
+    runBlocking {
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+      // Step 1: Seed with only event_group_reference_id (no entity_keys) — legacy format.
+      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
+        )
+
+      // First sync — creates entries with eventGroupReferenceId only.
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+      val firstCaptor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock, times(1)) {
+        batchUpdateImpressionMetadata(firstCaptor.capture())
+      }
+      val firstMetadata = firstCaptor.firstValue.requestsList.single().impressionMetadata
+      assertThat(firstMetadata.eventGroupReferenceId).isEqualTo("some-event-group-reference-id")
+      assertThat(firstMetadata.entityKeysList).isEmpty()
+      // Verify allow_missing is set
+      assertThat(firstCaptor.firstValue.requestsList.single().allowMissing).isTrue()
+
+      val firstRequestId = firstCaptor.firstValue.requestsList.single().requestId
+
+      // Step 2: Overwrite the blob_details with entity_keys added.
+      val entityKeyGroups =
+        listOf(
+          entityKeyGroup {
+            entityType = "campaign"
+            entityIds += "campaign-1"
+          },
+          entityKeyGroup {
+            entityType = "ad"
+            entityIds += "ad-1"
+          },
+        )
+      seedBlobDetails(
+        storageClient,
+        folderPrefix,
+        listOf(300L to 400L),
+        entityKeyGroups = entityKeyGroups,
+      )
+
+      // Second sync — should send batchUpdate with the updated entity_keys.
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+      val secondCaptor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock, times(2)) {
+        batchUpdateImpressionMetadata(secondCaptor.capture())
+      }
+      val secondMetadata = secondCaptor.secondValue.requestsList.single().impressionMetadata
+      assertThat(secondMetadata.eventGroupReferenceId).isEqualTo("some-event-group-reference-id")
+      assertThat(secondMetadata.entityKeysList)
+        .containsExactly(
+          entityKey {
+            entityType = "campaign"
+            entityId = "campaign-1"
+          },
+          entityKey {
+            entityType = "ad"
+            entityId = "ad-1"
+          },
+        )
+        .inOrder()
+      assertThat(secondCaptor.secondValue.requestsList.single().allowMissing).isTrue()
+
+      // The request IDs should differ because entity_keys changed.
+      val secondRequestId = secondCaptor.secondValue.requestsList.single().requestId
+      assertThat(secondRequestId).isNotEqualTo(firstRequestId)
     }
 
   /**

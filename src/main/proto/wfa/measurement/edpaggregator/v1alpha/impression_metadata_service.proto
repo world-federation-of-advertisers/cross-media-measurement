@@ -38,6 +38,21 @@ service ImpressionMetadataService {
   rpc BatchCreateImpressionMetadata(BatchCreateImpressionMetadataRequest)
       returns (BatchCreateImpressionMetadataResponse) {}
 
+  // Updates an existing ImpressionMetadata entry.
+  //
+  // When `allow_missing` is true and no resource with the given `blob_uri`
+  // exists, a new resource is created.
+  rpc UpdateImpressionMetadata(UpdateImpressionMetadataRequest)
+      returns (ImpressionMetadata) {}
+
+  // Updates multiple ImpressionMetadata entries in a single request.
+  //
+  // (-- api-linter: core::0234::request-requests-field=disabled
+  //     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata" to
+  //     "Metadatum".  --)
+  rpc BatchUpdateImpressionMetadata(BatchUpdateImpressionMetadataRequest)
+      returns (BatchUpdateImpressionMetadataResponse) {}
+
   // Retrieves a specific ImpressionMetadata entry.
   rpc GetImpressionMetadata(GetImpressionMetadataRequest)
       returns (ImpressionMetadata) {}
@@ -57,7 +72,7 @@ service ImpressionMetadataService {
   // Computes the time bounds for all ModelLines for a DataProvider.
   //
   // This method returns, for each requested ModelLine, the interval spanning
-  // from the earliest start time to the latest end time across all
+  // from the earliest start time to the latest end time across all
   // ImpressionMetadata resources in the ACTIVE state.
   //
   // Callers are responsible for ensuring that all expected ImpressionMetadata
@@ -118,6 +133,67 @@ message BatchCreateImpressionMetadataRequest {
 message BatchCreateImpressionMetadataResponse {
   // The list of newly created ImpressionMetadata, in the same order as the
   // request.
+  repeated ImpressionMetadata impression_metadata = 1;
+}
+
+// Request message for the `UpdateImpressionMetadata` method.
+message UpdateImpressionMetadataRequest {
+  // The parent data provider resource name.
+  // Format: `dataProviders/{data_provider}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
+    }
+  ];
+
+  // The ImpressionMetadata to update.
+  //
+  // The `blob_uri` field is used as the lookup key when `name` is not set.
+  // If `allow_missing` is true and no resource with the given `blob_uri`
+  // exists, a new resource is created.
+  ImpressionMetadata impression_metadata = 2
+      [(google.api.field_behavior) = REQUIRED];
+
+  // The list of fields to update. If omitted, all mutable fields are updated.
+
+  // If true and the resource does not exist, a new resource will be created.
+  bool allow_missing = 4 [(google.api.field_behavior) = OPTIONAL];
+
+  // A request ID provided by the client to ensure idempotency.
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 10 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for the `BatchUpdateImpressionMetadata` method.
+// (-- api-linter: core::0234::request-requests-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata" to
+//     "Metadatum".  --)
+message BatchUpdateImpressionMetadataRequest {
+  // The parent data provider resource name.
+  // Format: `dataProviders/{data_provider}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
+    }
+  ];
+
+  // The list of ImpressionMetadata to update.
+  repeated UpdateImpressionMetadataRequest requests = 2
+      [(google.api.field_behavior) = REQUIRED];
+}
+
+// Response message for the `BatchUpdateImpressionMetadata` method.
+// (-- api-linter: core::0234::response-resource-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata" to
+//     "Metadatum".  --)
+message BatchUpdateImpressionMetadataResponse {
+  // The list of updated ImpressionMetadata, in the same order as the request.
   repeated ImpressionMetadata impression_metadata = 1;
 }
 

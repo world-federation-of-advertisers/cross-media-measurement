@@ -33,6 +33,14 @@ service ImpressionMetadataService {
   rpc BatchCreateImpressionMetadata(BatchCreateImpressionMetadataRequest)
       returns (BatchCreateImpressionMetadataResponse);
 
+  // Updates an existing ImpressionMetadata entry.
+  rpc UpdateImpressionMetadata(UpdateImpressionMetadataRequest)
+      returns (ImpressionMetadata);
+
+  // Updates multiple ImpressionMetadata entries in a single request.
+  rpc BatchUpdateImpressionMetadata(BatchUpdateImpressionMetadataRequest)
+      returns (BatchUpdateImpressionMetadataResponse);
+
   // Retrieves a specific ImpressionMetadata entry.
   rpc GetImpressionMetadata(GetImpressionMetadataRequest)
       returns (ImpressionMetadata);
@@ -69,6 +77,28 @@ message BatchCreateImpressionMetadataRequest {
 }
 
 message BatchCreateImpressionMetadataResponse {
+  repeated ImpressionMetadata impression_metadata = 1;
+}
+
+message UpdateImpressionMetadataRequest {
+  ImpressionMetadata impression_metadata = 1;
+
+
+  // If true and the resource does not exist (looked up by blob_uri),
+  // a new resource will be created.
+  bool allow_missing = 3;
+
+  string request_id = 4;
+}
+
+message BatchUpdateImpressionMetadataRequest {
+  string data_provider_resource_id = 1;
+  // The request message specifying the ImpressionMetadata to update.
+  // A maximum of 50 ImpressionMetadata can be updated in a batch.
+  repeated UpdateImpressionMetadataRequest requests = 2;
+}
+
+message BatchUpdateImpressionMetadataResponse {
   repeated ImpressionMetadata impression_metadata = 1;
 }
 

@@ -17,6 +17,8 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db
 
 import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.KeySet
+import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Type
@@ -49,6 +51,7 @@ import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as 
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataKey
+import org.wfanet.measurement.internal.edpaggregator.UpdateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.entityKey
 import org.wfanet.measurement.internal.edpaggregator.impressionMetadata
@@ -573,6 +576,139 @@ suspend fun AsyncDatabaseClient.ReadContext.readModelLinesBounds(
       )
     }
     .toList()
+}
+
+/** Deletes all [ImpressionMetadataEntityKeys] rows for the given ImpressionMetadata. */
+private fun AsyncDatabaseClient.TransactionContext.deleteImpressionMetadataEntityKeys(
+  dataProviderResourceId: String,
+  impressionMetadataId: Long,
+) {
+  buffer(
+    Mutation.delete(
+      "ImpressionMetadataEntityKeys",
+      KeySet.prefixRange(Key.of(dataProviderResourceId, impressionMetadataId)),
+    )
+  )
+}
+
+/**
+ * Buffers an update mutation for mutable fields on an [ImpressionMetadata] row, and replaces all
+ * associated entity keys.
+ */
+fun AsyncDatabaseClient.TransactionContext.updateImpressionMetadataFields(
+  dataProviderResourceId: String,
+  impressionMetadataId: Long,
+  impressionMetadata: ImpressionMetadata,
+  createRequestId: String,
+) {
+  bufferUpdateMutation("ImpressionMetadata") {
+    set("DataProviderResourceId").to(dataProviderResourceId)
+    set("ImpressionMetadataId").to(impressionMetadataId)
+    set("EventGroupReferenceId").to(impressionMetadata.eventGroupReferenceId)
+    set("CmmsModelLine").to(impressionMetadata.cmmsModelLine)
+    set("IntervalStartTime").to(impressionMetadata.interval.startTime.toGcloudTimestamp())
+    set("IntervalEndTime").to(impressionMetadata.interval.endTime.toGcloudTimestamp())
+    if (createRequestId.isNotEmpty()) {
+      set("CreateRequestId").to(createRequestId)
+    }
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+
+  deleteImpressionMetadataEntityKeys(dataProviderResourceId, impressionMetadataId)
+
+  for (entityKey in impressionMetadata.entityKeysList) {
+    insertImpressionMetadataEntityKey(dataProviderResourceId, impressionMetadataId, entityKey)
+  }
+}
+
+/**
+ * Buffers a batch of [ImpressionMetadata] to be updated (or created if [allow_missing]) in a single
+ * transaction.
+ *
+ * For each request:
+ * - If a request with the same `request_id` was already processed, the previously stored result is
+ *   returned (idempotency).
+ * - If an entity with the same `blob_uri` exists, its mutable fields and entity keys are replaced.
+ * - If no entity exists and `allow_missing` is true, a new entity is created.
+ * - If no entity exists and `allow_missing` is false, [ImpressionMetadataNotFoundException] is
+ *   thrown.
+ *
+ * @return a list of [ImpressionMetadata], containing both updated and newly created entities.
+ */
+suspend fun AsyncDatabaseClient.TransactionContext.batchUpdateImpressionMetadata(
+  requests: List<UpdateImpressionMetadataRequest>
+): List<ImpressionMetadata> {
+  if (requests.isEmpty()) {
+    return emptyList()
+  }
+
+  val dataProviderResourceId = requests.first().impressionMetadata.dataProviderResourceId
+
+  val requestIds = requests.map { it.requestId }
+  val existingByRequestId: Map<String, ImpressionMetadataResult> =
+    findExistingImpressionMetadataByRequestIds(dataProviderResourceId, requestIds)
+
+  val blobUris = requests.map { it.impressionMetadata.blobUri }
+  val existingByBlobUri: Map<String, ImpressionMetadataResult> =
+    findExistingImpressionMetadataByBlobUris(dataProviderResourceId, blobUris)
+
+  val newCreations = mutableListOf<ImpressionMetadata>()
+
+  val results: List<ImpressionMetadata> =
+    requests.map { request ->
+      // 1. Idempotency: same request_id → return previous result
+      val byRequestId = existingByRequestId[request.requestId]
+      if (byRequestId != null) {
+        return@map byRequestId.impressionMetadata
+      }
+
+      // 2. Existing by blob_uri → update mutable fields
+      val byBlobUri = existingByBlobUri[request.impressionMetadata.blobUri]
+      if (byBlobUri != null) {
+        updateImpressionMetadataFields(
+          dataProviderResourceId,
+          byBlobUri.impressionMetadataId,
+          request.impressionMetadata,
+          request.requestId,
+        )
+        return@map request.impressionMetadata.copy {
+          impressionMetadataResourceId = byBlobUri.impressionMetadata.impressionMetadataResourceId
+          state = byBlobUri.impressionMetadata.state
+        }
+      }
+
+      // 3. Not found
+      if (!request.allowMissing) {
+        throw ImpressionMetadataNotFoundException(
+            dataProviderResourceId,
+            request.impressionMetadata.blobUri,
+          )
+          .asStatusRuntimeException(Status.Code.NOT_FOUND)
+      }
+
+      // 4. allow_missing → create new
+      val impressionMetadataId =
+        IdGenerator.Default.generateNewId { id ->
+          impressionMetadataExists(request.impressionMetadata.dataProviderResourceId, id)
+        }
+
+      val impressionMetadataResourceId =
+        request.impressionMetadata.impressionMetadataResourceId.ifBlank {
+          "$IMPRESSION_METADATA_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
+        }
+
+      val created =
+        request.impressionMetadata.copy {
+          this.impressionMetadataResourceId = impressionMetadataResourceId
+          state = State.IMPRESSION_METADATA_STATE_ACTIVE
+        }
+
+      insertImpressionMetadata(impressionMetadataId, created, request.requestId)
+      newCreations.add(created)
+      created
+    }
+
+  return results
 }
 
 private object ImpressionMetadataEntity {
