@@ -97,6 +97,7 @@ import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.deploy.gcloud.SecureComputationServicesProviderRule
+import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
@@ -571,11 +572,24 @@ class InProcessEdpAggregatorComponents(
           storagePath.toFile(),
           "file:///",
         )
+      // Resolve the entity_keys to stamp on this event group's impressions and on the per-blob
+      // BlobDetails. If the test set an explicit override use it; otherwise mirror the Kingdom's
+      // default (campaign entity_type, empty entity_id) so the orchestrator's ByEntityKeys
+      // selector overlaps with the batch and the FilterProcessor guard does not trip.
+      val override: EventGroupEntityOverride? =
+        entityOverridesByEdp[edpAggregatorShortName]?.get(mappedEventGroup.eventGroupReferenceId)
+      val blobEntityKeys: List<EntityKey> =
+        listOf(
+          EntityKey(
+            entityType = override?.entityKey?.entityType ?: KINGDOM_DEFAULT_ENTITY_TYPE,
+            entityId = override?.entityKey?.entityId.orEmpty(),
+          )
+        )
       val entityKeyedEvents: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
         events.map {
           EntityKeyedLabeledEventDateShard(
             it.localDate,
-            sequenceOf(EntityKeysWithLabeledEvents(emptyList(), it.labeledEvents)),
+            sequenceOf(EntityKeysWithLabeledEvents(blobEntityKeys, it.labeledEvents)),
           )
         }
       impressionWriter.writeLabeledImpressionData(entityKeyedEvents, modelLineName, null)
@@ -607,6 +621,11 @@ class InProcessEdpAggregatorComponents(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val BLOB_TYPE_URL =
       "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
+    // Mirrors the Kingdom's NOT NULL DEFAULT "campaign" constraint on EventGroup.entity_type
+    // (see CreateEventGroup.kt). Used to synthesize blob-side entity_keys for event groups that
+    // do not carry an EventGroupEntityOverride, so the orchestrator's ByEntityKeys filter
+    // overlaps with the batch.
+    private const val KINGDOM_DEFAULT_ENTITY_TYPE = "campaign"
     private const val IMPRESSIONS_BUCKET = "impression-bucket"
     private const val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
     private const val REQUISITION_STORAGE_PREFIX = "requisition-storage-prefix"
