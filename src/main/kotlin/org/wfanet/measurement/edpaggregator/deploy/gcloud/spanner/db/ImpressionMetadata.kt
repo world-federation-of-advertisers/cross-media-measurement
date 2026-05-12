@@ -663,8 +663,19 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchUpdateImpressionMetadata
         return@map byRequestId.impressionMetadata
       }
 
-      // 2. Existing by blob_uri → update mutable fields
+      // 2. Look up by blob_uri
       val byBlobUri = existingByBlobUri[request.impressionMetadata.blobUri]
+
+      // 3. Not found and allow_missing is false → fail before buffering any mutations
+      if (byBlobUri == null && !request.allowMissing) {
+        throw ImpressionMetadataNotFoundException(
+            dataProviderResourceId,
+            request.impressionMetadata.blobUri,
+          )
+          .asStatusRuntimeException(Status.Code.NOT_FOUND)
+      }
+
+      // 4. Existing by blob_uri → update mutable fields
       if (byBlobUri != null) {
         updateImpressionMetadataFields(
           dataProviderResourceId,
@@ -679,16 +690,7 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchUpdateImpressionMetadata
         }
       }
 
-      // 3. Not found
-      if (!request.allowMissing) {
-        throw ImpressionMetadataNotFoundException(
-            dataProviderResourceId,
-            request.impressionMetadata.blobUri,
-          )
-          .asStatusRuntimeException(Status.Code.NOT_FOUND)
-      }
-
-      // 4. allow_missing → create new
+      // 5. allow_missing → create new
       val impressionMetadataId =
         IdGenerator.Default.generateNewId { id ->
           impressionMetadataExists(request.impressionMetadata.dataProviderResourceId, id)
