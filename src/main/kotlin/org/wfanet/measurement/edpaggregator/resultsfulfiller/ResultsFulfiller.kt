@@ -140,13 +140,9 @@ class ResultsFulfiller(
         it.eventGroup to it.details.eventGroupReferenceId
       }
 
-    // Built per the same pattern as eventGroupReferenceIdMap, extracting the entity_key
-    // populated upstream by `RequisitionGrouper` from `EventGroup.entity_key`. Only event
-    // groups whose details carry `entity_key` are included; the all-or-nothing consistency
-    // rule is enforced downstream by `FilterSpecIndex.fromRequisitions`.
     val eventGroupEntityKeyMap: Map<String, LabeledImpression.EntityKey> =
       groupedRequisitions.eventGroupMapList
-        .filter { it.details.hasEntityKey() }
+        .filter { it.details.hasEntityKey() && it.details.entityKey.entityId.isNotEmpty() }
         .associate { entry ->
           val key = entry.details.entityKey
           entry.eventGroup to
