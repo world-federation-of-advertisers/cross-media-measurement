@@ -86,10 +86,15 @@ class VidLabelingDispatcherTest {
 
   private val vidLabelerParamsTemplate = vidLabelerParams {
     dataProvider = DATA_PROVIDER_NAME
-    storageParams =
+    vidLabeledImpressionsStorageParams =
       VidLabelerParamsKt.storageParams {
         gcsProjectId = "test-project"
-        labeledImpressionsBlobPrefix = "gs://output-bucket/labeled"
+        impressionsBlobPrefix = "gs://output-bucket/labeled"
+      }
+    rawImpressionsStorageParams =
+      VidLabelerParamsKt.storageParams {
+        gcsProjectId = "test-project"
+        impressionsBlobPrefix = "gs://input-bucket/raw"
       }
   }
 

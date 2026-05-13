@@ -18,6 +18,8 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Struct
+import com.google.protobuf.Value
 import com.google.type.date
 import com.google.type.interval
 import io.grpc.Deadline
@@ -33,12 +35,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.whenever
 import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.testing.Authentication.withPrincipalAndScopes
+import org.wfanet.measurement.access.v1alpha.CheckPermissionsRequest
 import org.wfanet.measurement.access.v1alpha.CheckPermissionsResponse
 import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
 import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
@@ -52,6 +56,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest as CmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt as CmmsListEventGroupsRequestKt
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerEventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.api.v2alpha.copy
@@ -59,6 +64,7 @@ import org.wfanet.measurement.api.v2alpha.dateInterval as cmmsDateInterval
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.getEventGroupRequest as cmmsGetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse as cmmsListEventGroupsResponse
@@ -78,6 +84,7 @@ import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.dateInterval
 import org.wfanet.measurement.reporting.v2alpha.eventGroup
+import org.wfanet.measurement.reporting.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsResponse
 
@@ -91,12 +98,14 @@ class EventGroupsServiceTest {
           nextPageToken = ""
         }
       )
+    onBlocking { getEventGroup(any()) }.thenReturn(CMMS_EVENT_GROUP)
   }
 
   private val permissionsServiceMock: PermissionsGrpcKt.PermissionsCoroutineImplBase = mockService {
-    onBlocking { checkPermissions(any()) } doReturn
-      checkPermissionsResponse {
-        permissions += EventGroupsService.LIST_EVENT_GROUPS_PERMISSIONS.map { "permissions/$it" }
+    onBlocking { checkPermissions(any()) } doAnswer
+      { invocation ->
+        val request = invocation.getArgument<CheckPermissionsRequest>(0)
+        checkPermissionsResponse { permissions += request.permissionsList }
       }
   }
 
@@ -328,6 +337,37 @@ class EventGroupsServiceTest {
   }
 
   @Test
+  fun `listEventGroups delegates to CMMS API when entity_type_in is specified`() {
+    wheneverBlocking { cmmsEventGroupsMock.listEventGroups(any()) } doReturn
+      cmmsListEventGroupsResponse { eventGroups += CMMS_EVENT_GROUP }
+
+    val request = listEventGroupsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      structuredFilter =
+        ListEventGroupsRequestKt.filter {
+          entityTypeIn += "creative"
+          entityTypeIn += "ad_group"
+        }
+    }
+
+    withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listEventGroups(request) } }
+
+    verifyProtoArgument(cmmsEventGroupsMock, EventGroupsCoroutineImplBase::listEventGroups)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        cmmsListEventGroupsRequest {
+          parent = request.parent
+          filter =
+            CmmsListEventGroupsRequestKt.filter {
+              entityTypeIn += "creative"
+              entityTypeIn += "ad_group"
+            }
+          pageSize = DEFAULT_PAGE_SIZE
+        }
+      )
+  }
+
+  @Test
   fun `listEventGroups returns all event groups as is when no filter`() = runBlocking {
     val response =
       withPrincipalAndScopes(PRINCIPAL, SCOPES) {
@@ -378,6 +418,40 @@ class EventGroupsServiceTest {
           this.pageToken = pageToken
         }
       )
+  }
+
+  @Test
+  fun `getEventGroup returns expected EventGroup`() {
+    val response =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        runBlocking { service.getEventGroup(getEventGroupRequest { name = EVENT_GROUP.name }) }
+      }
+
+    assertThat(response).isEqualTo(EVENT_GROUP)
+
+    verifyProtoArgument(cmmsEventGroupsMock, EventGroupsCoroutineImplBase::getEventGroup)
+      .isEqualTo(
+        cmmsGetEventGroupRequest {
+          name = MeasurementConsumerEventGroupKey(MEASUREMENT_CONSUMER_ID, EVENT_GROUP_ID).toName()
+        }
+      )
+  }
+
+  @Test
+  fun `getEventGroup throws NOT_FOUND when EventGroup not found`() {
+    runBlocking {
+      whenever(cmmsEventGroupsMock.getEventGroup(any()))
+        .thenThrow(Status.NOT_FOUND.asRuntimeException())
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking { service.getEventGroup(getEventGroupRequest { name = EVENT_GROUP.name }) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
   @Test
@@ -658,13 +732,22 @@ class EventGroupsServiceTest {
       configs[MEASUREMENT_CONSUMER_NAME] = CONFIG
     }
     private val PRINCIPAL = principal { name = "principals/${MEASUREMENT_CONSUMER_ID}-user" }
-    private val SCOPES = EventGroupsService.LIST_EVENT_GROUPS_PERMISSIONS
+    private val SCOPES =
+      EventGroupsService.LIST_EVENT_GROUPS_PERMISSIONS +
+        EventGroupsService.GET_EVENT_GROUP_PERMISSIONS
 
     private const val DATA_PROVIDER_ID = "1235"
     private val DATA_PROVIDER_NAME = DataProviderKey(DATA_PROVIDER_ID).toName()
 
     private const val EVENT_GROUP_REFERENCE_ID = "ref"
     private const val EVENT_GROUP_ID = "1237"
+    private const val ENTITY_TYPE = "creative"
+    private const val ENTITY_ID = "cr_12345"
+    private val ENTITY_METADATA: Struct =
+      Struct.newBuilder()
+        .putFields("placement", Value.newBuilder().setStringValue("homepage").build())
+        .putFields("creative_id", Value.newBuilder().setStringValue(ENTITY_ID).build())
+        .build()
     private val CMMS_EVENT_GROUP_NAME = CmmsEventGroupKey(DATA_PROVIDER_ID, EVENT_GROUP_ID).toName()
     private val CMMS_EVENT_GROUP = cmmsEventGroup {
       name = CMMS_EVENT_GROUP_NAME
@@ -685,7 +768,13 @@ class EventGroupsServiceTest {
                 campaignName = "Log: Better Than Bad"
               }
           }
+        entityMetadata = ENTITY_METADATA
       }
+      entityKey =
+        CmmsEventGroupKt.entityKey {
+          entityType = ENTITY_TYPE
+          entityId = ENTITY_ID
+        }
       state = CmmsEventGroup.State.ACTIVE
     }
 
@@ -721,6 +810,12 @@ class EventGroupsServiceTest {
                     CMMS_EVENT_GROUP.eventGroupMetadata.adMetadata.campaignMetadata.campaignName
                 }
             }
+          entityMetadata = ENTITY_METADATA
+        }
+      entityKey =
+        EventGroupKt.entityKey {
+          entityType = ENTITY_TYPE
+          entityId = ENTITY_ID
         }
     }
 

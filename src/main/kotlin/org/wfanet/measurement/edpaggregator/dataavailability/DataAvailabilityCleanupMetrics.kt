@@ -43,6 +43,12 @@ class DataAvailabilityCleanupMetrics(meter: Meter = Instrumentation.meter) {
       .setDescription("Number of cleanup errors (e.g., record not found)")
       .build()
 
+  val cleanupSkippedCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.data_availability.cleanup_skipped")
+      .setDescription("Number of cleanup operations skipped (e.g., noncurrent version deletion)")
+      .build()
+
   companion object {
     val DATA_PROVIDER_KEY_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("edpa.data_availability_cleanup.data_provider_key")
@@ -57,5 +63,6 @@ class DataAvailabilityCleanupMetrics(meter: Meter = Instrumentation.meter) {
     const val ERROR_TYPE_NOT_FOUND = "not_found"
     const val ERROR_TYPE_RPC_ERROR = "rpc_error"
     const val ERROR_TYPE_MULTIPLE_MATCHES = "multiple_matches"
+    const val CLEANUP_SKIP_REASON_NONCURRENT_VERSION = "noncurrent_version"
   }
 }

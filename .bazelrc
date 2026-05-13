@@ -55,6 +55,7 @@ build:remote-cache --experimental_remote_cache_ttl=3h
 common:ci --action_env=ANDROID_HOME=""
 common:ci --action_env=ANDROID_SDK_ROOT=""
 common:ci --lockfile_mode=error
+build:ci --experimental_repository_downloader_retries=5
 build:ci --compilation_mode=opt
 build:ci --build_metadata=ROLE=CI
 build:ci --build_metadata=VISIBILITY=PUBLIC

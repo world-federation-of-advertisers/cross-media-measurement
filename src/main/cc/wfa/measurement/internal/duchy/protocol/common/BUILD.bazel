@@ -26,5 +26,6 @@ cc_library(
         "@any_sketch//src/main/cc/math:distributed_discrete_gaussian_noiser",
         "@any_sketch//src/main/cc/math:distributed_geometric_noiser",
         "@any_sketch//src/main/cc/math:noise_parameters_computation",
+        "@com_google_absl//absl/log:absl_check",
     ],
 )

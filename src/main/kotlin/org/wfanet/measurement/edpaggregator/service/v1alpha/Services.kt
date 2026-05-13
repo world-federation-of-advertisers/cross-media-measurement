@@ -21,15 +21,27 @@ import io.grpc.Channel
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchServiceGrpcKt.RawImpressionMetadataBatchServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt as InternalImpressionMetadataServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchFileServiceGrpcKt as InternalRawImpressionMetadataBatchFileServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchServiceGrpcKt as InternalRawImpressionMetadataBatchServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt as InternalRequisitionMetadataServiceGrpcKt
 
 data class Services(
   val requisitionMetadata: RequisitionMetadataServiceCoroutineImplBase,
   val impressionMetadata: ImpressionMetadataServiceCoroutineImplBase,
+  val rawImpressionMetadataBatch: RawImpressionMetadataBatchServiceCoroutineImplBase,
+  val rawImpressionMetadataBatchFile: RawImpressionMetadataBatchFileServiceCoroutineImplBase,
 ) {
-  fun toList(): List<BindableService> = listOf(requisitionMetadata, impressionMetadata)
+  fun toList(): List<BindableService> =
+    listOf(
+      requisitionMetadata,
+      impressionMetadata,
+      rawImpressionMetadataBatch,
+      rawImpressionMetadataBatchFile,
+    )
 
   companion object {
     fun build(
@@ -44,10 +56,18 @@ data class Services(
         InternalImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(
           internalApiChannel
         )
+      val internalBatchStub =
+        InternalRawImpressionMetadataBatchServiceGrpcKt
+          .RawImpressionMetadataBatchServiceCoroutineStub(internalApiChannel)
+      val internalFileStub =
+        InternalRawImpressionMetadataBatchFileServiceGrpcKt
+          .RawImpressionMetadataBatchFileServiceCoroutineStub(internalApiChannel)
 
       return Services(
         RequisitionMetadataService(internalRequisitionMetadataStub, coroutineContext),
         ImpressionMetadataService(internalImpressionMetadataStub, coroutineContext),
+        RawImpressionMetadataBatchService(internalBatchStub, coroutineContext),
+        RawImpressionMetadataBatchFileService(internalFileStub, coroutineContext),
       )
     }
   }

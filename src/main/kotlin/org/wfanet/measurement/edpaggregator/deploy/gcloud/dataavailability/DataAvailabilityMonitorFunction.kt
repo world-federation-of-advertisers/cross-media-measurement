@@ -20,18 +20,26 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
+import io.grpc.ManagedChannel
 import java.io.File
-import java.time.LocalDate
+import java.time.Duration
 import java.time.ZoneId
+import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.common.EnvVars
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilityMonitorConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilityMonitorConfigs
+import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -119,15 +127,39 @@ class DataAvailabilityMonitorFunction : HttpFunction {
       if (config.maxStaleDays > 0) config.maxStaleDays
       else DataAvailabilityMonitor.DEFAULT_MAX_STALE_DAYS
 
+    val spuriousLookbackDays =
+      config.spuriousDeletionLookbackDays
+        .takeIf { it > 0 }
+        ?.also {
+          require(config.hasImpressionMetadataConnection()) {
+            "impression_metadata_connection must be set when spurious_deletion_lookback_days is set"
+          }
+          require(config.dataProviderName.isNotEmpty()) {
+            "data_provider_name must be set when spurious_deletion_lookback_days is set"
+          }
+        }
+
+    val impressionMetadataStub =
+      spuriousLookbackDays?.let {
+        val channel = getOrCreateImpressionMetadataChannel(config.impressionMetadataConnection)
+        ImpressionMetadataServiceCoroutineStub(channel)
+      }
+
     val monitor =
       DataAvailabilityMonitor(
         storageClient = storageClient,
         edpImpressionPath = config.edpImpressionPath,
         activeModelLines = activeModelLines,
+        impressionMetadataStub = impressionMetadataStub,
+        dataProviderName = config.dataProviderName.ifEmpty { null },
       )
 
     val result =
-      monitor.checkFullStatus(maxStaleDays = maxStaleDays, clock = { LocalDate.now(timeZone) })
+      monitor.checkFullStatus(
+        maxStaleDays = maxStaleDays,
+        timeZone = timeZone,
+        spuriousDeletionLookbackDays = spuriousLookbackDays,
+      )
 
     if (result.statuses.none { hasIssues(it) }) {
       logger.info("All model lines healthy for path: ${config.edpImpressionPath}")
@@ -182,6 +214,14 @@ class DataAvailabilityMonitorFunction : HttpFunction {
           "has late-arriving data after done blob: ${status.lateArrivingDates}",
       )
     }
+    if ((status.spuriousDeletionCount ?: 0) > 0) {
+      logger.log(
+        Level.SEVERE,
+        "ALERT: Model line $modelLineName in $edpImpressionPath " +
+          "has ${status.spuriousDeletionCount} spuriously deleted entries " +
+          "(deleted in metadata store but blob still exists on bucket)",
+      )
+    }
   }
 
   private fun createStorageClient(config: DataAvailabilityMonitorConfig): StorageClient {
@@ -208,6 +248,38 @@ class DataAvailabilityMonitorFunction : HttpFunction {
 
     private val fileSystemPath: String? = System.getenv("DATA_AVAILABILITY_FILE_SYSTEM_PATH")
 
+    private val impressionMetadataTarget = EnvVars.checkNotNullOrEmpty("IMPRESSION_METADATA_TARGET")
+
+    private val impressionMetadataCertHost: String? = System.getenv("IMPRESSION_METADATA_CERT_HOST")
+
+    private val channelShutdownDurationSeconds: Long =
+      System.getenv("CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLongOrNull() ?: 3L
+
+    private data class ChannelKey(
+      val tls: TransportLayerSecurityParams,
+      val target: String,
+      val hostName: String?,
+    )
+
+    private val channelCache = ConcurrentHashMap<ChannelKey, ManagedChannel>()
+
+    private fun getOrCreateImpressionMetadataChannel(
+      tlsParams: TransportLayerSecurityParams
+    ): ManagedChannel {
+      val key = ChannelKey(tlsParams, impressionMetadataTarget, impressionMetadataCertHost)
+      return channelCache.computeIfAbsent(key) {
+        logger.info("Creating new ImpressionMetadata channel for TLS params: $key")
+        val signingCerts =
+          SigningCerts.fromPemFiles(
+            certificateFile = File(tlsParams.certFilePath),
+            privateKeyFile = File(tlsParams.privateKeyFilePath),
+            trustedCertCollectionFile = File(tlsParams.certCollectionFilePath),
+          )
+        buildMutualTlsChannel(impressionMetadataTarget, signingCerts, impressionMetadataCertHost)
+          .withShutdownTimeout(Duration.ofSeconds(channelShutdownDurationSeconds))
+      }
+    }
+
     private val configBlobKey: String =
       requireNotNull(System.getenv("CONFIG_BLOB_KEY")) {
         "CONFIG_BLOB_KEY environment variable must be set"
@@ -231,6 +303,7 @@ class DataAvailabilityMonitorFunction : HttpFunction {
         !status.gapDates.isNullOrEmpty() ||
         !status.zeroImpressionDates.isNullOrEmpty() ||
         !status.datesWithoutDoneBlob.isNullOrEmpty() ||
-        !status.lateArrivingDates.isNullOrEmpty()
+        !status.lateArrivingDates.isNullOrEmpty() ||
+        (status.spuriousDeletionCount ?: 0) > 0
   }
 }

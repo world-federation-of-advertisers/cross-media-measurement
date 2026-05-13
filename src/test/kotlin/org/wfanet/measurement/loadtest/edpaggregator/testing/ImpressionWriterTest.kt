@@ -40,8 +40,10 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.loadtest.dataprovider.EntityKey
+import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
+import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -74,46 +76,64 @@ class ImpressionWriterTest {
         tempFolder.root,
         "file:///",
       )
-    val events: Sequence<LabeledEventDateShard<TestEvent>> =
+    val events: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
       sequenceOf(
-        LabeledEventDateShard(
+        EntityKeyedLabeledEventDateShard(
           LocalDate.parse("2020-01-01"),
           sequenceOf(
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
+            EntityKeysWithLabeledEvents(
+              entityKeys = emptyList(),
+              labeledEvents =
+                sequenceOf(
+                  LabeledEvent(
+                    vid = 1,
+                    message = TestEvent.getDefaultInstance(),
+                    timestamp =
+                      LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+                  ),
+                  LabeledEvent(
+                    vid = 1,
+                    message = TestEvent.getDefaultInstance(),
+                    timestamp =
+                      LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+                  ),
+                  LabeledEvent(
+                    vid = 1,
+                    message = TestEvent.getDefaultInstance(),
+                    timestamp =
+                      LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+                  ),
+                ),
+            )
           ),
         ),
-        LabeledEventDateShard(
+        EntityKeyedLabeledEventDateShard(
           LocalDate.parse("2020-01-02"),
           sequenceOf(
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
+            EntityKeysWithLabeledEvents(
+              entityKeys = emptyList(),
+              labeledEvents =
+                sequenceOf(
+                  LabeledEvent(
+                    vid = 1,
+                    message = TestEvent.getDefaultInstance(),
+                    timestamp =
+                      LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+                  ),
+                  LabeledEvent(
+                    vid = 1,
+                    message = TestEvent.getDefaultInstance(),
+                    timestamp =
+                      LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+                  ),
+                  LabeledEvent(
+                    vid = 1,
+                    message = TestEvent.getDefaultInstance(),
+                    timestamp =
+                      LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+                  ),
+                ),
+            )
           ),
         ),
       )
@@ -186,13 +206,20 @@ class ImpressionWriterTest {
       )
     val events =
       sequenceOf(
-        LabeledEventDateShard(
+        EntityKeyedLabeledEventDateShard(
           LocalDate.parse("2020-01-01"),
           sequenceOf(
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+            EntityKeysWithLabeledEvents(
+              entityKeys = emptyList(),
+              labeledEvents =
+                sequenceOf(
+                  LabeledEvent(
+                    vid = 1,
+                    message = TestEvent.getDefaultInstance(),
+                    timestamp =
+                      LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+                  )
+                ),
             )
           ),
         )
@@ -227,30 +254,45 @@ class ImpressionWriterTest {
         tempFolder.root,
         "file:///",
       )
-    val events: Sequence<LabeledEventDateShard<TestEvent>> =
+    val events: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
       sequenceOf(
-        LabeledEventDateShard(
+        EntityKeyedLabeledEventDateShard(
           LocalDate.parse("2020-01-01"),
           sequenceOf(
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
-            LabeledEvent(
-              vid = 2,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
+            EntityKeysWithLabeledEvents(
+              entityKeys = emptyList(),
+              labeledEvents =
+                sequenceOf(
+                  LabeledEvent(
+                    vid = 1,
+                    message = TestEvent.getDefaultInstance(),
+                    timestamp =
+                      LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+                  ),
+                  LabeledEvent(
+                    vid = 2,
+                    message = TestEvent.getDefaultInstance(),
+                    timestamp =
+                      LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+                  ),
+                ),
+            )
           ),
         ),
-        LabeledEventDateShard(
+        EntityKeyedLabeledEventDateShard(
           LocalDate.parse("2020-01-02"),
           sequenceOf(
-            LabeledEvent(
-              vid = 3,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+            EntityKeysWithLabeledEvents(
+              entityKeys = emptyList(),
+              labeledEvents =
+                sequenceOf(
+                  LabeledEvent(
+                    vid = 3,
+                    message = TestEvent.getDefaultInstance(),
+                    timestamp =
+                      LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+                  )
+                ),
             )
           ),
         ),
@@ -296,6 +338,116 @@ class ImpressionWriterTest {
               LocalDate.parse(date).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
             )
         }
+      }
+    }
+  }
+
+  @Test
+  fun `writeLabeledImpressionData stamps per-group EntityKeys within a single blob`() {
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
+    val kmsClient = run {
+      val client = FakeKmsClient()
+      val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+      client.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+      client
+    }
+    tempFolder.root.resolve("multi-impression-bucket").mkdirs()
+    tempFolder.root.resolve("multi-metadata-bucket").mkdirs()
+    val impressionWriter =
+      ImpressionsWriter(
+        "some-event-group-ref",
+        "some-event-group-path",
+        kekUri,
+        kmsClient,
+        "multi-impression-bucket",
+        "multi-metadata-bucket",
+        tempFolder.root,
+        "file:///",
+      )
+
+    val date = LocalDate.parse("2020-01-01")
+    val timestamp = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
+    val groupAEntityKeys = listOf(EntityKey("type-a", "id-a"), EntityKey("type-a", "id-a2"))
+    val groupBEntityKeys = listOf(EntityKey("type-b", "id-b"))
+    val events: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
+      sequenceOf(
+        EntityKeyedLabeledEventDateShard(
+          date,
+          sequenceOf(
+            EntityKeysWithLabeledEvents(
+              entityKeys = groupAEntityKeys,
+              labeledEvents =
+                sequenceOf(
+                  LabeledEvent(timestamp, vid = 10, message = TestEvent.getDefaultInstance()),
+                  LabeledEvent(timestamp, vid = 11, message = TestEvent.getDefaultInstance()),
+                ),
+            ),
+            EntityKeysWithLabeledEvents(
+              entityKeys = groupBEntityKeys,
+              labeledEvents =
+                sequenceOf(
+                  LabeledEvent(timestamp, vid = 20, message = TestEvent.getDefaultInstance())
+                ),
+            ),
+          ),
+        )
+      )
+
+    val modelLineName = "modelProviders/provider1/modelSuites/suite1/modelLines/some-model-line"
+    runBlocking {
+      impressionWriter.writeLabeledImpressionData(events, modelLineName, "edp/edp-test")
+    }
+
+    val storageClient = FileSystemStorageClient(tempFolder.root)
+    runBlocking {
+      val blobDetails =
+        BlobDetails.parseFrom(
+          storageClient
+            .getBlob(
+              "multi-metadata-bucket/edp/edp-test/ds/2020-01-01/some-event-group-path/metadata.binpb"
+            )!!
+            .read()
+            .flatten()
+        )
+      val selectedStorageClient = SelectedStorageClient(blobDetails.blobUri, tempFolder.root)
+      val decryptionClient =
+        selectedStorageClient.withEnvelopeEncryption(
+          kmsClient,
+          kekUri,
+          blobDetails.encryptedDek.ciphertext,
+        )
+      val impressions =
+        MesosRecordIoStorageClient(decryptionClient)
+          .getBlob("edp/edp-test/ds/2020-01-01/some-event-group-path/impressions")!!
+          .read()
+          .toList()
+          .map { LabeledImpression.parseFrom(it) }
+      assertThat(impressions).hasSize(3)
+
+      val impressionsByEntityKeys: Map<List<Pair<String, String>>, List<LabeledImpression>> =
+        impressions.groupBy { impression ->
+          impression.entityKeysList.map { it.entityType to it.entityId }
+        }
+      val groupAKey: List<Pair<String, String>> =
+        groupAEntityKeys.map { it.entityType to it.entityId }
+      val groupBKey: List<Pair<String, String>> =
+        groupBEntityKeys.map { it.entityType to it.entityId }
+      assertThat(impressionsByEntityKeys.keys).containsExactly(groupAKey, groupBKey)
+
+      val groupAImpressions: List<LabeledImpression> = impressionsByEntityKeys.getValue(groupAKey)
+      assertThat(groupAImpressions.map { it.vid }).containsExactly(10L, 11L).inOrder()
+      groupAImpressions.forEach { impression ->
+        assertThat(impression.event.unpack(TestEvent::class.java))
+          .isEqualTo(TestEvent.getDefaultInstance())
+        assertThat(impression.eventTime).isEqualTo(timestamp.toProtoTime())
+      }
+
+      val groupBImpressions: List<LabeledImpression> = impressionsByEntityKeys.getValue(groupBKey)
+      assertThat(groupBImpressions.map { it.vid }).containsExactly(20L)
+      groupBImpressions.forEach { impression ->
+        assertThat(impression.event.unpack(TestEvent::class.java))
+          .isEqualTo(TestEvent.getDefaultInstance())
+        assertThat(impression.eventTime).isEqualTo(timestamp.toProtoTime())
       }
     }
   }

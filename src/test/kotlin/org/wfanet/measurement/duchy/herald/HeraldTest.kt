@@ -199,6 +199,10 @@ private val PUBLIC_API_REACH_ONLY_MEASUREMENT_SPEC = measurementSpec {
       delta = 1.2
     }
   }
+  vidSamplingInterval = vidSamplingInterval {
+    start = 0.1f
+    width = 0.5f
+  }
   nonceHashes += REACH_ONLY_REQUISITION_1.nonceHash
   nonceHashes += REACH_ONLY_REQUISITION_2.nonceHash
 }
@@ -248,6 +252,28 @@ private val RO_LLV2_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
   }
 }
 
+private val LLV2_NONE_NOISE_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
+  liquidLegionsV2 = liquidLegionsV2 {
+    sketchParams = liquidLegionsSketchParams {
+      decayRate = 12.0
+      maxSize = 100_000
+    }
+    ellipticCurveId = 415
+    noiseMechanism = SystemNoiseMechanism.NONE
+  }
+}
+
+private val RO_LLV2_NONE_NOISE_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
+  reachOnlyLiquidLegionsV2 = liquidLegionsV2 {
+    sketchParams = liquidLegionsSketchParams {
+      decayRate = 12.0
+      maxSize = 100_000
+    }
+    ellipticCurveId = 415
+    noiseMechanism = SystemNoiseMechanism.NONE
+  }
+}
+
 private val HMSS_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
   honestMajorityShareShuffle = honestMajorityShareShuffle {
     reachAndFrequencyRingModulus = 127
@@ -256,8 +282,20 @@ private val HMSS_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
   }
 }
 
+private val HMSS_NONE_NOISE_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
+  honestMajorityShareShuffle = honestMajorityShareShuffle {
+    reachAndFrequencyRingModulus = 127
+    reachRingModulus = 127
+    noiseMechanism = SystemNoiseMechanism.NONE
+  }
+}
+
 private val TRUS_TEE_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
   trusTee = trusTee { noiseMechanism = SystemNoiseMechanism.CONTINUOUS_GAUSSIAN }
+}
+
+private val TRUS_TEE_NONE_NOISE_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
+  trusTee = trusTee { noiseMechanism = SystemNoiseMechanism.NONE }
 }
 
 private const val AGGREGATOR_DUCHY_ID = "aggregator_duchy"
@@ -975,6 +1013,162 @@ class HeraldTest {
         }
       )
   }
+
+  @Test
+  fun `syncStatuses creates hmss computation with NONE noise for non aggregator without dp params`() =
+    runTest {
+      val confirmingKnown =
+        buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
+
+      val systemApiRequisitions1 =
+        REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+      val systemApiRequisitions2 =
+        REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+      val confirmingUnknown =
+        buildComputationAtKingdom(
+          "2",
+          Computation.State.PENDING_REQUISITION_PARAMS,
+          systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
+          mpcProtocolConfig = HMSS_NONE_NOISE_MPC_PROTOCOL_CONFIG,
+        )
+      mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
+
+      fakeComputationDatabase.addComputation(
+        globalId = confirmingKnown.key.computationId,
+        stage = HonestMajorityShareShuffle.Stage.INITIALIZED.toProtocolStage(),
+        computationDetails = HMSS_FIRST_NON_AGGREGATOR_COMPUTATION_DETAILS,
+      )
+
+      nonAggregatorHerald.syncStatuses()
+
+      val computationDetails =
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+      val hmssDetails = computationDetails!!.honestMajorityShareShuffle
+      assertThat(hmssDetails)
+        .ignoringFields(
+          HonestMajorityShareShuffle.ComputationDetails.RANDOM_SEED_FIELD_NUMBER,
+          HonestMajorityShareShuffle.ComputationDetails.ENCRYPTION_KEY_PAIR_FIELD_NUMBER,
+        )
+        .isEqualTo(
+          HonestMajorityShareShuffleKt.computationDetails {
+            role = RoleInComputation.FIRST_NON_AGGREGATOR
+            parameters =
+              HonestMajorityShareShuffleKt.ComputationDetailsKt.parameters {
+                maximumFrequency = 10
+                ringModulus = 127
+                noiseMechanism = NoiseMechanism.NONE
+              }
+            nonAggregators += listOf(DUCHY_TWO, DUCHY_THREE)
+          }
+        )
+      assertThat(hmssDetails.parameters.hasReachDpParams()).isFalse()
+      assertThat(hmssDetails.parameters.hasFrequencyDpParams()).isFalse()
+      assertThat(hmssDetails.randomSeed).isNotEmpty()
+      assertThat(hmssDetails.hasEncryptionKeyPair()).isTrue()
+      verifyEncryptionKeyPair(hmssDetails.encryptionKeyPair)
+    }
+
+  @Test
+  fun `syncStatuses creates hmss computation with NONE noise for aggregator without dp params`() =
+    runTest {
+      val confirmingKnown =
+        buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
+
+      val systemApiRequisitions1 =
+        REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+      val systemApiRequisitions2 =
+        REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+      val confirmingUnknown =
+        buildComputationAtKingdom(
+          "2",
+          Computation.State.PENDING_REQUISITION_PARAMS,
+          systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
+          mpcProtocolConfig = HMSS_NONE_NOISE_MPC_PROTOCOL_CONFIG,
+        )
+      mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
+
+      fakeComputationDatabase.addComputation(
+        globalId = confirmingKnown.key.computationId,
+        stage = HonestMajorityShareShuffle.Stage.INITIALIZED.toProtocolStage(),
+        computationDetails = HMSS_FIRST_NON_AGGREGATOR_COMPUTATION_DETAILS,
+      )
+
+      aggregatorHerald.syncStatuses()
+
+      val computationDetails =
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+      val hmssDetails = computationDetails!!.honestMajorityShareShuffle
+      assertThat(hmssDetails)
+        .isEqualTo(
+          HonestMajorityShareShuffleKt.computationDetails {
+            role = RoleInComputation.AGGREGATOR
+            parameters =
+              HonestMajorityShareShuffleKt.ComputationDetailsKt.parameters {
+                maximumFrequency = 10
+                ringModulus = 127
+                noiseMechanism = NoiseMechanism.NONE
+              }
+            nonAggregators += listOf(DUCHY_TWO, DUCHY_THREE)
+          }
+        )
+      assertThat(hmssDetails.parameters.hasReachDpParams()).isFalse()
+      assertThat(hmssDetails.parameters.hasFrequencyDpParams()).isFalse()
+    }
+
+  @Test
+  fun `syncStatuses creates reach-only hmss computation with NONE noise without dp params`() =
+    runTest {
+      val confirmingKnown =
+        buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
+
+      val systemApiRequisitions1 =
+        REACH_ONLY_REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+      val systemApiRequisitions2 =
+        REACH_ONLY_REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+      val confirmingUnknown =
+        buildComputationAtKingdom(
+          "2",
+          Computation.State.PENDING_REQUISITION_PARAMS,
+          systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
+          serializedMeasurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC,
+          mpcProtocolConfig = HMSS_NONE_NOISE_MPC_PROTOCOL_CONFIG,
+        )
+      mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
+
+      fakeComputationDatabase.addComputation(
+        globalId = confirmingKnown.key.computationId,
+        stage = HonestMajorityShareShuffle.Stage.INITIALIZED.toProtocolStage(),
+        computationDetails = HMSS_FIRST_NON_AGGREGATOR_COMPUTATION_DETAILS,
+      )
+
+      nonAggregatorHerald.syncStatuses()
+
+      val computationDetails =
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+      val hmssDetails = computationDetails!!.honestMajorityShareShuffle
+      assertThat(hmssDetails)
+        .ignoringFields(
+          HonestMajorityShareShuffle.ComputationDetails.RANDOM_SEED_FIELD_NUMBER,
+          HonestMajorityShareShuffle.ComputationDetails.ENCRYPTION_KEY_PAIR_FIELD_NUMBER,
+        )
+        .isEqualTo(
+          HonestMajorityShareShuffleKt.computationDetails {
+            role = RoleInComputation.FIRST_NON_AGGREGATOR
+            parameters =
+              HonestMajorityShareShuffleKt.ComputationDetailsKt.parameters {
+                maximumFrequency = 1
+                ringModulus = 127
+                noiseMechanism = NoiseMechanism.NONE
+              }
+            nonAggregators += listOf(DUCHY_TWO, DUCHY_THREE)
+          }
+        )
+      assertThat(hmssDetails.parameters.hasReachDpParams()).isFalse()
+      assertThat(hmssDetails.parameters.hasFrequencyDpParams()).isFalse()
+      assertThat(hmssDetails.randomSeed).isNotEmpty()
+      assertThat(hmssDetails.hasEncryptionKeyPair()).isTrue()
+      verifyEncryptionKeyPair(hmssDetails.encryptionKeyPair)
+    }
 
   @Test
   fun `syncStatuses confirms participants for llv2 computations`() = runTest {
@@ -1720,6 +1914,55 @@ class HeraldTest {
   }
 
   @Test
+  fun `syncStatuses fails llv2 computation with NONE noise mechanism`() = runTest {
+    val computation =
+      buildComputationAtKingdom(
+        COMPUTATION_GLOBAL_ID,
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        mpcProtocolConfig = LLV2_NONE_NOISE_MPC_PROTOCOL_CONFIG,
+      )
+    mockStreamActiveComputationsToReturn(computation)
+
+    nonAggregatorHerald.syncStatuses()
+
+    val failRequest: FailComputationParticipantRequest = captureFirst {
+      runBlocking { verify(systemComputationParticipants).failComputationParticipant(capture()) }
+    }
+    assertThat(failRequest.name)
+      .isEqualTo(
+        ComputationParticipantKey(computation.key.computationId, NON_AGGREGATOR_DUCHY_ID).toName()
+      )
+    assertThat(failRequest.failure.errorMessage)
+      .contains("Liquid Legions V2 does not support NoiseMechanism.NONE")
+    assertThat(failRequest.failure.participantChildReferenceId).isEqualTo(NON_AGGREGATOR_HERALD_ID)
+  }
+
+  @Test
+  fun `syncStatuses fails reach-only llv2 computation with NONE noise mechanism`() = runTest {
+    val computation =
+      buildComputationAtKingdom(
+        COMPUTATION_GLOBAL_ID,
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        serializedMeasurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC,
+        mpcProtocolConfig = RO_LLV2_NONE_NOISE_MPC_PROTOCOL_CONFIG,
+      )
+    mockStreamActiveComputationsToReturn(computation)
+
+    nonAggregatorHerald.syncStatuses()
+
+    val failRequest: FailComputationParticipantRequest = captureFirst {
+      runBlocking { verify(systemComputationParticipants).failComputationParticipant(capture()) }
+    }
+    assertThat(failRequest.name)
+      .isEqualTo(
+        ComputationParticipantKey(computation.key.computationId, NON_AGGREGATOR_DUCHY_ID).toName()
+      )
+    assertThat(failRequest.failure.errorMessage)
+      .contains("Reach-Only Liquid Legions V2 does not support NoiseMechanism.NONE")
+    assertThat(failRequest.failure.participantChildReferenceId).isEqualTo(NON_AGGREGATOR_HERALD_ID)
+  }
+
+  @Test
   fun `syncStatuses fails computation for attempts-exhausted error`() = runTest {
     val herald =
       Herald(
@@ -1914,6 +2157,131 @@ class HeraldTest {
                 delta = 2.2
               }
               noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
+              vidSamplingIntervalWidth = 0.5f
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `syncStatuses creates trusTEE computation with NONE noise`() = runTest {
+    val confirmingKnown =
+      buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
+
+    val systemApiRequisitions1 =
+      REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+    val systemApiRequisitions2 =
+      REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+    val confirmingUnknown =
+      buildComputationAtKingdom(
+        "2",
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
+        mpcProtocolConfig = TRUS_TEE_NONE_NOISE_MPC_PROTOCOL_CONFIG,
+        systemComputationParticipant = SINGLE_COMPUTATION_PARTICIPANT,
+      )
+    mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
+
+    fakeComputationDatabase.addComputation(
+      globalId = confirmingKnown.key.computationId,
+      stage = TrusTee.Stage.INITIALIZED.toProtocolStage(),
+      computationDetails = TRUS_TEE_COMPUTATION_DETAILS,
+    )
+
+    aggregatorHerald.syncStatuses()
+
+    verifyBlocking(continuationTokensService, atLeastOnce()) {
+      setContinuationToken(eq(setContinuationTokenRequest { this.token = "2" }))
+    }
+    assertThat(
+        fakeComputationDatabase.mapValues { (_, fakeComputation) ->
+          fakeComputation.computationStage
+        }
+      )
+      .containsExactly(
+        confirmingKnown.key.computationId.toLong(),
+        TrusTee.Stage.INITIALIZED.toProtocolStage(),
+        confirmingUnknown.key.computationId.toLong(),
+        TrusTee.Stage.INITIALIZED.toProtocolStage(),
+      )
+
+    assertThat(
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.requisitionsList
+      )
+      .containsExactly(
+        REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+        REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+      )
+    val computationDetails =
+      fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+    val trusTeeDetails = computationDetails!!.trusTee
+    assertThat(trusTeeDetails)
+      .isEqualTo(
+        TrusTeeKt.computationDetails {
+          role = RoleInComputation.AGGREGATOR
+          type = TrusTee.ComputationDetails.Type.REACH_AND_FREQUENCY
+          parameters =
+            TrusTeeKt.ComputationDetailsKt.parameters {
+              maximumFrequency = 10
+              reachDpParams = differentialPrivacyParams {
+                epsilon = 1.1
+                delta = 1.2
+              }
+              frequencyDpParams = differentialPrivacyParams {
+                epsilon = 2.1
+                delta = 2.2
+              }
+              noiseMechanism = NoiseMechanism.NONE
+              vidSamplingIntervalWidth = 0.5f
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `syncStatuses creates reach-only trusTEE computation with NONE noise`() = runTest {
+    val confirmingKnown =
+      buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
+
+    val systemApiRequisitions1 =
+      REACH_ONLY_REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+    val systemApiRequisitions2 =
+      REACH_ONLY_REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+    val confirmingUnknown =
+      buildComputationAtKingdom(
+        "2",
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
+        serializedMeasurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC,
+        mpcProtocolConfig = TRUS_TEE_NONE_NOISE_MPC_PROTOCOL_CONFIG,
+        systemComputationParticipant = SINGLE_COMPUTATION_PARTICIPANT,
+      )
+    mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
+
+    fakeComputationDatabase.addComputation(
+      globalId = confirmingKnown.key.computationId,
+      stage = TrusTee.Stage.INITIALIZED.toProtocolStage(),
+      computationDetails = TRUS_TEE_COMPUTATION_DETAILS,
+    )
+
+    aggregatorHerald.syncStatuses()
+
+    val computationDetails =
+      fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+    val trusTeeDetails = computationDetails!!.trusTee
+    assertThat(trusTeeDetails)
+      .isEqualTo(
+        TrusTeeKt.computationDetails {
+          role = RoleInComputation.AGGREGATOR
+          type = TrusTee.ComputationDetails.Type.REACH
+          parameters =
+            TrusTeeKt.ComputationDetailsKt.parameters {
+              maximumFrequency = 1
+              reachDpParams = differentialPrivacyParams {
+                epsilon = 1.1
+                delta = 1.2
+              }
+              noiseMechanism = NoiseMechanism.NONE
               vidSamplingIntervalWidth = 0.5f
             }
         }

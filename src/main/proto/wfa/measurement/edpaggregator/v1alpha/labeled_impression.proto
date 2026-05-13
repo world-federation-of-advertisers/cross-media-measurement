@@ -32,6 +32,30 @@ option java_outer_classname = "LabeledImpressionProto";
 
 // Resource representing a labeled impression.
 message LabeledImpression {
+  // Key of an entity in the `DataProvider`'s system that this impression is
+  // associated with.
+  //
+  // Mirrors the semantics of `wfa.measurement.api.v2alpha.EventGroup.EntityKey`
+  // from the CMMS public API: an `EventGroup` may represent an entity (e.g. a
+  // creative, placement, or line item) in the `DataProvider`'s system. A
+  // single impression may be tagged with multiple `EntityKey`s, enabling
+  // downstream filtering of impressions by entity without having to consult
+  // the `EventGroup` resource.
+  message EntityKey {
+    // Type of the entity in the `DataProvider`'s system as a human- and
+    // machine-readable string.
+    //
+    // This must be a URL-safe string, such that URL-encoding or -decoding
+    // results in the same string.
+    string entity_type = 1 [(google.api.field_behavior) = REQUIRED];
+
+    // ID of the entity in the `DataProvider`'s system.
+    //
+    // This must be a URL-safe string, such that URL-encoding or -decoding
+    // results in the same string.
+    string entity_id = 2 [(google.api.field_behavior) = REQUIRED];
+  }
+
   // The time of the impression
   google.protobuf.Timestamp event_time = 1
       [(google.api.field_behavior) = REQUIRED];
@@ -45,4 +69,13 @@ message LabeledImpression {
 
   // The impression event group reference id to which the Event is associated
   string event_group_reference_id = 4 [(google.api.field_behavior) = REQUIRED];
+
+  // Entities in the `DataProvider`'s system that this impression is associated
+  // with.
+  //
+  // A single impression may be associated with multiple entities (for example,
+  // a creative and a placement). Consumers may use this field to filter
+  // impressions down to a subset of entities without joining against
+  // `EventGroup` metadata.
+  repeated EntityKey entity_keys = 5;
 }

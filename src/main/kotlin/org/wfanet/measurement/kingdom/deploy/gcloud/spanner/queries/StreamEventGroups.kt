@@ -187,6 +187,11 @@ class StreamEventGroups(
         bind(ACTIVITY_CONTAINS_START_DATE).to(filter.activityContains.startDate.toCloudDate())
         bind(ACTIVITY_CONTAINS_END_DATE).to(filter.activityContains.endDate.toCloudDate())
       }
+
+      if (filter.entityTypeInList.isNotEmpty()) {
+        add("EntityType IN UNNEST(@$ENTITY_TYPES)")
+        bind(ENTITY_TYPES).toStringArray(filter.entityTypeInList)
+      }
     }
 
     if (conjuncts.isEmpty()) {
@@ -219,5 +224,6 @@ class StreamEventGroups(
     const val TIMESTAMP_MAX = "timestampMax"
     const val ACTIVITY_CONTAINS_START_DATE = "activityContainsStartDate"
     const val ACTIVITY_CONTAINS_END_DATE = "activityContainsEndDate"
+    const val ENTITY_TYPES = "entityTypes"
   }
 }

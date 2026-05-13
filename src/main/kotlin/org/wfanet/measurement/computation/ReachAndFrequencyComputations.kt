@@ -34,7 +34,7 @@ object ReachAndFrequencyComputations {
    */
   fun computeReach(
     rawHistogram: LongArray,
-    vidSamplingIntervalWidth: Float,
+    vidSamplingIntervalWidth: Double,
     vectorSize: Int? = null,
     dpParams: DifferentialPrivacyParams?,
     kAnonymityParams: KAnonymityParams?,
@@ -137,7 +137,7 @@ object ReachAndFrequencyComputations {
     maxFrequency: Int,
     dpParams: DifferentialPrivacyParams?,
     kAnonymityParams: KAnonymityParams?,
-    vidSamplingIntervalWidth: Float?,
+    vidSamplingIntervalWidth: Double?,
   ): Map<Long, Double> {
     require(rawHistogram.size == maxFrequency) {
       "Invalid histogram size: ${rawHistogram.size} against maxFrequency: $maxFrequency"

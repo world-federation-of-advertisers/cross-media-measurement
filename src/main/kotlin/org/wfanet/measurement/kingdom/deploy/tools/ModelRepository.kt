@@ -65,6 +65,7 @@ import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
+import org.wfanet.measurement.api.v2alpha.setModelLineTypeRequest
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.ProtobufMessages
 import org.wfanet.measurement.common.commandLineMain
@@ -467,6 +468,7 @@ class ListPopulations : Runnable {
       GetModelLine::class,
       ListModelLines::class,
       SetModelLineActiveEndTime::class,
+      SetModelLineType::class,
     ],
 )
 private class ModelLines {
@@ -677,6 +679,33 @@ class SetModelLineActiveEndTime : Runnable {
         setModelLineActiveEndTimeRequest {
           name = modelLineName
           activeEndTime = Timestamps.parse(endTime)
+        }
+      )
+
+    println(result)
+  }
+}
+
+@Command(
+  name = "set-type",
+  description = ["Set the type of a ModelLine"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
+class SetModelLineType : Runnable {
+  @ParentCommand private lateinit var parentCommand: ModelLines
+
+  @Option(names = ["--name"], description = ["API resource name of the ModelLine"], required = true)
+  private lateinit var modelLineName: String
+
+  @Option(names = ["--type"], description = ["Type of the ModelLine"], required = true)
+  private lateinit var modelLineType: ModelLine.Type
+
+  override fun run() {
+    val result =
+      parentCommand.modelLinesClient.setModelLineType(
+        setModelLineTypeRequest {
+          name = modelLineName
+          type = modelLineType
         }
       )
 

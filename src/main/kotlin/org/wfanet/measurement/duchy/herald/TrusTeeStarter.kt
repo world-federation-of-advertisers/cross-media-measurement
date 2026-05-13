@@ -149,28 +149,39 @@ object TrusTeeStarter {
   ): TrusTee.ComputationDetails.Parameters {
     require(mpcProtocolConfig.hasTrusTee()) { "Missing TrusTee in the duchy protocol config." }
 
+    val internalNoiseMechanism = mpcProtocolConfig.trusTee.noiseMechanism.toInternalNoiseMechanism()
+    val isNoNoise = internalNoiseMechanism == NoiseMechanism.NONE
+
     return TrusTeeKt.ComputationDetailsKt.parameters {
       if (measurementSpec.hasReachAndFrequency()) {
         maximumFrequency = measurementSpec.reachAndFrequency.maximumFrequency
         require(maximumFrequency > 1) { "Maximum frequency must be greater than 1" }
         reachDpParams =
           measurementSpec.reachAndFrequency.reachPrivacyParams.toDuchyDifferentialPrivacyParams()
-        require(reachDpParams.delta > 0) { "Reach privacy delta must be greater than 0" }
-        require(reachDpParams.epsilon >= MIN_REACH_EPSILON) {
-          "Reach privacy epsilon must be greater than or equal to $MIN_REACH_EPSILON"
+        if (!isNoNoise) {
+          require(reachDpParams.delta > 0) {
+            "Reach privacy delta must be greater than 0 for noised computations"
+          }
+          require(reachDpParams.epsilon >= MIN_REACH_EPSILON) {
+            "Reach privacy epsilon must be greater than or equal to $MIN_REACH_EPSILON for noised computations"
+          }
         }
         frequencyDpParams =
           measurementSpec.reachAndFrequency.frequencyPrivacyParams
             .toDuchyDifferentialPrivacyParams()
-        require(frequencyDpParams.delta > 0) { "Frequency privacy delta must be be greater than 0" }
-        require(frequencyDpParams.epsilon >= MIN_FREQUENCY_EPSILON) {
-          "Frequency privacy epsilon must be greater than or equal to $MIN_FREQUENCY_EPSILON"
+        if (!isNoNoise) {
+          require(frequencyDpParams.delta > 0) {
+            "Frequency privacy delta must be greater than 0 for noised computations"
+          }
+          require(frequencyDpParams.epsilon >= MIN_FREQUENCY_EPSILON) {
+            "Frequency privacy epsilon must be greater than or equal to $MIN_FREQUENCY_EPSILON for noised computations"
+          }
         }
       } else {
         maximumFrequency = 1
         reachDpParams = measurementSpec.reach.privacyParams.toDuchyDifferentialPrivacyParams()
       }
-      noiseMechanism = mpcProtocolConfig.trusTee.noiseMechanism.toInternalNoiseMechanism()
+      noiseMechanism = internalNoiseMechanism
       vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
     }
   }
@@ -183,6 +194,7 @@ object TrusTeeStarter {
         NoiseMechanism.DISCRETE_GAUSSIAN
       Computation.MpcProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN ->
         NoiseMechanism.CONTINUOUS_GAUSSIAN
+      Computation.MpcProtocolConfig.NoiseMechanism.NONE -> NoiseMechanism.NONE
       Computation.MpcProtocolConfig.NoiseMechanism.UNRECOGNIZED,
       Computation.MpcProtocolConfig.NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED ->
         error("Invalid system NoiseMechanism")

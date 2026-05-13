@@ -53,6 +53,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpc as CmmsEventGroupActivitiesGrpc
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
+import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroupKt
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt as CmmsEventGroupMetadataKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpc as CmmsEventGroupsGrpc
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
@@ -99,6 +100,7 @@ import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.dateInterval
+import org.wfanet.measurement.reporting.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 
 @RunWith(JUnit4::class)
@@ -514,6 +516,94 @@ abstract class InProcessEventGroupsTest(
             }
           ),
         )
+      )
+  }
+
+  @Test
+  fun `getEventGroup returns expected EventGroup`(): Unit = runBlocking {
+    val now = Instant.now()
+    val cmmsEventGroups: List<CmmsEventGroup> = populateTestEventGroups(now)
+
+    val cmmsEventGroup = cmmsEventGroups.first()
+    val reportingName = toReportingEventGroupName(cmmsEventGroup.name)
+
+    val response: EventGroup =
+      eventGroupsStub
+        .withCallCredentials(callCredentials)
+        .getEventGroup(getEventGroupRequest { name = reportingName })
+
+    assertThat(response.name).isEqualTo(reportingName)
+    assertThat(response.cmmsEventGroup).isEqualTo(cmmsEventGroup.name)
+    assertThat(response.cmmsDataProvider).isEqualTo(reportingRule.dataProvider1Name)
+    assertThat(response.eventGroupReferenceId).isEqualTo(cmmsEventGroup.eventGroupReferenceId)
+    assertThat(response.mediaTypesList).containsExactly(MediaType.VIDEO)
+  }
+
+  @Test
+  fun `listEventGroups with entity_type_in surfaces only matching EventGroups`(): Unit =
+    runBlocking {
+      val campaignEventGroup = createEventGroupWithEntityKey("rep-camp", "campaign", "camp-1")
+      val adGroupEventGroup = createEventGroupWithEntityKey("rep-ag", "ad_group", "ag-1")
+
+      val response: ListEventGroupsResponse =
+        eventGroupsStub
+          .withCallCredentials(callCredentials)
+          .listEventGroups(
+            listEventGroupsRequest {
+              parent = reportingRule.measurementConsumerName
+              structuredFilter = ListEventGroupsRequestKt.filter { entityTypeIn += "ad_group" }
+            }
+          )
+
+      val cmmsNames = response.eventGroupsList.map { it.cmmsEventGroup }
+      assertThat(cmmsNames).contains(adGroupEventGroup.name)
+      assertThat(cmmsNames).doesNotContain(campaignEventGroup.name)
+    }
+
+  @Test
+  fun `listEventGroups without entity_type_in defaults to legacy campaign EventGroups`(): Unit =
+    runBlocking {
+      val legacyEventGroup = createEventGroupWithEntityKey("rep-legacy", null, null)
+      val adGroupEventGroup = createEventGroupWithEntityKey("rep-non-default", "ad_group", "ag-2")
+
+      val response: ListEventGroupsResponse =
+        eventGroupsStub
+          .withCallCredentials(callCredentials)
+          .listEventGroups(
+            listEventGroupsRequest { parent = reportingRule.measurementConsumerName }
+          )
+
+      val cmmsNames = response.eventGroupsList.map { it.cmmsEventGroup }
+      assertThat(cmmsNames).contains(legacyEventGroup.name)
+      assertThat(cmmsNames).doesNotContain(adGroupEventGroup.name)
+    }
+
+  private suspend fun createEventGroupWithEntityKey(
+    referenceId: String,
+    entityType: String?,
+    entityId: String?,
+  ): CmmsEventGroup {
+    val credentials = TrustedPrincipalCallCredentials(reportingRule.dataProvider1Name)
+    return cmmsEventGroupsStub
+      .withCallCredentials(credentials)
+      .createEventGroup(
+        createEventGroupRequest {
+          parent = reportingRule.dataProvider1Name
+          eventGroup = cmmsEventGroup {
+            measurementConsumer = reportingRule.measurementConsumerName
+            eventGroupReferenceId = referenceId
+            mediaTypes += CmmsMediaType.VIDEO
+            if (entityType != null) {
+              entityKey =
+                CmmsEventGroupKt.entityKey {
+                  this.entityType = entityType
+                  if (entityId != null) {
+                    this.entityId = entityId
+                  }
+                }
+            }
+          }
+        }
       )
   }
 

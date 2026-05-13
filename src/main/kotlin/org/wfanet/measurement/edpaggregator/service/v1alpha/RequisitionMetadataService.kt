@@ -149,6 +149,10 @@ class RequisitionMetadataService(
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -254,6 +258,10 @@ class RequisitionMetadataService(
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -297,6 +305,10 @@ class RequisitionMetadataService(
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -380,6 +392,10 @@ class RequisitionMetadataService(
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -435,6 +451,10 @@ class RequisitionMetadataService(
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -471,6 +491,10 @@ class RequisitionMetadataService(
         InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
         InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
         InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+        InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+        InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+        InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+        InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }
@@ -519,6 +543,10 @@ class RequisitionMetadataService(
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -565,6 +593,10 @@ class RequisitionMetadataService(
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -611,6 +643,10 @@ class RequisitionMetadataService(
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -662,6 +698,10 @@ class RequisitionMetadataService(
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -708,6 +748,10 @@ class RequisitionMetadataService(
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }

@@ -51,6 +51,21 @@ message GroupedRequisitions {
     // start_time.
     repeated google.type.Interval collection_intervals = 2
         [(google.api.field_behavior) = REQUIRED];
+
+    // Key of the entity in the DataProvider's system that the EventGroup
+    // represents. Mirrors `EventGroup.EntityKey` from the CMMS public API.
+    message EntityKey {
+      // Type of the entity in the DataProvider's system.
+      string entity_type = 1 [(google.api.field_behavior) = REQUIRED];
+
+      // ID of the entity in the DataProvider's system.
+      string entity_id = 2 [(google.api.field_behavior) = REQUIRED];
+    }
+
+    // Entity key from the EventGroup, when present. Used downstream by the
+    // filtering pipeline as an alternative selector to
+    // `event_group_reference_id`.
+    EntityKey entity_key = 3;
   }
   // A single entry mapping an Event Group to an the information necessary to
   // fetch events for it.

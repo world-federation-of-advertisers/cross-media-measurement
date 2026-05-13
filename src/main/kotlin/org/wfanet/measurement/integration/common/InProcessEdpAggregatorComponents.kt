@@ -19,6 +19,7 @@ package org.wfanet.measurement.integration.common
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
+import com.google.protobuf.Struct
 import com.google.protobuf.timestamp
 import com.google.type.Interval
 import com.google.type.interval
@@ -72,6 +73,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
@@ -95,6 +97,8 @@ import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.deploy.gcloud.SecureComputationServicesProviderRule
+import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
+import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
@@ -112,16 +116,28 @@ import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
+/**
+ * Per-EventGroup override for the EDPA-side `entity_key` and `entity_metadata` fields, keyed in
+ * [InProcessEdpAggregatorComponents] by `(edpAggregatorShortName, eventGroupReferenceId)`. Either
+ * field may be left null; null fields fall back to the proto default (no entity_key / no
+ * entity_metadata).
+ */
+data class EventGroupEntityOverride(
+  val entityKey: EventGroup.EntityKey? = null,
+  val entityMetadata: Struct? = null,
+)
+
 class InProcessEdpAggregatorComponents(
   secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
   private val storagePath: Path,
   private val pubSubClient: GooglePubSubEmulatorClient,
   private val syntheticPopulationSpec: SyntheticPopulationSpec,
-  private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec>,
+  private val syntheticEventGroupMapByEdp: Map<String, Map<String, SyntheticEventGroupSpec>>,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val externalKmsClient: FakeKmsClient,
+  private val entityOverridesByEdp: Map<String, Map<String, EventGroupEntityOverride>> = emptyMap(),
 ) : TestRule {
-  private val modelLineName: String = requireSingleModelLineName(modelLineInfoMap.keys)
+  private val modelLineName: String by lazy { requireSingleModelLineName(modelLineInfoMap.keys) }
 
   private val storageClient: StorageClient = FileSystemStorageClient(storagePath.toFile())
 
@@ -244,7 +260,12 @@ class InProcessEdpAggregatorComponents(
     edpDisplayNameToResourceMap: Map<String, Resource>,
     edpCapabilities: Map<String, DataProvider.Capabilities>,
     duchyMap: Map<String, Channel>,
+    edpNoise: Map<String, ResultsFulfillerParams.NoiseParams.NoiseType>,
+    edpMultiPartyNoiseTypes: Map<String, List<ResultsFulfillerParams.NoiseParams.NoiseType>>,
   ) = runBlocking {
+    require(edpNoise.keys == edpCapabilities.keys) {
+      "edpNoise keys ${edpNoise.keys} must match edpCapabilities keys ${edpCapabilities.keys}"
+    }
     publicApiChannel = kingdomChannel
     duchyChannelMap = duchyMap
     edpResourceNameMap =
@@ -275,7 +296,9 @@ class InProcessEdpAggregatorComponents(
                   .certificate
               )!!,
               "file:///$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName",
-              noiseType = ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
+              noiseType = edpNoise.getValue(edpAggregatorShortName),
+              supportedMultiPartyNoiseTypes =
+                edpMultiPartyNoiseTypes.getOrDefault(edpAggregatorShortName, emptyList()),
             )
         }
       getDataWatcherResultFulfillerParamsConfig(
@@ -333,7 +356,7 @@ class InProcessEdpAggregatorComponents(
           requisitionFetcher.fetchAndStoreRequisitions()
         }
       }
-      val eventGroups = buildEventGroups(measurementConsumerData)
+      val eventGroups = buildEventGroups(measurementConsumerData, edpAggregatorShortName)
       eventGroupSync =
         EventGroupSync(
           edpResourceName,
@@ -352,7 +375,9 @@ class InProcessEdpAggregatorComponents(
           SyntheticDataGeneration.generateEvents(
             TestEvent.getDefaultInstance(),
             syntheticPopulationSpec,
-            syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
+            syntheticEventGroupMapByEdp
+              .getValue(edpAggregatorShortName)
+              .getValue(mappedEventGroup.eventGroupReferenceId),
           )
 
         val allDates: List<LocalDate> = events.map { it.localDate }.toList()
@@ -464,8 +489,15 @@ class InProcessEdpAggregatorComponents(
     }
   }
 
-  private fun buildEventGroups(measurementConsumerData: MeasurementConsumerData): List<EventGroup> {
-    return syntheticEventGroupMap.flatMap { (eventGroupReferenceId, syntheticEventGroupSpec) ->
+  private fun buildEventGroups(
+    measurementConsumerData: MeasurementConsumerData,
+    edpAggregatorShortName: String,
+  ): List<EventGroup> {
+    val edpOverrides: Map<String, EventGroupEntityOverride> =
+      entityOverridesByEdp[edpAggregatorShortName].orEmpty()
+    return syntheticEventGroupMapByEdp.getValue(edpAggregatorShortName).flatMap {
+      (eventGroupReferenceId, syntheticEventGroupSpec) ->
+      val override: EventGroupEntityOverride? = edpOverrides[eventGroupReferenceId]
       syntheticEventGroupSpec.dateSpecsList.map { dateSpec ->
         val dateRange = dateSpec.dateRange
         val startTime =
@@ -495,6 +527,12 @@ class InProcessEdpAggregatorComponents(
                 campaign = "some-brand"
               }
             }
+            if (override?.entityMetadata != null) {
+              this.entityMetadata = override.entityMetadata
+            }
+          }
+          if (override?.entityKey != null) {
+            this.entityKey = override.entityKey
           }
           mediaTypes += MediaType.valueOf("VIDEO")
         }
@@ -518,7 +556,9 @@ class InProcessEdpAggregatorComponents(
         SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           syntheticPopulationSpec,
-          syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
+          syntheticEventGroupMapByEdp
+            .getValue(edpAggregatorShortName)
+            .getValue(mappedEventGroup.eventGroupReferenceId),
         )
       val impressionWriter =
         ImpressionsWriter(
@@ -531,7 +571,14 @@ class InProcessEdpAggregatorComponents(
           storagePath.toFile(),
           "file:///",
         )
-      impressionWriter.writeLabeledImpressionData(events, modelLineName, null)
+      val entityKeyedEvents: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
+        events.map {
+          EntityKeyedLabeledEventDateShard(
+            it.localDate,
+            sequenceOf(EntityKeysWithLabeledEvents(emptyList(), it.labeledEvents)),
+          )
+        }
+      impressionWriter.writeLabeledImpressionData(entityKeyedEvents, modelLineName, null)
     }
   }
 

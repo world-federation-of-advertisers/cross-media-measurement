@@ -62,4 +62,6 @@ object DataAvailabilityMonitorMetrics {
   const val STATUS_WITHOUT_DONE_BLOB = "without_done_blob"
   const val STATUS_LATE_ARRIVING = "late_arriving"
   const val STATUS_HEALTHY = "healthy"
+  const val STATUS_SPURIOUS_DELETION = "spurious_deletion"
+  const val STATUS_LEGITIMATE_DELETION = "legitimate_deletion"
 }

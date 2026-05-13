@@ -63,6 +63,8 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.config.DuchyCertConfig
 import org.wfanet.measurement.dataprovider.DataProviderData
+import org.wfanet.measurement.internal.kingdom.HmssProtocolConfigConfig
+import org.wfanet.measurement.internal.kingdom.TrusTeeProtocolConfigConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
@@ -425,7 +427,10 @@ class InProcessCmmsComponents(
       )
 
     @JvmStatic
-    fun initConfig() {
+    fun initConfig(
+      trusTeeProtocolConfigConfig: TrusTeeProtocolConfigConfig,
+      hmssProtocolConfigConfig: HmssProtocolConfigConfig,
+    ) {
       DuchyIds.setForTest(ALL_DUCHIES)
       Llv2ProtocolConfig.setForTest(
         LLV2_PROTOCOL_CONFIG_CONFIG.protocolConfig,
@@ -440,14 +445,14 @@ class InProcessCmmsComponents(
         2,
       )
       HmssProtocolConfig.setForTest(
-        HMSS_PROTOCOL_CONFIG_CONFIG.protocolConfig,
-        "worker1",
-        "worker2",
-        "aggregator",
+        hmssProtocolConfigConfig.protocolConfig,
+        hmssProtocolConfigConfig.firstNonAggregatorDuchyId,
+        hmssProtocolConfigConfig.secondNonAggregatorDuchyId,
+        hmssProtocolConfigConfig.aggregatorDuchyId,
       )
       TrusTeeProtocolConfig.setForTest(
-        TRUSTEE_PROTOCOL_CONFIG_CONFIG.protocolConfig,
-        TRUSTEE_PROTOCOL_CONFIG_CONFIG.duchyId,
+        trusTeeProtocolConfigConfig.protocolConfig,
+        trusTeeProtocolConfigConfig.duchyId,
       )
       DuchyInfo.initializeFromConfig(
         loadTextProto("duchy_cert_config.textproto", DuchyCertConfig.getDefaultInstance())

@@ -132,6 +132,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":storage_params_proto",
+        ":transport_layer_security_params_proto",
     ],
 )
 

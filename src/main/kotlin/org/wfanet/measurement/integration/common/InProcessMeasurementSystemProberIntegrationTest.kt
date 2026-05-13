@@ -216,7 +216,10 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
     @BeforeClass
     @JvmStatic
     fun initConfig() {
-      InProcessCmmsComponents.initConfig()
+      InProcessCmmsComponents.initConfig(
+        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG,
+        hmssProtocolConfigConfig = HMSS_PROTOCOL_CONFIG_CONFIG,
+      )
     }
   }
 }

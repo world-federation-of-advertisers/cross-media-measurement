@@ -14,8 +14,10 @@
 
 #include "wfa/measurement/internal/duchy/protocol/common/noise_parameters_computation.h"
 
+#include <memory>
 #include <utility>
 
+#include "absl/log/absl_check.h"
 #include "math/distributed_discrete_gaussian_noiser.h"
 #include "math/distributed_geometric_noiser.h"
 
@@ -24,10 +26,10 @@ namespace wfa::measurement::internal::duchy::protocol::common {
 namespace {
 
 int ComputateMuPolya(double epsilon, double delta, int sensitivity, int n) {
-  ABSL_ASSERT(epsilon > 0);
-  ABSL_ASSERT(delta > 0);
-  ABSL_ASSERT(sensitivity > 0);
-  ABSL_ASSERT(n > 0);
+  ABSL_CHECK(epsilon > 0);
+  ABSL_CHECK(delta > 0);
+  ABSL_CHECK(sensitivity > 0);
+  ABSL_CHECK(n > 0);
   return std::ceil(
       std::log(2.0 * n * sensitivity * (1 + std::exp(epsilon)) / delta) /
       (epsilon / sensitivity));
@@ -36,7 +38,7 @@ int ComputateMuPolya(double epsilon, double delta, int sensitivity, int n) {
 math::DistributedGeometricNoiseComponentOptions GetGeometricNoiseOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int publisher_count, int uncorrupted_party_count) {
-  ABSL_ASSERT(uncorrupted_party_count > 0);
+  ABSL_CHECK(uncorrupted_party_count > 0);
   double success_ratio = std::exp(-params.epsilon() / publisher_count);
   int offset = ComputateMuPolya(params.epsilon(), params.delta(),
                                 publisher_count, uncorrupted_party_count);
@@ -47,9 +49,9 @@ math::DistributedGeometricNoiseComponentOptions GetGeometricNoiseOptions(
 int ComputeMuDiscreteGaussian(double epsilon, double delta,
                               double sigma_distributed,
                               int64_t uncorrupted_party_count) {
-  ABSL_ASSERT(epsilon > 0);
-  ABSL_ASSERT(delta > 0);
-  ABSL_ASSERT(uncorrupted_party_count > 0);
+  ABSL_CHECK(epsilon > 0);
+  ABSL_CHECK(delta > 0);
+  ABSL_CHECK(uncorrupted_party_count > 0);
 
   // The sum of delta1 and delta2 should be delta.
   // In practice, set delta1 = delta2 = 0.5 * delta for simplicity.
@@ -67,8 +69,8 @@ GetDiscreteGaussianNoiseOptions(
   double epsilon = params.epsilon();
   double delta = params.delta();
 
-  ABSL_ASSERT(epsilon > 0);
-  ABSL_ASSERT(delta > 0);
+  ABSL_CHECK(epsilon > 0);
+  ABSL_CHECK(delta > 0);
 
   // The sum of delta1 and delta2 should be delta.
   // In practice, set delta1 = delta2 = 0.5 * delta for simplicity.
@@ -90,8 +92,8 @@ GetDiscreteGaussianNoiseOptions(
 std::unique_ptr<math::DistributedNoiser> GetBlindHistogramNoiser(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int uncorrupted_party_count, NoiseMechanism noise_mechanism) {
-  ABSL_ASSERT(noise_mechanism == NoiseMechanism::DISCRETE_GAUSSIAN ||
-              noise_mechanism == NoiseMechanism::GEOMETRIC);
+  ABSL_CHECK(noise_mechanism == NoiseMechanism::DISCRETE_GAUSSIAN ||
+             noise_mechanism == NoiseMechanism::GEOMETRIC);
 
   if (noise_mechanism == NoiseMechanism::GEOMETRIC) {
     auto noiseOptions =
@@ -110,8 +112,8 @@ std::unique_ptr<math::DistributedNoiser> GetPublisherNoiser(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int publisher_count, int uncorrupted_party_count,
     NoiseMechanism noise_mechanism) {
-  ABSL_ASSERT(noise_mechanism == NoiseMechanism::DISCRETE_GAUSSIAN ||
-              noise_mechanism == NoiseMechanism::GEOMETRIC);
+  ABSL_CHECK(noise_mechanism == NoiseMechanism::DISCRETE_GAUSSIAN ||
+             noise_mechanism == NoiseMechanism::GEOMETRIC);
 
   if (noise_mechanism == NoiseMechanism::GEOMETRIC) {
     auto noiseOptions = GetGeometricNoiseOptions(params, publisher_count,
@@ -129,8 +131,8 @@ std::unique_ptr<math::DistributedNoiser> GetPublisherNoiser(
 std::unique_ptr<math::DistributedNoiser> GetGlobalReachDpNoiser(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int uncorrupted_party_count, NoiseMechanism noise_mechanism) {
-  ABSL_ASSERT(noise_mechanism == NoiseMechanism::DISCRETE_GAUSSIAN ||
-              noise_mechanism == NoiseMechanism::GEOMETRIC);
+  ABSL_CHECK(noise_mechanism == NoiseMechanism::DISCRETE_GAUSSIAN ||
+             noise_mechanism == NoiseMechanism::GEOMETRIC);
 
   if (noise_mechanism == NoiseMechanism::GEOMETRIC) {
     auto noiseOptions =
@@ -148,8 +150,8 @@ std::unique_ptr<math::DistributedNoiser> GetGlobalReachDpNoiser(
 std::unique_ptr<math::DistributedNoiser> GetFrequencyNoiser(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int uncorrupted_party_count, NoiseMechanism noise_mechanism) {
-  ABSL_ASSERT(noise_mechanism == NoiseMechanism::DISCRETE_GAUSSIAN ||
-              noise_mechanism == NoiseMechanism::GEOMETRIC);
+  ABSL_CHECK(noise_mechanism == NoiseMechanism::DISCRETE_GAUSSIAN ||
+             noise_mechanism == NoiseMechanism::GEOMETRIC);
 
   if (noise_mechanism == NoiseMechanism::GEOMETRIC) {
     auto noiseOptions =

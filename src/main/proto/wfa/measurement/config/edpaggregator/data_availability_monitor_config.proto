@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.config.edpaggregator;
 
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
+import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
@@ -49,6 +50,20 @@ message DataAvailabilityMonitorConfig {
   // IANA time zone ID used to determine "today" for staleness checks
   // (e.g., "UTC", "America/New_York").
   string time_zone = 5;
+
+  // Number of days of deleted ImpressionMetadata entries to check for
+  // spurious deletions (entries marked deleted whose blobs still exist on
+  // the bucket). When set to a value > 0, the spurious deletion check is
+  // enabled. When unspecified, the check is skipped.
+  // Requires data_provider_name and impression_metadata_connection.
+  int32 spurious_deletion_lookback_days = 6;
+
+  // Resource name of the data provider.
+  // Format: "dataProviders/{data_provider}"
+  string data_provider_name = 7;
+
+  // How to connect to the ImpressionMetadata service.
+  TransportLayerSecurityParams impression_metadata_connection = 8;
 }
 
 // Wrapper containing monitor configurations. Loaded at startup from the

@@ -49,6 +49,7 @@ import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsReque
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.DeleteImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.EntityKey
 import org.wfanet.measurement.internal.edpaggregator.GetImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
@@ -216,6 +217,14 @@ class SpannerImpressionMetadataService(
           "$fieldName must be non-negative"
         }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    request.filter.entityKeysList.forEachIndexed { index, entityKey ->
+      try {
+        validateEntityKey(entityKey, "filter.entity_keys.$index")
+      } catch (e: RequiredFieldNotSetException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
     }
 
     val pageSize =
@@ -465,6 +474,24 @@ class SpannerImpressionMetadataService(
 
     if (!request.impressionMetadata.hasInterval()) {
       throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.interval")
+    }
+
+    request.impressionMetadata.entityKeysList.forEachIndexed { index, entityKey ->
+      validateEntityKey(entityKey, "${fieldPathPrefix}impression_metadata.entity_keys.$index")
+    }
+  }
+
+  /**
+   * Checks that the specified [EntityKey] has both `entity_type` and `id` set.
+   *
+   * @throws RequiredFieldNotSetException if a required field is unset
+   */
+  private fun validateEntityKey(entityKey: EntityKey, fieldPath: String) {
+    if (entityKey.entityType.isEmpty()) {
+      throw RequiredFieldNotSetException("$fieldPath.entity_type")
+    }
+    if (entityKey.entityId.isEmpty()) {
+      throw RequiredFieldNotSetException("$fieldPath.entity_id")
     }
   }
 

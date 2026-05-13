@@ -17,13 +17,16 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.TextFormat
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.kotlin.toByteString
+import com.google.protobuf.struct
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.JsonFormat
+import com.google.protobuf.value
 import com.google.type.interval
 import io.netty.handler.ssl.ClientAuth
 import java.io.File
@@ -79,6 +82,7 @@ import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
@@ -855,6 +859,119 @@ class EventGroupSyncFunctionTest() {
 
     assertThat(response.statusCode()).isEqualTo(500)
     verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+  }
+
+  @Test
+  fun `sync mixed blob forwards entity_key and entity_metadata for new-style EGs only`() {
+    val legacyCampaign = eventGroup {
+      eventGroupReferenceId = "reference-id-mixed-legacy"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-legacy"
+            campaign = "campaign-legacy"
+          }
+        }
+      }
+      measurementConsumer = "measurementConsumers/measurement-consumer-2"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.OTHER)
+    }
+    val newStyleCampaign = eventGroup {
+      eventGroupReferenceId = "reference-id-mixed-new"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-new"
+            campaign = "campaign-new"
+          }
+        }
+        entityMetadata = struct { fields["ad_group"] = value { stringValue = "ag-fn-1" } }
+      }
+      entityKey = entityKey {
+        entityType = "creative"
+        entityId = "cr-fn-1"
+      }
+      measurementConsumer = "measurementConsumers/measurement-consumer-2"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.VIDEO)
+    }
+    val testCampaigns = listOf(legacyCampaign, newStyleCampaign)
+
+    val config = eventGroupSyncConfig {
+      dataProvider = "some-data-provider"
+      eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.binpb"
+      eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
+      this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
+      eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
+    }
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = eventGroupSyncConfigs { configs += config }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+
+    File("${tempFolder.root}/some/path").mkdirs()
+    File("${tempFolder.root}/some/other/path").mkdirs()
+    val port = runBlocking {
+      startFunction(
+        mapOf(
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+        )
+      )
+    }
+
+    val url = "http://localhost:$port"
+    logger.info("Testing Cloud Function at: $url")
+
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+    runBlocking {
+      MesosRecordIoStorageClient(storageClient)
+        .writeBlob(
+          "some/path/campaigns-blob-uri.binpb",
+          testCampaigns.map { it.toByteString() }.asFlow(),
+        )
+    }
+
+    val client = HttpClient.newHttpClient()
+    val getRequest =
+      HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
+        .build()
+    val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
+    logger.info("Response status: ${getResponse.statusCode()}")
+    logger.info("Response body: ${getResponse.body()}")
+
+    assertThat(getResponse.statusCode()).isEqualTo(200)
+
+    val createCaptor = argumentCaptor<CreateEventGroupRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(2)) { createEventGroup(createCaptor.capture()) }
+
+    val byRefId = createCaptor.allValues.associateBy { it.eventGroup.eventGroupReferenceId }
+
+    val legacy = byRefId.getValue("reference-id-mixed-legacy").eventGroup
+    assertThat(legacy.hasEntityKey()).isFalse()
+    assertThat(legacy.eventGroupMetadata.hasEntityMetadata()).isFalse()
+
+    val newStyle = byRefId.getValue("reference-id-mixed-new").eventGroup
+    assertThat(newStyle.entityKey.entityType).isEqualTo("creative")
+    assertThat(newStyle.entityKey.entityId).isEqualTo("cr-fn-1")
+    assertThat(newStyle.eventGroupMetadata.entityMetadata.fieldsMap["ad_group"])
+      .isEqualTo(value { stringValue = "ag-fn-1" })
   }
 
   companion object {

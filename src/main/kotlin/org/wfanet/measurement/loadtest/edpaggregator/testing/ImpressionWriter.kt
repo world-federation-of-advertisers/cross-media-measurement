@@ -29,10 +29,12 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
+import org.wfanet.measurement.loadtest.dataprovider.EntityKey
+import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
+import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
@@ -47,6 +49,16 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  *
  * Impressions are written using a Mesos Record IO format using streaming envelope encryption.
  *
+ * Each emitted [LabeledImpression] is stamped with the [EntityKey]s from its containing
+ * [EntityKeysWithLabeledEvents] group. Different groups within the same
+ * [EntityKeyedLabeledEventDateShard] therefore land in the same impressions blob with potentially
+ * different entity keys, while every impression in a single blob still belongs to the event group
+ * identified by [eventGroupReferenceId], which is recorded on the per-blob `BlobDetails` metadata.
+ *
+ * @property eventGroupReferenceId The event group reference ID recorded on the per-blob
+ *   `BlobDetails` metadata. Every `LabeledImpression` written to a given blob belongs to the event
+ *   group identified by this id, so it is recorded once at the metadata level rather than on every
+ *   `LabeledImpression`.
  * @property eventGroupPath The path to the event group where impressions are stored.
  * @property kekUri The URI of the Key Encryption Key (KEK) used for envelope encryption.
  * @property kmsClient The KMS client used for encryption operations.
@@ -67,15 +79,15 @@ class ImpressionsWriter(
 ) {
 
   /**
-   * Takes a sequence of [LabeledEventDateShard]s, encrypts the data with a KMS, and outputs the
-   * data to storage along with the necessary metadata for the ResultsFulfiller to be able to find
-   * and read the contents.
+   * Takes a sequence of [EntityKeyedLabeledEventDateShard]s, encrypts the data with a KMS, and
+   * outputs the data to storage along with the necessary metadata for the ResultsFulfiller to be
+   * able to find and read the contents.
    *
    * @param blobModelLine full ModelLine resource name. Must be a valid resource name because
    *   downstream services validate and persist the value as such.
    */
   suspend fun <T : Message> writeLabeledImpressionData(
-    events: Sequence<LabeledEventDateShard<T>>,
+    events: Sequence<EntityKeyedLabeledEventDateShard<T>>,
     blobModelLine: String,
     impressionsBasePath: String? = null,
     flatOutputBasePath: String? = null,
@@ -94,13 +106,18 @@ class ImpressionsWriter(
         .setProtobufFormat(EncryptedDek.ProtobufFormat.BINARY)
         .setTypeUrl("type.googleapis.com/google.crypto.tink.Keyset")
         .build()
-    events.forEach { (localDate: LocalDate, labeledEvents: Sequence<LabeledEvent<T>>) ->
+    events.forEach { (localDate: LocalDate, groups: Sequence<EntityKeysWithLabeledEvents<T>>) ->
       val labeledImpressions: Sequence<LabeledImpression> =
-        labeledEvents.map { it: LabeledEvent<T> ->
-          labeledImpression {
-            vid = it.vid
-            event = Any.pack(it.message)
-            eventTime = it.timestamp.toProtoTime()
+        groups.flatMap { group: EntityKeysWithLabeledEvents<T> ->
+          val protoEntityKeys: List<LabeledImpression.EntityKey> =
+            group.entityKeys.map { it.toProto() }
+          group.labeledEvents.map { event ->
+            labeledImpression {
+              vid = event.vid
+              this.event = Any.pack(event.message)
+              eventTime = event.timestamp.toProtoTime()
+              entityKeys += protoEntityKeys
+            }
           }
         }
       val ds = localDate.toString()
@@ -170,5 +187,11 @@ class ImpressionsWriter(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    private fun EntityKey.toProto(): LabeledImpression.EntityKey =
+      LabeledImpressionKt.entityKey {
+        entityType = this@toProto.entityType
+        entityId = this@toProto.entityId
+      }
   }
 }

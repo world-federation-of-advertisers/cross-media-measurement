@@ -129,6 +129,7 @@ class DataAvailabilityMonitorFunctionTest {
           "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
           "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
           "CONFIG_BLOB_KEY" to "monitor_config.textproto",
+          "IMPRESSION_METADATA_TARGET" to "localhost:8443",
           "OTEL_METRICS_EXPORTER" to "none",
           "OTEL_TRACES_EXPORTER" to "none",
           "OTEL_LOGS_EXPORTER" to "none",

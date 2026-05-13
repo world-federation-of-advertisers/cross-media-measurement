@@ -44,6 +44,7 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.NoiseMechanism
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.RequisitionDetails.RequisitionProtocol.TrusTee.DataFormat
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
@@ -164,25 +165,33 @@ class TrusTeeMill(
 
   /** Converts internal [TrusTee.ComputationDetails] to the internal [TrusTeeParams]. */
   fun TrusTeeDetails.toTrusTeeParams(): TrusTeeParams {
+    val isNoNoise = parameters.noiseMechanism == NoiseMechanism.NONE
     return when (type) {
       TrusTeeDetails.Type.REACH -> {
-        require(parameters.hasReachDpParams()) {
-          "Reach DP params are required for a Reach-only TrusTee computation."
+        if (!isNoNoise) {
+          require(parameters.hasReachDpParams()) {
+            "Reach DP params are required for a Reach-only TrusTee computation."
+          }
         }
-        TrusTeeReachParams(parameters.vidSamplingIntervalWidth, parameters.reachDpParams)
+        TrusTeeReachParams(
+          parameters.vidSamplingIntervalWidth.toDouble(),
+          if (isNoNoise) null else parameters.reachDpParams,
+        )
       }
       TrusTeeDetails.Type.REACH_AND_FREQUENCY -> {
-        require(parameters.hasReachDpParams()) {
-          "Reach DP params are required for a Reach-and-Frequency TrusTee computation."
-        }
-        require(parameters.hasFrequencyDpParams()) {
-          "Frequency DP params are required for a Reach-and-Frequency TrusTee computation."
+        if (!isNoNoise) {
+          require(parameters.hasReachDpParams()) {
+            "Reach DP params are required for a Reach-and-Frequency TrusTee computation."
+          }
+          require(parameters.hasFrequencyDpParams()) {
+            "Frequency DP params are required for a Reach-and-Frequency TrusTee computation."
+          }
         }
         TrusTeeReachAndFrequencyParams(
           parameters.maximumFrequency,
-          parameters.vidSamplingIntervalWidth,
-          parameters.reachDpParams,
-          parameters.frequencyDpParams,
+          parameters.vidSamplingIntervalWidth.toDouble(),
+          if (isNoNoise) null else parameters.reachDpParams,
+          if (isNoNoise) null else parameters.frequencyDpParams,
         )
       }
       TrusTeeDetails.Type.TYPE_UNSPECIFIED,

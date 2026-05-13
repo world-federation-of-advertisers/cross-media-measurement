@@ -55,9 +55,15 @@ filegroup(
 )
 
 filegroup(
+    name = "validate_static_library",
+    srcs = ["validate_static_library.sh"],
+)
+
+filegroup(
     name = "compiler_deps",
     srcs = glob(["extra_tools/**"], allow_empty = True) + [":builtin_include_directory_paths",
-    ":cc_wrapper"],
+    ":cc_wrapper",
+    ":validate_static_library"],
 )
 
 # This is the entry point for --crosstool_top.  Toolchains are found
@@ -100,28 +106,30 @@ cc_toolchain_config(
     target_libc = "glibc_2.19",
     abi_version = "clang",
     abi_libc_version = "glibc_2.19",
-    cxx_builtin_include_directories = ["/usr/lib/llvm-14/lib/clang/14.0.6/include",
+    cxx_builtin_include_directories = ["/usr/lib/llvm-19/lib/clang/19/include",
     "/usr/local/include",
     "/usr/include/x86_64-linux-gnu",
     "/usr/include",
-    "/usr/lib/llvm-14/lib/clang/14.0.6/share",
-    "/usr/include/c++/12",
-    "/usr/include/x86_64-linux-gnu/c++/12",
-    "/usr/include/c++/12/backward",
+    "/usr/lib/llvm-19/lib/clang/19/share",
+    "/usr/include/c++/14",
+    "/usr/include/x86_64-linux-gnu/c++/14",
+    "/usr/include/c++/14/backward",
     "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"],
     tool_paths = {"ar": "/usr/bin/ar",
         "ld": "/usr/bin/ld",
         "llvm-cov": "/usr/bin/llvm-cov",
         "llvm-profdata": "/usr/bin/llvm-profdata",
         "cpp": "/usr/bin/cpp",
-        "gcc": "/usr/lib/llvm-14/bin/clang",
+        "gcc": "/usr/lib/llvm-19/bin/clang",
         "dwp": "/usr/bin/dwp",
         "gcov": "/usr/bin/llvm-cov",
         "nm": "/usr/bin/nm",
         "objcopy": "/usr/bin/objcopy",
         "objdump": "/usr/bin/objdump",
         "strip": "/usr/bin/strip",
-        "parse_headers": "cc_wrapper.sh"},
+        "c++filt": "/usr/bin/c++filt",
+        "parse_headers": "cc_wrapper.sh",
+        "validate_static_library": "validate_static_library.sh"},
     compile_flags = ["-fstack-protector",
     "-Wall",
     "-Wthread-safety",
@@ -139,8 +147,8 @@ cc_toolchain_config(
     dbg_compile_flags = ["-g"],
     conly_flags = [],
     cxx_flags = ["-std=c++14"],
-    link_flags = ["-fuse-ld=/usr/bin/ld.gold",
-    "-B/usr/lib/llvm-14/bin",
+    link_flags = ["-B/usr/lib/llvm-19/bin",
+    "-B/usr/bin",
     "-Wl,-no-as-needed",
     "-Wl,-z,relro,-z,now"],
     link_libs = ["-Wl,--push-state,-as-needed",
@@ -157,7 +165,7 @@ cc_toolchain_config(
     "-D__TIME__=\"redacted\""],
     coverage_compile_flags = ["--coverage"],
     coverage_link_flags = ["--coverage"],
-    supports_start_end_lib = True,
+    supports_start_end_lib = False,
     extra_flags_per_feature = {"use_module_maps": ["-Xclang", "-fno-cxx-modules"]},
 )
 

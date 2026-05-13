@@ -52,6 +52,7 @@ import org.wfanet.measurement.config.rateLimitConfig
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineStub as InternalApiKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ClientAccountsGrpcKt.ClientAccountsCoroutineStub as InternalClientAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub as InternalEventGroupActivitiesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as InternalEventGroupMetadataDescriptorsCoroutineStub
@@ -85,6 +86,7 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.AccountsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ApiKeyAuthenticationServerInterceptor
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ApiKeysService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.CertificatesService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ClientAccountsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.DataProvidersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.EventGroupActivitiesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.EventGroupMetadataDescriptorsService
@@ -207,6 +209,14 @@ private fun run(
           akidInterceptor,
         ),
       CertificatesService(InternalCertificatesCoroutineStub(channel), serviceDispatcher)
+        .withInterceptors(
+          apiChangeMetricsInterceptor,
+          apiKeyPrincipalInterceptor,
+          akidPrincipalInterceptor,
+          rateLimitingInterceptor,
+          akidInterceptor,
+        ),
+      ClientAccountsService(InternalClientAccountsCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(
           apiChangeMetricsInterceptor,
           apiKeyPrincipalInterceptor,
