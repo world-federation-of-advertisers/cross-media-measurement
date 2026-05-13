@@ -391,9 +391,15 @@ class ImpressionMetadataService(
           throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
+        val impressionMetadataKey =
+          ImpressionMetadataKey.fromName(it.impressionMetadata.name)
+            ?: throw InvalidFieldValueException("requests.$index.impression_metadata.name")
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
         internalUpdateImpressionMetadataRequest {
           this.requestId = requestId
-          impressionMetadata = it.impressionMetadata.toInternal(dataProviderKey, null)
+          impressionMetadata =
+            it.impressionMetadata.toInternal(dataProviderKey, impressionMetadataKey)
         }
       }
 
@@ -823,6 +829,10 @@ class ImpressionMetadataService(
 
     if (!request.hasImpressionMetadata()) {
       throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata")
+    }
+
+    if (request.impressionMetadata.name.isEmpty()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.name")
     }
 
     if (request.impressionMetadata.blobUri.isEmpty()) {

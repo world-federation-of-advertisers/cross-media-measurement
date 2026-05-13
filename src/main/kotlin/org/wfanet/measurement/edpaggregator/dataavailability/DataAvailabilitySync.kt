@@ -28,12 +28,17 @@ import java.util.UUID
 import java.util.logging.Logger
 import kotlin.text.Charsets.UTF_8
 import kotlin.time.TimeSource
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.flattenConcat
+import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
@@ -172,7 +177,7 @@ class DataAvailabilitySync(
       // Count total records
       val totalRecords = impressionMetadataMap.values.sumOf { it.size }
 
-      // 2. Save ImpressionMetadata using BatchUpdate with allow_missing (upsert)
+      // 2. Persist ImpressionMetadata (create new, update changed)
       impressionMetadataMap.values.forEach { metadataWithBlobKeys ->
         saveImpressionMetadata(metadataWithBlobKeys)
       }
@@ -298,133 +303,124 @@ class DataAvailabilitySync(
     impressionMetadataList: List<ImpressionMetadataWithBlobKey>
   ) {
     try {
-      impressionMetadataList.chunked(impressionMetadataBatchSize).forEach { chunk ->
-        val impressionsBlobKeyByMetadataUri =
-          chunk.associate { it.impressionMetadata.blobUri to it.impressionsBlobKey }
+      // Build a map from metadata blob URI to impressions blob key for later lookup
+      val impressionsBlobKeyByMetadataUri =
+        impressionMetadataList.associate { it.impressionMetadata.blobUri to it.impressionsBlobKey }
 
-        val blobUris = chunk.map { it.impressionMetadata.blobUri }
+      val blobUris = impressionMetadataList.map { it.impressionMetadata.blobUri }
 
-        // List existing entries by blob_uri
-        val existingByBlobUri = listImpressionMetadataByBlobUris(blobUris)
+      // List existing entries by blob_uri
+      val existingByBlobUri =
+        listImpressionMetadataByBlobUris(blobUris).toList().associateBy { it.blobUri }
 
-        // Partition into creates and updates
-        val toCreate = mutableListOf<ImpressionMetadataWithBlobKey>()
-        val toUpdate = mutableListOf<ImpressionMetadataWithBlobKey>()
+      // Partition into creates and updates
+      val toCreate = mutableListOf<ImpressionMetadataWithBlobKey>()
+      val toUpdate = mutableListOf<ImpressionMetadataWithBlobKey>()
 
-        for (item in chunk) {
-          val existing = existingByBlobUri[item.impressionMetadata.blobUri]
-          if (existing == null) {
-            toCreate.add(item)
-          } else if (hasContentChanged(item.impressionMetadata, existing)) {
-            toUpdate.add(
-              ImpressionMetadataWithBlobKey(
-                impressionMetadata = item.impressionMetadata.copy { name = existing.name },
-                impressionsBlobKey = item.impressionsBlobKey,
-              )
+      for (item in impressionMetadataList) {
+        val existing = existingByBlobUri[item.impressionMetadata.blobUri]
+        if (existing == null) {
+          toCreate.add(item)
+        } else if (hasContentChanged(item.impressionMetadata, existing)) {
+          toUpdate.add(
+            ImpressionMetadataWithBlobKey(
+              impressionMetadata = item.impressionMetadata.copy { name = existing.name },
+              impressionsBlobKey = item.impressionsBlobKey,
             )
-          }
-        }
-
-        // BatchCreate new entries
-        val createResponses =
-          if (toCreate.isNotEmpty()) {
-            throttler
-              .onReady {
-                impressionMetadataServiceStub.batchCreateImpressionMetadata(
-                  batchCreateImpressionMetadataRequest {
-                    parent = dataProviderName
-                    toCreate.forEach { item ->
-                      requests += createImpressionMetadataRequest {
-                        parent = dataProviderName
-                        impressionMetadata = item.impressionMetadata
-                        requestId = contentAwareRequestId(item.impressionMetadata)
-                      }
-                    }
-                  }
-                )
-              }
-              .impressionMetadataList
-          } else {
-            emptyList()
-          }
-
-        // BatchUpdate changed entries
-        val updateResponses =
-          if (toUpdate.isNotEmpty()) {
-            throttler
-              .onReady {
-                impressionMetadataServiceStub.batchUpdateImpressionMetadata(
-                  batchUpdateImpressionMetadataRequest {
-                    parent = dataProviderName
-                    toUpdate.forEach { item ->
-                      requests += updateImpressionMetadataRequest {
-                        impressionMetadata = item.impressionMetadata
-                        requestId = contentAwareRequestId(item.impressionMetadata)
-                      }
-                    }
-                  }
-                )
-              }
-              .impressionMetadataList
-          } else {
-            emptyList()
-          }
-
-        // Set GCS object metadata for lifecycle management and cleanup
-        for (resultMetadata in createResponses + updateResponses) {
-          val metadataBlobUri = SelectedStorageClient.parseBlobUri(resultMetadata.blobUri)
-          val customCreateTime = resultMetadata.interval.startTime.toInstant()
-
-          storageClient.updateBlobMetadata(
-            blobKey = metadataBlobUri.key,
-            customCreateTime = customCreateTime,
-            metadata = mapOf(IMPRESSION_METADATA_RESOURCE_ID_KEY to resultMetadata.name),
-          )
-
-          val impressionsBlobKey = impressionsBlobKeyByMetadataUri.getValue(resultMetadata.blobUri)
-          storageClient.updateBlobMetadata(
-            blobKey = impressionsBlobKey,
-            customCreateTime = customCreateTime,
           )
         }
+      }
+
+      // BatchCreate new entries, chunked at the RPC boundary
+      val createResponses =
+        toCreate.chunked(impressionMetadataBatchSize).flatMap { createChunk ->
+          throttler
+            .onReady {
+              impressionMetadataServiceStub.batchCreateImpressionMetadata(
+                batchCreateImpressionMetadataRequest {
+                  parent = dataProviderName
+                  createChunk.forEach { item ->
+                    requests += createImpressionMetadataRequest {
+                      parent = dataProviderName
+                      impressionMetadata = item.impressionMetadata
+                      requestId = contentAwareRequestId(item.impressionMetadata)
+                    }
+                  }
+                }
+              )
+            }
+            .impressionMetadataList
+        }
+
+      // BatchUpdate changed entries, chunked at the RPC boundary
+      val updateResponses =
+        toUpdate.chunked(impressionMetadataBatchSize).flatMap { updateChunk ->
+          throttler
+            .onReady {
+              impressionMetadataServiceStub.batchUpdateImpressionMetadata(
+                batchUpdateImpressionMetadataRequest {
+                  parent = dataProviderName
+                  updateChunk.forEach { item ->
+                    requests += updateImpressionMetadataRequest {
+                      impressionMetadata = item.impressionMetadata
+                      requestId = contentAwareRequestId(item.impressionMetadata)
+                    }
+                  }
+                }
+              )
+            }
+            .impressionMetadataList
+        }
+
+      // Set GCS object metadata for lifecycle management and cleanup
+      for (resultMetadata in createResponses + updateResponses) {
+        val metadataBlobUri = SelectedStorageClient.parseBlobUri(resultMetadata.blobUri)
+        val customCreateTime = resultMetadata.interval.startTime.toInstant()
+
+        storageClient.updateBlobMetadata(
+          blobKey = metadataBlobUri.key,
+          customCreateTime = customCreateTime,
+          metadata = mapOf(IMPRESSION_METADATA_RESOURCE_ID_KEY to resultMetadata.name),
+        )
+
+        // Also update the impressions blob with Custom-Time (no resource ID needed)
+        val impressionsBlobKey = impressionsBlobKeyByMetadataUri.getValue(resultMetadata.blobUri)
+        storageClient.updateBlobMetadata(
+          blobKey = impressionsBlobKey,
+          customCreateTime = customCreateTime,
+        )
       }
     } catch (e: StatusException) {
       throw Exception("Error saving Impressions Metadata", e)
     }
   }
 
-  private suspend fun listImpressionMetadataByBlobUris(
-    blobUris: List<String>
-  ): Map<String, ImpressionMetadata> {
-    val result = mutableMapOf<String, ImpressionMetadata>()
-    var pageToken = ""
-    do {
-      val response =
-        impressionMetadataServiceStub.listImpressionMetadata(
-          listImpressionMetadataRequest {
-            parent = dataProviderName
-            filter = listFilter { this.blobUris += blobUris }
-            if (pageToken.isNotEmpty()) {
-              this.pageToken = pageToken
-            }
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+  private fun listImpressionMetadataByBlobUris(blobUris: List<String>): Flow<ImpressionMetadata> {
+    return impressionMetadataServiceStub
+      .listResources { pageToken: String ->
+        val response =
+          throttler.onReady {
+            impressionMetadataServiceStub.listImpressionMetadata(
+              listImpressionMetadataRequest {
+                parent = dataProviderName
+                filter = listFilter { this.blobUris += blobUris }
+                if (pageToken.isNotEmpty()) {
+                  this.pageToken = pageToken
+                }
+              }
+            )
           }
-        )
-      for (metadata in response.impressionMetadataList) {
-        result[metadata.blobUri] = metadata
+        ResourceList(response.impressionMetadataList, response.nextPageToken)
       }
-      pageToken = response.nextPageToken
-    } while (pageToken.isNotEmpty())
-    return result
+      .flattenConcat()
   }
 
   private fun hasContentChanged(
     scanned: ImpressionMetadata,
     existing: ImpressionMetadata,
   ): Boolean {
-    return scanned.modelLine != existing.modelLine ||
-      scanned.interval != existing.interval ||
-      scanned.eventGroupReferenceId != existing.eventGroupReferenceId ||
-      scanned.entityKeysList != existing.entityKeysList
+    return contentAwareRequestId(scanned) != contentAwareRequestId(existing)
   }
 
   /**

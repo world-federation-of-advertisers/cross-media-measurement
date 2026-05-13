@@ -62,7 +62,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
@@ -115,36 +114,7 @@ class DataAvailabilitySyncTest {
   private val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase =
     mockService {
       onBlocking { listImpressionMetadata(any<ListImpressionMetadataRequest>()) }
-        .thenAnswer { invocation ->
-          val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
-
-          // Build some fake proto data for the response
-          listImpressionMetadataResponse {
-            impressionMetadata +=
-              listOf(
-                impressionMetadata {
-                  name = "${request.parent}/impressionMetadata1"
-                  modelLine = request.filter.modelLine
-                  blobUri = "gs://bucket/blob-1"
-                  interval = interval {
-                    startTime = timestamp { seconds = 100 }
-                    endTime = timestamp { seconds = 200 }
-                  }
-                  state = ImpressionMetadata.State.ACTIVE
-                },
-                impressionMetadata {
-                  name = "${request.parent}/impressionMetadata2"
-                  modelLine = request.filter.modelLine
-                  blobUri = "gs://bucket/blob-2"
-                  interval = interval {
-                    startTime = timestamp { seconds = 200 }
-                    endTime = timestamp { seconds = 300 }
-                  }
-                  state = ImpressionMetadata.State.ACTIVE
-                },
-              )
-          }
-        }
+        .thenAnswer { listImpressionMetadataResponse {} }
       onBlocking { batchCreateImpressionMetadata(any<BatchCreateImpressionMetadataRequest>()) }
         .thenAnswer { invocation ->
           val request = invocation.getArgument<BatchCreateImpressionMetadataRequest>(0)
@@ -791,8 +761,8 @@ class DataAvailabilitySyncTest {
         batchCreateImpressionMetadata(captor.capture())
       }
       assertThat(captor.allValues.map { it.requestsCount }).containsExactly(2, 1).inOrder()
-      // Two batches plus one call when updating availability intervals.
-      assertThat(recordingThrottler.onReadyCalls).isEqualTo(3)
+      // One list, two create batches, one availability interval update.
+      assertThat(recordingThrottler.onReadyCalls).isEqualTo(4)
     }
 
   @Test
