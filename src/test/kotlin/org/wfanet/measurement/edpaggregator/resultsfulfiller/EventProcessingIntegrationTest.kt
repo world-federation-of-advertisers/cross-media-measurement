@@ -1154,7 +1154,7 @@ class EventProcessingIntegrationTest {
                 minTime,
                 maxTime,
                 eventGroupReferenceId = eventGroupReferenceId,
-                entityKeys = emptyList()
+                entityKeys = emptyList(),
               )
             )
           }
@@ -1636,7 +1636,7 @@ class EventProcessingIntegrationTest {
           batchSize = 10,
           channelCapacity = 100,
           threadPoolSize = 2,
-          workers = 2
+          workers = 2,
         )
 
       val result =

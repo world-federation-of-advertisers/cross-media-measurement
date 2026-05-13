@@ -249,11 +249,7 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
     try {
       // Build a mapping from requisitions to canonical FilterSpecs
       val filterSpecIndex =
-        FilterSpecIndex.fromRequisitions(
-          requisitions,
-          eventGroupSelector,
-          privateEncryptionKey,
-        )
+        FilterSpecIndex.fromRequisitions(requisitions, eventGroupSelector, privateEncryptionKey)
       logger.info("Found ${filterSpecIndex.filterSpecToRequisitionNames.size} unique filter specs")
 
       // Create one sink per unique FilterSpec

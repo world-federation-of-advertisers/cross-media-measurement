@@ -163,17 +163,17 @@ class FilterProcessorTest {
           createTestLabeledEvent(
             vid = 1,
             ageGroup = Person.AgeGroup.YEARS_18_TO_34,
-            entityKeys = emptyList()
+            entityKeys = emptyList(),
           ),
           createTestLabeledEvent(
             vid = 2,
             ageGroup = Person.AgeGroup.YEARS_35_TO_54,
-            entityKeys = emptyList()
+            entityKeys = emptyList(),
           ),
           createTestLabeledEvent(
             vid = 3,
             ageGroup = Person.AgeGroup.YEARS_18_TO_34,
-            entityKeys = emptyList()
+            entityKeys = emptyList(),
           ),
         )
 
@@ -196,17 +196,17 @@ class FilterProcessorTest {
           createTestLabeledEvent(
             1,
             ageGroup = Person.AgeGroup.YEARS_18_TO_34,
-            entityKeys = emptyList()
+            entityKeys = emptyList(),
           ),
           createTestLabeledEvent(
             2,
             ageGroup = Person.AgeGroup.YEARS_35_TO_54,
-            entityKeys = emptyList()
+            entityKeys = emptyList(),
           ),
           createTestLabeledEvent(
             3,
             ageGroup = Person.AgeGroup.YEARS_55_PLUS,
-            entityKeys = emptyList()
+            entityKeys = emptyList(),
           ),
         )
 
@@ -277,7 +277,7 @@ class FilterProcessorTest {
         listOf(
           createTestLabeledEvent(1, entityKeys = emptyList()),
           createTestLabeledEvent(2, entityKeys = emptyList()),
-          createTestLabeledEvent(3, entityKeys = emptyList())
+          createTestLabeledEvent(3, entityKeys = emptyList()),
         )
 
       val batch = createEventBatch(events)
@@ -412,17 +412,17 @@ class FilterProcessorTest {
           createTestLabeledEvent(
             1,
             timestamp = Instant.parse("2024-12-01T00:00:00Z"),
-            entityKeys = emptyList()
+            entityKeys = emptyList(),
           ),
           createTestLabeledEvent(
             2,
             timestamp = Instant.parse("2024-12-15T12:00:00Z"),
-            entityKeys = emptyList()
+            entityKeys = emptyList(),
           ),
           createTestLabeledEvent(
             3,
             timestamp = Instant.parse("2024-12-31T23:59:59Z"),
-            entityKeys = emptyList()
+            entityKeys = emptyList(),
           ),
         )
 
@@ -499,17 +499,17 @@ class FilterProcessorTest {
           createTestLabeledEvent(
             1,
             timestamp = Instant.parse("2025-02-01T00:00:00Z"),
-            entityKeys = emptyList()
+            entityKeys = emptyList(),
           ),
           createTestLabeledEvent(
             2,
             timestamp = Instant.parse("2025-03-15T12:00:00Z"),
-            entityKeys = emptyList()
+            entityKeys = emptyList(),
           ),
           createTestLabeledEvent(
             3,
             timestamp = Instant.parse("2025-04-01T00:00:00Z"),
-            entityKeys = emptyList()
+            entityKeys = emptyList(),
           ),
         )
 
@@ -546,7 +546,7 @@ class FilterProcessorTest {
           createTestLabeledEvent(
             2,
             timestamp = startTime,
-            entityKeys = emptyList()
+            entityKeys = emptyList(),
           ), // Exactly at start (inclusive)
           createTestLabeledEvent(
             3,
@@ -556,12 +556,12 @@ class FilterProcessorTest {
           createTestLabeledEvent(
             4,
             timestamp = endTime.minusMillis(1),
-            entityKeys = emptyList()
+            entityKeys = emptyList(),
           ), // Just before end
           createTestLabeledEvent(
             5,
             timestamp = endTime,
-            entityKeys = emptyList()
+            entityKeys = emptyList(),
           ), // Exactly at end (exclusive)
         )
 
@@ -604,10 +604,7 @@ class FilterProcessorTest {
       val events =
         listOf(
           createTestLabeledEvent(1, entityKeys = listOf(targetKey)),
-          createTestLabeledEvent(
-            2,
-            entityKeys = listOf(makeEntityKey("ad", "Y"), targetKey),
-          ),
+          createTestLabeledEvent(2, entityKeys = listOf(makeEntityKey("ad", "Y"), targetKey)),
         )
 
       val result =
@@ -628,10 +625,7 @@ class FilterProcessorTest {
       val events =
         listOf(
           createTestLabeledEvent(1, entityKeys = listOf(makeEntityKey("ad", "Y"))),
-          createTestLabeledEvent(
-            2,
-            entityKeys = listOf(makeEntityKey("placement", "X")),
-          ),
+          createTestLabeledEvent(2, entityKeys = listOf(makeEntityKey("placement", "X"))),
         )
 
       val result =
