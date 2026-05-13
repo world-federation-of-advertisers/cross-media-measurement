@@ -309,6 +309,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_batch",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_processing_orchestrator",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_reader",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_source",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:frequency_vector",

@@ -70,6 +70,10 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signRequisition
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.testing.TestEncryptedStorage
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
@@ -179,8 +183,10 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
-        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
-        eventGroupEntityKeyMap = emptyMap(),
+        eventGroupSelector =
+          FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
+            createEventGroupReferenceIdMap(requisitions)
+          ),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -304,8 +310,10 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
-        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
-        eventGroupEntityKeyMap = emptyMap(),
+        eventGroupSelector =
+          FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
+            createEventGroupReferenceIdMap(requisitions)
+          ),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -410,8 +418,10 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
-        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
-        eventGroupEntityKeyMap = emptyMap(),
+        eventGroupSelector =
+          FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
+            createEventGroupReferenceIdMap(requisitions)
+          ),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -503,9 +513,10 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = listOf(requisitionYesterday, requisitionBothDays),
-        eventGroupReferenceIdMap =
-          createEventGroupReferenceIdMap(listOf(requisitionYesterday, requisitionBothDays)),
-        eventGroupEntityKeyMap = emptyMap(),
+        eventGroupSelector =
+          FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
+            createEventGroupReferenceIdMap(listOf(requisitionYesterday, requisitionBothDays))
+          ),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -631,8 +642,10 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
-        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
-        eventGroupEntityKeyMap = emptyMap(),
+        eventGroupSelector =
+          FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
+            createEventGroupReferenceIdMap(requisitions)
+          ),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -757,8 +770,10 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
-        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
-        eventGroupEntityKeyMap = emptyMap(),
+        eventGroupSelector =
+          FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
+            createEventGroupReferenceIdMap(requisitions)
+          ),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -866,8 +881,10 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
-        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
-        eventGroupEntityKeyMap = emptyMap(),
+        eventGroupSelector =
+          FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
+            createEventGroupReferenceIdMap(requisitions)
+          ),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -1005,8 +1022,10 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
-        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
-        eventGroupEntityKeyMap = emptyMap(),
+        eventGroupSelector =
+          FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
+            createEventGroupReferenceIdMap(requisitions)
+          ),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -1445,8 +1464,10 @@ class EventProcessingIntegrationTest {
     val index =
       FilterSpecIndex.fromRequisitions(
         requisitions = listOf(req),
-        eventGroupReferenceIdMap = mapOf("eventGroups/eg1" to "ref1", "eventGroups/eg2" to "ref2"),
-        eventGroupEntityKeyMap = mapOf("eventGroups/eg1" to entityKey1, "eventGroups/eg2" to entityKey2),
+        eventGroupSelector =
+          FilterSpecIndex.Companion.EventGroupSelector.ByEntityKeys(
+            mapOf("eventGroups/eg1" to entityKey1, "eventGroups/eg2" to entityKey2)
+          ),
         privateEncryptionKey = privateEncryptionKey,
       )
 
@@ -1469,8 +1490,10 @@ class EventProcessingIntegrationTest {
     val index =
       FilterSpecIndex.fromRequisitions(
         requisitions = listOf(req),
-        eventGroupReferenceIdMap = mapOf("eventGroups/eg1" to "ref1", "eventGroups/eg2" to "ref2"),
-        eventGroupEntityKeyMap = emptyMap(),
+        eventGroupSelector =
+          FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
+            mapOf("eventGroups/eg1" to "ref1", "eventGroups/eg2" to "ref2")
+          ),
         privateEncryptionKey = privateEncryptionKey,
       )
 
@@ -1495,15 +1518,211 @@ class EventProcessingIntegrationTest {
       assertFailsWith<IllegalArgumentException> {
         FilterSpecIndex.fromRequisitions(
           requisitions = listOf(req),
-          eventGroupReferenceIdMap = mapOf("eventGroups/eg1" to "ref1", "eventGroups/eg2" to "ref2"),
-          // Only eg1 has an entity key — eg2 missing → mixed → must throw.
-          eventGroupEntityKeyMap = mapOf("eventGroups/eg1" to labeledImpressionEntityKey("ad", "X")),
+          // Only eg1 has an entity key — eg2 missing → all-or-nothing rule → must throw.
+          eventGroupSelector =
+            FilterSpecIndex.Companion.EventGroupSelector.ByEntityKeys(
+              mapOf("eventGroups/eg1" to labeledImpressionEntityKey("ad", "X"))
+            ),
           privateEncryptionKey = privateEncryptionKey,
         )
       }
     assertThat(exception).hasMessageThat().contains("Inconsistent selectors")
     assertThat(exception).hasMessageThat().contains("eventGroups/eg2")
   }
+
+  // ===== Tests for ResultsFulfiller.buildEventGroupEntityKeyMap (Comment 2 follow-up) =====
+  // Prove that the empty-entityId filter excludes the kingdom-default sentinel
+  // (entityType="campaign", entityId="") that every EventGroup carries since #3747, while
+  // still keeping real entity keys.
+
+  @Test
+  fun `buildEventGroupEntityKeyMap returns empty when every entry has only the default sentinel`() {
+    val entries =
+      listOf(
+        mapEntryWithEntityKey("eventGroups/eg1", "campaign", ""),
+        mapEntryWithEntityKey("eventGroups/eg2", "campaign", ""),
+      )
+    val map = ResultsFulfiller.buildEventGroupEntityKeyMap(entries)
+    assertThat(map).isEmpty()
+  }
+
+  @Test
+  fun `buildEventGroupEntityKeyMap returns full map when every entry has a real entity key`() {
+    val entries =
+      listOf(
+        mapEntryWithEntityKey("eventGroups/eg1", "campaign", "id-1"),
+        mapEntryWithEntityKey("eventGroups/eg2", "ad_group", "id-2"),
+      )
+    val map = ResultsFulfiller.buildEventGroupEntityKeyMap(entries)
+    assertThat(map)
+      .containsExactly(
+        "eventGroups/eg1",
+        labeledImpressionEntityKey("campaign", "id-1"),
+        "eventGroups/eg2",
+        labeledImpressionEntityKey("ad_group", "id-2"),
+      )
+  }
+
+  @Test
+  fun `buildEventGroupEntityKeyMap keeps only real entries when input mixes real and default`() {
+    val entries =
+      listOf(
+        mapEntryWithEntityKey("eventGroups/eg-default", "campaign", ""),
+        mapEntryWithEntityKey("eventGroups/eg-real", "campaign", "id-real"),
+      )
+    val map = ResultsFulfiller.buildEventGroupEntityKeyMap(entries)
+    assertThat(map.keys).containsExactly("eventGroups/eg-real")
+  }
+
+  // ===== F1 integration tests for the ByEntityKeys path =====
+
+  @Test
+  fun `eventProcessingOrchestrator runs ByEntityKeys path end-to-end with matching blob entity keys`() =
+    runBlocking {
+      val testDate = LocalDate.now().minusDays(1)
+      val eventGroup1 = "event-group-1"
+      val eventGroup2 = "event-group-2"
+      val entityKey1 = labeledImpressionEntityKey("campaign", "id-1")
+      val entityKey2 = labeledImpressionEntityKey("campaign", "id-2")
+
+      val events1 =
+        createTestEvents(
+          startVid = 1L,
+          count = 30,
+          ageGroup = Person.AgeGroup.YEARS_18_TO_34,
+          gender = Person.Gender.MALE,
+        )
+      val events2 =
+        createTestEvents(
+          startVid = 31L,
+          count = 40,
+          ageGroup = Person.AgeGroup.YEARS_35_TO_54,
+          gender = Person.Gender.FEMALE,
+        )
+
+      // Use a custom EventSource that emits batches stamped with matching blob-level entity_keys
+      // (the production path reads these from BlobDetails.entityKeysList; we synthesize them
+      // directly so the test does not need to extend the storage scaffolding).
+      val eventSource =
+        eventSourceWithEntityKeys(
+          mapOf(
+            eventGroup1 to (events1 to listOf(entityKey1)),
+            eventGroup2 to (events2 to listOf(entityKey2)),
+          )
+        )
+
+      val req1 =
+        createRequisition(
+          name = "requisitions/req1",
+          eventGroupsMap = mapOf(eventGroup1 to createTimeRange(testDate)),
+          filter = "person.gender == 1", // MALE
+        )
+      val req2 =
+        createRequisition(
+          name = "requisitions/req2",
+          eventGroupsMap = mapOf(eventGroup2 to createTimeRange(testDate)),
+          filter = "person.age_group == 2", // YEARS_35_TO_54
+        )
+      val requisitions = listOf(req1, req2)
+
+      val populationSpec = loadPopulationSpecFromFile(TEST_DATA_RUNTIME_PATH.toString(), true)
+      val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
+      val config =
+        PipelineConfiguration(batchSize = 10, channelCapacity = 100, threadPoolSize = 2, workers = 2)
+
+      val result =
+        eventProcessingOrchestrator.run(
+          eventSource = eventSource,
+          vidIndexMap = vidIndexMap,
+          populationSpec = populationSpec,
+          requisitions = requisitions,
+          eventGroupSelector =
+            FilterSpecIndex.Companion.EventGroupSelector.ByEntityKeys(
+              mapOf(
+                requisitionEventGroupName(req1) to entityKey1,
+                requisitionEventGroupName(req2) to entityKey2,
+              )
+            ),
+          config = config,
+          eventDescriptor = TestEvent.getDescriptor(),
+        )
+
+      assertThat(result).hasSize(2)
+      val freq1 = result[req1.name]
+      val freq2 = result[req2.name]
+      assertThat(freq1).isNotNull()
+      assertThat(freq2).isNotNull()
+      // Each requisition's CEL filter selects all events in its event group, so every impression
+      // should land in the frequency vector exactly once.
+      assertThat(freq1!!.getByteArray().sum()).isEqualTo(30)
+      assertThat(freq2!!.getByteArray().sum()).isEqualTo(40)
+    }
+
+  // ===== helpers =====
+
+  private fun mapEntryWithEntityKey(
+    eventGroupName: String,
+    entityType: String,
+    entityId: String,
+  ): GroupedRequisitions.EventGroupMapEntry =
+    eventGroupMapEntry {
+      eventGroup = eventGroupName
+      details = eventGroupDetails {
+        entityKey =
+          GroupedRequisitionsKt.EventGroupDetailsKt.entityKey {
+            this.entityType = entityType
+            this.entityId = entityId
+          }
+      }
+    }
+
+  private fun requisitionEventGroupName(requisition: Requisition): String {
+    val signedSpec = decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
+    val spec: RequisitionSpec = signedSpec.unpack()
+    return spec.events.eventGroupsList.single().key
+  }
+
+  private fun eventSourceWithEntityKeys(
+    eventGroupToData: Map<String, Pair<List<LabeledImpression>, List<LabeledImpression.EntityKey>>>
+  ): EventSource<Message> =
+    object : EventSource<Message> {
+      override fun generateEventBatches(): Flow<EventBatch<Message>> = flow {
+        eventGroupToData.forEach { (eventGroupReferenceId, eventsWithKeys) ->
+          val (events, blobEntityKeys) = eventsWithKeys
+          // Convert LabeledImpression list into LabeledEvent<Message> list expected by EventBatch
+          val labeledEvents =
+            events.map { impression ->
+              LabeledEvent<Message>(
+                timestamp = Instant.ofEpochSecond(impression.eventTime.seconds),
+                vid = impression.vid,
+                message = impression.event.unpack(TestEvent::class.java),
+                entityKeys = blobEntityKeys,
+              )
+            }
+          val minTime = labeledEvents.minOf { it.timestamp }
+          val maxTime = labeledEvents.maxOf { it.timestamp }
+          // BlobDetails.entityKeysList → batch.entityKeys (grouped by entity_type)
+          val groupedBatchEntityKeys =
+            blobEntityKeys
+              .groupBy { it.entityType }
+              .map { (type, keys) ->
+                org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup {
+                  entityType = type
+                  entityIds += keys.map { it.entityId }.distinct()
+                }
+              }
+          emit(
+            EventBatch(
+              labeledEvents,
+              minTime,
+              maxTime,
+              eventGroupReferenceId = eventGroupReferenceId,
+              entityKeys = groupedBatchEntityKeys,
+            )
+          )
+        }
+      }
+    }
 
   private fun labeledImpressionEntityKey(type: String, id: String): LabeledImpression.EntityKey =
     org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt.entityKey {
