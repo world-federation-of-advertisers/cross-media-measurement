@@ -165,7 +165,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getImpressionMetadataByResourceIds(
  * @param dataProviderResourceId the resource ID of the parent DataProvider
  * @return a [Map] of create request ID to [ImpressionMetadataResult]
  */
-suspend fun AsyncDatabaseClient.ReadContext.findExistingImpressionMetadataByRequestIds(
+suspend fun AsyncDatabaseClient.ReadContext.findExistingImpressionMetadataByCreateRequestIds(
   dataProviderResourceId: String,
   requestIds: List<String>,
 ): Map<String, ImpressionMetadataResult> {
@@ -188,11 +188,48 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingImpressionMetadataByRequ
     }
 
   return buildMap {
-    executeQuery(query, Options.tag("action=findExistingImpressionMetadataByRequestIds")).collect {
-      row ->
-      val result = ImpressionMetadataEntity.buildImpressionMetadataResult(row)
-      put(row.getString("CreateRequestId"), result)
+    executeQuery(query, Options.tag("action=findExistingImpressionMetadataByCreateRequestIds"))
+      .collect { row ->
+        val result = ImpressionMetadataEntity.buildImpressionMetadataResult(row)
+        put(row.getString("CreateRequestId"), result)
+      }
+  }
+}
+
+/**
+ * Finds existing [ImpressionMetadata] for a list of update request IDs.
+ *
+ * @param dataProviderResourceId the resource ID of the parent DataProvider
+ * @return a [Map] of update request ID to [ImpressionMetadataResult]
+ */
+suspend fun AsyncDatabaseClient.ReadContext.findExistingImpressionMetadataByUpdateRequestIds(
+  dataProviderResourceId: String,
+  requestIds: List<String>,
+): Map<String, ImpressionMetadataResult> {
+  val sql = buildString {
+    appendLine(ImpressionMetadataEntity.BASE_SQL)
+    appendLine(
+      """
+      WHERE ImpressionMetadata.DataProviderResourceId = @dataProviderResourceId
+        AND ImpressionMetadata.UpdateRequestId IS NOT NULL
+        AND ImpressionMetadata.UpdateRequestId IN UNNEST(@updateRequestIds)
+      """
+        .trimIndent()
+    )
+  }
+
+  val query =
+    statement(sql) {
+      bind("dataProviderResourceId").to(dataProviderResourceId)
+      bind("updateRequestIds").toStringArray(requestIds)
     }
+
+  return buildMap {
+    executeQuery(query, Options.tag("action=findExistingImpressionMetadataByUpdateRequestIds"))
+      .collect { row ->
+        val result = ImpressionMetadataEntity.buildImpressionMetadataResult(row)
+        put(row.getString("UpdateRequestId"), result)
+      }
   }
 }
 
@@ -284,7 +321,6 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
     set("DataProviderResourceId").to(impressionMetadata.dataProviderResourceId)
     set("ImpressionMetadataId").to(impressionMetadataId)
     set("ImpressionMetadataResourceId").to(impressionMetadata.impressionMetadataResourceId)
-    // Reused for update idempotency; the column name predates the update path.
     if (createRequestId.isNotEmpty()) {
       set("CreateRequestId").to(createRequestId)
     }
@@ -348,7 +384,7 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchCreateImpressionMetadata
   val dataProviderResourceId = requests.first().impressionMetadata.dataProviderResourceId
 
   val existingRequestIdToImpressionMetadata: Map<String, ImpressionMetadataResult> =
-    findExistingImpressionMetadataByRequestIds(
+    findExistingImpressionMetadataByCreateRequestIds(
       dataProviderResourceId,
       requests.map { it.requestId },
     )
@@ -608,7 +644,7 @@ private fun AsyncDatabaseClient.TransactionContext.updateImpressionMetadataField
   dataProviderResourceId: String,
   impressionMetadataId: Long,
   impressionMetadata: ImpressionMetadata,
-  createRequestId: String,
+  updateRequestId: String,
 ) {
   bufferUpdateMutation("ImpressionMetadata") {
     set("DataProviderResourceId").to(dataProviderResourceId)
@@ -617,9 +653,8 @@ private fun AsyncDatabaseClient.TransactionContext.updateImpressionMetadataField
     set("CmmsModelLine").to(impressionMetadata.cmmsModelLine)
     set("IntervalStartTime").to(impressionMetadata.interval.startTime.toGcloudTimestamp())
     set("IntervalEndTime").to(impressionMetadata.interval.endTime.toGcloudTimestamp())
-    // Reused for update idempotency; the column name predates the update path.
-    if (createRequestId.isNotEmpty()) {
-      set("CreateRequestId").to(createRequestId)
+    if (updateRequestId.isNotEmpty()) {
+      set("UpdateRequestId").to(updateRequestId)
     }
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
@@ -655,7 +690,7 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchUpdateImpressionMetadata
 
   val requestIds = requests.map { it.requestId }
   val existingByRequestId: Map<String, ImpressionMetadataResult> =
-    findExistingImpressionMetadataByRequestIds(dataProviderResourceId, requestIds)
+    findExistingImpressionMetadataByUpdateRequestIds(dataProviderResourceId, requestIds)
 
   val resourceIds = requests.map { it.impressionMetadata.impressionMetadataResourceId }
   val existingByResourceId: Map<String, ImpressionMetadataResult> =
@@ -698,6 +733,7 @@ private object ImpressionMetadataEntity {
       ImpressionMetadata.ImpressionMetadataId,
       ImpressionMetadata.ImpressionMetadataResourceId,
       ImpressionMetadata.CreateRequestId,
+      ImpressionMetadata.UpdateRequestId,
       ImpressionMetadata.BlobUri,
       ImpressionMetadata.BlobTypeUrl,
       ImpressionMetadata.EventGroupReferenceId,
