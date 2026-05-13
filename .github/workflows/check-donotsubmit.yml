@@ -52,7 +52,7 @@ jobs:
             ":(exclude,top)${workflow_file}" \
             ":(exclude,top)docs/dev-standards.md" \
             ":(exclude,top)AGENTS.md" \
-            ":(exclude,top)docs/bazel-dev-standards.md"
+            ":(exclude,top)docs/bazel-build-standards.md"
         )
 
         echo "Checking for DO_NOT_SUBMIT comments in ${#changed_files[@]} files"
