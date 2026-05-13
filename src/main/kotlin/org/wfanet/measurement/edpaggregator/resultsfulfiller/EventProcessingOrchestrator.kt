@@ -72,8 +72,7 @@ data class FilterSpecIndex(
      */
     fun fromRequisitions(
       requisitions: List<Requisition>,
-      eventGroupReferenceIdMap: Map<String, String>,
-      eventGroupEntityKeyMap: Map<String, LabeledImpression.EntityKey>,
+      eventGroupSelector: EventGroupSelector,
       privateEncryptionKey: PrivateKeyHandle,
     ): FilterSpecIndex {
       val filterSpecToReqNames = mutableMapOf<FilterSpec, MutableList<String>>()
@@ -105,36 +104,37 @@ data class FilterSpecIndex(
           "All event groups must have the same collection interval"
         }
 
-        // All-or-nothing rule across event groups in this requisition: if any group has an
-        // entity_key, all must; otherwise all must have a reference_id (the legacy selector).
-        // Mixed configurations are an error per the upstream RequisitionGrouper contract.
-        val hasEntityKeys = eventGroups.any { eventGroupEntityKeyMap.containsKey(it.key) }
-
         val filterSpec: FilterSpec =
-          if (hasEntityKeys) {
-            val entityKeys =
-              eventGroups
-                .map { entry ->
-                  requireNotNull(eventGroupEntityKeyMap[entry.key]) {
-                    "Inconsistent selectors for requisition ${requisition.name}: " +
-                      "event group ${entry.key} missing entity_key while others have one"
+          when (eventGroupSelector) {
+            is EventGroupSelector.ByEntityKeys -> {
+              // All-or-nothing rule: if the selector is ByEntityKeys, every event group in this
+              // requisition must have an entity key. The upstream RequisitionsValidator already
+              // enforces this, but the requireNotNull is kept as a system-boundary safety net.
+              val entityKeys =
+                eventGroups
+                  .map { entry ->
+                    requireNotNull(eventGroupSelector.map[entry.key]) {
+                      "Inconsistent selectors for requisition ${requisition.name}: " +
+                        "event group ${entry.key} missing entity_key while others have one"
+                    }
                   }
-                }
-                .toSet()
-            FilterSpec.ByEntityKeys(
-              celExpression = firstEventGroup.value.filter.expression,
-              collectionInterval = firstEventGroup.value.collectionInterval,
-              entityKeys = entityKeys,
-            )
-          } else {
-            // Canonicalize eventGroupReferenceIds for deduplication
-            val eventGroupReferenceIds =
-              eventGroups.map { eventGroupReferenceIdMap.getValue(it.key) }.sorted()
-            FilterSpec.ByEventGroupReferenceIds(
-              celExpression = firstEventGroup.value.filter.expression,
-              collectionInterval = firstEventGroup.value.collectionInterval,
-              eventGroupReferenceIds = eventGroupReferenceIds,
-            )
+                  .toSet()
+              FilterSpec.ByEntityKeys(
+                celExpression = firstEventGroup.value.filter.expression,
+                collectionInterval = firstEventGroup.value.collectionInterval,
+                entityKeys = entityKeys,
+              )
+            }
+            is EventGroupSelector.ByEventGroupReferenceIds -> {
+              // Canonicalize eventGroupReferenceIds for deduplication
+              val eventGroupReferenceIds =
+                eventGroups.map { eventGroupSelector.map.getValue(it.key) }.sorted()
+              FilterSpec.ByEventGroupReferenceIds(
+                celExpression = firstEventGroup.value.filter.expression,
+                collectionInterval = firstEventGroup.value.collectionInterval,
+                eventGroupReferenceIds = eventGroupReferenceIds,
+              )
+            }
           }
 
         filterSpecToReqNames.getOrPut(filterSpec) { mutableListOf() }.add(requisition.name)
@@ -142,6 +142,22 @@ data class FilterSpecIndex(
       }
 
       return FilterSpecIndex(filterSpecToReqNames, reqNameToFilterSpec)
+    }
+
+    /**
+     * Discriminated selector identifying which mechanism a caller wants `fromRequisitions` to
+     * use when canonicalising filters: legacy event-group reference IDs, or entity keys.
+     *
+     * Constructed once at the call site (in `ResultsFulfiller`) so the precedence between the
+     * two is explicit and the map of the unused variant is never even built.
+     */
+    sealed class EventGroupSelector {
+      /** Use the legacy event-group reference IDs as the selector. */
+      data class ByEventGroupReferenceIds(val map: Map<String, String>) : EventGroupSelector()
+
+      /** Use entity keys as the selector. */
+      data class ByEntityKeys(val map: Map<String, LabeledImpression.EntityKey>) :
+        EventGroupSelector()
     }
   }
 }
@@ -197,10 +213,9 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
    * @param populationSpec Population spec defining index space for frequency vectors.
    * @param config Pipeline configuration (batch size, workers, etc.).
    * @param requisitions Requisitions to fulfill
-   * @param eventGroupReferenceIdMap Mapping from event group resource name to reference id.
-   * @param eventGroupEntityKeyMap Mapping from event group resource name to its entity key,
-   *   when set on the EventGroup. When non-empty for any event group of a requisition, all
-   *   that requisition's event groups must have entity keys (mixed → throws).
+   * @param eventGroupSelector Discriminated selector telling the orchestrator whether to
+   *   filter by event-group reference IDs or by entity keys, with the corresponding lookup
+   *   map. Constructed once by the caller so the precedence is explicit.
    * @param eventDescriptor Descriptor of the packed event messages (for CEL evaluation).
    * @return Map from requisition name to computed [StripedByteFrequencyVector].
    * @throws ImpressionReadException on impression read failures
@@ -212,8 +227,7 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
     vidIndexMap: VidIndexMap,
     populationSpec: PopulationSpec,
     requisitions: List<Requisition>,
-    eventGroupReferenceIdMap: Map<String, String>,
-    eventGroupEntityKeyMap: Map<String, LabeledImpression.EntityKey>,
+    eventGroupSelector: FilterSpecIndex.Companion.EventGroupSelector,
     config: PipelineConfiguration,
     eventDescriptor: Descriptors.Descriptor,
   ): Map<String, StripedByteFrequencyVector> {
@@ -237,8 +251,7 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
       val filterSpecIndex =
         FilterSpecIndex.fromRequisitions(
           requisitions,
-          eventGroupReferenceIdMap,
-          eventGroupEntityKeyMap,
+          eventGroupSelector,
           privateEncryptionKey,
         )
       logger.info("Found ${filterSpecIndex.filterSpecToRequisitionNames.size} unique filter specs")
