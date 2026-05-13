@@ -761,7 +761,8 @@ class DataAvailabilitySyncTest {
         batchCreateImpressionMetadata(captor.capture())
       }
       assertThat(captor.allValues.map { it.requestsCount }).containsExactly(2, 1).inOrder()
-      // Two list chunks (3 blob_uris chunked by batch size 2), two create batches, one availability interval update.
+      // Two list chunks (3 blob_uris chunked by batch size 2), two create batches, one availability
+      // interval update.
       assertThat(recordingThrottler.onReadyCalls).isEqualTo(5)
     }
 
@@ -1835,6 +1836,120 @@ class DataAvailabilitySyncTest {
       assertThat(createdMetadata.entityKeysList).isEmpty()
       verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
     }
+
+  @Test
+  fun `sync creates new, updates changed, and skips unchanged metadata`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+    val entityKeyGroups =
+      listOf(
+        entityKeyGroup {
+          entityType = "campaign"
+          entityIds += "campaign-1"
+        }
+      )
+
+    // Seed 3 intervals — all with entity_keys.
+    seedBlobDetails(
+      storageClient,
+      folderPrefix,
+      listOf(100L to 200L, 200L to 300L, 300L to 400L),
+      entityKeyGroups = entityKeyGroups,
+    )
+
+    // Set up list mock to simulate three cases:
+    //   100-200: returned WITH entity_keys (matches scan → skip)
+    //   200-300: returned WITHOUT entity_keys (differs from scan → update)
+    //   300-400: not returned (not found → create)
+    wheneverBlocking {
+        impressionMetadataServiceMock.listImpressionMetadata(any<ListImpressionMetadataRequest>())
+      }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+        val filterBlobUris = request.filter.blobUrisList
+        val existing =
+          listOf(
+            // 100-200: matches scan (has entity_keys) → will be skipped
+            impressionMetadata {
+              name = "dataProviders/dataProvider123/impressionMetadata/im-0"
+              blobUri = "$bucket/${folderPrefix}metadata-0.binpb"
+              blobTypeUrl =
+                "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
+              eventGroupReferenceId = "some-event-group-reference-id"
+              modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
+              interval = interval {
+                startTime = timestamp { seconds = 100 }
+                endTime = timestamp { seconds = 200 }
+              }
+              entityKeys +=
+                entityKeyGroups.flatMap { group ->
+                  group.entityIdsList.map { id ->
+                    entityKey {
+                      entityType = group.entityType
+                      entityId = id
+                    }
+                  }
+                }
+            },
+            // 200-300: differs from scan (no entity_keys) → will be updated
+            impressionMetadata {
+              name = "dataProviders/dataProvider123/impressionMetadata/im-1"
+              blobUri = "$bucket/${folderPrefix}metadata-1.binpb"
+              blobTypeUrl =
+                "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
+              eventGroupReferenceId = "some-event-group-reference-id"
+              modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
+              interval = interval {
+                startTime = timestamp { seconds = 200 }
+                endTime = timestamp { seconds = 300 }
+              }
+              // No entity_keys — differs from scan
+            },
+            // 300-400: not in list → will be created
+          )
+        val matching =
+          if (filterBlobUris.isEmpty()) existing
+          else existing.filter { it.blobUri in filterBlobUris }
+        listImpressionMetadataResponse { impressionMetadata += matching }
+      }
+
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+      )
+
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    // Verify batchCreate has only the NEW entry (300-400).
+    val createCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      batchCreateImpressionMetadata(createCaptor.capture())
+    }
+    val created = createCaptor.firstValue.requestsList.map { it.impressionMetadata }
+    assertThat(created).hasSize(1)
+    assertThat(created.single().interval.startTime.seconds).isEqualTo(300)
+
+    // Verify batchUpdate has only the CHANGED entry (200-300).
+    val updateCaptor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      batchUpdateImpressionMetadata(updateCaptor.capture())
+    }
+    val updated = updateCaptor.firstValue.requestsList.map { it.impressionMetadata }
+    assertThat(updated).hasSize(1)
+    assertThat(updated.single().interval.startTime.seconds).isEqualTo(200)
+    assertThat(updated.single().name)
+      .isEqualTo("dataProviders/dataProvider123/impressionMetadata/im-1")
+    assertThat(updated.single().entityKeysList).isNotEmpty()
+  }
 
   @Test
   fun `overwriting blob_details with entity_keys sends batchUpdate with updated metadata`() =
