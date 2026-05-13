@@ -402,7 +402,10 @@ class ParallelBatchedPipelineTest {
     val now = Instant.now()
     val events =
       (1..6).map { i ->
-        LabeledEvent(timestamp = now, vid = i.toLong(), message = TestEvent.getDefaultInstance(),
+        LabeledEvent(
+          timestamp = now,
+          vid = i.toLong(),
+          message = TestEvent.getDefaultInstance(),
           entityKeys = emptyList(),
         )
       }

@@ -145,11 +145,11 @@ data class FilterSpecIndex(
     }
 
     /**
-     * Discriminated selector identifying which mechanism a caller wants `fromRequisitions` to
-     * use when canonicalising filters: legacy event-group reference IDs, or entity keys.
+     * Discriminated selector identifying which mechanism a caller wants `fromRequisitions` to use
+     * when canonicalising filters: legacy event-group reference IDs, or entity keys.
      *
-     * Constructed once at the call site (in `ResultsFulfiller`) so the precedence between the
-     * two is explicit and the map of the unused variant is never even built.
+     * Constructed once at the call site (in `ResultsFulfiller`) so the precedence between the two
+     * is explicit and the map of the unused variant is never even built.
      */
     sealed class EventGroupSelector {
       /** Use the legacy event-group reference IDs as the selector. */
@@ -213,9 +213,9 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
    * @param populationSpec Population spec defining index space for frequency vectors.
    * @param config Pipeline configuration (batch size, workers, etc.).
    * @param requisitions Requisitions to fulfill
-   * @param eventGroupSelector Discriminated selector telling the orchestrator whether to
-   *   filter by event-group reference IDs or by entity keys, with the corresponding lookup
-   *   map. Constructed once by the caller so the precedence is explicit.
+   * @param eventGroupSelector Discriminated selector telling the orchestrator whether to filter by
+   *   event-group reference IDs or by entity keys, with the corresponding lookup map. Constructed
+   *   once by the caller so the precedence is explicit.
    * @param eventDescriptor Descriptor of the packed event messages (for CEL evaluation).
    * @return Map from requisition name to computed [StripedByteFrequencyVector].
    * @throws ImpressionReadException on impression read failures

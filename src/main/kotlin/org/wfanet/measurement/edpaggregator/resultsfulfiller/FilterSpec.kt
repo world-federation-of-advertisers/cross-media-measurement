@@ -25,12 +25,11 @@ class EmptyEventGroupReferenceIdsException :
   IllegalArgumentException("eventGroupReferenceIds must not be empty")
 
 /** Thrown when a [FilterSpec] is constructed with an empty `entityKeys` selector. */
-class EmptyEntityKeysException :
-  IllegalArgumentException("entityKeys must not be empty")
+class EmptyEntityKeysException : IllegalArgumentException("entityKeys must not be empty")
 
 /**
- * Thrown when a [FilterSpec] is constructed with a `collectionInterval` whose `startTime` is
- * not strictly before its `endTime`.
+ * Thrown when a [FilterSpec] is constructed with a `collectionInterval` whose `startTime` is not
+ * strictly before its `endTime`.
  */
 class InvalidCollectionIntervalException :
   IllegalArgumentException("collectionInterval startTime must be before endTime")
@@ -63,8 +62,8 @@ sealed class FilterSpec {
   /**
    * Legacy selector: filter events by their batch's `eventGroupReferenceId`.
    *
-   * @property eventGroupReferenceIds The reference IDs of the event groups to be filtered. Must
-   *   be non-empty.
+   * @property eventGroupReferenceIds The reference IDs of the event groups to be filtered. Must be
+   *   non-empty.
    */
   data class ByEventGroupReferenceIds(
     override val celExpression: String,
@@ -82,8 +81,8 @@ sealed class FilterSpec {
    * against this set.
    *
    * @property entityKeys Entity keys identifying the EventGroup(s) to be filtered. An event passes
-   *   when its `LabeledEvent.entityKeys` intersects this set (OR-semantics across the set). Must
-   *   be non-empty.
+   *   when its `LabeledEvent.entityKeys` intersects this set (OR-semantics across the set). Must be
+   *   non-empty.
    */
   data class ByEntityKeys(
     override val celExpression: String,

@@ -37,8 +37,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
  *   domain-specific event information.
  * @property entityKeys entities (in the DataProvider's system) that this impression is associated
  *   with, propagated from `LabeledImpression.entity_keys`. Used by the filtering pipeline to drop
- *   events that don't match a requested entity-key selector. Producers without entity-level
- *   slicing (e.g. synthetic data generation) should pass an empty list.
+ *   events that don't match a requested entity-key selector. Producers without entity-level slicing
+ *   (e.g. synthetic data generation) should pass an empty list.
  */
 data class LabeledEvent<T : Message>(
   val timestamp: Instant,

@@ -1149,7 +1149,13 @@ class EventProcessingIntegrationTest {
             val maxTime = eventTimes.maxOrNull() ?: Instant.now()
 
             emit(
-              EventBatch(eventList, minTime, maxTime, eventGroupReferenceId = eventGroupReferenceId, entityKeys = emptyList())
+              EventBatch(
+                eventList,
+                minTime,
+                maxTime,
+                eventGroupReferenceId = eventGroupReferenceId,
+                entityKeys = emptyList()
+              )
             )
           }
         }
@@ -1447,7 +1453,6 @@ class EventProcessingIntegrationTest {
     return if (reach > 0) getTotalCount().toDouble() / reach else 0.0
   }
 
-
   @Test
   fun `FilterSpecIndex fromRequisitions builds ByEntityKeys when all event groups have entity keys`() {
     val timeRange = createTimeRange(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 31))
@@ -1473,8 +1478,7 @@ class EventProcessingIntegrationTest {
 
     val spec = index.requisitionNameToFilterSpec.getValue(req.name)
     assertThat(spec).isInstanceOf(FilterSpec.ByEntityKeys::class.java)
-    assertThat((spec as FilterSpec.ByEntityKeys).entityKeys)
-      .containsExactly(entityKey1, entityKey2)
+    assertThat((spec as FilterSpec.ByEntityKeys).entityKeys).containsExactly(entityKey1, entityKey2)
   }
 
   @Test
@@ -1628,7 +1632,12 @@ class EventProcessingIntegrationTest {
       val populationSpec = loadPopulationSpecFromFile(TEST_DATA_RUNTIME_PATH.toString(), true)
       val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
       val config =
-        PipelineConfiguration(batchSize = 10, channelCapacity = 100, threadPoolSize = 2, workers = 2)
+        PipelineConfiguration(
+          batchSize = 10,
+          channelCapacity = 100,
+          threadPoolSize = 2,
+          workers = 2
+        )
 
       val result =
         eventProcessingOrchestrator.run(
@@ -1664,20 +1673,20 @@ class EventProcessingIntegrationTest {
     eventGroupName: String,
     entityType: String,
     entityId: String,
-  ): GroupedRequisitions.EventGroupMapEntry =
-    eventGroupMapEntry {
-      eventGroup = eventGroupName
-      details = eventGroupDetails {
-        entityKey =
-          GroupedRequisitionsKt.EventGroupDetailsKt.entityKey {
-            this.entityType = entityType
-            this.entityId = entityId
-          }
-      }
+  ): GroupedRequisitions.EventGroupMapEntry = eventGroupMapEntry {
+    eventGroup = eventGroupName
+    details = eventGroupDetails {
+      entityKey =
+        GroupedRequisitionsKt.EventGroupDetailsKt.entityKey {
+          this.entityType = entityType
+          this.entityId = entityId
+        }
     }
+  }
 
   private fun requisitionEventGroupName(requisition: Requisition): String {
-    val signedSpec = decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
+    val signedSpec =
+      decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
     val spec: RequisitionSpec = signedSpec.unpack()
     return spec.events.eventGroupsList.single().key
   }

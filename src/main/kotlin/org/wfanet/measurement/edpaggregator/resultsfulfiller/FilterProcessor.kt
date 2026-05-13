@@ -25,11 +25,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 /**
- * Thrown by [FilterProcessor.processBatch] when the active selector is
- * [FilterSpec.ByEntityKeys] but the incoming [EventBatch] carries no `entity_keys`.
+ * Thrown by [FilterProcessor.processBatch] when the active selector is [FilterSpec.ByEntityKeys]
+ * but the incoming [EventBatch] carries no `entity_keys`.
  *
- * Indicates a wiring/data invariant violation upstream (the blob's `BlobDetails.entity_keys`
- * was not populated despite the consumer requesting entity-key filtering).
+ * Indicates a wiring/data invariant violation upstream (the blob's `BlobDetails.entity_keys` was
+ * not populated despite the consumer requesting entity-key filtering).
  */
 class MissingBatchEntityKeysException :
   IllegalStateException(
@@ -45,8 +45,8 @@ class MissingBatchEntityKeysException :
  * The processor dispatches on [FilterSpec]'s variant to choose the EventGroup selector:
  * - [FilterSpec.ByEventGroupReferenceIds] uses the legacy `eventGroupReferenceId` batch-level
  *   match.
- * - [FilterSpec.ByEntityKeys] uses a batch-level entity-key intersection short-circuit followed
- *   by a per-event entity-key check.
+ * - [FilterSpec.ByEntityKeys] uses a batch-level entity-key intersection short-circuit followed by
+ *   a per-event entity-key check.
  *
  * @param filterSpec immutable specification containing all filtering criteria
  */
@@ -92,10 +92,10 @@ class FilterProcessor<T : Message>(
    *
    * Applies filtering in the following order for optimal performance:
    * 1. Selector check, dispatched on [FilterSpec] variant:
-   *    - [FilterSpec.ByEventGroupReferenceIds]: batch-level `event_group_reference_id` match.
-   *    - [FilterSpec.ByEntityKeys]: batch-level entity-key intersection short-circuit. Throws
-   *      [MissingBatchEntityKeysException] when the batch carries no entity_keys (data invariant
-   *      violation).
+   *     - [FilterSpec.ByEventGroupReferenceIds]: batch-level `event_group_reference_id` match.
+   *     - [FilterSpec.ByEntityKeys]: batch-level entity-key intersection short-circuit. Throws
+   *       [MissingBatchEntityKeysException] when the batch carries no entity_keys (data invariant
+   *       violation).
    * 2. Batch time range overlap check (fast, avoids processing entire batch).
    * 3. Per-event time range filter.
    * 4. Per-event entity-key intersection (only for [FilterSpec.ByEntityKeys]).
@@ -210,8 +210,8 @@ class FilterProcessor<T : Message>(
    * contains an `(entity_type, entity_id)` pair that matches [filter].
    *
    * Pre-flattens the batch's grouped entity keys into a `Set<EntityKeyPair>` once, then performs
-   * O(1) membership lookups for each filter element. Faster than nested `any { contains(...) }`
-   * for batches with many entity keys.
+   * O(1) membership lookups for each filter element. Faster than nested `any { contains(...) }` for
+   * batches with many entity keys.
    *
    * Caller must ensure `batch.entityKeys` is non-empty before invoking.
    */

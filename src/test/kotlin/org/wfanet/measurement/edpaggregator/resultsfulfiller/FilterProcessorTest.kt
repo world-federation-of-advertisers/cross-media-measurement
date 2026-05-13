@@ -20,9 +20,9 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Descriptors
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.Message
+import com.google.protobuf.timestamp
 import com.google.protobuf.util.Timestamps
 import com.google.type.Interval
-import com.google.protobuf.timestamp
 import com.google.type.interval
 import java.time.Instant
 import kotlin.test.assertFailsWith
@@ -139,11 +139,10 @@ class FilterProcessorTest {
   }
 
   /** Helper function to build a [LabeledImpression.EntityKey]. */
-  private fun makeEntityKey(type: String, id: String): LabeledImpression.EntityKey =
-    entityKey {
-      entityType = type
-      entityId = id
-    }
+  private fun makeEntityKey(type: String, id: String): LabeledImpression.EntityKey = entityKey {
+    entityType = type
+    entityId = id
+  }
 
   /** Helper function to build an [EntityKeyGroup] for a single (type, ids...) tuple. */
   private fun makeEntityKeyGroup(type: String, vararg ids: String): EntityKeyGroup =
@@ -161,9 +160,21 @@ class FilterProcessorTest {
 
       val events =
         listOf(
-          createTestLabeledEvent(vid = 1, ageGroup = Person.AgeGroup.YEARS_18_TO_34, entityKeys = emptyList()),
-          createTestLabeledEvent(vid = 2, ageGroup = Person.AgeGroup.YEARS_35_TO_54, entityKeys = emptyList()),
-          createTestLabeledEvent(vid = 3, ageGroup = Person.AgeGroup.YEARS_18_TO_34, entityKeys = emptyList()),
+          createTestLabeledEvent(
+            vid = 1,
+            ageGroup = Person.AgeGroup.YEARS_18_TO_34,
+            entityKeys = emptyList()
+          ),
+          createTestLabeledEvent(
+            vid = 2,
+            ageGroup = Person.AgeGroup.YEARS_35_TO_54,
+            entityKeys = emptyList()
+          ),
+          createTestLabeledEvent(
+            vid = 3,
+            ageGroup = Person.AgeGroup.YEARS_18_TO_34,
+            entityKeys = emptyList()
+          ),
         )
 
       val batch = createEventBatch(events)
@@ -182,9 +193,21 @@ class FilterProcessorTest {
 
       val events =
         listOf(
-          createTestLabeledEvent(1, ageGroup = Person.AgeGroup.YEARS_18_TO_34, entityKeys = emptyList()),
-          createTestLabeledEvent(2, ageGroup = Person.AgeGroup.YEARS_35_TO_54, entityKeys = emptyList()),
-          createTestLabeledEvent(3, ageGroup = Person.AgeGroup.YEARS_55_PLUS, entityKeys = emptyList()),
+          createTestLabeledEvent(
+            1,
+            ageGroup = Person.AgeGroup.YEARS_18_TO_34,
+            entityKeys = emptyList()
+          ),
+          createTestLabeledEvent(
+            2,
+            ageGroup = Person.AgeGroup.YEARS_35_TO_54,
+            entityKeys = emptyList()
+          ),
+          createTestLabeledEvent(
+            3,
+            ageGroup = Person.AgeGroup.YEARS_55_PLUS,
+            entityKeys = emptyList()
+          ),
         )
 
       val batch = createEventBatch(events)
@@ -251,7 +274,11 @@ class FilterProcessorTest {
       val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
       val events =
-        listOf(createTestLabeledEvent(1, entityKeys = emptyList()), createTestLabeledEvent(2, entityKeys = emptyList()), createTestLabeledEvent(3, entityKeys = emptyList()))
+        listOf(
+          createTestLabeledEvent(1, entityKeys = emptyList()),
+          createTestLabeledEvent(2, entityKeys = emptyList()),
+          createTestLabeledEvent(3, entityKeys = emptyList())
+        )
 
       val batch = createEventBatch(events)
       val result = filterProcessor.processBatch(batch)
@@ -382,9 +409,21 @@ class FilterProcessorTest {
       // All events are outside the collection interval (before it starts)
       val events =
         listOf(
-          createTestLabeledEvent(1, timestamp = Instant.parse("2024-12-01T00:00:00Z"), entityKeys = emptyList()),
-          createTestLabeledEvent(2, timestamp = Instant.parse("2024-12-15T12:00:00Z"), entityKeys = emptyList()),
-          createTestLabeledEvent(3, timestamp = Instant.parse("2024-12-31T23:59:59Z"), entityKeys = emptyList()),
+          createTestLabeledEvent(
+            1,
+            timestamp = Instant.parse("2024-12-01T00:00:00Z"),
+            entityKeys = emptyList()
+          ),
+          createTestLabeledEvent(
+            2,
+            timestamp = Instant.parse("2024-12-15T12:00:00Z"),
+            entityKeys = emptyList()
+          ),
+          createTestLabeledEvent(
+            3,
+            timestamp = Instant.parse("2024-12-31T23:59:59Z"),
+            entityKeys = emptyList()
+          ),
         )
 
       val batch = createEventBatch(events)
@@ -457,9 +496,21 @@ class FilterProcessorTest {
       // All events are after the collection interval
       val events =
         listOf(
-          createTestLabeledEvent(1, timestamp = Instant.parse("2025-02-01T00:00:00Z"), entityKeys = emptyList()),
-          createTestLabeledEvent(2, timestamp = Instant.parse("2025-03-15T12:00:00Z"), entityKeys = emptyList()),
-          createTestLabeledEvent(3, timestamp = Instant.parse("2025-04-01T00:00:00Z"), entityKeys = emptyList()),
+          createTestLabeledEvent(
+            1,
+            timestamp = Instant.parse("2025-02-01T00:00:00Z"),
+            entityKeys = emptyList()
+          ),
+          createTestLabeledEvent(
+            2,
+            timestamp = Instant.parse("2025-03-15T12:00:00Z"),
+            entityKeys = emptyList()
+          ),
+          createTestLabeledEvent(
+            3,
+            timestamp = Instant.parse("2025-04-01T00:00:00Z"),
+            entityKeys = emptyList()
+          ),
         )
 
       val batch = createEventBatch(events)
@@ -492,14 +543,26 @@ class FilterProcessorTest {
             timestamp = Instant.parse("2024-12-31T23:59:59.999Z"),
             entityKeys = emptyList(),
           ), // Just before start
-          createTestLabeledEvent(2, timestamp = startTime, entityKeys = emptyList()), // Exactly at start (inclusive)
+          createTestLabeledEvent(
+            2,
+            timestamp = startTime,
+            entityKeys = emptyList()
+          ), // Exactly at start (inclusive)
           createTestLabeledEvent(
             3,
             timestamp = Instant.parse("2025-01-01T12:00:00Z"),
             entityKeys = emptyList(),
           ), // Within range
-          createTestLabeledEvent(4, timestamp = endTime.minusMillis(1), entityKeys = emptyList()), // Just before end
-          createTestLabeledEvent(5, timestamp = endTime, entityKeys = emptyList()), // Exactly at end (exclusive)
+          createTestLabeledEvent(
+            4,
+            timestamp = endTime.minusMillis(1),
+            entityKeys = emptyList()
+          ), // Just before end
+          createTestLabeledEvent(
+            5,
+            timestamp = endTime,
+            entityKeys = emptyList()
+          ), // Exactly at end (exclusive)
         )
 
       val batch = createEventBatch(events)
@@ -547,7 +610,10 @@ class FilterProcessorTest {
           ),
         )
 
-      val result = filterProcessor.processBatch(createEventBatch(events, entityKeys = listOf(makeEntityKeyGroup("ad", "X", "Y"))))
+      val result =
+        filterProcessor.processBatch(
+          createEventBatch(events, entityKeys = listOf(makeEntityKeyGroup("ad", "X", "Y")))
+        )
 
       assertThat(result.events.map { it.vid }).containsExactly(1L, 2L).inOrder()
     }
@@ -556,8 +622,7 @@ class FilterProcessorTest {
   @Test
   fun `processBatch with entityKeys filter drops events whose keys do not intersect`() {
     runBlocking {
-      val filterSpec =
-        createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X")))
+      val filterSpec = createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X")))
       val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
       val events =
@@ -581,8 +646,7 @@ class FilterProcessorTest {
   @Test
   fun `processBatch throws MissingBatchEntityKeysException when ByEntityKeys filter is given a batch with empty entity_keys`() {
     runBlocking {
-      val filterSpec =
-        createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X")))
+      val filterSpec = createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X")))
       val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
       val events = listOf(createTestLabeledEvent(1, entityKeys = emptyList()))
@@ -626,11 +690,15 @@ class FilterProcessorTest {
           ),
         )
 
-      val result = filterProcessor.processBatch(createEventBatch(events, entityKeys = listOf(makeEntityKeyGroup("ad", "X"))))
+      val result =
+        filterProcessor.processBatch(
+          createEventBatch(events, entityKeys = listOf(makeEntityKeyGroup("ad", "X")))
+        )
 
       assertThat(result.events.map { it.vid }).containsExactly(1L)
     }
   }
+
   @Test
   fun `processBatch with entityKeys ignores event_group_reference_id batch check`() {
     runBlocking {
@@ -651,7 +719,10 @@ class FilterProcessorTest {
           createTestLabeledEvent(vid = 2, entityKeys = listOf(makeEntityKey("ad", "Y"))),
         )
 
-      val result = filterProcessor.processBatch(createEventBatch(events, entityKeys = listOf(makeEntityKeyGroup("ad", "X", "Y"))))
+      val result =
+        filterProcessor.processBatch(
+          createEventBatch(events, entityKeys = listOf(makeEntityKeyGroup("ad", "X", "Y")))
+        )
 
       // Batch's event_group_reference_id "test-group" is NOT in the spec, but it is processed
       // anyway because entityKeys takes precedence.
@@ -748,14 +819,12 @@ class FilterProcessorTest {
   @Test
   fun `processBatch with batch entityKeys not overlapping the filter returns empty batch`() {
     runBlocking {
-      val filterSpec =
-        createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X")))
+      val filterSpec = createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X")))
       val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
       // Events would match per-event but the batch's own entity_keys do not overlap the
       // filter — the entire batch is dropped before the per-event check runs.
-      val events =
-        listOf(createTestLabeledEvent(1, entityKeys = listOf(makeEntityKey("ad", "X"))))
+      val events = listOf(createTestLabeledEvent(1, entityKeys = listOf(makeEntityKey("ad", "X"))))
       val batchKeys = listOf(makeEntityKeyGroup("placement", "P"))
 
       val result = filterProcessor.processBatch(createEventBatch(events, entityKeys = batchKeys))
@@ -763,5 +832,4 @@ class FilterProcessorTest {
       assertThat(result.events).isEmpty()
     }
   }
-
 }
