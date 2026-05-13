@@ -33,6 +33,14 @@ service ImpressionMetadataService {
   rpc BatchCreateImpressionMetadata(BatchCreateImpressionMetadataRequest)
       returns (BatchCreateImpressionMetadataResponse);
 
+  // Updates an existing ImpressionMetadata entry.
+  rpc UpdateImpressionMetadata(UpdateImpressionMetadataRequest)
+      returns (ImpressionMetadata);
+
+  // Updates multiple ImpressionMetadata entries in a single request.
+  rpc BatchUpdateImpressionMetadata(BatchUpdateImpressionMetadataRequest)
+      returns (BatchUpdateImpressionMetadataResponse);
+
   // Retrieves a specific ImpressionMetadata entry.
   rpc GetImpressionMetadata(GetImpressionMetadataRequest)
       returns (ImpressionMetadata);
@@ -72,6 +80,24 @@ message BatchCreateImpressionMetadataResponse {
   repeated ImpressionMetadata impression_metadata = 1;
 }
 
+message UpdateImpressionMetadataRequest {
+  ImpressionMetadata impression_metadata = 1;
+
+  // A client-provided request ID for idempotency. Must be a UUID4 string.
+  string request_id = 2;
+}
+
+message BatchUpdateImpressionMetadataRequest {
+  string data_provider_resource_id = 1;
+  // The request message specifying the ImpressionMetadata to update.
+  // A maximum of 50 ImpressionMetadata can be updated in a batch.
+  repeated UpdateImpressionMetadataRequest requests = 2;
+}
+
+message BatchUpdateImpressionMetadataResponse {
+  repeated ImpressionMetadata impression_metadata = 1;
+}
+
 message GetImpressionMetadataRequest {
   string data_provider_resource_id = 1;
   string impression_metadata_resource_id = 2;
@@ -98,6 +124,8 @@ message ListImpressionMetadataRequest {
     // `entity_keys` set contains at least one of the entries listed here.
     // Empty list means no entity-key restriction.
     repeated EntityKey entity_keys = 6;
+    // Filter by exact blob URIs.
+    repeated string blob_uris = 7;
   }
   Filter filter = 4;
 }

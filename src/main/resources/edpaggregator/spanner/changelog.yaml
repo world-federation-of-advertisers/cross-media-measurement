@@ -40,3 +40,6 @@ databaseChangeLog:
   - include:
       file: add-impression-metadata-entity-keys.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-update-request-id.sql
+      relativeToChangeLogFile: true

@@ -80,6 +80,7 @@
     - 'core::0131::method-signature'
     - 'core::0132::method-signature'
     - 'core::0133::method-signature'
+    - 'core::0134::method-signature'
     - 'core::0135::method-signature'
     # Java package uses full domain, while protobuf package does not.
     - 'core::0191::java-package'

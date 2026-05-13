@@ -22,33 +22,42 @@ import com.google.type.interval
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
+import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.UUID
 import java.util.logging.Logger
 import kotlin.text.Charsets.UTF_8
 import kotlin.time.TimeSource
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.flattenConcat
+import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt.filter as listFilter
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.batchUpdateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.updateImpressionMetadataRequest
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -61,7 +70,7 @@ import org.wfanet.measurement.storage.StorageClient
  * Cloud Storage and signaled by the presence of a "done" blob in the relevant folder. It handles:
  * - Crawling the folder where the "done" blob resides to find and parse impression metadata files
  *   (`.binpb` or `.json`).
- * - Validating and storing impression metadata records via the
+ * - Persisting impression metadata records via the
  *   [ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub].
  * - Computing model line availability intervals using the impression metadata service.
  * - Updating the kingdom data provider's availability intervals through
@@ -73,7 +82,7 @@ import org.wfanet.measurement.storage.StorageClient
  * Typical workflow:
  * 1. A "done" blob path is passed to [sync].
  * 2. Metadata blobs in the same folder are discovered and parsed into [ImpressionMetadata].
- * 3. Valid impression metadata are persisted.
+ * 3. Valid impression metadata are persisted (created or updated).
  * 4. Model line availability intervals are computed from the persisted metadata.
  * 5. The data provider's availability intervals are updated accordingly.
  *
@@ -168,7 +177,7 @@ class DataAvailabilitySync(
       // Count total records
       val totalRecords = impressionMetadataMap.values.sumOf { it.size }
 
-      // 2. Save ImpressionMetadata using ImpressionMetadataStorage
+      // 2. Persist ImpressionMetadata (create new, update changed)
       impressionMetadataMap.values.forEach { metadataWithBlobKeys ->
         saveImpressionMetadata(metadataWithBlobKeys)
       }
@@ -294,50 +303,131 @@ class DataAvailabilitySync(
     impressionMetadataList: List<ImpressionMetadataWithBlobKey>
   ) {
     try {
-      impressionMetadataList.chunked(impressionMetadataBatchSize).forEach { chunk ->
-        // Build a map from metadata blob URI to impressions blob key for later lookup
-        val impressionsBlobKeyByMetadataUri =
-          chunk.associate { it.impressionMetadata.blobUri to it.impressionsBlobKey }
+      // Build a map from metadata blob URI to impressions blob key for later lookup
+      val impressionsBlobKeyByMetadataUri =
+        impressionMetadataList.associate { it.impressionMetadata.blobUri to it.impressionsBlobKey }
 
-        val batchRequest: BatchCreateImpressionMetadataRequest =
-          batchCreateImpressionMetadataRequest {
-            parent = dataProviderName
-            chunk.forEach { metadataWithBlobKey ->
-              requests += createImpressionMetadataRequest {
-                parent = dataProviderName
-                impressionMetadata = metadataWithBlobKey.impressionMetadata
-                requestId = uuidV4FromPath(metadataWithBlobKey.impressionMetadata.blobUri)
-              }
-            }
-          }
-        val response: BatchCreateImpressionMetadataResponse =
-          throttler.onReady {
-            impressionMetadataServiceStub.batchCreateImpressionMetadata(batchRequest)
-          }
+      val blobUris = impressionMetadataList.map { it.impressionMetadata.blobUri }
 
-        // Set GCS object metadata for lifecycle management and cleanup
-        for (createdMetadata in response.impressionMetadataList) {
-          val metadataBlobUri = SelectedStorageClient.parseBlobUri(createdMetadata.blobUri)
-          val customCreateTime = createdMetadata.interval.startTime.toInstant()
+      // List existing entries by blob_uri
+      val existingByBlobUri = listImpressionMetadataByBlobUris(blobUris)
 
-          // Update blob details with Custom-Time and resource ID
-          storageClient.updateBlobMetadata(
-            blobKey = metadataBlobUri.key,
-            customCreateTime = customCreateTime,
-            metadata = mapOf(IMPRESSION_METADATA_RESOURCE_ID_KEY to createdMetadata.name),
-          )
+      // Partition into creates and updates
+      val toCreate = mutableListOf<ImpressionMetadataWithBlobKey>()
+      val toUpdate = mutableListOf<ImpressionMetadataWithBlobKey>()
 
-          // Also update the impressions blob with Custom-Time (no resource ID needed)
-          val impressionsBlobKey = impressionsBlobKeyByMetadataUri.getValue(createdMetadata.blobUri)
-          storageClient.updateBlobMetadata(
-            blobKey = impressionsBlobKey,
-            customCreateTime = customCreateTime,
+      for (item in impressionMetadataList) {
+        val existing = existingByBlobUri[item.impressionMetadata.blobUri]
+        if (existing == null) {
+          toCreate.add(item)
+        } else if (hasContentChanged(item.impressionMetadata, existing)) {
+          toUpdate.add(
+            ImpressionMetadataWithBlobKey(
+              impressionMetadata = item.impressionMetadata.copy { name = existing.name },
+              impressionsBlobKey = item.impressionsBlobKey,
+            )
           )
         }
       }
+
+      // BatchCreate new entries, chunked at the RPC boundary
+      val createResponses =
+        toCreate.chunked(impressionMetadataBatchSize).flatMap { createChunk ->
+          throttler
+            .onReady {
+              impressionMetadataServiceStub.batchCreateImpressionMetadata(
+                batchCreateImpressionMetadataRequest {
+                  parent = dataProviderName
+                  createChunk.forEach { item ->
+                    requests += createImpressionMetadataRequest {
+                      parent = dataProviderName
+                      impressionMetadata = item.impressionMetadata
+                      requestId = contentAwareRequestId(item.impressionMetadata)
+                    }
+                  }
+                }
+              )
+            }
+            .impressionMetadataList
+        }
+
+      // BatchUpdate changed entries, chunked at the RPC boundary
+      val updateResponses =
+        toUpdate.chunked(impressionMetadataBatchSize).flatMap { updateChunk ->
+          throttler
+            .onReady {
+              impressionMetadataServiceStub.batchUpdateImpressionMetadata(
+                batchUpdateImpressionMetadataRequest {
+                  parent = dataProviderName
+                  updateChunk.forEach { item ->
+                    requests += updateImpressionMetadataRequest {
+                      impressionMetadata = item.impressionMetadata
+                      requestId = contentAwareRequestId(item.impressionMetadata)
+                    }
+                  }
+                }
+              )
+            }
+            .impressionMetadataList
+        }
+
+      // Set GCS object metadata for lifecycle management and cleanup
+      for (resultMetadata in createResponses + updateResponses) {
+        val metadataBlobUri = SelectedStorageClient.parseBlobUri(resultMetadata.blobUri)
+        val customCreateTime = resultMetadata.interval.startTime.toInstant()
+
+        storageClient.updateBlobMetadata(
+          blobKey = metadataBlobUri.key,
+          customCreateTime = customCreateTime,
+          metadata = mapOf(IMPRESSION_METADATA_RESOURCE_ID_KEY to resultMetadata.name),
+        )
+
+        // Also update the impressions blob with Custom-Time (no resource ID needed)
+        val impressionsBlobKey = impressionsBlobKeyByMetadataUri.getValue(resultMetadata.blobUri)
+        storageClient.updateBlobMetadata(
+          blobKey = impressionsBlobKey,
+          customCreateTime = customCreateTime,
+        )
+      }
     } catch (e: StatusException) {
-      throw Exception("Error creating Impressions Metadata", e)
+      throw Exception("Error saving Impressions Metadata", e)
     }
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+  private suspend fun listImpressionMetadataByBlobUris(
+    blobUris: List<String>
+  ): Map<String, ImpressionMetadata> {
+    return blobUris
+      .chunked(impressionMetadataBatchSize)
+      .flatMap { blobUriChunk ->
+        impressionMetadataServiceStub
+          .listResources { pageToken: String ->
+            val response =
+              throttler.onReady {
+                impressionMetadataServiceStub.listImpressionMetadata(
+                  listImpressionMetadataRequest {
+                    parent = dataProviderName
+                    filter = listFilter { this.blobUris += blobUriChunk }
+                    if (pageToken.isNotEmpty()) {
+                      this.pageToken = pageToken
+                    }
+                  }
+                )
+              }
+            ResourceList(response.impressionMetadataList, response.nextPageToken)
+          }
+          .flattenConcat()
+          .toList()
+      }
+      .associateBy { it.blobUri }
+  }
+
+  private fun hasContentChanged(
+    scanned: ImpressionMetadata,
+    existing: ImpressionMetadata,
+  ): Boolean {
+    return contentAwareRequestId(scanned) != contentAwareRequestId(existing)
   }
 
   /**
@@ -470,19 +560,40 @@ class DataAvailabilitySync(
   }
 
   /**
-   * Generates a deterministic UUIDv4 string from a blob path.
+   * Generates a deterministic UUID string from the content-bearing fields of an
+   * [ImpressionMetadata].
    *
-   * This function ensures idempotency when the same path is used repeatedly:
-   *
-   * @param metadataBlobUri The input path (e.g., a Google Cloud Storage blob URI).
-   * @return A UUIDv4-compliant string that is stable for the given path.
+   * The hash includes blob_uri, model_line, interval, event_group_reference_id, and entity_keys
+   * (sorted for determinism). This ensures the same request_id is produced when the content is
+   * identical, enabling idempotent skipping. When any field changes (e.g., entity_keys are added),
+   * a new request_id is generated, signaling the server to apply the update.
    */
-  private fun uuidV4FromPath(metadataBlobUri: String): String {
-    val hash = MessageDigest.getInstance("SHA-256").digest(metadataBlobUri.toByteArray())
+  private fun contentAwareRequestId(metadata: ImpressionMetadata): String {
+    val canonicalParts = buildString {
+      append(metadata.blobUri)
+      append(FIELD_SEPARATOR)
+      append(metadata.modelLine)
+      append(FIELD_SEPARATOR)
+      append(metadata.interval.startTime.seconds)
+      append(':')
+      append(metadata.interval.startTime.nanos)
+      append('-')
+      append(metadata.interval.endTime.seconds)
+      append(':')
+      append(metadata.interval.endTime.nanos)
+      append(FIELD_SEPARATOR)
+      append(metadata.eventGroupReferenceId)
+      append(FIELD_SEPARATOR)
+      val sortedKeys =
+        metadata.entityKeysList.map { "${it.entityType}$FIELD_SEPARATOR${it.entityId}" }.sorted()
+      append(sortedKeys.joinToString(FIELD_SEPARATOR))
+    }
+    val hash = MessageDigest.getInstance("SHA-256").digest(canonicalParts.toByteArray())
     val bytes = hash.copyOf(16)
     bytes[6] = (bytes[6].toInt() and 0x0F or 0x40).toByte()
     bytes[8] = (bytes[8].toInt() and 0x3F or 0x80).toByte()
-    return UUID.nameUUIDFromBytes(bytes).toString()
+    val buffer = ByteBuffer.wrap(bytes)
+    return UUID(buffer.long, buffer.long).toString()
   }
 
   fun BlobUri.asUriString(): String =
@@ -521,6 +632,8 @@ class DataAvailabilitySync(
     private const val SYNC_STATUS_SKIPPED_GAPS = "skipped_gaps"
     private const val RPC_METHOD_REPLACE_DATA_AVAILABILITY_INTERVALS =
       "ReplaceDataAvailabilityIntervals"
+    // Protobuf string fields cannot contain null bytes, so this eliminates any collision risk.
+    private const val FIELD_SEPARATOR = "\u0000"
     private const val METADATA_FILE_NAME = "metadata"
     private const val PROTO_FILE_SUFFIX = ".binpb"
     private const val JSON_FILE_SUFFIX = ".json"
