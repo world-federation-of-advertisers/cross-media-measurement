@@ -310,8 +310,7 @@ class DataAvailabilitySync(
       val blobUris = impressionMetadataList.map { it.impressionMetadata.blobUri }
 
       // List existing entries by blob_uri
-      val existingByBlobUri =
-        listImpressionMetadataByBlobUris(blobUris).toList().associateBy { it.blobUri }
+      val existingByBlobUri = listImpressionMetadataByBlobUris(blobUris)
 
       // Partition into creates and updates
       val toCreate = mutableListOf<ImpressionMetadataWithBlobKey>()
@@ -396,24 +395,32 @@ class DataAvailabilitySync(
   }
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  private fun listImpressionMetadataByBlobUris(blobUris: List<String>): Flow<ImpressionMetadata> {
-    return impressionMetadataServiceStub
-      .listResources { pageToken: String ->
-        val response =
-          throttler.onReady {
-            impressionMetadataServiceStub.listImpressionMetadata(
-              listImpressionMetadataRequest {
-                parent = dataProviderName
-                filter = listFilter { this.blobUris += blobUris }
-                if (pageToken.isNotEmpty()) {
-                  this.pageToken = pageToken
-                }
+  private suspend fun listImpressionMetadataByBlobUris(
+    blobUris: List<String>
+  ): Map<String, ImpressionMetadata> {
+    return blobUris
+      .chunked(impressionMetadataBatchSize)
+      .flatMap { blobUriChunk ->
+        impressionMetadataServiceStub
+          .listResources { pageToken: String ->
+            val response =
+              throttler.onReady {
+                impressionMetadataServiceStub.listImpressionMetadata(
+                  listImpressionMetadataRequest {
+                    parent = dataProviderName
+                    filter = listFilter { this.blobUris += blobUriChunk }
+                    if (pageToken.isNotEmpty()) {
+                      this.pageToken = pageToken
+                    }
+                  }
+                )
               }
-            )
+            ResourceList(response.impressionMetadataList, response.nextPageToken)
           }
-        ResourceList(response.impressionMetadataList, response.nextPageToken)
+          .flattenConcat()
+          .toList()
       }
-      .flattenConcat()
+      .associateBy { it.blobUri }
   }
 
   private fun hasContentChanged(

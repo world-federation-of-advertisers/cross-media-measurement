@@ -321,9 +321,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->
             ImpressionMetadataNotFoundException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS ->
-            ImpressionMetadataAlreadyExistsException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
@@ -416,9 +414,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->
             ImpressionMetadataNotFoundException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS ->
-            ImpressionMetadataAlreadyExistsException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,

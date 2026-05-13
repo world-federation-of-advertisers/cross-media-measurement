@@ -761,8 +761,8 @@ class DataAvailabilitySyncTest {
         batchCreateImpressionMetadata(captor.capture())
       }
       assertThat(captor.allValues.map { it.requestsCount }).containsExactly(2, 1).inOrder()
-      // One list, two create batches, one availability interval update.
-      assertThat(recordingThrottler.onReadyCalls).isEqualTo(4)
+      // Two list chunks (3 blob_uris chunked by batch size 2), two create batches, one availability interval update.
+      assertThat(recordingThrottler.onReadyCalls).isEqualTo(5)
     }
 
   @Test
