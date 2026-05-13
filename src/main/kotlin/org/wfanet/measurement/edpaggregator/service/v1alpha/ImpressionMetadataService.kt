@@ -314,7 +314,6 @@ class ImpressionMetadataService(
             this.requestId = request.requestId
             impressionMetadata =
               request.impressionMetadata.toInternal(dataProviderKey, impressionMetadataKey)
-            allowMissing = request.allowMissing
           }
         )
       } catch (e: StatusException) {
@@ -395,7 +394,6 @@ class ImpressionMetadataService(
         internalUpdateImpressionMetadataRequest {
           this.requestId = requestId
           impressionMetadata = it.impressionMetadata.toInternal(dataProviderKey, null)
-          allowMissing = it.allowMissing
         }
       }
 
@@ -635,6 +633,9 @@ class ImpressionMetadataService(
           blobUriPrefix = request.filter.blobUriPrefix
         }
         entityKeys += request.filter.entityKeysList.map { it.toInternal() }
+        if (request.filter.blobUrisList.isNotEmpty()) {
+          blobUris += request.filter.blobUrisList
+        }
 
         state =
           if (!request.showDeleted) {

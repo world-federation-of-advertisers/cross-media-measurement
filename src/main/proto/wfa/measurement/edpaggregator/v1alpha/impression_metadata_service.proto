@@ -39,9 +39,6 @@ service ImpressionMetadataService {
       returns (BatchCreateImpressionMetadataResponse) {}
 
   // Updates an existing ImpressionMetadata entry.
-  //
-  // When `allow_missing` is true and no resource with the given `blob_uri`
-  // exists, a new resource is created.
   rpc UpdateImpressionMetadata(UpdateImpressionMetadataRequest)
       returns (ImpressionMetadata) {}
 
@@ -140,29 +137,16 @@ message BatchCreateImpressionMetadataResponse {
 // (-- api-linter: core::0134::request-mask-required=disabled
 //     aip.dev/not-precedent: Partial update not supported;
 //     all mutable fields are always updated together. --)
-// (-- api-linter: core::0134::method-signature=disabled
-//     aip.dev/not-precedent: No update_mask field. --)
 message UpdateImpressionMetadataRequest {
   // The ImpressionMetadata to update.
-  //
-  // The `blob_uri` field is used as the lookup key when `name` is not set.
-  // If `allow_missing` is true and no resource with the given `blob_uri`
-  // exists, a new resource is created.
+  // The `name` field identifies the resource to update.
   ImpressionMetadata impression_metadata = 1
       [(google.api.field_behavior) = REQUIRED];
 
-  // If true and the resource does not exist, a new resource will be created.
-  bool allow_missing = 2 [(google.api.field_behavior) = OPTIONAL];
-
   // A unique identifier for this request, used for idempotency.
   //
-  // If a previous request with the same `request_id` was already processed
-  // for the same `ImpressionMetadata`, the previously stored result is
-  // returned and no update is applied. This applies regardless of whether
-  // the request results in a creation (`allow_missing`) or an update.
-  //
   // This field must be a UUID4 (RFC 4122) string.
-  string request_id = 3 [
+  string request_id = 2 [
     (google.api.field_behavior) = OPTIONAL,
     (google.api.field_info).format = UUID4
   ];
@@ -257,6 +241,10 @@ message ListImpressionMetadataRequest {
     // Filter by entity keys. OR-semantics: a metadata entry matches if its
     // `entity_keys` set contains at least one of the entries listed here.
     repeated EntityKey entity_keys = 5 [(google.api.field_behavior) = OPTIONAL];
+
+    // Filter by exact blob URIs. Only entries whose `blob_uri` matches
+    // one of the given values are returned.
+    repeated string blob_uris = 6 [(google.api.field_behavior) = OPTIONAL];
   }
 
   // A flag indicating whether to include soft DELETED entries.

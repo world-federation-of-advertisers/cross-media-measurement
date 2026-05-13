@@ -462,6 +462,10 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
       conjuncts.add("STARTS_WITH(ImpressionMetadata.BlobUri, @blobUriPrefix)")
     }
 
+    if (filter.blobUrisList.isNotEmpty()) {
+      conjuncts.add("ImpressionMetadata.BlobUri IN UNNEST(@blobUris)")
+    }
+
     if (entityKeyFilter.isNotEmpty()) {
       conjuncts.add(
         """
@@ -516,6 +520,10 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
 
       if (filter.blobUriPrefix.isNotEmpty()) {
         bind("blobUriPrefix").to(filter.blobUriPrefix)
+      }
+
+      if (filter.blobUrisList.isNotEmpty()) {
+        bind("blobUris").toStringArray(filter.blobUrisList)
       }
 
       if (entityKeyFilter.isNotEmpty()) {
@@ -625,18 +633,16 @@ private fun AsyncDatabaseClient.TransactionContext.updateImpressionMetadataField
 }
 
 /**
- * Buffers a batch of [ImpressionMetadata] to be updated (or created if [allow_missing]) in a single
- * transaction.
+ * Buffers a batch of [ImpressionMetadata] to be updated in a single transaction.
  *
  * For each request:
  * - If a request with the same `request_id` was already processed, the previously stored result is
  *   returned (idempotency).
- * - If an entity with the same `blob_uri` exists, its mutable fields and entity keys are replaced.
- * - If no entity exists and `allow_missing` is true, a new entity is created.
- * - If no entity exists and `allow_missing` is false, [ImpressionMetadataNotFoundException] is
- *   thrown.
+ * - The resource is looked up by `impression_metadata_resource_id`.
+ * - If the resource exists, its mutable fields and entity keys are replaced.
+ * - If the resource does not exist, [ImpressionMetadataNotFoundException] is thrown.
  *
- * @return a list of [ImpressionMetadata], containing both updated and newly created entities.
+ * @return a list of [ImpressionMetadata], in the same order as the requests.
  */
 suspend fun AsyncDatabaseClient.TransactionContext.batchUpdateImpressionMetadata(
   requests: List<UpdateImpressionMetadataRequest>
@@ -651,67 +657,37 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchUpdateImpressionMetadata
   val existingByRequestId: Map<String, ImpressionMetadataResult> =
     findExistingImpressionMetadataByRequestIds(dataProviderResourceId, requestIds)
 
-  val blobUris = requests.map { it.impressionMetadata.blobUri }
-  val existingByBlobUri: Map<String, ImpressionMetadataResult> =
-    findExistingImpressionMetadataByBlobUris(dataProviderResourceId, blobUris)
+  val resourceIds = requests.map { it.impressionMetadata.impressionMetadataResourceId }
+  val existingByResourceId: Map<String, ImpressionMetadataResult> =
+    getImpressionMetadataByResourceIds(dataProviderResourceId, resourceIds)
 
-  val results: List<ImpressionMetadata> =
-    requests.map { request ->
-      // 1. Idempotency: same request_id → return previous result
-      val byRequestId = existingByRequestId[request.requestId]
-      if (byRequestId != null) {
-        return@map byRequestId.impressionMetadata
-      }
-
-      // 2. Look up by blob_uri
-      val byBlobUri = existingByBlobUri[request.impressionMetadata.blobUri]
-
-      // 3. Not found and allow_missing is false → fail before buffering any mutations
-      if (byBlobUri == null && !request.allowMissing) {
-        throw ImpressionMetadataNotFoundException(
-            dataProviderResourceId,
-            request.impressionMetadata.blobUri,
-          )
-          .asStatusRuntimeException(Status.Code.NOT_FOUND)
-      }
-
-      // 4. Existing by blob_uri → update mutable fields
-      if (byBlobUri != null) {
-        updateImpressionMetadataFields(
-          dataProviderResourceId,
-          byBlobUri.impressionMetadataId,
-          request.impressionMetadata,
-          request.requestId,
-        )
-        return@map request.impressionMetadata.copy {
-          impressionMetadataResourceId = byBlobUri.impressionMetadata.impressionMetadataResourceId
-          state = byBlobUri.impressionMetadata.state
-          createTime = byBlobUri.impressionMetadata.createTime
-        }
-      }
-
-      // 5. allow_missing → create new
-      val impressionMetadataId =
-        IdGenerator.Default.generateNewId { id ->
-          impressionMetadataExists(request.impressionMetadata.dataProviderResourceId, id)
-        }
-
-      val impressionMetadataResourceId =
-        request.impressionMetadata.impressionMetadataResourceId.ifBlank {
-          "$IMPRESSION_METADATA_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
-        }
-
-      val created =
-        request.impressionMetadata.copy {
-          this.impressionMetadataResourceId = impressionMetadataResourceId
-          state = State.IMPRESSION_METADATA_STATE_ACTIVE
-        }
-
-      insertImpressionMetadata(impressionMetadataId, created, request.requestId)
-      created
+  return requests.map { request ->
+    // 1. Idempotency: same request_id → return previous result
+    val byRequestId = existingByRequestId[request.requestId]
+    if (byRequestId != null) {
+      return@map byRequestId.impressionMetadata
     }
 
-  return results
+    // 2. Look up by resource ID
+    val resourceId = request.impressionMetadata.impressionMetadataResourceId
+    val existing =
+      existingByResourceId[resourceId]
+        ?: throw ImpressionMetadataNotFoundException(dataProviderResourceId, resourceId)
+          .asStatusRuntimeException(Status.Code.NOT_FOUND)
+
+    // 3. Update mutable fields
+    updateImpressionMetadataFields(
+      dataProviderResourceId,
+      existing.impressionMetadataId,
+      request.impressionMetadata,
+      request.requestId,
+    )
+    request.impressionMetadata.copy {
+      impressionMetadataResourceId = existing.impressionMetadata.impressionMetadataResourceId
+      state = existing.impressionMetadata.state
+      createTime = existing.impressionMetadata.createTime
+    }
+  }
 }
 
 private object ImpressionMetadataEntity {

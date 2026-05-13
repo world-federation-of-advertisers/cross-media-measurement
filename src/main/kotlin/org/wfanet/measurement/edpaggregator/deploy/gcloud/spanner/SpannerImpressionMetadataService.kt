@@ -611,6 +611,18 @@ class SpannerImpressionMetadataService(
       throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata")
     }
 
+    if (request.impressionMetadata.impressionMetadataResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException(
+        "${fieldPathPrefix}impression_metadata.impression_metadata_resource_id"
+      )
+    }
+
+    if (request.impressionMetadata.dataProviderResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException(
+        "${fieldPathPrefix}impression_metadata.data_provider_resource_id"
+      )
+    }
+
     if (request.impressionMetadata.blobUri.isEmpty()) {
       throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.blob_uri")
     }
