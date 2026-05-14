@@ -40,6 +40,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
+import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -60,6 +61,8 @@ import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
@@ -133,9 +136,21 @@ class ResultsFulfiller(
         entry.requisition.unpack(Requisition::class.java)
       }
 
-    val eventGroupReferenceIdMap =
-      groupedRequisitions.eventGroupMapList.associate {
-        it.eventGroup to it.details.eventGroupReferenceId
+    // Build the entity-key map once so the precedence decision is explicit at this call site
+    // (instead of being made deep inside FilterSpecIndex.fromRequisitions). When entity keys are
+    // present we use them as the selector; otherwise we fall back to the legacy reference-id
+    // selector and skip building its map entirely.
+    val eventGroupEntityKeyMap: Map<String, LabeledImpression.EntityKey> =
+      buildEventGroupEntityKeyMap(groupedRequisitions.eventGroupMapList)
+    val eventGroupSelector: FilterSpecIndex.Companion.EventGroupSelector =
+      if (eventGroupEntityKeyMap.isNotEmpty()) {
+        FilterSpecIndex.Companion.EventGroupSelector.ByEntityKeys(eventGroupEntityKeyMap)
+      } else {
+        FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
+          groupedRequisitions.eventGroupMapList.associate {
+            it.eventGroup to it.details.eventGroupReferenceId
+          }
+        )
       }
 
     // Filter requisitions that are not in the requisitions metadata storage or have been either
@@ -194,7 +209,7 @@ class ResultsFulfiller(
             vidIndexMap = vidIndexMap,
             populationSpec = populationSpec,
             requisitions = filteredRequisitions,
-            eventGroupReferenceIdMap = eventGroupReferenceIdMap,
+            eventGroupSelector = eventGroupSelector,
             config = pipelineConfiguration,
             eventDescriptor = eventDescriptor,
           )
@@ -610,6 +625,30 @@ class ResultsFulfiller(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    /**
+     * Builds the event group → entity key map from grouped requisition entries.
+     *
+     * Only entries whose details carry a real `entity_key` are included. An entry whose
+     * `entity_key` is the kingdom-side default sentinel — i.e., `entity_id` is empty — is excluded
+     * so that legacy event groups (which only carry the schema default `entity_type="campaign"`)
+     * continue to route through `FilterSpec.ByEventGroupReferenceIds` downstream rather than being
+     * treated as real entity-key selectors.
+     */
+    @VisibleForTesting
+    fun buildEventGroupEntityKeyMap(
+      eventGroupMapList: List<GroupedRequisitions.EventGroupMapEntry>
+    ): Map<String, LabeledImpression.EntityKey> =
+      eventGroupMapList
+        .filter { it.details.hasEntityKey() && it.details.entityKey.entityId.isNotEmpty() }
+        .associate { entry ->
+          val key = entry.details.entityKey
+          entry.eventGroup to
+            LabeledImpressionKt.entityKey {
+              entityType = key.entityType
+              entityId = key.entityId
+            }
+        }
 
     // Memory-based parallelism limit to prevent OOM with large frequency vectors
     // With 360M sized frequency vector sampled at 10%, we get 36M x 16 bytes for

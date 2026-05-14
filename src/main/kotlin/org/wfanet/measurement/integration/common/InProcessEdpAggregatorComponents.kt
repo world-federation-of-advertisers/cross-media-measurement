@@ -97,6 +97,7 @@ import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.deploy.gcloud.SecureComputationServicesProviderRule
+import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
@@ -571,11 +572,30 @@ class InProcessEdpAggregatorComponents(
           storagePath.toFile(),
           "file:///",
         )
+      val override: EventGroupEntityOverride? =
+        entityOverridesByEdp[edpAggregatorShortName]?.get(mappedEventGroup.eventGroupReferenceId)
+      val blobEntityKeys: List<EntityKey> =
+        if (override != null) {
+          listOf(
+            EntityKey(
+              entityType =
+                requireNotNull(override.entityKey?.entityType) {
+                  "Override for ${mappedEventGroup.eventGroupReferenceId} has no entityType"
+                },
+              entityId =
+                requireNotNull(override.entityKey?.entityId) {
+                  "Override for ${mappedEventGroup.eventGroupReferenceId} has no entityId"
+                },
+            )
+          )
+        } else {
+          emptyList()
+        }
       val entityKeyedEvents: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
         events.map {
           EntityKeyedLabeledEventDateShard(
             it.localDate,
-            sequenceOf(EntityKeysWithLabeledEvents(emptyList(), it.labeledEvents)),
+            sequenceOf(EntityKeysWithLabeledEvents(blobEntityKeys, it.labeledEvents)),
           )
         }
       impressionWriter.writeLabeledImpressionData(entityKeyedEvents, modelLineName, null)

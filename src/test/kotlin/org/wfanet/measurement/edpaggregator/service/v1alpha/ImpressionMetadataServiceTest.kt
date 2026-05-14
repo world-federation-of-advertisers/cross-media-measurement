@@ -520,7 +520,7 @@ class ImpressionMetadataServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "requests.1.blob_uri"
+          metadata[Errors.Metadata.FIELD_NAME.key] = "requests.1.impression_metadata.blob_uri"
         }
       )
   }

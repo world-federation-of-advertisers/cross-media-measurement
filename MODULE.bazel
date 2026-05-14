@@ -86,9 +86,10 @@ bazel_dep(
     name = "grpc_ecosystem_grpc_gateway",
     version = "2.26.0.bzlmod.1",
 )
+# Must also be updated in src/main/k8s/local/BUILD.bazel
 bazel_dep(
     name = "cloud-spanner-emulator-bin",
-    version = "1.5.37.libcxx.1",
+    version = "1.5.52",
     repo_name = "cloud_spanner_emulator",
 )
 bazel_dep(
