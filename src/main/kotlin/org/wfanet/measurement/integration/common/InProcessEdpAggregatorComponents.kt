@@ -126,6 +126,7 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 data class EventGroupEntityOverride(
   val entityKey: EventGroup.EntityKey? = null,
   val entityMetadata: Struct? = null,
+  val additionalBlobEntityKeys: List<EntityKey> = emptyList(),
 )
 
 class InProcessEdpAggregatorComponents(
@@ -592,11 +593,31 @@ class InProcessEdpAggregatorComponents(
           emptyList()
         }
       val entityKeyedEvents: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
-        events.map {
-          EntityKeyedLabeledEventDateShard(
-            it.localDate,
-            sequenceOf(EntityKeysWithLabeledEvents(blobEntityKeys, it.labeledEvents)),
-          )
+        if (override != null && override.additionalBlobEntityKeys.isNotEmpty()) {
+          events.map { shard ->
+            val materializedEvents = shard.labeledEvents.toList()
+            val splitPoint = materializedEvents.size / 2
+            EntityKeyedLabeledEventDateShard(
+              shard.localDate,
+              sequenceOf(
+                EntityKeysWithLabeledEvents(
+                  blobEntityKeys,
+                  materializedEvents.take(splitPoint).asSequence(),
+                ),
+                EntityKeysWithLabeledEvents(
+                  override.additionalBlobEntityKeys,
+                  materializedEvents.drop(splitPoint).asSequence(),
+                ),
+              ),
+            )
+          }
+        } else {
+          events.map {
+            EntityKeyedLabeledEventDateShard(
+              it.localDate,
+              sequenceOf(EntityKeysWithLabeledEvents(blobEntityKeys, it.labeledEvents)),
+            )
+          }
         }
       impressionWriter.writeLabeledImpressionData(entityKeyedEvents, modelLineName, null)
     }

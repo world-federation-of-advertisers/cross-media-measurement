@@ -114,6 +114,7 @@ import org.wfanet.measurement.internal.kingdom.hmssProtocolConfigConfig
 import org.wfanet.measurement.internal.kingdom.trusTeeProtocolConfigConfig
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
+import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.job.BasicReportsReportsJob
@@ -201,6 +202,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         mapOf(
           "edp1-eg-ref-1" to syntheticEventGroupSpec2,
           "edp1-eg-creative-1" to syntheticEventGroupSpec2,
+          EDP1_MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID to syntheticEventGroupSpec2,
         ),
       "edp2" to
         mapOf(
@@ -241,11 +243,23 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         entityMetadata = ENTITY_METADATA,
       )
 
-    // edp1: edp1-eg-ref-1 has NO override (legacy); edp1-eg-creative-1 has creative-id.
+    // edp1: edp1-eg-ref-1 has NO override (legacy); edp1-eg-creative-1 has creative-id;
+    //       edp1-eg-multi-creative has two creative-id entity keys in the same blob.
     put(
       EDP_NO_ENTITY_KEY_DISPLAY_NAME,
       mapOf(
-        EDP1_CREATIVE_EVENT_GROUP_REF_ID to creativeIdOverride(EDP1_CREATIVE_EVENT_GROUP_REF_ID)
+        EDP1_CREATIVE_EVENT_GROUP_REF_ID to creativeIdOverride(EDP1_CREATIVE_EVENT_GROUP_REF_ID),
+        EDP1_MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID to
+          EventGroupEntityOverride(
+            entityKey =
+              edpaEntityKey {
+                entityType = CREATIVE_ID_ENTITY_TYPE
+                entityId = EDP1_MULTI_CREATIVE_A_ID
+              },
+            entityMetadata = ENTITY_METADATA,
+            additionalBlobEntityKeys =
+              listOf(EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_MULTI_CREATIVE_B_ID)),
+          ),
       ),
     )
     // edp2: edp2-eg-ref-1 has campaign; edp2-eg-creative-1 has creative-id.
@@ -1182,7 +1196,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   ): List<EventGroup> {
     return buildList {
       val includedDataProviders = mutableSetOf<String>()
-      val eventGroups = listReportingEventGroups()
+      val eventGroups =
+        listReportingEventGroups().filter {
+          it.eventGroupReferenceId != EDP1_MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID
+        }
       eventGroups.forEach { eventGroup ->
         val dataProvider =
           reportingDataProvidersClient
@@ -1253,7 +1270,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
 
   private suspend fun getCreativeIdOnlyEventGroups(): List<EventGroup> {
-    return listReportingEventGroups().filter { it.entityKey.entityType == CREATIVE_ID_ENTITY_TYPE }
+    return listReportingEventGroups().filter {
+      it.entityKey.entityType == CREATIVE_ID_ENTITY_TYPE &&
+        it.eventGroupReferenceId != EDP1_MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID
+    }
   }
 
   private suspend fun getReferenceIdOnlyEventGroups(): List<EventGroup> {
@@ -1356,6 +1376,39 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
   }
 
+  @Test
+  fun `basic report with multi-entity-key blob filtering to one entity key succeeds`() =
+    runBlocking {
+      val multiEntityKeyEventGroups =
+        listReportingEventGroups().filter {
+          it.eventGroupReferenceId == EDP1_MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID
+        }
+      check(multiEntityKeyEventGroups.isNotEmpty()) { "No multi-entity-key event group found" }
+
+      val createBasicReportRequest =
+        buildCreateBasicReportRequest(
+          multiEntityKeyEventGroups,
+          "multi-entity-key-campaign",
+          "multi-entity-key-basicreport",
+          includeIqfFilter = false,
+        )
+
+      val createdBasicReport =
+        reportingBasicReportsClient
+          .withCallCredentials(credentials)
+          .createBasicReport(createBasicReportRequest)
+
+      executeBasicReportsReportsJob(createdBasicReport.name)
+      executeReportProcessorJob()
+
+      val completedBasicReport =
+        reportingBasicReportsClient
+          .withCallCredentials(credentials)
+          .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+      assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+    }
+
   companion object {
     // edp1 has no entity_key/entity_metadata override (legacy path).
     // edp4 is configured with multi-party noise CONTINUOUS_GAUSSIAN, so it's the "restricted"
@@ -1367,6 +1420,9 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     private const val AD_GROUP_EDP_EVENT_GROUP_REF_ID = "edp4-eg-ref-1"
     private const val RESTRICTED_EDP_DISPLAY_NAME = AD_GROUP_EDP_DISPLAY_NAME
     private const val CREATIVE_ID_ENTITY_TYPE = "creative-id"
+    private const val EDP1_MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID = "edp1-eg-multi-creative"
+    private const val EDP1_MULTI_CREATIVE_A_ID = "multi-creative-A"
+    private const val EDP1_MULTI_CREATIVE_B_ID = "multi-creative-B"
     private const val EDP1_CREATIVE_EVENT_GROUP_REF_ID = "edp1-eg-creative-1"
     private const val EDP2_CREATIVE_EVENT_GROUP_REF_ID = "edp2-eg-creative-1"
     private val logger: Logger = Logger.getLogger(this::class.java.name)
