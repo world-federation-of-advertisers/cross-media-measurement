@@ -108,7 +108,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           objectKey = "edp7/event-groups/edp7-event-group.binpb",
           blobUri = "gs://$bucket/edp7/event-groups/edp7-event-group.binpb",
           eventGroupReferenceIds =
-            setOf(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID, CREATIVE_ID_EVENT_GROUP_REF_ID),
+            setOf(
+              EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID,
+              CREATIVE_ID_EVENT_GROUP_REF_ID,
+              MULTI_CREATIVE_EVENT_GROUP_REF_ID,
+            ),
         ),
         EdpStorage(
           objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.binpb",
@@ -188,7 +192,9 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
               .atTime(23, 59, 59)
               .atZone(ZONE_ID)
               .toInstant()
-          val hasCreativeIdEntityKey = eventGroupReferenceId == CREATIVE_ID_EVENT_GROUP_REF_ID
+          val hasCreativeIdEntityKey =
+            eventGroupReferenceId in
+              setOf(CREATIVE_ID_EVENT_GROUP_REF_ID, MULTI_CREATIVE_EVENT_GROUP_REF_ID)
           eventGroup {
             this.eventGroupReferenceId = eventGroupReferenceId
             measurementConsumer = TEST_CONFIG.measurementConsumer
@@ -474,6 +480,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       mapOf(
         EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID to syntheticEventGroupSpec,
         CREATIVE_ID_EVENT_GROUP_REF_ID to syntheticEventGroupSpec,
+        MULTI_CREATIVE_EVENT_GROUP_REF_ID to syntheticEventGroupSpec,
         EDPA_META_EVENT_GROUP_REF_ID to syntheticEventGroupSpec,
       )
 

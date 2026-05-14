@@ -200,6 +200,16 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
     )
   }
 
+  @Test
+  fun `direct measurement with multi-entity-key blob filtering to one entity key succeeds`() =
+    runBlocking {
+      mcSimulator.testDirectReachAndFrequency(
+        "1242",
+        1,
+        eventGroupFilter = { it.eventGroupReferenceId == MULTI_CREATIVE_EVENT_GROUP_REF_ID },
+      )
+    }
+
   interface MeasurementSystem {
     val runId: String
     val mcSimulator: MeasurementConsumerSimulator
@@ -215,6 +225,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
 
     const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-1"
     const val CREATIVE_ID_EVENT_GROUP_REF_ID = "edpa-eg-creative-id-1"
+    const val MULTI_CREATIVE_EVENT_GROUP_REF_ID = "edpa-eg-multi-creative-1"
     const val EDPA_META_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-2"
 
     val OUTPUT_DP_PARAMS = differentialPrivacyParams {
