@@ -197,35 +197,83 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
 
   private val syntheticEventGroupMapByEdp =
     mapOf(
-      "edp1" to mapOf("edp1-eg-ref-1" to syntheticEventGroupSpec2),
-      "edp2" to mapOf("edp2-eg-ref-1" to syntheticEventGroupSpec1),
+      "edp1" to
+        mapOf(
+          "edp1-eg-ref-1" to syntheticEventGroupSpec2,
+          "edp1-eg-creative-1" to syntheticEventGroupSpec2,
+        ),
+      "edp2" to
+        mapOf(
+          "edp2-eg-ref-1" to syntheticEventGroupSpec1,
+          "edp2-eg-creative-1" to syntheticEventGroupSpec1,
+        ),
       "edp3" to mapOf("edp3-eg-ref-1" to syntheticEventGroupSpec2),
       "edp4" to mapOf("edp4-eg-ref-1" to syntheticEventGroupSpec1),
     )
 
   // Mix of entity_key shapes so the test exercises every path the workstream cares about:
-  //   - edp1: no override (legacy path; Kingdom defaults entity_type="campaign", entity_id NULL).
-  //   - edp2, edp3: overridden with entity_type="campaign" + entity_id + metadata.
-  //   - edp4: overridden with entity_type="ad_group" (non-default type round-trip).
-  // listReportingEventGroups() filters entity_type_in=["campaign", "ad_group"] so edp4 stays
-  // visible to the HMSS/TrusTee correctness tests despite its non-default entity_type.
-  private val entityOverridesByEdp: Map<String, Map<String, EventGroupEntityOverride>> =
-    syntheticEventGroupMapByEdp
-      .filterKeys { it != EDP_NO_ENTITY_KEY_DISPLAY_NAME }
-      .mapValues { (edpDisplayName, edpRefs) ->
-        edpRefs.keys.associateWith { refId ->
-          val entityType =
-            if (edpDisplayName == AD_GROUP_EDP_DISPLAY_NAME) "ad_group" else "campaign"
+  //   - edp1-eg-ref-1: no override (legacy path; Kingdom defaults entity_type="campaign",
+  //     entity_id NULL).
+  //   - edp1-eg-creative-1: overridden with entity_type="creative-id".
+  //   - edp2-eg-ref-1, edp3-eg-ref-1: overridden with entity_type="campaign" + entity_id.
+  //   - edp2-eg-creative-1: overridden with entity_type="creative-id".
+  //   - edp4-eg-ref-1: overridden with entity_type="ad_group" (non-default type round-trip).
+  // listReportingEventGroups() filters entity_type_in=["campaign", "ad_group", "creative-id"]
+  // so all event groups are visible.
+  private val entityOverridesByEdp: Map<String, Map<String, EventGroupEntityOverride>> = buildMap {
+    fun creativeIdOverride(refId: String) =
+      EventGroupEntityOverride(
+        entityKey =
+          edpaEntityKey {
+            entityType = CREATIVE_ID_ENTITY_TYPE
+            entityId = refId
+          },
+        entityMetadata = ENTITY_METADATA,
+      )
+
+    fun campaignOverride(refId: String) =
+      EventGroupEntityOverride(
+        entityKey =
+          edpaEntityKey {
+            entityType = "campaign"
+            entityId = refId
+          },
+        entityMetadata = ENTITY_METADATA,
+      )
+
+    // edp1: edp1-eg-ref-1 has NO override (legacy); edp1-eg-creative-1 has creative-id.
+    put(
+      EDP_NO_ENTITY_KEY_DISPLAY_NAME,
+      mapOf(
+        EDP1_CREATIVE_EVENT_GROUP_REF_ID to creativeIdOverride(EDP1_CREATIVE_EVENT_GROUP_REF_ID)
+      ),
+    )
+    // edp2: edp2-eg-ref-1 has campaign; edp2-eg-creative-1 has creative-id.
+    put(
+      "edp2",
+      mapOf(
+        "edp2-eg-ref-1" to campaignOverride("edp2-eg-ref-1"),
+        EDP2_CREATIVE_EVENT_GROUP_REF_ID to creativeIdOverride(EDP2_CREATIVE_EVENT_GROUP_REF_ID),
+      ),
+    )
+    // edp3: campaign.
+    put("edp3", mapOf("edp3-eg-ref-1" to campaignOverride("edp3-eg-ref-1")))
+    // edp4: ad_group.
+    put(
+      AD_GROUP_EDP_DISPLAY_NAME,
+      mapOf(
+        AD_GROUP_EDP_EVENT_GROUP_REF_ID to
           EventGroupEntityOverride(
             entityKey =
               edpaEntityKey {
-                this.entityType = entityType
-                this.entityId = refId
+                entityType = "ad_group"
+                entityId = AD_GROUP_EDP_EVENT_GROUP_REF_ID
               },
             entityMetadata = ENTITY_METADATA,
           )
-        }
-      }
+      ),
+    )
+  }
 
   private val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents =
     InProcessEdpAggregatorComponents(
@@ -1022,6 +1070,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
             ListEventGroupsRequestKt.filter {
               entityTypeIn += "campaign"
               entityTypeIn += "ad_group"
+              entityTypeIn += CREATIVE_ID_ENTITY_TYPE
             }
         }
       )
@@ -1203,6 +1252,110 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       it.trusTeeSupported
     }
 
+  private suspend fun getCreativeIdOnlyEventGroups(): List<EventGroup> {
+    return listReportingEventGroups().filter { it.entityKey.entityType == CREATIVE_ID_ENTITY_TYPE }
+  }
+
+  private suspend fun getReferenceIdOnlyEventGroups(): List<EventGroup> {
+    return listReportingEventGroups().filter { it.entityKey.entityId.isEmpty() }
+  }
+
+  private suspend fun getMixedEntityKeyEventGroups(): List<EventGroup> {
+    val allEventGroups = listReportingEventGroups()
+    val edp1RefIdOnly =
+      allEventGroups.first { it.eventGroupReferenceId == EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID }
+    val edp1CreativeId =
+      allEventGroups.first { it.eventGroupReferenceId == EDP1_CREATIVE_EVENT_GROUP_REF_ID }
+    return listOf(edp1RefIdOnly, edp1CreativeId)
+  }
+
+  @Test
+  fun `basic report with reference-id-only event groups succeeds`() = runBlocking {
+    val refIdOnlyEventGroups = getReferenceIdOnlyEventGroups()
+    check(refIdOnlyEventGroups.isNotEmpty()) { "No reference-ID-only event groups found" }
+
+    val createBasicReportRequest =
+      buildCreateBasicReportRequest(
+        refIdOnlyEventGroups,
+        "ref-id-only-campaign",
+        "ref-id-only-basicreport",
+        includeIqfFilter = false,
+      )
+
+    val createdBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .createBasicReport(createBasicReportRequest)
+
+    executeBasicReportsReportsJob(createdBasicReport.name)
+    executeReportProcessorJob()
+
+    val completedBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+  }
+
+  @Test
+  fun `basic report with creative-id entity-key-only event groups succeeds`() = runBlocking {
+    val creativeIdEventGroups = getCreativeIdOnlyEventGroups()
+    check(creativeIdEventGroups.size >= 2) {
+      "Expected at least 2 creative-id event groups, got ${creativeIdEventGroups.size}"
+    }
+
+    val createBasicReportRequest =
+      buildCreateBasicReportRequest(
+        creativeIdEventGroups,
+        "creative-id-only-campaign",
+        "creative-id-only-basicreport",
+        includeIqfFilter = false,
+      )
+
+    val createdBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .createBasicReport(createBasicReportRequest)
+
+    executeBasicReportsReportsJob(createdBasicReport.name)
+    executeReportProcessorJob()
+
+    val completedBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+  }
+
+  @Test
+  fun `basic report with mixed reference-id and entity-key event groups fails`() = runBlocking {
+    val mixedEventGroups = getMixedEntityKeyEventGroups()
+
+    val createBasicReportRequest =
+      buildCreateBasicReportRequest(
+        mixedEventGroups,
+        "mixed-selectors-campaign",
+        "mixed-selectors-basicreport",
+        includeIqfFilter = false,
+      )
+
+    val createdBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .createBasicReport(createBasicReportRequest)
+
+    executeBasicReportsReportsJob(createdBasicReport.name)
+
+    val completedBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
+  }
+
   companion object {
     // edp1 has no entity_key/entity_metadata override (legacy path).
     // edp4 is configured with multi-party noise CONTINUOUS_GAUSSIAN, so it's the "restricted"
@@ -1213,6 +1366,9 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     private const val AD_GROUP_EDP_DISPLAY_NAME = "edp4"
     private const val AD_GROUP_EDP_EVENT_GROUP_REF_ID = "edp4-eg-ref-1"
     private const val RESTRICTED_EDP_DISPLAY_NAME = AD_GROUP_EDP_DISPLAY_NAME
+    private const val CREATIVE_ID_ENTITY_TYPE = "creative-id"
+    private const val EDP1_CREATIVE_EVENT_GROUP_REF_ID = "edp1-eg-creative-1"
+    private const val EDP2_CREATIVE_EVENT_GROUP_REF_ID = "edp2-eg-creative-1"
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val SECRETS_DIR: File =
       getRuntimePath(
