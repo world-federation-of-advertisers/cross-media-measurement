@@ -73,7 +73,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey as edpaEntityKey
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
@@ -123,10 +123,10 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  * field may be left null; null fields fall back to the proto default (no entity_key / no
  * entity_metadata).
  */
-data class EventGroupEntityOverride(
-  val entityKey: EventGroup.EntityKey? = null,
+data class EventGroupConfig(
+  val spec: SyntheticEventGroupSpec,
+  val blobEntityKeys: List<EntityKey> = emptyList(),
   val entityMetadata: Struct? = null,
-  val additionalBlobEntityKeys: List<EntityKey> = emptyList(),
 )
 
 class InProcessEdpAggregatorComponents(
@@ -134,10 +134,9 @@ class InProcessEdpAggregatorComponents(
   private val storagePath: Path,
   private val pubSubClient: GooglePubSubEmulatorClient,
   private val syntheticPopulationSpec: SyntheticPopulationSpec,
-  private val syntheticEventGroupMapByEdp: Map<String, Map<String, SyntheticEventGroupSpec>>,
+  private val eventGroupConfigsByEdp: Map<String, Map<String, EventGroupConfig>>,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val externalKmsClient: FakeKmsClient,
-  private val entityOverridesByEdp: Map<String, Map<String, EventGroupEntityOverride>> = emptyMap(),
 ) : TestRule {
   private val modelLineName: String by lazy { requireSingleModelLineName(modelLineInfoMap.keys) }
 
@@ -373,13 +372,15 @@ class InProcessEdpAggregatorComponents(
       runBlocking { writeImpressionData(mappedEventGroups, edpAggregatorShortName) }
 
       mappedEventGroups.forEach { mappedEventGroup ->
+        val metaConfig: EventGroupConfig =
+          eventGroupConfigsByEdp
+            .getValue(edpAggregatorShortName)
+            .getValue(mappedEventGroup.eventGroupReferenceId)
         val events =
           SyntheticDataGeneration.generateEvents(
             TestEvent.getDefaultInstance(),
             syntheticPopulationSpec,
-            syntheticEventGroupMapByEdp
-              .getValue(edpAggregatorShortName)
-              .getValue(mappedEventGroup.eventGroupReferenceId),
+            metaConfig.spec,
           )
 
         val allDates: List<LocalDate> = events.map { it.localDate }.toList()
@@ -495,12 +496,9 @@ class InProcessEdpAggregatorComponents(
     measurementConsumerData: MeasurementConsumerData,
     edpAggregatorShortName: String,
   ): List<EventGroup> {
-    val edpOverrides: Map<String, EventGroupEntityOverride> =
-      entityOverridesByEdp[edpAggregatorShortName].orEmpty()
-    return syntheticEventGroupMapByEdp.getValue(edpAggregatorShortName).flatMap {
-      (eventGroupReferenceId, syntheticEventGroupSpec) ->
-      val override: EventGroupEntityOverride? = edpOverrides[eventGroupReferenceId]
-      syntheticEventGroupSpec.dateSpecsList.map { dateSpec ->
+    return eventGroupConfigsByEdp.getValue(edpAggregatorShortName).flatMap {
+      (eventGroupReferenceId, config) ->
+      config.spec.dateSpecsList.map { dateSpec ->
         val dateRange = dateSpec.dateRange
         val startTime =
           LocalDate.of(dateRange.start.year, dateRange.start.month, dateRange.start.day)
@@ -529,12 +527,15 @@ class InProcessEdpAggregatorComponents(
                 campaign = "some-brand"
               }
             }
-            if (override?.entityMetadata != null) {
-              this.entityMetadata = override.entityMetadata
+            if (config.entityMetadata != null) {
+              this.entityMetadata = config.entityMetadata
             }
           }
-          if (override?.entityKey != null) {
-            this.entityKey = override.entityKey
+          if (config.blobEntityKeys.isNotEmpty()) {
+            this.entityKey = edpaEntityKey {
+              entityType = config.blobEntityKeys.first().entityType
+              entityId = config.blobEntityKeys.first().entityId
+            }
           }
           mediaTypes += MediaType.valueOf("VIDEO")
         }
@@ -554,13 +555,15 @@ class InProcessEdpAggregatorComponents(
     }
 
     mappedEventGroups.forEach { mappedEventGroup ->
+      val config: EventGroupConfig =
+        eventGroupConfigsByEdp
+          .getValue(edpAggregatorShortName)
+          .getValue(mappedEventGroup.eventGroupReferenceId)
       val events: Sequence<LabeledEventDateShard<TestEvent>> =
         SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           syntheticPopulationSpec,
-          syntheticEventGroupMapByEdp
-            .getValue(edpAggregatorShortName)
-            .getValue(mappedEventGroup.eventGroupReferenceId),
+          config.spec,
         )
       val impressionWriter =
         ImpressionsWriter(
@@ -573,42 +576,26 @@ class InProcessEdpAggregatorComponents(
           storagePath.toFile(),
           "file:///",
         )
-      val override: EventGroupEntityOverride? =
-        entityOverridesByEdp[edpAggregatorShortName]?.get(mappedEventGroup.eventGroupReferenceId)
-      val blobEntityKeys: List<EntityKey> =
-        if (override != null) {
-          listOf(
-            EntityKey(
-              entityType =
-                requireNotNull(override.entityKey?.entityType) {
-                  "Override for ${mappedEventGroup.eventGroupReferenceId} has no entityType"
-                },
-              entityId =
-                requireNotNull(override.entityKey?.entityId) {
-                  "Override for ${mappedEventGroup.eventGroupReferenceId} has no entityId"
-                },
-            )
-          )
-        } else {
-          emptyList()
-        }
+      val blobEntityKeys: List<EntityKey> = config.blobEntityKeys
       val entityKeyedEvents: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
-        if (override != null && override.additionalBlobEntityKeys.isNotEmpty()) {
+        if (blobEntityKeys.size > 1) {
           events.map { shard ->
             val materializedEvents = shard.labeledEvents.toList()
-            val splitPoint = materializedEvents.size / 2
+            val chunkSize = materializedEvents.size / blobEntityKeys.size
             EntityKeyedLabeledEventDateShard(
               shard.localDate,
-              sequenceOf(
-                EntityKeysWithLabeledEvents(
-                  blobEntityKeys,
-                  materializedEvents.take(splitPoint).asSequence(),
-                ),
-                EntityKeysWithLabeledEvents(
-                  override.additionalBlobEntityKeys,
-                  materializedEvents.drop(splitPoint).asSequence(),
-                ),
-              ),
+              blobEntityKeys
+                .mapIndexed { i, entityKey ->
+                  val start = i * chunkSize
+                  val end =
+                    if (i == blobEntityKeys.lastIndex) materializedEvents.size
+                    else start + chunkSize
+                  EntityKeysWithLabeledEvents(
+                    listOf(entityKey),
+                    materializedEvents.subList(start, end).asSequence(),
+                  )
+                }
+                .asSequence(),
             )
           }
         } else {

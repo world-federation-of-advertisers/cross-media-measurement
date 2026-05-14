@@ -90,7 +90,6 @@ import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.metricSpecConfig
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey as edpaEntityKey
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
@@ -98,7 +97,7 @@ import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.common.AccessServicesFactory
-import org.wfanet.measurement.integration.common.EventGroupEntityOverride
+import org.wfanet.measurement.integration.common.EventGroupConfig
 import org.wfanet.measurement.integration.common.FULFILLER_TOPIC_ID
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
@@ -196,109 +195,83 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     tempDirectory.root.toPath()
   }
 
-  private val syntheticEventGroupMapByEdp =
+  // Each event group config combines the synthetic data spec with entity key configuration.
+  //   - edp1-eg-ref-1: no entity key (legacy; Kingdom defaults entity_type="campaign").
+  //   - edp1-eg-creative-1: entity_type="creative-id".
+  //   - edp1-eg-multi-creative: two creative-id entity keys in the same blob.
+  //   - edp2-eg-ref-1, edp3-eg-ref-1: entity_type="campaign" + entity_id.
+  //   - edp2-eg-creative-1: entity_type="creative-id".
+  //   - edp4-eg-ref-1: entity_type="ad_group" (non-default type round-trip).
+  // listReportingEventGroups() filters entity_type_in=["campaign", "ad_group", "creative-id"]
+  // so all event groups are visible.
+  private val eventGroupConfigsByEdp: Map<String, Map<String, EventGroupConfig>> =
     mapOf(
-      "edp1" to
+      EDP_NO_ENTITY_KEY_DISPLAY_NAME to
         mapOf(
-          "edp1-eg-ref-1" to syntheticEventGroupSpec2,
-          "edp1-eg-creative-1" to syntheticEventGroupSpec2,
-          EDP1_MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID to syntheticEventGroupSpec2,
+          "edp1-eg-ref-1" to EventGroupConfig(syntheticEventGroupSpec2),
+          EDP1_CREATIVE_EVENT_GROUP_REF_ID to
+            EventGroupConfig(
+              syntheticEventGroupSpec2,
+              blobEntityKeys =
+                listOf(EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_CREATIVE_EVENT_GROUP_REF_ID)),
+              entityMetadata = ENTITY_METADATA,
+            ),
+          EDP1_MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID to
+            EventGroupConfig(
+              syntheticEventGroupSpec2,
+              blobEntityKeys =
+                listOf(
+                  EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_MULTI_CREATIVE_A_ID),
+                  EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_MULTI_CREATIVE_B_ID),
+                ),
+              entityMetadata = ENTITY_METADATA,
+            ),
         ),
       "edp2" to
         mapOf(
-          "edp2-eg-ref-1" to syntheticEventGroupSpec1,
-          "edp2-eg-creative-1" to syntheticEventGroupSpec1,
+          "edp2-eg-ref-1" to
+            EventGroupConfig(
+              syntheticEventGroupSpec1,
+              blobEntityKeys = listOf(EntityKey("campaign", "edp2-eg-ref-1")),
+              entityMetadata = ENTITY_METADATA,
+            ),
+          EDP2_CREATIVE_EVENT_GROUP_REF_ID to
+            EventGroupConfig(
+              syntheticEventGroupSpec1,
+              blobEntityKeys =
+                listOf(EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP2_CREATIVE_EVENT_GROUP_REF_ID)),
+              entityMetadata = ENTITY_METADATA,
+            ),
         ),
-      "edp3" to mapOf("edp3-eg-ref-1" to syntheticEventGroupSpec2),
-      "edp4" to mapOf("edp4-eg-ref-1" to syntheticEventGroupSpec1),
+      "edp3" to
+        mapOf(
+          "edp3-eg-ref-1" to
+            EventGroupConfig(
+              syntheticEventGroupSpec2,
+              blobEntityKeys = listOf(EntityKey("campaign", "edp3-eg-ref-1")),
+              entityMetadata = ENTITY_METADATA,
+            )
+        ),
+      AD_GROUP_EDP_DISPLAY_NAME to
+        mapOf(
+          AD_GROUP_EDP_EVENT_GROUP_REF_ID to
+            EventGroupConfig(
+              syntheticEventGroupSpec1,
+              blobEntityKeys = listOf(EntityKey("ad_group", AD_GROUP_EDP_EVENT_GROUP_REF_ID)),
+              entityMetadata = ENTITY_METADATA,
+            )
+        ),
     )
-
-  // Mix of entity_key shapes so the test exercises every path the workstream cares about:
-  //   - edp1-eg-ref-1: no override (legacy path; Kingdom defaults entity_type="campaign",
-  //     entity_id NULL).
-  //   - edp1-eg-creative-1: overridden with entity_type="creative-id".
-  //   - edp2-eg-ref-1, edp3-eg-ref-1: overridden with entity_type="campaign" + entity_id.
-  //   - edp2-eg-creative-1: overridden with entity_type="creative-id".
-  //   - edp4-eg-ref-1: overridden with entity_type="ad_group" (non-default type round-trip).
-  // listReportingEventGroups() filters entity_type_in=["campaign", "ad_group", "creative-id"]
-  // so all event groups are visible.
-  private val entityOverridesByEdp: Map<String, Map<String, EventGroupEntityOverride>> = buildMap {
-    fun creativeIdOverride(refId: String) =
-      EventGroupEntityOverride(
-        entityKey =
-          edpaEntityKey {
-            entityType = CREATIVE_ID_ENTITY_TYPE
-            entityId = refId
-          },
-        entityMetadata = ENTITY_METADATA,
-      )
-
-    fun campaignOverride(refId: String) =
-      EventGroupEntityOverride(
-        entityKey =
-          edpaEntityKey {
-            entityType = "campaign"
-            entityId = refId
-          },
-        entityMetadata = ENTITY_METADATA,
-      )
-
-    // edp1: edp1-eg-ref-1 has NO override (legacy); edp1-eg-creative-1 has creative-id;
-    //       edp1-eg-multi-creative has two creative-id entity keys in the same blob.
-    put(
-      EDP_NO_ENTITY_KEY_DISPLAY_NAME,
-      mapOf(
-        EDP1_CREATIVE_EVENT_GROUP_REF_ID to creativeIdOverride(EDP1_CREATIVE_EVENT_GROUP_REF_ID),
-        EDP1_MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID to
-          EventGroupEntityOverride(
-            entityKey =
-              edpaEntityKey {
-                entityType = CREATIVE_ID_ENTITY_TYPE
-                entityId = EDP1_MULTI_CREATIVE_A_ID
-              },
-            entityMetadata = ENTITY_METADATA,
-            additionalBlobEntityKeys =
-              listOf(EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_MULTI_CREATIVE_B_ID)),
-          ),
-      ),
-    )
-    // edp2: edp2-eg-ref-1 has campaign; edp2-eg-creative-1 has creative-id.
-    put(
-      "edp2",
-      mapOf(
-        "edp2-eg-ref-1" to campaignOverride("edp2-eg-ref-1"),
-        EDP2_CREATIVE_EVENT_GROUP_REF_ID to creativeIdOverride(EDP2_CREATIVE_EVENT_GROUP_REF_ID),
-      ),
-    )
-    // edp3: campaign.
-    put("edp3", mapOf("edp3-eg-ref-1" to campaignOverride("edp3-eg-ref-1")))
-    // edp4: ad_group.
-    put(
-      AD_GROUP_EDP_DISPLAY_NAME,
-      mapOf(
-        AD_GROUP_EDP_EVENT_GROUP_REF_ID to
-          EventGroupEntityOverride(
-            entityKey =
-              edpaEntityKey {
-                entityType = "ad_group"
-                entityId = AD_GROUP_EDP_EVENT_GROUP_REF_ID
-              },
-            entityMetadata = ENTITY_METADATA,
-          )
-      ),
-    )
-  }
 
   private val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents =
     InProcessEdpAggregatorComponents(
       secureComputationDatabaseAdmin = secureComputationDatabaseAdmin,
       storagePath = tempPath,
       pubSubClient = pubSubClient,
-      syntheticEventGroupMapByEdp = syntheticEventGroupMapByEdp,
+      eventGroupConfigsByEdp = eventGroupConfigsByEdp,
       syntheticPopulationSpec = syntheticPopulationSpec,
       modelLineInfoMap = modelLineInfoMap,
       externalKmsClient = sharedKmsClient,
-      entityOverridesByEdp = entityOverridesByEdp,
     )
 
   private val daemonsStartup = TestRule { base, _ ->
@@ -723,18 +696,20 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     val byRefId: Map<String, EventGroup> =
       listReportingEventGroups().associateBy { it.eventGroupReferenceId }
 
-    for ((_, refOverrides) in entityOverridesByEdp) {
-      for ((refId, override) in refOverrides) {
+    for ((_, refConfigs) in eventGroupConfigsByEdp) {
+      for ((refId, config) in refConfigs) {
+        if (config.blobEntityKeys.isEmpty()) continue
         val eventGroup = byRefId.getValue(refId)
+        val expectedEntityKey = config.blobEntityKeys.first()
         assertWithMessage("entity_key.entity_type for $refId")
           .that(eventGroup.entityKey.entityType)
-          .isEqualTo(override.entityKey!!.entityType)
+          .isEqualTo(expectedEntityKey.entityType)
         assertWithMessage("entity_key.entity_id for $refId")
           .that(eventGroup.entityKey.entityId)
-          .isEqualTo(override.entityKey!!.entityId)
+          .isEqualTo(expectedEntityKey.entityId)
         assertWithMessage("entity_metadata for $refId")
           .that(eventGroup.eventGroupMetadata.entityMetadata)
-          .isEqualTo(override.entityMetadata)
+          .isEqualTo(config.entityMetadata)
       }
     }
   }
