@@ -957,9 +957,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
 
     assertWithMessage("population size").that(result.metricSet.populationSize).isGreaterThan(0)
 
-    assertWithMessage("reach")
-      .that(reportingUnitCumulative.reach)
-      .isEqualTo(expectedReach)
+    assertWithMessage("reach").that(reportingUnitCumulative.reach).isEqualTo(expectedReach)
 
     assertWithMessage("impressions")
       .that(reportingUnitCumulative.impressions)
@@ -975,9 +973,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     val component = result.metricSet.componentsList.single()
     val componentCumulative = component.value.cumulative
 
-    assertWithMessage("component reach")
-      .that(componentCumulative.reach)
-      .isEqualTo(expectedReach)
+    assertWithMessage("component reach").that(componentCumulative.reach).isEqualTo(expectedReach)
 
     assertWithMessage("component impressions")
       .that(componentCumulative.impressions)
@@ -1416,9 +1412,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   fun `basic report with single-edp creative-id event group succeeds`() = runBlocking {
     val allEventGroups = listReportingEventGroups()
     val singleCreativeIdEventGroup =
-      allEventGroups.filter {
-        it.eventGroupReferenceId == EDP1_CREATIVE_EVENT_GROUP_REF_ID
-      }
+      allEventGroups.filter { it.eventGroupReferenceId == EDP1_CREATIVE_EVENT_GROUP_REF_ID }
     check(singleCreativeIdEventGroup.isNotEmpty()) {
       "No single creative-id event group found for edp1"
     }
