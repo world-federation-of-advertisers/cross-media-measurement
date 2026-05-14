@@ -405,6 +405,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         TEST_CONFIG.modelLine,
         listEventGroupsEntityTypes = listOf("campaign", "creative-id"),
         onMeasurementsCreated = ::triggerRequisitionFetcher,
+        entityKeyCountByRefId = mapOf(MULTI_CREATIVE_EVENT_GROUP_REF_ID to 2),
       )
     }
 
