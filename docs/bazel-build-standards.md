@@ -138,7 +138,8 @@ the PR from being merged.
 # DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#456)
 archive_override(
     module_name = "common-jvm",
-    urls = ["https://github.com/world-federation-of-advertisers/common-jvm/archive/refs/heads/feature-branch.tar.gz"],
+    urls = ["https://github.com/world-federation-of-advertisers/common-jvm/archive/df87054e5221ea82289ae6e9cfa68d1ef50563c2.tar.gz"],
+    strip_prefix = "common-jvm-df87054e5221ea82289ae6e9cfa68d1ef50563c2",
 )
 ```
 
@@ -159,7 +160,8 @@ Extract magic strings as named constants. Ensure the constant name includes
 anything needed for disambiguation, such as whether it is a format string or
 what units it represents.
 
-*   `EDP_TARGET_SERVICE_ACCOUNT` — implies a literal value
+*   `EDP_TARGET_SERVICE_ACCOUNT` — ambiguous: is this a literal value or a
+    format string?
 *   `EDP_TARGET_SERVICE_ACCOUNT_FORMAT` — clearly a format string
 *   `FOO_TIMEOUT_SECONDS` — units are explicit in the name
 
