@@ -60,17 +60,13 @@ Test infrastructure reusable across packages lives in `testing` subpackages unde
 
 ## Code Style
 
-Full guide: [docs/code-style.md](docs/code-style.md)
+Before writing or reviewing code, read the applicable style guide:
 
-**Kotlin** — Format with `ktfmt --google-style`. See [docs/code-style.md](docs/code-style.md) for Kotlin-specific conventions.
-
-**C++** — Format with `clang-format --style=Google`. See [docs/code-style.md](docs/code-style.md) for C++ conventions.
-
-**BUILD/Starlark** — Format with `buildifier`. See [docs/bazel-build-standards.md](docs/bazel-build-standards.md) for BUILD file conventions.
-
-**Protobuf** — Format with `clang-format --style=Google`. See [docs/api-standards.md](docs/api-standards.md) for API and protobuf design conventions.
-
-Cryptography and Tink usage: [docs/security-standards.md](docs/security-standards.md)
+- **Kotlin** — @docs/code-style.md
+- **C++** — @docs/code-style.md
+- **BUILD/Starlark** — @docs/bazel-build-standards.md
+- **Protobuf/API** — @docs/api-standards.md
+- **Cryptography/Tink** — @docs/security-standards.md
 
 ## Testing
 
