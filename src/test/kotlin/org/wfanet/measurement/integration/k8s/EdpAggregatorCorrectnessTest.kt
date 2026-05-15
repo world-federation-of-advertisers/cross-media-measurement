@@ -83,7 +83,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
   override val EVENT_GROUP_FILTERING_LAMBDA_CROSS_PUB: (CmmsEventGroup) -> Boolean = {
     it.eventGroupReferenceId in
-      setOf(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID, AD_GROUP_EDP_EVENT_GROUP_REF_ID)
+      setOf(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID, EDPA_META_EVENT_GROUP_REF_ID)
   }
 
   private class UploadEventGroup : TestRule {
@@ -93,27 +93,33 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       System.getenv("GOOGLE_CLOUD_PROJECT") ?: error("GOOGLE_CLOUD_PROJECT must be set")
     private val storageClient = StorageOptions.getDefaultInstance().service
 
-    /** Per-eventGroupReferenceId storage config so each provider writes to its own directory. */
-    private data class EventGroupStorage(
+    /** Per-EDP storage config. Multiple event groups for the same EDP share one blob. */
+    private data class EdpStorage(
       val objectMapKey: String,
       val objectKey: String,
       val blobUri: String,
+      val eventGroupReferenceIds: Set<String>,
     )
 
-    private val eventGroupStorageMap: Map<String, EventGroupStorage> =
-      mapOf(
-        EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID to
-          EventGroupStorage(
-            objectMapKey = "edp7/event-groups-map/edp7-event-group.binpb",
-            objectKey = "edp7/event-groups/edp7-event-group.binpb",
-            blobUri = "gs://$bucket/edp7/event-groups/edp7-event-group.binpb",
-          ),
-        AD_GROUP_EDP_EVENT_GROUP_REF_ID to
-          EventGroupStorage(
-            objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.binpb",
-            objectKey = "edpa_meta/event-groups/edpa_meta-event-group.binpb",
-            blobUri = "gs://$bucket/edpa_meta/event-groups/edpa_meta-event-group.binpb",
-          ),
+    private val edpStorageList: List<EdpStorage> =
+      listOf(
+        EdpStorage(
+          objectMapKey = "edp7/event-groups-map/edp7-event-group.binpb",
+          objectKey = "edp7/event-groups/edp7-event-group.binpb",
+          blobUri = "gs://$bucket/edp7/event-groups/edp7-event-group.binpb",
+          eventGroupReferenceIds =
+            setOf(
+              EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID,
+              CREATIVE_ID_EVENT_GROUP_REF_ID,
+              MULTI_CREATIVE_EVENT_GROUP_REF_ID,
+            ),
+        ),
+        EdpStorage(
+          objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.binpb",
+          objectKey = "edpa_meta/event-groups/edpa_meta-event-group.binpb",
+          blobUri = "gs://$bucket/edpa_meta/event-groups/edpa_meta-event-group.binpb",
+          eventGroupReferenceIds = setOf(EDPA_META_EVENT_GROUP_REF_ID),
+        ),
       )
 
     override fun apply(base: Statement, description: Description): Statement {
@@ -122,17 +128,15 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           runBlocking {
             deleteExistingEventGroupsMaps()
             val allEventGroups = createEventGroups()
-            val eventGroupsByReferenceId: Map<String, List<EventGroup>> =
-              allEventGroups.groupBy { it.eventGroupReferenceId }
 
-            for ((refId, groups) in eventGroupsByReferenceId) {
-              val storage =
-                eventGroupStorageMap[refId]
-                  ?: error("Missing storage mapping for eventGroupReferenceId=$refId")
-
-              uploadEventGroups(storage, groups)
-              waitForEventGroupSyncToComplete(storage)
-              logger.info("Event Group Sync completed for $refId.")
+            for (edpStorage in edpStorageList) {
+              val groups =
+                allEventGroups.filter {
+                  it.eventGroupReferenceId in edpStorage.eventGroupReferenceIds
+                }
+              uploadEventGroups(edpStorage, groups)
+              waitForEventGroupSyncToComplete(edpStorage)
+              logger.info("Event Group Sync completed for ${edpStorage.eventGroupReferenceIds}.")
             }
 
             logger.info("Event Group Sync completed.")
@@ -142,7 +146,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       }
     }
 
-    private suspend fun waitForEventGroupSyncToComplete(storage: EventGroupStorage) {
+    private suspend fun waitForEventGroupSyncToComplete(storage: EdpStorage) {
       withTimeout(EVENT_GROUP_SYNC_TIMEOUT) {
         while (!isEventGroupSyncDone(storage)) {
           logger.info("Waiting on Event Group Sync to complete...")
@@ -151,20 +155,15 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       }
     }
 
-    private fun isEventGroupSyncDone(storage: EventGroupStorage): Boolean {
+    private fun isEventGroupSyncDone(storage: EdpStorage): Boolean {
       return storageClient.get(bucket, storage.objectMapKey) != null
     }
 
     private fun deleteExistingEventGroupsMaps() {
-      eventGroupStorageMap.values.forEach { storage ->
-        storageClient.delete(bucket, storage.objectMapKey)
-      }
+      edpStorageList.forEach { storage -> storageClient.delete(bucket, storage.objectMapKey) }
     }
 
-    private suspend fun uploadEventGroups(
-      storage: EventGroupStorage,
-      eventGroups: List<EventGroup>,
-    ) {
+    private suspend fun uploadEventGroups(storage: EdpStorage, eventGroups: List<EventGroup>) {
       val eventGroupsBlobUri = SelectedStorageClient.parseBlobUri(storage.blobUri)
       MesosRecordIoStorageClient(
           SelectedStorageClient(
@@ -193,11 +192,9 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
               .atTime(23, 59, 59)
               .atZone(ZONE_ID)
               .toInstant()
-          // EDP1 is the legacy path: no entity_key supplied → Kingdom schema defaults
-          // entity_type="campaign", leaves entity_id NULL, no entity_metadata.
-          // EDP2 carries a non-default entity_type ("ad_group") so the deployed Kingdom +
-          // Reporting stack exercises both paths end-to-end on cluster.
-          val isLegacyEdp = eventGroupReferenceId == EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID
+          val hasCreativeIdEntityKey =
+            eventGroupReferenceId in
+              setOf(CREATIVE_ID_EVENT_GROUP_REF_ID, MULTI_CREATIVE_EVENT_GROUP_REF_ID)
           eventGroup {
             this.eventGroupReferenceId = eventGroupReferenceId
             measurementConsumer = TEST_CONFIG.measurementConsumer
@@ -212,16 +209,16 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
                   campaign = "some-campaign"
                 }
               }
-              if (!isLegacyEdp) {
+              if (hasCreativeIdEntityKey) {
                 this.entityMetadata = struct {
                   fields["placement"] = value { stringValue = "homepage_top" }
                   fields["objective"] = value { stringValue = "awareness" }
                 }
               }
             }
-            if (!isLegacyEdp) {
+            if (hasCreativeIdEntityKey) {
               this.entityKey = entityKey {
-                entityType = "ad_group"
+                entityType = "creative-id"
                 entityId = eventGroupReferenceId
               }
             }
@@ -406,7 +403,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         syntheticEventGroupMap,
         reportName,
         TEST_CONFIG.modelLine,
-        listEventGroupsEntityTypes = listOf("campaign", "ad_group"),
+        listEventGroupsEntityTypes = listOf("campaign", "creative-id"),
         onMeasurementsCreated = ::triggerRequisitionFetcher,
       )
     }
@@ -482,7 +479,9 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     val syntheticEventGroupMap =
       mapOf(
         EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID to syntheticEventGroupSpec,
-        AD_GROUP_EDP_EVENT_GROUP_REF_ID to syntheticEventGroupSpec,
+        CREATIVE_ID_EVENT_GROUP_REF_ID to syntheticEventGroupSpec,
+        MULTI_CREATIVE_EVENT_GROUP_REF_ID to syntheticEventGroupSpec,
+        EDPA_META_EVENT_GROUP_REF_ID to syntheticEventGroupSpec,
       )
 
     private val ZONE_ID = ZoneId.of("UTC")

@@ -130,7 +130,17 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
               syntheticEventGroupSpec,
               blobEntityKeys = listOf(EntityKey("ad_group", "edpa-eg-reference-id-2")),
               entityMetadata = ENTITY_METADATA,
-            )
+            ),
+          MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID to
+            EventGroupConfig(
+              syntheticEventGroupSpec,
+              blobEntityKeys =
+                listOf(
+                  EntityKey(CREATIVE_ID_ENTITY_TYPE, MULTI_CREATIVE_A_ID),
+                  EntityKey(CREATIVE_ID_ENTITY_TYPE, MULTI_CREATIVE_B_ID),
+                ),
+              entityMetadata = ENTITY_METADATA,
+            ),
         ),
       "edp3" to
         mapOf(
@@ -154,6 +164,12 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
 
   private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec> =
     eventGroupConfigsByEdp.values.flatMap { it.entries }.associate { it.key to it.value.spec }
+
+  private val entityKeyCountByRefId: Map<String, Int> =
+    eventGroupConfigsByEdp.values
+      .flatMap { it.entries }
+      .filter { it.value.blobEntityKeys.size > 1 }
+      .associate { it.key to it.value.blobEntityKeys.size }
 
   @get:Rule
   val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents =
@@ -268,7 +284,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
           )
           .toName(),
         modelLineName = modelLineName,
-        listEventGroupsEntityTypes = listOf("campaign", "ad_group"),
+        listEventGroupsEntityTypes = listOf("campaign", "ad_group", "creative-id"),
+        entityKeyCountByRefId = entityKeyCountByRefId,
       )
   }
 
@@ -314,7 +331,10 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   fun `create an impression measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create an impression measurement and verify its result.
-      mcSimulator.testImpression("1234")
+      mcSimulator.testImpression(
+        "1234",
+        eventGroupFilter = { it.eventGroupReferenceId != MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID },
+      )
     }
 
   @Test
@@ -326,7 +346,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         "1234",
         ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
         eventGroupFilter = {
-          it.eventGroupReferenceId != MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID
+          it.eventGroupReferenceId != MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID &&
+            it.eventGroupReferenceId != MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID
         },
       )
     }
@@ -340,7 +361,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         "1234",
         ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
         eventGroupFilter = {
-          it.eventGroupReferenceId != MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID
+          it.eventGroupReferenceId != MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID &&
+            it.eventGroupReferenceId != MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID
         },
       )
     }
@@ -354,7 +376,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         "1234",
         ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
         eventGroupFilter = {
-          it.eventGroupReferenceId != MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID
+          it.eventGroupReferenceId != MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID &&
+            it.eventGroupReferenceId != MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID
         },
       )
     }
@@ -369,7 +392,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         "1234",
         ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
         eventGroupFilter = {
-          it.eventGroupReferenceId != MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID
+          it.eventGroupReferenceId != MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID &&
+            it.eventGroupReferenceId != MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID
         },
       )
     }
@@ -418,6 +442,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
                   ListEventGroupsRequestKt.filter {
                     entityTypeIn += "campaign"
                     entityTypeIn += "ad_group"
+                    entityTypeIn += "creative-id"
                   }
               }
             )
@@ -471,6 +496,15 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     }
 
   @Test
+  fun `direct measurement with multi-entity-key filtering returns correct subset`() = runBlocking {
+    mcSimulator.testDirectReachAndFrequency(
+      runId = "1235",
+      numMeasurements = 1,
+      eventGroupFilter = { it.eventGroupReferenceId == MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID },
+    )
+  }
+
+  @Test
   fun `default ListEventGroups filter hides non-campaign EventGroups`() = runBlocking {
     val response =
       publicEventGroupsClient
@@ -503,6 +537,11 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     private const val HMSS_NO_NOISE_EDP_EVENT_GROUP_REF_ID = EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID
     private const val TRUSTEE_NO_NOISE_EDP_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-3"
     private const val MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-4"
+
+    private const val MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID = "edpa-eg-multi-creative"
+    private const val MULTI_CREATIVE_A_ID = "creative-a"
+    private const val MULTI_CREATIVE_B_ID = "creative-b"
+    private const val CREATIVE_ID_ENTITY_TYPE = "creative-id"
 
     /** EventGroups whose EDPs cannot satisfy a single-party HMSS measurement's noise contract. */
     private val HMSS_NO_NOISE_EVENT_GROUP_REF_IDS =

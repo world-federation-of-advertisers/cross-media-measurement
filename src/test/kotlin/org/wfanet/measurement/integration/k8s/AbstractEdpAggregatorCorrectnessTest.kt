@@ -125,20 +125,19 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
             listEventGroupsRequest {
               parent = measurementSystem.measurementConsumerName
               pageSize = 100
-              // Default entity_type_in is ["campaign"], which would hide the ad_group EventGroup.
               filter =
                 ListEventGroupsRequestKt.filter {
                   entityTypeIn += "campaign"
-                  entityTypeIn += "ad_group"
+                  entityTypeIn += "creative-id"
                 }
             }
           )
 
       val byRefId = response.eventGroupsList.associateBy { it.eventGroupReferenceId }
-      val adGroup: EventGroup = byRefId.getValue(AD_GROUP_EDP_EVENT_GROUP_REF_ID)
-      assertThat(adGroup.entityKey.entityType).isEqualTo("ad_group")
-      assertThat(adGroup.entityKey.entityId).isEqualTo(AD_GROUP_EDP_EVENT_GROUP_REF_ID)
-      assertThat(adGroup.eventGroupMetadata.entityMetadata.fieldsMap).containsKey("placement")
+      val creativeId: EventGroup = byRefId.getValue(CREATIVE_ID_EVENT_GROUP_REF_ID)
+      assertThat(creativeId.entityKey.entityType).isEqualTo("creative-id")
+      assertThat(creativeId.entityKey.entityId).isEqualTo(CREATIVE_ID_EVENT_GROUP_REF_ID)
+      assertThat(creativeId.eventGroupMetadata.entityMetadata.fieldsMap).containsKey("placement")
     }
 
   @Test
@@ -180,8 +179,36 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
 
     val refIds = response.eventGroupsList.map { it.eventGroupReferenceId }.toSet()
     assertThat(refIds).contains(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID)
-    assertThat(refIds).doesNotContain(AD_GROUP_EDP_EVENT_GROUP_REF_ID)
+    assertThat(refIds).doesNotContain(CREATIVE_ID_EVENT_GROUP_REF_ID)
   }
+
+  @Test
+  fun `direct measurement with reference-id-only event groups succeeds`() = runBlocking {
+    mcSimulator.testDirectReachAndFrequency(
+      "1240",
+      1,
+      eventGroupFilter = { it.eventGroupReferenceId == EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID },
+    )
+  }
+
+  @Test
+  fun `direct measurement with creative-id entity-key-only event groups succeeds`() = runBlocking {
+    mcSimulator.testDirectReachAndFrequency(
+      "1241",
+      1,
+      eventGroupFilter = { it.eventGroupReferenceId == CREATIVE_ID_EVENT_GROUP_REF_ID },
+    )
+  }
+
+  @Test
+  fun `direct measurement with multi-entity-key blob filtering to one entity key succeeds`() =
+    runBlocking {
+      mcSimulator.testDirectReachAndFrequency(
+        "1242",
+        1,
+        eventGroupFilter = { it.eventGroupReferenceId == MULTI_CREATIVE_EVENT_GROUP_REF_ID },
+      )
+    }
 
   interface MeasurementSystem {
     val runId: String
@@ -197,7 +224,9 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
     private const val MC_CS_PRIVATE_KEY_DER_NAME = "mc_cs_private.der"
 
     const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-1"
-    const val AD_GROUP_EDP_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-2"
+    const val CREATIVE_ID_EVENT_GROUP_REF_ID = "edpa-eg-creative-id-1"
+    const val MULTI_CREATIVE_EVENT_GROUP_REF_ID = "edpa-eg-multi-creative-1"
+    const val EDPA_META_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-2"
 
     val OUTPUT_DP_PARAMS = differentialPrivacyParams {
       epsilon = 0.1
