@@ -22,16 +22,14 @@ import io.ktor.server.request.ApplicationRequest
 object BearerTokenExtractor {
   private const val BEARER_PREFIX = "Bearer "
 
-  /**
-   * Extracts a bearer token from the Authorization header.
-   *
-   * @return the token string, or `null` if the header is missing or malformed.
-   */
-  fun extract(request: ApplicationRequest): String? {
-    val header: String = request.headers[HttpHeaders.Authorization] ?: return null
-    if (!header.startsWith(BEARER_PREFIX, ignoreCase = true)) {
-      return null
-    }
-    return header.substring(BEARER_PREFIX.length).trim().ifEmpty { null }
+  /** Extracts a bearer token from a Ktor [ApplicationRequest]. */
+  fun extract(request: ApplicationRequest): String? =
+    extract(request.headers[HttpHeaders.Authorization])
+
+  /** Extracts a bearer token from a raw Authorization header value. */
+  fun extract(authorizationHeader: String?): String? {
+    if (authorizationHeader == null) return null
+    if (!authorizationHeader.startsWith(BEARER_PREFIX, ignoreCase = true)) return null
+    return authorizationHeader.substring(BEARER_PREFIX.length).trim().ifEmpty { null }
   }
 }

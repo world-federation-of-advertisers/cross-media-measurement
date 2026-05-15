@@ -26,6 +26,7 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
+import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
@@ -83,7 +84,7 @@ private object HaloReportingMcpServer {
 
             val mcpServer = createMcpServer(apiClient) { bearerToken }
             val requestBody = call.receiveText()
-            val response = mcpServer.handleRequest(requestBody)
+            val response = runBlocking { mcpServer.handleRequest(requestBody) }
 
             if (response.isNotEmpty()) {
               call.respondText(response, ContentType.Application.Json)
@@ -117,7 +118,7 @@ internal fun createMcpServer(
 class McpServerFlags {
   @CommandLine.Option(
     names = ["--port"],
-    description = ["Streamable HTTP port for the MCP server."],
+    description = ["HTTP port for the MCP server."],
     defaultValue = "8443",
   )
   var port: Int = 8443

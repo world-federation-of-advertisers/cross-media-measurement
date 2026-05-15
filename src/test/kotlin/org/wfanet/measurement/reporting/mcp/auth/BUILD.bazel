@@ -1,0 +1,12 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "BearerTokenExtractorTest",
+    srcs = ["BearerTokenExtractorTest.kt"],
+    test_class = "org.wfanet.measurement.reporting.mcp.auth.BearerTokenExtractorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/auth:bearer_token_extractor",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
