@@ -219,12 +219,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             if (hasCreativeIdEntityKey) {
               this.entityKey = entityKey {
                 entityType = "creative-id"
-                entityId =
-                  if (eventGroupReferenceId == MULTI_CREATIVE_EVENT_GROUP_REF_ID) {
-                    "multi-creative-A"
-                  } else {
-                    eventGroupReferenceId
-                  }
+                entityId = eventGroupReferenceId
               }
             }
             mediaTypes += MediaType.valueOf("VIDEO")
