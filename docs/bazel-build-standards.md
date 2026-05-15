@@ -84,7 +84,7 @@ Use `package(default_visibility = ...)` instead of specifying visibility on
 every target.
 ([PR #3574](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/3574#issuecomment-4026448303))
 
-```python
+```bazel
 package(default_visibility = ["//visibility:public"])
 ```
 
