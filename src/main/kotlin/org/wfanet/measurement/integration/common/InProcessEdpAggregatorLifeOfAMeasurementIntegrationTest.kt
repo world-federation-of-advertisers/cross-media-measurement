@@ -57,7 +57,6 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.ProviderRule
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey as edpaEntityKey
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
@@ -65,6 +64,7 @@ import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
+import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
@@ -115,37 +115,45 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     tempDirectory.root.toPath()
   }
 
-  private val syntheticEventGroupMapByEdp =
+  // edp1 is intentionally created without entity key (legacy path: Kingdom defaults
+  // entity_type="campaign", entity_id and entity_metadata unset). The simulator's
+  // ListEventGroups uses the default filter (entity_type_in defaults to ["campaign"]),
+  // so edp1 stays visible to existing measurement tests.
+  private val eventGroupConfigsByEdp: Map<String, Map<String, EventGroupConfig>> =
     mapOf(
-      "edp1" to mapOf("edpa-eg-reference-id-1" to syntheticEventGroupSpec),
-      "edp2" to mapOf("edpa-eg-reference-id-2" to syntheticEventGroupSpec),
-      "edp3" to mapOf("edpa-eg-reference-id-3" to syntheticEventGroupSpec),
-      "edp4" to mapOf("edpa-eg-reference-id-4" to syntheticEventGroupSpec),
+      EDP_NO_ENTITY_KEY_DISPLAY_NAME to
+        mapOf(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID to EventGroupConfig(syntheticEventGroupSpec)),
+      "edp2" to
+        mapOf(
+          "edpa-eg-reference-id-2" to
+            EventGroupConfig(
+              syntheticEventGroupSpec,
+              blobEntityKeys = listOf(EntityKey("ad_group", "edpa-eg-reference-id-2")),
+              entityMetadata = ENTITY_METADATA,
+            )
+        ),
+      "edp3" to
+        mapOf(
+          "edpa-eg-reference-id-3" to
+            EventGroupConfig(
+              syntheticEventGroupSpec,
+              blobEntityKeys = listOf(EntityKey("ad_group", "edpa-eg-reference-id-3")),
+              entityMetadata = ENTITY_METADATA,
+            )
+        ),
+      "edp4" to
+        mapOf(
+          "edpa-eg-reference-id-4" to
+            EventGroupConfig(
+              syntheticEventGroupSpec,
+              blobEntityKeys = listOf(EntityKey("ad_group", "edpa-eg-reference-id-4")),
+              entityMetadata = ENTITY_METADATA,
+            )
+        ),
     )
 
   private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec> =
-    syntheticEventGroupMapByEdp.values.flatMap { it.entries }.associate { it.key to it.value }
-
-  // edp1 is intentionally absent from this map so its EventGroup is created without entity_key
-  // and entity_metadata, exercising the legacy path: Kingdom's schema default sets entity_type to
-  // "campaign" and leaves entity_id and entity_metadata unset. The simulator's ListEventGroups
-  // uses the default filter (entity_type_in defaults to ["campaign"]), so edp1 stays visible to
-  // existing measurement tests.
-  private val entityOverridesByEdp: Map<String, Map<String, EventGroupEntityOverride>> =
-    syntheticEventGroupMapByEdp
-      .filterKeys { it != EDP_NO_ENTITY_KEY_DISPLAY_NAME }
-      .mapValues { (_, edpRefs) ->
-        edpRefs.keys.associateWith { refId ->
-          EventGroupEntityOverride(
-            entityKey =
-              edpaEntityKey {
-                entityType = "ad_group"
-                entityId = refId
-              },
-            entityMetadata = ENTITY_METADATA,
-          )
-        }
-      }
+    eventGroupConfigsByEdp.values.flatMap { it.entries }.associate { it.key to it.value.spec }
 
   @get:Rule
   val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents =
@@ -153,11 +161,10 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       secureComputationDatabaseAdmin = secureComputationDatabaseAdmin,
       storagePath = tempPath,
       pubSubClient = pubSubClient,
-      syntheticEventGroupMapByEdp = syntheticEventGroupMapByEdp,
+      eventGroupConfigsByEdp = eventGroupConfigsByEdp,
       syntheticPopulationSpec = syntheticPopulationSpec,
       modelLineInfoMap = modelLineInfoMap,
       externalKmsClient = sharedKmsClient,
-      entityOverridesByEdp = entityOverridesByEdp,
     )
 
   @Before
@@ -279,7 +286,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   @Test
   fun `create a direct RF measurement and check the result is equal to the expected result`() =
     runBlocking {
-      // Use frontend simulator to create a direct reach and frequency measurement and verify its
+      // Use frontend simulator to create a direct reach and frequency measurement and verify
+      // its
       // result.
       mcSimulator.testDirectReachAndFrequency(runId = "1234", numMeasurements = 1)
     }
@@ -287,7 +295,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   @Test
   fun `create a direct reach only measurement and check the result is equal to the expected result`() =
     runBlocking {
-      // Use frontend simulator to create a direct reach and frequency measurement and verify its
+      // Use frontend simulator to create a direct reach and frequency measurement and verify
+      // its
       // result.
       mcSimulator.testDirectReachOnly(runId = "1234", numMeasurements = 1)
     }
@@ -295,7 +304,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   @Test
   fun `create incremental direct reach only measurements in same report and check the result is equal to the expected result`() =
     runBlocking {
-      // Use frontend simulator to create N incremental direct reach and frequency measurements and
+      // Use frontend simulator to create N incremental direct reach and frequency
+      // measurements and
       // verify its result.
       mcSimulator.testDirectReachOnly(runId = "1234", numMeasurements = 3)
     }
@@ -310,7 +320,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   @Test
   fun `create a Hmss reach-only measurement and check the result is equal to the expected result`() =
     runBlocking {
-      // Use frontend simulator to create a reach and frequency measurement and verify its result.
+      // Use frontend simulator to create a reach and frequency measurement and verify its
+      // result.
       mcSimulator.testReachOnly(
         "1234",
         ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
@@ -323,7 +334,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   @Test
   fun `create a Hmss RF measurement and check the result is equal to the expected result`() =
     runBlocking {
-      // Use frontend simulator to create a reach and frequency measurement and verify its result.
+      // Use frontend simulator to create a reach and frequency measurement and verify its
+      // result.
       mcSimulator.testReachAndFrequency(
         "1234",
         ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
@@ -336,7 +348,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   @Test
   fun `create a TrusTee reach-only measurement and check the result is equal to the expected result`() =
     runBlocking {
-      // Use frontend simulator to create a TrusTee reach-only measurement and verify its result.
+      // Use frontend simulator to create a TrusTee reach-only measurement and verify its
+      // result.
       mcSimulator.testReachOnly(
         "1234",
         ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
@@ -349,7 +362,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   @Test
   fun `create a TrusTee RF measurement and check the result is equal to the expected result`() =
     runBlocking {
-      // Use frontend simulator to create a TrusTee reach and frequency measurement and verify its
+      // Use frontend simulator to create a TrusTee reach and frequency measurement and verify
+      // its
       // result.
       mcSimulator.testReachAndFrequency(
         "1234",
@@ -391,7 +405,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     runBlocking {
       val edpDisplayNameToResourceMap = inProcessCmmsComponents.edpDisplayNameToResourceMap
 
-      for ((edpDisplayName, refOverrides) in entityOverridesByEdp) {
+      for ((edpDisplayName, refConfigs) in eventGroupConfigsByEdp) {
         val edpResourceName = edpDisplayNameToResourceMap.getValue(edpDisplayName).name
         val response =
           publicEventGroupsClient
@@ -411,19 +425,21 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         val byRefId = response.eventGroupsList.associateBy { it.eventGroupReferenceId }
         assertWithMessage("EventGroups for $edpDisplayName")
           .that(byRefId.keys)
-          .containsAtLeastElementsIn(refOverrides.keys)
+          .containsAtLeastElementsIn(refConfigs.keys)
 
-        for ((refId, override) in refOverrides) {
+        for ((refId, config) in refConfigs) {
+          if (config.blobEntityKeys.isEmpty()) continue
           val eventGroup = byRefId.getValue(refId)
+          val expectedEntityKey = config.blobEntityKeys.first()
           assertWithMessage("entity_key.entity_type for $refId")
             .that(eventGroup.entityKey.entityType)
-            .isEqualTo(override.entityKey!!.entityType)
+            .isEqualTo(expectedEntityKey.entityType)
           assertWithMessage("entity_key.entity_id for $refId")
             .that(eventGroup.entityKey.entityId)
-            .isEqualTo(override.entityKey!!.entityId)
+            .isEqualTo(expectedEntityKey.entityId)
           assertWithMessage("entity_metadata for $refId")
             .that(eventGroup.eventGroupMetadata.entityMetadata)
-            .isEqualTo(override.entityMetadata)
+            .isEqualTo(config.entityMetadata)
         }
       }
     }
@@ -468,15 +484,18 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
 
     val refIds = response.eventGroupsList.map { it.eventGroupReferenceId }.toSet()
     assertThat(refIds).contains(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID)
-    for ((_, refOverrides) in entityOverridesByEdp) {
-      for (refId in refOverrides.keys) {
-        assertThat(refIds).doesNotContain(refId)
+    for ((_, refConfigs) in eventGroupConfigsByEdp) {
+      for ((refId, config) in refConfigs) {
+        if (config.blobEntityKeys.isNotEmpty()) {
+          assertThat(refIds).doesNotContain(refId)
+        }
       }
     }
   }
 
   companion object {
-    // edp1 deliberately has no entity_key/entity_metadata override (legacy path); it also happens
+    // edp1 deliberately has no entity_key/entity_metadata override (legacy path); it also
+    // happens
     // to be the EDP that requires no measurement noise on the HMSS protocol, used by the
     // HMSS-failure path test.
     private const val EDP_NO_ENTITY_KEY_DISPLAY_NAME = "edp1"
