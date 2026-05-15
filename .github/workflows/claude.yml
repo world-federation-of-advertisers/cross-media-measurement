@@ -47,9 +47,6 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 1
-
-      - uses: ./.github/actions/free-disk-space
-
       - name: Set up Bazel
         uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
 
@@ -84,4 +81,4 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
-            --allowedTools "Bash(bazel:*),Bash(buildifier:*),Bash(python3:*),Bash(pip:*),Bash(terraform init:*),Bash(terraform validate:*),Bash(terraform plan:*),Bash(terraform fmt:*),Bash(git:*)"
+            --allowedTools "Bash(bazel:*),Bash(buildifier:*),Bash(ktfmt:*),Bash(python3:*),Bash(pip:*),Bash(terraform init:*),Bash(terraform validate:*),Bash(terraform plan:*),Bash(terraform fmt:*),Bash(git:*)"
