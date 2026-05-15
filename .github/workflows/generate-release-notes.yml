@@ -154,7 +154,7 @@ jobs:
           }
 
           print_summary() {
-            echo "See the [corresponding milestone](${MILESTONE_URL}) for this release."
+            echo "See the [corresponding milestone](${MILESTONE_URL}?closed=1) for this release."
             print_section "Highlights" "${HIGHLIGHTS}"
             print_section "Issues Addressed" "${ISSUES_ADDRESSED}"
             print_section "Potentially Requiring Action" "${POTENTIALLY_REQUIRING_ACTION}"
