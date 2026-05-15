@@ -66,7 +66,7 @@ class DataWatcherFunction(
         requireNotNull(event.getData()) { "event must have data" }.toBytes().decodeToString()
       val data =
         StorageObjectData.newBuilder()
-          .apply { JsonFormat.parser().merge(cloudEventData, this) }
+          .apply { JsonFormat.parser().ignoringUnknownFields().merge(cloudEventData, this) }
           .build()
 
       val blobKey: String = data.getName()

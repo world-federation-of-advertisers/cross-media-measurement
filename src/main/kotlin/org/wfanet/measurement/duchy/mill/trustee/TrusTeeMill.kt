@@ -28,6 +28,7 @@ import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
@@ -43,6 +44,7 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.NoiseMechanism
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.RequisitionDetails.RequisitionProtocol.TrusTee.DataFormat
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
@@ -67,7 +69,8 @@ class TrusTeeMill(
   computationStatsClient: ComputationStatsGrpcKt.ComputationStatsCoroutineStub,
   workLockDuration: Duration,
   private val trusTeeProcessorFactory: TrusTeeProcessor.Factory,
-  private val kmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
+  private val gcloudKmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
+  private val gcloudToAwsKmsClientFactory: KmsClientFactory<GCloudToAwsWifCredentials>,
   private val attestationTokenPath: Path,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
@@ -134,7 +137,7 @@ class TrusTeeMill(
       val dataFormat = details.protocol.trusTee.dataFormat
       when (dataFormat) {
         DataFormat.ENCRYPTED_FREQUENCY_VECTOR -> {
-          val kmsClient = getKmsClient(kmsClientFactory, details.protocol.trusTee)
+          val kmsClient = getKmsClient(details.protocol.trusTee)
           val dek = getDekKeysetHandle(kmsClient, details.protocol.trusTee)
           // TODO(world-federation-of-advertisers/cross-media-measurement#2800): Use
           //  StreamingAeadStorage instead to read and decrypt requisition data.
@@ -162,25 +165,33 @@ class TrusTeeMill(
 
   /** Converts internal [TrusTee.ComputationDetails] to the internal [TrusTeeParams]. */
   fun TrusTeeDetails.toTrusTeeParams(): TrusTeeParams {
+    val isNoNoise = parameters.noiseMechanism == NoiseMechanism.NONE
     return when (type) {
       TrusTeeDetails.Type.REACH -> {
-        require(parameters.hasReachDpParams()) {
-          "Reach DP params are required for a Reach-only TrusTee computation."
+        if (!isNoNoise) {
+          require(parameters.hasReachDpParams()) {
+            "Reach DP params are required for a Reach-only TrusTee computation."
+          }
         }
-        TrusTeeReachParams(parameters.vidSamplingIntervalWidth, parameters.reachDpParams)
+        TrusTeeReachParams(
+          parameters.vidSamplingIntervalWidth.toDouble(),
+          if (isNoNoise) null else parameters.reachDpParams,
+        )
       }
       TrusTeeDetails.Type.REACH_AND_FREQUENCY -> {
-        require(parameters.hasReachDpParams()) {
-          "Reach DP params are required for a Reach-and-Frequency TrusTee computation."
-        }
-        require(parameters.hasFrequencyDpParams()) {
-          "Frequency DP params are required for a Reach-and-Frequency TrusTee computation."
+        if (!isNoNoise) {
+          require(parameters.hasReachDpParams()) {
+            "Reach DP params are required for a Reach-and-Frequency TrusTee computation."
+          }
+          require(parameters.hasFrequencyDpParams()) {
+            "Frequency DP params are required for a Reach-and-Frequency TrusTee computation."
+          }
         }
         TrusTeeReachAndFrequencyParams(
           parameters.maximumFrequency,
-          parameters.vidSamplingIntervalWidth,
-          parameters.reachDpParams,
-          parameters.frequencyDpParams,
+          parameters.vidSamplingIntervalWidth.toDouble(),
+          if (isNoNoise) null else parameters.reachDpParams,
+          if (isNoNoise) null else parameters.frequencyDpParams,
         )
       }
       TrusTeeDetails.Type.TYPE_UNSPECIFIED,
@@ -191,22 +202,36 @@ class TrusTeeMill(
     }
   }
 
-  private fun getKmsClient(
-    kmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
-    protocol: RequisitionDetails.RequisitionProtocol.TrusTee,
-  ): KmsClient {
-    val credentials =
-      GCloudWifCredentials(
-        audience = protocol.workloadIdentityProvider,
-        subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
-        tokenUrl = GOOGLE_STS_TOKEN_URL,
-        credentialSourceFilePath = attestationTokenPath.toString(),
-        serviceAccountImpersonationUrl =
-          IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
-      )
-
+  private fun getKmsClient(protocol: RequisitionDetails.RequisitionProtocol.TrusTee): KmsClient {
     try {
-      return kmsClientFactory.getKmsClient(credentials)
+      return if (protocol.hasAwsKmsParams()) {
+        val awsConfig = protocol.awsKmsParams
+        val credentials =
+          GCloudToAwsWifCredentials(
+            gcloudAudience = protocol.workloadIdentityProvider,
+            subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
+            tokenUrl = GOOGLE_STS_TOKEN_URL,
+            credentialSourceFilePath = attestationTokenPath.toString(),
+            serviceAccountImpersonationUrl =
+              IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
+            roleArn = awsConfig.roleArn,
+            roleSessionName = awsConfig.roleSession,
+            region = awsConfig.region,
+            awsAudience = awsConfig.audience,
+          )
+        gcloudToAwsKmsClientFactory.getKmsClient(credentials)
+      } else {
+        val credentials =
+          GCloudWifCredentials(
+            audience = protocol.workloadIdentityProvider,
+            subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
+            tokenUrl = GOOGLE_STS_TOKEN_URL,
+            credentialSourceFilePath = attestationTokenPath.toString(),
+            serviceAccountImpersonationUrl =
+              IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
+          )
+        gcloudKmsClientFactory.getKmsClient(credentials)
+      }
     } catch (e: GeneralSecurityException) {
       throw PermanentErrorException("Failed to create KMS client", e)
     }

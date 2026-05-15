@@ -28,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupDetails
 
 class InvalidRequisitionException(
   val requisitions: List<Requisition>,
@@ -129,7 +130,43 @@ class RequisitionsValidator(private val privateEncryptionKey: PrivateKeyHandle) 
     }
   }
 
+  /**
+   * Validates that event group selectors are consistent across all event groups.
+   *
+   * An event group is considered to have a meaningful entity key when it has both `entity_key` set
+   * and a non-empty `entity_id`. The Kingdom defaults `entity_type="campaign"` on all event groups,
+   * so `hasEntityKey()` alone is not sufficient to distinguish legacy (reference-id-only) event
+   * groups from those with explicit entity keys.
+   *
+   * If any event group has a meaningful entity key, all must. If none do, all must have a non-empty
+   * `event_group_reference_id`.
+   */
+  fun validateEventGroupSelectors(eventGroupMap: Map<String, EventGroupDetails>) {
+    require(eventGroupMap.isNotEmpty()) { "eventGroupMap must not be empty" }
+
+    val hasMeaningfulEntityKey: (EventGroupDetails) -> Boolean = {
+      it.hasEntityKey() && it.entityKey.entityId.isNotEmpty()
+    }
+    val anyHasEntityKey = eventGroupMap.values.any(hasMeaningfulEntityKey)
+    if (anyHasEntityKey) {
+      if (!eventGroupMap.values.all(hasMeaningfulEntityKey)) {
+        throw InconsistentEventGroupSelectorsException(
+          "Inconsistent selectors: if any event group has entity_key with entity_id, all must"
+        )
+      }
+    } else {
+      if (!eventGroupMap.values.all { it.eventGroupReferenceId.isNotEmpty() }) {
+        throw InconsistentEventGroupSelectorsException(
+          "All event groups must have event_group_reference_id when entity_key is not present"
+        )
+      }
+    }
+  }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
+
+/** Thrown when event group selectors (entity_key vs event_group_reference_id) are inconsistent. */
+class InconsistentEventGroupSelectorsException(message: String) : Exception(message)

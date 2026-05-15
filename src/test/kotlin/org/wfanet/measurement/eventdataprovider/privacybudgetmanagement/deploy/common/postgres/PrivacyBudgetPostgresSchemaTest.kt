@@ -17,12 +17,13 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.deploy.
 import java.sql.ResultSet
 import java.sql.Statement
 import kotlin.test.assertEquals
+import org.junit.AfterClass
 import org.junit.Before
-import org.junit.ClassRule
+import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.testcontainers.containers.PostgreSQLContainer
+import org.testcontainers.postgresql.PostgreSQLContainer
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.deploy.common.postgres.testing.POSTGRES_LEDGER_SCHEMA_FILE
 
 @RunWith(JUnit4::class)
@@ -124,9 +125,19 @@ class PrivacyBudgetPostgresSchemaTest {
      * TODO(@uakyol): Use [org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule]
      *   instead of referencing TestContainers directly.
      */
-    @get:ClassRule
+    private val postgresContainer = PostgreSQLContainer(POSTGRES_IMAGE_NAME)
+
     @JvmStatic
-    val postgresContainer = PostgreSQLContainer<Nothing>(POSTGRES_IMAGE_NAME)
+    @BeforeClass
+    fun startPostgres() {
+      postgresContainer.start()
+    }
+
+    @JvmStatic
+    @AfterClass
+    fun stopPostgres() {
+      postgresContainer.stop()
+    }
 
     private fun createConnection() = postgresContainer.createConnection("")
   }

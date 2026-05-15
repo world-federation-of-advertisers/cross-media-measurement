@@ -23,6 +23,7 @@ import com.google.protobuf.Parser
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
@@ -188,6 +189,17 @@ class ResultsFulfillerApp(
     // Get TrusTeeConfig for this data provider if available
     val trusTeeConfig: TrusTeeConfig? = trusTeeConfigs[fulfillerParams.dataProvider]
 
+    val supportedMultiPartyNoiseMechanisms: Set<ProtocolConfig.NoiseMechanism> =
+      fulfillerParams.multiPartyConfig.supportedNoiseTypesList
+        .map { noiseType ->
+          when (noiseType) {
+            NoiseType.NONE -> ProtocolConfig.NoiseMechanism.NONE
+            NoiseType.CONTINUOUS_GAUSSIAN -> ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
+            else -> throw IllegalArgumentException("Unsupported multi-party noise type: $noiseType")
+          }
+        }
+        .toSet()
+
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
@@ -203,6 +215,7 @@ class ResultsFulfillerApp(
           } else {
             fulfillerParams.impressionMaxFrequencyPerUser.takeIf { it > 0 }
           },
+        supportedMultiPartyNoiseMechanisms = supportedMultiPartyNoiseMechanisms,
         trusTeeConfig = trusTeeConfig,
         kekUriToKeyNameMap = fulfillerParams.trusteeParams.kekUriToKeyNameMap,
       )

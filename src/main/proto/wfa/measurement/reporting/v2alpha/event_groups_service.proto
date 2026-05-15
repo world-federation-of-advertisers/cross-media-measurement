@@ -32,6 +32,14 @@ option go_package = "github.com/world-federation-of-advertisers/cross-media-meas
 
 // Service for interacting with `EventGroup` resources.
 service EventGroups {
+  // Gets an `EventGroup`.
+  rpc GetEventGroup(GetEventGroupRequest) returns (EventGroup) {
+    option (google.api.http) = {
+      get: "/v2alpha/{name=measurementConsumers/*/eventGroups/*}"
+    };
+    option (google.api.method_signature) = "name";
+  }
+
   // Lists `EventGroup`s. Results in a `PERMISSION_DENIED` error if attempting
   // to list `EventGroup`s that the authenticated user does not have access to.
   rpc ListEventGroups(ListEventGroupsRequest)
@@ -43,6 +51,17 @@ service EventGroups {
   }
 }
 
+// Request message for `GetEventGroup` method.
+message GetEventGroupRequest {
+  // Resource name of the `EventGroup`.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/EventGroup"
+    }
+  ];
+}
+
 // Request message for `ListEventGroups` method.
 message ListEventGroupsRequest {
   // Resource name of the parent `MeasurementConsumer`.
@@ -52,6 +71,7 @@ message ListEventGroupsRequest {
       child_type: "reporting.halo-cmm.org/EventGroup"
     }
   ];
+  reserved 4;
 
   // The maximum number of `EventGroup`s to return. The service may return fewer
   // than this value. If unspecified, at most 50 `EventGroup`s will be
@@ -109,23 +129,19 @@ message ListEventGroupsRequest {
     // [EventGroup][]. [start_date][DateInterval.start_date] and
     // [end_date][DateInterval.end_date] are required.
     DateInterval activity_contains = 8;
-  }
 
-  // Filter criteria for results. Optional.
-  oneof filter_criteria {
-    // Result filter. Raw CEL expression that is applied to a message which has
-    // a field for each event group template.
+    // Set of entity types which [EventGroup.EntityKey.entity_type][] of
+    // [EventGroup.entity_key][] must be in.
     //
-    // Deprecated in favor of [structured_filter][].
-    string filter = 4
-        [(google.api.field_behavior) = OPTIONAL, deprecated = true];
-
-    // Result filter.
-    // (-- api-linter: core::0132::request-unknown-fields=disabled
-    //     aip.dev/not-precedent: Using structured filter instead of AIP-160.
-    //     --)
-    Filter structured_filter = 5 [(google.api.field_behavior) = OPTIONAL];
+    // If unspecified, the server will treat this as if it contains "campaign".
+    repeated string entity_type_in = 9 [(google.api.field_behavior) = OPTIONAL];
   }
+
+  // Result filter.
+  // (-- api-linter: core::0132::request-unknown-fields=disabled
+  //     aip.dev/not-precedent: Using structured filter instead of AIP-160.
+  //     --)
+  Filter structured_filter = 5 [(google.api.field_behavior) = OPTIONAL];
 
   // Structure for ordering results.
   message OrderBy {

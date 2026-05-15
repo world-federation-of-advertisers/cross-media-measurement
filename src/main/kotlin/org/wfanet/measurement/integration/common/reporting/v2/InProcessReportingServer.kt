@@ -50,7 +50,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as PublicKingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as PublicKingdomMeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as PublicKingdomModelLinesCoroutineStub
-import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.getRuntimePath
@@ -59,7 +58,6 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.readByteString
-import org.wfanet.measurement.common.testing.CloseableResource
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMap
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfig
@@ -84,7 +82,6 @@ import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.server.AbstractInternalReportingServer.Companion.toList
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
-import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
@@ -96,7 +93,6 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.validate
-import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub as PublicMetricsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub as PublicReportsCoroutineStub
 
@@ -109,12 +105,12 @@ class InProcessReportingServer(
   private val signingPrivateKeyDir: File,
   private val measurementConsumerConfig: MeasurementConsumerConfig,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
-  private val knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor>,
   private val eventDescriptor: Descriptors.Descriptor,
   // May be empty
   private val defaultModelLineName: String,
   private val populationDataProviderName: String,
   private val verboseGrpcLogging: Boolean = true,
+  private val metricSpecConfigOverride: MetricSpecConfig? = null,
 ) : TestRule {
   private val publicKingdomMeasurementConsumersClient =
     PublicKingdomMeasurementConsumersCoroutineStub(kingdomPublicApiChannel)
@@ -195,22 +191,6 @@ class InProcessReportingServer(
       accessServicesFactory.create(permissionMapping, tlsClientMapping)
     }
 
-  private val celEnvCacheProvider =
-    object :
-      CloseableResource<CelEnvCacheProvider>({
-        CelEnvCacheProvider(
-          publicKingdomEventGroupMetadataDescriptorsClient.withAuthenticationKey(
-            measurementConsumerConfig.apiKey
-          ),
-          EventGroup.getDescriptor(),
-          Duration.ofSeconds(5),
-          knownEventGroupMetadataTypes,
-        )
-      }) {
-      val value: CelEnvCacheProvider
-        get() = resource
-    }
-
   private fun createPublicApiTestServerRule(): GrpcTestServerRule =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       runBlocking {
@@ -259,8 +239,9 @@ class InProcessReportingServer(
 
         val authorization = Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(accessChannel))
 
-        METRIC_SPEC_CONFIG.validate()
-        metricSpecConfig = METRIC_SPEC_CONFIG
+        val effectiveMetricSpecConfig = metricSpecConfigOverride ?: METRIC_SPEC_CONFIG
+        effectiveMetricSpecConfig.validate()
+        metricSpecConfig = effectiveMetricSpecConfig
 
         listOf(
             DataProvidersService(
@@ -278,22 +259,20 @@ class InProcessReportingServer(
             EventGroupsService(
                 publicKingdomEventGroupsClient,
                 authorization,
-                celEnvCacheProvider.value,
                 measurementConsumerConfigs,
-                encryptionKeyPairStore,
               )
               .withTrustedPrincipalAuthentication(),
             MetricCalculationSpecsService(
                 internalMetricCalculationSpecsClient,
                 publicKingdomModelLinesClient,
-                METRIC_SPEC_CONFIG,
+                metricSpecConfig,
                 authorization,
                 SecureRandom().asKotlinRandom(),
                 measurementConsumerConfigs,
               )
               .withTrustedPrincipalAuthentication(),
             MetricsService(
-                METRIC_SPEC_CONFIG,
+                metricSpecConfig,
                 measurementConsumerConfigs,
                 internalReportingSetsClient,
                 internalMetricsClient,
@@ -324,7 +303,7 @@ class InProcessReportingServer(
                 internalReportsClient,
                 internalMetricCalculationSpecsClient,
                 PublicMetricsCoroutineStub(this@GrpcTestServerRule.channel),
-                METRIC_SPEC_CONFIG,
+                metricSpecConfig,
                 authorization,
                 SecureRandom().asKotlinRandom(),
               )
@@ -337,7 +316,7 @@ class InProcessReportingServer(
                 PublicReportsCoroutineStub(this@GrpcTestServerRule.channel),
                 publicKingdomModelLinesClient,
                 EventMessageDescriptor(eventDescriptor),
-                METRIC_SPEC_CONFIG,
+                metricSpecConfig,
                 SecureRandom().asKotlinRandom(),
                 authorization,
                 measurementConsumerConfigs,
@@ -372,7 +351,6 @@ class InProcessReportingServer(
               internalReportingServerRule,
               accessServicesFactory,
               access,
-              celEnvCacheProvider,
               publicApiServer,
             )
             .apply(base, description)

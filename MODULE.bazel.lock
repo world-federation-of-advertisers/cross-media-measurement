@@ -532,20 +532,21 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cel-spec/0.15.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/civetweb/1.16/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cloud-spanner-emulator-bin/1.5.37.libcxx.1/MODULE.bazel": "e613534d63e9c0c100986a4c438c93ff0c6903223d215d63273c168407ff3395",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cloud-spanner-emulator-bin/1.5.37.libcxx.1/source.json": "a68ef196aab6142417530c86166a79aa3ef7dd68328bc6fea194491d9f3aadfc",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cloud-spanner-emulator-bin/1.5.52/MODULE.bazel": "4b74b3ae32df1c817ef4d8e761f57f93a4db6b5d5a1db25ecb389d56942e05a8",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cloud-spanner-emulator-bin/1.5.52/source.json": "94cd36e363306482d9f70dfc91b62fc9ba85bf7c49e49eac619d81ea06691029",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.11.0/MODULE.bazel": "22f7e06ac78cd614d2143fcd0e7028eb595d9902dbfa94f777531439c616f13f",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.13.0/MODULE.bazel": "ad9f152e8f710943b2d9aa4ea19e06b47911abd8a5fb63d9e69e66636475794d",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.14.0/MODULE.bazel": "1bfc0048abf7c87aba25d041caaf8f96e0252848d79de6b442cd56ace3189f2e",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.14.0/source.json": "abc2a96da0f5af0a85672811998798a55a8dce68083a470cfd341c68e06d2262",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.129.0/MODULE.bazel": "2bf570f12d4cd8b5d743bc3d619b7bd554f7f18d8179114c33a30f39abb7e447",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.135.0/MODULE.bazel": "16ca78b9e4ece97c888ba4aff47161da95a1d30e8cbf5f84014b03e6e0558f11",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.135.0/source.json": "feb16c32485a55cf4d3956708c8032e01f00b21fbe8966b561f5f0f2b0c0764e",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.141.0/MODULE.bazel": "fc29fbade0422e497170c5a55cfa761ba7996149b3f7005e3a18b966da3c53fb",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.141.0/source.json": "75b85e39e31fb4f6fa8c47e5d1f47cb2f6a0eb0866c37d06534c01a978f9e588",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.23.0/MODULE.bazel": "5fde5a3f897ec6a39300666bc745cb309b4c12e74ce4fcddef6429e5e4a627a2",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.23.0/source.json": "3798af185e6c71cabea6550303035ea4ad325a6d53854ab056ee6c93acf03b89",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/crc32c/1.1.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.87.0/MODULE.bazel": "c678b3f46885c8dea8e0de6215dc3b935ff93d632eec5d603e0690ce61571398",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.89.0/MODULE.bazel": "7ce4d2aa2c3f9f2b8cc7e9ee0dff3f92561641e5e9cb07216f17b30e246e217a",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.89.0/source.json": "c6efff2f5096b6283f7fd44d1773b97bd53f1cdfb140dab73d595d91c6394a7d",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.92.0/MODULE.bazel": "628d64247becff4d31a8550d072db458dc2ef17ffa080b6f9df0f73518e615fa",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.92.0/source.json": "7e4d2801a470a9cb617be9682eb643a40a9467fd796f250d999debcde20c77ae",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/curl/8.4.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/curl/8.7.1/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/curl/8.8.0.bcr.3/MODULE.bazel": "not found",
@@ -1685,7 +1686,7 @@
     "@@cross-media-measurement-api~//build:non_module_deps.bzl%non_module_deps": {
       "general": {
         "bzlTransitiveDigest": "tARYNwoTv9sVEd2saAAd0hgtPkV9rwO2ltHTb2278qs=",
-        "usagesDigest": "9UnwVEd0ex3tQwAOLmobDPxOsXdyjSrzzLnD2sG06aU=",
+        "usagesDigest": "pQSGyHxgg4olV4VQxaLd2ATbVgBCp/XI+45Bjr0sS2c=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -2353,7 +2354,7 @@
     "@@rules_oci~//oci:extensions.bzl%oci": {
       "general": {
         "bzlTransitiveDigest": "yyTvBSVukHEf+iGms4+jq+/Zy1xLOGnxYiCLJFatSUE=",
-        "usagesDigest": "yb06gCwdoSuZaAhsD2cUKrTfkJA256DzmFUMjb157Pk=",
+        "usagesDigest": "JMh9TDF3jqMoDwRuR9QQeHXVBwy8UonA0gSXhQ4zWJc=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -2364,8 +2365,8 @@
             "attributes": {
               "scheme": "https",
               "registry": "gcr.io",
-              "repository": "distroless/base-debian12",
-              "identifier": "sha256:cd961bbef4ecc70d2b2ff41074dd1c932af3f141f2fc00e4d91a03a832e3a658",
+              "repository": "distroless/base-debian13",
+              "identifier": "sha256:fb282f8ed3057f71dbfe3ea0f5fa7e961415dafe4761c23948a9d4628c6166fe",
               "platform": "linux/amd64",
               "target_name": "go_image_base_linux_amd64",
               "bazel_tags": []
@@ -2378,8 +2379,8 @@
               "target_name": "go_image_base",
               "scheme": "https",
               "registry": "gcr.io",
-              "repository": "distroless/base-debian12",
-              "identifier": "sha256:cd961bbef4ecc70d2b2ff41074dd1c932af3f141f2fc00e4d91a03a832e3a658",
+              "repository": "distroless/base-debian13",
+              "identifier": "sha256:fb282f8ed3057f71dbfe3ea0f5fa7e961415dafe4761c23948a9d4628c6166fe",
               "platforms": {
                 "@@platforms//cpu:x86_64": "@go_image_base_linux_amd64"
               },
@@ -2393,8 +2394,8 @@
             "attributes": {
               "scheme": "https",
               "registry": "gcr.io",
-              "repository": "distroless/python3-debian12",
-              "identifier": "sha256:498e3cb48826d99bad1301994da60caa126b25c0ce03dc4e6a47a7c10fe02493",
+              "repository": "distroless/python3-debian13",
+              "identifier": "sha256:51b1acc177d535f20fa30a175a657079ee7dce6e326541cfd83a474d9928e123",
               "platform": "linux/amd64",
               "target_name": "py_image_base_linux_amd64",
               "bazel_tags": []
@@ -2407,8 +2408,8 @@
               "target_name": "py_image_base",
               "scheme": "https",
               "registry": "gcr.io",
-              "repository": "distroless/python3-debian12",
-              "identifier": "sha256:498e3cb48826d99bad1301994da60caa126b25c0ce03dc4e6a47a7c10fe02493",
+              "repository": "distroless/python3-debian13",
+              "identifier": "sha256:51b1acc177d535f20fa30a175a657079ee7dce6e326541cfd83a474d9928e123",
               "platforms": {
                 "@@platforms//cpu:x86_64": "@py_image_base_linux_amd64"
               },
@@ -2422,8 +2423,8 @@
             "attributes": {
               "scheme": "https",
               "registry": "gcr.io",
-              "repository": "distroless/java17-debian12",
-              "identifier": "sha256:fd925ba431f3a6c1f1c8114ce1999ca38803220baf0fdf25a4c71b38db8af67f",
+              "repository": "distroless/java17-debian13",
+              "identifier": "sha256:44774ae0ebcab067d8479c4325d37b29151408f03f8d1d200fd71fc435eaa51a",
               "platform": "linux/amd64",
               "target_name": "java_image_base_root_linux_amd64",
               "bazel_tags": []
@@ -2436,8 +2437,8 @@
               "target_name": "java_image_base_root",
               "scheme": "https",
               "registry": "gcr.io",
-              "repository": "distroless/java17-debian12",
-              "identifier": "sha256:fd925ba431f3a6c1f1c8114ce1999ca38803220baf0fdf25a4c71b38db8af67f",
+              "repository": "distroless/java17-debian13",
+              "identifier": "sha256:44774ae0ebcab067d8479c4325d37b29151408f03f8d1d200fd71fc435eaa51a",
               "platforms": {
                 "@@platforms//cpu:x86_64": "@java_image_base_root_linux_amd64"
               },
@@ -2451,8 +2452,8 @@
             "attributes": {
               "scheme": "https",
               "registry": "gcr.io",
-              "repository": "distroless/java17-debian12",
-              "identifier": "sha256:032c7e120a1f5e1667a9647f4b129b313fe0f095aeae46e39d7425f23bc48912",
+              "repository": "distroless/java17-debian13",
+              "identifier": "sha256:e07bf2a4b73e122bea42dd1eb868dae9739ac7b96e3cddacb4b067b8ba5c969e",
               "platform": "linux/amd64",
               "target_name": "java_image_base_linux_amd64",
               "bazel_tags": []
@@ -2465,8 +2466,8 @@
               "target_name": "java_image_base",
               "scheme": "https",
               "registry": "gcr.io",
-              "repository": "distroless/java17-debian12",
-              "identifier": "sha256:032c7e120a1f5e1667a9647f4b129b313fe0f095aeae46e39d7425f23bc48912",
+              "repository": "distroless/java17-debian13",
+              "identifier": "sha256:e07bf2a4b73e122bea42dd1eb868dae9739ac7b96e3cddacb4b067b8ba5c969e",
               "platforms": {
                 "@@platforms//cpu:x86_64": "@java_image_base_linux_amd64"
               },
@@ -2480,8 +2481,8 @@
             "attributes": {
               "scheme": "https",
               "registry": "gcr.io",
-              "repository": "distroless/java17-debian12",
-              "identifier": "sha256:993202d1b1ab1e4faf07bf3084cd66ae6c43c87c4edc1d537550b65369784bf1",
+              "repository": "distroless/java17-debian13",
+              "identifier": "sha256:73126b876b1d039189081600e881f893518524c6bc22553e3f20e9197657e1a9",
               "platform": "linux/amd64",
               "target_name": "java_debug_image_base_linux_amd64",
               "bazel_tags": []
@@ -2494,8 +2495,8 @@
               "target_name": "java_debug_image_base",
               "scheme": "https",
               "registry": "gcr.io",
-              "repository": "distroless/java17-debian12",
-              "identifier": "sha256:993202d1b1ab1e4faf07bf3084cd66ae6c43c87c4edc1d537550b65369784bf1",
+              "repository": "distroless/java17-debian13",
+              "identifier": "sha256:73126b876b1d039189081600e881f893518524c6bc22553e3f20e9197657e1a9",
               "platforms": {
                 "@@platforms//cpu:x86_64": "@java_debug_image_base_linux_amd64"
               },

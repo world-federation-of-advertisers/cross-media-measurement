@@ -71,13 +71,14 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.createMetricCalculationSpecRequest
-import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
+import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest as internalCreateReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getImpressionQualificationFilterRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest as internalListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
+import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.setExternalReportIdRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.service.api.ArgumentChangedInRequestForNextPageException
@@ -111,10 +112,10 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
+import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.listBasicReportsResponse
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingImpressionQualificationFilter
-import org.wfanet.measurement.reporting.v2alpha.reportingSet
 
 class BasicReportsService(
   private val internalBasicReportsStub: BasicReportsCoroutineStub,
@@ -166,6 +167,8 @@ class BasicReportsService(
         getReportingSet(campaignGroupKey)
       } catch (e: ReportingSetNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      } catch (e: InternalReportingSetsException) {
+        throw Status.INTERNAL.withDescription(e.message).withCause(e).asRuntimeException()
       }
     if (campaignGroup.campaignGroup != campaignGroup.name) {
       throw CampaignGroupInvalidException(request.basicReport.campaignGroup)
@@ -374,14 +377,20 @@ class BasicReportsService(
       )
 
     val report: Report =
-      buildReport(
-        request.basicReport,
-        campaignGroupKey,
-        reportingSetMaps.nameByReportingSetComposite,
-        reportingSetsMetricCalculationSpecDetailsMap,
-        effectiveModelLine?.name.orEmpty(),
-        effectiveReportStart,
-      )
+      try {
+        buildReport(
+          request.basicReport,
+          campaignGroupKey,
+          reportingSetMaps.nameByReportingSetComposite,
+          reportingSetsMetricCalculationSpecDetailsMap,
+          effectiveModelLine?.name.orEmpty(),
+          effectiveReportStart,
+        )
+      } catch (e: ReportingSetNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      } catch (e: InternalReportingSetsException) {
+        throw Status.INTERNAL.withDescription(e.message).withCause(e).asRuntimeException()
+      }
 
     val createReportRequest = createReportRequest {
       parent = request.parent
@@ -603,6 +612,7 @@ class BasicReportsService(
    * Gets a single [ReportingSet].
    *
    * @throws ReportingSetNotFoundException
+   * @throws InternalReportingSetsException
    */
   private suspend fun getReportingSet(key: ReportingSetKey): ReportingSet {
     return try {
@@ -639,7 +649,7 @@ class BasicReportsService(
         ErrorCode.METRIC_CALCULATION_SPEC_NOT_FOUND,
         ErrorCode.METRIC_CALCULATION_SPEC_ALREADY_EXISTS,
         ErrorCode.UNRECOGNIZED,
-        null -> Exception("Internal error retrieving ReportingSet", e)
+        null -> InternalReportingSetsException("Error retrieving ReportingSet", e)
       }
     }
   }
@@ -749,26 +759,21 @@ class BasicReportsService(
           val uuid = UUID.randomUUID()
           val id = "a$uuid"
 
-          val reportingSet = reportingSet {
-            this.campaignGroup = campaignGroup.name
-            primitive =
-              ReportingSetKt.primitive {
-                cmmsEventGroups += dataProviderEventGroupsMap.getValue(dataProviderName)
-              }
-          }
-
-          val createdReportingSet =
+          val primitiveReportingSet =
             try {
               internalReportingSetsStub
                 .createReportingSet(
-                  createReportingSetRequest {
-                    externalReportingSetId = "a$uuid"
-                    this.reportingSet =
-                      reportingSet.toInternal(
-                        reportingSetId = id,
-                        cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId,
-                        internalReportingSetsStub = internalReportingSetsStub,
-                      )
+                  internalCreateReportingSetRequest {
+                    externalReportingSetId = id
+                    reportingSet = internalReportingSet {
+                      cmmsMeasurementConsumerId = campaignGroupKey.parentKey.measurementConsumerId
+                      this.externalCampaignGroupId = campaignGroupKey.reportingSetId
+                      primitive =
+                        ReportingSetKt.primitive {
+                            cmmsEventGroups += dataProviderEventGroupsMap.getValue(dataProviderName)
+                          }
+                          .toInternal()
+                    }
                   }
                 )
                 .toReportingSet()
@@ -776,7 +781,7 @@ class BasicReportsService(
               throw Status.INTERNAL.withCause(e).asRuntimeException()
             }
 
-          put(dataProviderName, createdReportingSet)
+          put(dataProviderName, primitiveReportingSet)
         }
       }
     }
@@ -868,6 +873,8 @@ class BasicReportsService(
    *   [InternalMetricCalculationSpec.Details]
    * @param modelLine The model line to use for the report.
    * @param effectiveReportStart The report start to use for the report.
+   * @throws ReportingSetNotFoundException
+   * @throws InternalReportingSetsException
    */
   private suspend fun buildReport(
     basicReport: BasicReport,
@@ -899,7 +906,7 @@ class BasicReportsService(
                   val createdReportingSet =
                     createCompositeReportingSet(
                       reportingSetMetricCalculationSpecDetailsEntry.key,
-                      campaignGroupKey.cmmsMeasurementConsumerId,
+                      campaignGroupKey.parentKey,
                     )
 
                   ReportingSetKey(
@@ -945,21 +952,44 @@ class BasicReportsService(
     }
   }
 
+  /**
+   * Creates a composite [ReportingSet] via the internal API.
+   *
+   * @param [reportingSet] Request [ReportingSet] which has not been created
+   * @param [parentKey] Key of the parent of the [ReportingSet] to create
+   * @throws ReportingSetNotFoundException if a [ReportingSets] referenced in the set expression is
+   *   not found
+   * @throws InternalReportingSetsException if there was another error from the internal API
+   */
   private suspend fun createCompositeReportingSet(
     reportingSet: ReportingSet,
-    cmmsMeasurementConsumerId: String,
+    parentKey: MeasurementConsumerKey,
   ): InternalReportingSet {
-    return internalReportingSetsStub.createReportingSet(
-      createReportingSetRequest {
-        this.reportingSet =
-          reportingSet.toInternal(
-            externalReportingSetId,
-            cmmsMeasurementConsumerId,
-            internalReportingSetsStub,
-          )
-        externalReportingSetId = "a${UUID.randomUUID()}"
-      }
-    )
+    require(reportingSet.hasComposite())
+
+    val referencedReportingSets: Map<ReportingSetKey, InternalReportingSet> =
+      ReportingSets.getReferencedReportingSets(
+        internalReportingSetsStub,
+        ReportingSets.getReferencedReportingSetKeys(reportingSet.composite.expression),
+      )
+    val campaignGroupKey = checkNotNull(ReportingSetKey.fromName(reportingSet.campaignGroup))
+    val reportingSetId = "a${UUID.randomUUID()}"
+    val request =
+      ReportingSets.buildInternalCreateReportingSetRequest(
+        createReportingSetRequest {
+          this.reportingSetId = reportingSetId
+          this.reportingSet = reportingSet
+        },
+        parentKey,
+        campaignGroupKey,
+        referencedReportingSets,
+      )
+
+    return try {
+      internalReportingSetsStub.createReportingSet(request)
+    } catch (e: StatusException) {
+      throw InternalReportingSetsException("Error creating composite ReportingSet", e)
+    }
   }
 
   private suspend fun createMetricCalculationSpec(

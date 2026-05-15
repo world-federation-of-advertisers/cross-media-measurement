@@ -36,16 +36,19 @@ import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.EnvelopeEncryptionKt.awsKmsParams
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResultsFulfillerConfigAsByteArray
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfigs
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerMetrics.Companion.measured
@@ -55,6 +58,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.ParallelInMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
+import org.wfanet.measurement.gcloud.kms.GCloudToAwsKmsClientFactory
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -262,6 +266,38 @@ class ResultsFulfillerAppRunner : Runnable {
   private var metadataStoragePublicApiCertHost: String? = null
 
   @CommandLine.Option(
+    names = ["--pipeline-batch-size"],
+    description = ["Number of events to process in each batch."],
+    defaultValue = "256",
+  )
+  private var pipelineBatchSize: Int = 256
+
+  @CommandLine.Option(
+    names = ["--pipeline-channel-capacity"],
+    description = ["Per-worker channel capacity in number of batches."],
+    defaultValue = "64",
+  )
+  private var pipelineChannelCapacity: Int = 64
+
+  @CommandLine.Option(
+    names = ["--pipeline-thread-pool-size"],
+    description =
+      ["Size of the thread pool for the coroutine dispatcher. Defaults to available CPU cores."],
+    defaultValue = "0",
+  )
+  private var pipelineThreadPoolSize: Int = 0
+
+  @CommandLine.Option(
+    names = ["--pipeline-workers"],
+    description =
+      [
+        "Number of parallel worker coroutines for processing batches. Defaults to available CPU cores."
+      ],
+    defaultValue = "0",
+  )
+  private var pipelineWorkers: Int = 0
+
+  @CommandLine.Option(
     names = ["--subscription-id"],
     description = ["Subscription ID for the queue"],
     required = true,
@@ -359,6 +395,16 @@ class ResultsFulfillerAppRunner : Runnable {
 
     val modelLinesMap = runBlockingWithTelemetry { buildModelLineMap() }
 
+    val cpuCount = Runtime.getRuntime().availableProcessors()
+    val pipelineConfiguration =
+      PipelineConfiguration(
+        batchSize = pipelineBatchSize,
+        channelCapacity = pipelineChannelCapacity,
+        threadPoolSize = if (pipelineThreadPoolSize > 0) pipelineThreadPoolSize else cpuCount,
+        workers = if (pipelineWorkers > 0) pipelineWorkers else cpuCount,
+      )
+    pipelineConfiguration.validate()
+
     val resultsFulfillerApp =
       ResultsFulfillerApp(
         subscriptionId = subscriptionId,
@@ -375,6 +421,7 @@ class ResultsFulfillerAppRunner : Runnable {
         getImpressionsStorageConfig = getImpressionsStorageConfig,
         getRequisitionsStorageConfig = getImpressionsStorageConfig,
         modelLineInfoMap = modelLinesMap,
+        pipelineConfiguration = pipelineConfiguration,
         metrics = metrics,
       )
 
@@ -382,31 +429,65 @@ class ResultsFulfillerAppRunner : Runnable {
   }
 
   fun createKmsClients() {
-
     kmsClientsMap = mutableMapOf()
     trusTeeConfigMap = mutableMapOf()
 
     edpsConfig.eventDataProviderConfigList.forEach { edpConfig ->
-      val kmsConfig =
-        GCloudWifCredentials(
-          audience = edpConfig.kmsConfig.kmsAudience,
-          subjectTokenType = SUBJECT_TOKEN_TYPE,
-          tokenUrl = TOKEN_URL,
-          credentialSourceFilePath = CREDENTIAL_SOURCE_FILE_PATH,
-          serviceAccountImpersonationUrl =
-            EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(edpConfig.kmsConfig.serviceAccount),
-        )
-
-      val kmsClient = GCloudKmsClientFactory().getKmsClient(kmsConfig)
+      val kmsClient =
+        when (edpConfig.kmsConfig.kmsType) {
+          EventDataProviderConfig.KmsConfig.KmsType.AWS -> {
+            val gcloudToAwsConfig =
+              GCloudToAwsWifCredentials(
+                gcloudAudience = edpConfig.kmsConfig.kmsAudience,
+                subjectTokenType = SUBJECT_TOKEN_TYPE,
+                tokenUrl = TOKEN_URL,
+                credentialSourceFilePath = CREDENTIAL_SOURCE_FILE_PATH,
+                serviceAccountImpersonationUrl =
+                  EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(edpConfig.kmsConfig.serviceAccount),
+                roleArn = edpConfig.kmsConfig.awsRoleArn,
+                roleSessionName = edpConfig.kmsConfig.awsRoleSessionName,
+                region = edpConfig.kmsConfig.awsRegion,
+                awsAudience = edpConfig.kmsConfig.awsAudience,
+              )
+            GCloudToAwsKmsClientFactory().getKmsClient(gcloudToAwsConfig)
+          }
+          EventDataProviderConfig.KmsConfig.KmsType.GCP -> {
+            val gcpConfig =
+              GCloudWifCredentials(
+                audience = edpConfig.kmsConfig.kmsAudience,
+                subjectTokenType = SUBJECT_TOKEN_TYPE,
+                tokenUrl = TOKEN_URL,
+                credentialSourceFilePath = CREDENTIAL_SOURCE_FILE_PATH,
+                serviceAccountImpersonationUrl =
+                  EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(edpConfig.kmsConfig.serviceAccount),
+              )
+            GCloudKmsClientFactory().getKmsClient(gcpConfig)
+          }
+          EventDataProviderConfig.KmsConfig.KmsType.KMS_TYPE_UNSPECIFIED,
+          EventDataProviderConfig.KmsConfig.KmsType.UNRECOGNIZED ->
+            error("Unsupported KMS type: ${edpConfig.kmsConfig.kmsType}")
+        }
 
       kmsClientsMap[edpConfig.dataProvider] = kmsClient
 
-      // Build TrusTeeConfig for this EDP using KMS config from edpConfig
+      val apiAwsKmsParams =
+        if (edpConfig.kmsConfig.kmsType == EventDataProviderConfig.KmsConfig.KmsType.AWS) {
+          awsKmsParams {
+            roleArn = edpConfig.kmsConfig.awsRoleArn
+            roleSession = edpConfig.kmsConfig.awsRoleSessionName
+            region = edpConfig.kmsConfig.awsRegion
+            audience = edpConfig.kmsConfig.awsAudience
+          }
+        } else {
+          null
+        }
+
       trusTeeConfigMap[edpConfig.dataProvider] =
         TrusTeeConfig(
           kmsClient = kmsClient,
           workloadIdentityProvider = edpConfig.kmsConfig.kmsAudience,
           impersonatedServiceAccount = edpConfig.kmsConfig.serviceAccount,
+          awsKmsParams = apiAwsKmsParams,
         )
     }
   }

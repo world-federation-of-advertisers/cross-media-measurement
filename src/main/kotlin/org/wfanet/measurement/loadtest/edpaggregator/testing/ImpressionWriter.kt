@@ -23,15 +23,20 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.asFlow
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
+import org.wfanet.measurement.loadtest.dataprovider.EntityKey
+import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
+import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
@@ -46,6 +51,16 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  *
  * Impressions are written using a Mesos Record IO format using streaming envelope encryption.
  *
+ * Each emitted [LabeledImpression] is stamped with the [EntityKey]s from its containing
+ * [EntityKeysWithLabeledEvents] group. Different groups within the same
+ * [EntityKeyedLabeledEventDateShard] therefore land in the same impressions blob with potentially
+ * different entity keys, while every impression in a single blob still belongs to the event group
+ * identified by [eventGroupReferenceId], which is recorded on the per-blob `BlobDetails` metadata.
+ *
+ * @property eventGroupReferenceId The event group reference ID recorded on the per-blob
+ *   `BlobDetails` metadata. Every `LabeledImpression` written to a given blob belongs to the event
+ *   group identified by this id, so it is recorded once at the metadata level rather than on every
+ *   `LabeledImpression`.
  * @property eventGroupPath The path to the event group where impressions are stored.
  * @property kekUri The URI of the Key Encryption Key (KEK) used for envelope encryption.
  * @property kmsClient The KMS client used for encryption operations.
@@ -65,16 +80,25 @@ class ImpressionsWriter(
   private val schema: String = "file:///",
 ) {
 
-  /*
-   * Takes a Flow<DateShardedLabeledImpression<T>>, encrypts that data with a KMS,
-   * and outputs the data to storage along with the necessary metadata for the ResultsFulfiller
-   * to be able to find and read the contents.
+  /**
+   * Takes a sequence of [EntityKeyedLabeledEventDateShard]s, encrypts the data with a KMS, and
+   * outputs the data to storage along with the necessary metadata for the ResultsFulfiller to be
+   * able to find and read the contents.
+   *
+   * @param blobModelLine full ModelLine resource name. Must be a valid resource name because
+   *   downstream services validate and persist the value as such.
    */
   suspend fun <T : Message> writeLabeledImpressionData(
-    events: Sequence<LabeledEventDateShard<T>>,
+    events: Sequence<EntityKeyedLabeledEventDateShard<T>>,
     blobModelLine: String,
     impressionsBasePath: String? = null,
+    flatOutputBasePath: String? = null,
   ) {
+    val modelLineName =
+      requireNotNull(ModelLineKey.fromName(blobModelLine)) {
+          "blobModelLine must be a full ModelLine resource name: $blobModelLine"
+        }
+        .toName()
     val serializedEncryptionKey =
       EncryptedStorage.generateSerializedEncryptionKey(kmsClient, kekUri, "AES128_GCM_HKDF_1MB")
     val encryptedDek =
@@ -84,20 +108,41 @@ class ImpressionsWriter(
         .setProtobufFormat(EncryptedDek.ProtobufFormat.BINARY)
         .setTypeUrl("type.googleapis.com/google.crypto.tink.Keyset")
         .build()
-    events.forEach { (localDate: LocalDate, labeledEvents: Sequence<LabeledEvent<T>>) ->
+    events.forEach { (localDate: LocalDate, groups: Sequence<EntityKeysWithLabeledEvents<T>>) ->
+      // Materialize groups so we can both derive the per-blob entity-key aggregate (written to
+      // BlobDetails below) and stamp each impression with its group's entity keys without
+      // consuming the same Sequence twice.
+      val materializedGroups: List<EntityKeysWithLabeledEvents<T>> = groups.toList()
+      val blobEntityKeyGroups: List<EntityKeyGroup> =
+        materializedGroups
+          .flatMap { it.entityKeys }
+          .groupBy { it.entityType }
+          .map { (type, keys) ->
+            entityKeyGroup {
+              entityType = type
+              entityIds += keys.map { it.entityId }.distinct()
+            }
+          }
       val labeledImpressions: Sequence<LabeledImpression> =
-        labeledEvents.map { it: LabeledEvent<T> ->
-          labeledImpression {
-            vid = it.vid
-            event = Any.pack(it.message)
-            eventTime = it.timestamp.toProtoTime()
+        materializedGroups.asSequence().flatMap { group: EntityKeysWithLabeledEvents<T> ->
+          val protoEntityKeys: List<LabeledImpression.EntityKey> =
+            group.entityKeys.map { it.toProto() }
+          group.labeledEvents.map { event ->
+            labeledImpression {
+              vid = event.vid
+              this.event = Any.pack(event.message)
+              eventTime = event.timestamp.toProtoTime()
+              entityKeys += protoEntityKeys
+            }
           }
         }
       val ds = localDate.toString()
       logger.info("Writing Date: $ds")
 
       val impressionsBlobKey =
-        if (impressionsBasePath != null) {
+        if (flatOutputBasePath != null) {
+          "$flatOutputBasePath/$ds/impressions"
+        } else if (impressionsBasePath != null) {
           "$impressionsBasePath/ds/$ds/$eventGroupPath/impressions"
         } else {
           "ds/$ds/$eventGroupPath/impressions"
@@ -118,7 +163,9 @@ class ImpressionsWriter(
         labeledImpressions.map { it.toByteString() }.asFlow(),
       )
       val impressionsMetaDataBlobKey =
-        if (impressionsBasePath != null) {
+        if (flatOutputBasePath != null) {
+          "$flatOutputBasePath/$ds/metadata.binpb"
+        } else if (impressionsBasePath != null) {
           "$impressionsBasePath/ds/$ds/$eventGroupPath/metadata.binpb"
         } else {
           "ds/$ds/$eventGroupPath/metadata.binpb"
@@ -145,7 +192,8 @@ class ImpressionsWriter(
           startTime = startOfDay
           endTime = endOfDay
         }
-        this.modelLine = blobModelLine
+        this.modelLine = modelLineName
+        this.entityKeys += blobEntityKeyGroups
       }
       impressionsMetadataStorageClient.writeBlob(
         impressionsMetaDataBlobKey,
@@ -156,5 +204,11 @@ class ImpressionsWriter(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    private fun EntityKey.toProto(): LabeledImpression.EntityKey =
+      LabeledImpressionKt.entityKey {
+        entityType = this@toProto.entityType
+        entityId = this@toProto.entityId
+      }
   }
 }

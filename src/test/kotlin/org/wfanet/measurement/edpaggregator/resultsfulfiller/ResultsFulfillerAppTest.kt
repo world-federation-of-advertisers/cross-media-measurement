@@ -143,6 +143,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRespon
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
@@ -506,7 +507,15 @@ class ResultsFulfillerAppTest {
             mapOf("some-duchy" to grpcTestServerRule.channel),
           ),
           kmsClients,
-          mapOf(EDP_NAME to TrusTeeConfig(kmsClient, "test-wip", "test-sa@example.com")),
+          mapOf(
+            EDP_NAME to
+              TrusTeeConfig(
+                kmsClient = kmsClient,
+                workloadIdentityProvider = "test-wip",
+                impersonatedServiceAccount = "test-sa@example.com",
+                awsKmsParams = null,
+              )
+          ),
           getStorageConfig(tmpPath),
           getStorageConfig(tmpPath),
           getStorageConfig(tmpPath),
@@ -770,7 +779,15 @@ class ResultsFulfillerAppTest {
           mapOf("some-duchy" to grpcTestServerRule.channel),
         ),
         kmsClients,
-        mapOf(EDP_NAME to TrusTeeConfig(kmsClient, "test-wip", "test-sa@example.com")),
+        mapOf(
+          EDP_NAME to
+            TrusTeeConfig(
+              kmsClient = kmsClient,
+              workloadIdentityProvider = "test-wip",
+              impersonatedServiceAccount = "test-sa@example.com",
+              awsKmsParams = null,
+            )
+        ),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
@@ -1189,7 +1206,12 @@ class ResultsFulfillerAppTest {
         kmsClients,
         mapOf(
           EDP_NAME to
-            TrusTeeConfig(kmsClients.getValue(EDP_NAME), "test-wip", "test-sa@example.com")
+            TrusTeeConfig(
+              kmsClient = kmsClients.getValue(EDP_NAME),
+              workloadIdentityProvider = "test-wip",
+              impersonatedServiceAccount = "test-sa@example.com",
+              awsKmsParams = null,
+            )
         ),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
@@ -1326,6 +1348,7 @@ class ResultsFulfillerAppTest {
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
+            awsKmsParams = null,
           )
       )
 
@@ -1599,11 +1622,10 @@ class ResultsFulfillerAppTest {
               ResultsFulfillerParamsKt.storageParams {
                 labeledImpressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
               }
-            this.cmmsConnection =
-              ResultsFulfillerParamsKt.transportLayerSecurityParams {
-                clientCertResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.pem").toString()
-                clientPrivateKeyResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.key").toString()
-              }
+            this.cmmsConnection = transportLayerSecurityParams {
+              clientCertResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.pem").toString()
+              clientPrivateKeyResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.key").toString()
+            }
             this.consentParams =
               ResultsFulfillerParamsKt.consentParams {
                 resultCsCertDerResourcePath =

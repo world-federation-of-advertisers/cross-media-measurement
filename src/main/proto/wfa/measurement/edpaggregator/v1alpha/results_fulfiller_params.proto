@@ -24,6 +24,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
@@ -76,22 +77,11 @@ message ResultsFulfillerParams {
   // Information necessary for EDP Consent signaling
   ConsentParams consent_params = 3 [(google.api.field_behavior) = REQUIRED];
 
-  // Message representing the details needed to connect to the kingdom
-  message TransportLayerSecurityParams {
-    // The resource key of the client certificate
-    string client_cert_resource_path = 1
-        [(google.api.field_behavior) = REQUIRED];
-
-    // The resource key of the client private key
-    string client_private_key_resource_path = 2
-        [(google.api.field_behavior) = REQUIRED];
-  }
-
   // The connection to the Cmms API
   TransportLayerSecurityParams cmms_connection = 4
       [(google.api.field_behavior) = REQUIRED];
 
-  // The parameters for noise that is applied to the result.
+  // The parameters for noise that is applied to single EDP (direct) results.
   message NoiseParams {
     // The types of noise
     enum NoiseType {
@@ -106,7 +96,8 @@ message ResultsFulfillerParams {
     NoiseType noise_type = 1;
   }
 
-  // The noise params to be applied.
+  // The noise params to be applied to single EDP (direct) results only.
+  // For multi-party protocol noise, see `multi_party_config`.
   NoiseParams noise_params = 5;
 
   // The parameters for k-anonymity that is applied to the result. Note that if
@@ -161,4 +152,16 @@ message ResultsFulfillerParams {
 
   // TrusTee encryption parameters. Required for TrusTee protocol support.
   TrusTeeParams trustee_params = 9;
+
+  // Configuration for multi-party computation protocols (HMSS, TrusTee).
+  message MultiPartyConfig {
+    // Noise types that this EDP supports for multi-party protocols.
+    // When populated, the EDP will refuse any HMSS or TrusTee requisition
+    // whose protocol noise mechanism does not map to a type in this list.
+    // When empty, no multi-party noise validation is performed.
+    repeated NoiseParams.NoiseType supported_noise_types = 1;
+  }
+
+  // Multi-party computation protocol configuration.
+  MultiPartyConfig multi_party_config = 10;
 }

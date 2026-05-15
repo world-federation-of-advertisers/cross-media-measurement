@@ -42,6 +42,7 @@ import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.ListClientAccountsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.batchCreateClientAccountsRequest
 import org.wfanet.measurement.internal.kingdom.clientAccount
 import org.wfanet.measurement.internal.kingdom.createClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.deleteClientAccountRequest
@@ -549,6 +550,50 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
     assertThat(page2.clientAccountsList).containsAnyOf(clientAccount1, clientAccount2)
     assertThat(page2.clientAccountsList.first().externalClientAccountId)
       .isNotEqualTo(page1.clientAccountsList.first().externalClientAccountId)
+  }
+
+  @Test
+  fun `batchCreateClientAccounts returns ClientAccounts with externalMeasurementConsumerId`():
+    Unit = runBlocking {
+    val measurementConsumer: MeasurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+
+    val request = batchCreateClientAccountsRequest {
+      externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+      requests += createClientAccountRequest {
+        clientAccount = clientAccount {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          externalDataProviderId = dataProvider.externalDataProviderId
+          clientAccountReferenceId = "batch-multi-ref-1"
+        }
+      }
+      requests += createClientAccountRequest {
+        clientAccount = clientAccount {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          externalDataProviderId = dataProvider.externalDataProviderId
+          clientAccountReferenceId = "batch-multi-ref-2"
+        }
+      }
+    }
+
+    val response = clientAccountsService.batchCreateClientAccounts(request)
+
+    assertThat(response.clientAccountsList).hasSize(2)
+    for (createdAccount in response.clientAccountsList) {
+      assertThat(createdAccount.externalMeasurementConsumerId)
+        .isEqualTo(measurementConsumer.externalMeasurementConsumerId)
+      assertThat(createdAccount.externalClientAccountId).isGreaterThan(0L)
+      assertThat(createdAccount.externalDataProviderId)
+        .isEqualTo(dataProvider.externalDataProviderId)
+      assertThat(createdAccount.hasCreateTime()).isTrue()
+    }
+    assertThat(response.clientAccountsList[0].clientAccountReferenceId)
+      .isEqualTo("batch-multi-ref-1")
+    assertThat(response.clientAccountsList[1].clientAccountReferenceId)
+      .isEqualTo("batch-multi-ref-2")
+    assertThat(response.clientAccountsList[0].externalClientAccountId)
+      .isNotEqualTo(response.clientAccountsList[1].externalClientAccountId)
   }
 
   companion object {

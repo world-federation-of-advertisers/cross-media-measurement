@@ -757,14 +757,6 @@ class ListEventGroups : Runnable {
   )
   private lateinit var measurementConsumerName: String
 
-  @CommandLine.Option(
-    names = ["--filter"],
-    description = ["Result filter in format of raw CEL expression"],
-    required = false,
-    defaultValue = "",
-  )
-  private lateinit var celFilter: String
-
   @CommandLine.Mixin private lateinit var pageParams: PageParams
 
   override fun run() {
@@ -772,7 +764,6 @@ class ListEventGroups : Runnable {
       parent = measurementConsumerName
       pageSize = pageParams.pageSize
       pageToken = pageParams.pageToken
-      filter = celFilter
     }
 
     val response = runBlocking(Dispatchers.IO) { parent.eventGroupStub.listEventGroups(request) }

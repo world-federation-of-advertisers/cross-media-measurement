@@ -12,19 +12,6 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "cel_env_provider",
-    srcs = ["CelEnvProvider.kt"],
-    deps = [
-        "//imports/java/org/projectnessie/cel",
-        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptor_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptors_service_kt_jvm_grpc_proto",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-    ],
-)
-
-kt_jvm_library(
     name = "submit_batch_requests",
     srcs = ["SubmitBatchRequests.kt"],
     deps = [
@@ -38,7 +25,9 @@ kt_jvm_library(
     srcs = ["Errors.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:errors",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:internal_exception",
         "//src/main/proto/google/rpc:error_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:metric_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",

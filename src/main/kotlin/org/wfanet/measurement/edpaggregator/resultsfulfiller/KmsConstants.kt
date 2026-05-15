@@ -16,7 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-/** Constants for GCP KMS URI handling. */
+/** Constants for KMS URI handling. */
 object KmsConstants {
   /**
    * Regex pattern for parsing GCP KMS key URIs.
@@ -31,4 +31,16 @@ object KmsConstants {
    */
   val GCP_KMS_KEY_URI_REGEX =
     Regex("gcp-kms://projects/([^/]+)/locations/([^/]+)/keyRings/([^/]+)/cryptoKeys/([^/]+)")
+
+  /**
+   * Regex pattern for parsing AWS KMS key URIs.
+   *
+   * Format: aws-kms://arn:aws:kms:{region}:{account}:key/{keyId}
+   *
+   * Capture groups:
+   * 1. region
+   * 2. account
+   * 3. keyId
+   */
+  val AWS_KMS_KEY_URI_REGEX = Regex("aws-kms://arn:aws:kms:([^:]+):([^:]+):key/(.+)")
 }

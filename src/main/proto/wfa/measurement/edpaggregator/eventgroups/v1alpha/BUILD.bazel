@@ -5,7 +5,9 @@ load(
 )
 
 package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/api/v2alpha/tools:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__subpackages__",
 ])
@@ -20,7 +22,9 @@ proto_library(
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:struct_proto",
         "@com_google_protobuf//:timestamp_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/type:future_disposition_proto",
     ],
 )
 

@@ -16,13 +16,18 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import com.google.common.truth.Truth.assertThat
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -39,29 +44,9 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
 
   protected abstract val EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS:
     ((EventGroup) -> Boolean)?
-  protected abstract val EVENT_GROUP_FILTERING_LAMBDA_HMSS: ((EventGroup) -> Boolean)?
+  protected abstract val EVENT_GROUP_FILTERING_LAMBDA_CROSS_PUB: ((EventGroup) -> Boolean)?
 
-  @Test
-  fun `create a Hmss reach-only measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a reach and frequency measurement and verify its result.
-      mcSimulator.testReachOnly(
-        "1231",
-        ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
-        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_HMSS,
-      )
-    }
-
-  @Test
-  fun `create a Hmss RF measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a reach and frequency measurement and verify its result.
-      mcSimulator.testReachAndFrequency(
-        "1232",
-        ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
-        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_HMSS,
-      )
-    }
+  // TODO(@marcopremier): Enable HMMS tests by adding a new EDP
 
   @Test
   fun `create a direct RF measurement and check the result is equal to the expected result`() =
@@ -110,15 +95,138 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       )
     }
 
+  @Test
+  fun `create a TrusTee reach-only measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      mcSimulator.testReachOnly(
+        "1237",
+        ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
+        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_CROSS_PUB,
+      )
+    }
+
+  @Test
+  fun `create a TrusTee RF measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      mcSimulator.testReachAndFrequency(
+        "1238",
+        ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
+        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_CROSS_PUB,
+      )
+    }
+
+  @Test
+  fun `EDPA EventGroup with non-default entity_type round-trips via the CMMS public API`() =
+    runBlocking {
+      val response =
+        measurementSystem.publicEventGroupsStub
+          .withAuthenticationKey(measurementSystem.apiAuthenticationKey)
+          .listEventGroups(
+            listEventGroupsRequest {
+              parent = measurementSystem.measurementConsumerName
+              pageSize = 100
+              filter =
+                ListEventGroupsRequestKt.filter {
+                  entityTypeIn += "campaign"
+                  entityTypeIn += "creative-id"
+                }
+            }
+          )
+
+      val byRefId = response.eventGroupsList.associateBy { it.eventGroupReferenceId }
+      val creativeId: EventGroup = byRefId.getValue(CREATIVE_ID_EVENT_GROUP_REF_ID)
+      assertThat(creativeId.entityKey.entityType).isEqualTo("creative-id")
+      assertThat(creativeId.entityKey.entityId).isEqualTo(CREATIVE_ID_EVENT_GROUP_REF_ID)
+      assertThat(creativeId.eventGroupMetadata.entityMetadata.fieldsMap).containsKey("placement")
+    }
+
+  @Test
+  fun `EDPA EventGroup without entity_key defaults to campaign with no entity_id or metadata`() =
+    runBlocking {
+      val response =
+        measurementSystem.publicEventGroupsStub
+          .withAuthenticationKey(measurementSystem.apiAuthenticationKey)
+          .listEventGroups(
+            listEventGroupsRequest {
+              parent = measurementSystem.measurementConsumerName
+              pageSize = 100
+              // No filter — server defaults entity_type_in to ["campaign"].
+            }
+          )
+
+      val legacy: EventGroup =
+        response.eventGroupsList.single {
+          it.eventGroupReferenceId == EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID
+        }
+      // Schema column DEFAULT "campaign"; EntityId stays NULL; entity_metadata not set.
+      assertThat(legacy.entityKey.entityType).isEqualTo("campaign")
+      assertThat(legacy.entityKey.entityId).isEmpty()
+      assertThat(legacy.eventGroupMetadata.hasEntityMetadata()).isFalse()
+    }
+
+  @Test
+  fun `default ListEventGroups filter hides non-campaign EventGroups`() = runBlocking {
+    val response =
+      measurementSystem.publicEventGroupsStub
+        .withAuthenticationKey(measurementSystem.apiAuthenticationKey)
+        .listEventGroups(
+          listEventGroupsRequest {
+            parent = measurementSystem.measurementConsumerName
+            pageSize = 100
+            // No filter — server defaults entity_type_in to ["campaign"].
+          }
+        )
+
+    val refIds = response.eventGroupsList.map { it.eventGroupReferenceId }.toSet()
+    assertThat(refIds).contains(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID)
+    assertThat(refIds).doesNotContain(CREATIVE_ID_EVENT_GROUP_REF_ID)
+  }
+
+  @Test
+  fun `direct measurement with reference-id-only event groups succeeds`() = runBlocking {
+    mcSimulator.testDirectReachAndFrequency(
+      "1240",
+      1,
+      eventGroupFilter = { it.eventGroupReferenceId == EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID },
+    )
+  }
+
+  @Test
+  fun `direct measurement with creative-id entity-key-only event groups succeeds`() = runBlocking {
+    mcSimulator.testDirectReachAndFrequency(
+      "1241",
+      1,
+      eventGroupFilter = { it.eventGroupReferenceId == CREATIVE_ID_EVENT_GROUP_REF_ID },
+    )
+  }
+
+  @Test
+  fun `direct measurement with multi-entity-key blob filtering to one entity key succeeds`() =
+    runBlocking {
+      mcSimulator.testDirectReachAndFrequency(
+        "1242",
+        1,
+        eventGroupFilter = { it.eventGroupReferenceId == MULTI_CREATIVE_EVENT_GROUP_REF_ID },
+      )
+    }
+
   interface MeasurementSystem {
     val runId: String
     val mcSimulator: MeasurementConsumerSimulator
+    val publicEventGroupsStub: EventGroupsCoroutineStub
+    val measurementConsumerName: String
+    val apiAuthenticationKey: String
   }
 
   companion object {
     private const val MC_ENCRYPTION_PRIVATE_KEY_NAME = "mc_enc_private.tink"
     private const val MC_CS_CERT_DER_NAME = "mc_cs_cert.der"
     private const val MC_CS_PRIVATE_KEY_DER_NAME = "mc_cs_private.der"
+
+    const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-1"
+    const val CREATIVE_ID_EVENT_GROUP_REF_ID = "edpa-eg-creative-id-1"
+    const val MULTI_CREATIVE_EVENT_GROUP_REF_ID = "edpa-eg-multi-creative-1"
+    const val EDPA_META_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-2"
 
     val OUTPUT_DP_PARAMS = differentialPrivacyParams {
       epsilon = 0.1

@@ -39,9 +39,11 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRespons
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReportingSet
 import org.wfanet.measurement.reporting.service.internal.CampaignGroupInvalidException
+import org.wfanet.measurement.reporting.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
+import org.wfanet.measurement.reporting.service.internal.RequiredFieldNotSetException
 
 private const val MAX_BATCH_SIZE = 1000
 
@@ -98,8 +100,15 @@ class PostgresReportingSetsService(
   override suspend fun batchGetReportingSets(
     request: BatchGetReportingSetsRequest
   ): BatchGetReportingSetsResponse {
+    if (request.cmmsMeasurementConsumerId.isEmpty()) {
+      throw RequiredFieldNotSetException("cmms_measurement_consumer_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     if (request.externalReportingSetIdsList.size > MAX_BATCH_SIZE) {
-      failGrpc(Status.INVALID_ARGUMENT) { "Too many Reporting Sets requested" }
+      throw InvalidFieldValueException("external_reporting_set_ids") { fieldPath ->
+          "Too many items in $fieldPath"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     val readContext = client.readTransaction()

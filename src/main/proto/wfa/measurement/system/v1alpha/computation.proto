@@ -122,6 +122,8 @@ message Computation {
       DISCRETE_GAUSSIAN = 2;
       // Continuous Gaussian.
       CONTINUOUS_GAUSSIAN = 3;
+      // No noise.
+      NONE = 4;
     }
 
     // Configuration for the Liquid Legions v2 R/F protocol.

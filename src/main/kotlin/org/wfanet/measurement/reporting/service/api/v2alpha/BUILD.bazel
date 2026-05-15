@@ -31,13 +31,28 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "reporting_sets",
+    srcs = ["ReportingSets.kt"],
+    deps = [
+        ":proto_conversions",
+        ":reporting_exceptions",
+        ":set_expression_compiler",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:errors",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:internal_exception",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_set_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_set_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_sets_service_kt_jvm_grpc_proto",
+    ],
+)
+
+kt_jvm_library(
     name = "proto_conversions",
     srcs = ["ProtoConversions.kt"],
     deps = [
         ":reporting_exceptions",
-        ":set_expression_compiler",
         "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:measurement_statistics",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:errors",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metric_spec_defaults",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc_proto",
@@ -68,12 +83,10 @@ kt_jvm_library(
     srcs = ["EventGroupsService.kt"],
     deps = [
         ":resource_key",
-        "//imports/java/org/projectnessie/cel",
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:authorization",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:cel_env_provider",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:encryption_key_pair_store",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
@@ -160,9 +173,6 @@ kt_jvm_library(
 kt_jvm_library(
     name = "set_expression_compiler",
     srcs = ["SetExpressionCompiler.kt"],
-    deps = [
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-    ],
 )
 
 kt_jvm_library(
@@ -196,6 +206,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/api:resource_ids",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:errors",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:proto_conversions",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:reporting_sets",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:internal_exception",
         "//src/main/proto/wfa/measurement/internal/reporting:error_code_kt_jvm_proto",
@@ -325,6 +336,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common:timestamps",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:errors",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:measurement_consumer_credentials",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:reporting_sets",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:errors",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:internal_exception",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:normalization",

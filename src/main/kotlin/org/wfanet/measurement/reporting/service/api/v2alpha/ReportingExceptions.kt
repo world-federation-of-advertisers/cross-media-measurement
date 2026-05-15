@@ -31,3 +31,7 @@ class MeasurementVarianceNotComputableException(message: String? = null, cause: 
 /** [Exception] which indicates an error that metric result is not computable. */
 class MetricResultNotComputableException(message: String? = null, cause: Throwable? = null) :
   Exception(message, cause)
+
+/** Unspecified error from the internal ReportingSets service. */
+class InternalReportingSetsException(override val message: String, cause: Throwable? = null) :
+  Exception(message, cause)

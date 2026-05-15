@@ -20,14 +20,17 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.kotlin.unpack
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.computation.KAnonymityParams
+import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactory
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffleMeasurementFulfiller
@@ -47,6 +50,7 @@ data class TrusTeeConfig(
   val kmsClient: KmsClient,
   val workloadIdentityProvider: String,
   val impersonatedServiceAccount: String,
+  val awsKmsParams: FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.AwsKmsParams?,
 ) {
   /**
    * Builds EncryptionParams for the TrusTee protocol using the provided KEK URI.
@@ -69,26 +73,33 @@ data class TrusTeeConfig(
       kmsKekUri = remappedKekUri,
       workloadIdentityProvider = workloadIdentityProvider,
       impersonatedServiceAccount = impersonatedServiceAccount,
+      awsKmsParams = awsKmsParams,
     )
   }
 
   /**
    * Remaps the input KEK URI using the provided map.
    *
-   * If the kekUri is found in the map, constructs a new KEK URI by replacing the key name component
-   * with the mapped key name (keeping the same keyring). If not found, returns the original kekUri
-   * unchanged.
+   * If the kekUri is found in the map, constructs a new KEK URI by replacing the key name/ID
+   * component with the mapped value (keeping the same keyring/account). Supports both GCP and AWS
+   * KMS URI formats. If not found, returns the original kekUri unchanged.
    */
   private fun remapKekUri(kekUri: String, kekUriToKeyNameMap: Map<String, String>): String {
     val mappedKeyName = kekUriToKeyNameMap[kekUri] ?: return kekUri
 
-    // KEK URI format:
-    // gcp-kms://projects/{project}/locations/{location}/keyRings/{keyring}/cryptoKeys/{key}
-    val regex = KmsConstants.GCP_KMS_KEY_URI_REGEX
-    val matchResult = regex.matchEntire(kekUri) ?: return kekUri
+    val gcpMatch = KmsConstants.GCP_KMS_KEY_URI_REGEX.matchEntire(kekUri)
+    if (gcpMatch != null) {
+      val (project, location, keyRing) = gcpMatch.destructured
+      return "gcp-kms://projects/$project/locations/$location/keyRings/$keyRing/cryptoKeys/$mappedKeyName"
+    }
 
-    val (project, location, keyRing) = matchResult.destructured
-    return "gcp-kms://projects/$project/locations/$location/keyRings/$keyRing/cryptoKeys/$mappedKeyName"
+    val awsMatch = KmsConstants.AWS_KMS_KEY_URI_REGEX.matchEntire(kekUri)
+    if (awsMatch != null) {
+      val (region, account) = awsMatch.destructured
+      return "aws-kms://arn:aws:kms:$region:$account:key/$mappedKeyName"
+    }
+
+    return kekUri
   }
 }
 
@@ -103,6 +114,10 @@ data class TrusTeeConfig(
  * @param kAnonymityParams optional k-anonymity thresholds; null disables k-anonymity
  * @param overrideImpressionMaxFrequencyPerUser optional frequency cap override; null or -1 means no
  *   capping and uses totalUncappedImpressions instead
+ * @param supportedMultiPartyNoiseMechanisms set of [NoiseMechanism] values this EDP supports for
+ *   multi-party protocols (HMSS, TrusTee). When non-empty, any HMSS or TrusTee requisition whose
+ *   protocol noise mechanism is not in this set will be refused. When empty, no multi-party noise
+ *   validation is performed.
  * @param trusTeeConfig configuration for TrusTee protocol; null disables TrusTee
  */
 class DefaultFulfillerSelector(
@@ -114,6 +129,7 @@ class DefaultFulfillerSelector(
   private val noiserSelector: NoiserSelector,
   private val kAnonymityParams: KAnonymityParams?,
   private val overrideImpressionMaxFrequencyPerUser: Int?,
+  private val supportedMultiPartyNoiseMechanisms: Set<NoiseMechanism>,
   private val trusTeeConfig: TrusTeeConfig? = null,
   private val kekUriToKeyNameMap: Map<String, String> = emptyMap(),
 ) : FulfillerSelector {
@@ -174,6 +190,10 @@ class DefaultFulfillerSelector(
         totalUncappedImpressions = totalUncappedImpressions,
       )
     } else if (requisition.protocolConfig.protocolsList.any { it.hasTrusTee() }) {
+      val trusTeeNoiseMechanism =
+        requisition.protocolConfig.protocolsList.first { it.hasTrusTee() }.trusTee.noiseMechanism
+      validateMultiPartyNoiseMechanism(trusTeeNoiseMechanism)
+
       // Build TrusTee encryption params dynamically using the kekUri from BlobDetails.
       // If kekUri is not null, trusTeeConfig must be provided.
       // If kekUri is null, it implies there were no input blobs; verify no impressions exist.
@@ -222,6 +242,13 @@ class DefaultFulfillerSelector(
     } else if (
       requisition.protocolConfig.protocolsList.any { it.hasHonestMajorityShareShuffle() }
     ) {
+      val hmssNoiseMechanism =
+        requisition.protocolConfig.protocolsList
+          .first { it.hasHonestMajorityShareShuffle() }
+          .honestMajorityShareShuffle
+          .noiseMechanism
+      validateMultiPartyNoiseMechanism(hmssNoiseMechanism)
+
       if (kAnonymityParams == null) {
         HMShuffleMeasurementFulfiller(
           requisition,
@@ -249,6 +276,24 @@ class DefaultFulfillerSelector(
       }
     } else {
       throw IllegalArgumentException("Protocol not supported for ${requisition.name}")
+    }
+  }
+
+  /**
+   * Validates that [noiseMechanism] is in [supportedMultiPartyNoiseMechanisms].
+   *
+   * No-op when [supportedMultiPartyNoiseMechanisms] is empty.
+   */
+  private fun validateMultiPartyNoiseMechanism(noiseMechanism: NoiseMechanism) {
+    if (
+      supportedMultiPartyNoiseMechanisms.isNotEmpty() &&
+        noiseMechanism !in supportedMultiPartyNoiseMechanisms
+    ) {
+      throw RequisitionRefusalException.Default(
+        Requisition.Refusal.Justification.SPEC_INVALID,
+        "Multi-party noise mechanism $noiseMechanism is not in the supported set: " +
+          "$supportedMultiPartyNoiseMechanisms.",
+      )
     }
   }
 

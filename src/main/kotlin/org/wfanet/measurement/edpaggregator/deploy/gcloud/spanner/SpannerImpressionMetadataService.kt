@@ -31,6 +31,7 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.ImpressionMetadataResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.ModelLineBoundResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.batchCreateImpressionMetadata
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.batchUpdateImpressionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByResourceIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readImpressionMetadata
@@ -45,10 +46,13 @@ import org.wfanet.measurement.internal.edpaggregator.BatchCreateImpressionMetada
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.BatchDeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.BatchDeleteImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.BatchUpdateImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.BatchUpdateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.DeleteImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.EntityKey
 import org.wfanet.measurement.internal.edpaggregator.GetImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
@@ -56,8 +60,10 @@ import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as 
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.UpdateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.batchUpdateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataPageToken
@@ -203,6 +209,109 @@ class SpannerImpressionMetadataService(
     }
   }
 
+  override suspend fun updateImpressionMetadata(
+    request: UpdateImpressionMetadataRequest
+  ): ImpressionMetadata {
+    try {
+      validateUpdateImpressionMetadataRequest(request, "")
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: InvalidFieldValueException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val transactionRunner: AsyncDatabaseClient.TransactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=updateImpressionMetadata"))
+
+    val result =
+      transactionRunner.run { txn -> txn.batchUpdateImpressionMetadata(listOf(request)) }.single()
+
+    if (result.hasUpdateTime()) {
+      return result
+    }
+
+    val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
+    return result.copy {
+      if (!result.hasCreateTime()) {
+        createTime = commitTimestamp
+      }
+      updateTime = commitTimestamp
+      etag = ETags.computeETag(commitTimestamp.toInstant())
+    }
+  }
+
+  override suspend fun batchUpdateImpressionMetadata(
+    request: BatchUpdateImpressionMetadataRequest
+  ): BatchUpdateImpressionMetadataResponse {
+    if (request.requestsList.isEmpty()) {
+      return BatchUpdateImpressionMetadataResponse.getDefaultInstance()
+    }
+
+    val dataProviderResourceId = request.dataProviderResourceId
+    val blobUriSet = mutableSetOf<String>()
+    val requestIdSet = mutableSetOf<String>()
+    request.requestsList.forEachIndexed { index, subRequest ->
+      if (
+        dataProviderResourceId.isNotEmpty() &&
+          subRequest.impressionMetadata.dataProviderResourceId != dataProviderResourceId
+      ) {
+        val childDataProviderResourceId = subRequest.impressionMetadata.dataProviderResourceId
+        throw DataProviderMismatchException(dataProviderResourceId, childDataProviderResourceId)
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
+      if (!blobUriSet.add(subRequest.impressionMetadata.blobUri)) {
+        val blobUri = subRequest.impressionMetadata.blobUri
+        throw InvalidFieldValueException("requests.$index.impression_metadata.blob_uri") {
+            "blob uri $blobUri is duplicate in the batch of requests"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
+      val requestId = subRequest.requestId
+      if (requestId.isNotEmpty()) {
+        if (!requestIdSet.add(subRequest.requestId)) {
+          throw InvalidFieldValueException("requests.$index.request_id") {
+              "request id $requestId is duplicate in the batch of requests"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+      }
+
+      try {
+        validateUpdateImpressionMetadataRequest(subRequest, "requests.$index.")
+      } catch (e: RequiredFieldNotSetException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      } catch (e: InvalidFieldValueException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+
+    val transactionRunner: AsyncDatabaseClient.TransactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=batchUpdateImpressionMetadata"))
+
+    val results =
+      transactionRunner.run { txn -> txn.batchUpdateImpressionMetadata(request.requestsList) }
+
+    val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
+    return batchUpdateImpressionMetadataResponse {
+      impressionMetadata +=
+        results.map { result ->
+          if (result.hasUpdateTime()) {
+            result
+          } else {
+            result.copy {
+              if (!result.hasCreateTime()) {
+                createTime = commitTimestamp
+              }
+              updateTime = commitTimestamp
+              etag = ETags.computeETag(commitTimestamp.toInstant())
+            }
+          }
+        }
+    }
+  }
+
   override suspend fun listImpressionMetadata(
     request: ListImpressionMetadataRequest
   ): ListImpressionMetadataResponse {
@@ -216,6 +325,14 @@ class SpannerImpressionMetadataService(
           "$fieldName must be non-negative"
         }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    request.filter.entityKeysList.forEachIndexed { index, entityKey ->
+      try {
+        validateEntityKey(entityKey, "filter.entity_keys.$index")
+      } catch (e: RequiredFieldNotSetException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
     }
 
     val pageSize =
@@ -465,6 +582,88 @@ class SpannerImpressionMetadataService(
 
     if (!request.impressionMetadata.hasInterval()) {
       throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.interval")
+    }
+
+    request.impressionMetadata.entityKeysList.forEachIndexed { index, entityKey ->
+      validateEntityKey(entityKey, "${fieldPathPrefix}impression_metadata.entity_keys.$index")
+    }
+  }
+
+  /**
+   * Checks whether the specified update impression metadata request is valid.
+   *
+   * @throws RequiredFieldNotSetException
+   */
+  private fun validateUpdateImpressionMetadataRequest(
+    request: UpdateImpressionMetadataRequest,
+    fieldPathPrefix: String,
+  ) {
+    val requestId = request.requestId
+    if (requestId.isNotEmpty()) {
+      try {
+        UUID.fromString(requestId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("${fieldPathPrefix}request_id", e)
+      }
+    }
+
+    if (!request.hasImpressionMetadata()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata")
+    }
+
+    if (request.impressionMetadata.impressionMetadataResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException(
+        "${fieldPathPrefix}impression_metadata.impression_metadata_resource_id"
+      )
+    }
+
+    if (request.impressionMetadata.dataProviderResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException(
+        "${fieldPathPrefix}impression_metadata.data_provider_resource_id"
+      )
+    }
+
+    if (request.impressionMetadata.blobUri.isEmpty()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.blob_uri")
+    }
+
+    if (request.impressionMetadata.blobTypeUrl.isEmpty()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.blob_type_url")
+    }
+
+    if (request.impressionMetadata.cmmsModelLine.isEmpty()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.cmms_model_line")
+    }
+
+    if (!request.impressionMetadata.hasInterval()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.interval")
+    }
+
+    request.impressionMetadata.entityKeysList.forEachIndexed { index, entityKey ->
+      validateEntityKey(entityKey, "${fieldPathPrefix}impression_metadata.entity_keys.$index")
+    }
+
+    if (
+      request.impressionMetadata.eventGroupReferenceId.isEmpty() &&
+        request.impressionMetadata.entityKeysList.isEmpty()
+    ) {
+      throw RequiredFieldNotSetException(
+        "${fieldPathPrefix}impression_metadata.event_group_reference_id or entity_keys"
+      )
+    }
+  }
+
+  /**
+   * Checks that the specified [EntityKey] has both `entity_type` and `id` set.
+   *
+   * @throws RequiredFieldNotSetException if a required field is unset
+   */
+  private fun validateEntityKey(entityKey: EntityKey, fieldPath: String) {
+    if (entityKey.entityType.isEmpty()) {
+      throw RequiredFieldNotSetException("$fieldPath.entity_type")
+    }
+    if (entityKey.entityId.isEmpty()) {
+      throw RequiredFieldNotSetException("$fieldPath.entity_id")
     }
   }
 

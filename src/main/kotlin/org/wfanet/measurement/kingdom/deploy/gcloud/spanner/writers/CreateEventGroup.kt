@@ -26,6 +26,7 @@ import org.wfanet.measurement.gcloud.spanner.to
 import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup
+import org.wfanet.measurement.internal.kingdom.EventGroupKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -118,6 +119,13 @@ internal fun SpannerWriter.TransactionScope.createEventGroup(
     if (request.eventGroup.hasDetails()) {
       set("EventGroupDetails").to(request.eventGroup.details)
     }
+    if (request.eventGroup.hasEntityKey()) {
+      set("EntityType" to request.eventGroup.entityKey.entityType)
+      set("EntityId" to request.eventGroup.entityKey.entityId.ifEmpty { null })
+    }
+    if (request.eventGroup.hasEntityMetadata()) {
+      set("EntityMetadata").to(request.eventGroup.entityMetadata)
+    }
     set("State").toInt64(EventGroup.State.ACTIVE)
   }
 
@@ -134,5 +142,11 @@ internal fun SpannerWriter.TransactionScope.createEventGroup(
     this.state = EventGroup.State.ACTIVE
     clearCreateTime()
     clearUpdateTime()
+    // Mirror the EntityType column DEFAULT: when the caller doesn't supply entity_key, the row
+    // is stored with EntityType="campaign" and EntityId=NULL. Reflect that in the echoed
+    // response so it matches what a subsequent Get returns.
+    if (!request.eventGroup.hasEntityKey()) {
+      entityKey = EventGroupKt.entityKey { entityType = Table.DEFAULT_ENTITY_TYPE }
+    }
   }
 }

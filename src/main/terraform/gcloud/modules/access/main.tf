@@ -23,7 +23,7 @@ module "access_internal" {
 }
 
 resource "google_project_iam_member" "access_internal_metric_writer" {
-  project = data.google_project.project.name
+  project = data.google_project.project.id
   role    = "roles/monitoring.metricWriter"
   member  = module.access_internal.iam_service_account.member
 }

@@ -168,6 +168,7 @@ expand_template(
         "{auth_id_token}": TEST_EDPA_SETTINGS.auth_id_token,
         "{requisition_fetcher_endpoint}": TEST_EDPA_SETTINGS.requisition_fetcher_endpoint,
         "{storage_bucket}": TEST_EDPA_SETTINGS.storage_bucket,
+        "{model_line}": TEST_EDPA_SETTINGS.model_line,
     },
     tags = ["manual"],
     template = "edpa_correctness_test_config.tmpl.textproto",
@@ -182,8 +183,10 @@ kt_jvm_library(
         "//src/main/k8s/testing/secretfiles:secret_files",
     ],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:edp_aggregator_measurement_consumer_simulator",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha:event_group_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",

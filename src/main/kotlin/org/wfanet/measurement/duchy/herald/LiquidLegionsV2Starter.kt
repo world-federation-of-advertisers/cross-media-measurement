@@ -359,6 +359,7 @@ object LiquidLegionsV2Starter {
       SystemNoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
       SystemNoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
       SystemNoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
+      SystemNoiseMechanism.NONE -> error("Liquid Legions V2 does not support NoiseMechanism.NONE")
       SystemNoiseMechanism.UNRECOGNIZED,
       SystemNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED -> error("Invalid system NoiseMechanism")
     }
@@ -430,7 +431,7 @@ object LiquidLegionsV2Starter {
       if (measurementSpec.hasReachAndFrequency()) {
         val frequencyPrivacyParams = measurementSpec.reachAndFrequency.frequencyPrivacyParams
         require(frequencyPrivacyParams.delta > 0) {
-          "Frequency privacy delta must be be greater than 0"
+          "Frequency privacy delta must be greater than 0"
         }
         require(frequencyPrivacyParams.epsilon >= MIN_FREQUENCY_EPSILON) {
           "Frequency privacy epsilon must be greater than or equal to $MIN_FREQUENCY_EPSILON"

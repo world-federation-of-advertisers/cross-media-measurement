@@ -49,16 +49,19 @@ import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetada
 import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.batchUpdateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.createImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.deleteImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.entityKey
 import org.wfanet.measurement.internal.edpaggregator.getImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.impressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.updateImpressionMetadataRequest
 
 @RunWith(JUnit4::class)
 abstract class ImpressionMetadataServiceTest {
@@ -685,6 +688,191 @@ abstract class ImpressionMetadataServiceTest {
           }
         )
     }
+
+  @Test
+  fun `batchUpdateImpressionMetadata updates entity_keys on existing entry`() = runBlocking {
+    // Create initial entry without entity_keys.
+    val createResponse =
+      service.batchCreateImpressionMetadata(
+        batchCreateImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          requests += createImpressionMetadataRequest {
+            impressionMetadata = IMPRESSION_METADATA
+            requestId = CREATE_REQUEST_ID
+          }
+        }
+      )
+    val createdResourceId =
+      createResponse.impressionMetadataList.single().impressionMetadataResourceId
+
+    // Update with entity_keys via batchUpdate.
+    val updateRequestId = UUID.randomUUID().toString()
+    val response =
+      service.batchUpdateImpressionMetadata(
+        batchUpdateImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          requests += updateImpressionMetadataRequest {
+            impressionMetadata =
+              IMPRESSION_METADATA.copy {
+                impressionMetadataResourceId = createdResourceId
+                entityKeys += ENTITY_KEY_AD_1
+                entityKeys += ENTITY_KEY_CAMPAIGN_1
+              }
+            requestId = updateRequestId
+          }
+        }
+      )
+
+    assertThat(response.impressionMetadataList).hasSize(1)
+    val updated = response.impressionMetadataList.single()
+    assertThat(updated.entityKeysList).containsExactly(ENTITY_KEY_AD_1, ENTITY_KEY_CAMPAIGN_1)
+    assertThat(updated.blobUri).isEqualTo(BLOB_URI)
+    assertThat(updated.eventGroupReferenceId).isEqualTo(EVENT_GROUP_REFERENCE_ID)
+  }
+
+  @Test
+  fun `batchUpdateImpressionMetadata is idempotent with same requestId`() = runBlocking {
+    // Create entry first.
+    val createResponse =
+      service.batchCreateImpressionMetadata(
+        batchCreateImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          requests += createImpressionMetadataRequest {
+            impressionMetadata = IMPRESSION_METADATA
+            requestId = UUID.randomUUID().toString()
+          }
+        }
+      )
+    val createdResourceId =
+      createResponse.impressionMetadataList.single().impressionMetadataResourceId
+
+    val updateRequestId = UUID.randomUUID().toString()
+
+    val firstResponse =
+      service.batchUpdateImpressionMetadata(
+        batchUpdateImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          requests += updateImpressionMetadataRequest {
+            impressionMetadata =
+              IMPRESSION_METADATA.copy { impressionMetadataResourceId = createdResourceId }
+            this.requestId = updateRequestId
+          }
+        }
+      )
+
+    val secondResponse =
+      service.batchUpdateImpressionMetadata(
+        batchUpdateImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          requests += updateImpressionMetadataRequest {
+            impressionMetadata =
+              IMPRESSION_METADATA.copy { impressionMetadataResourceId = createdResourceId }
+            this.requestId = updateRequestId
+          }
+        }
+      )
+
+    assertThat(firstResponse.impressionMetadataList.single().impressionMetadataResourceId)
+      .isEqualTo(secondResponse.impressionMetadataList.single().impressionMetadataResourceId)
+  }
+
+  @Test
+  fun `batchUpdateImpressionMetadata updates model_line and interval on existing entry`() =
+    runBlocking {
+      val createResponse =
+        service.batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += createImpressionMetadataRequest {
+              impressionMetadata = IMPRESSION_METADATA
+              requestId = CREATE_REQUEST_ID
+            }
+          }
+        )
+      val createdResourceId =
+        createResponse.impressionMetadataList.single().impressionMetadataResourceId
+
+      val newModelLine = MODEL_LINE_2
+      val newInterval = interval {
+        startTime = timestamp { seconds = 999 }
+        endTime = timestamp { seconds = 1999 }
+      }
+      val updateRequestId = UUID.randomUUID().toString()
+      val response =
+        service.batchUpdateImpressionMetadata(
+          batchUpdateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += updateImpressionMetadataRequest {
+              impressionMetadata =
+                IMPRESSION_METADATA.copy {
+                  impressionMetadataResourceId = createdResourceId
+                  cmmsModelLine = newModelLine
+                  this.interval = newInterval
+                }
+              requestId = updateRequestId
+            }
+          }
+        )
+
+      assertThat(response.impressionMetadataList).hasSize(1)
+      val updated = response.impressionMetadataList.single()
+      assertThat(updated.cmmsModelLine).isEqualTo(newModelLine)
+      assertThat(updated.interval).isEqualTo(newInterval)
+      assertThat(updated.blobUri).isEqualTo(BLOB_URI)
+    }
+
+  @Test
+  fun `batchUpdateImpressionMetadata throws NOT_FOUND for non-existent resource`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchUpdateImpressionMetadata(
+          batchUpdateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += updateImpressionMetadataRequest {
+              impressionMetadata =
+                IMPRESSION_METADATA.copy {
+                  impressionMetadataResourceId = "nonexistent-resource-id"
+                }
+              requestId = UUID.randomUUID().toString()
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `listImpressionMetadata filters by blob_uris`() = runBlocking {
+    // Create two entries with different blob URIs
+    service.batchCreateImpressionMetadata(
+      batchCreateImpressionMetadataRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        requests += createImpressionMetadataRequest {
+          impressionMetadata = IMPRESSION_METADATA_2
+          requestId = UUID.randomUUID().toString()
+        }
+        requests += createImpressionMetadataRequest {
+          impressionMetadata = IMPRESSION_METADATA_3
+          requestId = UUID.randomUUID().toString()
+        }
+      }
+    )
+
+    // List with filter for only one blob URI
+    val response =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          filter =
+            ListImpressionMetadataRequestKt.filter { blobUris += IMPRESSION_METADATA_2.blobUri }
+        }
+      )
+
+    assertThat(response.impressionMetadataList).hasSize(1)
+    assertThat(response.impressionMetadataList.single().blobUri)
+      .isEqualTo(IMPRESSION_METADATA_2.blobUri)
+  }
 
   @Test
   fun `deleteImpressionMetadata soft deletes and returns updated ImpressionMetadata`() =
@@ -1763,6 +1951,254 @@ abstract class ImpressionMetadataServiceTest {
       )
   }
 
+  @Test
+  fun `create impression metadata with entity_keys returns them`() = runBlocking {
+    val response =
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS
+        }
+      )
+
+    assertThat(response.entityKeysList)
+      .containsExactly(ENTITY_KEY_AD_1, ENTITY_KEY_CAMPAIGN_1)
+      .inOrder()
+  }
+
+  @Test
+  fun `getImpressionMetadata returns entity_keys`() = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS }
+    )
+
+    val result =
+      service.getImpressionMetadata(
+        getImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
+        }
+      )
+
+    assertThat(result.entityKeysList)
+      .containsExactly(ENTITY_KEY_AD_1, ENTITY_KEY_CAMPAIGN_1)
+      .inOrder()
+  }
+
+  @Test
+  fun `batchCreateImpressionMetadata preserves entity_keys per row`() = runBlocking {
+    val secondImpression = IMPRESSION_METADATA_2.copy { entityKeys += ENTITY_KEY_AD_2 }
+
+    val response =
+      service.batchCreateImpressionMetadata(
+        batchCreateImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          requests += createImpressionMetadataRequest {
+            impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS
+          }
+          requests += createImpressionMetadataRequest { impressionMetadata = secondImpression }
+        }
+      )
+
+    assertThat(response.impressionMetadataList).hasSize(2)
+    assertThat(response.impressionMetadataList[0].entityKeysList)
+      .containsExactly(ENTITY_KEY_AD_1, ENTITY_KEY_CAMPAIGN_1)
+    assertThat(response.impressionMetadataList[1].entityKeysList)
+      .containsExactly(ENTITY_KEY_AD_2)
+      .inOrder()
+  }
+
+  @Test
+  fun `createImpressionMetadata throws INVALID_ARGUMENT when entity_key entity_type is empty`() =
+    runBlocking {
+      val invalid = IMPRESSION_METADATA.copy { entityKeys += entityKey { entityId = "x" } }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createImpressionMetadata(
+            createImpressionMetadataRequest { impressionMetadata = invalid }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "impression_metadata.entity_keys.0.entity_type"
+          }
+        )
+    }
+
+  @Test
+  fun `createImpressionMetadata throws INVALID_ARGUMENT when entity_key id is empty`() =
+    runBlocking {
+      val invalid = IMPRESSION_METADATA.copy { entityKeys += entityKey { entityType = "ad" } }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createImpressionMetadata(
+            createImpressionMetadataRequest { impressionMetadata = invalid }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "impression_metadata.entity_keys.0.entity_id"
+          }
+        )
+    }
+
+  @Test
+  fun `listImpressionMetadata filters by a single meta entity_key`() = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS }
+    )
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_2 }
+    )
+
+    val response =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          filter = ListImpressionMetadataRequestKt.filter { entityKeys += ENTITY_KEY_AD_1 }
+        }
+      )
+
+    assertThat(response.impressionMetadataList.map { it.impressionMetadataResourceId })
+      .containsExactly(IMPRESSION_METADATA_RESOURCE_ID)
+      .inOrder()
+  }
+
+  @Test
+  fun `listImpressionMetadata applies OR-semantics across multiple meta entity_keys`() =
+    runBlocking {
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS
+        }
+      )
+      val im2 = IMPRESSION_METADATA_2.copy { entityKeys += ENTITY_KEY_AD_2 }
+      service.createImpressionMetadata(createImpressionMetadataRequest { impressionMetadata = im2 })
+      val im3 = IMPRESSION_METADATA_3.copy { entityKeys += ENTITY_KEY_AD_SET_1 }
+      service.createImpressionMetadata(createImpressionMetadataRequest { impressionMetadata = im3 })
+
+      val response =
+        service.listImpressionMetadata(
+          listImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            filter =
+              ListImpressionMetadataRequestKt.filter {
+                entityKeys += ENTITY_KEY_AD_1
+                entityKeys += ENTITY_KEY_AD_2
+              }
+          }
+        )
+
+      // im_1 matches AD_1, im_2 matches AD_2; im_3 (only AD_SET_1) excluded.
+      assertThat(response.impressionMetadataList.map { it.impressionMetadataResourceId })
+        .containsExactly(IMPRESSION_METADATA_RESOURCE_ID, im2.impressionMetadataResourceId)
+        .inOrder()
+    }
+
+  @Test
+  fun `listImpressionMetadata returns empty when no entity_key matches`() = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS }
+    )
+
+    val response =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          filter =
+            ListImpressionMetadataRequestKt.filter {
+              entityKeys += entityKey {
+                entityType = "ad_account"
+                entityId = "no-such-account"
+              }
+            }
+        }
+      )
+
+    assertThat(response.impressionMetadataList).isEmpty()
+  }
+
+  @Test
+  fun `listImpressionMetadata without entity_key filter returns all rows`() = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS }
+    )
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_2 }
+    )
+
+    val response =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
+      )
+
+    assertThat(response.impressionMetadataList).hasSize(2)
+  }
+
+  @Test
+  fun `listImpressionMetadata throws INVALID_ARGUMENT when filter entity_key is invalid`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.listImpressionMetadata(
+            listImpressionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              filter = ListImpressionMetadataRequestKt.filter { entityKeys += entityKey {} }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "filter.entity_keys.0.entity_type"
+          }
+        )
+    }
+
+  @Test
+  fun `entity_keys are preserved across soft delete`() = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS }
+    )
+    service.deleteImpressionMetadata(
+      deleteImpressionMetadataRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
+      }
+    )
+
+    // No state filter => soft-deleted records included.
+    val response =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          filter = ListImpressionMetadataRequestKt.filter { entityKeys += ENTITY_KEY_AD_1 }
+        }
+      )
+
+    assertThat(response.impressionMetadataList).hasSize(1)
+    assertThat(response.impressionMetadataList[0].entityKeysList)
+      .containsExactly(ENTITY_KEY_AD_1, ENTITY_KEY_CAMPAIGN_1)
+    assertThat(response.impressionMetadataList[0].state)
+      .isEqualTo(State.IMPRESSION_METADATA_STATE_DELETED)
+  }
+
   companion object {
     private const val DATA_PROVIDER_RESOURCE_ID = "data-provider-1"
     private const val IMPRESSION_METADATA_RESOURCE_ID = "impression-metadata-1"
@@ -1828,5 +2264,31 @@ abstract class ImpressionMetadataServiceTest {
         endTime = timestamp { seconds = 600 }
       }
     }
+
+    private val ENTITY_KEY_AD_1 = entityKey {
+      entityType = "ad"
+      entityId = "ad-1"
+    }
+
+    private val ENTITY_KEY_AD_2 = entityKey {
+      entityType = "ad"
+      entityId = "ad-2"
+    }
+
+    private val ENTITY_KEY_CAMPAIGN_1 = entityKey {
+      entityType = "campaign"
+      entityId = "campaign-1"
+    }
+
+    private val ENTITY_KEY_AD_SET_1 = entityKey {
+      entityType = "ad_set"
+      entityId = "adset-1"
+    }
+
+    private val IMPRESSION_METADATA_WITH_ENTITY_KEYS =
+      IMPRESSION_METADATA.copy {
+        entityKeys += ENTITY_KEY_AD_1
+        entityKeys += ENTITY_KEY_CAMPAIGN_1
+      }
   }
 }

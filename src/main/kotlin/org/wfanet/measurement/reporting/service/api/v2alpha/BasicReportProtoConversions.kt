@@ -197,6 +197,7 @@ fun MediaType.toInternal(): InternalMediaType {
     MediaType.VIDEO -> InternalMediaType.VIDEO
     MediaType.DISPLAY -> InternalMediaType.DISPLAY
     MediaType.OTHER -> InternalMediaType.OTHER
+    MediaType.NATIVE -> InternalMediaType.NATIVE
     MediaType.MEDIA_TYPE_UNSPECIFIED,
     MediaType.UNRECOGNIZED -> InternalMediaType.MEDIA_TYPE_UNSPECIFIED
   }
@@ -676,6 +677,7 @@ fun InternalMediaType.toMediaType(): MediaType {
     InternalImpressionQualificationFilterSpec.MediaType.VIDEO -> MediaType.VIDEO
     InternalImpressionQualificationFilterSpec.MediaType.DISPLAY -> MediaType.DISPLAY
     InternalImpressionQualificationFilterSpec.MediaType.OTHER -> MediaType.OTHER
+    InternalImpressionQualificationFilterSpec.MediaType.NATIVE -> MediaType.NATIVE
     InternalImpressionQualificationFilterSpec.MediaType.UNRECOGNIZED -> MediaType.UNRECOGNIZED
   }
 }

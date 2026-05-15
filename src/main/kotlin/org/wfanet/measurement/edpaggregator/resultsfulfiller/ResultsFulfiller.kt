@@ -27,6 +27,7 @@ import io.opentelemetry.api.trace.Span
 import java.security.GeneralSecurityException
 import java.time.Duration
 import java.time.Instant
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
@@ -39,13 +40,16 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
+import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
@@ -53,9 +57,12 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
+import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
@@ -129,9 +136,21 @@ class ResultsFulfiller(
         entry.requisition.unpack(Requisition::class.java)
       }
 
-    val eventGroupReferenceIdMap =
-      groupedRequisitions.eventGroupMapList.associate {
-        it.eventGroup to it.details.eventGroupReferenceId
+    // Build the entity-key map once so the precedence decision is explicit at this call site
+    // (instead of being made deep inside FilterSpecIndex.fromRequisitions). When entity keys are
+    // present we use them as the selector; otherwise we fall back to the legacy reference-id
+    // selector and skip building its map entirely.
+    val eventGroupEntityKeyMap: Map<String, LabeledImpression.EntityKey> =
+      buildEventGroupEntityKeyMap(groupedRequisitions.eventGroupMapList)
+    val eventGroupSelector: FilterSpecIndex.Companion.EventGroupSelector =
+      if (eventGroupEntityKeyMap.isNotEmpty()) {
+        FilterSpecIndex.Companion.EventGroupSelector.ByEntityKeys(eventGroupEntityKeyMap)
+      } else {
+        FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
+          groupedRequisitions.eventGroupMapList.associate {
+            it.eventGroup to it.details.eventGroupReferenceId
+          }
+        )
       }
 
     // Filter requisitions that are not in the requisitions metadata storage or have been either
@@ -190,7 +209,7 @@ class ResultsFulfiller(
             vidIndexMap = vidIndexMap,
             populationSpec = populationSpec,
             requisitions = filteredRequisitions,
-            eventGroupReferenceIdMap = eventGroupReferenceIdMap,
+            eventGroupSelector = eventGroupSelector,
             config = pipelineConfiguration,
             eventDescriptor = eventDescriptor,
           )
@@ -318,15 +337,16 @@ class ResultsFulfiller(
       attributes = Attributes.empty(),
     ) {
       val span = Span.current()
+      var processingMetadata: RequisitionMetadata? = null
       try {
-        val updateMetadataResult =
+        processingMetadata =
           metrics.networkTasksDuration.measureSuspending {
             signalRequisitionStartProcessing(requisitionMetadata)
           }
         span.addEvent(
           EVENT_REQUISITION_START_PROCESSING_SIGNALED,
           Attributes.builder()
-            .put(ATTR_REQUISITION_METADATA_NAME_KEY, updateMetadataResult.name)
+            .put(ATTR_REQUISITION_METADATA_NAME_KEY, processingMetadata.name)
             .put(ATTR_REQUISITION_NAME_KEY, requisition.name)
             .put(ATTR_GROUP_ID_KEY, groupedRequisitions.groupId)
             .put(ATTR_REPORT_ID_KEY, reportId)
@@ -362,7 +382,7 @@ class ResultsFulfiller(
 
         val fulfilledMetadata =
           metrics.networkTasksDuration.measureSuspending {
-            signalRequisitionFulfilled(updateMetadataResult)
+            signalRequisitionFulfilled(processingMetadata)
           }
         span.addEvent(
           EVENT_REQUISITION_METADATA_FULFILLED,
@@ -379,6 +399,16 @@ class ResultsFulfiller(
           requisitionProcessingTimer = requisitionProcessingTimer,
           requisitionMetadata = requisitionMetadata,
         )
+      } catch (e: RequisitionRefusalException) {
+        recordRequisitionFailure(
+          span = span,
+          throwable = e,
+          requisitionMetadata = requisitionMetadata,
+          requisitionName = requisition.name,
+        )
+        val metadataForRefusal = processingMetadata ?: requisitionMetadata
+        signalRequisitionRefused(metadataForRefusal, e.message ?: "Requisition refused")
+        refuseRequisitionInCmms(requisition, e)
       } catch (t: Throwable) {
         recordRequisitionFailure(
           span = span,
@@ -464,6 +494,30 @@ class ResultsFulfiller(
     return requisitionMetadataStub.markWithdrawnRequisitionMetadata(
       markWithdrawnRequisitionMetadataRequest
     )
+  }
+
+  private suspend fun refuseRequisitionInCmms(
+    requisition: Requisition,
+    e: RequisitionRefusalException,
+  ) {
+    try {
+      requisitionsStub.refuseRequisition(
+        refuseRequisitionRequest {
+          name = requisition.name
+          refusal =
+            RequisitionKt.refusal {
+              justification = e.justification
+              message = e.message ?: "Requisition refused"
+            }
+        }
+      )
+    } catch (refusalError: Exception) {
+      logger.log(
+        Level.SEVERE,
+        "Failed to refuse requisition ${requisition.name} in CMMS",
+        refusalError,
+      )
+    }
   }
 
   private suspend fun <T> DoubleHistogram.measureSuspending(block: suspend () -> T): T {
@@ -571,6 +625,30 @@ class ResultsFulfiller(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    /**
+     * Builds the event group → entity key map from grouped requisition entries.
+     *
+     * Only entries whose details carry a real `entity_key` are included. An entry whose
+     * `entity_key` is the kingdom-side default sentinel — i.e., `entity_id` is empty — is excluded
+     * so that legacy event groups (which only carry the schema default `entity_type="campaign"`)
+     * continue to route through `FilterSpec.ByEventGroupReferenceIds` downstream rather than being
+     * treated as real entity-key selectors.
+     */
+    @VisibleForTesting
+    fun buildEventGroupEntityKeyMap(
+      eventGroupMapList: List<GroupedRequisitions.EventGroupMapEntry>
+    ): Map<String, LabeledImpression.EntityKey> =
+      eventGroupMapList
+        .filter { it.details.hasEntityKey() && it.details.entityKey.entityId.isNotEmpty() }
+        .associate { entry ->
+          val key = entry.details.entityKey
+          entry.eventGroup to
+            LabeledImpressionKt.entityKey {
+              entityType = key.entityType
+              entityId = key.entityId
+            }
+        }
 
     // Memory-based parallelism limit to prevent OOM with large frequency vectors
     // With 360M sized frequency vector sampled at 10%, we get 36M x 16 bytes for

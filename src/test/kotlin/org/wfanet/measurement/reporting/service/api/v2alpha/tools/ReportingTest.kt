@@ -860,7 +860,6 @@ class ReportingTest {
         "event-groups",
         "list",
         "--parent=$MEASUREMENT_CONSUMER_NAME",
-        "--filter=event_group_reference_id == 'abc'",
       )
     val output = callCli(args)
 
@@ -868,7 +867,6 @@ class ReportingTest {
       .isEqualTo(
         listEventGroupsRequest {
           parent = MEASUREMENT_CONSUMER_NAME
-          filter = "event_group_reference_id == 'abc'"
           pageSize = 1000
         }
       )

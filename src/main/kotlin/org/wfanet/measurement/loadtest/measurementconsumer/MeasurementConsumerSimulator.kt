@@ -46,6 +46,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
 import org.wfanet.measurement.api.v2alpha.Measurement.Failure
@@ -160,6 +161,7 @@ abstract class MeasurementConsumerSimulator(
       )
       .toName(),
   private val modelLineName: String = "some-model-line",
+  private val listEventGroupsEntityTypes: List<String> = emptyList(),
   private val onMeasurementsCreated: (() -> Unit)? = null,
 ) {
   /** Cache of resource name to [Certificate]. */
@@ -488,16 +490,8 @@ abstract class MeasurementConsumerSimulator(
 
     onMeasurementsCreated?.invoke()
 
-    // Get the CMMS computed result and compare it with the expected result.
-    var reachOnlyResult = getReachResult(measurementName)
-    var attemptCount = 0
-    while (reachOnlyResult == null && (attemptCount < 6)) {
-      attemptCount++
-      logger.info("Computation not done yet, wait for another 30 seconds.  Attempt $attemptCount")
-      delay(Duration.ofSeconds(30))
-      reachOnlyResult = getReachResult(measurementName)
-    }
-    checkNotNull(reachOnlyResult) { "Timed out waiting for response to reach-only request" }
+    val reachOnlyResult: Result = pollForResult { getReachResult(measurementName) }
+    logger.info("Got reach-only result from Kingdom: $reachOnlyResult")
 
     val expectedResult: Result = getExpectedResult(measurementInfo)
     return ExecutionResult(reachOnlyResult, expectedResult, measurementInfo)
@@ -525,18 +519,10 @@ abstract class MeasurementConsumerSimulator(
 
     onMeasurementsCreated?.invoke()
 
-    // Get the CMMS computed result and compare it with the expected result.
-    var reachAndFrequencyResult = getReachAndFrequencyResult(measurementName)
-    var attemptCount = 0
-    while (reachAndFrequencyResult == null && (attemptCount < 4)) {
-      attemptCount++
-      logger.info("Computation not done yet, wait for another 30 seconds.  Attempt $attemptCount")
-      delay(Duration.ofSeconds(30))
-      reachAndFrequencyResult = getReachAndFrequencyResult(measurementName)
+    val reachAndFrequencyResult: Result = pollForResult {
+      getReachAndFrequencyResult(measurementName)
     }
-    checkNotNull(reachAndFrequencyResult) {
-      "Timed out waiting for response to reach-and-frequency request"
-    }
+    logger.info("Got reach-and-frequency result from Kingdom: $reachAndFrequencyResult")
 
     val expectedResult: Result = getExpectedResult(measurementInfo)
     return ExecutionResult(reachAndFrequencyResult, expectedResult, measurementInfo)
@@ -1322,6 +1308,10 @@ abstract class MeasurementConsumerSimulator(
               listEventGroupsRequest {
                 parent = measurementConsumer
                 this.pageToken = pageToken
+                if (listEventGroupsEntityTypes.isNotEmpty()) {
+                  filter =
+                    ListEventGroupsRequestKt.filter { entityTypeIn += listEventGroupsEntityTypes }
+                }
               }
             )
           } catch (e: StatusException) {
