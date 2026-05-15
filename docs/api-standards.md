@@ -20,23 +20,15 @@ Key terminology conventions from the code-style guide:
 
 ## Standard Methods
 
-Standard CRUD methods must follow their respective AIP patterns exactly. The
-API lint workflow should catch violations, but manual review is still necessary.
+Standard CRUD methods must follow their respective AIP patterns exactly:
+[Create (AIP-133)](https://google.aip.dev/133),
+[Update (AIP-134)](https://google.aip.dev/134),
+[Get (AIP-131)](https://google.aip.dev/131),
+[List (AIP-132)](https://google.aip.dev/132),
+[Delete (AIP-135)](https://google.aip.dev/135). The API lint workflow should
+catch violations, but manual review is still necessary.
 ([api-linter enforcement](https://github.com/world-federation-of-advertisers/cross-media-measurement-api/pull/137#issuecomment-1562022514),
 [AIP parent requirement](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/3627#discussion_r2956747163))
-
-*   [AIP-133 (Create)](https://google.aip.dev/133): Request must have `parent`
-    string field and the resource message field. Response is the created
-    resource.
-*   [AIP-134 (Update)](https://google.aip.dev/134): Request must have the
-    resource message field and `update_mask`.
-*   [AIP-131 (Get)](https://google.aip.dev/131): Request must have `name`
-    string field.
-*   [AIP-132 (List)](https://google.aip.dev/132): Request must have `parent`,
-    `page_size`, `page_token`. Response must have the repeated resource and
-    `next_page_token`.
-*   [AIP-135 (Delete)](https://google.aip.dev/135): Request must have `name`
-    string field.
 
 Custom methods ([AIP-136](https://google.aip.dev/136)) must not use Get, List,
 Create, Update, or Delete as verbs. Use alternatives such as `Read`, `Search`,

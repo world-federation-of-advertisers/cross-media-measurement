@@ -25,7 +25,7 @@ Conversely, do not include dependencies that are not directly used by the
 target. A target that only uses generated gRPC code should not depend on the
 message type library.
 
-```python
+```bazel
 kt_jvm_library(
     name = "my_lib",
     srcs = ["MyLib.kt"],
@@ -38,8 +38,9 @@ kt_jvm_library(
 
 ### Bills of Materials (BOMs)
 
-Use BOMs when available rather than specifying versions of individual artifacts.
-Leave out the version for anything covered by a BOM. For example, artifacts
+For Maven dependencies, use BOMs when available rather than specifying versions
+of individual artifacts. Leave out the version for anything covered by a BOM.
+For example, artifacts
 covered by `com.google.cloud:libraries-bom` (included by common-jvm) should not
 have their versions specified individually.
 
@@ -54,7 +55,12 @@ else uses it.
 
 ## Package & Target Structure
 
-### Import Paths Must Match JVM Packages
+### The `//imports` Tree
+
+The `//imports/java/` tree provides Bazel aliases for external Maven
+dependencies. BUILD files outside of `//imports` should never reference
+`@maven//` targets directly — instead, they depend on the alias targets in
+`//imports/java/`.
 
 The Bazel package under `//imports/java/` must mirror the Java/Kotlin package
 structure exactly. The target name should reflect the library or artifact, not
@@ -105,41 +111,42 @@ for example `src/main/kotlin/org/wfanet/measurement/testing` or
 
 ### Keeping Lockfiles in Sync
 
-Never change `maven_install.json` without corresponding changes to
-`MODULE.bazel`, and vice versa. Lockfile update commands:
+Generated lockfiles under version control must always be in sync with the
+source they are generated from:
 
-*   Bazel module lockfile: `bazel mod deps --lockfile_mode=update`
-*   Maven lockfile: `REPIN=1 bazel run @maven//:pin`
+*   `MODULE.bazel.lock` — generated from `MODULE.bazel`. Update with:
+    `bazel mod deps --lockfile_mode=update`
+*   `maven_install.json` — generated from changes that affect Maven
+    dependencies in `MODULE.bazel`. Update with:
+    `REPIN=1 bazel run @maven//:pin`
+*   `requirements_lock.txt` — generated from `pyproject.toml`
 
-### Bazel Version
-
-Use [`bazelisk`](https://github.com/bazelbuild/bazelisk) to run Bazel so it
-respects the `.bazelversion` file.
-([PR #356](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/356#issuecomment-966591532)) Lockfile version mismatches are often caused
-by running `bazel` directly instead of `bazelisk`.
+Not all changes to `MODULE.bazel` require updating `maven_install.json` — only
+changes that affect Maven dependencies do.
 
 ### Temporary Overrides
 
-When overriding a module dependency (e.g., `local_path_override`,
-`archive_override`), always include a `# DO_NOT_SUBMIT` comment to prevent
-accidental merging.
+When overriding a module dependency (e.g., `archive_override`,
+`git_override`), always include a `DO_NOT_SUBMIT` comment following the same
+format as TODO comments (see [Code Style: TODOs](code-style.md#todos)) to
+provide context about the pending change.
 ([PR #2789](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/2789#discussion_r2288540263),
 [PR #669](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/669#issuecomment-1222915827)) This tag is detected by an automated check and will block
 the PR from being merged.
 
-```python
-# DO_NOT_SUBMIT
-local_path_override(
+```bazel
+# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#456)
+archive_override(
     module_name = "common-jvm",
-    path = "../common-jvm",
+    urls = ["https://github.com/world-federation-of-advertisers/common-jvm/archive/refs/heads/feature-branch.tar.gz"],
 )
 ```
 
-## Import Paths
+## Python Import Paths
 
-Python import paths in BUILD files should not include source tree prefixes like
-`src/main/python`. Use the `imports` attribute to put the correct source root
-on the path so code imports `wfa.measurement...`, not
+Import statements in Python files should not include source tree prefixes like
+`src.main.python`. Use the `imports` attribute in BUILD files to put the
+correct source root on the path so code imports `wfa.measurement...`, not
 `src.main.python.wfa.measurement...`.
 
 This project does not use Java modules. Do not add `module-info.java` files.
@@ -148,21 +155,19 @@ This project does not use Java modules. Do not add `module-info.java` files.
 
 ### Constants
 
-Extract magic strings as named constants. When a constant is a format string
-rather than a literal value, make this clear in the name.
+Extract magic strings as named constants. Ensure the constant name includes
+anything needed for disambiguation, such as whether it is a format string or
+what units it represents.
 
 *   `EDP_TARGET_SERVICE_ACCOUNT` — implies a literal value
 *   `EDP_TARGET_SERVICE_ACCOUNT_FORMAT` — clearly a format string
+*   `FOO_TIMEOUT_SECONDS` — units are explicit in the name
 
 ### Formatting
 
 BUILD and Starlark files must be formatted with
 [Buildifier](https://github.com/bazelbuild/buildtools/tree/master/buildifier).
 ([PR #21](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/21#discussion_r617052851))
-
-### GitHub Actions
-
-Keep GitHub Actions versions up to date. Do not use deprecated versions.
 
 ## See Also
 

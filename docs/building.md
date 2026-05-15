@@ -9,8 +9,12 @@ resulting container images are intended to run in
 In order to build the primary system executables and run the corresponding
 tests, your build environment must have the following:
 
-*   Bazel
-    *   See [`.bazelversion`](../.bazelversion)
+*   [Bazelisk](https://github.com/bazelbuild/bazelisk)
+    *   Symlink or alias `bazel` to `bazelisk` in your build environment so
+        it automatically uses the version specified in
+        [`.bazelversion`](../.bazelversion). Lockfile version mismatches are
+        often caused by running a `bazel` binary directly instead of
+        `bazelisk`.
 *   GNU/Linux OS with x86-64 architecture
     *   Some image targets require building with glibc <= 2.41
     *   Known to work on Debian Trixie and Ubuntu 24.04

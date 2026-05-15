@@ -33,8 +33,6 @@ REPIN=1 bazel run @maven//:pin
 bazel mod deps --lockfile_mode=update
 ```
 
-Use `bazelisk` (not `bazel` directly) to respect `.bazelversion`.
-
 ## Project Structure
 
 ```

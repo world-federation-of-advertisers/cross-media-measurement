@@ -81,6 +81,14 @@ sections of this when reviewing others’ code.
     is directly derivable from another field.
 *   Use the `Duration` type for durations. Never pass raw `Int` or `Long`
     values to represent time.
+*   Prefer immutable `ByteString` over mutable `ByteArray` for bytes. Be
+    careful to avoid unnecessary copying, such as unnecessary conversions
+    between `ByteArray` and `ByteString`.
+*   Limit the scope of mutability using
+    [Kotlin scope functions](https://kotlinlang.org/docs/scope-functions.html)
+    such as `apply`, and factory functions for building read-only collections
+    such as
+    [`buildList`](https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/build-list.html).
 
 #### Protobuf & Builders
 
@@ -142,13 +150,23 @@ sections of this when reviewing others’ code.
 *   Use `SendChannel.trySendBlocking` instead of wrapping `SendChannel.send`
     in `runBlocking`.
 *   Use `Flow.produceIn` to get flow elements into a Channel.
-*   Limit the scope of mutability using `.apply {}`.
+*   Do not run blocking code in a non-blocking context. Any calls to blocking
+    code from within a coroutine must use a dispatcher suited for blocking
+    code (e.g. a `CoroutineContext` annotated with `@BlockingExecutor`). The
+    `@Blocking` annotation can be used to flag blocking code.
+*   Suspend functions should suspend until all work is completed, not leaving
+    any coroutines running after the function returns. If the function needs
+    to leave a coroutine running after it returns, it should not also suspend.
+*   Do not use `GlobalScope`. If a function needs to leave a coroutine
+    running after it returns, it needs to happen in a `CoroutineScope` that
+    has a clearly-defined lifecycle that matches that of the call-site.
+*   Avoid using `CoroutineScope`s at API boundaries. Public functions should
+    not have `CoroutineScope` receivers or arguments.
 
 #### Idioms
 
 *   Use `getOrPut` for map caching patterns.
 *   Specify argument names when passing literals for clarity.
-*   Avoid unnecessary copies between `ByteString` and `ByteArray`.
 *   Use trailing commas on multiline structures to reduce merge conflicts.
 *   Use a regular for-each loop when not chaining a set of operations.
 
