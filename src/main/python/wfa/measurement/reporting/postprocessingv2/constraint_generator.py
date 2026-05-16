@@ -241,7 +241,7 @@ class UnnoisedRelationGenerator(ConstraintGenerator):
               Constraint(
                   coefficients={metric.index: 1},
                   type=ConstraintType.CONSTRAINT_TYPE_EQUAL,
-                  constant=int(metric.value),
+                  constant=round(metric.value),
               )
           )
     return constraints
