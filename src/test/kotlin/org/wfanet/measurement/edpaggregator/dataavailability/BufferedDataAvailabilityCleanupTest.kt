@@ -196,7 +196,6 @@ class BufferedDataAvailabilityCleanupTest {
 
     buffer.flush()
 
-    // Verify ONE list RPC was called (batch resolve) instead of 3 individual calls
     val listCaptor = argumentCaptor<ListImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
       listImpressionMetadata(listCaptor.capture())
@@ -301,16 +300,17 @@ class BufferedDataAvailabilityCleanupTest {
   }
 
   @Test
-  fun `periodic flush uses batch RPC`() {
-    val buffer = createBuffer(flushIntervalSeconds = 1)
+  fun `stale buffer flushes on next enqueue`() {
+    val buffer = createBuffer(batchSize = 100, flushIntervalSeconds = 1)
 
     buffer.enqueue(DeleteEvent("${BLOB_URI}-1", resourceId(1)))
-
     assertThat(buffer.pendingCount()).isEqualTo(1)
 
-    Thread.sleep(2500)
+    Thread.sleep(1500)
 
-    assertThat(buffer.pendingCount()).isEqualTo(0)
+    buffer.enqueue(DeleteEvent("${BLOB_URI}-2", resourceId(2)))
+
+    assertThat(buffer.pendingCount()).isAtMost(1)
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
       batchDeleteImpressionMetadata(any())
     }

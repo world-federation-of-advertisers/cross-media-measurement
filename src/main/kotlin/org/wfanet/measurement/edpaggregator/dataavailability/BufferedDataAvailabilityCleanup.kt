@@ -18,10 +18,8 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 
 import io.opentelemetry.api.common.Attributes
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.Executors
-import java.util.concurrent.ScheduledExecutorService
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
@@ -46,15 +44,20 @@ data class DeleteEvent(
  * instance reuse to accumulate delete events across invocations and process them together,
  * rather than N individual RPCs.
  *
+ * Flushing is always done synchronously within the calling thread (the HTTP request handler
+ * thread), avoiding CPU throttling issues with background threads on Cloud Functions Gen2
+ * where CPU is throttled between invocations.
+ *
  * Events are flushed when:
- * - The buffer reaches [batchSize] events, OR
- * - A periodic timer fires every [flushIntervalSeconds] seconds.
+ * - The buffer reaches [batchSize] events (flushed by the enqueuing thread), OR
+ * - The buffer has events older than [flushIntervalSeconds] (flushed by the next enqueuing
+ *   thread).
  *
  * During flush:
  * 1. Events whose blobs still have a live version in storage are skipped (noncurrent version
  *    deletion).
  * 2. Events without a resource ID are batch-resolved via a single `ListImpressionMetadata` RPC
- *    using the `blob_uris` filter, instead of N individual lookups.
+ *    using the `blob_uris` filter.
  * 3. Resolved resource names are chunked into groups of [MAX_BATCH_DELETE_SIZE] and each chunk
  *    is deleted via a single `BatchDeleteImpressionMetadata` RPC.
  * 4. Events that fail resolution are re-queued.
@@ -68,14 +71,12 @@ class BufferedDataAvailabilityCleanup(
   private val metrics: DataAvailabilityCleanupMetrics = DataAvailabilityCleanupMetrics(),
 ) {
   private val queue = ConcurrentLinkedQueue<DeleteEvent>()
-  private val scheduler: ScheduledExecutorService =
-    Executors.newSingleThreadScheduledExecutor { r ->
-      Thread(r, "cleanup-buffer-flush").apply { isDaemon = true }
-    }
-  private val flushScheduled = AtomicBoolean(false)
+  private val firstEnqueueTimeMs = AtomicLong(0)
+  private val flushing = AtomicBoolean(false)
 
   fun enqueue(event: DeleteEvent) {
     queue.add(event)
+    firstEnqueueTimeMs.compareAndSet(0, System.currentTimeMillis())
     val size = queue.size
     if (size % LOG_INTERVAL == 0 || size <= 10) {
       logger.info(
@@ -83,30 +84,37 @@ class BufferedDataAvailabilityCleanup(
       )
     }
 
-    ensureFlushScheduled()
-
     if (size >= batchSize) {
       logger.info("Batch size threshold ($batchSize) reached, flushing immediately")
+      flush()
+    } else if (isStale()) {
+      logger.info("Buffer age exceeded ${flushIntervalSeconds}s, flushing")
       flush()
     }
   }
 
-  private fun ensureFlushScheduled() {
-    if (flushScheduled.compareAndSet(false, true)) {
-      scheduler.scheduleAtFixedRate(
-        { flush() },
-        flushIntervalSeconds,
-        flushIntervalSeconds,
-        TimeUnit.SECONDS,
-      )
-      logger.info("Scheduled periodic flush every ${flushIntervalSeconds}s")
-    }
+  private fun isStale(): Boolean {
+    val first = firstEnqueueTimeMs.get()
+    if (first == 0L) return false
+    return System.currentTimeMillis() - first >= flushIntervalSeconds * 1000
   }
 
   fun flush() {
+    if (!flushing.compareAndSet(false, true)) {
+      return
+    }
+    try {
+      doFlush()
+    } finally {
+      flushing.set(false)
+    }
+  }
+
+  private fun doFlush() {
     val batch = drain()
     if (batch.isEmpty()) return
 
+    firstEnqueueTimeMs.set(if (queue.isEmpty()) 0 else System.currentTimeMillis())
     val flushStart = TimeSource.Monotonic.markNow()
     logger.info("Flushing ${batch.size} buffered delete events")
 
@@ -216,12 +224,6 @@ class BufferedDataAvailabilityCleanup(
     }
   }
 
-  /**
-   * Batch-resolves resource names for events that need blob URI lookup.
-   *
-   * Uses the `blob_uris` filter on `ListImpressionMetadata` to resolve all blob URIs in a single
-   * RPC, instead of N individual lookups.
-   */
   private suspend fun batchResolveResourceNames(
     events: List<DeleteEvent>,
   ): List<String> {
@@ -279,15 +281,6 @@ class BufferedDataAvailabilityCleanup(
   fun shutdown() {
     logger.info("Shutting down buffered cleanup, flushing remaining events")
     flush()
-    scheduler.shutdown()
-    try {
-      if (!scheduler.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-        scheduler.shutdownNow()
-      }
-    } catch (e: InterruptedException) {
-      scheduler.shutdownNow()
-      Thread.currentThread().interrupt()
-    }
   }
 
   fun pendingCount(): Int = queue.size
@@ -299,7 +292,6 @@ class BufferedDataAvailabilityCleanup(
     const val DEFAULT_FLUSH_INTERVAL_SECONDS = 30L
     const val MAX_BATCH_DELETE_SIZE = 100
     const val MAX_BATCH_RESOLVE_SIZE = 100
-    private const val SHUTDOWN_TIMEOUT_SECONDS = 10L
     private const val BATCH_FLUSH_STATUS = "batch_flush"
     private const val LOG_INTERVAL = 50
   }
