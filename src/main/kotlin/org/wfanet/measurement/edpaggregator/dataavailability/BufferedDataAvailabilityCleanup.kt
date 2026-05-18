@@ -150,10 +150,10 @@ class BufferedDataAvailabilityCleanup(
       }
 
       if (resolvedEvents.isNotEmpty()) {
-        val chunks = resolvedEvents.chunked(MAX_BATCH_DELETE_SIZE)
+        val chunks = resolvedEvents.chunked(batchSize)
         logger.info(
           "Deleting ${resolvedEvents.size} records in ${chunks.size} batch RPC(s) " +
-            "(max $MAX_BATCH_DELETE_SIZE per RPC)"
+            "(max $batchSize per RPC)"
         )
         val deleteStart = TimeSource.Monotonic.markNow()
         var totalDeleted = 0
