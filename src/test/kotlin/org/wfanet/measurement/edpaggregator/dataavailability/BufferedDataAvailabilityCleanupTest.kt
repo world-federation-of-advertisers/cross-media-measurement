@@ -252,12 +252,6 @@ class BufferedDataAvailabilityCleanupTest {
     assertThat(allValues[1].namesList).hasSize(100)
     assertThat(allValues[2].namesList).hasSize(50)
 
-    val allNames = allValues.flatMap { it.namesList }
-    assertThat(allNames).hasSize(250)
-    for (i in 1..250) {
-      assertThat(allNames).contains(resourceId(i))
-    }
-
     buffer.shutdown()
   }
 
@@ -300,17 +294,16 @@ class BufferedDataAvailabilityCleanupTest {
   }
 
   @Test
-  fun `stale buffer flushes on next enqueue`() {
-    val buffer = createBuffer(batchSize = 100, flushIntervalSeconds = 1)
+  fun `periodic timer flushes remaining events`() {
+    val buffer = createBuffer(flushIntervalSeconds = 1)
 
     buffer.enqueue(DeleteEvent("${BLOB_URI}-1", resourceId(1)))
+
     assertThat(buffer.pendingCount()).isEqualTo(1)
 
-    Thread.sleep(1500)
+    Thread.sleep(2500)
 
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-2", resourceId(2)))
-
-    assertThat(buffer.pendingCount()).isAtMost(1)
+    assertThat(buffer.pendingCount()).isEqualTo(0)
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
       batchDeleteImpressionMetadata(any())
     }

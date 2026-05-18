@@ -18,8 +18,10 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 
 import io.opentelemetry.api.common.Attributes
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
@@ -44,14 +46,12 @@ data class DeleteEvent(
  * instance reuse to accumulate delete events across invocations and process them together,
  * rather than N individual RPCs.
  *
- * Flushing is always done synchronously within the calling thread (the HTTP request handler
- * thread), avoiding CPU throttling issues with background threads on Cloud Functions Gen2
- * where CPU is throttled between invocations.
- *
  * Events are flushed when:
- * - The buffer reaches [batchSize] events (flushed by the enqueuing thread), OR
- * - The buffer has events older than [flushIntervalSeconds] (flushed by the next enqueuing
- *   thread).
+ * - The buffer reaches [batchSize] events (flushed synchronously by the enqueuing thread), OR
+ * - A periodic background timer fires every [flushIntervalSeconds] seconds as a fallback.
+ *
+ * NOTE: The background timer requires CPU >= 1 with concurrency > 1 to function reliably.
+ * With fractional CPU, Cloud Run throttles background threads between requests.
  *
  * During flush:
  * 1. Events whose blobs still have a live version in storage are skipped (noncurrent version
@@ -71,12 +71,15 @@ class BufferedDataAvailabilityCleanup(
   private val metrics: DataAvailabilityCleanupMetrics = DataAvailabilityCleanupMetrics(),
 ) {
   private val queue = ConcurrentLinkedQueue<DeleteEvent>()
-  private val firstEnqueueTimeMs = AtomicLong(0)
   private val flushing = AtomicBoolean(false)
+  private val timerScheduled = AtomicBoolean(false)
+  private val scheduler: ScheduledExecutorService =
+    Executors.newSingleThreadScheduledExecutor { r ->
+      Thread(r, "cleanup-buffer-flush").apply { isDaemon = true }
+    }
 
   fun enqueue(event: DeleteEvent) {
     queue.add(event)
-    firstEnqueueTimeMs.compareAndSet(0, System.currentTimeMillis())
     val size = queue.size
     if (size % LOG_INTERVAL == 0 || size <= 10) {
       logger.info(
@@ -84,19 +87,29 @@ class BufferedDataAvailabilityCleanup(
       )
     }
 
+    ensureTimerScheduled()
+
     if (size >= batchSize) {
       logger.info("Batch size threshold ($batchSize) reached, flushing immediately")
-      flush()
-    } else if (isStale()) {
-      logger.info("Buffer age exceeded ${flushIntervalSeconds}s, flushing")
       flush()
     }
   }
 
-  private fun isStale(): Boolean {
-    val first = firstEnqueueTimeMs.get()
-    if (first == 0L) return false
-    return System.currentTimeMillis() - first >= flushIntervalSeconds * 1000
+  private fun ensureTimerScheduled() {
+    if (timerScheduled.compareAndSet(false, true)) {
+      scheduler.scheduleAtFixedRate(
+        {
+          if (!queue.isEmpty()) {
+            logger.info("Periodic flush timer fired (${queue.size} events pending)")
+            flush()
+          }
+        },
+        flushIntervalSeconds,
+        flushIntervalSeconds,
+        TimeUnit.SECONDS,
+      )
+      logger.info("Scheduled periodic flush every ${flushIntervalSeconds}s")
+    }
   }
 
   fun flush() {
@@ -114,7 +127,6 @@ class BufferedDataAvailabilityCleanup(
     val batch = drain()
     if (batch.isEmpty()) return
 
-    firstEnqueueTimeMs.set(if (queue.isEmpty()) 0 else System.currentTimeMillis())
     val flushStart = TimeSource.Monotonic.markNow()
     logger.info("Flushing ${batch.size} buffered delete events")
 
@@ -281,6 +293,15 @@ class BufferedDataAvailabilityCleanup(
   fun shutdown() {
     logger.info("Shutting down buffered cleanup, flushing remaining events")
     flush()
+    scheduler.shutdown()
+    try {
+      if (!scheduler.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+        scheduler.shutdownNow()
+      }
+    } catch (e: InterruptedException) {
+      scheduler.shutdownNow()
+      Thread.currentThread().interrupt()
+    }
   }
 
   fun pendingCount(): Int = queue.size
@@ -292,6 +313,7 @@ class BufferedDataAvailabilityCleanup(
     const val DEFAULT_FLUSH_INTERVAL_SECONDS = 30L
     const val MAX_BATCH_DELETE_SIZE = 100
     const val MAX_BATCH_RESOLVE_SIZE = 100
+    private const val SHUTDOWN_TIMEOUT_SECONDS = 10L
     private const val BATCH_FLUSH_STATUS = "batch_flush"
     private const val LOG_INTERVAL = 50
   }
