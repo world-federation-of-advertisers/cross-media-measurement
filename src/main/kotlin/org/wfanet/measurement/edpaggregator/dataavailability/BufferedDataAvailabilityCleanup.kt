@@ -50,11 +50,14 @@ data class DeleteEvent(
  * - The buffer reaches [batchSize] events, OR
  * - A periodic timer fires every [flushIntervalSeconds] seconds.
  *
- * During flush, events without a resource ID are resolved by looking up the blob URI in the
- * ImpressionMetadata service. Events whose blobs still have a live version in storage are skipped
- * (noncurrent version deletion). Resolved resource names are chunked into groups of
- * [MAX_BATCH_DELETE_SIZE] and each chunk is deleted via a single batch RPC. Events that fail
- * resolution are re-queued.
+ * During flush:
+ * 1. Events whose blobs still have a live version in storage are skipped (noncurrent version
+ *    deletion).
+ * 2. Events without a resource ID are batch-resolved via a single `ListImpressionMetadata` RPC
+ *    using the `blob_uris` filter, instead of N individual lookups.
+ * 3. Resolved resource names are chunked into groups of [MAX_BATCH_DELETE_SIZE] and each chunk
+ *    is deleted via a single `BatchDeleteImpressionMetadata` RPC.
+ * 4. Events that fail resolution are re-queued.
  */
 class BufferedDataAvailabilityCleanup(
   private val impressionMetadataServiceStub: ImpressionMetadataServiceCoroutineStub,
@@ -111,10 +114,16 @@ class BufferedDataAvailabilityCleanup(
       val resourceNames = mutableListOf<String>()
       var skippedCount = 0
       var resolveFailCount = 0
+      val eventsNeedingResolution = mutableListOf<DeleteEvent>()
 
-      val resolveStart = TimeSource.Monotonic.markNow()
+      val checkStart = TimeSource.Monotonic.markNow()
       for (event in batch) {
         try {
+          if (!event.impressionMetadataResourceId.isNullOrEmpty()) {
+            resourceNames.add(event.impressionMetadataResourceId)
+            continue
+          }
+
           val blobUri = SelectedStorageClient.parseBlobUri(event.deletedBlobPath)
           val liveBlob = storageClient.getBlob(blobUri.key)
           if (liveBlob != null) {
@@ -122,27 +131,35 @@ class BufferedDataAvailabilityCleanup(
             continue
           }
 
-          val resourceName = resolveResourceName(event)
-          if (resourceName != null) {
-            resourceNames.add(resourceName)
-          } else {
-            skippedCount++
-          }
+          eventsNeedingResolution.add(event)
         } catch (e: Exception) {
           logger.log(
             Level.WARNING,
-            "Failed to resolve ${event.deletedBlobPath}, re-queuing",
+            "Failed to check ${event.deletedBlobPath}, re-queuing",
             e,
           )
           resolveFailCount++
           queue.add(event)
         }
       }
-      val resolveMs = resolveStart.elapsedNow().inWholeMilliseconds
+      val checkMs = checkStart.elapsedNow().inWholeMilliseconds
       logger.info(
-        "Resolved ${resourceNames.size} names, skipped $skippedCount, " +
-          "re-queued $resolveFailCount in ${resolveMs}ms"
+        "Live-version check: ${resourceNames.size} pre-resolved, " +
+          "${eventsNeedingResolution.size} need lookup, " +
+          "$skippedCount skipped (live), $resolveFailCount failed [${checkMs}ms]"
       )
+
+      if (eventsNeedingResolution.isNotEmpty()) {
+        val resolveStart = TimeSource.Monotonic.markNow()
+        val resolved = batchResolveResourceNames(eventsNeedingResolution)
+        val resolveMs = resolveStart.elapsedNow().inWholeMilliseconds
+        logger.info(
+          "Batch-resolved ${resolved.size}/${eventsNeedingResolution.size} " +
+            "blob URIs in ${resolveMs}ms"
+        )
+        resourceNames.addAll(resolved)
+        skippedCount += eventsNeedingResolution.size - resolved.size
+      }
 
       if (resourceNames.isNotEmpty()) {
         val chunks = resourceNames.chunked(MAX_BATCH_DELETE_SIZE)
@@ -168,7 +185,8 @@ class BufferedDataAvailabilityCleanup(
           } catch (e: Exception) {
             logger.log(
               Level.SEVERE,
-              "Batch RPC ${index + 1}/${chunks.size} failed for ${chunk.size} records, re-queuing",
+              "Batch RPC ${index + 1}/${chunks.size} failed for ${chunk.size} records, " +
+                "re-queuing",
               e,
             )
             chunk.forEach { name -> queue.add(DeleteEvent(name, name)) }
@@ -180,7 +198,7 @@ class BufferedDataAvailabilityCleanup(
         logger.info(
           "Flush complete: $totalDeleted deleted, $skippedCount skipped, " +
             "$resolveFailCount re-queued, ${queue.size} remaining " +
-            "[resolve=${resolveMs}ms, delete=${deleteMs}ms, total=${totalMs}ms]"
+            "[check=${checkMs}ms, delete=${deleteMs}ms, total=${totalMs}ms]"
         )
         metrics.recordsDeletedCounter.add(
           totalDeleted.toLong(),
@@ -198,38 +216,56 @@ class BufferedDataAvailabilityCleanup(
     }
   }
 
-  private suspend fun resolveResourceName(event: DeleteEvent): String? {
-    if (!event.impressionMetadataResourceId.isNullOrEmpty()) {
-      return event.impressionMetadataResourceId
-    }
+  /**
+   * Batch-resolves resource names for events that need blob URI lookup.
+   *
+   * Uses the `blob_uris` filter on `ListImpressionMetadata` to resolve all blob URIs in a single
+   * RPC, instead of N individual lookups.
+   */
+  private suspend fun batchResolveResourceNames(
+    events: List<DeleteEvent>,
+  ): List<String> {
+    val blobUris = events.map { it.deletedBlobPath }
 
-    val listResponse =
-      impressionMetadataServiceStub.listImpressionMetadata(
-        listImpressionMetadataRequest {
-          parent = dataProviderName
-          filter = ListImpressionMetadataRequestKt.filter {
-            blobUriPrefix = event.deletedBlobPath
+    val resolvedNames = mutableListOf<String>()
+    for (chunk in blobUris.chunked(MAX_BATCH_RESOLVE_SIZE)) {
+      try {
+        val listResponse =
+          impressionMetadataServiceStub.listImpressionMetadata(
+            listImpressionMetadataRequest {
+              parent = dataProviderName
+              filter = ListImpressionMetadataRequestKt.filter {
+                this.blobUris += chunk
+              }
+            }
+          )
+
+        val resultsByUri = listResponse.impressionMetadataList.groupBy { it.blobUri }
+        for (uri in chunk) {
+          val matches = resultsByUri[uri]
+          when {
+            matches == null || matches.isEmpty() -> {
+              logger.warning("No ImpressionMetadata found for blob URI: $uri. Skipping.")
+            }
+            matches.size > 1 -> {
+              logger.warning(
+                "Multiple ImpressionMetadata records (${matches.size}) for $uri. Skipping."
+              )
+            }
+            else -> resolvedNames.add(matches.single().name)
           }
         }
-      )
-
-    val results = listResponse.impressionMetadataList
-    return when {
-      results.isEmpty() -> {
-        logger.warning(
-          "No ImpressionMetadata found for blob URI: ${event.deletedBlobPath}. Skipping."
+      } catch (e: Exception) {
+        logger.log(
+          Level.WARNING,
+          "Batch resolve failed for ${chunk.size} URIs, re-queuing",
+          e,
         )
-        null
+        chunk.forEach { uri -> queue.add(DeleteEvent(uri, null)) }
       }
-      results.size > 1 -> {
-        logger.warning(
-          "Multiple ImpressionMetadata records (${results.size}) found for " +
-            "blob URI: ${event.deletedBlobPath}. Skipping."
-        )
-        null
-      }
-      else -> results.single().name
     }
+
+    return resolvedNames
   }
 
   private fun drain(): List<DeleteEvent> {
@@ -262,6 +298,7 @@ class BufferedDataAvailabilityCleanup(
     const val DEFAULT_BATCH_SIZE = 100
     const val DEFAULT_FLUSH_INTERVAL_SECONDS = 30L
     const val MAX_BATCH_DELETE_SIZE = 100
+    const val MAX_BATCH_RESOLVE_SIZE = 100
     private const val SHUTDOWN_TIMEOUT_SECONDS = 10L
     private const val BATCH_FLUSH_STATUS = "batch_flush"
     private const val LOG_INTERVAL = 50

@@ -62,22 +62,42 @@ class BufferedDataAvailabilityCleanupTest {
       onBlocking { listImpressionMetadata(any<ListImpressionMetadataRequest>()) }
         .thenAnswer { invocation ->
           val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
-          val blobUri = request.filter.blobUriPrefix
-          val index = blobUri.substringAfterLast("-").toIntOrNull() ?: 1
-          listImpressionMetadataResponse {
-            impressionMetadata +=
-              listOf(
-                impressionMetadata {
-                  name = resourceId(index)
-                  modelLine = "modelLine1"
-                  this.blobUri = blobUri
-                  interval = interval {
-                    startTime = timestamp { seconds = 100 }
-                    endTime = timestamp { seconds = 200 }
+          val blobUrisList = request.filter.blobUrisList
+          if (blobUrisList.isNotEmpty()) {
+            listImpressionMetadataResponse {
+              impressionMetadata +=
+                blobUrisList.mapNotNull { uri ->
+                  val index = uri.substringAfterLast("-").toIntOrNull() ?: return@mapNotNull null
+                  impressionMetadata {
+                    name = resourceId(index)
+                    modelLine = "modelLine1"
+                    blobUri = uri
+                    interval = interval {
+                      startTime = timestamp { seconds = 100 }
+                      endTime = timestamp { seconds = 200 }
+                    }
+                    state = ImpressionMetadata.State.ACTIVE
                   }
-                  state = ImpressionMetadata.State.ACTIVE
                 }
-              )
+            }
+          } else {
+            val blobUri = request.filter.blobUriPrefix
+            val index = blobUri.substringAfterLast("-").toIntOrNull() ?: 1
+            listImpressionMetadataResponse {
+              impressionMetadata +=
+                listOf(
+                  impressionMetadata {
+                    name = resourceId(index)
+                    modelLine = "modelLine1"
+                    this.blobUri = blobUri
+                    interval = interval {
+                      startTime = timestamp { seconds = 100 }
+                      endTime = timestamp { seconds = 200 }
+                    }
+                    state = ImpressionMetadata.State.ACTIVE
+                  }
+                )
+            }
           }
         }
       onBlocking { deleteImpressionMetadata(any<DeleteImpressionMetadataRequest>()) }
@@ -137,7 +157,7 @@ class BufferedDataAvailabilityCleanupTest {
   }
 
   @Test
-  fun `flush calls single batch delete RPC for multiple events`() {
+  fun `flush calls single batch delete RPC for multiple events with resource IDs`() {
     val buffer = createBuffer()
 
     buffer.enqueue(DeleteEvent("${BLOB_URI}-1", resourceId(1)))
@@ -167,23 +187,29 @@ class BufferedDataAvailabilityCleanupTest {
   }
 
   @Test
-  fun `flush resolves blob URIs via list when no resource ID provided`() {
+  fun `flush batch-resolves blob URIs via single list RPC`() {
     val buffer = createBuffer()
 
     buffer.enqueue(DeleteEvent("${BLOB_URI}-1", null))
     buffer.enqueue(DeleteEvent("${BLOB_URI}-2", null))
+    buffer.enqueue(DeleteEvent("${BLOB_URI}-3", null))
 
     buffer.flush()
 
-    verifyBlocking(impressionMetadataServiceMock, times(2)) {
-      listImpressionMetadata(any())
-    }
-
-    val captor = argumentCaptor<BatchDeleteImpressionMetadataRequest>()
+    // Verify ONE list RPC was called (batch resolve) instead of 3 individual calls
+    val listCaptor = argumentCaptor<ListImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
-      batchDeleteImpressionMetadata(captor.capture())
+      listImpressionMetadata(listCaptor.capture())
     }
-    assertThat(captor.firstValue.namesList).hasSize(2)
+    assertThat(listCaptor.firstValue.filter.blobUrisList).containsExactly(
+      "${BLOB_URI}-1", "${BLOB_URI}-2", "${BLOB_URI}-3"
+    )
+
+    val deleteCaptor = argumentCaptor<BatchDeleteImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      batchDeleteImpressionMetadata(deleteCaptor.capture())
+    }
+    assertThat(deleteCaptor.firstValue.namesList).hasSize(3)
 
     buffer.shutdown()
   }
