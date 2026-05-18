@@ -21,6 +21,7 @@ import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -306,6 +307,103 @@ class BufferedDataAvailabilityCleanupTest {
     assertThat(buffer.pendingCount()).isEqualTo(0)
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
       batchDeleteImpressionMetadata(any())
+    }
+
+    buffer.shutdown()
+  }
+
+  @Test
+  fun `batch NOT_FOUND falls back to individual deletes`() {
+    wheneverBlocking { impressionMetadataServiceMock.batchDeleteImpressionMetadata(any()) }
+      .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
+
+    val buffer = createBuffer()
+
+    buffer.enqueue(DeleteEvent("${BLOB_URI}-1", resourceId(1)))
+    buffer.enqueue(DeleteEvent("${BLOB_URI}-2", resourceId(2)))
+    buffer.enqueue(DeleteEvent("${BLOB_URI}-3", resourceId(3)))
+
+    buffer.flush()
+
+    assertThat(buffer.pendingCount()).isEqualTo(0)
+
+    verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      batchDeleteImpressionMetadata(any())
+    }
+
+    val captor = argumentCaptor<DeleteImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(3)) {
+      deleteImpressionMetadata(captor.capture())
+    }
+    assertThat(captor.allValues.map { it.name }).containsExactly(
+      resourceId(1), resourceId(2), resourceId(3)
+    )
+
+    buffer.shutdown()
+  }
+
+  @Test
+  fun `individual delete treats NOT_FOUND as success`() {
+    wheneverBlocking { impressionMetadataServiceMock.batchDeleteImpressionMetadata(any()) }
+      .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
+
+    wheneverBlocking { impressionMetadataServiceMock.deleteImpressionMetadata(any()) }
+      .thenReturn(ImpressionMetadata.getDefaultInstance())
+      .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
+      .thenReturn(ImpressionMetadata.getDefaultInstance())
+
+    val buffer = createBuffer()
+
+    buffer.enqueue(DeleteEvent("${BLOB_URI}-1", resourceId(1)))
+    buffer.enqueue(DeleteEvent("${BLOB_URI}-2", resourceId(2)))
+    buffer.enqueue(DeleteEvent("${BLOB_URI}-3", resourceId(3)))
+
+    buffer.flush()
+
+    assertThat(buffer.pendingCount()).isEqualTo(0)
+
+    buffer.shutdown()
+  }
+
+  @Test
+  fun `individual delete re-queues on non-NOT_FOUND error`() {
+    wheneverBlocking { impressionMetadataServiceMock.batchDeleteImpressionMetadata(any()) }
+      .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
+
+    wheneverBlocking { impressionMetadataServiceMock.deleteImpressionMetadata(any()) }
+      .thenReturn(ImpressionMetadata.getDefaultInstance())
+      .thenThrow(StatusRuntimeException(Status.UNAVAILABLE))
+      .thenReturn(ImpressionMetadata.getDefaultInstance())
+
+    val buffer = createBuffer()
+
+    buffer.enqueue(DeleteEvent("${BLOB_URI}-1", resourceId(1)))
+    buffer.enqueue(DeleteEvent("${BLOB_URI}-2", resourceId(2)))
+    buffer.enqueue(DeleteEvent("${BLOB_URI}-3", resourceId(3)))
+
+    buffer.flush()
+
+    assertThat(buffer.pendingCount()).isEqualTo(1)
+
+    buffer.shutdown()
+  }
+
+  @Test
+  fun `non-NOT_FOUND batch error re-queues entire chunk without fallback`() {
+    wheneverBlocking { impressionMetadataServiceMock.batchDeleteImpressionMetadata(any()) }
+      .thenThrow(StatusRuntimeException(Status.INTERNAL))
+
+    val buffer = createBuffer()
+
+    buffer.enqueue(DeleteEvent("${BLOB_URI}-1", resourceId(1)))
+    buffer.enqueue(DeleteEvent("${BLOB_URI}-2", resourceId(2)))
+
+    buffer.flush()
+
+    assertThat(buffer.pendingCount()).isEqualTo(2)
+
+    verifyBlocking(impressionMetadataServiceMock, never()) {
+      deleteImpressionMetadata(any())
     }
 
     buffer.shutdown()

@@ -16,6 +16,9 @@
 
 package org.wfanet.measurement.edpaggregator.dataavailability
 
+import io.grpc.Status
+import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import io.opentelemetry.api.common.Attributes
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.Executors
@@ -29,6 +32,7 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.deleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
@@ -214,13 +218,7 @@ class BufferedDataAvailabilityCleanup(
             totalDeleted += chunk.size
             logger.info("Batch RPC ${index + 1}/${chunks.size}: deleted ${chunk.size} records")
           } catch (e: Exception) {
-            logger.log(
-              Level.SEVERE,
-              "Batch RPC ${index + 1}/${chunks.size} failed for ${chunk.size} records, " +
-                "re-queuing",
-              e,
-            )
-            chunk.forEach { name -> queue.add(DeleteEvent(name, name)) }
+            totalDeleted += handleBatchDeleteFailure(e, chunk, index + 1, chunks.size)
           }
         }
 
@@ -239,6 +237,84 @@ class BufferedDataAvailabilityCleanup(
         val totalMs = flushStart.elapsedNow().inWholeMilliseconds
         logger.info("No events to batch-delete ($skippedCount skipped) [total=${totalMs}ms]")
       }
+    }
+  }
+
+  /**
+   * Handles a failed `BatchDeleteImpressionMetadata` RPC.
+   *
+   * `BatchDeleteImpressionMetadata` is atomic — if ANY record in the batch returns NOT_FOUND, the
+   * entire RPC fails with NOT_FOUND. This can happen when:
+   * - A record was already cleaned up by a previous flush cycle or duplicate event.
+   * - On a versioned GCS bucket, multiple noncurrent version deletions for the same object each
+   *   trigger an OBJECT_DELETE event, but only the first cleanup call will find the metadata.
+   *
+   * When the batch fails with NOT_FOUND, this method falls back to individual
+   * `DeleteImpressionMetadata` RPCs for each record in the chunk. Individual NOT_FOUND errors are
+   * treated as successful (idempotent delete) since the record is already gone.
+   *
+   * For non-NOT_FOUND errors, all records in the chunk are re-queued for retry on the next flush.
+   *
+   * @return the number of records successfully deleted (including NOT_FOUND, which counts as
+   *   already-deleted)
+   */
+  private suspend fun handleBatchDeleteFailure(
+    error: Exception,
+    chunk: List<String>,
+    rpcIndex: Int,
+    totalRpcs: Int,
+  ): Int {
+    val statusCode = extractStatusCode(error)
+
+    if (statusCode != Status.Code.NOT_FOUND) {
+      logger.log(
+        Level.SEVERE,
+        "Batch RPC $rpcIndex/$totalRpcs failed for ${chunk.size} records, re-queuing",
+        error,
+      )
+      chunk.forEach { name -> queue.add(DeleteEvent(name, name)) }
+      return 0
+    }
+
+    logger.warning(
+      "Batch RPC $rpcIndex/$totalRpcs failed with NOT_FOUND for ${chunk.size} records. " +
+        "Falling back to individual deletes."
+    )
+
+    var deleted = 0
+    var alreadyGone = 0
+    var failed = 0
+
+    for (name in chunk) {
+      try {
+        impressionMetadataServiceStub.deleteImpressionMetadata(
+          deleteImpressionMetadataRequest { this.name = name }
+        )
+        deleted++
+      } catch (e: Exception) {
+        val individualStatusCode = extractStatusCode(e)
+        if (individualStatusCode == Status.Code.NOT_FOUND) {
+          alreadyGone++
+        } else {
+          failed++
+          logger.log(Level.WARNING, "Individual delete failed for $name, re-queuing", e)
+          queue.add(DeleteEvent(name, name))
+        }
+      }
+    }
+
+    logger.info(
+      "Individual delete fallback: $deleted deleted, $alreadyGone already gone (NOT_FOUND), " +
+        "$failed failed and re-queued"
+    )
+    return deleted + alreadyGone
+  }
+
+  private fun extractStatusCode(error: Exception): Status.Code? {
+    return when (error) {
+      is StatusRuntimeException -> error.status.code
+      is StatusException -> error.status.code
+      else -> null
     }
   }
 
