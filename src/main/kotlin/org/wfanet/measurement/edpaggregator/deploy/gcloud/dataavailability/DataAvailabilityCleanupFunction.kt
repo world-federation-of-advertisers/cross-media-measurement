@@ -49,13 +49,9 @@ import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
  *
  * ## Buffered Mode
  *
- * When `CLEANUP_BUFFER_ENABLED=true`, delete events are buffered in memory and flushed in batches.
- * This reduces per-event overhead when GCS lifecycle rules delete many files in a short window.
- * Cloud Functions Gen2 supports instance reuse, so the in-memory buffer persists across
- * invocations on the same instance.
- *
- * Buffered mode requires `--no-cpu-throttling` on the Cloud Function so that the background flush
- * thread continues running between invocations.
+ * When `CLEANUP_BUFFER_ENABLED=true`, delete events are buffered in memory and flushed via a
+ * single `BatchDeleteImpressionMetadata` RPC. This reduces N individual Spanner transactions to
+ * one when GCS lifecycle rules delete many files in a short window.
  *
  * ## Headers
  * - `X-DataWatcher-Path`: Required. The GCS object path that was deleted (used as blob URI).
@@ -165,9 +161,9 @@ class DataAvailabilityCleanupFunction : HttpFunction {
       }
     }
 
-    private fun createCleanup(
+    private fun createInstrumentedStub(
       dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
-    ): DataAvailabilityCleanup {
+    ): ImpressionMetadataServiceCoroutineStub {
       val grpcChannels =
         DataAvailabilitySyncFunction.getOrCreateSharedChannels(dataAvailabilitySyncConfig)
 
@@ -178,15 +174,16 @@ class DataAvailabilityCleanupFunction : HttpFunction {
           grpcTelemetry.newClientInterceptor(),
         )
 
-      val impressionMetadataServiceStub =
-        ImpressionMetadataServiceCoroutineStub(instrumentedChannel)
+      return ImpressionMetadataServiceCoroutineStub(instrumentedChannel)
+    }
 
-      val storageClient = createStorageClient(dataAvailabilitySyncConfig)
-
+    private fun createCleanup(
+      dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
+    ): DataAvailabilityCleanup {
       return DataAvailabilityCleanup(
-        impressionMetadataServiceStub,
+        createInstrumentedStub(dataAvailabilitySyncConfig),
         dataAvailabilitySyncConfig.dataProvider,
-        storageClient,
+        createStorageClient(dataAvailabilitySyncConfig),
       )
     }
 
@@ -195,9 +192,11 @@ class DataAvailabilityCleanupFunction : HttpFunction {
     ): BufferedDataAvailabilityCleanup {
       return sharedBuffer ?: synchronized(this) {
         sharedBuffer ?: run {
-          val cleanup = createCleanup(dataAvailabilitySyncConfig)
           BufferedDataAvailabilityCleanup(
-            cleanupDelegate = cleanup,
+            impressionMetadataServiceStub =
+              createInstrumentedStub(dataAvailabilitySyncConfig),
+            dataProviderName = dataAvailabilitySyncConfig.dataProvider,
+            storageClient = createStorageClient(dataAvailabilitySyncConfig),
             batchSize = bufferBatchSize,
             flushIntervalSeconds = bufferFlushIntervalSeconds,
           ).also {
