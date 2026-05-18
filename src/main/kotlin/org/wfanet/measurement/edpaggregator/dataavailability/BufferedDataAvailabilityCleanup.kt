@@ -33,33 +33,30 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataReques
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
-data class DeleteEvent(
-  val deletedBlobPath: String,
-  val impressionMetadataResourceId: String?,
-)
+data class DeleteEvent(val deletedBlobPath: String, val impressionMetadataResourceId: String?)
 
 /**
- * Buffers delete events in memory and flushes them via `BatchDeleteImpressionMetadata` RPCs,
- * each capped at [MAX_BATCH_DELETE_SIZE] records.
+ * Buffers delete events in memory and flushes them via `BatchDeleteImpressionMetadata` RPCs, each
+ * capped at [MAX_BATCH_DELETE_SIZE] records.
  *
  * On Cloud Functions Gen2, a single instance can handle concurrent requests. This class exploits
- * instance reuse to accumulate delete events across invocations and process them together,
- * rather than N individual RPCs.
+ * instance reuse to accumulate delete events across invocations and process them together, rather
+ * than N individual RPCs.
  *
  * Events are flushed when:
  * - The buffer reaches [batchSize] events (flushed synchronously by the enqueuing thread), OR
  * - A periodic background timer fires every [flushIntervalSeconds] seconds as a fallback.
  *
- * NOTE: The background timer requires CPU >= 1 with concurrency > 1 to function reliably.
- * With fractional CPU, Cloud Run throttles background threads between requests.
+ * NOTE: The background timer requires CPU >= 1 with concurrency > 1 to function reliably. With
+ * fractional CPU, Cloud Run throttles background threads between requests.
  *
  * During flush:
  * 1. Events whose blobs still have a live version in storage are skipped (noncurrent version
  *    deletion).
  * 2. Events without a resource ID are batch-resolved via a single `ListImpressionMetadata` RPC
  *    using the `blob_uris` filter.
- * 3. Resolved resource names are chunked into groups of [MAX_BATCH_DELETE_SIZE] and each chunk
- *    is deleted via a single `BatchDeleteImpressionMetadata` RPC.
+ * 3. Resolved resource names are chunked into groups of [MAX_BATCH_DELETE_SIZE] and each chunk is
+ *    deleted via a single `BatchDeleteImpressionMetadata` RPC.
  * 4. Events that fail resolution are re-queued.
  */
 class BufferedDataAvailabilityCleanup(
@@ -75,16 +72,20 @@ class BufferedDataAvailabilityCleanup(
   private val timerScheduled = AtomicBoolean(false)
   private val scheduler: ScheduledExecutorService =
     Executors.newSingleThreadScheduledExecutor { r ->
-      Thread(r, "cleanup-buffer-flush").apply { isDaemon = true }
+      Thread(r, "cleanup-buffer-flush").apply {
+        isDaemon = true
+        uncaughtExceptionHandler =
+          Thread.UncaughtExceptionHandler { t, e ->
+            logger.log(Level.SEVERE, "Uncaught exception in timer thread ${t.name}", e)
+          }
+      }
     }
 
   fun enqueue(event: DeleteEvent) {
     queue.add(event)
     val size = queue.size
     if (size % LOG_INTERVAL == 0 || size <= 10) {
-      logger.info(
-        "Buffered delete event for: ${event.deletedBlobPath} (queue size: $size)"
-      )
+      logger.info("Buffered delete event for: ${event.deletedBlobPath} (queue size: $size)")
     }
 
     ensureTimerScheduled()
@@ -97,23 +98,39 @@ class BufferedDataAvailabilityCleanup(
 
   private fun ensureTimerScheduled() {
     if (timerScheduled.compareAndSet(false, true)) {
-      scheduler.scheduleAtFixedRate(
-        {
-          if (!queue.isEmpty()) {
-            logger.info("Periodic flush timer fired (${queue.size} events pending)")
-            flush()
-          }
-        },
-        flushIntervalSeconds,
-        flushIntervalSeconds,
-        TimeUnit.SECONDS,
-      )
-      logger.info("Scheduled periodic flush every ${flushIntervalSeconds}s")
+      try {
+        scheduler.scheduleAtFixedRate(
+          {
+            try {
+              if (!queue.isEmpty()) {
+                logger.info("Periodic flush timer fired (${queue.size} events pending)")
+                flush()
+              } else {
+                logger.fine("Periodic flush timer fired (queue empty, skipping)")
+              }
+            } catch (e: Exception) {
+              logger.log(
+                Level.SEVERE,
+                "Timer flush failed, re-queuing will happen on next flush",
+                e,
+              )
+            }
+          },
+          flushIntervalSeconds,
+          flushIntervalSeconds,
+          TimeUnit.SECONDS,
+        )
+        logger.info("Scheduled periodic flush every ${flushIntervalSeconds}s")
+      } catch (e: Exception) {
+        logger.log(Level.SEVERE, "Failed to schedule periodic flush timer", e)
+        timerScheduled.set(false)
+      }
     }
   }
 
   fun flush() {
     if (!flushing.compareAndSet(false, true)) {
+      logger.info("Flush already in progress, skipping")
       return
     }
     try {
@@ -153,11 +170,7 @@ class BufferedDataAvailabilityCleanup(
 
           eventsNeedingResolution.add(event)
         } catch (e: Exception) {
-          logger.log(
-            Level.WARNING,
-            "Failed to check ${event.deletedBlobPath}, re-queuing",
-            e,
-          )
+          logger.log(Level.WARNING, "Failed to check ${event.deletedBlobPath}, re-queuing", e)
           resolveFailCount++
           queue.add(event)
         }
@@ -199,9 +212,7 @@ class BufferedDataAvailabilityCleanup(
               }
             )
             totalDeleted += chunk.size
-            logger.info(
-              "Batch RPC ${index + 1}/${chunks.size}: deleted ${chunk.size} records"
-            )
+            logger.info("Batch RPC ${index + 1}/${chunks.size}: deleted ${chunk.size} records")
           } catch (e: Exception) {
             logger.log(
               Level.SEVERE,
@@ -222,23 +233,16 @@ class BufferedDataAvailabilityCleanup(
         )
         metrics.recordsDeletedCounter.add(
           totalDeleted.toLong(),
-          Attributes.of(
-            DataAvailabilityCleanupMetrics.CLEANUP_STATUS_ATTR,
-            BATCH_FLUSH_STATUS,
-          ),
+          Attributes.of(DataAvailabilityCleanupMetrics.CLEANUP_STATUS_ATTR, BATCH_FLUSH_STATUS),
         )
       } else {
         val totalMs = flushStart.elapsedNow().inWholeMilliseconds
-        logger.info(
-          "No events to batch-delete ($skippedCount skipped) [total=${totalMs}ms]"
-        )
+        logger.info("No events to batch-delete ($skippedCount skipped) [total=${totalMs}ms]")
       }
     }
   }
 
-  private suspend fun batchResolveResourceNames(
-    events: List<DeleteEvent>,
-  ): List<String> {
+  private suspend fun batchResolveResourceNames(events: List<DeleteEvent>): List<String> {
     val blobUris = events.map { it.deletedBlobPath }
 
     val resolvedNames = mutableListOf<String>()
@@ -248,9 +252,7 @@ class BufferedDataAvailabilityCleanup(
           impressionMetadataServiceStub.listImpressionMetadata(
             listImpressionMetadataRequest {
               parent = dataProviderName
-              filter = ListImpressionMetadataRequestKt.filter {
-                this.blobUris += chunk
-              }
+              filter = ListImpressionMetadataRequestKt.filter { this.blobUris += chunk }
             }
           )
 
@@ -270,11 +272,7 @@ class BufferedDataAvailabilityCleanup(
           }
         }
       } catch (e: Exception) {
-        logger.log(
-          Level.WARNING,
-          "Batch resolve failed for ${chunk.size} URIs, re-queuing",
-          e,
-        )
+        logger.log(Level.WARNING, "Batch resolve failed for ${chunk.size} URIs, re-queuing", e)
         chunk.forEach { uri -> queue.add(DeleteEvent(uri, null)) }
       }
     }
@@ -307,8 +305,7 @@ class BufferedDataAvailabilityCleanup(
   fun pendingCount(): Int = queue.size
 
   companion object {
-    private val logger: Logger =
-      Logger.getLogger(BufferedDataAvailabilityCleanup::class.java.name)
+    private val logger: Logger = Logger.getLogger(BufferedDataAvailabilityCleanup::class.java.name)
     const val DEFAULT_BATCH_SIZE = 100
     const val DEFAULT_FLUSH_INTERVAL_SECONDS = 30L
     const val MAX_BATCH_DELETE_SIZE = 100
