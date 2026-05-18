@@ -22,6 +22,7 @@ import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
+import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -45,6 +46,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataReques
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)
@@ -52,8 +54,10 @@ class BufferedDataAvailabilityCleanupTest {
 
   companion object {
     private const val DATA_PROVIDER_NAME = "dataProviders/dataProvider123"
-    private const val BLOB_URI = "gs://bucket/path/to/blob"
+    private const val BLOB_URI_PREFIX = "gs://bucket/path/to"
   }
+
+  private fun blobUri(index: Int) = "$BLOB_URI_PREFIX/blob-$index"
 
   private fun resourceId(index: Int) =
     "$DATA_PROVIDER_NAME/impressionMetadata/im-$index"
@@ -124,8 +128,23 @@ class BufferedDataAvailabilityCleanupTest {
 
   @get:Rule val tempFolder = TemporaryFolder()
 
-  private val emptyStorageClient: FileSystemStorageClient
-    get() = FileSystemStorageClient(tempFolder.newFolder("empty-storage"))
+  /** Storage client with no blobs — simulates all blobs permanently deleted. */
+  private fun emptyStorageClient(): FileSystemStorageClient =
+    FileSystemStorageClient(tempFolder.newFolder("empty-${System.nanoTime()}"))
+
+  /**
+   * Storage client with specific blob keys present — simulates blobs that still have a live
+   * (current) version in GCS.
+   */
+  private fun storageClientWithLiveBlobs(vararg blobKeys: String): FileSystemStorageClient {
+    val root = tempFolder.newFolder("storage-${System.nanoTime()}")
+    for (key in blobKeys) {
+      val file = File(root, key)
+      file.parentFile.mkdirs()
+      file.writeText("live-blob")
+    }
+    return FileSystemStorageClient(root)
+  }
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule { addService(impressionMetadataServiceMock) }
@@ -133,11 +152,12 @@ class BufferedDataAvailabilityCleanupTest {
   private fun createBuffer(
     batchSize: Int = 100,
     flushIntervalSeconds: Long = 300,
+    storageClient: StorageClient? = null,
   ): BufferedDataAvailabilityCleanup {
     return BufferedDataAvailabilityCleanup(
       impressionMetadataServiceStub = impressionMetadataStub,
       dataProviderName = DATA_PROVIDER_NAME,
-      storageClient = emptyStorageClient,
+      storageClient = storageClient ?: emptyStorageClient(),
       batchSize = batchSize,
       flushIntervalSeconds = flushIntervalSeconds,
     )
@@ -147,7 +167,7 @@ class BufferedDataAvailabilityCleanupTest {
   fun `enqueue buffers events without immediate processing`() {
     val buffer = createBuffer(batchSize = 10)
 
-    buffer.enqueue(DeleteEvent(BLOB_URI, resourceId(1)))
+    buffer.enqueue(DeleteEvent(blobUri(1), resourceId(1)))
 
     assertThat(buffer.pendingCount()).isEqualTo(1)
     verifyBlocking(impressionMetadataServiceMock, never()) {
@@ -161,9 +181,9 @@ class BufferedDataAvailabilityCleanupTest {
   fun `flush calls single batch delete RPC for multiple events with resource IDs`() {
     val buffer = createBuffer()
 
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-1", resourceId(1)))
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-2", resourceId(2)))
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-3", resourceId(3)))
+    buffer.enqueue(DeleteEvent(blobUri(1), resourceId(1)))
+    buffer.enqueue(DeleteEvent(blobUri(2), resourceId(2)))
+    buffer.enqueue(DeleteEvent(blobUri(3), resourceId(3)))
 
     assertThat(buffer.pendingCount()).isEqualTo(3)
 
@@ -191,9 +211,9 @@ class BufferedDataAvailabilityCleanupTest {
   fun `flush batch-resolves blob URIs via single list RPC`() {
     val buffer = createBuffer()
 
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-1", null))
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-2", null))
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-3", null))
+    buffer.enqueue(DeleteEvent(blobUri(1), null))
+    buffer.enqueue(DeleteEvent(blobUri(2), null))
+    buffer.enqueue(DeleteEvent(blobUri(3), null))
 
     buffer.flush()
 
@@ -202,7 +222,7 @@ class BufferedDataAvailabilityCleanupTest {
       listImpressionMetadata(listCaptor.capture())
     }
     assertThat(listCaptor.firstValue.filter.blobUrisList).containsExactly(
-      "${BLOB_URI}-1", "${BLOB_URI}-2", "${BLOB_URI}-3"
+      blobUri(1), blobUri(2), blobUri(3)
     )
 
     val deleteCaptor = argumentCaptor<BatchDeleteImpressionMetadataRequest>()
@@ -218,9 +238,9 @@ class BufferedDataAvailabilityCleanupTest {
   fun `batch size threshold triggers immediate flush with batch RPC`() {
     val buffer = createBuffer(batchSize = 3)
 
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-1", resourceId(1)))
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-2", resourceId(2)))
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-3", resourceId(3)))
+    buffer.enqueue(DeleteEvent(blobUri(1), resourceId(1)))
+    buffer.enqueue(DeleteEvent(blobUri(2), resourceId(2)))
+    buffer.enqueue(DeleteEvent(blobUri(3), resourceId(3)))
 
     assertThat(buffer.pendingCount()).isEqualTo(0)
 
@@ -238,7 +258,7 @@ class BufferedDataAvailabilityCleanupTest {
     val buffer = createBuffer(batchSize = 250)
 
     for (i in 1..250) {
-      buffer.enqueue(DeleteEvent("${BLOB_URI}-$i", resourceId(i)))
+      buffer.enqueue(DeleteEvent(blobUri(i), resourceId(i)))
     }
 
     assertThat(buffer.pendingCount()).isEqualTo(0)
@@ -260,8 +280,8 @@ class BufferedDataAvailabilityCleanupTest {
   fun `shutdown flushes remaining events via batch RPC`() {
     val buffer = createBuffer()
 
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-1", resourceId(1)))
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-2", resourceId(2)))
+    buffer.enqueue(DeleteEvent(blobUri(1), resourceId(1)))
+    buffer.enqueue(DeleteEvent(blobUri(2), resourceId(2)))
 
     assertThat(buffer.pendingCount()).isEqualTo(2)
 
@@ -280,8 +300,8 @@ class BufferedDataAvailabilityCleanupTest {
 
     val buffer = createBuffer()
 
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-missing", null))
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-1", resourceId(1)))
+    buffer.enqueue(DeleteEvent(blobUri(9999), null))
+    buffer.enqueue(DeleteEvent(blobUri(1), resourceId(1)))
 
     buffer.flush()
 
@@ -298,7 +318,7 @@ class BufferedDataAvailabilityCleanupTest {
   fun `periodic timer flushes remaining events`() {
     val buffer = createBuffer(flushIntervalSeconds = 1)
 
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-1", resourceId(1)))
+    buffer.enqueue(DeleteEvent(blobUri(1), resourceId(1)))
 
     assertThat(buffer.pendingCount()).isEqualTo(1)
 
@@ -313,15 +333,60 @@ class BufferedDataAvailabilityCleanupTest {
   }
 
   @Test
+  fun `skips events whose blobs still have a live version`() {
+    // blob-1 still has a live version; blob-2 is fully deleted
+    val sc = storageClientWithLiveBlobs("path/to/blob-1")
+    val buffer = createBuffer(storageClient = sc)
+
+    buffer.enqueue(DeleteEvent(blobUri(1), resourceId(1)))
+    buffer.enqueue(DeleteEvent(blobUri(2), resourceId(2)))
+
+    buffer.flush()
+
+    assertThat(buffer.pendingCount()).isEqualTo(0)
+
+    val captor = argumentCaptor<BatchDeleteImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      batchDeleteImpressionMetadata(captor.capture())
+    }
+    // Only blob-2 should be deleted; blob-1 is skipped (live version exists)
+    assertThat(captor.firstValue.namesList).containsExactly(resourceId(2))
+
+    buffer.shutdown()
+  }
+
+  @Test
+  fun `bulk live-version check groups by prefix`() {
+    // Both blobs share the same prefix "path/to/" — only one listBlobs call needed
+    val sc = storageClientWithLiveBlobs("path/to/blob-1", "path/to/blob-3")
+    val buffer = createBuffer(storageClient = sc)
+
+    buffer.enqueue(DeleteEvent(blobUri(1), resourceId(1)))
+    buffer.enqueue(DeleteEvent(blobUri(2), resourceId(2)))
+    buffer.enqueue(DeleteEvent(blobUri(3), resourceId(3)))
+
+    buffer.flush()
+
+    val captor = argumentCaptor<BatchDeleteImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      batchDeleteImpressionMetadata(captor.capture())
+    }
+    // blob-1 and blob-3 are live, only blob-2 should be deleted
+    assertThat(captor.firstValue.namesList).containsExactly(resourceId(2))
+
+    buffer.shutdown()
+  }
+
+  @Test
   fun `batch NOT_FOUND falls back to individual deletes`() {
     wheneverBlocking { impressionMetadataServiceMock.batchDeleteImpressionMetadata(any()) }
       .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
 
     val buffer = createBuffer()
 
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-1", resourceId(1)))
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-2", resourceId(2)))
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-3", resourceId(3)))
+    buffer.enqueue(DeleteEvent(blobUri(1), resourceId(1)))
+    buffer.enqueue(DeleteEvent(blobUri(2), resourceId(2)))
+    buffer.enqueue(DeleteEvent(blobUri(3), resourceId(3)))
 
     buffer.flush()
 
@@ -354,9 +419,9 @@ class BufferedDataAvailabilityCleanupTest {
 
     val buffer = createBuffer()
 
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-1", resourceId(1)))
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-2", resourceId(2)))
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-3", resourceId(3)))
+    buffer.enqueue(DeleteEvent(blobUri(1), resourceId(1)))
+    buffer.enqueue(DeleteEvent(blobUri(2), resourceId(2)))
+    buffer.enqueue(DeleteEvent(blobUri(3), resourceId(3)))
 
     buffer.flush()
 
@@ -377,9 +442,9 @@ class BufferedDataAvailabilityCleanupTest {
 
     val buffer = createBuffer()
 
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-1", resourceId(1)))
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-2", resourceId(2)))
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-3", resourceId(3)))
+    buffer.enqueue(DeleteEvent(blobUri(1), resourceId(1)))
+    buffer.enqueue(DeleteEvent(blobUri(2), resourceId(2)))
+    buffer.enqueue(DeleteEvent(blobUri(3), resourceId(3)))
 
     buffer.flush()
 
@@ -395,8 +460,8 @@ class BufferedDataAvailabilityCleanupTest {
 
     val buffer = createBuffer()
 
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-1", resourceId(1)))
-    buffer.enqueue(DeleteEvent("${BLOB_URI}-2", resourceId(2)))
+    buffer.enqueue(DeleteEvent(blobUri(1), resourceId(1)))
+    buffer.enqueue(DeleteEvent(blobUri(2), resourceId(2)))
 
     buffer.flush()
 

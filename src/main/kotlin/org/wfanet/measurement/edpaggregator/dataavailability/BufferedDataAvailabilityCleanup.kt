@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
@@ -55,8 +56,9 @@ data class DeleteEvent(val deletedBlobPath: String, val impressionMetadataResour
  * fractional CPU, Cloud Run throttles background threads between requests.
  *
  * During flush:
- * 1. Events whose blobs still have a live version in storage are skipped (noncurrent version
- *    deletion).
+ * 1. All blob paths are grouped by directory prefix and bulk-checked via `listBlobs` to find which
+ *    blobs still have a live (current) version. Events whose blobs are still live are skipped — the
+ *    delete event was for a noncurrent version and the object is still in use.
  * 2. Events without a resource ID are batch-resolved via a single `ListImpressionMetadata` RPC
  *    using the `blob_uris` filter.
  * 3. Resolved resource names are chunked into groups of [MAX_BATCH_DELETE_SIZE] and each chunk is
@@ -152,38 +154,39 @@ class BufferedDataAvailabilityCleanup(
     logger.info("Flushing ${batch.size} buffered delete events")
 
     runBlocking {
+      val checkStart = TimeSource.Monotonic.markNow()
+      val liveBlobKeys = findLiveBlobKeys(batch)
+      val checkMs = checkStart.elapsedNow().inWholeMilliseconds
+
       val resourceNames = mutableListOf<String>()
       var skippedCount = 0
       var resolveFailCount = 0
       val eventsNeedingResolution = mutableListOf<DeleteEvent>()
 
-      val checkStart = TimeSource.Monotonic.markNow()
       for (event in batch) {
         try {
-          if (!event.impressionMetadataResourceId.isNullOrEmpty()) {
-            resourceNames.add(event.impressionMetadataResourceId)
-            continue
-          }
-
           val blobUri = SelectedStorageClient.parseBlobUri(event.deletedBlobPath)
-          val liveBlob = storageClient.getBlob(blobUri.key)
-          if (liveBlob != null) {
+          if (blobUri.key in liveBlobKeys) {
             skippedCount++
             continue
           }
 
-          eventsNeedingResolution.add(event)
+          if (!event.impressionMetadataResourceId.isNullOrEmpty()) {
+            resourceNames.add(event.impressionMetadataResourceId)
+          } else {
+            eventsNeedingResolution.add(event)
+          }
         } catch (e: Exception) {
           logger.log(Level.WARNING, "Failed to check ${event.deletedBlobPath}, re-queuing", e)
           resolveFailCount++
           queue.add(event)
         }
       }
-      val checkMs = checkStart.elapsedNow().inWholeMilliseconds
       logger.info(
         "Live-version check: ${resourceNames.size} pre-resolved, " +
           "${eventsNeedingResolution.size} need lookup, " +
-          "$skippedCount skipped (live), $resolveFailCount failed [${checkMs}ms]"
+          "$skippedCount skipped (live), $resolveFailCount failed " +
+          "[${liveBlobKeys.size} live keys from ${batch.size} events, ${checkMs}ms]"
       )
 
       if (eventsNeedingResolution.isNotEmpty()) {
@@ -238,6 +241,42 @@ class BufferedDataAvailabilityCleanup(
         logger.info("No events to batch-delete ($skippedCount skipped) [total=${totalMs}ms]")
       }
     }
+  }
+
+  /**
+   * Bulk-checks which blobs in [batch] still have a live (current) version in storage.
+   *
+   * Instead of N individual `getBlob` calls, this groups blob paths by their directory prefix and
+   * issues one `listBlobs` per unique prefix. On a versioned GCS bucket, a delete event fires for
+   * both noncurrent version deletions (where a newer current version may still exist) and final
+   * deletions (no current version remains). Only the latter should trigger metadata cleanup.
+   *
+   * @return set of blob keys that still have a live version (should be skipped)
+   */
+  private suspend fun findLiveBlobKeys(batch: List<DeleteEvent>): Set<String> {
+    val prefixes = mutableSetOf<String>()
+    for (event in batch) {
+      try {
+        val blobUri = SelectedStorageClient.parseBlobUri(event.deletedBlobPath)
+        val lastSlash = blobUri.key.lastIndexOf('/')
+        if (lastSlash > 0) {
+          prefixes.add(blobUri.key.substring(0, lastSlash + 1))
+        }
+      } catch (_: Exception) {}
+    }
+
+    val liveBlobKeys = mutableSetOf<String>()
+    for (prefix in prefixes) {
+      try {
+        storageClient.listBlobs(prefix).toList().forEach { blob ->
+          liveBlobKeys.add(blob.blobKey)
+        }
+      } catch (e: Exception) {
+        logger.log(Level.WARNING, "Failed to list blobs with prefix $prefix", e)
+      }
+    }
+    logger.info("Bulk live-version check: ${prefixes.size} prefixes, ${liveBlobKeys.size} live blobs")
+    return liveBlobKeys
   }
 
   /**
