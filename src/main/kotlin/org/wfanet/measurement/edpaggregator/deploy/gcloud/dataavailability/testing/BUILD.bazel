@@ -29,3 +29,16 @@ java_binary(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:DataAvailabilityMonitorFunction_deploy.jar",
     ],
 )
+
+java_binary(
+    name = "InvokeDataAvailabilityCleanupFunction",
+    main_class = "com.google.cloud.functions.invoker.runner.Invoker",
+    resources = [
+        "//src/main/k8s/testing/secretfiles:root_certs",
+        "//src/main/k8s/testing/secretfiles:secret_files",
+    ],
+    runtime_deps = [
+        "//imports/java/com/google/cloud/functions/invoker:java_function_invoker",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:DataAvailabilityCleanupFunction_deploy.jar",
+    ],
+)
