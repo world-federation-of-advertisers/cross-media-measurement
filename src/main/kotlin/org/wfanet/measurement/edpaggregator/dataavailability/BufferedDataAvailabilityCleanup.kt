@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.time.TimeSource
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
@@ -38,12 +39,12 @@ data class DeleteEvent(
 )
 
 /**
- * Buffers delete events in memory and flushes them via a single
- * `BatchDeleteImpressionMetadata` RPC.
+ * Buffers delete events in memory and flushes them via `BatchDeleteImpressionMetadata` RPCs,
+ * each capped at [MAX_BATCH_DELETE_SIZE] records.
  *
  * On Cloud Functions Gen2, a single instance can handle concurrent requests. This class exploits
- * instance reuse to accumulate delete events across invocations and process them together in one
- * Spanner transaction, rather than N individual RPCs.
+ * instance reuse to accumulate delete events across invocations and process them together,
+ * rather than N individual RPCs.
  *
  * Events are flushed when:
  * - The buffer reaches [batchSize] events, OR
@@ -51,8 +52,9 @@ data class DeleteEvent(
  *
  * During flush, events without a resource ID are resolved by looking up the blob URI in the
  * ImpressionMetadata service. Events whose blobs still have a live version in storage are skipped
- * (noncurrent version deletion). All resolved resource names are then deleted in a single batch
- * RPC. Events that fail resolution are re-queued.
+ * (noncurrent version deletion). Resolved resource names are chunked into groups of
+ * [MAX_BATCH_DELETE_SIZE] and each chunk is deleted via a single batch RPC. Events that fail
+ * resolution are re-queued.
  */
 class BufferedDataAvailabilityCleanup(
   private val impressionMetadataServiceStub: ImpressionMetadataServiceCoroutineStub,
@@ -71,11 +73,16 @@ class BufferedDataAvailabilityCleanup(
 
   fun enqueue(event: DeleteEvent) {
     queue.add(event)
-    logger.info("Buffered delete event for: ${event.deletedBlobPath} (queue size: ${queue.size})")
+    val size = queue.size
+    if (size % LOG_INTERVAL == 0 || size <= 10) {
+      logger.info(
+        "Buffered delete event for: ${event.deletedBlobPath} (queue size: $size)"
+      )
+    }
 
     ensureFlushScheduled()
 
-    if (queue.size >= batchSize) {
+    if (size >= batchSize) {
       logger.info("Batch size threshold ($batchSize) reached, flushing immediately")
       flush()
     }
@@ -97,21 +104,20 @@ class BufferedDataAvailabilityCleanup(
     val batch = drain()
     if (batch.isEmpty()) return
 
+    val flushStart = TimeSource.Monotonic.markNow()
     logger.info("Flushing ${batch.size} buffered delete events")
 
     runBlocking {
       val resourceNames = mutableListOf<String>()
       var skippedCount = 0
+      var resolveFailCount = 0
 
+      val resolveStart = TimeSource.Monotonic.markNow()
       for (event in batch) {
         try {
           val blobUri = SelectedStorageClient.parseBlobUri(event.deletedBlobPath)
           val liveBlob = storageClient.getBlob(blobUri.key)
           if (liveBlob != null) {
-            logger.info(
-              "Live version still exists for ${event.deletedBlobPath}. " +
-                "Skipping (noncurrent version deletion)."
-            )
             skippedCount++
             continue
           }
@@ -128,40 +134,66 @@ class BufferedDataAvailabilityCleanup(
             "Failed to resolve ${event.deletedBlobPath}, re-queuing",
             e,
           )
+          resolveFailCount++
           queue.add(event)
         }
       }
+      val resolveMs = resolveStart.elapsedNow().inWholeMilliseconds
+      logger.info(
+        "Resolved ${resourceNames.size} names, skipped $skippedCount, " +
+          "re-queued $resolveFailCount in ${resolveMs}ms"
+      )
 
       if (resourceNames.isNotEmpty()) {
-        try {
-          logger.info(
-            "Calling BatchDeleteImpressionMetadata with ${resourceNames.size} resource names"
-          )
-          impressionMetadataServiceStub.batchDeleteImpressionMetadata(
-            batchDeleteImpressionMetadataRequest {
-              parent = dataProviderName
-              names += resourceNames
-            }
-          )
-          logger.info(
-            "Batch delete succeeded: ${resourceNames.size} deleted, " +
-              "$skippedCount skipped, ${queue.size} remaining in buffer"
-          )
-          metrics.recordsDeletedCounter.add(
-            resourceNames.size.toLong(),
-            Attributes.of(
-              DataAvailabilityCleanupMetrics.CLEANUP_STATUS_ATTR,
-              BATCH_FLUSH_STATUS,
-            ),
-          )
-        } catch (e: Exception) {
-          logger.log(Level.SEVERE, "Batch delete RPC failed, re-queuing all ${resourceNames.size} events", e)
-          resourceNames.forEach { name ->
-            queue.add(DeleteEvent(name, name))
+        val chunks = resourceNames.chunked(MAX_BATCH_DELETE_SIZE)
+        logger.info(
+          "Deleting ${resourceNames.size} records in ${chunks.size} batch RPC(s) " +
+            "(max $MAX_BATCH_DELETE_SIZE per RPC)"
+        )
+        val deleteStart = TimeSource.Monotonic.markNow()
+        var totalDeleted = 0
+
+        for ((index, chunk) in chunks.withIndex()) {
+          try {
+            impressionMetadataServiceStub.batchDeleteImpressionMetadata(
+              batchDeleteImpressionMetadataRequest {
+                parent = dataProviderName
+                names += chunk
+              }
+            )
+            totalDeleted += chunk.size
+            logger.info(
+              "Batch RPC ${index + 1}/${chunks.size}: deleted ${chunk.size} records"
+            )
+          } catch (e: Exception) {
+            logger.log(
+              Level.SEVERE,
+              "Batch RPC ${index + 1}/${chunks.size} failed for ${chunk.size} records, re-queuing",
+              e,
+            )
+            chunk.forEach { name -> queue.add(DeleteEvent(name, name)) }
           }
         }
+
+        val deleteMs = deleteStart.elapsedNow().inWholeMilliseconds
+        val totalMs = flushStart.elapsedNow().inWholeMilliseconds
+        logger.info(
+          "Flush complete: $totalDeleted deleted, $skippedCount skipped, " +
+            "$resolveFailCount re-queued, ${queue.size} remaining " +
+            "[resolve=${resolveMs}ms, delete=${deleteMs}ms, total=${totalMs}ms]"
+        )
+        metrics.recordsDeletedCounter.add(
+          totalDeleted.toLong(),
+          Attributes.of(
+            DataAvailabilityCleanupMetrics.CLEANUP_STATUS_ATTR,
+            BATCH_FLUSH_STATUS,
+          ),
+        )
       } else {
-        logger.info("No events to batch-delete ($skippedCount skipped)")
+        val totalMs = flushStart.elapsedNow().inWholeMilliseconds
+        logger.info(
+          "No events to batch-delete ($skippedCount skipped) [total=${totalMs}ms]"
+        )
       }
     }
   }
@@ -229,7 +261,9 @@ class BufferedDataAvailabilityCleanup(
       Logger.getLogger(BufferedDataAvailabilityCleanup::class.java.name)
     const val DEFAULT_BATCH_SIZE = 100
     const val DEFAULT_FLUSH_INTERVAL_SECONDS = 30L
+    const val MAX_BATCH_DELETE_SIZE = 100
     private const val SHUTDOWN_TIMEOUT_SECONDS = 10L
     private const val BATCH_FLUSH_STATUS = "batch_flush"
+    private const val LOG_INTERVAL = 50
   }
 }

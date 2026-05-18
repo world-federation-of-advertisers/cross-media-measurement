@@ -150,7 +150,6 @@ class BufferedDataAvailabilityCleanupTest {
 
     assertThat(buffer.pendingCount()).isEqualTo(0)
 
-    // Verify ONE batch delete RPC was called with all 3 names
     val captor = argumentCaptor<BatchDeleteImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
       batchDeleteImpressionMetadata(captor.capture())
@@ -160,7 +159,6 @@ class BufferedDataAvailabilityCleanupTest {
       resourceId(1), resourceId(2), resourceId(3)
     )
 
-    // Verify NO individual deletes were called
     verifyBlocking(impressionMetadataServiceMock, never()) {
       deleteImpressionMetadata(any())
     }
@@ -177,12 +175,10 @@ class BufferedDataAvailabilityCleanupTest {
 
     buffer.flush()
 
-    // Verify list was called twice (once per event to resolve resource ID)
     verifyBlocking(impressionMetadataServiceMock, times(2)) {
       listImpressionMetadata(any())
     }
 
-    // Verify ONE batch delete RPC was called
     val captor = argumentCaptor<BatchDeleteImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
       batchDeleteImpressionMetadata(captor.capture())
@@ -207,6 +203,35 @@ class BufferedDataAvailabilityCleanupTest {
       batchDeleteImpressionMetadata(captor.capture())
     }
     assertThat(captor.firstValue.namesList).hasSize(3)
+
+    buffer.shutdown()
+  }
+
+  @Test
+  fun `flush chunks large batches into multiple RPCs of MAX_BATCH_DELETE_SIZE`() {
+    val buffer = createBuffer(batchSize = 250)
+
+    for (i in 1..250) {
+      buffer.enqueue(DeleteEvent("${BLOB_URI}-$i", resourceId(i)))
+    }
+
+    assertThat(buffer.pendingCount()).isEqualTo(0)
+
+    val captor = argumentCaptor<BatchDeleteImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(3)) {
+      batchDeleteImpressionMetadata(captor.capture())
+    }
+
+    val allValues = captor.allValues
+    assertThat(allValues[0].namesList).hasSize(100)
+    assertThat(allValues[1].namesList).hasSize(100)
+    assertThat(allValues[2].namesList).hasSize(50)
+
+    val allNames = allValues.flatMap { it.namesList }
+    assertThat(allNames).hasSize(250)
+    for (i in 1..250) {
+      assertThat(allNames).contains(resourceId(i))
+    }
 
     buffer.shutdown()
   }
@@ -240,7 +265,6 @@ class BufferedDataAvailabilityCleanupTest {
 
     buffer.flush()
 
-    // Batch delete should only include the one with a resource ID
     val captor = argumentCaptor<BatchDeleteImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
       batchDeleteImpressionMetadata(captor.capture())
