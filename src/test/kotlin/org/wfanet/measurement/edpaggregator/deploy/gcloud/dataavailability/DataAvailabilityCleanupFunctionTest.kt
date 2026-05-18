@@ -28,6 +28,8 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -37,7 +39,10 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.Mockito
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.atLeast
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
@@ -204,9 +209,10 @@ class DataAvailabilityCleanupFunctionTest {
   }
 
   @Test
-  fun `buffered cleanup enqueues events and flushes at batch size`() {
-    // batchSize=3 with 4 requests: first 3 trigger batch flush, 4th remains pending
-    val port = startFunction(bufferEnabled = true, bufferBatchSize = 3)
+  fun `buffered cleanup flushes synchronously on each request`() {
+    val port = startFunction(bufferEnabled = true)
+
+    Mockito.clearInvocations(impressionMetadataServiceMock)
 
     val client = HttpClient.newHttpClient()
     val config = fileSystemDataAvailabilitySyncConfig()
@@ -227,10 +233,61 @@ class DataAvailabilityCleanupFunctionTest {
       assertThat(response.statusCode()).isEqualTo(200)
     }
 
-    // Allow async flush to complete
-    Thread.sleep(1000)
+    val captor = argumentCaptor<BatchDeleteImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, atLeast(1)) {
+      batchDeleteImpressionMetadata(captor.capture())
+    }
+    val totalDeleted = captor.allValues.sumOf { it.namesList.size }
+    assertThat(totalDeleted).isEqualTo(4)
+    verifyBlocking(impressionMetadataServiceMock, never()) { deleteImpressionMetadata(any()) }
+  }
 
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchDeleteImpressionMetadata(any()) }
+  @Test
+  fun `concurrent buffered requests coalesce via flush lock`() {
+    val port = startFunction(bufferEnabled = true)
+
+    Mockito.clearInvocations(impressionMetadataServiceMock)
+
+    val client = HttpClient.newHttpClient()
+    val config = fileSystemDataAvailabilitySyncConfig()
+    val requestCount = 12
+    val executor = Executors.newFixedThreadPool(requestCount)
+
+    val futures =
+      (1..requestCount).map { i ->
+        executor.submit<HttpResponse<String>> {
+          val request =
+            HttpRequest.newBuilder()
+              .uri(URI.create("http://localhost:$port"))
+              .header("X-DataWatcher-Path", "file:///edp/edp_name/timestamp/blob-$i")
+              .header(
+                "X-Impression-Metadata-Resource-Id",
+                "dataProviders/edp123/impressionMetadata/im-$i",
+              )
+              .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
+              .build()
+          client.send(request, HttpResponse.BodyHandlers.ofString())
+        }
+      }
+
+    executor.shutdown()
+    executor.awaitTermination(30, TimeUnit.SECONDS)
+
+    for ((i, future) in futures.withIndex()) {
+      val response = future.get()
+      logger.info("Concurrent request ${i + 1} response: ${response.statusCode()}")
+      assertThat(response.statusCode()).isEqualTo(200)
+    }
+
+    val captor = argumentCaptor<BatchDeleteImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, atLeast(1)) {
+      batchDeleteImpressionMetadata(captor.capture())
+    }
+    val totalDeleted = captor.allValues.sumOf { it.namesList.size }
+    assertThat(totalDeleted).isEqualTo(requestCount)
+    for (request in captor.allValues) {
+      assertThat(request.namesList.size).isAtMost(100)
+    }
     verifyBlocking(impressionMetadataServiceMock, never()) { deleteImpressionMetadata(any()) }
   }
 
