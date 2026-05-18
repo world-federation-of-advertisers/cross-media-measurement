@@ -9,6 +9,7 @@ package(default_visibility = [
 kt_jvm_library(
     name = "data_availability_sync",
     srcs = [
+        "BufferedDataAvailabilityCleanup.kt",
         "DataAvailabilityCleanup.kt",
         "DataAvailabilityCleanupMetrics.kt",
         "DataAvailabilitySync.kt",
@@ -26,6 +27,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/io/opentelemetry/api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/common",

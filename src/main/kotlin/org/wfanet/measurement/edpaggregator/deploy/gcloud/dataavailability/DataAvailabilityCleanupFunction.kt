@@ -32,7 +32,9 @@ import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.edpaggregator.ConfigLoader
+import org.wfanet.measurement.edpaggregator.dataavailability.BufferedDataAvailabilityCleanup
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityCleanup
+import org.wfanet.measurement.edpaggregator.dataavailability.DeleteEvent
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
@@ -45,6 +47,16 @@ import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
  * the ImpressionMetadata resource name from the request header and calls DeleteImpressionMetadata
  * to soft-delete the corresponding Spanner record.
  *
+ * ## Buffered Mode
+ *
+ * When `CLEANUP_BUFFER_ENABLED=true`, delete events are buffered in memory and flushed in batches.
+ * This reduces per-event overhead when GCS lifecycle rules delete many files in a short window.
+ * Cloud Functions Gen2 supports instance reuse, so the in-memory buffer persists across
+ * invocations on the same instance.
+ *
+ * Buffered mode requires `--no-cpu-throttling` on the Cloud Function so that the background flush
+ * thread continues running between invocations.
+ *
  * ## Headers
  * - `X-DataWatcher-Path`: Required. The GCS object path that was deleted (used as blob URI).
  * - `X-Impression-Metadata-Resource-Id`: Optional. The ImpressionMetadata resource name to delete.
@@ -53,6 +65,9 @@ import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
  * ## Environment Variables
  * - `IMPRESSION_METADATA_TARGET`: Required. Target endpoint for the Impression Metadata service.
  * - `IMPRESSION_METADATA_CERT_HOST`: Optional. Overrides TLS authority for testing.
+ * - `CLEANUP_BUFFER_ENABLED`: Optional. Set to "true" to enable buffered batch processing.
+ * - `CLEANUP_BUFFER_BATCH_SIZE`: Optional. Flush threshold (default: 100).
+ * - `CLEANUP_BUFFER_FLUSH_INTERVAL_SECONDS`: Optional. Periodic flush interval (default: 30).
  *
  * ## Configuration
  * - The request body contains versioned params (as a `google.protobuf.Any`) or a legacy
@@ -71,38 +86,27 @@ class DataAvailabilityCleanupFunction : HttpFunction {
       val dataAvailabilitySyncConfig =
         ConfigLoader.buildDataAvailabilitySyncConfig(requestBody, runtimeConfigs.configsList)
 
-      // Read the path as request header
       val deletedBlobPath =
         request.getFirstHeader(DATA_WATCHER_PATH_HEADER).orElseThrow {
           IllegalArgumentException("Missing required header: $DATA_WATCHER_PATH_HEADER")
         }
 
-      // Read the ImpressionMetadata resource ID from header (optional)
       val impressionMetadataResourceId =
         request.getFirstHeader(IMPRESSION_METADATA_RESOURCE_ID_HEADER).orElse(null)
 
-      val grpcChannels =
-        DataAvailabilitySyncFunction.getOrCreateSharedChannels(dataAvailabilitySyncConfig)
-      val impressionMetadataChannel = grpcChannels.impressionMetadataChannel
-
-      val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
-      val instrumentedChannel =
-        ClientInterceptors.intercept(
-          impressionMetadataChannel,
-          grpcTelemetry.newClientInterceptor(),
+      if (bufferEnabled) {
+        val buffer = getOrCreateBuffer(dataAvailabilitySyncConfig)
+        buffer.enqueue(DeleteEvent(deletedBlobPath, impressionMetadataResourceId))
+        logger.info(
+          "Buffered delete event for $deletedBlobPath " +
+            "(pending: ${buffer.pendingCount()})"
         )
+        response.setStatusCode(200)
+        response.writer.write("Buffered (pending: ${buffer.pendingCount()})")
+        return
+      }
 
-      val impressionMetadataServiceStub =
-        ImpressionMetadataServiceCoroutineStub(instrumentedChannel)
-
-      val storageClient = createStorageClient(dataAvailabilitySyncConfig)
-
-      val dataAvailabilityCleanup =
-        DataAvailabilityCleanup(
-          impressionMetadataServiceStub,
-          dataAvailabilitySyncConfig.dataProvider,
-          storageClient,
-        )
+      val dataAvailabilityCleanup = createCleanup(dataAvailabilitySyncConfig)
 
       Tracing.withW3CTraceContext(request) {
         runBlocking(Context.current().asContextElement()) {
@@ -116,7 +120,6 @@ class DataAvailabilityCleanupFunction : HttpFunction {
       response.setStatusCode(500)
       response.writer.write("Internal error: ${e.message}")
     } finally {
-      // Critical for Cloud Functions: flush metrics before function freezes
       EdpaTelemetry.flush()
     }
   }
@@ -136,6 +139,76 @@ class DataAvailabilityCleanupFunction : HttpFunction {
         configBlobKey,
         DataAvailabilitySyncConfigs.getDefaultInstance(),
       )
+    }
+
+    val bufferEnabled: Boolean =
+      System.getenv("CLEANUP_BUFFER_ENABLED")?.equals("true", ignoreCase = true) ?: false
+
+    private val bufferBatchSize: Int =
+      System.getenv("CLEANUP_BUFFER_BATCH_SIZE")?.toIntOrNull()
+        ?: BufferedDataAvailabilityCleanup.DEFAULT_BATCH_SIZE
+
+    private val bufferFlushIntervalSeconds: Long =
+      System.getenv("CLEANUP_BUFFER_FLUSH_INTERVAL_SECONDS")?.toLongOrNull()
+        ?: BufferedDataAvailabilityCleanup.DEFAULT_FLUSH_INTERVAL_SECONDS
+
+    @Volatile private var sharedBuffer: BufferedDataAvailabilityCleanup? = null
+
+    init {
+      if (bufferEnabled) {
+        Runtime.getRuntime().addShutdownHook(
+          Thread {
+            logger.info("Shutdown hook: flushing buffered delete events")
+            sharedBuffer?.shutdown()
+          }
+        )
+      }
+    }
+
+    private fun createCleanup(
+      dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
+    ): DataAvailabilityCleanup {
+      val grpcChannels =
+        DataAvailabilitySyncFunction.getOrCreateSharedChannels(dataAvailabilitySyncConfig)
+
+      val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
+      val instrumentedChannel =
+        ClientInterceptors.intercept(
+          grpcChannels.impressionMetadataChannel,
+          grpcTelemetry.newClientInterceptor(),
+        )
+
+      val impressionMetadataServiceStub =
+        ImpressionMetadataServiceCoroutineStub(instrumentedChannel)
+
+      val storageClient = createStorageClient(dataAvailabilitySyncConfig)
+
+      return DataAvailabilityCleanup(
+        impressionMetadataServiceStub,
+        dataAvailabilitySyncConfig.dataProvider,
+        storageClient,
+      )
+    }
+
+    private fun getOrCreateBuffer(
+      dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
+    ): BufferedDataAvailabilityCleanup {
+      return sharedBuffer ?: synchronized(this) {
+        sharedBuffer ?: run {
+          val cleanup = createCleanup(dataAvailabilitySyncConfig)
+          BufferedDataAvailabilityCleanup(
+            cleanupDelegate = cleanup,
+            batchSize = bufferBatchSize,
+            flushIntervalSeconds = bufferFlushIntervalSeconds,
+          ).also {
+            sharedBuffer = it
+            logger.info(
+              "Created shared buffer (batchSize=$bufferBatchSize, " +
+                "flushInterval=${bufferFlushIntervalSeconds}s)"
+            )
+          }
+        }
+      }
     }
 
     private fun createStorageClient(
