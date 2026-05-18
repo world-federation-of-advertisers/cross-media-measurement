@@ -29,8 +29,6 @@ import java.util.logging.Logger
 import kotlin.text.Charsets.UTF_8
 import kotlin.time.TimeSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
@@ -160,8 +158,8 @@ class DataAvailabilitySync(
       }
 
       val doneBlobFolderPath = doneBlobUri.key.substringBeforeLast("/")
-      val impressionMetadataBlobs: Flow<StorageClient.Blob> =
-        storageClient.listBlobs(doneBlobFolderPath)
+      val impressionMetadataBlobs: List<StorageClient.Blob> =
+        storageClient.listBlobs(doneBlobFolderPath).toList()
 
       // 1. Retrieve blob details from storage and build a map and validate them
       val impressionMetadataMap: Map<ModelLineKey, List<ImpressionMetadataWithBlobKey>> =
@@ -459,103 +457,113 @@ class DataAvailabilitySync(
    * @throws IllegalArgumentException if a blob has an unsupported file extension.
    */
   private suspend fun createModelLineToImpressionMetadataMap(
-    impressionMetadataBlobs: Flow<StorageClient.Blob>,
+    impressionMetadataBlobs: List<StorageClient.Blob>,
     doneBlobUri: BlobUri,
   ): Map<ModelLineKey, List<ImpressionMetadataWithBlobKey>> {
-    val impressionMetadataMap =
-      mutableMapOf<ModelLineKey, MutableList<ImpressionMetadataWithBlobKey>>()
-    impressionMetadataBlobs
-      .filter { impressionMetadataBlob ->
-        val fileName = impressionMetadataBlob.blobKey.substringAfterLast("/").lowercase()
-        METADATA_FILE_NAME in fileName
-      }
-      .collect { impressionMetadataBlob ->
-        val fileName = impressionMetadataBlob.blobKey.substringAfterLast("/").lowercase()
-        val bytes: ByteString = impressionMetadataBlob.read().flatten()
+    data class ParsedMetadata(
+      val metadataBlob: StorageClient.Blob,
+      val blobDetails: BlobDetails,
+      val impressionBlobUri: BlobUri,
+    )
 
-        // Build the blob details object
-        val blobDetails =
-          if (fileName.endsWith(PROTO_FILE_SUFFIX)) {
-            BlobDetails.parseFrom(bytes)
-          } else if (fileName.endsWith(JSON_FILE_SUFFIX)) {
-            val builder = BlobDetails.newBuilder()
-            JsonFormat.parser().ignoringUnknownFields().merge(bytes.toString(UTF_8), builder)
-            builder.build()
-          } else {
-            throw IllegalArgumentException("Unsupported file extension for metadata: $fileName")
-          }
+    val parsed = mutableListOf<ParsedMetadata>()
+    val impressionBlobPrefixes = mutableSetOf<String>()
 
-        // Validate intervals
-        require(blobDetails.interval.hasStartTime() && blobDetails.interval.hasEndTime()) {
-          "Found interval without start or end time for blob detail with blob_uri = ${blobDetails.blobUri}"
+    for (metadataBlob in impressionMetadataBlobs) {
+      val fileName = metadataBlob.blobKey.substringAfterLast("/").lowercase()
+      if (METADATA_FILE_NAME !in fileName) continue
+
+      val bytes: ByteString = metadataBlob.read().flatten()
+      val blobDetails =
+        if (fileName.endsWith(PROTO_FILE_SUFFIX)) {
+          BlobDetails.parseFrom(bytes)
+        } else if (fileName.endsWith(JSON_FILE_SUFFIX)) {
+          val builder = BlobDetails.newBuilder()
+          JsonFormat.parser().ignoringUnknownFields().merge(bytes.toString(UTF_8), builder)
+          builder.build()
+        } else {
+          throw IllegalArgumentException("Unsupported file extension for metadata: $fileName")
         }
-        // At least one of event_group_reference_id or entity_keys must identify the
-        // EventGroup that produced this blob. Both empty means the metadata cannot be
-        // associated with any EventGroup downstream.
-        require(
-          blobDetails.eventGroupReferenceId.isNotEmpty() || blobDetails.entityKeysList.isNotEmpty()
-        ) {
-          "BlobDetails must have either event_group_reference_id or entity_keys populated " +
+
+      require(blobDetails.interval.hasStartTime() && blobDetails.interval.hasEndTime()) {
+        "Found interval without start or end time for blob detail with blob_uri = ${blobDetails.blobUri}"
+      }
+      require(
+        blobDetails.eventGroupReferenceId.isNotEmpty() || blobDetails.entityKeysList.isNotEmpty()
+      ) {
+        "BlobDetails must have either event_group_reference_id or entity_keys populated " +
+          "for blob_uri = ${blobDetails.blobUri}"
+      }
+      blobDetails.entityKeysList.forEachIndexed { groupIndex, group ->
+        require(group.entityType.isNotEmpty()) {
+          "BlobDetails entity_keys[$groupIndex].entity_type is empty " +
             "for blob_uri = ${blobDetails.blobUri}"
         }
-        // Every EntityKeyGroup must be well-formed: a non-empty entity_type and at least
-        // one non-empty entity_id. Malformed groups would create unusable EntityKey entries
-        // on the resulting ImpressionMetadata.
-        blobDetails.entityKeysList.forEachIndexed { groupIndex, group ->
-          require(group.entityType.isNotEmpty()) {
-            "BlobDetails entity_keys[$groupIndex].entity_type is empty " +
-              "for blob_uri = ${blobDetails.blobUri}"
-          }
-          require(group.entityIdsList.isNotEmpty()) {
-            "BlobDetails entity_keys[$groupIndex].entity_ids is empty " +
-              "for blob_uri = ${blobDetails.blobUri}"
-          }
-          group.entityIdsList.forEachIndexed { idIndex, entityId ->
-            require(entityId.isNotEmpty()) {
-              "BlobDetails entity_keys[$groupIndex].entity_ids[$idIndex] is empty " +
-                "for blob_uri = ${blobDetails.blobUri}"
-            }
-          }
+        require(group.entityIdsList.isNotEmpty()) {
+          "BlobDetails entity_keys[$groupIndex].entity_ids is empty " +
+            "for blob_uri = ${blobDetails.blobUri}"
         }
-        val impressionBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
-        val metadataBlobUri =
-          when (doneBlobUri.scheme) {
-            "gs" ->
-              "${doneBlobUri.scheme}://${doneBlobUri.bucket}/${impressionMetadataBlob.blobKey}"
-            "file" ->
-              "${doneBlobUri.scheme}:///${doneBlobUri.bucket}/${impressionMetadataBlob.blobKey}"
-            else -> throw IllegalArgumentException("Unsupported scheme: ${doneBlobUri.scheme}")
+        group.entityIdsList.forEachIndexed { idIndex, entityId ->
+          require(entityId.isNotEmpty()) {
+            "BlobDetails entity_keys[$groupIndex].entity_ids[$idIndex] is empty " +
+              "for blob_uri = ${blobDetails.blobUri}"
           }
-        logger.info("Checking impression blob presence: ${impressionBlobUri.key}")
-        val impressionBlob = storageClient.getBlob(impressionBlobUri.key)
-        if (impressionBlob == null) {
-          logger.info(
-            "Encrypted impressions blob non found for metadata: ${impressionMetadataBlob.blobKey}."
-          )
-        } else {
-          logger.info("MetadataBlobUri is: $metadataBlobUri")
-          val impressionMetadata = impressionMetadata {
-            this.blobUri = metadataBlobUri
-            blobTypeUrl = BLOB_TYPE_URL
-            eventGroupReferenceId = blobDetails.eventGroupReferenceId
-            modelLine = blobDetails.modelLine
-            interval = blobDetails.interval
-            entityKeys += blobDetails.entityKeysList.flatMap { it.toEntityKeys() }
-          }
-          val modelLineKey =
-            requireNotNull(ModelLineKey.fromName(blobDetails.modelLine)) {
-              "Invalid model line resource name: ${blobDetails.modelLine}"
-            }
-          impressionMetadataMap
-            .getOrPut(modelLineKey) { mutableListOf() }
-            .add(
-              ImpressionMetadataWithBlobKey(
-                impressionMetadata = impressionMetadata,
-                impressionsBlobKey = impressionBlobUri.key,
-              )
-            )
         }
       }
+
+      val impressionBlobUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
+      parsed.add(ParsedMetadata(metadataBlob, blobDetails, impressionBlobUri))
+      val lastSlash = impressionBlobUri.key.lastIndexOf('/')
+      if (lastSlash > 0) {
+        impressionBlobPrefixes.add(impressionBlobUri.key.substring(0, lastSlash + 1))
+      }
+    }
+
+    val existingBlobKeys = mutableSetOf<String>()
+    for (prefix in impressionBlobPrefixes) {
+      storageClient.listBlobs(prefix).toList().forEach { existingBlobKeys.add(it.blobKey) }
+    }
+
+    val impressionMetadataMap =
+      mutableMapOf<ModelLineKey, MutableList<ImpressionMetadataWithBlobKey>>()
+
+    for ((impressionMetadataBlob, blobDetails, impressionBlobUri) in parsed) {
+      val metadataBlobUri =
+        when (doneBlobUri.scheme) {
+          "gs" -> "${doneBlobUri.scheme}://${doneBlobUri.bucket}/${impressionMetadataBlob.blobKey}"
+          "file" ->
+            "${doneBlobUri.scheme}:///${doneBlobUri.bucket}/${impressionMetadataBlob.blobKey}"
+          else -> throw IllegalArgumentException("Unsupported scheme: ${doneBlobUri.scheme}")
+        }
+      logger.info("Checking impression blob presence: ${impressionBlobUri.key}")
+      if (impressionBlobUri.key !in existingBlobKeys) {
+        logger.info(
+          "Encrypted impressions blob non found for metadata: ${impressionMetadataBlob.blobKey}."
+        )
+      } else {
+        logger.info("MetadataBlobUri is: $metadataBlobUri")
+        val impressionMetadata = impressionMetadata {
+          this.blobUri = metadataBlobUri
+          blobTypeUrl = BLOB_TYPE_URL
+          eventGroupReferenceId = blobDetails.eventGroupReferenceId
+          modelLine = blobDetails.modelLine
+          interval = blobDetails.interval
+          entityKeys += blobDetails.entityKeysList.flatMap { it.toEntityKeys() }
+        }
+        val modelLineKey =
+          requireNotNull(ModelLineKey.fromName(blobDetails.modelLine)) {
+            "Invalid model line resource name: ${blobDetails.modelLine}"
+          }
+        impressionMetadataMap
+          .getOrPut(modelLineKey) { mutableListOf() }
+          .add(
+            ImpressionMetadataWithBlobKey(
+              impressionMetadata = impressionMetadata,
+              impressionsBlobKey = impressionBlobUri.key,
+            )
+          )
+      }
+    }
     return impressionMetadataMap
   }
 
