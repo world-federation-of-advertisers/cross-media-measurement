@@ -23,6 +23,11 @@ permissions:
 
 jobs:
   review:
+    # Restrict job to run ONLY if the PR author is an Owner, Member, or Collaborator
+    if: >
+      github.event.pull_request.author_association == 'MEMBER' || 
+      github.event.pull_request.author_association == 'OWNER' || 
+      github.event.pull_request.author_association == 'COLLABORATOR'
     runs-on: ubuntu-latest
     permissions:
       contents: read
