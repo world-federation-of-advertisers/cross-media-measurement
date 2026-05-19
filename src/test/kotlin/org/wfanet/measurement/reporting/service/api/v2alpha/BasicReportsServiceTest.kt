@@ -127,10 +127,10 @@ import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt.MetricSetKt.ba
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupMetricSpecKt as InternalResultGroupMetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.addProcessedResultValuesRequest
-import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.basicReport as internalBasicReport
 import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.basicReportResultDetails
+import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createBasicReportRequest as internalCreateBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportResultRequest
@@ -278,8 +278,7 @@ class BasicReportsServiceTest {
       InternalMetricCalculationSpecsCoroutineStub(grpcTestServerRule.channel)
     internalReportingSetsService = InternalReportingSetsCoroutineStub(grpcTestServerRule.channel)
     internalBasicReportsService = InternalBasicReportsCoroutineStub(grpcTestServerRule.channel)
-    internalReportResultsService =
-      InternalReportResultsCoroutineStub(grpcTestServerRule.channel)
+    internalReportResultsService = InternalReportResultsCoroutineStub(grpcTestServerRule.channel)
     reportsService = ReportsCoroutineStub(grpcTestServerRule.channel)
     modelLinesService = ModelLinesCoroutineStub(grpcTestServerRule.channel)
     authorization =
@@ -10723,13 +10722,11 @@ class BasicReportsServiceTest {
             }
             metricFrequency = internalMetricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
             dimensionSpec = internalDimensionSpec {
-              grouping =
-                InternalDimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
+              grouping = InternalDimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
               filters += internalEventFilter {
                 terms += internalEventTemplateField {
                   path = "person.age_group"
-                  value =
-                    InternalEventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                  value = InternalEventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
                 }
               }
             }
