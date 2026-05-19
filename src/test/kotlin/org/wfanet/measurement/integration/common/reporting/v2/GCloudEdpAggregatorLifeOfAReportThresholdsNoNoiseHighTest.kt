@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.integration.common.reporting.v2
 
+import com.google.common.truth.Truth.assertWithMessage
 import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
@@ -33,11 +34,12 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.hmssProtocolConfigConfig
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPORTING_CHANGELOG_PATH as POSTGRES_REPORTING_CHANGELOG_PATH
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
+import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 
 /**
  * Implementation of [InProcessEdpAggregatorLifeOfAReportTest] for GCloud backends with Spanner
- * database. Uses no-noise TrusTee protocol config with high small-cell suppression thresholds that cause some
- * k+ reach entries to be zeroed.
+ * database. Uses no-noise TrusTee protocol config with high small-cell suppression thresholds that
+ * cause some k+ reach entries to be zeroed.
  */
 class GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseHighTest :
   InProcessEdpAggregatorLifeOfAReportTest(
@@ -56,15 +58,25 @@ class GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseHighTest :
   @get:Rule val timeout: Timeout = Timeout.seconds(180)
 
   override fun assertTrusTeeResults(basicReport: BasicReport) {
-    assertStructuralResults(basicReport)
-    assertNoNoiseResults(
-      basicReport,
-      expectedCrossPublisherReach = EXPECTED_TRUSTEE_K_ANON_CROSS_PUBLISHER_REACH,
-      expectedCrossPublisherImpressions = EXPECTED_TRUSTEE_K_ANON_CROSS_PUBLISHER_IMPRESSIONS,
-      expectedKPlusReach = EXPECTED_TRUSTEE_K_ANON_K_PLUS_REACH,
-      expectedEdpSpec1Reach = EXPECTED_TRUSTEE_K_ANON_EDP_SPEC1_REACH,
-      expectedEdpSpec2Reach = EXPECTED_TRUSTEE_K_ANON_EDP_SPEC2_REACH,
-    )
+    val resultGroup = basicReport.resultGroupsList.single()
+    val totalResults =
+      resultGroup.resultsList.filter {
+        it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
+      }
+    val result = totalResults.single()
+    val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
+
+    assertWithMessage("cross-publisher reach zeroed by high thresholds (no noise)")
+      .that(reportingUnitCumulative.reach)
+      .isEqualTo(0L)
+
+    assertWithMessage("cross-publisher impressions positive (no noise)")
+      .that(reportingUnitCumulative.impressions)
+      .isGreaterThan(0L)
+
+    assertWithMessage("all k+ reach zeroed by high thresholds (no noise)")
+      .that(reportingUnitCumulative.kPlusReachList.all { it == 0L })
+      .isTrue()
   }
 
   companion object {

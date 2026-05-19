@@ -380,9 +380,7 @@ class InProcessEdpAggregatorComponents(
           SyntheticDataGeneration.generateEvents(
             TestEvent.getDefaultInstance(),
             syntheticPopulationSpec,
-            syntheticEventGroupMapByEdp
-              .getValue(edpAggregatorShortName)
-              .getValue(mappedEventGroup.eventGroupReferenceId),
+            metaConfig.spec,
           )
 
         val allDates: List<LocalDate> = events.map { it.localDate }.toList()
@@ -565,9 +563,7 @@ class InProcessEdpAggregatorComponents(
         SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
           syntheticPopulationSpec,
-          syntheticEventGroupMapByEdp
-            .getValue(edpAggregatorShortName)
-            .getValue(mappedEventGroup.eventGroupReferenceId),
+          config.spec,
         )
       val impressionWriter =
         ImpressionsWriter(

@@ -93,5 +93,11 @@ class GCloudEdpAggregatorLifeOfAReportNoNoiseNoThresholdsTest :
           },
       )
     }
+
+    private const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_REACH = 5330L
+    private const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_IMPRESSIONS = 8860L
+    private val EXPECTED_TRUSTEE_K_PLUS_REACH = listOf(5330L, 2572L, 647L, 311L, 0L)
+    private const val EXPECTED_TRUSTEE_EDP_SPEC1_REACH = 3937L
+    private const val EXPECTED_TRUSTEE_EDP_SPEC2_REACH = 3638L
   }
 }

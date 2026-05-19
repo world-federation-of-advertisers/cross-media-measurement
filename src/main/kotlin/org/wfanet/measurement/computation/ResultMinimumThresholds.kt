@@ -21,10 +21,11 @@ package org.wfanet.measurement.computation
  *
  * @property minUsers The minimum number of unique users required for the data to be considered
  *   above minimum thresholds.
- * @property minImpressions The minimum number of impressions required to satisfy small-cell suppression.
+ * @property minImpressions The minimum number of impressions required to satisfy small-cell
+ *   suppression.
  * @property reachMaxFrequencyPerUser The max frequency per user for reach use cases. Required if
- *   differential privacy is applied in addition to small-cell suppression. It must be greater than zero and
- *   less than HMShuffle Ring Modulus and less than or equal to Byte.MAX_VALUE.
+ *   differential privacy is applied in addition to small-cell suppression. It must be greater than
+ *   zero and less than HMShuffle Ring Modulus and less than or equal to Byte.MAX_VALUE.
  */
 data class ResultMinimumThresholds(
   val minUsers: Int,

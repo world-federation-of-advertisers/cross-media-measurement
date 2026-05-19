@@ -295,6 +295,42 @@ class ReachAndFrequencyComputationsTest {
     assertThat(distribution).isEqualTo(expected)
   }
 
+  @Test
+  fun `computeReach with no noise suppresses when impressions below threshold but users above`() {
+    // 10 users at frequency 1, 5 at frequency 2, 1 at frequency 3 = 16 users, 23 impressions
+    val rawHistogram = longArrayOf(10, 5, 1)
+    val reach =
+      ReachAndFrequencyComputations.computeReach(
+        rawHistogram,
+        vidSamplingIntervalWidth = 1.0,
+        vectorSize = 20,
+        dpParams = null,
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 10, minImpressions = 50),
+      )
+    assertThat(reach).isEqualTo(0)
+  }
+
+  @Test
+  fun `computeFrequencyDistribution suppresses bins where impression threshold not met`() {
+    // Frequency 1: 5 users * 1 impression = 5 impressions
+    // Frequency 2: 10 users * 2 impressions = 20 impressions
+    // Frequency 3: 20 users * 3 impressions = 60 impressions
+    // With minImpressions=15: freq 1 (5 < 15) suppressed, freq 2 and 3 pass.
+    val rawHistogram = longArrayOf(5, 10, 20)
+    val distribution =
+      ReachAndFrequencyComputations.computeFrequencyDistribution(
+        rawHistogram,
+        maxFrequency = 3,
+        dpParams = null,
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 1, minImpressions = 15),
+        vidSamplingIntervalWidth = 1.0,
+      )
+    assertThat(distribution[1L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(0.0)
+    assertThat(distribution[2L]).isGreaterThan(0.0)
+    assertThat(distribution[3L]).isGreaterThan(0.0)
+    assertThat(distribution.values.sum()).isWithin(FLOAT_COMPARISON_TOLERANCE).of(1.0)
+  }
+
   companion object {
     private const val MAX_FREQUENCY = 5
     private const val FLOAT_COMPARISON_TOLERANCE = 1e-9

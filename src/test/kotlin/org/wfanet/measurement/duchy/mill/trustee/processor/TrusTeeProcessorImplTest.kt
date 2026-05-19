@@ -473,6 +473,44 @@ class TrusTeeProcessorImplTest {
     assertThat(result.reach).isGreaterThan(0)
   }
 
+  @Test
+  fun `computeResult for Reach-Only with no noise suppresses when minImpressions threshold not met`() {
+    val resultMinimumThresholds = ResultMinimumThresholds(minUsers = 1, minImpressions = 1000)
+    val params =
+      TrusTeeReachParams(
+        vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
+        dpParams = null,
+        resultMinimumThresholds = resultMinimumThresholds,
+      )
+    val processor = TrusTeeProcessorImpl(params)
+    // 3 users each seen once = 3 impressions, well below minImpressions=1000
+    val vector = byteArrayOf(1, 1, 1, 0, 0, 0, 0, 0, 0, 0)
+    processor.addFrequencyVector(vector)
+    val result = processor.computeResult() as ReachResult
+
+    assertThat(result.reach).isEqualTo(0)
+  }
+
+  @Test
+  fun `computeResult for R&F with no noise suppresses when minImpressions threshold not met`() {
+    val resultMinimumThresholds = ResultMinimumThresholds(minUsers = 1, minImpressions = 1000)
+    val params =
+      TrusTeeReachAndFrequencyParams(
+        maximumFrequency = MAX_FREQUENCY,
+        vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
+        reachDpParams = null,
+        frequencyDpParams = null,
+        resultMinimumThresholds = resultMinimumThresholds,
+      )
+    val processor = TrusTeeProcessorImpl(params)
+    // 3 users each seen once = 3 impressions, well below minImpressions=1000
+    val vector = byteArrayOf(1, 1, 1, 0, 0, 0, 0, 0, 0, 0)
+    processor.addFrequencyVector(vector)
+    val result = processor.computeResult() as ReachAndFrequencyResult
+
+    assertThat(result.reach).isEqualTo(0)
+  }
+
   companion object {
     private const val MAX_FREQUENCY = 5
     private const val FLOAT_COMPARISON_TOLERANCE = 1e-9

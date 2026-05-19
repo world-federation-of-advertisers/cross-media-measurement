@@ -38,8 +38,8 @@ import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 
 /**
  * Implementation of [InProcessEdpAggregatorLifeOfAReportTest] for GCloud backends with Spanner
- * database. Uses Gaussian noise TrusTee protocol config with a very high small-cell suppression threshold
- * (min_users=100000) that zeroes all TrusTee reach metrics regardless of noise.
+ * database. Uses Gaussian noise TrusTee protocol config with a very high small-cell suppression
+ * threshold (min_users=100000) that zeroes all TrusTee reach metrics regardless of noise.
  */
 class GCloudEdpAggregatorLifeOfAReportNoiseThresholdsHighTest :
   InProcessEdpAggregatorLifeOfAReportTest(

@@ -741,7 +741,19 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
    * Checks structural invariants on basic report results: all metrics are positive, k+ reach is
    * monotonically non-increasing, and component-level metrics are present.
    */
-  private fun assertStructuralResults(basicReport: BasicReport) {
+  protected open fun assertTrusTeeResults(basicReport: BasicReport) {
+    assertStructuralResults(basicReport)
+    assertNoNoiseResults(
+      basicReport,
+      expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,
+      expectedCrossPublisherImpressions = EXPECTED_CROSS_PUBLISHER_IMPRESSIONS,
+      expectedKPlusReach = EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH,
+      expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
+      expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
+    )
+  }
+
+  protected fun assertStructuralResults(basicReport: BasicReport) {
     basicReport.resultGroupsList.forEach { resultGroup ->
       val totalResults =
         resultGroup.resultsList.filter {
@@ -815,7 +827,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
    * ranges) so that the cross-publisher reach (union of VIDs) is strictly greater than any
    * individual EDP's reach.
    */
-  private fun assertNoNoiseResults(
+  protected fun assertNoNoiseResults(
     basicReport: BasicReport,
     expectedCrossPublisherReach: Long,
     expectedCrossPublisherImpressions: Long,
