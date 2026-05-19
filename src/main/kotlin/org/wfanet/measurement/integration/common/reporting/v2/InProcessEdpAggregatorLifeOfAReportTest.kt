@@ -741,8 +741,12 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
    * Checks structural invariants on basic report results: all metrics are positive, k+ reach is
    * monotonically non-increasing, and component-level metrics are present.
    */
-  protected open fun assertTrusTeeResults(basicReport: BasicReport) {
+  private fun assertTrusTeeResults(basicReport: BasicReport) {
     assertStructuralResults(basicReport)
+    assertTrusTeeMetricResults(basicReport)
+  }
+
+  protected open fun assertTrusTeeMetricResults(basicReport: BasicReport) {
     assertNoNoiseResults(
       basicReport,
       expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,

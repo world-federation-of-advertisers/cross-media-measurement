@@ -57,7 +57,7 @@ class GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseHighTest :
 
   @get:Rule val timeout: Timeout = Timeout.seconds(180)
 
-  override fun assertTrusTeeResults(basicReport: BasicReport) {
+  override fun assertTrusTeeMetricResults(basicReport: BasicReport) {
     val resultGroup = basicReport.resultGroupsList.single()
     val totalResults =
       resultGroup.resultsList.filter {
