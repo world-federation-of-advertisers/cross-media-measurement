@@ -20,7 +20,11 @@ on:
 
 permissions:
   contents: read
-
+  
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+  
 jobs:
   review:
     # Restrict job to run ONLY if claude is requested AND the author is an allowed role
@@ -30,9 +34,7 @@ jobs:
        github.event.pull_request.author_association == 'OWNER' || 
        github.event.pull_request.author_association == 'COLLABORATOR')
     runs-on: ubuntu-latest
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
-      cancel-in-progress: true
+
     permissions:
       contents: read
       pull-requests: write
@@ -43,4 +45,4 @@ jobs:
       - uses: anthropics/claude-code-action@51ea8ea73a139f2a74ff649e3092c25a904aed7e # v1.0.123
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: /project:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }} --comment
+          prompt: /code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }} --comment
