@@ -38,6 +38,7 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.fieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.vidRange
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.DuplicatePersonEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.banner
@@ -1189,6 +1190,49 @@ class SyntheticDataGenerationTest {
     for (event in day2Events) {
       assertThat(event.message.person.gender).isEqualTo(Person.Gender.FEMALE)
     }
+  }
+
+  @Test
+  fun `generateEvents with PopulationSpec rejects event message with duplicate template type URLs`() {
+    // PopulationSpec attributes are keyed by type URL, so an event message with two top-level
+    // fields of the same template message type (e.g. two Person fields) is ambiguous: there is
+    // no way for the spec to assign different attribute values to each field. Verify that
+    // generateEvents fails fast rather than silently merging the same attribute into one
+    // arbitrary field.
+    val populationSpec = populationSpec {
+      subpopulations +=
+        subPopWithPerson(1L, 10L, Person.Gender.MALE, Person.AgeGroup.YEARS_18_TO_34)
+    }
+    val eventGroupSpec = syntheticEventGroupSpec {
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2024
+                month = 1
+                day = 1
+              }
+              endExclusive = date {
+                year = 2024
+                month = 1
+                day = 2
+              }
+            }
+          frequencySpecs += freqSpec(frequency = 1L, start = 1L, endExclusive = 11L)
+        }
+    }
+
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        SyntheticDataGeneration.generateEvents(
+            DuplicatePersonEvent.getDefaultInstance(),
+            populationSpec,
+            eventGroupSpec,
+          )
+          .toEventsList()
+      }
+    assertThat(exception).hasMessageThat().contains("Duplicate template type URL")
   }
 
   @Test

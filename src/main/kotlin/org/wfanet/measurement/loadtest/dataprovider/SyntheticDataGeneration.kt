@@ -117,7 +117,7 @@ object SyntheticDataGeneration {
     val messageInstance: T,
     populationSpec: PopulationSpec,
   ) {
-    private val templateFieldsByTypeUrl: Map<String, List<FieldDescriptor>> =
+    private val templateFieldsByTypeUrl: Map<String, FieldDescriptor> =
       buildTemplateFieldsByTypeUrl(messageInstance)
 
     /**
@@ -158,26 +158,32 @@ object SyntheticDataGeneration {
     private fun buildPrototype(subPopulation: PopulationSpec.SubPopulation): T {
       val builder = messageInstance.newBuilderForType()
       for (attribute in subPopulation.attributesList) {
-        val templateFields =
+        val templateField =
           templateFieldsByTypeUrl[attribute.typeUrl]
             ?: throw IllegalArgumentException(
               "Attribute type_url ${attribute.typeUrl} does not correspond to any template " +
                 "field of ${messageInstance.descriptorForType.fullName}"
             )
-        for (templateField in templateFields) {
-          builder.getFieldBuilder(templateField).mergeFrom(attribute.value)
-        }
+        builder.getFieldBuilder(templateField).mergeFrom(attribute.value)
       }
       @Suppress("UNCHECKED_CAST") // Safe per protobuf API.
       return builder.build() as T
     }
 
-    private fun buildTemplateFieldsByTypeUrl(
-      messageInstance: T
-    ): Map<String, List<FieldDescriptor>> =
-      messageInstance.descriptorForType.fields
-        .filter { it.type == FieldDescriptor.Type.MESSAGE }
-        .groupBy { ProtoReflection.getTypeUrl(it.messageType) }
+    private fun buildTemplateFieldsByTypeUrl(messageInstance: T): Map<String, FieldDescriptor> =
+      buildMap {
+        for (field in messageInstance.descriptorForType.fields) {
+          if (field.type != FieldDescriptor.Type.MESSAGE) {
+            continue
+          }
+          val typeUrl = ProtoReflection.getTypeUrl(field.messageType)
+          check(typeUrl !in this) {
+            "Duplicate template type URL $typeUrl: fields '${this[typeUrl]!!.name}' and " +
+              "'${field.name}'"
+          }
+          put(typeUrl, field)
+        }
+      }
   }
 
   private fun <T : Message> generateDayEvents(
