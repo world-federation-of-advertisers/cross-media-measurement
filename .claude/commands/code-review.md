@@ -2,6 +2,7 @@
 description: Code review a pull request
 argument-hint: "[pull-request] [--comment]"
 allowed-tools: Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), mcp__github_inline_comment__create_inline_comment
+# adapted from https://github.com/anthropics/claude-code/blob/main/plugins/code-review/commands/code-review.md
 ---
 
 Provide a code review for the given pull request: $ARGUMENTS.
