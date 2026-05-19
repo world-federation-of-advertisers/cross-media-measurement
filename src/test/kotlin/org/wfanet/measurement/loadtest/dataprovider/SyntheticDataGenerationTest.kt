@@ -1062,6 +1062,136 @@ class SyntheticDataGenerationTest {
   }
 
   @Test
+  fun `generateEvents with PopulationSpec handles multiple date specs with frequency greater than 1`() {
+    val eventGroupSpec = syntheticEventGroupSpec {
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 27
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 2
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 0L
+                    endExclusive = 25L
+                  }
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.5
+                  }
+                }
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 25L
+                    endExclusive = 50L
+                  }
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = false }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.7
+                  }
+                }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 50L
+                    endExclusive = 75L
+                  }
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.8
+                  }
+                }
+            }
+        }
+      dateSpecs +=
+        SyntheticEventGroupSpecKt.dateSpec {
+          dateRange =
+            SyntheticEventGroupSpecKt.DateSpecKt.dateRange {
+              start = date {
+                year = 2023
+                month = 6
+                day = 28
+              }
+              endExclusive = date {
+                year = 2023
+                month = 6
+                day = 29
+              }
+            }
+          frequencySpecs +=
+            SyntheticEventGroupSpecKt.frequencySpec {
+              frequency = 1
+              vidRangeSpecs +=
+                SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                  vidRange = vidRange {
+                    start = 75L
+                    endExclusive = 100L
+                  }
+                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
+                    doubleValue = 0.9
+                  }
+                }
+            }
+        }
+    }
+
+    val shards: List<LabeledEventDateShard<TestEvent>> =
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          TWO_SUBPOP_POPULATION_SPEC,
+          eventGroupSpec,
+        )
+        .toList()
+
+    assertThat(shards).hasSize(2)
+    assertThat(shards[0].localDate).isEqualTo(LocalDate.of(2023, 6, 27))
+    assertThat(shards[1].localDate).isEqualTo(LocalDate.of(2023, 6, 28))
+
+    val day1Events = shards[0].labeledEvents.toList()
+    val day2Events = shards[1].labeledEvents.toList()
+
+    // Date 1: 25 VIDs * freq 2 + 25 VIDs * freq 2 + 25 VIDs * freq 1 = 125
+    assertThat(day1Events).hasSize(125)
+    // Date 2: 25 VIDs * freq 1 = 25
+    assertThat(day2Events).hasSize(25)
+
+    // Frequency 2 VIDs appear twice on day 1.
+    val freq2Vids = day1Events.filter { it.vid in 0L..24L }
+    assertThat(freq2Vids).hasSize(50)
+    assertThat(freq2Vids.map { it.vid }.distinct()).hasSize(25)
+
+    // Population attributes are correctly assigned across date specs.
+    for (event in day1Events.filter { it.vid in 0L..49L }) {
+      assertThat(event.message.person.gender).isEqualTo(Person.Gender.MALE)
+    }
+    for (event in day1Events.filter { it.vid in 50L..74L }) {
+      assertThat(event.message.person.gender).isEqualTo(Person.Gender.FEMALE)
+    }
+    for (event in day2Events) {
+      assertThat(event.message.person.gender).isEqualTo(Person.Gender.FEMALE)
+    }
+  }
+
+  @Test
   fun `generateEvents with PopulationSpec spreads data correctly across days`() {
     // Drives the engine end-to-end against the small_population_spec.textproto and
     // small_data_spec.textproto fixtures used by EDP simulator integration tests. Confirms the

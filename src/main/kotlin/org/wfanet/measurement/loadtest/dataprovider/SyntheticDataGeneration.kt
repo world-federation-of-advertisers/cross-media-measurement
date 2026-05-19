@@ -179,7 +179,11 @@ object SyntheticDataGeneration {
           if (field.type != FieldDescriptor.Type.MESSAGE) {
             continue
           }
-          put(ProtoReflection.getTypeUrl(field.messageType), field)
+          val typeUrl = ProtoReflection.getTypeUrl(field.messageType)
+          check(typeUrl !in this) {
+            "Duplicate template type URL $typeUrl: fields '${this[typeUrl]!!.name}' and '${field.name}'"
+          }
+          put(typeUrl, field)
         }
       }
   }
