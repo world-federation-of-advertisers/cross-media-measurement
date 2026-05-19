@@ -128,8 +128,8 @@ object ReachAndFrequencyComputations {
    *   `rawHistogram` must have this size.
    * @param dpParams The privacy parameters for the reach computation.
    * @param resultMinimumThresholds Optional result minimum thresholds.
-   * @param vidSamplingIntervalWidth The sampling rate used to select VIDs. Required if small-cell suppression
-   *   thresholds are set.
+   * @param vidSamplingIntervalWidth The sampling rate used to select VIDs. Required if small-cell
+   *   suppression thresholds are set.
    * @return A map representing the frequency distribution for frequencies 1 through `maxFrequency`.
    */
   fun computeFrequencyDistribution(

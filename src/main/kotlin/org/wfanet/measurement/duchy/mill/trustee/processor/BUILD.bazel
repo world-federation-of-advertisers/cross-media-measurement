@@ -17,8 +17,8 @@ kt_jvm_library(
     deps = [
         ":trus_tee_processor",
         "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",
-        "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
         "//src/main/kotlin/org/wfanet/measurement/computation:reach_and_frequency_computations",
+        "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
         "//src/main/kotlin/org/wfanet/measurement/duchy/utils:computation_conversions",
         "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:covariances",
     ],

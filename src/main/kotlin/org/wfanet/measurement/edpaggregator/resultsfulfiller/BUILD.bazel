@@ -433,8 +433,8 @@ kt_jvm_library(
     srcs = ["KAnonymizer.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",
-        "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
         "//src/main/kotlin/org/wfanet/measurement/computation:reach_and_frequency_computations",
+        "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
         "//src/main/proto/wfa/frequency_count:frequency_vector_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
