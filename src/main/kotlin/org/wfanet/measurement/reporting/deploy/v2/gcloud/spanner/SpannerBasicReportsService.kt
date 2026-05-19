@@ -212,7 +212,7 @@ class SpannerBasicReportsService(
           mutableMapOf()
 
         basicReports +=
-          basicReportResults.subList(0, minOf(basicReportResults.size, pageSize)).map {
+          basicReportResults.subList(0, minOf(basicReportResults.size, pageSize)).mapNotNull {
             basicReportResult ->
             val campaignGroupExternalKey =
               ReportingSetExternalKey(
@@ -226,23 +226,30 @@ class SpannerBasicReportsService(
                 campaignGroupDisplayName = campaignGroup.displayName
               }
             } else {
-              val campaignGroupReportingSets: List<ReportingSet> =
-                reportingSetsByCampaignGroupExternalKey.getOrPut(campaignGroupExternalKey) {
-                  listReportingSetsByCampaignGroup(
-                      basicReportResult.basicReport.cmmsMeasurementConsumerId,
-                      basicReportResult.basicReport.externalCampaignGroupId,
-                    )
-                    .filter { it.filter.isEmpty() }
-                }
+              try {
+                val campaignGroupReportingSets: List<ReportingSet> =
+                  reportingSetsByCampaignGroupExternalKey.getOrPut(campaignGroupExternalKey) {
+                    listReportingSetsByCampaignGroup(
+                        basicReportResult.basicReport.cmmsMeasurementConsumerId,
+                        basicReportResult.basicReport.externalCampaignGroupId,
+                      )
+                      .filter { it.filter.isEmpty() }
+                  }
 
-              val reportingSetResults: List<ReportingSetResult> =
-                txn.getReportingSetResults(basicReportResult)
+                val reportingSetResults: List<ReportingSetResult> =
+                  txn.getReportingSetResults(basicReportResult)
 
-              basicReportResult.basicReport.withResults(
-                campaignGroup,
-                campaignGroupReportingSets,
-                reportingSetResults,
-              )
+                basicReportResult.basicReport.withResults(
+                  campaignGroup,
+                  campaignGroupReportingSets,
+                  reportingSetResults,
+                )
+              } catch (_: Exception) {
+                unreachable +=
+                  "measurementConsumers/${basicReportResult.basicReport.cmmsMeasurementConsumerId}" +
+                    "/basicReports/${basicReportResult.basicReport.externalBasicReportId}"
+                null
+              }
             }
           }
 
