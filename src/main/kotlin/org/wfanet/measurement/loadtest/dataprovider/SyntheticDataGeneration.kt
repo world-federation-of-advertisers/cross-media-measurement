@@ -117,7 +117,7 @@ object SyntheticDataGeneration {
     val messageInstance: T,
     populationSpec: PopulationSpec,
   ) {
-    private val templateFieldsByTypeUrl: Map<String, FieldDescriptor> =
+    private val templateFieldsByTypeUrl: Map<String, List<FieldDescriptor>> =
       buildTemplateFieldsByTypeUrl(messageInstance)
 
     /**
@@ -158,34 +158,26 @@ object SyntheticDataGeneration {
     private fun buildPrototype(subPopulation: PopulationSpec.SubPopulation): T {
       val builder = messageInstance.newBuilderForType()
       for (attribute in subPopulation.attributesList) {
-        val templateField =
+        val templateFields =
           templateFieldsByTypeUrl[attribute.typeUrl]
             ?: throw IllegalArgumentException(
               "Attribute type_url ${attribute.typeUrl} does not correspond to any template " +
                 "field of ${messageInstance.descriptorForType.fullName}"
             )
-        // Get the typed sub-builder for this template field then mergeFrom the Any's bytes. This
-        // works regardless of whether the event message type is a generated class or a
-        // DynamicMessage, because mergeFrom uses the sub-builder's own descriptor to parse.
-        builder.getFieldBuilder(templateField).mergeFrom(attribute.value)
+        for (templateField in templateFields) {
+          builder.getFieldBuilder(templateField).mergeFrom(attribute.value)
+        }
       }
       @Suppress("UNCHECKED_CAST") // Safe per protobuf API.
       return builder.build() as T
     }
 
-    private fun buildTemplateFieldsByTypeUrl(messageInstance: T): Map<String, FieldDescriptor> =
-      buildMap {
-        for (field in messageInstance.descriptorForType.fields) {
-          if (field.type != FieldDescriptor.Type.MESSAGE) {
-            continue
-          }
-          val typeUrl = ProtoReflection.getTypeUrl(field.messageType)
-          check(typeUrl !in this) {
-            "Duplicate template type URL $typeUrl: fields '${this[typeUrl]!!.name}' and '${field.name}'"
-          }
-          put(typeUrl, field)
-        }
-      }
+    private fun buildTemplateFieldsByTypeUrl(
+      messageInstance: T
+    ): Map<String, List<FieldDescriptor>> =
+      messageInstance.descriptorForType.fields
+        .filter { it.type == FieldDescriptor.Type.MESSAGE }
+        .groupBy { ProtoReflection.getTypeUrl(it.messageType) }
   }
 
   private fun <T : Message> generateDayEvents(
