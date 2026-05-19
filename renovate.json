@@ -11,6 +11,19 @@
       "groupName": "GitHub Actions",
       "matchManagers": ["github-actions"],
       "recreateWhen": "never"
-    }
+    },
+    {
+      "groupName": "Bazel rules_oci image digests",
+      "description": "Group Bazel rules_oci image digest updates",
+      "groupSlug": "bazel-rules-oci-image-digests",
+      "matchFileNames": ["MODULE.bazel"],
+      "matchDepNames": [
+        "go_image_base",
+        "java_image_base_root",
+        "py_image_base"
+      ],
+      "matchUpdateTypes": ["digest"],
+      "recreateWhen": "never"
+    }    
   ]
 }
