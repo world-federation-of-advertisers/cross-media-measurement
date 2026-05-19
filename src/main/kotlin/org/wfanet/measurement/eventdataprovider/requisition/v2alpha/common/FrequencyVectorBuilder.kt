@@ -84,7 +84,7 @@ class FrequencyVectorBuilder(
 
     if (measurementSpec.hasReach() && resultMinimumThresholds != null) {
       require(resultMinimumThresholds.reachMaxFrequencyPerUser >= 1) {
-        "resultMinimumThresholds.maxFrequencyPerUser must be >= 1 for reach measurements with kAnonymity"
+        "resultMinimumThresholds.maxFrequencyPerUser must be >= 1 for reach measurements with small-cell suppression"
       }
     }
 

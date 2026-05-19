@@ -33,7 +33,7 @@ object KAnonymizer {
    * @param measurementSpec The measurement specification
    * @param populationSpec The population specification
    * @param frequencyVectorBuilder The frequency vector builder containing the data
-   * @param resultMinimumThresholds The k-anonymity parameters
+   * @param resultMinimumThresholds The small-cell suppression parameters
    * @param maxPopulation Optional maximum population size
    * @return Either the original frequency vector if k-anonymity is met, or an empty frequency
    *   vector

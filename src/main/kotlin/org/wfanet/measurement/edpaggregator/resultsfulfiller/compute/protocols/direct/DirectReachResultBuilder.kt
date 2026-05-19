@@ -42,7 +42,7 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  * @param samplingRate The sampling rate used to sample the events.
  * @param directNoiseMechanism The direct noise mechanism to use.
  * @param maxPopulation The max Population that can be returned. Optional.
- * @param resultMinimumThresholds The k-anonymity params. Optional.
+ * @param resultMinimumThresholds Optional small-cell suppression parameters.
  */
 class DirectReachResultBuilder(
   private val directProtocolConfig: ProtocolConfig.Direct,

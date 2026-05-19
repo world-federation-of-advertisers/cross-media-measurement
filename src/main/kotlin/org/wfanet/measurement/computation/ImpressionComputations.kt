@@ -78,7 +78,7 @@ object ImpressionComputations {
     if (resultMinimumThresholds == null) {
       return scaledImpressionCount
     }
-    val kAnonymityImpressionCount = run {
+    val thresholdedImpressionCount = run {
       val rawUserCount = rawHistogram.sum()
       val scaledUserCount: Long =
         if (dpParams == null) {
@@ -105,6 +105,6 @@ object ImpressionComputations {
         scaledImpressionCount
       }
     }
-    return kAnonymityImpressionCount
+    return thresholdedImpressionCount
   }
 }

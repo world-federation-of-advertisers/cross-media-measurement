@@ -43,7 +43,7 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  * @param directNoiseMechanism The direct noise mechanism to use.
  * @param maxPopulation The max Population that can be returned.
  * @param maxFrequencyFromSpec The max frequency per user from the measurement spec.
- * @param resultMinimumThresholds Optional k-anonymity parameters.
+ * @param resultMinimumThresholds Optional small-cell suppression parameters.
  * @param impressionMaxFrequencyPerUser Override for max frequency per user. -1 means no cap.
  * @param totalUncappedImpressions Total impression count without frequency capping.
  */

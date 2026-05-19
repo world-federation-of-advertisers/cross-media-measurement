@@ -72,7 +72,7 @@ object ReachAndFrequencyComputations {
     if (resultMinimumThresholds == null) {
       return minScaledNoisedReach
     }
-    val kAnonymityImpressionCount = run {
+    val thresholdedImpressionCount = run {
       if (dpParams == null) {
         val rawImpressionCount =
           rawHistogram.withIndex().sumOf { (index, count) ->
@@ -116,7 +116,7 @@ object ReachAndFrequencyComputations {
         }
       }
     }
-    return kAnonymityImpressionCount
+    return thresholdedImpressionCount
   }
 
   /**
@@ -128,8 +128,8 @@ object ReachAndFrequencyComputations {
    *   `rawHistogram` must have this size.
    * @param dpParams The privacy parameters for the reach computation.
    * @param resultMinimumThresholds Optional result minimum thresholds.
-   * @param vidSamplingIntervalWidth The sampling rate used to select VIDs. Required if k-anonymity
-   *   params are set.
+   * @param vidSamplingIntervalWidth The sampling rate used to select VIDs. Required if small-cell suppression
+   *   thresholds are set.
    * @return A map representing the frequency distribution for frequencies 1 through `maxFrequency`.
    */
   fun computeFrequencyDistribution(
@@ -189,7 +189,7 @@ object ReachAndFrequencyComputations {
     requireNotNull(vidSamplingIntervalWidth) {
       "vidSamplingIntervalWidth must be set if resultMinimumThresholds are set"
     }
-    val kAnonymityHistogram =
+    val thresholdedHistogram =
       noisedHistogram.withIndex().map { (index, count) ->
         val frequency = index + 1L
         if (
@@ -201,13 +201,13 @@ object ReachAndFrequencyComputations {
           count
         }
       }
-    val numKActiveRegisters = kAnonymityHistogram.sum()
-    return kAnonymityHistogram.withIndex().associate { (index, count) ->
+    val numThresholdedActiveRegisters = thresholdedHistogram.sum()
+    return thresholdedHistogram.withIndex().associate { (index, count) ->
       val frequency = index + 1L
-      if (numKActiveRegisters === 0L) {
+      if (numThresholdedActiveRegisters === 0L) {
         frequency to 0.0
       } else {
-        frequency to count.toDouble() / numKActiveRegisters
+        frequency to count.toDouble() / numThresholdedActiveRegisters
       }
     }
   }

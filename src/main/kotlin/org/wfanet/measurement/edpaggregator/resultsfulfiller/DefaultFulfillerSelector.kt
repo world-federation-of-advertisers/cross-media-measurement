@@ -111,7 +111,7 @@ data class TrusTeeConfig(
  * @param dataProviderCertificateKey EDP certificate identifier for result signing
  * @param dataProviderSigningKeyHandle cryptographic key for result authentication
  * @param noiserSelector strategy for selecting differential privacy mechanisms
- * @param resultMinimumThresholds optional k-anonymity thresholds; null disables k-anonymity
+ * @param resultMinimumThresholds optional small-cell suppression thresholds; null disables suppression
  * @param overrideImpressionMaxFrequencyPerUser optional frequency cap override; null or -1 means no
  *   capping and uses totalUncappedImpressions instead
  * @param supportedMultiPartyNoiseMechanisms set of [NoiseMechanism] values this EDP supports for
