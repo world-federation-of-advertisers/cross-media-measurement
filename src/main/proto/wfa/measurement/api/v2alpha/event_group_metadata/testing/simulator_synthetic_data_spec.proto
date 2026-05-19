@@ -45,17 +45,6 @@ message FieldValue {
   }
 }
 
-// Deleted: use v2alpha PopulationSpec with google.protobuf.Any attributes instead.
-message SyntheticPopulationSpec {
-  reserved 1, 2, 3, 4, 5;
-  reserved "vid_range", "population_fields", "non_population_fields", "sub_populations", "event_message_type_url";
-
-  message SubPopulation {
-    reserved 1, 2;
-    reserved "vid_sub_range", "population_fields_values";
-  }
-}
-
 // The specification of an `EventGroup` for synthetic event generation.
 //
 // Each `SyntheticEventGroupSpec` is paired with a v2alpha
