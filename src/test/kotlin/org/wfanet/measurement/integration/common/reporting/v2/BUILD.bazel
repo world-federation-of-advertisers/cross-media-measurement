@@ -17,8 +17,8 @@ _REPORT_TEST_DEPS = [
 ]
 
 kt_jvm_library(
-    name = "gcloud_edp_aggregator_life_of_a_report_noise_no_k_anon_test",
-    srcs = ["GCloudEdpAggregatorLifeOfAReportNoiseNoKAnonTest.kt"],
+    name = "gcloud_edp_aggregator_life_of_a_report_noise_no_thresholds_test",
+    srcs = ["GCloudEdpAggregatorLifeOfAReportNoiseNoThresholdsTest.kt"],
 kt_jvm_library(
     name = "gcloud_edp_aggregator_life_of_a_report_test",
     srcs = ["GCloudEdpAggregatorLifeOfAReportTest.kt"],
@@ -42,7 +42,7 @@ kt_jvm_library(
 
 # TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
 java_test(
-    name = "GCloudEdpAggregatorLifeOfAReportNoiseNoKAnonTest",
+    name = "GCloudEdpAggregatorLifeOfAReportNoiseNoThresholdsTest",
     name = "GCloudEdpAggregatorLifeOfAReportTest",
     size = "large",
     timeout = "long",
@@ -50,16 +50,16 @@ java_test(
         "cpu:2",
         "no-remote-exec",
     ],
-    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAReportNoiseNoKAnonTest",
+    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAReportNoiseNoThresholdsTest",
     runtime_deps = [
-        ":gcloud_edp_aggregator_life_of_a_report_noise_no_k_anon_test",
+        ":gcloud_edp_aggregator_life_of_a_report_noise_no_thresholds_test",
         "//imports/java/org/slf4j:simple",
     ],
 )
 
 kt_jvm_library(
-    name = "gcloud_edp_aggregator_life_of_a_report_noise_k_anon_test",
-    srcs = ["GCloudEdpAggregatorLifeOfAReportNoiseKAnonTest.kt"],
+    name = "gcloud_edp_aggregator_life_of_a_report_noise_thresholds_test",
+    srcs = ["GCloudEdpAggregatorLifeOfAReportNoiseThresholdsTest.kt"],
     data = ["@cloud_spanner_emulator//:emulator"],
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
@@ -72,23 +72,23 @@ kt_jvm_library(
 
 # TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
 java_test(
-    name = "GCloudEdpAggregatorLifeOfAReportNoiseKAnonTest",
+    name = "GCloudEdpAggregatorLifeOfAReportNoiseThresholdsTest",
     size = "large",
     timeout = "long",
     tags = [
         "cpu:2",
         "no-remote-exec",
     ],
-    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAReportNoiseKAnonTest",
+    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAReportNoiseThresholdsTest",
     runtime_deps = [
-        ":gcloud_edp_aggregator_life_of_a_report_noise_k_anon_test",
+        ":gcloud_edp_aggregator_life_of_a_report_noise_thresholds_test",
         "//imports/java/org/slf4j:simple",
     ],
 )
 
 kt_jvm_library(
-    name = "gcloud_edp_aggregator_life_of_a_report_k_anon_no_noise_test",
-    srcs = ["GCloudEdpAggregatorLifeOfAReportKAnonNoNoiseTest.kt"],
+    name = "gcloud_edp_aggregator_life_of_a_report_thresholds_no_noise_test",
+    srcs = ["GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseTest.kt"],
     data = ["@cloud_spanner_emulator//:emulator"],
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
@@ -100,23 +100,23 @@ kt_jvm_library(
 
 # TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
 java_test(
-    name = "GCloudEdpAggregatorLifeOfAReportKAnonNoNoiseTest",
+    name = "GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseTest",
     size = "large",
     timeout = "long",
     tags = [
         "cpu:2",
         "no-remote-exec",
     ],
-    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAReportKAnonNoNoiseTest",
+    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseTest",
     runtime_deps = [
-        ":gcloud_edp_aggregator_life_of_a_report_k_anon_no_noise_test",
+        ":gcloud_edp_aggregator_life_of_a_report_thresholds_no_noise_test",
         "//imports/java/org/slf4j:simple",
     ],
 )
 
 kt_jvm_library(
-    name = "gcloud_edp_aggregator_life_of_a_report_k_anon_no_noise_high_threshold_test",
-    srcs = ["GCloudEdpAggregatorLifeOfAReportKAnonNoNoiseHighThresholdTest.kt"],
+    name = "gcloud_edp_aggregator_life_of_a_report_thresholds_no_noise_high_test",
+    srcs = ["GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseHighTest.kt"],
     data = ["@cloud_spanner_emulator//:emulator"],
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
@@ -128,23 +128,23 @@ kt_jvm_library(
 
 # TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
 java_test(
-    name = "GCloudEdpAggregatorLifeOfAReportKAnonNoNoiseHighThresholdTest",
+    name = "GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseHighTest",
     size = "large",
     timeout = "long",
     tags = [
         "cpu:2",
         "no-remote-exec",
     ],
-    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAReportKAnonNoNoiseHighThresholdTest",
+    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseHighTest",
     runtime_deps = [
-        ":gcloud_edp_aggregator_life_of_a_report_k_anon_no_noise_high_threshold_test",
+        ":gcloud_edp_aggregator_life_of_a_report_thresholds_no_noise_high_test",
         "//imports/java/org/slf4j:simple",
     ],
 )
 
 kt_jvm_library(
-    name = "gcloud_edp_aggregator_life_of_a_report_noise_k_anon_high_threshold_test",
-    srcs = ["GCloudEdpAggregatorLifeOfAReportNoiseKAnonHighThresholdTest.kt"],
+    name = "gcloud_edp_aggregator_life_of_a_report_noise_thresholds_high_test",
+    srcs = ["GCloudEdpAggregatorLifeOfAReportNoiseThresholdsHighTest.kt"],
     data = ["@cloud_spanner_emulator//:emulator"],
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
@@ -157,23 +157,23 @@ kt_jvm_library(
 
 # TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
 java_test(
-    name = "GCloudEdpAggregatorLifeOfAReportNoiseKAnonHighThresholdTest",
+    name = "GCloudEdpAggregatorLifeOfAReportNoiseThresholdsHighTest",
     size = "large",
     timeout = "long",
     tags = [
         "cpu:2",
         "no-remote-exec",
     ],
-    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAReportNoiseKAnonHighThresholdTest",
+    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAReportNoiseThresholdsHighTest",
     runtime_deps = [
-        ":gcloud_edp_aggregator_life_of_a_report_noise_k_anon_high_threshold_test",
+        ":gcloud_edp_aggregator_life_of_a_report_noise_thresholds_high_test",
         "//imports/java/org/slf4j:simple",
     ],
 )
 
 kt_jvm_library(
-    name = "gcloud_edp_aggregator_life_of_a_report_no_noise_no_k_anon_test",
-    srcs = ["GCloudEdpAggregatorLifeOfAReportNoNoiseNoKAnonTest.kt"],
+    name = "gcloud_edp_aggregator_life_of_a_report_no_noise_no_thresholds_test",
+    srcs = ["GCloudEdpAggregatorLifeOfAReportNoNoiseNoThresholdsTest.kt"],
     data = ["@cloud_spanner_emulator//:emulator"],
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
@@ -185,16 +185,16 @@ kt_jvm_library(
 
 # TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
 java_test(
-    name = "GCloudEdpAggregatorLifeOfAReportNoNoiseNoKAnonTest",
+    name = "GCloudEdpAggregatorLifeOfAReportNoNoiseNoThresholdsTest",
     size = "large",
     timeout = "long",
     tags = [
         "cpu:2",
         "no-remote-exec",
     ],
-    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAReportNoNoiseNoKAnonTest",
+    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAReportNoNoiseNoThresholdsTest",
     runtime_deps = [
-        ":gcloud_edp_aggregator_life_of_a_report_no_noise_no_k_anon_test",
+        ":gcloud_edp_aggregator_life_of_a_report_no_noise_no_thresholds_test",
     test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAReportTest",
     runtime_deps = [
         ":gcloud_edp_aggregator_life_of_a_report_test",

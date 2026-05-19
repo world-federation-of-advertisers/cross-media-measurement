@@ -23,7 +23,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.IMPRESSION_QUALIFICATION_FILTER_MAPPING
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
-import org.wfanet.measurement.integration.common.TRUSTEE_PROTOCOL_CONFIG_CONFIG_NO_NOISE_NO_K_ANON
+import org.wfanet.measurement.integration.common.TRUSTEE_PROTOCOL_CONFIG_CONFIG_NO_NOISE_NO_THRESHOLDS
 import org.wfanet.measurement.integration.deploy.gcloud.InternalReportingServicesProviderRule
 import org.wfanet.measurement.integration.deploy.gcloud.KingdomDataServicesProviderRule
 import org.wfanet.measurement.integration.deploy.gcloud.SpannerAccessServicesFactory
@@ -36,9 +36,9 @@ import org.wfanet.measurement.reporting.v2alpha.BasicReport
 
 /**
  * Implementation of [InProcessEdpAggregatorLifeOfAReportTest] for GCloud backends with Spanner
- * database. Uses no-noise TrusTee protocol config without k-anonymity.
+ * database. Uses no-noise TrusTee protocol config without small-cell suppression.
  */
-class GCloudEdpAggregatorLifeOfAReportNoNoiseNoKAnonTest :
+class GCloudEdpAggregatorLifeOfAReportNoNoiseNoThresholdsTest :
   InProcessEdpAggregatorLifeOfAReportTest(
     kingdomDataServicesRule = KingdomDataServicesProviderRule(spannerEmulator),
     duchyDependenciesRule = SpannerDuchyDependencyProviderRule(spannerEmulator, ALL_DUCHY_NAMES),
@@ -78,7 +78,7 @@ class GCloudEdpAggregatorLifeOfAReportNoNoiseNoKAnonTest :
     @JvmStatic
     fun initConfig() {
       InProcessCmmsComponents.initConfig(
-        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG_NO_NOISE_NO_K_ANON,
+        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG_NO_NOISE_NO_THRESHOLDS,
         hmssProtocolConfigConfig =
           hmssProtocolConfigConfig {
             protocolConfig =

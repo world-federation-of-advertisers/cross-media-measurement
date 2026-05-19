@@ -35,7 +35,7 @@ import org.wfanet.measurement.internal.duchy.createComputationRequest
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee.Stage
 import org.wfanet.measurement.internal.duchy.protocol.TrusTeeKt
-import org.wfanet.measurement.internal.duchy.protocol.TrusTeeKt.ComputationDetailsKt.kAnonymityParams as internalKAnonymityParams
+import org.wfanet.measurement.internal.duchy.protocol.TrusTeeKt.ComputationDetailsKt.resultMinimumThresholds as internalResultMinimumThresholds
 import org.wfanet.measurement.system.v1alpha.Computation
 
 /**
@@ -184,10 +184,10 @@ object TrusTeeStarter {
       }
       noiseMechanism = internalNoiseMechanism
       vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
-      if (mpcProtocolConfig.trusTee.hasKAnonymityParams()) {
-        kAnonymityParams = internalKAnonymityParams {
-          minImpressions = mpcProtocolConfig.trusTee.kAnonymityParams.minImpressions
-          minUsers = mpcProtocolConfig.trusTee.kAnonymityParams.minUsers
+      if (mpcProtocolConfig.trusTee.hasResultMinimumThresholds()) {
+        resultMinimumThresholds = internalResultMinimumThresholds {
+          minImpressions = mpcProtocolConfig.trusTee.resultMinimumThresholds.minImpressions
+          minUsers = mpcProtocolConfig.trusTee.resultMinimumThresholds.minUsers
         }
       }
     }

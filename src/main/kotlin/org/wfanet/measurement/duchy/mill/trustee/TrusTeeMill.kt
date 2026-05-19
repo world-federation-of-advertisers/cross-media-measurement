@@ -31,7 +31,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
-import org.wfanet.measurement.computation.KAnonymityParams
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.PermanentErrorException
 import org.wfanet.measurement.duchy.mill.Certificate
@@ -168,17 +168,17 @@ class TrusTeeMill(
   fun TrusTeeDetails.toTrusTeeParams(): TrusTeeParams {
     val isNoNoise = parameters.noiseMechanism == NoiseMechanism.NONE
 
-    val kAnonymityParams: KAnonymityParams? =
-      if (parameters.hasKAnonymityParams()) {
-        require(parameters.kAnonymityParams.minUsers > 0) {
-          "k-anonymity minUsers must be greater than 0, got ${parameters.kAnonymityParams.minUsers}"
+    val resultMinimumThresholds: ResultMinimumThresholds? =
+      if (parameters.hasResultMinimumThresholds()) {
+        require(parameters.resultMinimumThresholds.minUsers > 0) {
+          "small-cell suppression minUsers must be greater than 0, got ${parameters.resultMinimumThresholds.minUsers}"
         }
-        require(parameters.kAnonymityParams.minImpressions > 0) {
-          "k-anonymity minImpressions must be greater than 0, got ${parameters.kAnonymityParams.minImpressions}"
+        require(parameters.resultMinimumThresholds.minImpressions > 0) {
+          "small-cell suppression minImpressions must be greater than 0, got ${parameters.resultMinimumThresholds.minImpressions}"
         }
-        KAnonymityParams(
-          minUsers = parameters.kAnonymityParams.minUsers,
-          minImpressions = parameters.kAnonymityParams.minImpressions,
+        ResultMinimumThresholds(
+          minUsers = parameters.resultMinimumThresholds.minUsers,
+          minImpressions = parameters.resultMinimumThresholds.minImpressions,
         )
       } else {
         null
@@ -194,7 +194,7 @@ class TrusTeeMill(
         TrusTeeReachParams(
           parameters.vidSamplingIntervalWidth.toDouble(),
           if (isNoNoise) null else parameters.reachDpParams,
-          kAnonymityParams,
+          resultMinimumThresholds,
         )
       }
       TrusTeeDetails.Type.REACH_AND_FREQUENCY -> {
@@ -211,7 +211,7 @@ class TrusTeeMill(
           parameters.vidSamplingIntervalWidth.toDouble(),
           if (isNoNoise) null else parameters.reachDpParams,
           if (isNoNoise) null else parameters.frequencyDpParams,
-          kAnonymityParams,
+          resultMinimumThresholds,
         )
       }
       TrusTeeDetails.Type.TYPE_UNSPECIFIED,

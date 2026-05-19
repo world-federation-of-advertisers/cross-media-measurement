@@ -67,9 +67,9 @@ message TrusTee {
     }
     Type type = 2;
 
-    // Parameters for k-anonymity applied to the result. If the threshold is not
-    // met, a zero result is returned instead.
-    message KAnonymityParams {
+    // Parameters for small-cell suppression applied to the result. If the
+    // threshold is not met, a zero result is returned instead.
+    message ResultMinimumThresholds {
       // The minimum number of impressions.
       int32 min_impressions = 1;
       // The minimum number of unique users.
@@ -88,8 +88,8 @@ message TrusTee {
       NoiseMechanism noise_mechanism = 4;
       // The sampling rate.
       float vid_sampling_interval_width = 5;
-      // Optional k-anonymity parameters.
-      KAnonymityParams k_anonymity_params = 6;
+      // Optional small-cell suppression parameters.
+      ResultMinimumThresholds result_minimum_thresholds = 6;
     }
     Parameters parameters = 3;
   }

@@ -22,7 +22,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.populationSpec
-import org.wfanet.measurement.computation.KAnonymityParams
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 
 @RunWith(JUnit4::class)
@@ -45,8 +45,8 @@ class KAnonymizerTest {
 
   @Test
   fun `kAnonymizeFrequencyVector returns original vector when reach meets threshold`() {
-    val kAnonymityParams =
-      KAnonymityParams(minUsers = 2, minImpressions = 10, reachMaxFrequencyPerUser = 10)
+    val resultMinimumThresholds =
+      ResultMinimumThresholds(minUsers = 2, minImpressions = 10, reachMaxFrequencyPerUser = 10)
 
     // Create a frequency vector with sufficient reach (many non-zero entries)
     val frequencyData = ByteArray(100) { if (it < 50) 1.toByte() else 0.toByte() }
@@ -56,7 +56,7 @@ class KAnonymizerTest {
         populationSpec = populationSpec,
         frequencyDataBytes = frequencyData,
         strict = false,
-        kAnonymityParams = kAnonymityParams,
+        resultMinimumThresholds = resultMinimumThresholds,
         overrideImpressionMaxFrequencyPerUser = null,
       )
 
@@ -65,7 +65,7 @@ class KAnonymizerTest {
         measurementSpec,
         populationSpec,
         builder,
-        kAnonymityParams,
+        resultMinimumThresholds,
         maxPopulation = null,
       )
 
@@ -77,8 +77,8 @@ class KAnonymizerTest {
   @Test
   fun `kAnonymizeFrequencyVector returns empty vector when reach below threshold`() {
     // Very high threshold that wont be met with only 3 users
-    val kAnonymityParams =
-      KAnonymityParams(minUsers = 1000, minImpressions = 1000, reachMaxFrequencyPerUser = 10)
+    val resultMinimumThresholds =
+      ResultMinimumThresholds(minUsers = 1000, minImpressions = 1000, reachMaxFrequencyPerUser = 10)
 
     // Create a frequency vector builder and add only 3 increments (below threshold)
     val builder =
@@ -86,7 +86,7 @@ class KAnonymizerTest {
         measurementSpec = measurementSpec,
         populationSpec = populationSpec,
         strict = false,
-        kAnonymityParams = kAnonymityParams,
+        resultMinimumThresholds = resultMinimumThresholds,
         overrideImpressionMaxFrequencyPerUser = null,
       )
     // Add only 3 users - below the minUsers threshold of 1000
@@ -97,7 +97,7 @@ class KAnonymizerTest {
         measurementSpec,
         populationSpec,
         builder,
-        kAnonymityParams,
+        resultMinimumThresholds,
         maxPopulation = null,
       )
 

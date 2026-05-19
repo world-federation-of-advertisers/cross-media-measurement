@@ -2,7 +2,7 @@
 # proto-message: TrusTeeProtocolConfigConfig
 protocol_config {
   noise_mechanism: CONTINUOUS_GAUSSIAN
-  k_anonymity_params {
+  result_minimum_thresholds {
     min_impressions: 10
     min_users: 10
   }

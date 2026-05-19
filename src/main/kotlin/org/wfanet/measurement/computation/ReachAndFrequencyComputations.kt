@@ -29,7 +29,7 @@ object ReachAndFrequencyComputations {
    * @param vectorSize The total size of the frequency vector space, used for capping the result.
    *   before scaling. If it is null (the default), no capping is applied.
    * @param dpParams The privacy parameters for the reach computation.
-   * @param kAnonymityParams Optional k-anonymity params.
+   * @param resultMinimumThresholds Optional result minimum thresholds.
    * @return The reach value, potentially with noise applied.
    */
   fun computeReach(
@@ -37,7 +37,7 @@ object ReachAndFrequencyComputations {
     vidSamplingIntervalWidth: Double,
     vectorSize: Int? = null,
     dpParams: DifferentialPrivacyParams?,
-    kAnonymityParams: KAnonymityParams?,
+    resultMinimumThresholds: ResultMinimumThresholds?,
   ): Long {
     val maxPossibleScaledReach =
       if (vectorSize != null) {
@@ -69,7 +69,7 @@ object ReachAndFrequencyComputations {
         min(scaledNoisedReach, maxPossibleScaledReach)
       }
     }
-    if (kAnonymityParams == null) {
+    if (resultMinimumThresholds == null) {
       return minScaledNoisedReach
     }
     val kAnonymityImpressionCount = run {
@@ -81,8 +81,8 @@ object ReachAndFrequencyComputations {
           }
         val scaledImpressionCount = (rawImpressionCount / vidSamplingIntervalWidth).toLong()
         if (
-          scaledImpressionCount < kAnonymityParams.minImpressions ||
-            minScaledNoisedReach < kAnonymityParams.minUsers
+          scaledImpressionCount < resultMinimumThresholds.minImpressions ||
+            minScaledNoisedReach < resultMinimumThresholds.minUsers
         ) {
           0
         } else {
@@ -91,7 +91,7 @@ object ReachAndFrequencyComputations {
       } else {
         val rawImpressionCount =
           rawHistogram.withIndex().sumOf { (index, count) ->
-            val frequency = min(kAnonymityParams.reachMaxFrequencyPerUser, index + 1)
+            val frequency = min(resultMinimumThresholds.reachMaxFrequencyPerUser, index + 1)
             frequency * count
           }
 
@@ -100,15 +100,15 @@ object ReachAndFrequencyComputations {
           noise.addNoise(
             rawImpressionCount,
             1,
-            kAnonymityParams.reachMaxFrequencyPerUser.toLong(),
+            resultMinimumThresholds.reachMaxFrequencyPerUser.toLong(),
             dpParams.epsilon,
             dpParams.delta,
           )
         val scaledNoisedImpressionCount =
           (noisedImpressionCount / vidSamplingIntervalWidth).toLong()
         if (
-          scaledNoisedImpressionCount < kAnonymityParams.minImpressions ||
-            minScaledNoisedReach < kAnonymityParams.minUsers
+          scaledNoisedImpressionCount < resultMinimumThresholds.minImpressions ||
+            minScaledNoisedReach < resultMinimumThresholds.minUsers
         ) {
           0
         } else {
@@ -127,7 +127,7 @@ object ReachAndFrequencyComputations {
    * @param maxFrequency The maximum frequency to reveal in the distribution. The input
    *   `rawHistogram` must have this size.
    * @param dpParams The privacy parameters for the reach computation.
-   * @param kAnonymityParams Optional k-anonymity params.
+   * @param resultMinimumThresholds Optional result minimum thresholds.
    * @param vidSamplingIntervalWidth The sampling rate used to select VIDs. Required if k-anonymity
    *   params are set.
    * @return A map representing the frequency distribution for frequencies 1 through `maxFrequency`.
@@ -136,7 +136,7 @@ object ReachAndFrequencyComputations {
     rawHistogram: LongArray,
     maxFrequency: Int,
     dpParams: DifferentialPrivacyParams?,
-    kAnonymityParams: KAnonymityParams?,
+    resultMinimumThresholds: ResultMinimumThresholds?,
     vidSamplingIntervalWidth: Double?,
   ): Map<Long, Double> {
     require(rawHistogram.size == maxFrequency) {
@@ -174,7 +174,7 @@ object ReachAndFrequencyComputations {
       }
     }
 
-    if (kAnonymityParams == null) {
+    if (resultMinimumThresholds == null) {
       val numNoisedActiveRegisters = noisedHistogram.sum()
       return noisedHistogram.withIndex().associate { (index, count) ->
         val frequency = index + 1L
@@ -187,14 +187,14 @@ object ReachAndFrequencyComputations {
     }
 
     requireNotNull(vidSamplingIntervalWidth) {
-      "vidSamplingIntervalWidth must be set if kAnonymityParams are set"
+      "vidSamplingIntervalWidth must be set if resultMinimumThresholds are set"
     }
     val kAnonymityHistogram =
       noisedHistogram.withIndex().map { (index, count) ->
         val frequency = index + 1L
         if (
-          count / vidSamplingIntervalWidth < kAnonymityParams.minUsers ||
-            frequency * count / vidSamplingIntervalWidth < kAnonymityParams.minImpressions
+          count / vidSamplingIntervalWidth < resultMinimumThresholds.minUsers ||
+            frequency * count / vidSamplingIntervalWidth < resultMinimumThresholds.minImpressions
         ) {
           0
         } else {

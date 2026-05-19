@@ -48,7 +48,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
-import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.TrusTeeKt.kAnonymityParams as internalTrusTeeKAnonymityParams
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.TrusTeeKt.resultMinimumThresholds as internalTrusTeeResultMinimumThresholds
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
@@ -71,7 +71,7 @@ import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt
-import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.TrusTeeKt.kAnonymityParams as systemTrusTeeKAnonymityParams
+import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.TrusTeeKt.resultMinimumThresholds as systemTrusTeeResultMinimumThresholds
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.trusTee as systemTrusTee
 import org.wfanet.measurement.system.v1alpha.ComputationKt.mpcProtocolConfig
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
@@ -295,7 +295,7 @@ private val INTERNAL_TRUS_TEE_MEASUREMENT =
         trusTee =
           ProtocolConfigKt.trusTee {
             noiseMechanism = InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
-            kAnonymityParams = internalTrusTeeKAnonymityParams {
+            resultMinimumThresholds = internalTrusTeeResultMinimumThresholds {
               minImpressions = 10
               minUsers = 5
             }
@@ -514,7 +514,7 @@ class ComputationsServiceTest {
   }
 
   @Test
-  fun `get trustee computation with kAnonymityParams successfully`() = runBlocking {
+  fun `get trustee computation with resultMinimumThresholds successfully`() = runBlocking {
     whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
       .thenReturn(INTERNAL_TRUS_TEE_MEASUREMENT)
 
@@ -534,7 +534,7 @@ class ComputationsServiceTest {
           mpcProtocolConfig = mpcProtocolConfig {
             trusTee = systemTrusTee {
               noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
-              kAnonymityParams = systemTrusTeeKAnonymityParams {
+              resultMinimumThresholds = systemTrusTeeResultMinimumThresholds {
                 minImpressions = 10
                 minUsers = 5
               }

@@ -37,7 +37,7 @@ object ImpressionComputations {
    *   calculations as well as the lInfiniteSensitivity, if noise is applied.
    * @param dpParams Optional differential privacy parameters. If `null`, no noise is added and the
    *   raw impression count is scaled and returned.
-   * @param kAnonymityParams Optional k-anonymity params.
+   * @param resultMinimumThresholds Optional result minimum thresholds.
    * @return The (potentially noised) impression count as a [Long]. If noise results in a negative
    *   count, zero is returned instead.
    */
@@ -46,7 +46,7 @@ object ImpressionComputations {
     vidSamplingIntervalWidth: Double,
     maxFrequency: Long?,
     dpParams: DifferentialPrivacyParams?,
-    kAnonymityParams: KAnonymityParams?,
+    resultMinimumThresholds: ResultMinimumThresholds?,
   ): Long {
     val rawImpressionCount =
       rawHistogram.withIndex().sumOf { (index, count) ->
@@ -75,7 +75,7 @@ object ImpressionComputations {
         if (noisedImpressionCount < 0) 0L
         else (noisedImpressionCount / vidSamplingIntervalWidth).toLong()
       }
-    if (kAnonymityParams == null) {
+    if (resultMinimumThresholds == null) {
       return scaledImpressionCount
     }
     val kAnonymityImpressionCount = run {
@@ -97,8 +97,8 @@ object ImpressionComputations {
           if (noisedUserCount < 0) 0L else (noisedUserCount / vidSamplingIntervalWidth).toLong()
         }
       if (
-        scaledImpressionCount < kAnonymityParams.minImpressions ||
-          scaledUserCount < kAnonymityParams.minUsers
+        scaledImpressionCount < resultMinimumThresholds.minImpressions ||
+          scaledUserCount < resultMinimumThresholds.minUsers
       ) {
         0
       } else {

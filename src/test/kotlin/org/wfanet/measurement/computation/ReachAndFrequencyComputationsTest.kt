@@ -36,7 +36,7 @@ class ReachAndFrequencyComputationsTest {
         vidSamplingIntervalWidth = 1.0,
         vectorSize = 20,
         dpParams = null,
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
       )
     assertThat(reach).isEqualTo(16)
   }
@@ -50,13 +50,13 @@ class ReachAndFrequencyComputationsTest {
         vidSamplingIntervalWidth = 0.5,
         vectorSize = 40,
         dpParams = null,
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
       )
     assertThat(reach).isEqualTo(32)
   }
 
   @Test
-  fun `computeReach scales raw reach by sampling width to non-zero with k-anon`() {
+  fun `computeReach scales raw reach by sampling width to non-zero with small-cell suppression`() {
     val rawHistogram = longArrayOf(10, 5, 1) // Frequencies 1, 2, 3
     val reach =
       ReachAndFrequencyComputations.computeReach(
@@ -64,13 +64,13 @@ class ReachAndFrequencyComputationsTest {
         vidSamplingIntervalWidth = 0.5,
         vectorSize = 40,
         dpParams = null,
-        kAnonymityParams = KAnonymityParams(minUsers = 20, minImpressions = 20),
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 20, minImpressions = 20),
       )
     assertThat(reach).isEqualTo(32)
   }
 
   @Test
-  fun `computeReach scales raw reach by sampling width to zero with k-anon for insufficient users`() {
+  fun `computeReach scales raw reach by sampling width to zero with small-cell suppression for insufficient users`() {
     val rawHistogram = longArrayOf(10, 5, 1) // Frequencies 1, 2, 3
     val reach =
       ReachAndFrequencyComputations.computeReach(
@@ -78,13 +78,13 @@ class ReachAndFrequencyComputationsTest {
         vidSamplingIntervalWidth = 0.5,
         vectorSize = 40,
         dpParams = null,
-        kAnonymityParams = KAnonymityParams(minUsers = 35, minImpressions = 30),
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 35, minImpressions = 30),
       )
     assertThat(reach).isEqualTo(0)
   }
 
   @Test
-  fun `computeReach scales raw reach by sampling width to zero with k-anon for insufficient impressions`() {
+  fun `computeReach scales raw reach by sampling width to zero with small-cell suppression for insufficient impressions`() {
     val rawHistogram = longArrayOf(10, 5, 1) // Frequencies 1, 2, 3
     val reach =
       ReachAndFrequencyComputations.computeReach(
@@ -92,8 +92,8 @@ class ReachAndFrequencyComputationsTest {
         vidSamplingIntervalWidth = 0.5,
         vectorSize = 40,
         dpParams = null,
-        kAnonymityParams =
-          KAnonymityParams(minUsers = 30, minImpressions = 50, reachMaxFrequencyPerUser = 3),
+        resultMinimumThresholds =
+          ResultMinimumThresholds(minUsers = 30, minImpressions = 50, reachMaxFrequencyPerUser = 3),
       )
     assertThat(reach).isEqualTo(0)
   }
@@ -108,14 +108,14 @@ class ReachAndFrequencyComputationsTest {
         vidSamplingIntervalWidth = 1.0,
         vectorSize = 200,
         dpParams = DP_PARAMS,
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
       )
     assertThat(reach).isAtMost(min(200, 170 + tolerance))
     assertThat(reach).isAtLeast(max(0L, 170 - tolerance))
   }
 
   @Test
-  fun `computeReach with noise and k-anonymity`() {
+  fun `computeReach with noise and small-cell suppression`() {
     val rawHistogram = longArrayOf(100, 50, 20) // Reach in sample = 170
     val tolerance = getNoiseTolerance(DP_PARAMS)
     val reach =
@@ -124,14 +124,14 @@ class ReachAndFrequencyComputationsTest {
         vidSamplingIntervalWidth = 1.0,
         vectorSize = 200,
         dpParams = DP_PARAMS,
-        kAnonymityParams =
-          KAnonymityParams(minUsers = 30, minImpressions = 50, reachMaxFrequencyPerUser = 3),
+        resultMinimumThresholds =
+          ResultMinimumThresholds(minUsers = 30, minImpressions = 50, reachMaxFrequencyPerUser = 3),
       )
     assertThat(reach).isEqualTo(170)
   }
 
   @Test
-  fun `computeReach with noise and k-anonymity goes to zero`() {
+  fun `computeReach with noise and small-cell suppression goes to zero`() {
     val rawHistogram = longArrayOf(100, 50, 20) // Reach in sample = 170
     val reach =
       ReachAndFrequencyComputations.computeReach(
@@ -139,8 +139,12 @@ class ReachAndFrequencyComputationsTest {
         vidSamplingIntervalWidth = 1.0,
         vectorSize = 200,
         dpParams = DP_PARAMS,
-        kAnonymityParams =
-          KAnonymityParams(minUsers = 200, minImpressions = 200, reachMaxFrequencyPerUser = 3),
+        resultMinimumThresholds =
+          ResultMinimumThresholds(
+            minUsers = 200,
+            minImpressions = 200,
+            reachMaxFrequencyPerUser = 3,
+          ),
       )
     assertThat(reach).isEqualTo(0)
   }
@@ -153,7 +157,7 @@ class ReachAndFrequencyComputationsTest {
         rawHistogram,
         maxFrequency = 3,
         dpParams = null,
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         vidSamplingIntervalWidth = null,
       )
     val expected = mapOf(1L to 0.1, 2L to 0.3, 3L to 0.6)
@@ -171,7 +175,7 @@ class ReachAndFrequencyComputationsTest {
         rawHistogram,
         maxFrequency = 3,
         dpParams = null,
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         vidSamplingIntervalWidth = null,
       )
     val expected = mapOf(1L to 0.0, 2L to 0.0, 3L to 0.0)
@@ -187,7 +191,7 @@ class ReachAndFrequencyComputationsTest {
         rawHistogram,
         maxFrequency = 5,
         dpParams = DP_PARAMS,
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         vidSamplingIntervalWidth = null,
       )
 
@@ -219,7 +223,7 @@ class ReachAndFrequencyComputationsTest {
           rawHistogram,
           maxFrequency = 3,
           dpParams = null,
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           vidSamplingIntervalWidth = null,
         )
       }
@@ -227,14 +231,14 @@ class ReachAndFrequencyComputationsTest {
   }
 
   @Test
-  fun `computeFrequencyDistribution calculates raw distribution with k-anonymity`() {
+  fun `computeFrequencyDistribution calculates raw distribution with small-cell suppression`() {
     val rawHistogram = longArrayOf(10, 30, 70) // Frequencies 1, 2, 3
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 3,
         dpParams = null,
-        kAnonymityParams = KAnonymityParams(minUsers = 11, minImpressions = 5),
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 11, minImpressions = 5),
         vidSamplingIntervalWidth = 1.0,
       )
     val expected = mapOf(1L to 0.0, 2L to 0.3, 3L to 0.7)
@@ -245,14 +249,14 @@ class ReachAndFrequencyComputationsTest {
   }
 
   @Test
-  fun `computeFrequencyDistribution calculates 0 distribution for insufficient k-anonymity`() {
+  fun `computeFrequencyDistribution calculates 0 distribution for insufficient small-cell suppression`() {
     val rawHistogram = longArrayOf(10, 30, 70) // Frequencies 1, 2, 3
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 3,
         dpParams = null,
-        kAnonymityParams = KAnonymityParams(minUsers = 110, minImpressions = 5),
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 110, minImpressions = 5),
         vidSamplingIntervalWidth = 1.0,
       )
     val expected = mapOf(1L to 0.0, 2L to 0.0, 3L to 0.0)
@@ -260,15 +264,15 @@ class ReachAndFrequencyComputationsTest {
   }
 
   @Test
-  fun `computeFrequencyDistribution with noise and k-anonymity`() {
+  fun `computeFrequencyDistribution with noise and small-cell suppression`() {
     val rawHistogram = longArrayOf(10, 30, 70) // Frequencies 1, 2, 3
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 3,
         dpParams = DP_PARAMS,
-        kAnonymityParams = KAnonymityParams(minUsers = 11, minImpressions = 5),
-        vidSamplingIntervalWidth = 1.0f,
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 11, minImpressions = 5),
+        vidSamplingIntervalWidth = 1.0,
       )
     assertThat(distribution[1L]).isEqualTo(0.0)
     assertThat(distribution[2L]).isGreaterThan(0.0)
@@ -277,15 +281,15 @@ class ReachAndFrequencyComputationsTest {
   }
 
   @Test
-  fun `computeFrequencyDistribution with noise and k-anonymity goes to zero`() {
+  fun `computeFrequencyDistribution with noise and small-cell suppression goes to zero`() {
     val rawHistogram = longArrayOf(10, 30, 70) // Frequencies 1, 2, 3
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 3,
         dpParams = DP_PARAMS,
-        kAnonymityParams = KAnonymityParams(minUsers = 110, minImpressions = 5),
-        vidSamplingIntervalWidth = 1.0f,
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 110, minImpressions = 5),
+        vidSamplingIntervalWidth = 1.0,
       )
     val expected = mapOf(1L to 0.0, 2L to 0.0, 3L to 0.0)
     assertThat(distribution).isEqualTo(expected)

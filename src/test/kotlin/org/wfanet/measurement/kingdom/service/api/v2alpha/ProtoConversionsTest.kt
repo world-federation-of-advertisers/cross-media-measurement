@@ -28,7 +28,7 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.inputStep as
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step as v2AlphaStep
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.TrusTeeKt.kAnonymityParams as publicKAnonymityParams
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.TrusTeeKt.resultMinimumThresholds as publicResultMinimumThresholds
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.protocol
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.trusTee as publicTrusTee
 import org.wfanet.measurement.api.v2alpha.exchangeWorkflow as v2AlphaWorkflow
@@ -38,7 +38,7 @@ import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow.Step as Internal
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt.step as internalStep
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
-import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.TrusTeeKt.kAnonymityParams as internalKAnonymityParams
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.TrusTeeKt.resultMinimumThresholds as internalResultMinimumThresholds
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.exchangeWorkflow as internalWorkflow
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
@@ -204,13 +204,13 @@ class ProtoConversionsTest {
   }
 
   @Test
-  fun `toProtocolConfig maps TrusTee kAnonymityParams`() {
+  fun `toProtocolConfig maps TrusTee resultMinimumThresholds`() {
     val internal = internalProtocolConfig {
       externalProtocolConfigId = "trustee"
       trusTee =
         ProtocolConfigKt.trusTee {
           noiseMechanism = InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
-          kAnonymityParams = internalKAnonymityParams {
+          resultMinimumThresholds = internalResultMinimumThresholds {
             minImpressions = 10
             minUsers = 5
           }
@@ -227,7 +227,7 @@ class ProtoConversionsTest {
           protocols += protocol {
             trusTee = publicTrusTee {
               noiseMechanism = ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
-              kAnonymityParams = publicKAnonymityParams {
+              resultMinimumThresholds = publicResultMinimumThresholds {
                 minImpressions = 10
                 minUsers = 5
               }
@@ -238,7 +238,7 @@ class ProtoConversionsTest {
   }
 
   @Test
-  fun `toProtocolConfig maps TrusTee without kAnonymityParams`() {
+  fun `toProtocolConfig maps TrusTee without resultMinimumThresholds`() {
     val internal = internalProtocolConfig {
       externalProtocolConfigId = "trustee"
       trusTee =

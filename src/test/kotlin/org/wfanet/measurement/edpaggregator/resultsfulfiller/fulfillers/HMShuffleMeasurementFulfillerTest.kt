@@ -66,7 +66,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.computation.KAnonymityParams
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.testing.Requisitions.HMSS_REQUISITION
@@ -236,7 +236,7 @@ class HMShuffleMeasurementFulfillerTest {
               "duchies/worker2" to RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
             ),
           requisitionsStub = unfulfilledRequisitionsStub,
-          KAnonymityParams(minImpressions = 1, minUsers = 1),
+          ResultMinimumThresholds(minImpressions = 1, minUsers = 1),
           maxPopulation = null,
           ::echoFrequencyVector,
         )
@@ -289,7 +289,7 @@ class HMShuffleMeasurementFulfillerTest {
               "duchies/worker2" to RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
             ),
           requisitionsStub = unfulfilledRequisitionsStub,
-          KAnonymityParams(minImpressions = 1000, minUsers = 1000),
+          ResultMinimumThresholds(minImpressions = 1000, minUsers = 1000),
           maxPopulation = null,
           ::echoFrequencyVector,
         )

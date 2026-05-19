@@ -23,7 +23,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.IMPRESSION_QUALIFICATION_FILTER_MAPPING
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
-import org.wfanet.measurement.integration.common.TRUSTEE_PROTOCOL_CONFIG_CONFIG_K_ANON_NO_NOISE
+import org.wfanet.measurement.integration.common.TRUSTEE_PROTOCOL_CONFIG_CONFIG_THRESHOLDS_NO_NOISE_HIGH
 import org.wfanet.measurement.integration.deploy.gcloud.InternalReportingServicesProviderRule
 import org.wfanet.measurement.integration.deploy.gcloud.KingdomDataServicesProviderRule
 import org.wfanet.measurement.integration.deploy.gcloud.SpannerAccessServicesFactory
@@ -36,9 +36,10 @@ import org.wfanet.measurement.reporting.v2alpha.BasicReport
 
 /**
  * Implementation of [InProcessEdpAggregatorLifeOfAReportTest] for GCloud backends with Spanner
- * database. Uses no-noise TrusTee protocol config with k-anonymity.
+ * database. Uses no-noise TrusTee protocol config with high small-cell suppression thresholds that cause some
+ * k+ reach entries to be zeroed.
  */
-class GCloudEdpAggregatorLifeOfAReportKAnonNoNoiseTest :
+class GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseHighTest :
   InProcessEdpAggregatorLifeOfAReportTest(
     kingdomDataServicesRule = KingdomDataServicesProviderRule(spannerEmulator),
     duchyDependenciesRule = SpannerDuchyDependencyProviderRule(spannerEmulator, ALL_DUCHY_NAMES),
@@ -58,11 +59,11 @@ class GCloudEdpAggregatorLifeOfAReportKAnonNoNoiseTest :
     assertStructuralResults(basicReport)
     assertNoNoiseResults(
       basicReport,
-      expectedCrossPublisherReach = EXPECTED_TRUSTEE_CROSS_PUBLISHER_REACH,
-      expectedCrossPublisherImpressions = EXPECTED_TRUSTEE_CROSS_PUBLISHER_IMPRESSIONS,
-      expectedKPlusReach = EXPECTED_TRUSTEE_K_PLUS_REACH,
-      expectedEdpSpec1Reach = EXPECTED_TRUSTEE_EDP_SPEC1_REACH,
-      expectedEdpSpec2Reach = EXPECTED_TRUSTEE_EDP_SPEC2_REACH,
+      expectedCrossPublisherReach = EXPECTED_TRUSTEE_K_ANON_CROSS_PUBLISHER_REACH,
+      expectedCrossPublisherImpressions = EXPECTED_TRUSTEE_K_ANON_CROSS_PUBLISHER_IMPRESSIONS,
+      expectedKPlusReach = EXPECTED_TRUSTEE_K_ANON_K_PLUS_REACH,
+      expectedEdpSpec1Reach = EXPECTED_TRUSTEE_K_ANON_EDP_SPEC1_REACH,
+      expectedEdpSpec2Reach = EXPECTED_TRUSTEE_K_ANON_EDP_SPEC2_REACH,
     )
   }
 
@@ -78,7 +79,7 @@ class GCloudEdpAggregatorLifeOfAReportKAnonNoNoiseTest :
     @JvmStatic
     fun initConfig() {
       InProcessCmmsComponents.initConfig(
-        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG_K_ANON_NO_NOISE,
+        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG_THRESHOLDS_NO_NOISE_HIGH,
         hmssProtocolConfigConfig =
           hmssProtocolConfigConfig {
             protocolConfig =

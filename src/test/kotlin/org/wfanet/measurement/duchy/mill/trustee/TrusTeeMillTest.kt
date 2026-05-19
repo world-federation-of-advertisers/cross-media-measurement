@@ -780,8 +780,8 @@ class TrusTeeMillTest {
           delta = 0.1
         }
         noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
-        kAnonymityParams =
-          TrusTeeKt.ComputationDetailsKt.kAnonymityParams {
+        resultMinimumThresholds =
+          TrusTeeKt.ComputationDetailsKt.resultMinimumThresholds {
             minUsers = 1
             minImpressions = 1
           }

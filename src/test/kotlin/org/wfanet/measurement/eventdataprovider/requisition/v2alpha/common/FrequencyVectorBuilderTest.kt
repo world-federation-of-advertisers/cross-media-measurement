@@ -569,9 +569,9 @@ class FrequencyVectorBuilderTest {
   }
 
   @Test
-  fun `ByteArray constructor with kAnonymityParams for reach measurement`() {
-    val kAnonymityParams =
-      org.wfanet.measurement.computation.KAnonymityParams(
+  fun `ByteArray constructor with resultMinimumThresholds for reach measurement`() {
+    val resultMinimumThresholds =
+      org.wfanet.measurement.computation.ResultMinimumThresholds(
         minUsers = 10,
         minImpressions = 10,
         reachMaxFrequencyPerUser = 3,
@@ -592,7 +592,7 @@ class FrequencyVectorBuilderTest {
         frequencyDataBytes = frequencyDataBytes,
         strict = false,
         overrideImpressionMaxFrequencyPerUser = null,
-        kAnonymityParams = kAnonymityParams,
+        resultMinimumThresholds = resultMinimumThresholds,
       )
 
     // For reach with k-anonymity, frequencies should be capped at reachMaxFrequencyPerUser (3)

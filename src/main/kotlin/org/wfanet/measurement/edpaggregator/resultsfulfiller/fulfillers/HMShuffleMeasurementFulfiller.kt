@@ -31,7 +31,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.Requisiti
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.computation.KAnonymityParams
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.KAnonymizer
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.FulfillRequisitionRequestBuilder
@@ -101,7 +101,7 @@ class HMShuffleMeasurementFulfiller(
       dataProviderCertificateKey: DataProviderCertificateKey,
       requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
       requisitionsStub: RequisitionsCoroutineStub,
-      kAnonymityParams: KAnonymityParams,
+      resultMinimumThresholds: ResultMinimumThresholds,
       maxPopulation: Int?,
       generateSecretShares: (ByteArray) -> (ByteArray) =
         SecretShareGeneratorAdapter::generateSecretShares,
@@ -111,7 +111,7 @@ class HMShuffleMeasurementFulfiller(
           measurementSpec,
           populationSpec,
           frequencyVectorBuilder,
-          kAnonymityParams,
+          resultMinimumThresholds,
           maxPopulation,
         )
       return HMShuffleMeasurementFulfiller(

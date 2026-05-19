@@ -24,7 +24,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.IMPRESSION_QUALIFICATION_FILTER_MAPPING
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
-import org.wfanet.measurement.integration.common.TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_K_ANON_HIGH_THRESHOLD
+import org.wfanet.measurement.integration.common.TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_THRESHOLDS
 import org.wfanet.measurement.integration.deploy.gcloud.InternalReportingServicesProviderRule
 import org.wfanet.measurement.integration.deploy.gcloud.KingdomDataServicesProviderRule
 import org.wfanet.measurement.integration.deploy.gcloud.SpannerAccessServicesFactory
@@ -38,10 +38,9 @@ import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 
 /**
  * Implementation of [InProcessEdpAggregatorLifeOfAReportTest] for GCloud backends with Spanner
- * database. Uses Gaussian noise TrusTee protocol config with a very high k-anonymity threshold
- * (min_users=100000) that zeroes all TrusTee reach metrics regardless of noise.
+ * database. Uses Gaussian noise TrusTee protocol config with small-cell suppression.
  */
-class GCloudEdpAggregatorLifeOfAReportNoiseKAnonHighThresholdTest :
+class GCloudEdpAggregatorLifeOfAReportNoiseThresholdsTest :
   InProcessEdpAggregatorLifeOfAReportTest(
     kingdomDataServicesRule = KingdomDataServicesProviderRule(spannerEmulator),
     duchyDependenciesRule = SpannerDuchyDependencyProviderRule(spannerEmulator, ALL_DUCHY_NAMES),
@@ -58,6 +57,8 @@ class GCloudEdpAggregatorLifeOfAReportNoiseKAnonHighThresholdTest :
   @get:Rule val timeout: Timeout = Timeout.seconds(180)
 
   override fun assertTrusTeeResults(basicReport: BasicReport) {
+    assertStructuralResults(basicReport)
+
     val resultGroup = basicReport.resultGroupsList.single()
     val totalResults =
       resultGroup.resultsList.filter {
@@ -66,17 +67,12 @@ class GCloudEdpAggregatorLifeOfAReportNoiseKAnonHighThresholdTest :
     val result = totalResults.single()
     val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
 
-    assertWithMessage("cross-publisher reach zeroed by k-anon (noise)")
+    assertWithMessage("cross-publisher reach is positive (noise + small-cell suppression)")
       .that(reportingUnitCumulative.reach)
-      .isEqualTo(0L)
-
-    assertWithMessage("cross-publisher impressions positive (noise)")
+      .isGreaterThan(0L)
+    assertWithMessage("cross-publisher impressions is positive (noise + small-cell suppression)")
       .that(reportingUnitCumulative.impressions)
       .isGreaterThan(0L)
-
-    assertWithMessage("all k+ reach zeroed by k-anon (noise)")
-      .that(reportingUnitCumulative.kPlusReachList.all { it == 0L })
-      .isTrue()
   }
 
   companion object {
@@ -91,7 +87,7 @@ class GCloudEdpAggregatorLifeOfAReportNoiseKAnonHighThresholdTest :
     @JvmStatic
     fun initConfig() {
       InProcessCmmsComponents.initConfig(
-        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_K_ANON_HIGH_THRESHOLD,
+        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_THRESHOLDS,
         hmssProtocolConfigConfig =
           hmssProtocolConfigConfig {
             protocolConfig =

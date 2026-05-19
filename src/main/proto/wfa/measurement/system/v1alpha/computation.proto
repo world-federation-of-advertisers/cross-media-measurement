@@ -192,17 +192,17 @@ message Computation {
       NoiseMechanism noise_mechanism = 1
           [(google.api.field_behavior) = REQUIRED];
 
-      // Parameters for k-anonymity applied to the result. If the threshold is
-      // not met, a zero result is returned instead.
-      message KAnonymityParams {
+      // Parameters for small-cell suppression applied to the result. If the
+      // threshold is not met, a zero result is returned instead.
+      message ResultMinimumThresholds {
         // The minimum number of impressions.
         int32 min_impressions = 1;
         // The minimum number of unique users.
         int32 min_users = 2;
       }
 
-      // Optional k-anonymity parameters.
-      KAnonymityParams k_anonymity_params = 2;
+      // Optional small-cell suppression parameters.
+      ResultMinimumThresholds result_minimum_thresholds = 2;
     }
 
     // Configuration for the specific protocol. Required.
