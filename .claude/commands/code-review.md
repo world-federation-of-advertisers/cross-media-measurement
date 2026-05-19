@@ -43,9 +43,9 @@ To do this, follow these steps precisely:
 
 4. For each issue found in the previous step by agents 3 and 4, launch parallel subagents to validate the issue. These subagents should get the PR title and description along with a description of the issue. The agent's job is to review the issue to validate that the stated issue is truly an issue with high confidence. For example, if an issue such as "variable is not defined" was flagged, the subagent's job would be to validate that is actually true in the code. Another example would be CLAUDE.md issues. The agent should validate that the CLAUDE.md rule that was violated is scoped for this file and is actually violated. Use Opus subagents for bugs and logic issues, and sonnet agents for CLAUDE.md violations.
 
-6. Filter out any issues that were not validated in step 5. This step will give us our list of high signal issues for our review.
+5. Filter out any issues that were not validated in step 4. This step will give us our list of high signal issues for our review.
 
-7. Output a summary of the review findings to the terminal:
+6. Output a summary of the review findings to the terminal:
    - If issues were found, list each issue with a brief description.
    - If no issues were found, state: "No issues found. Checked for bugs and CLAUDE.md compliance."
 
@@ -53,11 +53,11 @@ To do this, follow these steps precisely:
 
    If `--comment` argument IS provided and NO issues were found, post a summary comment using `gh pr comment` and stop.
 
-   If `--comment` argument IS provided and issues were found, continue to step 8.
+   If `--comment` argument IS provided and issues were found, continue to step 7.
 
-8. Create a list of all comments that you plan on leaving. This is only for you to make sure you are comfortable with the comments. Do not post this list anywhere.
+7. Create a list of all comments that you plan on leaving. This is only for you to make sure you are comfortable with the comments. Do not post this list anywhere.
 
-9. Post inline comments for each issue using `mcp__github_inline_comment__create_inline_comment` with `confirmed: true`. For each comment:
+8. Post inline comments for each issue using `mcp__github_inline_comment__create_inline_comment` with `confirmed: true`. For each comment:
    - Provide a brief description of the issue
    - For small, self-contained fixes, include a committable suggestion block
    - For larger fixes (6+ lines, structural changes, or changes spanning multiple locations), describe the issue and suggested fix without a suggestion block
@@ -89,7 +89,7 @@ No issues found. Checked for bugs and CLAUDE.md compliance.
 
 ---
 
-- When linking to code in inline comments, follow the following format precisely, otherwise the Markdown preview won't render correctly: https://github.com/anthropics/claude-code/blob/c21d3c10bc8e898b7ac1a2d745bdc9bc4e423afe/package.json#L10-L15
+- When linking to code in inline comments, follow the following format precisely, otherwise the Markdown preview won't render correctly: https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/c21d3c10bc8e898b7ac1a2d745bdc9bc4e423afe/README.md#L10-L15
   - Requires full git sha
   - You must provide the full sha. Commands like `https://github.com/owner/repo/blob/$(git rev-parse HEAD)/foo/bar` will not work, since your comment will be directly rendered in Markdown.
   - Repo name must match the repo you're code reviewing
