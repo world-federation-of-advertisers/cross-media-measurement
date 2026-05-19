@@ -165,12 +165,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec> =
     eventGroupConfigsByEdp.values.flatMap { it.entries }.associate { it.key to it.value.spec }
 
-  private val entityKeyCountByRefId: Map<String, Int> =
-    eventGroupConfigsByEdp.values
-      .flatMap { it.entries }
-      .filter { it.value.blobEntityKeys.size > 1 }
-      .associate { it.key to it.value.blobEntityKeys.size }
-
   @get:Rule
   val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents =
     InProcessEdpAggregatorComponents(
@@ -285,7 +279,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
           .toName(),
         modelLineName = modelLineName,
         listEventGroupsEntityTypes = listOf("campaign", "ad_group", "creative-id"),
-        entityKeyCountByRefId = entityKeyCountByRefId,
       )
   }
 
@@ -306,7 +299,11 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       // Use frontend simulator to create a direct reach and frequency measurement and verify
       // its
       // result.
-      mcSimulator.testDirectReachAndFrequency(runId = "1234", numMeasurements = 1)
+      mcSimulator.testDirectReachAndFrequency(
+        runId = "1234",
+        numMeasurements = 1,
+        eventGroupFilter = { it.eventGroupReferenceId != MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID },
+      )
     }
 
   @Test
@@ -315,7 +312,11 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       // Use frontend simulator to create a direct reach and frequency measurement and verify
       // its
       // result.
-      mcSimulator.testDirectReachOnly(runId = "1234", numMeasurements = 1)
+      mcSimulator.testDirectReachOnly(
+        runId = "1234",
+        numMeasurements = 1,
+        eventGroupFilter = { it.eventGroupReferenceId != MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID },
+      )
     }
 
   @Test

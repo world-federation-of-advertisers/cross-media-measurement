@@ -576,35 +576,12 @@ class InProcessEdpAggregatorComponents(
           storagePath.toFile(),
           "file:///",
         )
-      val blobEntityKeys: List<EntityKey> = config.blobEntityKeys
       val entityKeyedEvents: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
-        if (blobEntityKeys.size > 1) {
-          events.map { shard ->
-            val materializedEvents = shard.labeledEvents.toList()
-            val chunkSize = materializedEvents.size / blobEntityKeys.size
-            EntityKeyedLabeledEventDateShard(
-              shard.localDate,
-              blobEntityKeys
-                .mapIndexed { i, entityKey ->
-                  val start = i * chunkSize
-                  val end =
-                    if (i == blobEntityKeys.lastIndex) materializedEvents.size
-                    else start + chunkSize
-                  EntityKeysWithLabeledEvents(
-                    listOf(entityKey),
-                    materializedEvents.subList(start, end).asSequence(),
-                  )
-                }
-                .asSequence(),
-            )
-          }
-        } else {
-          events.map {
-            EntityKeyedLabeledEventDateShard(
-              it.localDate,
-              sequenceOf(EntityKeysWithLabeledEvents(blobEntityKeys, it.labeledEvents)),
-            )
-          }
+        events.map {
+          EntityKeyedLabeledEventDateShard(
+            it.localDate,
+            sequenceOf(EntityKeysWithLabeledEvents(config.blobEntityKeys, it.labeledEvents)),
+          )
         }
       impressionWriter.writeLabeledImpressionData(entityKeyedEvents, modelLineName, null)
     }

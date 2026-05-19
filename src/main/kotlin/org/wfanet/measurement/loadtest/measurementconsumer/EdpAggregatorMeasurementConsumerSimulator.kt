@@ -69,7 +69,6 @@ class EdpAggregatorMeasurementConsumerSimulator(
   maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
   listEventGroupsEntityTypes: List<String>,
   onMeasurementsCreated: (() -> Unit)? = null,
-  private val entityKeyCountByRefId: Map<String, Int> = emptyMap(),
 ) :
   MeasurementConsumerSimulator(
     measurementConsumerData,
@@ -130,21 +129,12 @@ class EdpAggregatorMeasurementConsumerSimulator(
       .flatMap { (syntheticEventGroupSpec, expression, collectionInterval, refId) ->
         val program: Program =
           EventFilters.compileProgram(messageInstance.descriptorForType, expression)
-        val totalEntityKeys = entityKeyCountByRefId.getOrDefault(refId, 1)
         SyntheticDataGeneration.generateEvents(
             messageInstance,
             syntheticPopulationSpec,
             syntheticEventGroupSpec,
           )
-          .flatMap { shard ->
-            val allEvents = shard.labeledEvents.toList()
-            if (totalEntityKeys > 1) {
-              val chunkSize = allEvents.size / totalEntityKeys
-              allEvents.subList(0, chunkSize).asSequence()
-            } else {
-              allEvents.asSequence()
-            }
-          }
+          .flatMap { shard -> shard.labeledEvents }
           .filter { impression -> EventFilters.matches(impression.message, program) }
           .filter { impression ->
             targetDataProviderId != null ||
