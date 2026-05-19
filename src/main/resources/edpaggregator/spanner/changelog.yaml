@@ -31,3 +31,15 @@ databaseChangeLog:
   - include:
       file: create-raw-impression-metadata-schema.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-raw-impression-fk.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: refactor-raw-impression-schema.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: add-impression-metadata-entity-keys.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: add-update-request-id.sql
+      relativeToChangeLogFile: true

@@ -39,9 +39,11 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest as CmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt as CmmsListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsResponse as CmmsListEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerEventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.api.v2alpha.dateInterval as cmmsDateInterval
+import org.wfanet.measurement.api.v2alpha.getEventGroupRequest as cmmsGetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
@@ -53,6 +55,7 @@ import org.wfanet.measurement.reporting.v2alpha.DateInterval
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupKt
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
+import org.wfanet.measurement.reporting.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.reporting.v2alpha.MediaType
@@ -67,6 +70,52 @@ class EventGroupsService(
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val ticker: Ticker = Deadline.getSystemTicker(),
 ) : EventGroupsCoroutineImplBase(coroutineContext) {
+  override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup {
+    val eventGroupKey =
+      grpcRequireNotNull(EventGroupKey.fromName(request.name)) {
+        "EventGroup name is either unspecified or invalid"
+      }
+
+    val measurementConsumerName =
+      MeasurementConsumerKey(eventGroupKey.cmmsMeasurementConsumerId).toName()
+    authorization.check(measurementConsumerName, GET_EVENT_GROUP_PERMISSIONS)
+
+    val measurementConsumerConfig =
+      measurementConsumerConfigs.configsMap[measurementConsumerName]
+        ?: throw Status.INTERNAL.withDescription(
+            "MeasurementConsumerConfig not found for $measurementConsumerName"
+          )
+          .asRuntimeException()
+
+    val apiAuthenticationKey: String = measurementConsumerConfig.apiKey
+
+    val cmmsEventGroupKey =
+      MeasurementConsumerEventGroupKey(
+        measurementConsumerId = eventGroupKey.cmmsMeasurementConsumerId,
+        eventGroupId = eventGroupKey.cmmsEventGroupId,
+      )
+
+    val cmmsEventGroup =
+      try {
+        cmmsEventGroupsStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .getEventGroup(cmmsGetEventGroupRequest { name = cmmsEventGroupKey.toName() })
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND ->
+            Status.NOT_FOUND.withDescription("EventGroup not found")
+              .withCause(e)
+              .asRuntimeException()
+          else ->
+            Status.INTERNAL.withDescription("Error getting EventGroup from backend")
+              .withCause(e)
+              .asRuntimeException()
+        }
+      }
+
+    return cmmsEventGroup.toEventGroup()
+  }
+
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
     val parentKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
@@ -191,6 +240,16 @@ class EventGroupsService(
               }
               EventGroupMetadata.SelectorCase.SELECTOR_NOT_SET -> error("metadata not set")
             }
+            if (source.eventGroupMetadata.hasEntityMetadata()) {
+              entityMetadata = source.eventGroupMetadata.entityMetadata
+            }
+          }
+      }
+      if (source.hasEntityKey()) {
+        entityKey =
+          EventGroupKt.entityKey {
+            entityType = source.entityKey.entityType
+            entityId = source.entityKey.entityId
           }
       }
       aggregatedActivities += source.aggregatedActivitiesList.map { it.toAggregatedActivity() }
@@ -207,6 +266,7 @@ class EventGroupsService(
     /** Default RPC deadline in milliseconds. */
     private const val RPC_DEFAULT_DEADLINE_MILLIS = 30_000L
 
+    val GET_EVENT_GROUP_PERMISSIONS = setOf("reporting.eventGroups.get")
     val LIST_EVENT_GROUPS_PERMISSIONS = setOf("reporting.eventGroups.list")
   }
 }
@@ -216,6 +276,7 @@ private fun CmmsMediaType.toMediaType(): MediaType {
     CmmsMediaType.VIDEO -> MediaType.VIDEO
     CmmsMediaType.DISPLAY -> MediaType.DISPLAY
     CmmsMediaType.OTHER -> MediaType.OTHER
+    CmmsMediaType.NATIVE -> MediaType.NATIVE
     CmmsMediaType.MEDIA_TYPE_UNSPECIFIED -> MediaType.MEDIA_TYPE_UNSPECIFIED
     CmmsMediaType.UNRECOGNIZED -> error("MediaType unrecognized")
   }
@@ -226,6 +287,7 @@ private fun MediaType.toCmmsMediaType(): CmmsMediaType {
     MediaType.VIDEO -> CmmsMediaType.VIDEO
     MediaType.DISPLAY -> CmmsMediaType.DISPLAY
     MediaType.OTHER -> CmmsMediaType.OTHER
+    MediaType.NATIVE -> CmmsMediaType.NATIVE
     MediaType.MEDIA_TYPE_UNSPECIFIED -> CmmsMediaType.MEDIA_TYPE_UNSPECIFIED
     MediaType.UNRECOGNIZED -> error("MediaType unrecognized")
   }
@@ -271,6 +333,10 @@ private fun ListEventGroupsRequest.Filter.toCmmsFilter(): CmmsListEventGroupsReq
       validateActivityContains(source.activityContains)
       activityContains = source.activityContains.toCmmsDateInterval()
     }
+    // Forward entity_type_in as-is. When the caller leaves it empty, we pass
+    // empty to CMMS, which applies its own default of ["campaign"] so legacy
+    // clients continue to see only legacy EventGroups.
+    entityTypeIn += source.entityTypeInList
   }
 }
 

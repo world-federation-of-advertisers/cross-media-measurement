@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/internal/kingdom/date_interval.proto";
@@ -83,4 +84,23 @@ message EventGroup {
   //
   // Only set when the view is `WITH_ACTIVITY_SUMMARY`.
   repeated AggregatedActivity aggregated_activities = 15;
+
+  // Key of the entity in the DataProvider's system that this EventGroup
+  // represents.
+  message EntityKey {
+    // Type of the entity in the DataProvider's system.
+    string entity_type = 1;
+    // ID of the entity in the DataProvider's system.
+    string entity_id = 2;
+  }
+  // Entity in the DataProvider's system that this EventGroup represents. Must
+  // be unique across all EventGroups for the parent (DataProvider,
+  // MeasurementConsumer) pair when specified. Maps to the EntityType and
+  // EntityId columns on the EventGroups Spanner table.
+  EntityKey entity_key = 16;
+
+  // Metadata for the entity that the EventGroup represents. The schema is
+  // specific to the (DataProvider, EntityKey.entity_type) pair. Stored
+  // serialized in the EntityMetadata column on the EventGroups Spanner table.
+  google.protobuf.Struct entity_metadata = 17;
 }

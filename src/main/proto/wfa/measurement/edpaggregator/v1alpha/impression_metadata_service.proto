@@ -38,6 +38,18 @@ service ImpressionMetadataService {
   rpc BatchCreateImpressionMetadata(BatchCreateImpressionMetadataRequest)
       returns (BatchCreateImpressionMetadataResponse) {}
 
+  // Updates an existing ImpressionMetadata entry.
+  rpc UpdateImpressionMetadata(UpdateImpressionMetadataRequest)
+      returns (ImpressionMetadata) {}
+
+  // Updates multiple ImpressionMetadata entries in a single request.
+  //
+  // (-- api-linter: core::0234::request-requests-field=disabled
+  //     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata" to
+  //     "Metadatum".  --)
+  rpc BatchUpdateImpressionMetadata(BatchUpdateImpressionMetadataRequest)
+      returns (BatchUpdateImpressionMetadataResponse) {}
+
   // Retrieves a specific ImpressionMetadata entry.
   rpc GetImpressionMetadata(GetImpressionMetadataRequest)
       returns (ImpressionMetadata) {}
@@ -57,7 +69,7 @@ service ImpressionMetadataService {
   // Computes the time bounds for all ModelLines for a DataProvider.
   //
   // This method returns, for each requested ModelLine, the interval spanning
-  // from the earliest start time to the latest end time across all
+  // from the earliest start time to the latest end time across all
   // ImpressionMetadata resources in the ACTIVE state.
   //
   // Callers are responsible for ensuring that all expected ImpressionMetadata
@@ -121,6 +133,53 @@ message BatchCreateImpressionMetadataResponse {
   repeated ImpressionMetadata impression_metadata = 1;
 }
 
+// Request message for the `UpdateImpressionMetadata` method.
+// (-- api-linter: core::0134::request-mask-required=disabled
+//     aip.dev/not-precedent: Partial update not supported;
+//     all mutable fields are always updated together. --)
+message UpdateImpressionMetadataRequest {
+  // The ImpressionMetadata to update.
+  // The `name` field identifies the resource to update.
+  ImpressionMetadata impression_metadata = 1
+      [(google.api.field_behavior) = REQUIRED];
+
+  // A unique identifier for this request, used for idempotency.
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 2 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for the `BatchUpdateImpressionMetadata` method.
+// (-- api-linter: core::0234::request-requests-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata" to
+//     "Metadatum".  --)
+message BatchUpdateImpressionMetadataRequest {
+  // The parent data provider resource name.
+  // Format: `dataProviders/{data_provider}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
+    }
+  ];
+
+  // The list of ImpressionMetadata to update.
+  repeated UpdateImpressionMetadataRequest requests = 2
+      [(google.api.field_behavior) = REQUIRED];
+}
+
+// Response message for the `BatchUpdateImpressionMetadata` method.
+// (-- api-linter: core::0234::response-resource-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata" to
+//     "Metadatum".  --)
+message BatchUpdateImpressionMetadataResponse {
+  // The list of updated ImpressionMetadata, in the same order as the request.
+  repeated ImpressionMetadata impression_metadata = 1;
+}
+
 // Request message for the `GetImpressionMetadata` method.
 message GetImpressionMetadataRequest {
   // The resource name of the ImpressionMetadata to retrieve.
@@ -178,6 +237,14 @@ message ListImpressionMetadataRequest {
 
     // The blob URI prefix to filter by.
     string blob_uri_prefix = 4 [(google.api.field_behavior) = OPTIONAL];
+
+    // Filter by entity keys. OR-semantics: a metadata entry matches if its
+    // `entity_keys` set contains at least one of the entries listed here.
+    repeated EntityKey entity_keys = 5 [(google.api.field_behavior) = OPTIONAL];
+
+    // Filter by exact blob URIs. Only entries whose `blob_uri` matches
+    // one of the given values are returned.
+    repeated string blob_uris = 6 [(google.api.field_behavior) = OPTIONAL];
   }
 
   // A flag indicating whether to include soft DELETED entries.

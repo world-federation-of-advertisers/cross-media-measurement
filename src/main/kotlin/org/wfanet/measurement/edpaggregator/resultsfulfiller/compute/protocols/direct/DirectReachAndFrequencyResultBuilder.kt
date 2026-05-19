@@ -122,7 +122,7 @@ class DirectReachAndFrequencyResultBuilder(
       maxFrequency = maxFrequency,
       dpParams = frequencyDpParams,
       kAnonymityParams = kAnonymityParams,
-      vidSamplingIntervalWidth = samplingRate,
+      vidSamplingIntervalWidth = samplingRate.toDouble(),
     )
   }
 
@@ -143,7 +143,7 @@ class DirectReachAndFrequencyResultBuilder(
     return ReachAndFrequencyComputations.computeReach(
       rawHistogram = histogram,
       dpParams = reachDpParams,
-      vidSamplingIntervalWidth = samplingRate,
+      vidSamplingIntervalWidth = samplingRate.toDouble(),
       vectorSize = maxPopulation,
       kAnonymityParams = kAnonymityParams,
     )

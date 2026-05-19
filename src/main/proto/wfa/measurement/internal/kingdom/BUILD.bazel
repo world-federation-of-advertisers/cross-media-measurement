@@ -356,6 +356,7 @@ proto_library(
         ":event_group_details_proto",
         ":media_type_proto",
         "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:struct_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -903,6 +904,8 @@ proto_library(
 proto_descriptor_set(
     name = "details_descriptor_set",
     deps = [
+        "@com_google_protobuf//:struct_proto",
+    ] + [
         ":{name}_details_proto".format(name = name)
         for name in DETAILS_LIBS
     ],

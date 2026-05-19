@@ -12,25 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os, json
+#!/usr/bin/env bash
+set -euo pipefail
 
-pr_data = json.loads(os.environ["JSON"])
+if [ "$#" -ne 2 ]; then
+  echo "Usage: $0 <MILESTONE> <ISSUE_SEARCH>" >&2
+  exit 1
+fi
 
-# keep the order in which they were first seen.
-items = []
-seen = set()
+MILESTONE=$1
+ISSUE_SEARCH=$2
 
-for pr in pr_data:
-  for issue in pr.get("issues", []):
-    if issue["type"] == "Bug":
-      title = issue["title"].rstrip('.')
-      ref = issue["id"]
-      note = f"{title}. See [Issue #{ref}]"
-      if note not in seen:
-        seen.add(note)
-        items.append(note)
+notes_json_array=$(
+  gh issue list \
+    --milestone "${MILESTONE}" \
+    --search "${ISSUE_SEARCH}" \
+    --json number,title \
+    --jq 'map("\(.title). See [Issue #\(.number)]")'
+)
 
-json_output = json.dumps(items)
-print(json_output)
-with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-  print(f"json={json_output}", file=f)
+printf 'json=%s\n' "$(jq -c . <<< "${notes_json_array}")"

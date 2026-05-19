@@ -182,7 +182,7 @@ val PERMISSIONS_CONFIG: PermissionsConfig =
     PermissionsConfig.getDefaultInstance(),
   )
 
-val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3")
+val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3", "edp4")
 
 const val DUCHY_MILL_PARALLELISM = 3
 
@@ -259,6 +259,7 @@ fun getResultsFulfillerParams(
   edpCertificateKey: DataProviderCertificateKey,
   labeledImpressionBlobUriPrefix: String,
   noiseType: ResultsFulfillerParams.NoiseParams.NoiseType,
+  supportedMultiPartyNoiseTypes: List<ResultsFulfillerParams.NoiseParams.NoiseType>,
 ): ResultsFulfillerParams {
   return resultsFulfillerParams {
     this.dataProvider = edpResourceName
@@ -282,6 +283,12 @@ fun getResultsFulfillerParams(
         edpCertificateName = edpCertificateKey.toName()
       }
     this.noiseParams = ResultsFulfillerParamsKt.noiseParams { this.noiseType = noiseType }
+    if (supportedMultiPartyNoiseTypes.isNotEmpty()) {
+      this.multiPartyConfig =
+        ResultsFulfillerParamsKt.multiPartyConfig {
+          this.supportedNoiseTypes += supportedMultiPartyNoiseTypes
+        }
+    }
   }
 }
 

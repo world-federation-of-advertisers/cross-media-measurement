@@ -148,7 +148,7 @@ class DirectImpressionResultBuilder(
     return ImpressionComputations.computeImpressionCount(
       rawHistogram = histogram,
       dpParams = dpParams,
-      vidSamplingIntervalWidth = samplingRate,
+      vidSamplingIntervalWidth = samplingRate.toDouble(),
       kAnonymityParams = kAnonymityParams,
       maxFrequency = maxFrequency.toLong(),
     )

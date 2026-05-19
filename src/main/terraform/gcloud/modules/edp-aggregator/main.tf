@@ -148,6 +148,7 @@ locals {
     "data_availability_sync"    = module.data_availability_sync_cloud_function.cloud_function_service_account.email
     "data_watcher_delete"       = module.data_watcher_delete_cloud_function.cloud_function_service_account.email
     "data_availability_cleanup" = module.data_availability_cleanup_cloud_function.cloud_function_service_account.email
+    "data_availability_monitor" = module.data_availability_monitor_cloud_function.cloud_function_service_account.email
   }
 
   otel_metadata = {
@@ -166,6 +167,8 @@ module "edp_aggregator_bucket" {
 
   name     = var.edp_aggregator_bucket_name
   location = var.edp_aggregator_buckets_location
+
+  versioning_enabled = true
 
   # Per-EDP lifecycle rules for impression data retention
   lifecycle_rules = [
@@ -211,6 +214,18 @@ resource "google_storage_bucket_object" "upload_edps_config" {
   name   = var.edps_config.destination
   bucket = module.config_files_bucket.storage_bucket.name
   source = var.edps_config.local_path
+}
+
+resource "google_storage_bucket_object" "upload_event_group_sync_config" {
+  name   = var.event_group_sync_config.destination
+  bucket = module.config_files_bucket.storage_bucket.name
+  source = var.event_group_sync_config.local_path
+}
+
+resource "google_storage_bucket_object" "upload_data_availability_sync_config" {
+  name   = var.data_availability_sync_config.destination
+  bucket = module.config_files_bucket.storage_bucket.name
+  source = var.data_availability_sync_config.local_path
 }
 
 resource "google_storage_bucket_object" "upload_results_fulfiller_proto_descriptors" {
@@ -449,6 +464,24 @@ resource "google_storage_bucket_iam_member" "results_fulfiller_config_storage_vi
   member = "serviceAccount:${module.result_fulfiller_tee_app.mig_service_account.email}"
 }
 
+resource "google_storage_bucket_iam_member" "event_group_sync_config_storage_viewer" {
+  bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.event_group_sync_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "data_availability_sync_config_storage_viewer" {
+  bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "data_availability_cleanup_config_storage_viewer" {
+  bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.data_availability_cleanup_cloud_function.cloud_function_service_account.email}"
+}
+
 resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
   depends_on = [module.event_group_sync_cloud_function]
   service    = var.event_group_sync_function_name
@@ -598,4 +631,47 @@ resource "google_project_iam_member" "telemetry_trace_agent" {
   project  = data.google_project.project.id
   role     = "roles/cloudtrace.agent"
   member   = "serviceAccount:${each.value}"
+}
+
+resource "google_storage_bucket_object" "upload_data_availability_monitor_config" {
+  name   = var.data_availability_monitor_config.destination
+  bucket = module.config_files_bucket.storage_bucket.name
+  source = var.data_availability_monitor_config.local_path
+}
+
+module "data_availability_monitor_cloud_function" {
+  source = "../http-cloud-function"
+
+  depends_on = [
+    module.secrets,
+    google_storage_bucket_object.upload_data_availability_monitor_config,
+  ]
+
+  http_cloud_function_service_account_name = var.data_availability_monitor_service_account_name
+  terraform_service_account                = var.terraform_service_account
+  function_name                            = var.cloud_function_configs.data_availability_monitor.function_name
+  entry_point                              = var.cloud_function_configs.data_availability_monitor.entry_point
+  extra_env_vars                           = var.cloud_function_configs.data_availability_monitor.extra_env_vars
+  secret_mappings                          = var.cloud_function_configs.data_availability_monitor.secret_mappings
+  uber_jar_path                            = var.cloud_function_configs.data_availability_monitor.uber_jar_path
+}
+
+module "data_availability_monitor_cloud_scheduler" {
+  source                    = "../cloud-scheduler"
+  terraform_service_account = var.terraform_service_account
+  scheduler_config          = var.data_availability_monitor_scheduler_config
+  depends_on                = [module.data_availability_monitor_cloud_function]
+}
+
+resource "google_storage_bucket_iam_member" "data_availability_monitor_storage_viewer" {
+  depends_on = [module.data_availability_monitor_cloud_function]
+  bucket     = module.edp_aggregator_bucket.storage_bucket.name
+  role       = "roles/storage.objectViewer"
+  member     = "serviceAccount:${module.data_availability_monitor_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "data_availability_monitor_config_storage_viewer" {
+  bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.data_availability_monitor_cloud_function.cloud_function_service_account.email}"
 }

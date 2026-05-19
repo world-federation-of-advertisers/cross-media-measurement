@@ -19,6 +19,7 @@ package wfa.measurement.reporting.v2alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/any.proto";
+import "google/protobuf/struct.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/reporting/v2alpha/date_interval.proto";
 import "wfa/measurement/reporting/v2alpha/media_type.proto";
@@ -101,6 +102,11 @@ message EventGroup {
       // Metadata for an [EventGroup][] containing ad impression events.
       AdMetadata ad_metadata = 1;
     }
+
+    // Metadata for the entity that the [EventGroup][] represents. The schema
+    // is specific to the ([DataProvider][],
+    // [EventGroup.EntityKey.entity_type][]) pair.
+    google.protobuf.Struct entity_metadata = 2;
   }
   // Metadata for this [EventGroup][]. This will eventually replace [metadata][]
   // and be required.
@@ -132,4 +138,17 @@ message EventGroup {
   // Only set when the view is `WITH_ACTIVITY_SUMMARY`.
   repeated AggregatedActivity aggregated_activities = 10
       [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Key of the entity in the DataProvider's system that this [EventGroup][]
+  // represents.
+  message EntityKey {
+    // Type of the entity in the DataProvider's system.
+    string entity_type = 1 [(google.api.field_behavior) = REQUIRED];
+    // ID of the entity in the DataProvider's system.
+    string entity_id = 2 [(google.api.field_behavior) = REQUIRED];
+  }
+  // Entity in the DataProvider's system that this [EventGroup][] represents.
+  // If specified, this is unique across all [EventGroup][]s for the parent
+  // ([DataProvider][], [MeasurementConsumer][]) pair.
+  EntityKey entity_key = 11;
 }

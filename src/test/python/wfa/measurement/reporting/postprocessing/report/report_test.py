@@ -15,6 +15,9 @@
 import unittest
 
 from unittest.mock import MagicMock
+from unittest.mock import patch
+
+from qpsolvers import Solution
 
 from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import MeasurementSet
@@ -42,6 +45,7 @@ from wfa.measurement.internal.reporting.postprocessing import report_post_proces
 StatusCode = report_post_processor_result_pb2.ReportPostProcessorStatus.StatusCode
 ReportQuality = report_post_processor_result_pb2.ReportQuality
 LargeCorrection = report_post_processor_result_pb2.ReportPostProcessorResult.LargeCorrection
+ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
 
 EXPECTED_PRECISION = 1
 EDP_ONE = "EDP_ONE"
@@ -3063,23 +3067,13 @@ class TestReport(unittest.TestCase):
   def test_small_correction_for_unnoised_edp_does_not_log_large_correction(
       self
   ):
-    spec = SetMeasurementsSpec()
-    spec.add_subset_relation(1, 2)
-    spec.add_measurement(1, Measurement(48, 0, "measurement_01"))
-    spec.add_measurement(2, Measurement(48, 0, "measurement_02"))
-
-    solver = Solver(spec)
-
     def side_effect():
         return Solution(
-            x=[48.0033325, 48.00666747],
+            x=[48.00666747, 48.0033325],
             found=True,
-            problem=solver._problem()), ReportPostProcessorStatus(
+            problem=MagicMock()), ReportPostProcessorStatus(
                 status_code=StatusCode.SOLUTION_FOUND_WITH_OSQP)
 
-    mock_solve = MagicMock(side_effect=side_effect)
-    solver._solve = mock_solve
-    
     report = Report(
         metric_reports={
             "ami":
@@ -3124,8 +3118,8 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    corrected, report_post_processor_result = report.get_corrected_report()
-
+    with patch("src.main.python.wfa.measurement.reporting.postprocessing.report.report.Solver.solve", autospec=True, return_value=side_effect()):
+        corrected, report_post_processor_result = report.get_corrected_report()
     self.assertEqual(report_post_processor_result.status.status_code,
                      StatusCode.SOLUTION_FOUND_WITH_OSQP)
     self._assertReportsAlmostEqual(expected, corrected,

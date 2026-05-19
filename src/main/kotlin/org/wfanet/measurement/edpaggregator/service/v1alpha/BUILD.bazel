@@ -46,14 +46,57 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "raw_impression_metadata_batch_service",
+    srcs = [
+        "RawImpressionMetadataBatchService.kt",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:errors",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:errors",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_metadata_batch_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_metadata_batch_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_batch_state_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_metadata_batch_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_metadata_batch_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "raw_impression_metadata_batch_file_service",
+    srcs = [
+        "RawImpressionMetadataBatchFileService.kt",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:errors",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:errors",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_metadata_batch_file_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_metadata_batch_file_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_metadata_batch_file_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_metadata_batch_file_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
     name = "services",
     srcs = ["Services.kt"],
     deps = [
         ":impression_metadata_service",
+        ":raw_impression_metadata_batch_file_service",
+        ":raw_impression_metadata_batch_service",
         ":requisition_metadata_service",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_metadata_batch_file_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_metadata_batch_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:requisition_metadata_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:impression_metadata_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_metadata_batch_file_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_metadata_batch_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:requisition_metadata_service_kt_jvm_grpc_proto",
     ],
 )

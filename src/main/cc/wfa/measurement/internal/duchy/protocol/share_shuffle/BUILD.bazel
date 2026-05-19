@@ -48,6 +48,7 @@ cc_library(
     deps = [
         ":honest_majority_share_shuffle_utility_helper",
         "//src/main/cc/wfa/measurement/internal/duchy/protocol/common:noise_parameters_computation",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_cc_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:honest_majority_share_shuffle_methods_cc_proto",
         "@any_sketch//src/main/cc/crypto:shuffle",
         "@any_sketch//src/main/cc/math:distributed_discrete_gaussian_noiser",

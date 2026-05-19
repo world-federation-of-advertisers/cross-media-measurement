@@ -32,6 +32,17 @@ option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "BlobDetailsProto";
 
+// A group of entity IDs sharing the same entity type.
+message EntityKeyGroup {
+  // Type of the entity in the `DataProvider`'s system (a URL-safe string,
+  // e.g. "campaign", "ad_set", "ad").
+  string entity_type = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // Entity IDs of this type in the `DataProvider`'s system. Each must be
+  // a URL-safe string.
+  repeated string entity_ids = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
 // Message representing the info needed to retrieve a decrypted blob from
 // storage
 message BlobDetails {
@@ -41,8 +52,13 @@ message BlobDetails {
   // The encrypted dek used with KMS to decrypt data
   EncryptedDek encrypted_dek = 2 [(google.api.field_behavior) = REQUIRED];
 
-  // A map from event_group_reference_id to the EventGroup resource name.
-  string event_group_reference_id = 3 [(google.api.field_behavior) = REQUIRED];
+  // Reference ID of the `EventGroup` that produced this blob.
+  //
+  // Retained for backwards compatibility with legacy blobs written before
+  // `entity_keys` was introduced. New writers should populate `entity_keys`
+  // instead; readers must still accept blobs that only have this field set.
+  // At least one of `event_group_reference_id` or `entity_keys` must be set.
+  string event_group_reference_id = 3 [(google.api.field_behavior) = OPTIONAL];
 
   // The resource name of the ModelLine associated with these impressions.
   string model_line = 4 [
@@ -53,4 +69,20 @@ message BlobDetails {
   // Interval for when data from blob_uri is guaranteed to be available for a
   // Requisition fulfillment for the ModelLine indicated by model_line.
   google.type.Interval interval = 5 [(google.api.field_behavior) = REQUIRED];
+
+  // Entity keys of the `EventGroup` that produced this blob, grouped by
+  // entity type.
+  //
+  // This is the canonical selector for identifying which events belong to
+  // this blob in the filtering pipeline and must be populated by new
+  // writers. Readers must still accept legacy blobs written before this
+  // field existed, which may carry only `event_group_reference_id`; at
+  // least one of `event_group_reference_id` or `entity_keys` must be set.
+  //
+  // For each entity key listed, the blob is guaranteed to contain at least
+  // one impression associated with it. Conversely, every impression in the
+  // blob is associated with at least one of these entity keys, though an
+  // individual impression need not be associated with all of them.
+  repeated EntityKeyGroup entity_keys = 6
+      [(google.api.field_behavior) = REQUIRED];
 }

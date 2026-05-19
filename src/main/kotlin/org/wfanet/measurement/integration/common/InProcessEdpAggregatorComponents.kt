@@ -19,6 +19,7 @@ package org.wfanet.measurement.integration.common
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
+import com.google.protobuf.Struct
 import com.google.protobuf.timestamp
 import com.google.type.Interval
 import com.google.type.interval
@@ -72,6 +73,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey as edpaEntityKey
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
@@ -95,6 +97,9 @@ import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.deploy.gcloud.SecureComputationServicesProviderRule
+import org.wfanet.measurement.loadtest.dataprovider.EntityKey
+import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
+import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
@@ -112,15 +117,28 @@ import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
+/**
+ * Per-EventGroup override for the EDPA-side `entity_key` and `entity_metadata` fields, keyed in
+ * [InProcessEdpAggregatorComponents] by `(edpAggregatorShortName, eventGroupReferenceId)`. Either
+ * field may be left null; null fields fall back to the proto default (no entity_key / no
+ * entity_metadata).
+ */
+data class EventGroupConfig(
+  val spec: SyntheticEventGroupSpec,
+  val blobEntityKeys: List<EntityKey> = emptyList(),
+  val entityMetadata: Struct? = null,
+)
+
 class InProcessEdpAggregatorComponents(
   secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
   private val storagePath: Path,
   private val pubSubClient: GooglePubSubEmulatorClient,
   private val syntheticPopulationSpec: SyntheticPopulationSpec,
-  private val syntheticEventGroupMapByEdp: Map<String, Map<String, SyntheticEventGroupSpec>>,
+  private val eventGroupConfigsByEdp: Map<String, Map<String, EventGroupConfig>>,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val externalKmsClient: FakeKmsClient,
 ) : TestRule {
+  private val modelLineName: String by lazy { requireSingleModelLineName(modelLineInfoMap.keys) }
 
   private val storageClient: StorageClient = FileSystemStorageClient(storagePath.toFile())
 
@@ -244,6 +262,7 @@ class InProcessEdpAggregatorComponents(
     edpCapabilities: Map<String, DataProvider.Capabilities>,
     duchyMap: Map<String, Channel>,
     edpNoise: Map<String, ResultsFulfillerParams.NoiseParams.NoiseType>,
+    edpMultiPartyNoiseTypes: Map<String, List<ResultsFulfillerParams.NoiseParams.NoiseType>>,
   ) = runBlocking {
     require(edpNoise.keys == edpCapabilities.keys) {
       "edpNoise keys ${edpNoise.keys} must match edpCapabilities keys ${edpCapabilities.keys}"
@@ -279,6 +298,8 @@ class InProcessEdpAggregatorComponents(
               )!!,
               "file:///$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName",
               noiseType = edpNoise.getValue(edpAggregatorShortName),
+              supportedMultiPartyNoiseTypes =
+                edpMultiPartyNoiseTypes.getOrDefault(edpAggregatorShortName, emptyList()),
             )
         }
       getDataWatcherResultFulfillerParamsConfig(
@@ -351,6 +372,10 @@ class InProcessEdpAggregatorComponents(
       runBlocking { writeImpressionData(mappedEventGroups, edpAggregatorShortName) }
 
       mappedEventGroups.forEach { mappedEventGroup ->
+        val metaConfig: EventGroupConfig =
+          eventGroupConfigsByEdp
+            .getValue(edpAggregatorShortName)
+            .getValue(mappedEventGroup.eventGroupReferenceId)
         val events =
           SyntheticDataGeneration.generateEvents(
             TestEvent.getDefaultInstance(),
@@ -366,16 +391,15 @@ class InProcessEdpAggregatorComponents(
 
         val eventGroupReferenceId = mappedEventGroup.eventGroupReferenceId
         val eventGroupPath =
-          "model-line/${modelLineInfoMap.keys.first()}/event-group-reference-id/$eventGroupReferenceId"
+          "model-line/$modelLineName/event-group-reference-id/$eventGroupReferenceId"
         val impressionsMetadataBucket = "$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName"
-        val modelLine = modelLineInfoMap.keys.first()
 
         val impressionsMetadata: List<ImpressionMetadata> =
           buildImpressionMetadataForDateRange(
             startInclusive = startDate,
             endExclusive = endExclusive,
             eventGroupPath = eventGroupPath,
-            modelLine = modelLine,
+            modelLine = modelLineName,
             eventGroupReferenceId = eventGroupReferenceId,
             impressionsMetadataBucket = impressionsMetadataBucket,
           )
@@ -474,9 +498,9 @@ class InProcessEdpAggregatorComponents(
     measurementConsumerData: MeasurementConsumerData,
     edpAggregatorShortName: String,
   ): List<EventGroup> {
-    return syntheticEventGroupMapByEdp.getValue(edpAggregatorShortName).flatMap {
-      (eventGroupReferenceId, syntheticEventGroupSpec) ->
-      syntheticEventGroupSpec.dateSpecsList.map { dateSpec ->
+    return eventGroupConfigsByEdp.getValue(edpAggregatorShortName).flatMap {
+      (eventGroupReferenceId, config) ->
+      config.spec.dateSpecsList.map { dateSpec ->
         val dateRange = dateSpec.dateRange
         val startTime =
           LocalDate.of(dateRange.start.year, dateRange.start.month, dateRange.start.day)
@@ -505,6 +529,15 @@ class InProcessEdpAggregatorComponents(
                 campaign = "some-brand"
               }
             }
+            if (config.entityMetadata != null) {
+              this.entityMetadata = config.entityMetadata
+            }
+          }
+          if (config.blobEntityKeys.isNotEmpty()) {
+            this.entityKey = edpaEntityKey {
+              entityType = config.blobEntityKeys.first().entityType
+              entityId = config.blobEntityKeys.first().entityId
+            }
           }
           mediaTypes += MediaType.valueOf("VIDEO")
         }
@@ -524,6 +557,10 @@ class InProcessEdpAggregatorComponents(
     }
 
     mappedEventGroups.forEach { mappedEventGroup ->
+      val config: EventGroupConfig =
+        eventGroupConfigsByEdp
+          .getValue(edpAggregatorShortName)
+          .getValue(mappedEventGroup.eventGroupReferenceId)
       val events: Sequence<LabeledEventDateShard<TestEvent>> =
         SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
@@ -532,7 +569,6 @@ class InProcessEdpAggregatorComponents(
             .getValue(edpAggregatorShortName)
             .getValue(mappedEventGroup.eventGroupReferenceId),
         )
-      val modelLineName = modelLineInfoMap.keys.first()
       val impressionWriter =
         ImpressionsWriter(
           mappedEventGroup.eventGroupReferenceId,
@@ -544,7 +580,37 @@ class InProcessEdpAggregatorComponents(
           storagePath.toFile(),
           "file:///",
         )
-      impressionWriter.writeLabeledImpressionData(events, "some-model-line", null)
+      val blobEntityKeys: List<EntityKey> = config.blobEntityKeys
+      val entityKeyedEvents: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
+        if (blobEntityKeys.size > 1) {
+          events.map { shard ->
+            val materializedEvents = shard.labeledEvents.toList()
+            val chunkSize = materializedEvents.size / blobEntityKeys.size
+            EntityKeyedLabeledEventDateShard(
+              shard.localDate,
+              blobEntityKeys
+                .mapIndexed { i, entityKey ->
+                  val start = i * chunkSize
+                  val end =
+                    if (i == blobEntityKeys.lastIndex) materializedEvents.size
+                    else start + chunkSize
+                  EntityKeysWithLabeledEvents(
+                    listOf(entityKey),
+                    materializedEvents.subList(start, end).asSequence(),
+                  )
+                }
+                .asSequence(),
+            )
+          }
+        } else {
+          events.map {
+            EntityKeyedLabeledEventDateShard(
+              it.localDate,
+              sequenceOf(EntityKeysWithLabeledEvents(blobEntityKeys, it.labeledEvents)),
+            )
+          }
+        }
+      impressionWriter.writeLabeledImpressionData(entityKeyedEvents, modelLineName, null)
     }
   }
 
@@ -562,6 +628,14 @@ class InProcessEdpAggregatorComponents(
   }
 
   companion object {
+    internal fun requireSingleModelLineName(modelLineNames: Set<String>): String {
+      require(modelLineNames.size == 1) {
+        "InProcessEdpAggregatorComponents supports exactly one model line, found: " +
+          modelLineNames.sorted()
+      }
+      return modelLineNames.single()
+    }
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val BLOB_TYPE_URL =
       "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"

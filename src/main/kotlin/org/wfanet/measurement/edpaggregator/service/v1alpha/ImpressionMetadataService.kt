@@ -1,16 +1,18 @@
-// Copyright 2025 The Cross-Media Measurement Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Copyright 2025 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package org.wfanet.measurement.edpaggregator.service.v1alpha
 
@@ -35,26 +37,34 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadat
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchDeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchDeleteImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchUpdateImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchUpdateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.DeleteImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.GetImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.UpdateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.batchUpdateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateImpressionMetadataResponse as InternalBatchCreateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.BatchDeleteImpressionMetadataResponse as InternalBatchDeleteImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.BatchUpdateImpressionMetadataResponse as InternalBatchUpdateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse as InternalComputeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest as InternalCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.DeleteImpressionMetadataRequest as InternalDeleteImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.EntityKey as InternalEntityKey
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata as InternalImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub as InternalImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as InternalImpressionMetadataState
@@ -62,14 +72,18 @@ import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageT
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest as InternalListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequestKt.filter as internalListImpressionMetadataRequestFilter
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse as InternalListImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.UpdateImpressionMetadataRequest as InternalUpdateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataRequest as internalBatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataRequest as internalBatchDeleteImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.batchUpdateImpressionMetadataRequest as internalBatchUpdateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsRequest as internalComputeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.createImpressionMetadataRequest as internalCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.deleteImpressionMetadataRequest as internalDeleteImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.entityKey as internalEntityKey
 import org.wfanet.measurement.internal.edpaggregator.getImpressionMetadataRequest as internalGetImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.impressionMetadata as internalImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataRequest as internalListImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.updateImpressionMetadataRequest as internalUpdateImpressionMetadataRequest
 
 class ImpressionMetadataService(
   private val internalImpressionMetadataStub: InternalImpressionMetadataServiceCoroutineStub,
@@ -113,6 +127,11 @@ class ImpressionMetadataService(
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -133,7 +152,10 @@ class ImpressionMetadataService(
 
     val internalResponse: InternalImpressionMetadata =
       try {
-        val dataProviderKey: DataProviderKey = DataProviderKey.fromName(request.parent)!!
+        val dataProviderKey: DataProviderKey =
+          DataProviderKey.fromName(request.parent)
+            ?: throw InvalidFieldValueException("parent")
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
         internalImpressionMetadataStub.createImpressionMetadata(
           internalCreateImpressionMetadataRequest {
@@ -158,6 +180,11 @@ class ImpressionMetadataService(
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -190,7 +217,7 @@ class ImpressionMetadataService(
 
         val blobUri = it.impressionMetadata.blobUri
         if (!blobUriSet.add(blobUri)) {
-          throw InvalidFieldValueException("requests.$index.blob_uri") {
+          throw InvalidFieldValueException("requests.$index.impression_metadata.blob_uri") {
               "blob uri $blobUri is duplicate in the batch of requests"
             }
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -245,11 +272,170 @@ class ImpressionMetadataService(
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
 
     return batchCreateImpressionMetadataResponse {
+      impressionMetadata +=
+        internalResponse.impressionMetadataList.map { it.toImpressionMetadata() }
+    }
+  }
+
+  override suspend fun updateImpressionMetadata(
+    request: UpdateImpressionMetadataRequest
+  ): ImpressionMetadata {
+    try {
+      validateUpdateImpressionMetadataRequest(request, "")
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: InvalidFieldValueException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val impressionMetadataKey = ImpressionMetadataKey.fromName(request.impressionMetadata.name)
+    val dataProviderKey =
+      if (impressionMetadataKey != null) {
+        DataProviderKey(impressionMetadataKey.dataProviderId)
+      } else {
+        throw RequiredFieldNotSetException("impression_metadata.name")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
+    val internalResponse: InternalImpressionMetadata =
+      try {
+        internalImpressionMetadataStub.updateImpressionMetadata(
+          internalUpdateImpressionMetadataRequest {
+            this.requestId = request.requestId
+            impressionMetadata =
+              request.impressionMetadata.toInternal(dataProviderKey, impressionMetadataKey)
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->
+            ImpressionMetadataNotFoundException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return internalResponse.toImpressionMetadata()
+  }
+
+  override suspend fun batchUpdateImpressionMetadata(
+    request: BatchUpdateImpressionMetadataRequest
+  ): BatchUpdateImpressionMetadataResponse {
+    if (request.parent.isEmpty()) {
+      throw RequiredFieldNotSetException("parent")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val dataProviderKey =
+      DataProviderKey.fromName(request.parent)
+        ?: throw InvalidFieldValueException("parent")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    val blobUriSet = mutableSetOf<String>()
+    val requestIdSet = mutableSetOf<String>()
+
+    val internalRequests: List<InternalUpdateImpressionMetadataRequest> =
+      request.requestsList.mapIndexed { index, it ->
+        val blobUri = it.impressionMetadata.blobUri
+        if (!blobUriSet.add(blobUri)) {
+          throw InvalidFieldValueException("requests.$index.impression_metadata.blob_uri") {
+              "blob uri $blobUri is duplicate in the batch of requests"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
+        val requestId = it.requestId
+        if (requestId.isNotEmpty()) {
+          if (!requestIdSet.add(requestId)) {
+            throw InvalidFieldValueException("requests.$index.request_id") {
+                "request Id $requestId is duplicate in the batch of requests"
+              }
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          }
+        }
+
+        try {
+          validateUpdateImpressionMetadataRequest(it, "requests.$index.")
+        } catch (e: RequiredFieldNotSetException) {
+          throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        } catch (e: InvalidFieldValueException) {
+          throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
+        val impressionMetadataKey =
+          ImpressionMetadataKey.fromName(it.impressionMetadata.name)
+            ?: throw InvalidFieldValueException("requests.$index.impression_metadata.name")
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+        internalUpdateImpressionMetadataRequest {
+          this.requestId = requestId
+          impressionMetadata =
+            it.impressionMetadata.toInternal(dataProviderKey, impressionMetadataKey)
+        }
+      }
+
+    val internalResponse: InternalBatchUpdateImpressionMetadataResponse =
+      try {
+        internalImpressionMetadataStub.batchUpdateImpressionMetadata(
+          internalBatchUpdateImpressionMetadataRequest {
+            dataProviderResourceId = dataProviderKey.dataProviderId
+            requests += internalRequests
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->
+            ImpressionMetadataNotFoundException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return batchUpdateImpressionMetadataResponse {
       impressionMetadata +=
         internalResponse.impressionMetadataList.map { it.toImpressionMetadata() }
     }
@@ -293,6 +479,11 @@ class ImpressionMetadataService(
         InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
         InternalErrors.Reason.INVALID_FIELD_VALUE,
         InternalErrors.Reason.ETAG_MISMATCH,
+        InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+        InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+        InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+        InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+        InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }
@@ -369,6 +560,11 @@ class ImpressionMetadataService(
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -395,6 +591,14 @@ class ImpressionMetadataService(
     if (request.pageSize < 0) {
       throw InvalidFieldValueException("page_size")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    request.filter.entityKeysList.forEachIndexed { index, entityKey ->
+      try {
+        validateEntityKey(entityKey, "filter.entity_keys.$index")
+      } catch (e: RequiredFieldNotSetException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
     }
 
     val pageSize =
@@ -429,6 +633,10 @@ class ImpressionMetadataService(
         }
         if (request.filter.blobUriPrefix.isNotEmpty()) {
           blobUriPrefix = request.filter.blobUriPrefix
+        }
+        entityKeys += request.filter.entityKeysList.map { it.toInternal() }
+        if (request.filter.blobUrisList.isNotEmpty()) {
+          blobUris += request.filter.blobUrisList
         }
 
         state =
@@ -466,6 +674,11 @@ class ImpressionMetadataService(
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -513,6 +726,11 @@ class ImpressionMetadataService(
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -581,6 +799,83 @@ class ImpressionMetadataService(
     if (!request.impressionMetadata.hasInterval()) {
       throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.interval")
     }
+
+    request.impressionMetadata.entityKeysList.forEachIndexed { index, entityKey ->
+      validateEntityKey(entityKey, "${fieldPathPrefix}impression_metadata.entity_keys.$index")
+    }
+  }
+
+  /**
+   * Checks whether the specified update impression metadata request is valid.
+   *
+   * @throws RequiredFieldNotSetException
+   */
+  private fun validateUpdateImpressionMetadataRequest(
+    request: UpdateImpressionMetadataRequest,
+    fieldPathPrefix: String,
+  ) {
+    val requestId = request.requestId
+    if (requestId.isNotEmpty()) {
+      try {
+        UUID.fromString(requestId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("${fieldPathPrefix}request_id", e)
+      }
+    }
+
+    if (!request.hasImpressionMetadata()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata")
+    }
+
+    if (request.impressionMetadata.name.isEmpty()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.name")
+    }
+
+    if (request.impressionMetadata.blobUri.isEmpty()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.blob_uri")
+    }
+
+    if (request.impressionMetadata.blobTypeUrl.isEmpty()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.blob_type_url")
+    }
+
+    if (request.impressionMetadata.modelLine.isEmpty()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.model_line")
+    }
+
+    ModelLineKey.fromName(request.impressionMetadata.modelLine)
+      ?: throw InvalidFieldValueException("${fieldPathPrefix}impression_metadata.model_line")
+
+    if (!request.impressionMetadata.hasInterval()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.interval")
+    }
+
+    request.impressionMetadata.entityKeysList.forEachIndexed { index, entityKey ->
+      validateEntityKey(entityKey, "${fieldPathPrefix}impression_metadata.entity_keys.$index")
+    }
+
+    if (
+      request.impressionMetadata.eventGroupReferenceId.isEmpty() &&
+        request.impressionMetadata.entityKeysList.isEmpty()
+    ) {
+      throw RequiredFieldNotSetException(
+        "${fieldPathPrefix}impression_metadata.event_group_reference_id or entity_keys"
+      )
+    }
+  }
+
+  /**
+   * Checks that the specified [EntityKey] has both `entity_type` and `id` set.
+   *
+   * @throws RequiredFieldNotSetException if a required field is unset
+   */
+  private fun validateEntityKey(entityKey: EntityKey, fieldPath: String) {
+    if (entityKey.entityType.isEmpty()) {
+      throw RequiredFieldNotSetException("$fieldPath.entity_type")
+    }
+    if (entityKey.entityId.isEmpty()) {
+      throw RequiredFieldNotSetException("$fieldPath.entity_id")
+    }
   }
 
   companion object {
@@ -604,6 +899,7 @@ fun InternalImpressionMetadata.toImpressionMetadata(): ImpressionMetadata {
     state = source.state.toState()
     createTime = source.createTime
     updateTime = source.updateTime
+    entityKeys += source.entityKeysList.map { it.toPublic() }
   }
 }
 
@@ -625,6 +921,7 @@ fun ImpressionMetadata.toInternal(
     eventGroupReferenceId = source.eventGroupReferenceId
     cmmsModelLine = source.modelLine
     interval = source.interval
+    entityKeys += source.entityKeysList.map { it.toInternal() }
   }
 }
 
@@ -654,5 +951,23 @@ internal fun ImpressionMetadata.State.toInternal(): InternalImpressionMetadataSt
       InternalImpressionMetadataState.IMPRESSION_METADATA_STATE_DELETED
     ImpressionMetadata.State.UNRECOGNIZED,
     ImpressionMetadata.State.STATE_UNSPECIFIED -> error("Unrecognized state")
+  }
+}
+
+/** Converts an internal [InternalEntityKey] to a public [EntityKey]. */
+internal fun InternalEntityKey.toPublic(): EntityKey {
+  val source = this
+  return entityKey {
+    entityType = source.entityType
+    entityId = source.entityId
+  }
+}
+
+/** Converts a public [EntityKey] to an internal [InternalEntityKey]. */
+internal fun EntityKey.toInternal(): InternalEntityKey {
+  val source = this
+  return internalEntityKey {
+    entityType = source.entityType
+    entityId = source.entityId
   }
 }

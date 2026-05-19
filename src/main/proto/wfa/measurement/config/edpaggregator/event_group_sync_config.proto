@@ -42,3 +42,11 @@ message EventGroupSyncConfig {
   // Where the event group map is stored
   StorageParams event_group_map_storage = 6;
 }
+
+// Wrapper containing Event Group Sync configurations for all EDPs.
+// Loaded at startup from the EDPA config bucket.
+message EventGroupSyncConfigs {
+  // All the per-EDP Event Group Sync configs. Each entry must have a unique
+  // `data_provider` value.
+  repeated EventGroupSyncConfig configs = 1;
+}

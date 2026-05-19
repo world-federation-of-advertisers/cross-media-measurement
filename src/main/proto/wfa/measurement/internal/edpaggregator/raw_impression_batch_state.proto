@@ -22,7 +22,7 @@ option java_outer_classname = "RawImpressionBatchStateProto";
 
 // The processing state of a batch of raw impression files.
 enum RawImpressionBatchState {
-  // Default, unspecified state.
+  // Default, unspecified state. Should not be used.
   RAW_IMPRESSION_BATCH_STATE_UNSPECIFIED = 0;
   // The batch has been created and is awaiting VID labeling.
   RAW_IMPRESSION_BATCH_STATE_CREATED = 1;

@@ -227,6 +227,7 @@ class StorageEventSource(
           minTime = events.minOf { it.timestamp },
           maxTime = events.maxOf { it.timestamp },
           eventGroupReferenceId = blobDetails.eventGroupReferenceId,
+          entityKeys = blobDetails.entityKeysList,
         )
       sendEventBatch(eventBatch)
       batchCount++

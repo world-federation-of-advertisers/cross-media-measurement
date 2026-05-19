@@ -33,7 +33,7 @@ class ReachAndFrequencyComputationsTest {
     val reach =
       ReachAndFrequencyComputations.computeReach(
         rawHistogram,
-        vidSamplingIntervalWidth = 1.0f,
+        vidSamplingIntervalWidth = 1.0,
         vectorSize = 20,
         dpParams = null,
         kAnonymityParams = null,
@@ -47,7 +47,7 @@ class ReachAndFrequencyComputationsTest {
     val reach =
       ReachAndFrequencyComputations.computeReach(
         rawHistogram,
-        vidSamplingIntervalWidth = 0.5f,
+        vidSamplingIntervalWidth = 0.5,
         vectorSize = 40,
         dpParams = null,
         kAnonymityParams = null,
@@ -61,7 +61,7 @@ class ReachAndFrequencyComputationsTest {
     val reach =
       ReachAndFrequencyComputations.computeReach(
         rawHistogram,
-        vidSamplingIntervalWidth = 0.5f,
+        vidSamplingIntervalWidth = 0.5,
         vectorSize = 40,
         dpParams = null,
         kAnonymityParams = KAnonymityParams(minUsers = 20, minImpressions = 20),
@@ -75,7 +75,7 @@ class ReachAndFrequencyComputationsTest {
     val reach =
       ReachAndFrequencyComputations.computeReach(
         rawHistogram,
-        vidSamplingIntervalWidth = 0.5f,
+        vidSamplingIntervalWidth = 0.5,
         vectorSize = 40,
         dpParams = null,
         kAnonymityParams = KAnonymityParams(minUsers = 35, minImpressions = 30),
@@ -89,7 +89,7 @@ class ReachAndFrequencyComputationsTest {
     val reach =
       ReachAndFrequencyComputations.computeReach(
         rawHistogram,
-        vidSamplingIntervalWidth = 0.5f,
+        vidSamplingIntervalWidth = 0.5,
         vectorSize = 40,
         dpParams = null,
         kAnonymityParams =
@@ -105,7 +105,7 @@ class ReachAndFrequencyComputationsTest {
     val reach =
       ReachAndFrequencyComputations.computeReach(
         rawHistogram,
-        vidSamplingIntervalWidth = 1.0f,
+        vidSamplingIntervalWidth = 1.0,
         vectorSize = 200,
         dpParams = DP_PARAMS,
         kAnonymityParams = null,
@@ -121,7 +121,7 @@ class ReachAndFrequencyComputationsTest {
     val reach =
       ReachAndFrequencyComputations.computeReach(
         rawHistogram,
-        vidSamplingIntervalWidth = 1.0f,
+        vidSamplingIntervalWidth = 1.0,
         vectorSize = 200,
         dpParams = DP_PARAMS,
         kAnonymityParams =
@@ -136,7 +136,7 @@ class ReachAndFrequencyComputationsTest {
     val reach =
       ReachAndFrequencyComputations.computeReach(
         rawHistogram,
-        vidSamplingIntervalWidth = 1.0f,
+        vidSamplingIntervalWidth = 1.0,
         vectorSize = 200,
         dpParams = DP_PARAMS,
         kAnonymityParams =
@@ -235,7 +235,7 @@ class ReachAndFrequencyComputationsTest {
         maxFrequency = 3,
         dpParams = null,
         kAnonymityParams = KAnonymityParams(minUsers = 11, minImpressions = 5),
-        vidSamplingIntervalWidth = 1.0f,
+        vidSamplingIntervalWidth = 1.0,
       )
     val expected = mapOf(1L to 0.0, 2L to 0.3, 3L to 0.7)
     assertThat(distribution.keys).isEqualTo(expected.keys)
@@ -253,7 +253,7 @@ class ReachAndFrequencyComputationsTest {
         maxFrequency = 3,
         dpParams = null,
         kAnonymityParams = KAnonymityParams(minUsers = 110, minImpressions = 5),
-        vidSamplingIntervalWidth = 1.0f,
+        vidSamplingIntervalWidth = 1.0,
       )
     val expected = mapOf(1L to 0.0, 2L to 0.0, 3L to 0.0)
     assertThat(distribution).isEqualTo(expected)
