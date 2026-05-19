@@ -625,7 +625,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     @JvmStatic
     fun initConfig() {
       InProcessCmmsComponents.initConfig(
-        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG,
+        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_NO_THRESHOLDS,
         hmssProtocolConfigConfig = HMSS_PROTOCOL_CONFIG_CONFIG,
       )
     }
