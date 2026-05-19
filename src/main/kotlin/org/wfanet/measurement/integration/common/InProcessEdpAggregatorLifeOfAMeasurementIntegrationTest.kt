@@ -306,7 +306,11 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       // Use frontend simulator to create a direct reach and frequency measurement and verify
       // its
       // result.
-      mcSimulator.testDirectReachAndFrequency(runId = "1234", numMeasurements = 1)
+      mcSimulator.testDirectReachAndFrequency(
+        runId = "1234",
+        numMeasurements = 1,
+        eventGroupFilter = { it.eventGroupReferenceId != MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID },
+      )
     }
 
   @Test
@@ -315,7 +319,11 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       // Use frontend simulator to create a direct reach and frequency measurement and verify
       // its
       // result.
-      mcSimulator.testDirectReachOnly(runId = "1234", numMeasurements = 1)
+      mcSimulator.testDirectReachOnly(
+        runId = "1234",
+        numMeasurements = 1,
+        eventGroupFilter = { it.eventGroupReferenceId != MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID },
+      )
     }
 
   @Test
