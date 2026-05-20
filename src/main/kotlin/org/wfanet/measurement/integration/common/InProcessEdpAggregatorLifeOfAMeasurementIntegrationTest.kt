@@ -195,7 +195,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
           is EventGroupConfig.LegacySpec -> listOf(refId to config)
           is EventGroupConfig.MultiEntityKey ->
             config.entityKeySpecs.map { spec ->
-              "${spec.entityKey.entityType}/${spec.entityKey.entityId}" to config
+              "${spec.entityKey.entityType}/${spec.entityKey.entityId}" to
+                EventGroupConfig.MultiEntityKey(entityKeySpecs = listOf(spec))
             }
         }
       }
