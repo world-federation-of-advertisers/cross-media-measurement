@@ -27,16 +27,16 @@ object ResultMinimumThresholder {
   /**
    * Applies minimum result thresholds to a frequency vector.
    *
-   * Returns an empty FrequencyVector if minimum result thresholds threshold is not met for reach. It does not
-   * apply minimum thresholds to individual frequencies that do not meet a threshold.
+   * Returns an empty FrequencyVector if minimum result thresholds threshold is not met for reach.
+   * It does not apply minimum thresholds to individual frequencies that do not meet a threshold.
    *
    * @param measurementSpec The measurement specification
    * @param populationSpec The population specification
    * @param frequencyVectorBuilder The frequency vector builder containing the data
    * @param resultMinimumThresholds The small-cell suppression parameters
    * @param maxPopulation Optional maximum population size
-   * @return Either the original frequency vector if minimum result thresholds is met, or an empty frequency
-   *   vector
+   * @return Either the original frequency vector if minimum result thresholds is met, or an empty
+   *   frequency vector
    */
   fun applyThresholds(
     measurementSpec: MeasurementSpec,

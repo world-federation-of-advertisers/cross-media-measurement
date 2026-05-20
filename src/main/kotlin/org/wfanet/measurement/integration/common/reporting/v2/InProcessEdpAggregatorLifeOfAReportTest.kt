@@ -672,8 +672,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     )
   }
 
-
-
   @Test
   fun `EDPA EventGroups with explicit entity_key round-trip to the Reporting API`() = runBlocking {
     val byRefId: Map<String, EventGroup> =
@@ -1278,7 +1276,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   private suspend fun getTrusTeeEventGroups(): List<EventGroup> =
     getEventGroupsByCapability({ it.trusTeeSupported }, setOf(RESTRICTED_EDP_DISPLAY_NAME))
 
-
   private suspend fun getCreativeIdOnlyEventGroups(): List<EventGroup> {
     return listReportingEventGroups().filter {
       it.entityKey.entityType == CREATIVE_ID_ENTITY_TYPE &&
@@ -1677,7 +1674,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     private const val EXPECTED_CROSS_PUBLISHER_REACH = 5330L
     private const val EXPECTED_CROSS_PUBLISHER_IMPRESSIONS = 8860L
     private val EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH = listOf(5330L, 2572L, 647L, 311L, 0L)
-    private val EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH_HIGH_THRESHOLD = listOf(5330L, 2572L, 647L, 0L, 0L)
+    private val EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH_HIGH_THRESHOLD =
+      listOf(5330L, 2572L, 647L, 0L, 0L)
     private const val EXPECTED_EDP_SPEC1_REACH = 3937L
     private const val EXPECTED_EDP_SPEC2_REACH = 3638L
 
@@ -1700,10 +1698,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       return (6 * stddev).toLong()
     }
 
-    private val REACH_NOISE_TOLERANCE = getNoiseTolerance(
-      NO_NOISE_PRIVACY_PARAMS.epsilon.toDouble(),
-      NO_NOISE_PRIVACY_PARAMS.delta,
-    )
+    private val REACH_NOISE_TOLERANCE =
+      getNoiseTolerance(NO_NOISE_PRIVACY_PARAMS.epsilon.toDouble(), NO_NOISE_PRIVACY_PARAMS.delta)
 
     /** MetricSpecConfig with width=1.0 so there's no VID sampling variance. */
     private val NO_SAMPLING_METRIC_SPEC_CONFIG = metricSpecConfig {

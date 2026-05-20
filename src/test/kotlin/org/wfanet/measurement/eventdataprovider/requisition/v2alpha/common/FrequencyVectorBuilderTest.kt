@@ -19,7 +19,6 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.frequencycount.frequencyVector
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
@@ -29,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.populationSpec
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 
 @RunWith(JUnit4::class)
 class FrequencyVectorBuilderTest {
@@ -572,11 +572,7 @@ class FrequencyVectorBuilderTest {
   @Test
   fun `ByteArray constructor with resultMinimumThresholds for reach measurement`() {
     val resultMinimumThresholds =
-      ResultMinimumThresholds(
-        minUsers = 10,
-        minImpressions = 10,
-        reachMaxFrequencyPerUser = 3,
-      )
+      ResultMinimumThresholds(minUsers = 10, minImpressions = 10, reachMaxFrequencyPerUser = 3)
 
     val reachMeasurementSpec = measurementSpec {
       vidSamplingInterval = FULL_SAMPLING_INTERVAL
