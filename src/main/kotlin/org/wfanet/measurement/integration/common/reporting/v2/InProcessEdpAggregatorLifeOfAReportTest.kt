@@ -1079,7 +1079,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         resultGroupSpecs += resultGroupSpec {
           title = "title"
           reportingUnit = reportingUnit {
-            components += eventGroups.take(2).map { it.cmmsDataProvider }
+            components += eventGroups.map { it.cmmsDataProvider }.distinct()
           }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {}
@@ -1526,46 +1526,68 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       assertStructuralResults(completedBasicReport)
       assertSingleEdpNoNoiseResults(
         completedBasicReport,
-        expectedReach = EXPECTED_MULTI_ENTITY_KEY_REACH,
-        expectedImpressions = EXPECTED_MULTI_ENTITY_KEY_IMPRESSIONS,
-        expectedKPlusReach = EXPECTED_MULTI_ENTITY_KEY_K_PLUS_REACH,
+        expectedReach = EXPECTED_SINGLE_EDP_SPEC2_REACH,
+        expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
+        expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
       )
     }
 
   @Test
-  fun `basic report with two same-edp entity-key event groups fails post-processing`() =
-    runBlocking {
-      val bothEntityKeyEventGroups =
-        listReportingEventGroups().filter {
-          it.eventGroupReferenceId in EDP1_MULTI_ENTITY_KEY_REF_IDS
-        }
-      check(bothEntityKeyEventGroups.size == 2) {
-        "Expected 2 multi-entity-key event groups, got ${bothEntityKeyEventGroups.size}"
+  fun `basic report with two same-edp entity-key event groups succeeds`() = runBlocking {
+    val bothEntityKeyEventGroups =
+      listReportingEventGroups().filter {
+        it.eventGroupReferenceId in EDP1_MULTI_ENTITY_KEY_REF_IDS
       }
-
-      val createBasicReportRequest =
-        buildCreateBasicReportRequest(
-          bothEntityKeyEventGroups,
-          "two-entity-key-campaign",
-          "two-entity-key-basicreport",
-          includeIqfFilter = false,
-        )
-
-      val createdBasicReport =
-        reportingBasicReportsClient
-          .withCallCredentials(credentials)
-          .createBasicReport(createBasicReportRequest)
-
-      executeBasicReportsReportsJob(createdBasicReport.name)
-      executeReportProcessorJob()
-
-      val completedBasicReport =
-        reportingBasicReportsClient
-          .withCallCredentials(credentials)
-          .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-      assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
+    check(bothEntityKeyEventGroups.size == 2) {
+      "Expected 2 multi-entity-key event groups, got ${bothEntityKeyEventGroups.size}"
     }
+
+    val createBasicReportRequest =
+      buildCreateBasicReportRequest(
+        bothEntityKeyEventGroups,
+        "two-entity-key-campaign",
+        "two-entity-key-basicreport",
+        includeIqfFilter = false,
+      )
+
+    val createdBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .createBasicReport(createBasicReportRequest)
+
+    executeBasicReportsReportsJob(createdBasicReport.name)
+    executeReportProcessorJob()
+
+    val completedBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+    assertStructuralResults(completedBasicReport)
+
+    val resultGroup = completedBasicReport.resultGroupsList.single()
+    val totalResult =
+      resultGroup.resultsList.single {
+        it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
+      }
+    val reportingUnitCumulative = totalResult.metricSet.reportingUnit.cumulative
+
+    assertWithMessage("reach")
+      .that(reportingUnitCumulative.reach)
+      .isEqualTo(EXPECTED_SINGLE_EDP_SPEC2_REACH)
+    assertWithMessage("impressions")
+      .that(reportingUnitCumulative.impressions)
+      .isEqualTo(EXPECTED_TWO_ENTITY_KEY_IMPRESSIONS)
+    assertWithMessage("k+ reach")
+      .that(reportingUnitCumulative.kPlusReachList)
+      .containsExactlyElementsIn(EXPECTED_TWO_ENTITY_KEY_K_PLUS_REACH)
+      .inOrder()
+    assertWithMessage("population size").that(totalResult.metricSet.populationSize).isGreaterThan(0)
+    assertWithMessage("number of components")
+      .that(totalResult.metricSet.componentsCount)
+      .isEqualTo(1)
+  }
 
   companion object {
     // edp1 has no entity_key/entity_metadata override (legacy path).
@@ -1709,9 +1731,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     private const val EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS = 4276L
     private val EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH = listOf(3638L, 638L, 0L, 0L, 0L)
 
-    private const val EXPECTED_MULTI_ENTITY_KEY_REACH = EXPECTED_SINGLE_EDP_SPEC2_REACH
-    private const val EXPECTED_MULTI_ENTITY_KEY_IMPRESSIONS = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS
-    private val EXPECTED_MULTI_ENTITY_KEY_K_PLUS_REACH = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH
+    private const val EXPECTED_TWO_ENTITY_KEY_IMPRESSIONS = 8552L
+    private val EXPECTED_TWO_ENTITY_KEY_K_PLUS_REACH = listOf(3638L, 3638L, 638L, 638L, 0L)
 
     // Placeholder values required by the MeasurementSpec. Unused since NoiseMechanism is NONE.
     private val NO_NOISE_PRIVACY_PARAMS =
