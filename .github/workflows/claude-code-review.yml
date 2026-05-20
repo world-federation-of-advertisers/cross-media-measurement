@@ -15,9 +15,9 @@
 name: Claude Code Review
 
 on:
-  pull_request:
-    types: [review_requested] # This handles both initial requests AND re-requests
-
+  issue_comment:
+    types: [created]
+    
 permissions:
   contents: read
   
@@ -27,12 +27,15 @@ concurrency:
   
 jobs:
   review:
-    # Restrict job to run ONLY if claude is requested AND the author is an allowed role
+    # 1. Ensure it's a Pull Request (not a regular issue)
+    # 2. Check if the comment contains '@claude review'
+    # 3. Restrict to authorized repository roles
     if: >
-      github.event.requested_reviewer.login == 'claude' &&
-      (github.event.pull_request.author_association == 'MEMBER' || 
-       github.event.pull_request.author_association == 'OWNER' || 
-       github.event.pull_request.author_association == 'COLLABORATOR')
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@claude review') &&
+      (github.event.comment.author_association == 'MEMBER' || 
+       github.event.comment.author_association == 'OWNER' || 
+       github.event.comment.author_association == 'COLLABORATOR')
     runs-on: ubuntu-latest
 
     permissions:
