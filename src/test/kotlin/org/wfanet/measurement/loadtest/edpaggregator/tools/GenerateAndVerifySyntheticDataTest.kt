@@ -684,7 +684,7 @@ class GenerateAndVerifySyntheticDataTest {
         Paths.get(
           "wfa_measurement_system",
           "src",
-          "main",
+          "test",
           "proto",
           "wfa",
           "measurement",

@@ -16,7 +16,7 @@
 //
 // Mirrors the discretized boolean modeling style used by some markets for
 // display ad viewability (separate fields per viewability bucket, instead of
-// a single continuous metric). See //src/main/proto/.../market/v1/common.proto
+// a single continuous metric). See //src/test/proto/.../market/v1/common.proto
 // for the broader motivation behind the `MarketEvent` template.
 
 syntax = "proto3";

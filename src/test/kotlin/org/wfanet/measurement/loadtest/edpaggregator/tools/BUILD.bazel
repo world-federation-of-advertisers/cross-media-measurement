@@ -5,7 +5,7 @@ kt_jvm_test(
     srcs = ["GenerateAndVerifySyntheticDataTest.kt"],
     data = [
         "//src/main/proto/wfa/measurement/loadtest/dataprovider:specs",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/market/v1:market_event_descriptor_set",
+        "//src/test/proto/wfa/measurement/api/v2alpha/event_templates/testing/market/v1:market_event_descriptor_set",
     ],
     test_class = "org.wfanet.measurement.loadtest.edpaggregator.tools.GenerateAndVerifySyntheticDataTest",
     deps = [
@@ -14,7 +14,7 @@ kt_jvm_test(
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/market/v1:market_event_kt_jvm_proto",
+        "//src/test/proto/wfa/measurement/api/v2alpha/event_templates/testing/market/v1:market_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/crypto/tink",
         "@wfa_common_jvm//imports/java/com/google/protobuf",

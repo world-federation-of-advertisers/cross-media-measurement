@@ -15,7 +15,7 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
-IMPORT_PREFIX = "/src/main/proto"
+IMPORT_PREFIX = "/src/test/proto"
 
 proto_library(
     name = "edp1_proto",

@@ -29,7 +29,7 @@
 //     additional media-type templates). `MarketEvent` deliberately mirrors
 //     those traits without being a copy of any specific market's schema.
 //   * This file is NOT kept in sync with any external market-specific
-//     definition. It lives under `src/main/proto` and is testonly.
+//     definition. It lives under `src/test/proto` and is testonly.
 //
 // Concretely, `MarketEvent` differs from `TestEvent` along these axes:
 //   1. Demographics are folded into a single `Common` template instead of a
