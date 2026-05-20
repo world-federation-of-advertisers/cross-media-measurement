@@ -113,12 +113,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           objectKey = "edp7/event-groups/edp7-event-group.binpb",
           blobUri = "gs://$bucket/edp7/event-groups/edp7-event-group.binpb",
           eventGroupReferenceIds =
-            setOf(
-              EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID,
-              CREATIVE_ID_EVENT_GROUP_REF_ID,
-              MULTI_CREATIVE_A_REF_ID,
-              MULTI_CREATIVE_B_REF_ID,
-            ),
+            setOf(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID, CREATIVE_ID_EVENT_GROUP_REF_ID) +
+              MULTI_CREATIVE_REF_IDS,
         ),
         EdpStorage(
           objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.binpb",
@@ -194,7 +190,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           is EventGroupConfig.MultiEntityKey ->
             config.entityKeySpecs.flatMap { entityKeySpec ->
               buildEventGroupsFromSpec(
-                eventGroupReferenceId = eventGroupReferenceId,
+                eventGroupReferenceId =
+                  "${"$"}{entityKeySpec.entityKey.entityType}/${"$"}{entityKeySpec.entityKey.entityId}",
                 spec = entityKeySpec.spec,
                 dataEntityKey = entityKeySpec.entityKey,
                 entityMetadata = entityKeySpec.entityMetadata,
@@ -426,7 +423,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         TestEvent.getDefaultInstance(),
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
         populationSpec,
-        syntheticEventGroupMap,
+        resolvedSyntheticEventGroupMap,
         reportName,
         TEST_CONFIG.modelLine,
         listEventGroupsEntityTypes = listOf("campaign", "creative-id"),
@@ -511,6 +508,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
 
+    private val ENTITY_METADATA: com.google.protobuf.Struct = struct {
+      fields["placement"] = value { stringValue = "homepage_top" }
+      fields["objective"] = value { stringValue = "awareness" }
+    }
+
     val syntheticEventGroupMap: Map<String, EventGroupConfig> =
       mapOf(
         EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID to
@@ -519,46 +521,43 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           EventGroupConfig.MultiEntityKey(
             listOf(
               EntityKeySpec(
-                entityKey = EntityKey("creative-id", CREATIVE_ID_EVENT_GROUP_REF_ID),
+                entityKey = EntityKey("creative-id", CREATIVE_ID_ENTITY_ID),
                 spec = syntheticEventGroupSpec,
-                entityMetadata =
-                  struct {
-                    fields["placement"] = value { stringValue = "homepage_top" }
-                    fields["objective"] = value { stringValue = "awareness" }
-                  },
+                entityMetadata = ENTITY_METADATA,
               )
             )
           ),
-        MULTI_CREATIVE_A_REF_ID to
+        "multi-creative" to
           EventGroupConfig.MultiEntityKey(
             listOf(
               EntityKeySpec(
-                entityKey = EntityKey("creative-id", MULTI_CREATIVE_A_REF_ID),
+                entityKey = EntityKey("creative-id", MULTI_CREATIVE_A_ENTITY_ID),
                 spec = syntheticEventGroupSpec,
-                entityMetadata =
-                  struct {
-                    fields["placement"] = value { stringValue = "homepage_top" }
-                    fields["objective"] = value { stringValue = "awareness" }
-                  },
-              )
-            )
-          ),
-        MULTI_CREATIVE_B_REF_ID to
-          EventGroupConfig.MultiEntityKey(
-            listOf(
+                entityMetadata = ENTITY_METADATA,
+              ),
               EntityKeySpec(
-                entityKey = EntityKey("creative-id", MULTI_CREATIVE_B_REF_ID),
+                entityKey = EntityKey("creative-id", MULTI_CREATIVE_B_ENTITY_ID),
                 spec = syntheticEventGroupSpec2,
-                entityMetadata =
-                  struct {
-                    fields["placement"] = value { stringValue = "homepage_top" }
-                    fields["objective"] = value { stringValue = "awareness" }
-                  },
-              )
+                entityMetadata = ENTITY_METADATA,
+              ),
             )
           ),
         EDPA_META_EVENT_GROUP_REF_ID to EventGroupConfig.LegacySpec(syntheticEventGroupSpec),
       )
+
+    val resolvedSyntheticEventGroupMap: Map<String, EventGroupConfig> =
+      syntheticEventGroupMap
+        .flatMap { (refId, config) ->
+          when (config) {
+            is EventGroupConfig.LegacySpec -> listOf(refId to config)
+            is EventGroupConfig.MultiEntityKey ->
+              config.entityKeySpecs.map { entityKeySpec ->
+                "${"$"}{entityKeySpec.entityKey.entityType}/${"$"}{entityKeySpec.entityKey.entityId}" to
+                  EventGroupConfig.MultiEntityKey(listOf(entityKeySpec))
+              }
+          }
+        }
+        .toMap()
 
     private val ZONE_ID = ZoneId.of("UTC")
 
