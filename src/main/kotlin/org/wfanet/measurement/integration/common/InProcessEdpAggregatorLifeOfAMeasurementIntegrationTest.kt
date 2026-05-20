@@ -188,7 +188,18 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     )
 
   private val syntheticEventGroupMap: Map<String, EventGroupConfig> =
-    eventGroupConfigsByEdp.values.flatMap { it.entries }.associate { it.key to it.value }
+    eventGroupConfigsByEdp.values
+      .flatMap { it.entries }
+      .flatMap { (refId, config) ->
+        when (config) {
+          is EventGroupConfig.LegacySpec -> listOf(refId to config)
+          is EventGroupConfig.MultiEntityKey ->
+            config.entityKeySpecs.map { spec ->
+              "${spec.entityKey.entityType}/${spec.entityKey.entityId}" to config
+            }
+        }
+      }
+      .toMap()
 
   @get:Rule
   val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents =
@@ -466,9 +477,19 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
             )
 
         val byRefId = response.eventGroupsList.associateBy { it.eventGroupReferenceId }
+        val expectedRefIds =
+          refConfigs.flatMap { (refId, config) ->
+            when (config) {
+              is EventGroupConfig.LegacySpec -> listOf(refId)
+              is EventGroupConfig.MultiEntityKey ->
+                config.entityKeySpecs.map { spec ->
+                  "${spec.entityKey.entityType}/${spec.entityKey.entityId}"
+                }
+            }
+          }
         assertWithMessage("EventGroups for $edpDisplayName")
           .that(byRefId.keys)
-          .containsAtLeastElementsIn(refConfigs.keys)
+          .containsAtLeastElementsIn(expectedRefIds)
 
         for ((refId, config) in refConfigs) {
           when (config) {

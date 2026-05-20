@@ -769,7 +769,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     val byRefId: Map<String, EventGroup> =
       listReportingEventGroups().associateBy { it.eventGroupReferenceId }
 
-    val adGroupEventGroup = byRefId.getValue(AD_GROUP_EDP_EVENT_GROUP_REF_ID)
+    val adGroupEventGroup = byRefId.getValue("ad_group/$AD_GROUP_EDP_EVENT_GROUP_REF_ID")
     assertThat(adGroupEventGroup.entityKey.entityType).isEqualTo("ad_group")
     assertThat(adGroupEventGroup.entityKey.entityId).isEqualTo(AD_GROUP_EDP_EVENT_GROUP_REF_ID)
     assertThat(adGroupEventGroup.eventGroupMetadata.entityMetadata).isEqualTo(ENTITY_METADATA)
@@ -1341,7 +1341,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     val edp1RefIdOnly =
       allEventGroups.first { it.eventGroupReferenceId == EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID }
     val edp1CreativeId =
-      allEventGroups.first { it.eventGroupReferenceId == EDP1_CREATIVE_EVENT_GROUP_REF_ID }
+      allEventGroups.first { it.eventGroupReferenceId == "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_EVENT_GROUP_REF_ID" }
     return listOf(edp1RefIdOnly, edp1CreativeId)
   }
 
@@ -1425,7 +1425,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   fun `basic report with single-edp creative-id event group succeeds`() = runBlocking {
     val allEventGroups = listReportingEventGroups()
     val singleCreativeIdEventGroup =
-      allEventGroups.filter { it.eventGroupReferenceId == EDP1_CREATIVE_EVENT_GROUP_REF_ID }
+      allEventGroups.filter { it.eventGroupReferenceId == "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_EVENT_GROUP_REF_ID" }
     check(singleCreativeIdEventGroup.isNotEmpty()) {
       "No single creative-id event group found for edp1"
     }
@@ -1549,7 +1549,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         "$CREATIVE_ID_ENTITY_TYPE/$EDP1_MULTI_CREATIVE_B_ID",
       )
     private val EDP1_ALL_ENTITY_KEY_REF_IDS =
-      EDP1_MULTI_ENTITY_KEY_REF_IDS + EDP1_CREATIVE_EVENT_GROUP_REF_ID
+      EDP1_MULTI_ENTITY_KEY_REF_IDS + "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_EVENT_GROUP_REF_ID"
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val SECRETS_DIR: File =
       getRuntimePath(
