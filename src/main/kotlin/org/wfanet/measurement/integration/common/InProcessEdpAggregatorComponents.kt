@@ -358,11 +358,15 @@ class InProcessEdpAggregatorComponents(
       logger.info("Received mappedEventGroups: $mappedEventGroups")
       runBlocking { writeImpressionData(mappedEventGroups, edpAggregatorShortName) }
 
-      val metaSpecByRefId: Map<String, EntityKeySpec> =
+      val configByRefId: Map<String, EventGroupConfig> =
         resolveSpecsByReferenceId(edpAggregatorShortName)
 
       mappedEventGroups.forEach { mappedEventGroup ->
-        val metaSpec = metaSpecByRefId.getValue(mappedEventGroup.eventGroupReferenceId).spec
+        val metaSpec =
+          when (val config = configByRefId.getValue(mappedEventGroup.eventGroupReferenceId)) {
+            is EventGroupConfig.LegacySpec -> config.spec
+            is EventGroupConfig.MultiEntityKey -> config.entityKeySpecs.single().spec
+          }
         val allDates: List<LocalDate> =
           SyntheticDataGeneration.generateEvents(
               TestEvent.getDefaultInstance(),
@@ -500,7 +504,7 @@ class InProcessEdpAggregatorComponents(
               spec = entityKeySpec.spec,
               entityKey = entityKeySpec.entityKey,
               eventGroupReferenceId =
-                "${entityKeySpec.entityKey!!.entityType}/${entityKeySpec.entityKey!!.entityId}",
+                "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}",
               entityMetadata = entityKeySpec.entityMetadata,
               measurementConsumerData = measurementConsumerData,
             )
@@ -573,11 +577,22 @@ class InProcessEdpAggregatorComponents(
       )
     }
 
-    val specByRefId: Map<String, EntityKeySpec> = resolveSpecsByReferenceId(edpAggregatorShortName)
+    val configByRefId: Map<String, EventGroupConfig> =
+      resolveSpecsByReferenceId(edpAggregatorShortName)
 
     mappedEventGroups.forEach { mappedEventGroup ->
       val refId = mappedEventGroup.eventGroupReferenceId
-      val entityKeySpec = specByRefId.getValue(refId)
+      val resolvedConfig = configByRefId.getValue(refId)
+      val entityKey =
+        when (resolvedConfig) {
+          is EventGroupConfig.LegacySpec -> null
+          is EventGroupConfig.MultiEntityKey -> resolvedConfig.entityKeySpecs.single().entityKey
+        }
+      val spec =
+        when (resolvedConfig) {
+          is EventGroupConfig.LegacySpec -> resolvedConfig.spec
+          is EventGroupConfig.MultiEntityKey -> resolvedConfig.entityKeySpecs.single().spec
+        }
       val impressionWriter =
         ImpressionsWriter(
           refId,
@@ -590,20 +605,11 @@ class InProcessEdpAggregatorComponents(
           "file:///",
         )
       val entityKeyedEvents: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
-        SyntheticDataGeneration.generateEvents(
-            TestEvent.getDefaultInstance(),
-            populationSpec,
-            entityKeySpec.spec,
-          )
+        SyntheticDataGeneration.generateEvents(TestEvent.getDefaultInstance(), populationSpec, spec)
           .map { shard ->
             EntityKeyedLabeledEventDateShard(
               shard.localDate,
-              sequenceOf(
-                EntityKeysWithLabeledEvents(
-                  listOfNotNull(entityKeySpec.entityKey),
-                  shard.labeledEvents,
-                )
-              ),
+              sequenceOf(EntityKeysWithLabeledEvents(listOfNotNull(entityKey), shard.labeledEvents)),
             )
           }
       impressionWriter.writeLabeledImpressionData(entityKeyedEvents, modelLineName, null)
@@ -612,16 +618,16 @@ class InProcessEdpAggregatorComponents(
 
   private fun resolveSpecsByReferenceId(
     edpAggregatorShortName: String
-  ): Map<String, EntityKeySpec> {
+  ): Map<String, EventGroupConfig> {
     return eventGroupConfigsByEdp
       .getValue(edpAggregatorShortName)
       .flatMap { (refId, config) ->
         when (config) {
-          is EventGroupConfig.LegacySpec -> listOf(refId to EntityKeySpec(spec = config.spec))
+          is EventGroupConfig.LegacySpec -> listOf(refId to config)
           is EventGroupConfig.MultiEntityKey ->
             config.entityKeySpecs.map { entityKeySpec ->
-              "${entityKeySpec.entityKey!!.entityType}/${entityKeySpec.entityKey!!.entityId}" to
-                entityKeySpec
+              "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}" to
+                EventGroupConfig.MultiEntityKey(entityKeySpecs = listOf(entityKeySpec))
             }
         }
       }
