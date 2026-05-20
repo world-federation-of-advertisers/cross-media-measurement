@@ -116,7 +116,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             setOf(
               EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID,
               CREATIVE_ID_EVENT_GROUP_REF_ID,
-              MULTI_CREATIVE_EVENT_GROUP_REF_ID,
+              MULTI_CREATIVE_A_REF_ID,
+              MULTI_CREATIVE_B_REF_ID,
             ),
         ),
         EdpStorage(
@@ -504,6 +505,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
+    val syntheticEventGroupSpec2: SyntheticEventGroupSpec =
+      parseTextProto(
+        TEST_DATA_RUNTIME_PATH.resolve("small_data_spec_2.textproto").toFile(),
+        SyntheticEventGroupSpec.getDefaultInstance(),
+      )
 
     val syntheticEventGroupMap: Map<String, EventGroupConfig> =
       mapOf(
@@ -523,12 +529,26 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
               )
             )
           ),
-        MULTI_CREATIVE_EVENT_GROUP_REF_ID to
+        MULTI_CREATIVE_A_REF_ID to
           EventGroupConfig.MultiEntityKey(
             listOf(
               EntityKeySpec(
-                entityKey = EntityKey("creative-id", MULTI_CREATIVE_EVENT_GROUP_REF_ID),
+                entityKey = EntityKey("creative-id", MULTI_CREATIVE_A_REF_ID),
                 spec = syntheticEventGroupSpec,
+                entityMetadata =
+                  struct {
+                    fields["placement"] = value { stringValue = "homepage_top" }
+                    fields["objective"] = value { stringValue = "awareness" }
+                  },
+              )
+            )
+          ),
+        MULTI_CREATIVE_B_REF_ID to
+          EventGroupConfig.MultiEntityKey(
+            listOf(
+              EntityKeySpec(
+                entityKey = EntityKey("creative-id", MULTI_CREATIVE_B_REF_ID),
+                spec = syntheticEventGroupSpec2,
                 entityMetadata =
                   struct {
                     fields["placement"] = value { stringValue = "homepage_top" }

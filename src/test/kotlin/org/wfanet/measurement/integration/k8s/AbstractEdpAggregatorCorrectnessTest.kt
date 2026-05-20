@@ -206,7 +206,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       mcSimulator.testDirectReachAndFrequency(
         "1242",
         1,
-        eventGroupFilter = { it.eventGroupReferenceId == MULTI_CREATIVE_EVENT_GROUP_REF_ID },
+        eventGroupFilter = { it.eventGroupReferenceId in MULTI_CREATIVE_REF_IDS },
       )
     }
 
@@ -225,7 +225,9 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
 
     const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-1"
     const val CREATIVE_ID_EVENT_GROUP_REF_ID = "edpa-eg-creative-id-1"
-    const val MULTI_CREATIVE_EVENT_GROUP_REF_ID = "edpa-eg-multi-creative-1"
+    const val MULTI_CREATIVE_A_REF_ID = "edpa-eg-multi-creative-1"
+    const val MULTI_CREATIVE_B_REF_ID = "edpa-eg-multi-creative-2"
+    val MULTI_CREATIVE_REF_IDS = setOf(MULTI_CREATIVE_A_REF_ID, MULTI_CREATIVE_B_REF_ID)
     const val EDPA_META_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-2"
 
     val OUTPUT_DP_PARAMS = differentialPrivacyParams {
