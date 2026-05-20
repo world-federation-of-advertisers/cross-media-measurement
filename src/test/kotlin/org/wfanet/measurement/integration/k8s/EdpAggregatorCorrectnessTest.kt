@@ -191,7 +191,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             config.entityKeySpecs.flatMap { entityKeySpec ->
               buildEventGroupsFromSpec(
                 eventGroupReferenceId =
-                  "${"$"}{entityKeySpec.entityKey.entityType}/${"$"}{entityKeySpec.entityKey.entityId}",
+                  "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}",
                 spec = entityKeySpec.spec,
                 dataEntityKey = entityKeySpec.entityKey,
                 entityMetadata = entityKeySpec.entityMetadata,
@@ -552,7 +552,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             is EventGroupConfig.LegacySpec -> listOf(refId to config)
             is EventGroupConfig.MultiEntityKey ->
               config.entityKeySpecs.map { entityKeySpec ->
-                "${"$"}{entityKeySpec.entityKey.entityType}/${"$"}{entityKeySpec.entityKey.entityId}" to
+                "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}" to
                   EventGroupConfig.MultiEntityKey(listOf(entityKeySpec))
               }
           }
