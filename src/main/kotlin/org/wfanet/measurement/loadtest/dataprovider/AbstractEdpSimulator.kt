@@ -201,8 +201,6 @@ abstract class AbstractEdpSimulator(
   protected val edpData: DataProviderData
     get() = dataProviderData
 
-  //  private val eventQuery = SimulatorEventQuery(syntheticPopulationSpec, eventMessageDescriptor)
-
   private val supportedProtocols = buildSet {
     add(ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2)
     add(ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2)

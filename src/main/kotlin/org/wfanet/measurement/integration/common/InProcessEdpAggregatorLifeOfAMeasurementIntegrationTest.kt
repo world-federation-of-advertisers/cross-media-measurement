@@ -20,6 +20,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
+import com.google.protobuf.TypeRegistry
 import com.google.protobuf.struct
 import com.google.protobuf.value
 import java.nio.file.Path
@@ -48,7 +49,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.withAuthenticationKey
@@ -172,7 +173,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       storagePath = tempPath,
       pubSubClient = pubSubClient,
       eventGroupConfigsByEdp = eventGroupConfigsByEdp,
-      syntheticPopulationSpec = syntheticPopulationSpec,
+      populationSpec = populationSpec,
       modelLineInfoMap = modelLineInfoMap,
       externalKmsClient = sharedKmsClient,
     )
@@ -270,7 +271,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         InProcessCmmsComponents.TRUSTED_CERTIFICATES,
         TestEvent.getDefaultInstance(),
         NoiseMechanism.CONTINUOUS_GAUSSIAN,
-        syntheticPopulationSpec,
+        populationSpec,
         syntheticEventGroupMap,
         ReportKey(
             MeasurementConsumerKey.fromName(measurementConsumerData.name)!!.measurementConsumerId,
@@ -594,22 +595,19 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       )
     private val TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH =
       getRuntimePath(TEST_RESULTS_FULFILLER_DATA_PATH)!!
+    private val POPULATION_SPEC_TYPE_REGISTRY: TypeRegistry =
+      TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
 
-    val syntheticPopulationSpec: SyntheticPopulationSpec =
+    val populationSpec: PopulationSpec =
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
-        SyntheticPopulationSpec.getDefaultInstance(),
+        PopulationSpec.getDefaultInstance(),
+        POPULATION_SPEC_TYPE_REGISTRY,
       )
     val syntheticEventGroupSpec: SyntheticEventGroupSpec =
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
         SyntheticEventGroupSpec.getDefaultInstance(),
-      )
-    val populationSpec =
-      parseTextProto(
-        TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto")
-          .toFile(),
-        PopulationSpec.getDefaultInstance(),
       )
     val modelLineInfoMap =
       mapOf(

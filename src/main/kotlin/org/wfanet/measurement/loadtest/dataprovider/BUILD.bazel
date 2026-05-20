@@ -52,8 +52,10 @@ kt_jvm_library(
     ],
     deps = [
         ":labeled_event",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common:guava",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
@@ -66,6 +68,7 @@ kt_jvm_library(
         ":labeled_event",
         ":synthetic_data_generation",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
@@ -178,7 +181,6 @@ kt_jvm_library(
     deps = [
         ":abstract_edp_simulator",
         ":edp_simulator_flags",
-        ":population_spec_converter",
         ":synthetic_generator_event_query",
         "//imports/java/com/google/crypto/tink/integration/gcpkms",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
@@ -187,6 +189,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
@@ -244,7 +247,6 @@ kt_jvm_library(
     deps = [
         ":abstract_edp_simulator_runner",
         ":legacy_metadata_edp_simulator",
-        ":population_spec_converter",
         ":synthetic_generator_event_query",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptors_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc_proto",
@@ -287,18 +289,5 @@ kt_jvm_library(
         ":vid_to_index_map_generator",
         "//src/main/kotlin/org/wfanet/measurement/common:sorted_lists",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
-    ],
-)
-
-kt_jvm_library(
-    name = "population_spec_converter",
-    srcs = [
-        "PopulationSpecConverter.kt",
-    ],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_templates",
-        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )

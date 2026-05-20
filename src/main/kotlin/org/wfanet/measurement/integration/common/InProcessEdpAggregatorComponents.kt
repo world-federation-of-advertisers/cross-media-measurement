@@ -53,11 +53,11 @@ import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderCapabilitiesRequest
@@ -133,7 +133,7 @@ class InProcessEdpAggregatorComponents(
   secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
   private val storagePath: Path,
   private val pubSubClient: GooglePubSubEmulatorClient,
-  private val syntheticPopulationSpec: SyntheticPopulationSpec,
+  private val populationSpec: PopulationSpec,
   private val eventGroupConfigsByEdp: Map<String, Map<String, EventGroupConfig>>,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val externalKmsClient: FakeKmsClient,
@@ -379,7 +379,7 @@ class InProcessEdpAggregatorComponents(
         val events =
           SyntheticDataGeneration.generateEvents(
             TestEvent.getDefaultInstance(),
-            syntheticPopulationSpec,
+            populationSpec,
             metaConfig.spec,
           )
 
@@ -562,7 +562,7 @@ class InProcessEdpAggregatorComponents(
       val events: Sequence<LabeledEventDateShard<TestEvent>> =
         SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),
-          syntheticPopulationSpec,
+          populationSpec,
           config.spec,
         )
       val impressionWriter =

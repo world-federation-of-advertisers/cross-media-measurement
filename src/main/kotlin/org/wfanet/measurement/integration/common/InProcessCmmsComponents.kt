@@ -45,8 +45,6 @@ import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelRollout
@@ -71,7 +69,6 @@ import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.TrusTeeProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
-import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.PopulationData
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
@@ -84,8 +81,7 @@ class InProcessCmmsComponents(
   private val kingdomDataServicesRule: ProviderRule<DataServices>,
   private val duchyDependenciesRule:
     ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
-  private val syntheticPopulationSpec: SyntheticPopulationSpec =
-    SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
+  private val populationSpec: PopulationSpec = SyntheticGenerationSpecs.POPULATION_SPEC_SMALL,
   private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
     SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL,
   private val useEdpSimulators: Boolean,
@@ -103,7 +99,7 @@ class InProcessCmmsComponents(
 
   val eventQuery by lazy {
     EventQuery(
-      syntheticPopulationSpec,
+      populationSpec,
       syntheticEventGroupSpecs,
       edpDisplayNameToResourceMap.values.map { it.name },
     )
@@ -421,10 +417,7 @@ class InProcessCmmsComponents(
         checkNotNull(it.subjectKeyIdentifier)
       }
     private val EVENT_GROUP_MEDIA_TYPES = setOf(MediaType.VIDEO, MediaType.DISPLAY)
-    private val POPULATION_SPEC: PopulationSpec =
-      SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE.toPopulationSpec(
-        TestEvent.getDescriptor()
-      )
+    private val POPULATION_SPEC: PopulationSpec = SyntheticGenerationSpecs.POPULATION_SPEC_LARGE
 
     @JvmStatic
     fun initConfig(
