@@ -70,6 +70,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.Met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
+import org.wfanet.measurement.integration.common.EventGroupConfig
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
@@ -178,7 +179,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
 
     private fun createEventGroups(): List<EventGroup> {
-      return syntheticEventGroupMap.flatMap { (eventGroupReferenceId, syntheticEventGroupSpec) ->
+      return syntheticEventGroupMap.flatMap { (eventGroupReferenceId, config) ->
+        val syntheticEventGroupSpec = (config as EventGroupConfig.LegacySpec).spec
         syntheticEventGroupSpec.dateSpecsList.map { dateSpec ->
           val dateRange = dateSpec.dateRange
           val startTime =
@@ -482,12 +484,13 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
 
-    val syntheticEventGroupMap =
+    val syntheticEventGroupMap: Map<String, EventGroupConfig> =
       mapOf(
-        EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID to syntheticEventGroupSpec,
-        CREATIVE_ID_EVENT_GROUP_REF_ID to syntheticEventGroupSpec,
-        MULTI_CREATIVE_EVENT_GROUP_REF_ID to syntheticEventGroupSpec,
-        EDPA_META_EVENT_GROUP_REF_ID to syntheticEventGroupSpec,
+        EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID to
+          EventGroupConfig.LegacySpec(syntheticEventGroupSpec),
+        CREATIVE_ID_EVENT_GROUP_REF_ID to EventGroupConfig.LegacySpec(syntheticEventGroupSpec),
+        MULTI_CREATIVE_EVENT_GROUP_REF_ID to EventGroupConfig.LegacySpec(syntheticEventGroupSpec),
+        EDPA_META_EVENT_GROUP_REF_ID to EventGroupConfig.LegacySpec(syntheticEventGroupSpec),
       )
 
     private val ZONE_ID = ZoneId.of("UTC")
