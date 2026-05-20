@@ -190,12 +190,11 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   private val syntheticEventGroupMap: Map<String, EventGroupConfig> =
     eventGroupConfigsByEdp.values
       .flatMap { it.entries }
-      .asSequence()
       .flatMap { (refId, config) ->
         when (config) {
-          is EventGroupConfig.LegacySpec -> sequenceOf(refId to config)
+          is EventGroupConfig.LegacySpec -> listOf(refId to config)
           is EventGroupConfig.MultiEntityKey ->
-            config.entityKeySpecs.asSequence().map { spec ->
+            config.entityKeySpecs.map { spec ->
               "${spec.entityKey.entityType}/${spec.entityKey.entityId}" to
                 EventGroupConfig.MultiEntityKey(entityKeySpecs = listOf(spec))
             }
