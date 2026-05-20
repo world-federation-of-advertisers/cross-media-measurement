@@ -15,7 +15,7 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing
 
 import com.google.protobuf.Message
 import org.projectnessie.cel.Program
-import org.wfanet.measurement.testing.event_templates.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters.compileProgram
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup

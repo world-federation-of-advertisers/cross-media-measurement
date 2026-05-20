@@ -38,16 +38,16 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.fieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.vidRange
-import org.wfanet.measurement.testing.event_templates.DuplicatePersonEvent
-import org.wfanet.measurement.testing.event_templates.Person
-import org.wfanet.measurement.testing.event_templates.TestEvent
-import org.wfanet.measurement.testing.event_templates.banner
-import org.wfanet.measurement.testing.event_templates.market.v1.Common as MarketCommon
-import org.wfanet.measurement.testing.event_templates.market.v1.Edp1
-import org.wfanet.measurement.testing.event_templates.market.v1.MarketEvent
-import org.wfanet.measurement.testing.event_templates.person
-import org.wfanet.measurement.testing.event_templates.testEvent
-import org.wfanet.measurement.testing.event_templates.video
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.DuplicatePersonEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.banner
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.Common as MarketCommon
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.Edp1
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.MarketEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto

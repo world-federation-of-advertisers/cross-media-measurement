@@ -46,10 +46,10 @@ import org.junit.runners.JUnit4
 import org.mockito.Mockito.reset
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
-import org.wfanet.measurement.testing.event_templates.Person
-import org.wfanet.measurement.testing.event_templates.TestEvent
-import org.wfanet.measurement.testing.event_templates.person
-import org.wfanet.measurement.testing.event_templates.testEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule

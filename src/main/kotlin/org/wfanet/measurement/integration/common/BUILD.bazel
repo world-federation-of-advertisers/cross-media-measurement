@@ -155,7 +155,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
         "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:population_requisition_fulfiller",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:impression_qualification_filter_mapping",
-        "//src/main/proto/wfa/measurement/testing/event_templates:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config:duchy_cert_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/access:permissions_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/edpaggregator:event_group_sync_config_kt_jvm_proto",
@@ -192,7 +192,7 @@ kt_jvm_library(
     deps = [
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/testing/event_templates:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
@@ -206,7 +206,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/testing/event_templates:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
     ],
 )
 
@@ -373,7 +373,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/testing/event_templates:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/securecomputation:queues_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/org/junit",
@@ -564,7 +564,7 @@ kt_jvm_library(
         "//src/main/k8s/testing/secretfiles:kingdom_tls.pem",
         "//src/main/k8s/testing/secretfiles:mp1_tls.key",
         "//src/main/k8s/testing/secretfiles:mp1_tls.pem",
-        "//src/main/proto/wfa/measurement/testing/event_templates:test_event_descriptor_set",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_descriptor_set",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:akid_principal_lookup",
@@ -582,7 +582,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:model_suites_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:page_token_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:populations_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/testing/event_templates:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config:authority_key_to_principal_map_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:model_lines_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:model_suites_service_kt_jvm_grpc_proto",

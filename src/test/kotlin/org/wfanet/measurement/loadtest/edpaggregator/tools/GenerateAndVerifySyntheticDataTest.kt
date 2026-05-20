@@ -33,10 +33,10 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.testing.event_templates.Person
-import org.wfanet.measurement.testing.event_templates.TestEvent
-import org.wfanet.measurement.testing.event_templates.market.v1.Common as MarketCommon
-import org.wfanet.measurement.testing.event_templates.market.v1.MarketEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.Common as MarketCommon
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.MarketEvent
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.flatten
@@ -258,13 +258,13 @@ class GenerateAndVerifySyntheticDataTest {
 
     val instance: Message =
       GenerateSyntheticData.resolveEventMessageInstance(
-        "type.googleapis.com/wfa.measurement.testing.event_templates.Person",
+        "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person",
         listOf(descriptorSetFile),
       )
 
     assertThat(instance).isInstanceOf(DynamicMessage::class.java)
     assertThat(instance.descriptorForType.fullName)
-      .isEqualTo("wfa.measurement.testing.event_templates.Person")
+      .isEqualTo("wfa.measurement.api.v2alpha.event_templates.testing.Person")
   }
 
   @Test
@@ -650,11 +650,11 @@ class GenerateAndVerifySyntheticDataTest {
 
     /**
      * Type URL for the test-only [MarketEvent] message
-     * (`wfa.measurement.testing.event_templates.market.v1.MarketEvent`). Used to
+     * (`wfa.measurement.api.v2alpha.event_templates.testing.market.v1.MarketEvent`). Used to
      * exercise GenerateSyntheticData/VerifySyntheticData against a non-`TestEvent` message type.
      */
     private const val MARKET_EVENT_TYPE_URL =
-      "type.googleapis.com/wfa.measurement.testing.event_templates.market.v1.MarketEvent"
+      "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.market.v1.MarketEvent"
 
     /**
      * v2alpha PopulationSpec textproto under [TEST_DATA_PATH] sized to match [MARKET_DATA_SPEC];
@@ -688,8 +688,10 @@ class GenerateAndVerifySyntheticDataTest {
           "proto",
           "wfa",
           "measurement",
-          "testing",
+          "api",
+          "v2alpha",
           "event_templates",
+          "testing",
           "market",
           "v1",
           "market_event_descriptor_set.pb",

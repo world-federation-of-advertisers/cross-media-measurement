@@ -14,11 +14,11 @@
 
 syntax = "proto3";
 
-package wfa.measurement.testing.event_templates;
+package wfa.measurement.api.v2alpha.event_templates.testing;
 
 import "wfa/measurement/api/v2alpha/event_annotations.proto";
 
-option java_package = "org.wfanet.measurement.testing.event_templates";
+option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing";
 option java_multiple_files = true;
 
 // Template with information about a person related to an event.

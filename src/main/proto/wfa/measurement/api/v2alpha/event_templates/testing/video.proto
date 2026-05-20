@@ -14,27 +14,33 @@
 
 syntax = "proto3";
 
-package wfa.measurement.testing.event_templates;
+package wfa.measurement.api.v2alpha.event_templates.testing;
 
+import "google/protobuf/duration.proto";
 import "wfa/measurement/api/v2alpha/event_annotations.proto";
 import "wfa/measurement/api/v2alpha/media_type.proto";
 
-option java_package = "org.wfanet.measurement.testing.event_templates";
+option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing";
 option java_multiple_files = true;
 
-message Banner {
+message Video {
   option (.wfa.measurement.api.v2alpha.event_template) = {
-    name: "banner_ad"
-    display_name: "Banner Ad"
-    description: "A simple template for events related to a banner ad."
-    media_type: DISPLAY
+    name: "video_ad"
+    display_name: "Video Ad"
+    description: "A simple template for events related to a video ad."
+    media_type: VIDEO
   };
 
-  bool viewable = 1 [(.wfa.measurement.api.v2alpha.template_field) = {
-    display_name: "Viewable"
-    description: "Whether the ad was shown for more than 2 seconds with at "
-                 "least 50% of the pixels on the screen. If not specified, "
-                 "viewability was not determined."
+  google.protobuf.Duration length = 1
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Video Length"
+        reporting_features: FILTERABLE
+        version_added: 1
+      }];
+
+  double viewed_fraction = 2 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "Viewed Fraction"
+    description: "Fraction of the video that was viewed in the range [0, 1]"
     reporting_features: IMPRESSION_QUALIFICATION
     version_added: 1
   }];

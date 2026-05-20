@@ -29,12 +29,12 @@ import org.projectnessie.cel.Env
 import org.projectnessie.cel.EnvOption
 import org.projectnessie.cel.checker.Decls
 import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
-import org.wfanet.measurement.testing.event_templates.Banner
-import org.wfanet.measurement.testing.event_templates.Person
-import org.wfanet.measurement.testing.event_templates.Video
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Banner
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Video
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException.Code as Code
 
-private const val TEMPLATE_PREFIX = "wfa.measurement.testing.event_templates"
+private const val TEMPLATE_PREFIX = "wfa.measurement.api.v2alpha.event_templates.testing"
 private val OPERATIVE_FIELDS =
   setOf("person.age_group", "person.gender", "person.social_grade_group")
 

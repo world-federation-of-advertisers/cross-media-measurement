@@ -17,7 +17,7 @@ subpopulations {
     end_vid_inclusive: 3274021
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: MALE
       age_group: YEARS_18_TO_34
       social_grade_group: A_B_C1
@@ -32,7 +32,7 @@ subpopulations {
     end_vid_inclusive: 6151244
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: MALE
       age_group: YEARS_18_TO_34
       social_grade_group: C2_D_E
@@ -47,7 +47,7 @@ subpopulations {
     end_vid_inclusive: 10177154
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: MALE
       age_group: YEARS_35_TO_54
       social_grade_group: A_B_C1
@@ -62,7 +62,7 @@ subpopulations {
     end_vid_inclusive: 13782704
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: MALE
       age_group: YEARS_35_TO_54
       social_grade_group: C2_D_E
@@ -77,7 +77,7 @@ subpopulations {
     end_vid_inclusive: 15341498
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: MALE
       age_group: YEARS_55_PLUS
       social_grade_group: A_B_C1
@@ -92,7 +92,7 @@ subpopulations {
     end_vid_inclusive: 16991687
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: MALE
       age_group: YEARS_55_PLUS
       social_grade_group: C2_D_E
@@ -107,7 +107,7 @@ subpopulations {
     end_vid_inclusive: 20310055
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: FEMALE
       age_group: YEARS_18_TO_34
       social_grade_group: A_B_C1
@@ -122,7 +122,7 @@ subpopulations {
     end_vid_inclusive: 23166642
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: FEMALE
       age_group: YEARS_18_TO_34
       social_grade_group: C2_D_E
@@ -137,7 +137,7 @@ subpopulations {
     end_vid_inclusive: 27494479
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: FEMALE
       age_group: YEARS_35_TO_54
       social_grade_group: A_B_C1
@@ -152,7 +152,7 @@ subpopulations {
     end_vid_inclusive: 30973857
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: FEMALE
       age_group: YEARS_35_TO_54
       social_grade_group: C2_D_E
@@ -167,7 +167,7 @@ subpopulations {
     end_vid_inclusive: 32679539
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: FEMALE
       age_group: YEARS_55_PLUS
       social_grade_group: A_B_C1
@@ -182,7 +182,7 @@ subpopulations {
     end_vid_inclusive: 34288880
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: FEMALE
       age_group: YEARS_55_PLUS
       social_grade_group: C2_D_E

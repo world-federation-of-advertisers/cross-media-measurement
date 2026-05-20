@@ -25,7 +25,7 @@ message PrivacyLandscape {
   string landscape_identifier = 1;
 
   // Qualified name of the top level message e.g.
-  // wfa.measurement.testing.event_templates.TestEvent
+  // wfa.measurement.api.v2alpha.event_templates.testing.TestEvent
   string event_template_name = 2;
 
   // Representing all possible values for each of the Dimensions

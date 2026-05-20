@@ -23,13 +23,13 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.testing.event_templates.MissingFieldAnnotationEvent
-import org.wfanet.measurement.testing.event_templates.MissingTemplateAnnotationEvent
-import org.wfanet.measurement.testing.event_templates.Person
-import org.wfanet.measurement.testing.event_templates.TestEvent
-import org.wfanet.measurement.testing.event_templates.UnsupportedFieldTypeEvent
-import org.wfanet.measurement.testing.event_templates.UnsupportedRepeatedFieldEvent
-import org.wfanet.measurement.testing.event_templates.UnsupportedReportingFeatureEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.MissingFieldAnnotationEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.MissingTemplateAnnotationEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.UnsupportedFieldTypeEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.UnsupportedRepeatedFieldEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.UnsupportedReportingFeatureEvent
 
 @RunWith(JUnit4::class)
 class EventMessageDescriptorTest {

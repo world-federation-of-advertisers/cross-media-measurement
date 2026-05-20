@@ -39,11 +39,11 @@ kt_jvm_test(
     name = "EventTemplateValidatorTest",
     srcs = ["EventTemplateValidatorTest.kt"],
     data = [
-        "//src/main/proto/wfa/measurement/testing/event_templates:bad_templates_proto",
-        "//src/main/proto/wfa/measurement/testing/event_templates:banner_proto",
-        "//src/main/proto/wfa/measurement/testing/event_templates:person_proto",
-        "//src/main/proto/wfa/measurement/testing/event_templates:test_event_proto",
-        "//src/main/proto/wfa/measurement/testing/event_templates:video_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:bad_templates_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:banner_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:person_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:video_proto",
     ],
     jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
     deps = [

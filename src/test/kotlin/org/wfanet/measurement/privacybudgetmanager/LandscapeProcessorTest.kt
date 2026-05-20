@@ -22,7 +22,7 @@ import java.time.LocalDate
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.testing.event_templates.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeKt.DimensionKt.fieldValue
 import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeKt.dimension
 import org.wfanet.measurement.privacybudgetmanager.PrivacyLandscapeMappingKt.DimensionMappingKt.fieldValueMapping
@@ -37,7 +37,7 @@ class LandscapeProcessorTest {
     val descriptor = TestEvent.getDescriptor()
     val landscape = privacyLandscape {
       landscapeIdentifier = "landsape1"
-      eventTemplateName = "wfa.measurement.testing.event_templates.TestEvent"
+      eventTemplateName = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
       dimensions += dimension {
         order = 1
         fieldPath = "person.gender"
@@ -153,7 +153,7 @@ class LandscapeProcessorTest {
 
     val fomLandscape = privacyLandscape {
       landscapeIdentifier = "landsape1"
-      eventTemplateName = "wfa.measurement.testing.event_templates.TestEvent"
+      eventTemplateName = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
       dimensions += dimension {
         order = 1
         fieldPath = "person.gender"
@@ -171,7 +171,7 @@ class LandscapeProcessorTest {
 
     val toLandscape = privacyLandscape {
       landscapeIdentifier = "landsape1"
-      eventTemplateName = "wfa.measurement.testing.event_templates.TestEvent"
+      eventTemplateName = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
       dimensions += dimension {
         order = 1
         fieldPath = "person.gender"
@@ -329,7 +329,7 @@ class LandscapeProcessorTest {
 
     val fomLandscape = privacyLandscape {
       landscapeIdentifier = "landsape1"
-      eventTemplateName = "wfa.measurement.testing.event_templates.TestEvent"
+      eventTemplateName = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
       dimensions += dimension {
         order = 1
         fieldPath = "person.gender"
@@ -347,7 +347,7 @@ class LandscapeProcessorTest {
 
     val toLandscape = privacyLandscape {
       landscapeIdentifier = "landsape1"
-      eventTemplateName = "wfa.measurement.testing.event_templates.TestEvent"
+      eventTemplateName = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
       dimensions += dimension {
         order = 1
         fieldPath = "person.gender"

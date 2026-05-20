@@ -72,7 +72,7 @@ import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineIm
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesResponse
-import org.wfanet.measurement.testing.event_templates.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule

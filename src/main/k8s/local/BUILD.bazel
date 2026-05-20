@@ -22,7 +22,7 @@ DB_SECRET_NAME = "db-creds"
 
 MC_CONFIG_SECRET_NAME = "mc-config"
 
-EVENT_DESCRIPTOR_SET = "//src/main/proto/wfa/measurement/testing/event_templates:test_event_descriptor_set"
+EVENT_DESCRIPTOR_SET = "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_descriptor_set"
 
 exports_files(["open_id_providers_config.json"])
 

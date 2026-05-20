@@ -20,7 +20,7 @@ subpopulations {
     end_vid_inclusive: 29999999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: MALE
       age_group: YEARS_18_TO_34
       social_grade_group: A_B_C1
@@ -35,7 +35,7 @@ subpopulations {
     end_vid_inclusive: 59999999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: MALE
       age_group: YEARS_18_TO_34
       social_grade_group: C2_D_E
@@ -50,7 +50,7 @@ subpopulations {
     end_vid_inclusive: 89999999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: MALE
       age_group: YEARS_35_TO_54
       social_grade_group: A_B_C1
@@ -65,7 +65,7 @@ subpopulations {
     end_vid_inclusive: 119999999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: MALE
       age_group: YEARS_35_TO_54
       social_grade_group: C2_D_E
@@ -80,7 +80,7 @@ subpopulations {
     end_vid_inclusive: 149999999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: MALE
       age_group: YEARS_55_PLUS
       social_grade_group: A_B_C1
@@ -95,7 +95,7 @@ subpopulations {
     end_vid_inclusive: 179999999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: MALE
       age_group: YEARS_55_PLUS
       social_grade_group: C2_D_E
@@ -110,7 +110,7 @@ subpopulations {
     end_vid_inclusive: 209999999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: FEMALE
       age_group: YEARS_18_TO_34
       social_grade_group: A_B_C1
@@ -125,7 +125,7 @@ subpopulations {
     end_vid_inclusive: 239999999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: FEMALE
       age_group: YEARS_18_TO_34
       social_grade_group: C2_D_E
@@ -140,7 +140,7 @@ subpopulations {
     end_vid_inclusive: 269999999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: FEMALE
       age_group: YEARS_35_TO_54
       social_grade_group: A_B_C1
@@ -155,7 +155,7 @@ subpopulations {
     end_vid_inclusive: 299999999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: FEMALE
       age_group: YEARS_35_TO_54
       social_grade_group: C2_D_E
@@ -170,7 +170,7 @@ subpopulations {
     end_vid_inclusive: 329999999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: FEMALE
       age_group: YEARS_55_PLUS
       social_grade_group: A_B_C1
@@ -185,7 +185,7 @@ subpopulations {
     end_vid_inclusive: 359999999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
       gender: FEMALE
       age_group: YEARS_55_PLUS
       social_grade_group: C2_D_E
