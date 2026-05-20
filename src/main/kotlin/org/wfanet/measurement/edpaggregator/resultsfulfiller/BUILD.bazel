@@ -35,7 +35,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
-        "//src/main/kotlin/org/wfanet/measurement/computation:k_anonymity_params",
+        "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
         "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_refusal_exception",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/compute/protocols/direct:direct_measurement_result_factory",
@@ -429,12 +429,12 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "k_anonymizer",
-    srcs = ["KAnonymizer.kt"],
+    name = "result_minimum_thresholder",
+    srcs = ["ResultMinimumThresholder.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",
-        "//src/main/kotlin/org/wfanet/measurement/computation:k_anonymity_params",
         "//src/main/kotlin/org/wfanet/measurement/computation:reach_and_frequency_computations",
+        "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
         "//src/main/proto/wfa/frequency_count:frequency_vector_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",

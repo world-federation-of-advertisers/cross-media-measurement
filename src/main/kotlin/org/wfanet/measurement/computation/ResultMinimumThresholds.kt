@@ -17,16 +17,17 @@
 package org.wfanet.measurement.computation
 
 /**
- * Represents k-anonymity constraints for a dataset.
+ * Represents small-cell suppression constraints for a dataset.
  *
  * @property minUsers The minimum number of unique users required for the data to be considered
- *   k-anonymous.
- * @property minImpressions The minimum number of impressions required to satisfy k-anonymity.
+ *   above minimum thresholds.
+ * @property minImpressions The minimum number of impressions required to satisfy small-cell
+ *   suppression.
  * @property reachMaxFrequencyPerUser The max frequency per user for reach use cases. Required if
- *   differential privacy is applied in addition to k-anonymity. It must be greater than zero and
- *   less than HMShuffle Ring Modulus and less than or equal to Byte.MAX_VALUE.
+ *   differential privacy is applied in addition to small-cell suppression. It must be greater than
+ *   zero and less than HMShuffle Ring Modulus and less than or equal to Byte.MAX_VALUE.
  */
-data class KAnonymityParams(
+data class ResultMinimumThresholds(
   val minUsers: Int,
   val minImpressions: Int,
   val reachMaxFrequencyPerUser: Int =

@@ -29,7 +29,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.computation.KAnonymityParams
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactory
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMeasurementFulfiller
@@ -111,7 +111,8 @@ data class TrusTeeConfig(
  * @param dataProviderCertificateKey EDP certificate identifier for result signing
  * @param dataProviderSigningKeyHandle cryptographic key for result authentication
  * @param noiserSelector strategy for selecting differential privacy mechanisms
- * @param kAnonymityParams optional k-anonymity thresholds; null disables k-anonymity
+ * @param resultMinimumThresholds optional small-cell suppression thresholds; null disables
+ *   suppression
  * @param overrideImpressionMaxFrequencyPerUser optional frequency cap override; null or -1 means no
  *   capping and uses totalUncappedImpressions instead
  * @param supportedMultiPartyNoiseMechanisms set of [NoiseMechanism] values this EDP supports for
@@ -127,7 +128,7 @@ class DefaultFulfillerSelector(
   private val dataProviderCertificateKey: DataProviderCertificateKey,
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val noiserSelector: NoiserSelector,
-  private val kAnonymityParams: KAnonymityParams?,
+  private val resultMinimumThresholds: ResultMinimumThresholds?,
   private val overrideImpressionMaxFrequencyPerUser: Int?,
   private val supportedMultiPartyNoiseMechanisms: Set<NoiseMechanism>,
   private val trusTeeConfig: TrusTeeConfig? = null,
@@ -174,7 +175,7 @@ class DefaultFulfillerSelector(
         measurementSpec = measurementSpec,
         frequencyDataBytes = frequencyDataBytes,
         strict = false,
-        kAnonymityParams = kAnonymityParams,
+        resultMinimumThresholds = resultMinimumThresholds,
         overrideImpressionMaxFrequencyPerUser = overrideImpressionMaxFrequencyPerUser,
       )
 
@@ -186,7 +187,7 @@ class DefaultFulfillerSelector(
         requisitionSpec = requisitionSpec,
         maxPopulation = null,
         frequencyData = vec.frequencyDataArray,
-        kAnonymityParams = kAnonymityParams,
+        resultMinimumThresholds = resultMinimumThresholds,
         totalUncappedImpressions = totalUncappedImpressions,
       )
     } else if (requisition.protocolConfig.protocolsList.any { it.hasTrusTee() }) {
@@ -216,7 +217,7 @@ class DefaultFulfillerSelector(
           null
         }
 
-      if (kAnonymityParams == null) {
+      if (resultMinimumThresholds == null) {
         TrusTeeMeasurementFulfiller(
           requisition,
           requisitionSpec.nonce,
@@ -234,7 +235,7 @@ class DefaultFulfillerSelector(
           vec,
           requisitionFulfillmentStubMap,
           requisitionsStub,
-          kAnonymityParams,
+          resultMinimumThresholds,
           maxPopulation = null,
           trusTeeEncryptionParams,
         )
@@ -249,7 +250,7 @@ class DefaultFulfillerSelector(
           .noiseMechanism
       validateMultiPartyNoiseMechanism(hmssNoiseMechanism)
 
-      if (kAnonymityParams == null) {
+      if (resultMinimumThresholds == null) {
         HMShuffleMeasurementFulfiller(
           requisition,
           requisitionSpec.nonce,
@@ -270,7 +271,7 @@ class DefaultFulfillerSelector(
           dataProviderCertificateKey,
           requisitionFulfillmentStubMap,
           requisitionsStub,
-          kAnonymityParams,
+          resultMinimumThresholds,
           maxPopulation = null,
         )
       }
@@ -304,7 +305,7 @@ class DefaultFulfillerSelector(
     requisitionSpec: RequisitionSpec,
     maxPopulation: Int?,
     frequencyData: IntArray,
-    kAnonymityParams: KAnonymityParams?,
+    resultMinimumThresholds: ResultMinimumThresholds?,
     totalUncappedImpressions: Long,
   ): DirectMeasurementFulfiller {
     val measurementEncryptionPublicKey: EncryptionPublicKey =
@@ -321,7 +322,7 @@ class DefaultFulfillerSelector(
         measurementSpec,
         frequencyData,
         maxPopulation,
-        kAnonymityParams = kAnonymityParams,
+        resultMinimumThresholds = resultMinimumThresholds,
         impressionMaxFrequencyPerUser = overrideImpressionMaxFrequencyPerUser,
         totalUncappedImpressions = totalUncappedImpressions,
       )

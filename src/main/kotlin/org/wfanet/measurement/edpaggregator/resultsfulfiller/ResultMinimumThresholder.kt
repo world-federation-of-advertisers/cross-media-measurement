@@ -18,38 +18,38 @@ import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.computation.HistogramComputations
-import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.computation.ReachAndFrequencyComputations
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 
-/** Utility object for k-anonymity operations on frequency vectors. */
-object KAnonymizer {
+/** Applies minimum result thresholds (small-cell suppression) on frequency vectors. */
+object ResultMinimumThresholder {
   /**
-   * Applies k-anonymity to a frequency vector.
+   * Applies minimum result thresholds to a frequency vector.
    *
-   * Returns an empty FrequencyVector if k-anonymity threshold is not met for reach. It does not
-   * k-anonymize individual frequencies that do not meet a threshold.
+   * Returns an empty FrequencyVector if minimum result thresholds threshold is not met for reach. It does not
+   * apply minimum thresholds to individual frequencies that do not meet a threshold.
    *
    * @param measurementSpec The measurement specification
    * @param populationSpec The population specification
    * @param frequencyVectorBuilder The frequency vector builder containing the data
-   * @param kAnonymityParams The k-anonymity parameters
+   * @param resultMinimumThresholds The small-cell suppression parameters
    * @param maxPopulation Optional maximum population size
-   * @return Either the original frequency vector if k-anonymity is met, or an empty frequency
+   * @return Either the original frequency vector if minimum result thresholds is met, or an empty frequency
    *   vector
    */
-  fun kAnonymizeFrequencyVector(
+  fun applyThresholds(
     measurementSpec: MeasurementSpec,
     populationSpec: PopulationSpec,
     frequencyVectorBuilder: FrequencyVectorBuilder,
-    kAnonymityParams: KAnonymityParams,
+    resultMinimumThresholds: ResultMinimumThresholds,
     maxPopulation: Int?,
   ): FrequencyVector {
     val frequencyData = frequencyVectorBuilder.frequencyDataArray
     val histogram: LongArray =
       HistogramComputations.buildHistogram(
         frequencyVector = frequencyData,
-        maxFrequency = kAnonymityParams.reachMaxFrequencyPerUser,
+        maxFrequency = resultMinimumThresholds.reachMaxFrequencyPerUser,
       )
     val reachValue =
       ReachAndFrequencyComputations.computeReach(
@@ -57,10 +57,10 @@ object KAnonymizer {
         vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width.toDouble(),
         vectorSize = maxPopulation,
         dpParams = null,
-        kAnonymityParams = kAnonymityParams,
+        resultMinimumThresholds = resultMinimumThresholds,
       )
     return if (reachValue == 0L) {
-      // Return an empty frequency vector when k-anonymity threshold is not met.
+      // Return an empty frequency vector when minimum result thresholds threshold is not met.
       // Using strict=false to allow empty vector creation without validation errors.
       FrequencyVectorBuilder(
           measurementSpec = measurementSpec,

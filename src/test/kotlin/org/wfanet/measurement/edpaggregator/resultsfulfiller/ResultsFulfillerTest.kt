@@ -134,7 +134,7 @@ import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
-import org.wfanet.measurement.computation.KAnonymityParams
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.*
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
@@ -383,7 +383,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -524,7 +524,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
       )
@@ -636,7 +636,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = NoNoiserSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -768,7 +768,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = 2,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -911,7 +911,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = 3,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -1042,7 +1042,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = -1, // Uncapped
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -1170,7 +1170,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -1277,7 +1277,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -1386,7 +1386,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -1493,7 +1493,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -1607,7 +1607,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
@@ -1718,7 +1718,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
@@ -1829,7 +1829,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
         )
@@ -1927,7 +1927,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -2031,7 +2031,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = KAnonymityParams(100, 100),
+          resultMinimumThresholds = ResultMinimumThresholds(100, 100),
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -2156,7 +2156,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = KAnonymityParams(100, 1000),
+          resultMinimumThresholds = ResultMinimumThresholds(100, 1000),
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -2280,7 +2280,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -2457,7 +2457,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -2577,7 +2577,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -2693,7 +2693,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = ContinuousGaussianNoiseSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -2998,7 +2998,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = NoNoiserSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         kekUriToKeyNameMap = mapOf("uri" to "invalid/key/name"),
@@ -3018,7 +3018,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = NoNoiserSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         kekUriToKeyNameMap = mapOf("uri" to longKeyName),
@@ -3040,7 +3040,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
@@ -3071,7 +3071,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
@@ -3102,7 +3102,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
@@ -3135,7 +3135,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(
@@ -3171,7 +3171,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = ContinuousGaussianNoiseSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
@@ -3204,7 +3204,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
         )
@@ -3232,7 +3232,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
         )

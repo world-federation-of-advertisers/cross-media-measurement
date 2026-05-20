@@ -2,5 +2,9 @@
 # proto-message: TrusTeeProtocolConfigConfig
 protocol_config {
   noise_mechanism: CONTINUOUS_GAUSSIAN
+  result_minimum_thresholds {
+    min_impressions: 10
+    min_users: 10
+  }
 }
 duchy_id: "aggregator"
