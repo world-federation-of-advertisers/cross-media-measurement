@@ -1,0 +1,85 @@
+# proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto
+# proto-message: SyntheticEventGroupSpec
+
+# Test fixture: a small SyntheticEventGroupSpec to be used with
+# small_market_population_spec.textproto and the test-only `MarketEvent`
+# template
+# (wfa.measurement.api.v2alpha.event_templates.testing.market.v1.MarketEvent).
+# Non-population field paths reference the boolean engagement-bucket fields
+# exposed by the `Video` and `Display` market templates.
+#
+# Date range: 2024-01-01..2024-01-03 inclusive (3 days).
+# Total impressions: (200 VIDs * frequency 1) + (100 VIDs * frequency 2) +
+#                    (50 VIDs * frequency 3) = 550.
+
+date_specs {
+  date_range {
+    start {
+      year: 2024
+      month: 1
+      day: 1
+    }
+    end_exclusive {
+      year: 2024
+      month: 1
+      day: 4
+    }
+  }
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 1
+        end_exclusive: 201
+      }
+      non_population_field_values {
+        key: "video.completed_50_percent_plus"
+        value {
+          bool_value: true
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_50_percent_plus"
+        value {
+          bool_value: true
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 2
+    vid_range_specs {
+      vid_range {
+        start: 10001
+        end_exclusive: 10101
+      }
+      non_population_field_values {
+        key: "video.completed_25_percent_plus"
+        value {
+          bool_value: true
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 3
+    vid_range_specs {
+      vid_range {
+        start: 20001
+        end_exclusive: 20051
+      }
+      non_population_field_values {
+        key: "display.viewable_50_percent_plus"
+        value {
+          bool_value: true
+        }
+      }
+      non_population_field_values {
+        key: "display.viewable_100_percent"
+        value {
+          bool_value: true
+        }
+      }
+    }
+  }
+}

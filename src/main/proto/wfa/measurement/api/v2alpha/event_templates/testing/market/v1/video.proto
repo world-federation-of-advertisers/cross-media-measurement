@@ -1,0 +1,88 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Video engagement template for the test-only `MarketEvent`.
+//
+// Modeled after market-style video templates that report discretized
+// completion / viewability buckets as boolean flags rather than continuous
+// metrics. See //src/main/proto/.../market/v1/common.proto for the broader
+// motivation behind the `MarketEvent` template.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha.event_templates.testing.market.v1;
+
+import "wfa/measurement/api/v2alpha/event_annotations.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1";
+option java_multiple_files = true;
+
+message Video {
+  option (.wfa.measurement.api.v2alpha.event_template) = {
+    name: "video"
+    media_type: VIDEO
+    display_name: "Video Ad"
+    description: "Video ad engagement attributes for MarketEvent."
+  };
+
+  bool completed_0_percent_plus = 1
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Completed 0%+"
+        reporting_features: IMPRESSION_QUALIFICATION
+        version_added: 1
+      }];
+  bool completed_25_percent_plus = 2
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Completed 25%+"
+        reporting_features: IMPRESSION_QUALIFICATION
+        version_added: 1
+      }];
+  bool completed_50_percent_plus = 3
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Completed 50%+"
+        reporting_features: IMPRESSION_QUALIFICATION
+        version_added: 1
+      }];
+  bool completed_75_percent_plus = 4
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Completed 75%+"
+        reporting_features: IMPRESSION_QUALIFICATION
+        version_added: 1
+      }];
+  bool completed_100_percent = 5
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Completed 100%"
+        reporting_features: IMPRESSION_QUALIFICATION
+        version_added: 1
+      }];
+
+  bool viewable_0_percent_plus = 6
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Viewable 0%+"
+        reporting_features: IMPRESSION_QUALIFICATION
+        version_added: 1
+      }];
+  bool viewable_50_percent_plus = 7
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Viewable 50%+"
+        reporting_features: IMPRESSION_QUALIFICATION
+        version_added: 1
+      }];
+  bool viewable_100_percent = 8
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Viewable 100%"
+        reporting_features: IMPRESSION_QUALIFICATION
+        version_added: 1
+      }];
+}

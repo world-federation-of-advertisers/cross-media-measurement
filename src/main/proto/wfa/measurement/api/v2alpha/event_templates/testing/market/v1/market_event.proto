@@ -1,0 +1,65 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Test-only top-level event message that mimics the structure of an
+// event template defined by an individual market.
+//
+// Why this exists:
+//   * The default `TestEvent` is the only event template baked into the
+//     synthetic data generation tools. We need a *second*, structurally
+//     different event message to prove that
+//     `GenerateSyntheticData`/`VerifySyntheticData` correctly handle
+//     arbitrary user-supplied event message types via the
+//     `--event-message-descriptor-set` and `--event-message-type-url` flags.
+//   * Real markets define their own event templates (for example, a market
+//     may model engagement as discretized boolean buckets rather than
+//     continuous metrics, may use a single `Common` message for demographics
+//     instead of a `Person` template, and may include broader age ranges or
+//     additional media-type templates). `MarketEvent` deliberately mirrors
+//     those traits without being a copy of any specific market's schema.
+//   * This file is NOT kept in sync with any external market-specific
+//     definition. It lives under `src/main/proto` and is testonly.
+//
+// Concretely, `MarketEvent` differs from `TestEvent` along these axes:
+//   1. Demographics are folded into a single `Common` template instead of a
+//      separate `Person` template.
+//   2. Engagement is modeled as discretized boolean fields (e.g.
+//      `viewable_50_percent_plus`) rather than continuous values.
+//   3. Adds an `Other` template slot for media types outside of Video and
+//      Display, giving the top-level event four subtemplates instead of
+//      three.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha.event_templates.testing.market.v1;
+
+import "wfa/measurement/api/v2alpha/event_annotations.proto";
+import "wfa/measurement/api/v2alpha/event_templates/testing/market/v1/common.proto";
+import "wfa/measurement/api/v2alpha/event_templates/testing/market/v1/display.proto";
+import "wfa/measurement/api/v2alpha/event_templates/testing/market/v1/other.proto";
+import "wfa/measurement/api/v2alpha/event_templates/testing/market/v1/video.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1";
+option java_multiple_files = true;
+
+message MarketEvent {
+  option (.wfa.measurement.api.v2alpha.event) = {
+    current_version: 1
+  };
+
+  Common common = 1;
+  Video video = 2;
+  Display display = 3;
+  Other other = 4;
+}
