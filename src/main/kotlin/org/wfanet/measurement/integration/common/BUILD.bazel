@@ -332,6 +332,16 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "event_group_config",
+    srcs = ["EventGroupConfig.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_data_generation",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+        "@com_google_protobuf//:protobuf_java",
+    ],
+)
+
+kt_jvm_library(
     name = "in_process_edp_aggregator_components",
     srcs = [
         "InProcessEdpAggregatorComponents.kt",
@@ -342,6 +352,7 @@ kt_jvm_library(
     ],
     deps = [
         ":configs",
+        ":event_group_config",
         ":in_process_edp_aggregator_system_api",
         ":in_process_kingdom",
         ":in_process_secure_computation_public_api",

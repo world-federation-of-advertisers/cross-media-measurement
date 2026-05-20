@@ -123,48 +123,78 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   private val eventGroupConfigsByEdp: Map<String, Map<String, EventGroupConfig>> =
     mapOf(
       EDP_NO_ENTITY_KEY_DISPLAY_NAME to
-        mapOf(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID to EventGroupConfig(syntheticEventGroupSpec)),
+        mapOf(
+          EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID to
+            EventGroupConfig.LegacySpec(syntheticEventGroupSpec)
+        ),
       "edp2" to
         mapOf(
           "edpa-eg-reference-id-2" to
-            EventGroupConfig(
-              syntheticEventGroupSpec,
-              blobEntityKeys = listOf(EntityKey("ad_group", "edpa-eg-reference-id-2")),
-              entityMetadata = ENTITY_METADATA,
-            ),
-          MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID to
-            EventGroupConfig(
-              syntheticEventGroupSpec,
-              blobEntityKeys =
+            EventGroupConfig.MultiEntityKey(
+              entityKeySpecs =
                 listOf(
-                  EntityKey(CREATIVE_ID_ENTITY_TYPE, MULTI_CREATIVE_A_ID),
-                  EntityKey(CREATIVE_ID_ENTITY_TYPE, MULTI_CREATIVE_B_ID),
-                ),
-              entityMetadata = ENTITY_METADATA,
+                  EntityKeySpec(
+                    EntityKey("ad_group", "edpa-eg-reference-id-2"),
+                    syntheticEventGroupSpec,
+                    ENTITY_METADATA,
+                  )
+                )
+            ),
+          "$CREATIVE_ID_ENTITY_TYPE/$MULTI_CREATIVE_A_ID" to
+            EventGroupConfig.MultiEntityKey(
+              entityKeySpecs =
+                listOf(
+                  EntityKeySpec(
+                    EntityKey(CREATIVE_ID_ENTITY_TYPE, MULTI_CREATIVE_A_ID),
+                    syntheticEventGroupSpec,
+                    ENTITY_METADATA,
+                  )
+                )
+            ),
+          "$CREATIVE_ID_ENTITY_TYPE/$MULTI_CREATIVE_B_ID" to
+            EventGroupConfig.MultiEntityKey(
+              entityKeySpecs =
+                listOf(
+                  EntityKeySpec(
+                    EntityKey(CREATIVE_ID_ENTITY_TYPE, MULTI_CREATIVE_B_ID),
+                    syntheticEventGroupSpec2,
+                    ENTITY_METADATA,
+                  )
+                )
             ),
         ),
       "edp3" to
         mapOf(
           "edpa-eg-reference-id-3" to
-            EventGroupConfig(
-              syntheticEventGroupSpec,
-              blobEntityKeys = listOf(EntityKey("ad_group", "edpa-eg-reference-id-3")),
-              entityMetadata = ENTITY_METADATA,
+            EventGroupConfig.MultiEntityKey(
+              entityKeySpecs =
+                listOf(
+                  EntityKeySpec(
+                    EntityKey("ad_group", "edpa-eg-reference-id-3"),
+                    syntheticEventGroupSpec,
+                    ENTITY_METADATA,
+                  )
+                )
             )
         ),
       "edp4" to
         mapOf(
           "edpa-eg-reference-id-4" to
-            EventGroupConfig(
-              syntheticEventGroupSpec,
-              blobEntityKeys = listOf(EntityKey("ad_group", "edpa-eg-reference-id-4")),
-              entityMetadata = ENTITY_METADATA,
+            EventGroupConfig.MultiEntityKey(
+              entityKeySpecs =
+                listOf(
+                  EntityKeySpec(
+                    EntityKey("ad_group", "edpa-eg-reference-id-4"),
+                    syntheticEventGroupSpec,
+                    ENTITY_METADATA,
+                  )
+                )
             )
         ),
     )
 
-  private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec> =
-    eventGroupConfigsByEdp.values.flatMap { it.entries }.associate { it.key to it.value.spec }
+  private val syntheticEventGroupMap: Map<String, EventGroupConfig> =
+    eventGroupConfigsByEdp.values.flatMap { it.entries }.associate { it.key to it.value }
 
   @get:Rule
   val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents =
@@ -300,11 +330,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       // Use frontend simulator to create a direct reach and frequency measurement and verify
       // its
       // result.
-      mcSimulator.testDirectReachAndFrequency(
-        runId = "1234",
-        numMeasurements = 1,
-        eventGroupFilter = { it.eventGroupReferenceId != MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID },
-      )
+      mcSimulator.testDirectReachAndFrequency(runId = "1234", numMeasurements = 1)
     }
 
   @Test
@@ -313,11 +339,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       // Use frontend simulator to create a direct reach and frequency measurement and verify
       // its
       // result.
-      mcSimulator.testDirectReachOnly(
-        runId = "1234",
-        numMeasurements = 1,
-        eventGroupFilter = { it.eventGroupReferenceId != MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID },
-      )
+      mcSimulator.testDirectReachOnly(runId = "1234", numMeasurements = 1)
     }
 
   @Test
@@ -335,7 +357,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       // Use frontend simulator to create an impression measurement and verify its result.
       mcSimulator.testImpression(
         "1234",
-        eventGroupFilter = { it.eventGroupReferenceId != MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID },
+        eventGroupFilter = { it.eventGroupReferenceId !in MULTI_ENTITY_KEY_REF_IDS },
       )
     }
 
@@ -349,7 +371,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
         eventGroupFilter = {
           it.eventGroupReferenceId != MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID &&
-            it.eventGroupReferenceId != MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID
+            it.eventGroupReferenceId !in MULTI_ENTITY_KEY_REF_IDS
         },
       )
     }
@@ -364,7 +386,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
         eventGroupFilter = {
           it.eventGroupReferenceId != MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID &&
-            it.eventGroupReferenceId != MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID
+            it.eventGroupReferenceId !in MULTI_ENTITY_KEY_REF_IDS
         },
       )
     }
@@ -379,7 +401,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
         eventGroupFilter = {
           it.eventGroupReferenceId != MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID &&
-            it.eventGroupReferenceId != MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID
+            it.eventGroupReferenceId !in MULTI_ENTITY_KEY_REF_IDS
         },
       )
     }
@@ -395,7 +417,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
         eventGroupFilter = {
           it.eventGroupReferenceId != MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID &&
-            it.eventGroupReferenceId != MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID
+            it.eventGroupReferenceId !in MULTI_ENTITY_KEY_REF_IDS
         },
       )
     }
@@ -455,18 +477,25 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
           .containsAtLeastElementsIn(refConfigs.keys)
 
         for ((refId, config) in refConfigs) {
-          if (config.blobEntityKeys.isEmpty()) continue
-          val eventGroup = byRefId.getValue(refId)
-          val expectedEntityKey = config.blobEntityKeys.first()
-          assertWithMessage("entity_key.entity_type for $refId")
-            .that(eventGroup.entityKey.entityType)
-            .isEqualTo(expectedEntityKey.entityType)
-          assertWithMessage("entity_key.entity_id for $refId")
-            .that(eventGroup.entityKey.entityId)
-            .isEqualTo(expectedEntityKey.entityId)
-          assertWithMessage("entity_metadata for $refId")
-            .that(eventGroup.eventGroupMetadata.entityMetadata)
-            .isEqualTo(config.entityMetadata)
+          when (config) {
+            is EventGroupConfig.LegacySpec -> continue
+            is EventGroupConfig.MultiEntityKey -> {
+              for (entityKeySpec in config.entityKeySpecs) {
+                val derivedRefId =
+                  "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}"
+                val eventGroup = byRefId.getValue(derivedRefId)
+                assertWithMessage("entity_key.entity_type for $derivedRefId")
+                  .that(eventGroup.entityKey.entityType)
+                  .isEqualTo(entityKeySpec.entityKey.entityType)
+                assertWithMessage("entity_key.entity_id for $derivedRefId")
+                  .that(eventGroup.entityKey.entityId)
+                  .isEqualTo(entityKeySpec.entityKey.entityId)
+                assertWithMessage("entity_metadata for $derivedRefId")
+                  .that(eventGroup.eventGroupMetadata.entityMetadata)
+                  .isEqualTo(entityKeySpec.entityMetadata)
+              }
+            }
+          }
         }
       }
     }
@@ -502,7 +531,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     mcSimulator.testDirectReachAndFrequency(
       runId = "1235",
       numMeasurements = 1,
-      eventGroupFilter = { it.eventGroupReferenceId == MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID },
+      eventGroupFilter = { it.eventGroupReferenceId in MULTI_ENTITY_KEY_REF_IDS },
     )
   }
 
@@ -521,9 +550,13 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     val refIds = response.eventGroupsList.map { it.eventGroupReferenceId }.toSet()
     assertThat(refIds).contains(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID)
     for ((_, refConfigs) in eventGroupConfigsByEdp) {
-      for ((refId, config) in refConfigs) {
-        if (config.blobEntityKeys.isNotEmpty()) {
-          assertThat(refIds).doesNotContain(refId)
+      for ((_, config) in refConfigs) {
+        if (config is EventGroupConfig.MultiEntityKey) {
+          for (entityKeySpec in config.entityKeySpecs) {
+            val derivedRefId =
+              "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}"
+            assertThat(refIds).doesNotContain(derivedRefId)
+          }
         }
       }
     }
@@ -540,7 +573,11 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     private const val TRUSTEE_NO_NOISE_EDP_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-3"
     private const val MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-4"
 
-    private const val MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID = "edpa-eg-multi-creative"
+    private val MULTI_ENTITY_KEY_REF_IDS =
+      setOf(
+        "$CREATIVE_ID_ENTITY_TYPE/$MULTI_CREATIVE_A_ID",
+        "$CREATIVE_ID_ENTITY_TYPE/$MULTI_CREATIVE_B_ID",
+      )
     private const val MULTI_CREATIVE_A_ID = "creative-a"
     private const val MULTI_CREATIVE_B_ID = "creative-b"
     private const val CREATIVE_ID_ENTITY_TYPE = "creative-id"
@@ -607,6 +644,11 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     val syntheticEventGroupSpec: SyntheticEventGroupSpec =
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
+        SyntheticEventGroupSpec.getDefaultInstance(),
+      )
+    val syntheticEventGroupSpec2: SyntheticEventGroupSpec =
+      parseTextProto(
+        TEST_DATA_RUNTIME_PATH.resolve("small_data_spec_2.textproto").toFile(),
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
     val modelLineInfoMap =
