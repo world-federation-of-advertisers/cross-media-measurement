@@ -600,8 +600,7 @@ class InProcessEdpAggregatorComponents(
               shard.localDate,
               sequenceOf(
                 EntityKeysWithLabeledEvents(
-                  if (entityKeySpec.entityKey != null) listOf(entityKeySpec.entityKey!!)
-                  else emptyList(),
+                  listOfNotNull(entityKeySpec.entityKey),
                   shard.labeledEvents,
                 )
               ),
