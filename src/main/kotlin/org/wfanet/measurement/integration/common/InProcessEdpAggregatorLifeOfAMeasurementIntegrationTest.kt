@@ -140,7 +140,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
                   )
                 )
             ),
-          "$CREATIVE_ID_ENTITY_TYPE/$MULTI_CREATIVE_A_ID" to
+          "multi-creative" to
             EventGroupConfig.MultiEntityKey(
               entityKeySpecs =
                 listOf(
@@ -148,18 +148,12 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
                     EntityKey(CREATIVE_ID_ENTITY_TYPE, MULTI_CREATIVE_A_ID),
                     syntheticEventGroupSpec,
                     ENTITY_METADATA,
-                  )
-                )
-            ),
-          "$CREATIVE_ID_ENTITY_TYPE/$MULTI_CREATIVE_B_ID" to
-            EventGroupConfig.MultiEntityKey(
-              entityKeySpecs =
-                listOf(
+                  ),
                   EntityKeySpec(
                     EntityKey(CREATIVE_ID_ENTITY_TYPE, MULTI_CREATIVE_B_ID),
                     syntheticEventGroupSpec2,
                     ENTITY_METADATA,
-                  )
+                  ),
                 )
             ),
         ),
