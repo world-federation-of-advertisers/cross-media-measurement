@@ -1491,15 +1491,15 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   @Test
   fun `basic report with multi-entity-key blob filtering to one entity key succeeds`() =
     runBlocking {
-      val multiEntityKeyEventGroups =
+      val singleEntityKeyEventGroup =
         listReportingEventGroups().filter {
-          it.eventGroupReferenceId in EDP1_MULTI_ENTITY_KEY_REF_IDS
+          it.eventGroupReferenceId == "$CREATIVE_ID_ENTITY_TYPE/$EDP1_MULTI_CREATIVE_A_ID"
         }
-      check(multiEntityKeyEventGroups.isNotEmpty()) { "No multi-entity-key event group found" }
+      check(singleEntityKeyEventGroup.isNotEmpty()) { "No multi-entity-key event group found" }
 
       val createBasicReportRequest =
         buildCreateBasicReportRequest(
-          multiEntityKeyEventGroups,
+          singleEntityKeyEventGroup,
           "multi-entity-key-campaign",
           "multi-entity-key-basicreport",
           includeIqfFilter = false,
@@ -1526,6 +1526,41 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         expectedImpressions = EXPECTED_MULTI_ENTITY_KEY_IMPRESSIONS,
         expectedKPlusReach = EXPECTED_MULTI_ENTITY_KEY_K_PLUS_REACH,
       )
+    }
+
+  @Test
+  fun `basic report with two same-edp entity-key event groups fails post-processing`() =
+    runBlocking {
+      val bothEntityKeyEventGroups =
+        listReportingEventGroups().filter {
+          it.eventGroupReferenceId in EDP1_MULTI_ENTITY_KEY_REF_IDS
+        }
+      check(bothEntityKeyEventGroups.size == 2) {
+        "Expected 2 multi-entity-key event groups, got ${bothEntityKeyEventGroups.size}"
+      }
+
+      val createBasicReportRequest =
+        buildCreateBasicReportRequest(
+          bothEntityKeyEventGroups,
+          "two-entity-key-campaign",
+          "two-entity-key-basicreport",
+          includeIqfFilter = false,
+        )
+
+      val createdBasicReport =
+        reportingBasicReportsClient
+          .withCallCredentials(credentials)
+          .createBasicReport(createBasicReportRequest)
+
+      executeBasicReportsReportsJob(createdBasicReport.name)
+      executeReportProcessorJob()
+
+      val completedBasicReport =
+        reportingBasicReportsClient
+          .withCallCredentials(credentials)
+          .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+      assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
     }
 
   companion object {
