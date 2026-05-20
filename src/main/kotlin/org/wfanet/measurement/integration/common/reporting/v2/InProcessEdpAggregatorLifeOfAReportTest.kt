@@ -1341,7 +1341,9 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     val edp1RefIdOnly =
       allEventGroups.first { it.eventGroupReferenceId == EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID }
     val edp1CreativeId =
-      allEventGroups.first { it.eventGroupReferenceId == "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_EVENT_GROUP_REF_ID" }
+      allEventGroups.first {
+        it.eventGroupReferenceId == "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_EVENT_GROUP_REF_ID"
+      }
     return listOf(edp1RefIdOnly, edp1CreativeId)
   }
 
@@ -1425,7 +1427,9 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   fun `basic report with single-edp creative-id event group succeeds`() = runBlocking {
     val allEventGroups = listReportingEventGroups()
     val singleCreativeIdEventGroup =
-      allEventGroups.filter { it.eventGroupReferenceId == "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_EVENT_GROUP_REF_ID" }
+      allEventGroups.filter {
+        it.eventGroupReferenceId == "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_EVENT_GROUP_REF_ID"
+      }
     check(singleCreativeIdEventGroup.isNotEmpty()) {
       "No single creative-id event group found for edp1"
     }
