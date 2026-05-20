@@ -226,8 +226,8 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
     const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-1"
     const val CREATIVE_ID_ENTITY_ID = "edpa-eg-creative-id-1"
     val CREATIVE_ID_EVENT_GROUP_REF_ID = "creative-id/$CREATIVE_ID_ENTITY_ID"
-    const val MULTI_CREATIVE_A_ENTITY_ID = "multi-creative-a"
-    const val MULTI_CREATIVE_B_ENTITY_ID = "multi-creative-b"
+    const val MULTI_CREATIVE_A_ENTITY_ID = "edpa-eg-multi-creative-1"
+    const val MULTI_CREATIVE_B_ENTITY_ID = "edpa-eg-multi-creative-2"
     val MULTI_CREATIVE_A_REF_ID = "creative-id/$MULTI_CREATIVE_A_ENTITY_ID"
     val MULTI_CREATIVE_B_REF_ID = "creative-id/$MULTI_CREATIVE_B_ENTITY_ID"
     val MULTI_CREATIVE_REF_IDS = setOf(MULTI_CREATIVE_A_REF_ID, MULTI_CREATIVE_B_REF_ID)
