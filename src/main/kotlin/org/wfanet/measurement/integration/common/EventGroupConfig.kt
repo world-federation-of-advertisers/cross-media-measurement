@@ -23,7 +23,7 @@ import org.wfanet.measurement.loadtest.dataprovider.EntityKey
  * in the impressions blob.
  */
 data class EntityKeySpec(
-  val entityKey: EntityKey,
+  val entityKey: EntityKey? = null,
   val spec: SyntheticEventGroupSpec,
   val entityMetadata: Struct? = null,
 )

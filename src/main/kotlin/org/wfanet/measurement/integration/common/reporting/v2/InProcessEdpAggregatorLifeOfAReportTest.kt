@@ -208,7 +208,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   // so all event groups are visible.
   private val eventGroupConfigsByEdp: Map<String, Map<String, EventGroupConfig>> =
     mapOf(
-      EDP_NO_ENTITY_KEY_DISPLAY_NAME to
+      "edp1" to
         mapOf(
           "edp1-eg-ref-1" to EventGroupConfig.LegacySpec(syntheticEventGroupSpec2),
           EDP1_CREATIVE_EVENT_GROUP_REF_ID to
@@ -734,14 +734,14 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           is EventGroupConfig.MultiEntityKey -> {
             for (entityKeySpec in config.entityKeySpecs) {
               val derivedRefId =
-                "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}"
+                "${entityKeySpec.entityKey!!.entityType}/${entityKeySpec.entityKey!!.entityId}"
               val eventGroup = byRefId.getValue(derivedRefId)
               assertWithMessage("entity_key.entity_type for $derivedRefId")
                 .that(eventGroup.entityKey.entityType)
-                .isEqualTo(entityKeySpec.entityKey.entityType)
+                .isEqualTo(entityKeySpec.entityKey!!.entityType)
               assertWithMessage("entity_key.entity_id for $derivedRefId")
                 .that(eventGroup.entityKey.entityId)
-                .isEqualTo(entityKeySpec.entityKey.entityId)
+                .isEqualTo(entityKeySpec.entityKey!!.entityId)
               assertWithMessage("entity_metadata for $derivedRefId")
                 .that(eventGroup.eventGroupMetadata.entityMetadata)
                 .isEqualTo(entityKeySpec.entityMetadata)
@@ -1594,7 +1594,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     // edp4 is configured with multi-party noise CONTINUOUS_GAUSSIAN, so it's the "restricted"
     // EDP for the no-noise failure path tests; the same EDP also carries the non-default
     // entity_type ("ad_group") in this fixture.
-    private const val EDP_NO_ENTITY_KEY_DISPLAY_NAME = "edp1"
     private const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edp1-eg-ref-1"
     private const val AD_GROUP_EDP_DISPLAY_NAME = "edp4"
     private const val AD_GROUP_EDP_EVENT_GROUP_REF_ID = "ad_group/edp4-eg-ref-1"

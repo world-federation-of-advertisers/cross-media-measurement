@@ -122,7 +122,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   // so edp1 stays visible to existing measurement tests.
   private val eventGroupConfigsByEdp: Map<String, Map<String, EventGroupConfig>> =
     mapOf(
-      EDP_NO_ENTITY_KEY_DISPLAY_NAME to
+      "edp1" to
         mapOf(
           EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID to
             EventGroupConfig.LegacySpec(syntheticEventGroupSpec)
@@ -195,7 +195,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
           is EventGroupConfig.LegacySpec -> listOf(refId to config)
           is EventGroupConfig.MultiEntityKey ->
             config.entityKeySpecs.map { spec ->
-              "${spec.entityKey.entityType}/${spec.entityKey.entityId}" to
+              "${spec.entityKey!!.entityType}/${spec.entityKey!!.entityId}" to
                 EventGroupConfig.MultiEntityKey(entityKeySpecs = listOf(spec))
             }
         }
@@ -484,7 +484,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
               is EventGroupConfig.LegacySpec -> listOf(refId)
               is EventGroupConfig.MultiEntityKey ->
                 config.entityKeySpecs.map { spec ->
-                  "${spec.entityKey.entityType}/${spec.entityKey.entityId}"
+                  "${spec.entityKey!!.entityType}/${spec.entityKey!!.entityId}"
                 }
             }
           }
@@ -498,14 +498,14 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
             is EventGroupConfig.MultiEntityKey -> {
               for (entityKeySpec in config.entityKeySpecs) {
                 val derivedRefId =
-                  "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}"
+                  "${entityKeySpec.entityKey!!.entityType}/${entityKeySpec.entityKey!!.entityId}"
                 val eventGroup = byRefId.getValue(derivedRefId)
                 assertWithMessage("entity_key.entity_type for $derivedRefId")
                   .that(eventGroup.entityKey.entityType)
-                  .isEqualTo(entityKeySpec.entityKey.entityType)
+                  .isEqualTo(entityKeySpec.entityKey!!.entityType)
                 assertWithMessage("entity_key.entity_id for $derivedRefId")
                   .that(eventGroup.entityKey.entityId)
-                  .isEqualTo(entityKeySpec.entityKey.entityId)
+                  .isEqualTo(entityKeySpec.entityKey!!.entityId)
                 assertWithMessage("entity_metadata for $derivedRefId")
                   .that(eventGroup.eventGroupMetadata.entityMetadata)
                   .isEqualTo(entityKeySpec.entityMetadata)
@@ -520,8 +520,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   fun `EDPA EventGroups without entity_key default to campaign with no entity_id or metadata`() =
     runBlocking {
       val edpDisplayNameToResourceMap = inProcessCmmsComponents.edpDisplayNameToResourceMap
-      val edpResourceName =
-        edpDisplayNameToResourceMap.getValue(EDP_NO_ENTITY_KEY_DISPLAY_NAME).name
+      val edpResourceName = edpDisplayNameToResourceMap.getValue("edp1").name
 
       val response =
         publicEventGroupsClient
@@ -570,7 +569,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         if (config is EventGroupConfig.MultiEntityKey) {
           for (entityKeySpec in config.entityKeySpecs) {
             val derivedRefId =
-              "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}"
+              "${entityKeySpec.entityKey!!.entityType}/${entityKeySpec.entityKey!!.entityId}"
             assertThat(refIds).doesNotContain(derivedRefId)
           }
         }
@@ -583,7 +582,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     // happens
     // to be the EDP that requires no measurement noise on the HMSS protocol, used by the
     // HMSS-failure path test.
-    private const val EDP_NO_ENTITY_KEY_DISPLAY_NAME = "edp1"
     private const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-1"
     private const val HMSS_NO_NOISE_EDP_EVENT_GROUP_REF_ID = EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID
     private const val TRUSTEE_NO_NOISE_EDP_EVENT_GROUP_REF_ID = "ad_group/edpa-eg-reference-id-3"

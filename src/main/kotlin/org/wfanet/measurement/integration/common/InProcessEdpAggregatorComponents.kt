@@ -358,11 +358,11 @@ class InProcessEdpAggregatorComponents(
       logger.info("Received mappedEventGroups: $mappedEventGroups")
       runBlocking { writeImpressionData(mappedEventGroups, edpAggregatorShortName) }
 
-      val metaSpecByRefId: Map<String, Pair<EntityKey?, SyntheticEventGroupSpec>> =
+      val metaSpecByRefId: Map<String, EntityKeySpec> =
         resolveSpecsByReferenceId(edpAggregatorShortName)
 
       mappedEventGroups.forEach { mappedEventGroup ->
-        val (_, metaSpec) = metaSpecByRefId.getValue(mappedEventGroup.eventGroupReferenceId)
+        val metaSpec = metaSpecByRefId.getValue(mappedEventGroup.eventGroupReferenceId).spec
         val allDates: List<LocalDate> =
           SyntheticDataGeneration.generateEvents(
               TestEvent.getDefaultInstance(),
@@ -500,7 +500,7 @@ class InProcessEdpAggregatorComponents(
               spec = entityKeySpec.spec,
               entityKey = entityKeySpec.entityKey,
               eventGroupReferenceId =
-                "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}",
+                "${entityKeySpec.entityKey!!.entityType}/${entityKeySpec.entityKey!!.entityId}",
               entityMetadata = entityKeySpec.entityMetadata,
               measurementConsumerData = measurementConsumerData,
             )
@@ -573,12 +573,11 @@ class InProcessEdpAggregatorComponents(
       )
     }
 
-    val specByRefId: Map<String, Pair<EntityKey?, SyntheticEventGroupSpec>> =
-      resolveSpecsByReferenceId(edpAggregatorShortName)
+    val specByRefId: Map<String, EntityKeySpec> = resolveSpecsByReferenceId(edpAggregatorShortName)
 
     mappedEventGroups.forEach { mappedEventGroup ->
       val refId = mappedEventGroup.eventGroupReferenceId
-      val (entityKey, spec) = specByRefId.getValue(refId)
+      val entityKeySpec = specByRefId.getValue(refId)
       val impressionWriter =
         ImpressionsWriter(
           refId,
@@ -591,13 +590,18 @@ class InProcessEdpAggregatorComponents(
           "file:///",
         )
       val entityKeyedEvents: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
-        SyntheticDataGeneration.generateEvents(TestEvent.getDefaultInstance(), populationSpec, spec)
+        SyntheticDataGeneration.generateEvents(
+            TestEvent.getDefaultInstance(),
+            populationSpec,
+            entityKeySpec.spec,
+          )
           .map { shard ->
             EntityKeyedLabeledEventDateShard(
               shard.localDate,
               sequenceOf(
                 EntityKeysWithLabeledEvents(
-                  if (entityKey != null) listOf(entityKey) else emptyList(),
+                  if (entityKeySpec.entityKey != null) listOf(entityKeySpec.entityKey!!)
+                  else emptyList(),
                   shard.labeledEvents,
                 )
               ),
@@ -609,16 +613,16 @@ class InProcessEdpAggregatorComponents(
 
   private fun resolveSpecsByReferenceId(
     edpAggregatorShortName: String
-  ): Map<String, Pair<EntityKey?, SyntheticEventGroupSpec>> {
+  ): Map<String, EntityKeySpec> {
     return eventGroupConfigsByEdp
       .getValue(edpAggregatorShortName)
       .flatMap { (refId, config) ->
         when (config) {
-          is EventGroupConfig.LegacySpec -> listOf(refId to (null to config.spec))
+          is EventGroupConfig.LegacySpec -> listOf(refId to EntityKeySpec(spec = config.spec))
           is EventGroupConfig.MultiEntityKey ->
             config.entityKeySpecs.map { entityKeySpec ->
-              "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}" to
-                (entityKeySpec.entityKey to entityKeySpec.spec)
+              "${entityKeySpec.entityKey!!.entityType}/${entityKeySpec.entityKey!!.entityId}" to
+                entityKeySpec
             }
         }
       }
