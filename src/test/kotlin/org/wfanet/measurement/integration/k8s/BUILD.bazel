@@ -203,6 +203,7 @@ kt_jvm_library(
     ],
     deps = [
         ":abstract_edp_aggregator_correctness_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:event_group_config",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/integration/k8s/testing:edpa_correctness_test_config_kt_jvm_proto",

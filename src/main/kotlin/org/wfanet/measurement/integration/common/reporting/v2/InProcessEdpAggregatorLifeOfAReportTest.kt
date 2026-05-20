@@ -98,6 +98,7 @@ import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.common.AccessServicesFactory
+import org.wfanet.measurement.integration.common.EntityKeySpec
 import org.wfanet.measurement.integration.common.EventGroupConfig
 import org.wfanet.measurement.integration.common.FULFILLER_TOPIC_ID
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
@@ -207,59 +208,88 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   // so all event groups are visible.
   private val eventGroupConfigsByEdp: Map<String, Map<String, EventGroupConfig>> =
     mapOf(
-      EDP_NO_ENTITY_KEY_DISPLAY_NAME to
+      "edp1" to
         mapOf(
-          "edp1-eg-ref-1" to EventGroupConfig(syntheticEventGroupSpec2),
+          "edp1-eg-ref-1" to EventGroupConfig.LegacySpec(syntheticEventGroupSpec2),
           EDP1_CREATIVE_EVENT_GROUP_REF_ID to
-            EventGroupConfig(
-              syntheticEventGroupSpec2,
-              blobEntityKeys =
-                listOf(EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_CREATIVE_EVENT_GROUP_REF_ID)),
-              entityMetadata = ENTITY_METADATA,
-            ),
-          EDP1_MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID to
-            EventGroupConfig(
-              syntheticEventGroupSpec2,
-              blobEntityKeys =
+            EventGroupConfig.MultiEntityKey(
+              entityKeySpecs =
                 listOf(
-                  EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_MULTI_CREATIVE_A_ID),
-                  EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_MULTI_CREATIVE_B_ID),
-                ),
-              entityMetadata = ENTITY_METADATA,
+                  EntityKeySpec(
+                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_CREATIVE_EVENT_GROUP_REF_ID),
+                    syntheticEventGroupSpec2,
+                    ENTITY_METADATA,
+                  )
+                )
+            ),
+          "multi-creative" to
+            EventGroupConfig.MultiEntityKey(
+              entityKeySpecs =
+                listOf(
+                  EntityKeySpec(
+                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_MULTI_CREATIVE_A_ID),
+                    syntheticEventGroupSpec2,
+                    ENTITY_METADATA,
+                  ),
+                  EntityKeySpec(
+                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_MULTI_CREATIVE_B_ID),
+                    syntheticEventGroupSpec2,
+                    ENTITY_METADATA,
+                  ),
+                )
             ),
         ),
       "edp2" to
         mapOf(
-          "edp2-eg-ref-1" to
-            EventGroupConfig(
-              syntheticEventGroupSpec1,
-              blobEntityKeys = listOf(EntityKey("campaign", "edp2-eg-ref-1")),
-              entityMetadata = ENTITY_METADATA,
+          "campaign/edp2-eg-ref-1" to
+            EventGroupConfig.MultiEntityKey(
+              entityKeySpecs =
+                listOf(
+                  EntityKeySpec(
+                    EntityKey("campaign", "edp2-eg-ref-1"),
+                    syntheticEventGroupSpec1,
+                    ENTITY_METADATA,
+                  )
+                )
             ),
           EDP2_CREATIVE_EVENT_GROUP_REF_ID to
-            EventGroupConfig(
-              syntheticEventGroupSpec1,
-              blobEntityKeys =
-                listOf(EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP2_CREATIVE_EVENT_GROUP_REF_ID)),
-              entityMetadata = ENTITY_METADATA,
+            EventGroupConfig.MultiEntityKey(
+              entityKeySpecs =
+                listOf(
+                  EntityKeySpec(
+                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP2_CREATIVE_EVENT_GROUP_REF_ID),
+                    syntheticEventGroupSpec1,
+                    ENTITY_METADATA,
+                  )
+                )
             ),
         ),
       "edp3" to
         mapOf(
-          "edp3-eg-ref-1" to
-            EventGroupConfig(
-              syntheticEventGroupSpec2,
-              blobEntityKeys = listOf(EntityKey("campaign", "edp3-eg-ref-1")),
-              entityMetadata = ENTITY_METADATA,
+          "campaign/edp3-eg-ref-1" to
+            EventGroupConfig.MultiEntityKey(
+              entityKeySpecs =
+                listOf(
+                  EntityKeySpec(
+                    EntityKey("campaign", "edp3-eg-ref-1"),
+                    syntheticEventGroupSpec2,
+                    ENTITY_METADATA,
+                  )
+                )
             )
         ),
       AD_GROUP_EDP_DISPLAY_NAME to
         mapOf(
           AD_GROUP_EDP_EVENT_GROUP_REF_ID to
-            EventGroupConfig(
-              syntheticEventGroupSpec1,
-              blobEntityKeys = listOf(EntityKey("ad_group", AD_GROUP_EDP_EVENT_GROUP_REF_ID)),
-              entityMetadata = ENTITY_METADATA,
+            EventGroupConfig.MultiEntityKey(
+              entityKeySpecs =
+                listOf(
+                  EntityKeySpec(
+                    EntityKey("ad_group", AD_GROUP_EDP_EVENT_GROUP_REF_ID),
+                    syntheticEventGroupSpec1,
+                    ENTITY_METADATA,
+                  )
+                )
             )
         ),
     )
@@ -698,19 +728,26 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       listReportingEventGroups().associateBy { it.eventGroupReferenceId }
 
     for ((_, refConfigs) in eventGroupConfigsByEdp) {
-      for ((refId, config) in refConfigs) {
-        if (config.blobEntityKeys.isEmpty()) continue
-        val eventGroup = byRefId.getValue(refId)
-        val expectedEntityKey = config.blobEntityKeys.first()
-        assertWithMessage("entity_key.entity_type for $refId")
-          .that(eventGroup.entityKey.entityType)
-          .isEqualTo(expectedEntityKey.entityType)
-        assertWithMessage("entity_key.entity_id for $refId")
-          .that(eventGroup.entityKey.entityId)
-          .isEqualTo(expectedEntityKey.entityId)
-        assertWithMessage("entity_metadata for $refId")
-          .that(eventGroup.eventGroupMetadata.entityMetadata)
-          .isEqualTo(config.entityMetadata)
+      for ((_, config) in refConfigs) {
+        when (config) {
+          is EventGroupConfig.LegacySpec -> continue
+          is EventGroupConfig.MultiEntityKey -> {
+            for (entityKeySpec in config.entityKeySpecs) {
+              val derivedRefId =
+                "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}"
+              val eventGroup = byRefId.getValue(derivedRefId)
+              assertWithMessage("entity_key.entity_type for $derivedRefId")
+                .that(eventGroup.entityKey.entityType)
+                .isEqualTo(entityKeySpec.entityKey.entityType)
+              assertWithMessage("entity_key.entity_id for $derivedRefId")
+                .that(eventGroup.entityKey.entityId)
+                .isEqualTo(entityKeySpec.entityKey.entityId)
+              assertWithMessage("entity_metadata for $derivedRefId")
+                .that(eventGroup.eventGroupMetadata.entityMetadata)
+                .isEqualTo(entityKeySpec.entityMetadata)
+            }
+          }
+        }
       }
     }
   }
@@ -732,7 +769,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     val byRefId: Map<String, EventGroup> =
       listReportingEventGroups().associateBy { it.eventGroupReferenceId }
 
-    val adGroupEventGroup = byRefId.getValue(AD_GROUP_EDP_EVENT_GROUP_REF_ID)
+    val adGroupEventGroup = byRefId.getValue("ad_group/$AD_GROUP_EDP_EVENT_GROUP_REF_ID")
     assertThat(adGroupEventGroup.entityKey.entityType).isEqualTo("ad_group")
     assertThat(adGroupEventGroup.entityKey.entityId).isEqualTo(AD_GROUP_EDP_EVENT_GROUP_REF_ID)
     assertThat(adGroupEventGroup.eventGroupMetadata.entityMetadata).isEqualTo(ENTITY_METADATA)
@@ -1042,7 +1079,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         resultGroupSpecs += resultGroupSpec {
           title = "title"
           reportingUnit = reportingUnit {
-            components += eventGroups.take(2).map { it.cmmsDataProvider }
+            components += eventGroups.map { it.cmmsDataProvider }.distinct()
           }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {}
@@ -1217,7 +1254,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       val includedDataProviders = mutableSetOf<String>()
       val eventGroups =
         listReportingEventGroups().filter {
-          it.eventGroupReferenceId != EDP1_MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID
+          it.eventGroupReferenceId !in EDP1_ALL_ENTITY_KEY_REF_IDS
         }
       eventGroups.forEach { eventGroup ->
         val dataProvider =
@@ -1291,7 +1328,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   private suspend fun getCreativeIdOnlyEventGroups(): List<EventGroup> {
     return listReportingEventGroups().filter {
       it.entityKey.entityType == CREATIVE_ID_ENTITY_TYPE &&
-        it.eventGroupReferenceId != EDP1_MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID
+        it.eventGroupReferenceId !in EDP1_MULTI_ENTITY_KEY_REF_IDS
     }
   }
 
@@ -1304,7 +1341,9 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     val edp1RefIdOnly =
       allEventGroups.first { it.eventGroupReferenceId == EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID }
     val edp1CreativeId =
-      allEventGroups.first { it.eventGroupReferenceId == EDP1_CREATIVE_EVENT_GROUP_REF_ID }
+      allEventGroups.first {
+        it.eventGroupReferenceId == "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_EVENT_GROUP_REF_ID"
+      }
     return listOf(edp1RefIdOnly, edp1CreativeId)
   }
 
@@ -1388,7 +1427,9 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   fun `basic report with single-edp creative-id event group succeeds`() = runBlocking {
     val allEventGroups = listReportingEventGroups()
     val singleCreativeIdEventGroup =
-      allEventGroups.filter { it.eventGroupReferenceId == EDP1_CREATIVE_EVENT_GROUP_REF_ID }
+      allEventGroups.filter {
+        it.eventGroupReferenceId == "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_EVENT_GROUP_REF_ID"
+      }
     check(singleCreativeIdEventGroup.isNotEmpty()) {
       "No single creative-id event group found for edp1"
     }
@@ -1454,15 +1495,15 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   @Test
   fun `basic report with multi-entity-key blob filtering to one entity key succeeds`() =
     runBlocking {
-      val multiEntityKeyEventGroups =
+      val singleEntityKeyEventGroup =
         listReportingEventGroups().filter {
-          it.eventGroupReferenceId == EDP1_MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID
+          it.eventGroupReferenceId == "$CREATIVE_ID_ENTITY_TYPE/$EDP1_MULTI_CREATIVE_A_ID"
         }
-      check(multiEntityKeyEventGroups.isNotEmpty()) { "No multi-entity-key event group found" }
+      check(singleEntityKeyEventGroup.isNotEmpty()) { "No multi-entity-key event group found" }
 
       val createBasicReportRequest =
         buildCreateBasicReportRequest(
-          multiEntityKeyEventGroups,
+          singleEntityKeyEventGroup,
           "multi-entity-key-campaign",
           "multi-entity-key-basicreport",
           includeIqfFilter = false,
@@ -1485,28 +1526,90 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       assertStructuralResults(completedBasicReport)
       assertSingleEdpNoNoiseResults(
         completedBasicReport,
-        expectedReach = EXPECTED_MULTI_ENTITY_KEY_REACH,
-        expectedImpressions = EXPECTED_MULTI_ENTITY_KEY_IMPRESSIONS,
-        expectedKPlusReach = EXPECTED_MULTI_ENTITY_KEY_K_PLUS_REACH,
+        expectedReach = EXPECTED_SINGLE_EDP_SPEC2_REACH,
+        expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
+        expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
       )
     }
+
+  @Test
+  fun `basic report with two same-edp entity-key event groups succeeds`() = runBlocking {
+    val bothEntityKeyEventGroups =
+      listReportingEventGroups().filter {
+        it.eventGroupReferenceId in EDP1_MULTI_ENTITY_KEY_REF_IDS
+      }
+    check(bothEntityKeyEventGroups.size == 2) {
+      "Expected 2 multi-entity-key event groups, got ${bothEntityKeyEventGroups.size}"
+    }
+
+    val createBasicReportRequest =
+      buildCreateBasicReportRequest(
+        bothEntityKeyEventGroups,
+        "two-entity-key-campaign",
+        "two-entity-key-basicreport",
+        includeIqfFilter = false,
+      )
+
+    val createdBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .createBasicReport(createBasicReportRequest)
+
+    executeBasicReportsReportsJob(createdBasicReport.name)
+    executeReportProcessorJob()
+
+    val completedBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+    assertStructuralResults(completedBasicReport)
+
+    val resultGroup = completedBasicReport.resultGroupsList.single()
+    val totalResult =
+      resultGroup.resultsList.single {
+        it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
+      }
+    val reportingUnitCumulative = totalResult.metricSet.reportingUnit.cumulative
+
+    assertWithMessage("reach")
+      .that(reportingUnitCumulative.reach)
+      .isEqualTo(EXPECTED_SINGLE_EDP_SPEC2_REACH)
+    assertWithMessage("impressions")
+      .that(reportingUnitCumulative.impressions)
+      .isEqualTo(EXPECTED_TWO_ENTITY_KEY_IMPRESSIONS)
+    assertWithMessage("k+ reach")
+      .that(reportingUnitCumulative.kPlusReachList)
+      .containsExactlyElementsIn(EXPECTED_TWO_ENTITY_KEY_K_PLUS_REACH)
+      .inOrder()
+    assertWithMessage("population size").that(totalResult.metricSet.populationSize).isGreaterThan(0)
+    assertWithMessage("number of components")
+      .that(totalResult.metricSet.componentsCount)
+      .isEqualTo(1)
+  }
 
   companion object {
     // edp1 has no entity_key/entity_metadata override (legacy path).
     // edp4 is configured with multi-party noise CONTINUOUS_GAUSSIAN, so it's the "restricted"
     // EDP for the no-noise failure path tests; the same EDP also carries the non-default
     // entity_type ("ad_group") in this fixture.
-    private const val EDP_NO_ENTITY_KEY_DISPLAY_NAME = "edp1"
     private const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edp1-eg-ref-1"
     private const val AD_GROUP_EDP_DISPLAY_NAME = "edp4"
-    private const val AD_GROUP_EDP_EVENT_GROUP_REF_ID = "edp4-eg-ref-1"
+    private const val AD_GROUP_EDP_EVENT_GROUP_REF_ID = "ad_group/edp4-eg-ref-1"
     private const val RESTRICTED_EDP_DISPLAY_NAME = AD_GROUP_EDP_DISPLAY_NAME
     private const val CREATIVE_ID_ENTITY_TYPE = "creative-id"
-    private const val EDP1_MULTI_ENTITY_KEY_EVENT_GROUP_REF_ID = "edp1-eg-multi-creative"
     private const val EDP1_MULTI_CREATIVE_A_ID = "multi-creative-A"
     private const val EDP1_MULTI_CREATIVE_B_ID = "multi-creative-B"
-    private const val EDP1_CREATIVE_EVENT_GROUP_REF_ID = "edp1-eg-creative-1"
-    private const val EDP2_CREATIVE_EVENT_GROUP_REF_ID = "edp2-eg-creative-1"
+    private val EDP1_CREATIVE_EVENT_GROUP_REF_ID = "$CREATIVE_ID_ENTITY_TYPE/edp1-eg-creative-1"
+    private val EDP2_CREATIVE_EVENT_GROUP_REF_ID = "$CREATIVE_ID_ENTITY_TYPE/edp2-eg-creative-1"
+    private val EDP1_MULTI_ENTITY_KEY_REF_IDS =
+      setOf(
+        "$CREATIVE_ID_ENTITY_TYPE/$EDP1_MULTI_CREATIVE_A_ID",
+        "$CREATIVE_ID_ENTITY_TYPE/$EDP1_MULTI_CREATIVE_B_ID",
+      )
+    private val EDP1_ALL_ENTITY_KEY_REF_IDS =
+      EDP1_MULTI_ENTITY_KEY_REF_IDS + "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_EVENT_GROUP_REF_ID"
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val SECRETS_DIR: File =
       getRuntimePath(
@@ -1627,9 +1730,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     private const val EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS = 4276L
     private val EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH = listOf(3638L, 638L, 0L, 0L, 0L)
 
-    private const val EXPECTED_MULTI_ENTITY_KEY_REACH = 1811L
-    private const val EXPECTED_MULTI_ENTITY_KEY_IMPRESSIONS = 2137L
-    private val EXPECTED_MULTI_ENTITY_KEY_K_PLUS_REACH = listOf(1811L, 326L, 0L, 0L, 0L)
+    private const val EXPECTED_TWO_ENTITY_KEY_IMPRESSIONS = 8552L
+    private val EXPECTED_TWO_ENTITY_KEY_K_PLUS_REACH = listOf(3638L, 3638L, 638L, 638L, 0L)
 
     // Placeholder values required by the MeasurementSpec. Unused since NoiseMechanism is NONE.
     private val NO_NOISE_PRIVACY_PARAMS =
