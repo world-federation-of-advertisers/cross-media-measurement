@@ -1260,7 +1260,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       val includedDataProviders = mutableSetOf<String>()
       val eventGroups =
         listReportingEventGroups().filter {
-          it.eventGroupReferenceId !in EDP1_MULTI_ENTITY_KEY_REF_IDS
+          it.eventGroupReferenceId !in EDP1_ALL_ENTITY_KEY_REF_IDS
         }
       eventGroups.forEach { eventGroup ->
         val dataProvider =
@@ -1550,6 +1550,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         "$CREATIVE_ID_ENTITY_TYPE/$EDP1_MULTI_CREATIVE_A_ID",
         "$CREATIVE_ID_ENTITY_TYPE/$EDP1_MULTI_CREATIVE_B_ID",
       )
+    private val EDP1_ALL_ENTITY_KEY_REF_IDS =
+      EDP1_MULTI_ENTITY_KEY_REF_IDS + EDP1_CREATIVE_EVENT_GROUP_REF_ID
     private const val EDP1_MULTI_CREATIVE_A_ID = "multi-creative-A"
     private const val EDP1_MULTI_CREATIVE_B_ID = "multi-creative-B"
     private val EDP1_CREATIVE_EVENT_GROUP_REF_ID = "$CREATIVE_ID_ENTITY_TYPE/edp1-eg-creative-1"
