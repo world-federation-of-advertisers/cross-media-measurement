@@ -41,8 +41,8 @@ import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.dateInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.testing.event_templates.Person
+import org.wfanet.measurement.testing.event_templates.TestEvent
 import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelRollout

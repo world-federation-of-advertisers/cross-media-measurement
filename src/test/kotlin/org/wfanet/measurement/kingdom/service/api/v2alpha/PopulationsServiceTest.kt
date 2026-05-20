@@ -42,8 +42,8 @@ import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
+import org.wfanet.measurement.testing.event_templates.Person
+import org.wfanet.measurement.testing.event_templates.person
 import org.wfanet.measurement.api.v2alpha.getPopulationRequest
 import org.wfanet.measurement.api.v2alpha.listPopulationsPageToken
 import org.wfanet.measurement.api.v2alpha.listPopulationsRequest

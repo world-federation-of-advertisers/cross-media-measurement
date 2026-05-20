@@ -2,14 +2,6 @@ load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_proto//proto:defs.bzl", "proto_descriptor_set")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
 
-# Test-only protos that mimic the shape of a market-defined event template
-# (single `Common` demographic message; discretized boolean engagement fields
-# for Video and Display; an `Other` media-type slot). Used by
-# GenerateAndVerifySyntheticDataTest to exercise the descriptor-set
-# (DynamicMessage) code path of GenerateSyntheticData and VerifySyntheticData
-# with a non-TestEvent event message type. Not synced to any external
-# market-specific schema; see market_event.proto for full motivation.
-
 package(
     default_testonly = True,
     default_visibility = ["//visibility:public"],

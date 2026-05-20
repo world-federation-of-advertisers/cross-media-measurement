@@ -3,7 +3,7 @@
 
 # Test fixture: a small v2alpha PopulationSpec that pairs with the test-only
 # `MarketEvent` event template
-# (wfa.measurement.api.v2alpha.event_templates.testing.market.v1.MarketEvent).
+# (wfa.measurement.testing.event_templates.market.v1.MarketEvent).
 # Each subpopulation declares its population attributes inline as a `Common`
 # event template message embedded in a google.protobuf.Any. Used by
 # GenerateAndVerifySyntheticDataTest to exercise the descriptor-set
@@ -16,7 +16,7 @@ subpopulations {
     end_vid_inclusive: 9999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.market.v1.Common] {
+    [type.googleapis.com/wfa.measurement.testing.event_templates.market.v1.Common] {
       sex: MALE
       age_group: YEARS_16_TO_34
     }
@@ -28,7 +28,7 @@ subpopulations {
     end_vid_inclusive: 19999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.market.v1.Common] {
+    [type.googleapis.com/wfa.measurement.testing.event_templates.market.v1.Common] {
       sex: MALE
       age_group: YEARS_35_TO_54
     }
@@ -40,7 +40,7 @@ subpopulations {
     end_vid_inclusive: 29999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.market.v1.Common] {
+    [type.googleapis.com/wfa.measurement.testing.event_templates.market.v1.Common] {
       sex: FEMALE
       age_group: YEARS_16_TO_34
     }
@@ -52,7 +52,7 @@ subpopulations {
     end_vid_inclusive: 39999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.market.v1.Common] {
+    [type.googleapis.com/wfa.measurement.testing.event_templates.market.v1.Common] {
       sex: FEMALE
       age_group: YEARS_55_PLUS
     }

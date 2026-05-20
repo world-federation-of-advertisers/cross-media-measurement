@@ -25,9 +25,9 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.EndV
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.StartVidNotPositiveDetail
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangeIndex
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangesNotDisjointDetail
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
+import org.wfanet.measurement.testing.event_templates.Person
+import org.wfanet.measurement.testing.event_templates.TestEvent
+import org.wfanet.measurement.testing.event_templates.person
 
 @RunWith(JUnit4::class)
 class PopulationSpecValidatorTest {

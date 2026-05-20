@@ -19,7 +19,7 @@ package org.wfanet.measurement.privacybudgetmanager
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.testing.event_templates.TestEvent
 import org.wfanet.measurement.privacybudgetmanager.LandscapeProcessor.MappingNode
 import org.wfanet.measurement.privacybudgetmanager.testing.InMemoryAuditLog
 import org.wfanet.measurement.privacybudgetmanager.testing.InMemoryLedger

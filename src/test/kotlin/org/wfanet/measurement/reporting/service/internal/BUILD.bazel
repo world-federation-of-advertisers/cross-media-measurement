@@ -6,7 +6,7 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_templates",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:normalization",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/testing/event_templates:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",
@@ -19,7 +19,7 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:grouping_dimensions",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:normalization",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/testing/event_templates:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:event_template_field_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
@@ -32,7 +32,7 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_message_descriptor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:impression_qualification_filter_mapping",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/testing/event_templates:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/reporting:impression_qualification_filter_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",

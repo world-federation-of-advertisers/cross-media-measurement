@@ -139,7 +139,7 @@ class EventTemplateValidatorTest {
     }
 
     private const val DESCRIPTOR_SET_SUFFIX = "descriptor-set.proto.bin"
-    private const val TEST_TEMPLATES_PACKAGE = "wfa.measurement.api.v2alpha.event_templates.testing"
+    private const val TEST_TEMPLATES_PACKAGE = "wfa.measurement.testing.event_templates"
     private const val TEST_EVENT_NAME = "$TEST_TEMPLATES_PACKAGE.TestEvent"
 
     private val TEST_TEMPLATES_PATH =

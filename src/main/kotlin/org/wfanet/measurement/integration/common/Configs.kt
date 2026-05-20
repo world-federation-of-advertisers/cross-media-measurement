@@ -22,7 +22,7 @@ import java.security.cert.X509Certificate
 import java.time.Instant
 import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.testing.event_templates.TestEvent
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificateCollection

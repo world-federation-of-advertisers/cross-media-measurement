@@ -21,11 +21,11 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
+import org.wfanet.measurement.testing.event_templates.Person
+import org.wfanet.measurement.testing.event_templates.TestEvent
+import org.wfanet.measurement.testing.event_templates.person
+import org.wfanet.measurement.testing.event_templates.testEvent
+import org.wfanet.measurement.testing.event_templates.video
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters.compileProgram
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException

@@ -199,7 +199,7 @@ class EdpSimulatorFlags {
 
   companion object {
     const val TEST_EVENT_MESSAGE_TYPE =
-      "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+      "wfa.measurement.testing.event_templates.TestEvent"
 
     /** Default value of [eventMessageTypeUrl]: the [TEST_EVENT_MESSAGE_TYPE] type URL. */
     const val DEFAULT_EVENT_MESSAGE_TYPE_URL = "type.googleapis.com/$TEST_EVENT_MESSAGE_TYPE"

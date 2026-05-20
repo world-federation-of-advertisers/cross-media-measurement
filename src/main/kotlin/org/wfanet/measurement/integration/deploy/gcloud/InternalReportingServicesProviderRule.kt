@@ -19,7 +19,7 @@ package org.wfanet.measurement.integration.deploy.gcloud
 import kotlin.coroutines.EmptyCoroutineContext
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.testing.event_templates.TestEvent
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.common.testing.ProviderRule

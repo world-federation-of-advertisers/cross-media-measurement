@@ -86,7 +86,7 @@ class LandscapeProcessor {
    * @property eventTemplateDescriptor The Protobuf [Descriptors.Descriptor] for the specific event
    *   message type referenced by `landscape.eventTemplateName`. This is the top level Event
    *   meassage e.g.
-   *   /src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/test_event.proto
+   *   /src/main/proto/wfa/measurement/testing/event_templates/test_event.proto
    */
   data class LandscapeNode(
     val landscape: PrivacyLandscape,

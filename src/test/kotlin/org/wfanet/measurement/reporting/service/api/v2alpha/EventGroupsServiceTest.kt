@@ -63,7 +63,7 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.dateInterval as cmmsDateInterval
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.testing.event_templates.TestEvent
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest as cmmsGetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest

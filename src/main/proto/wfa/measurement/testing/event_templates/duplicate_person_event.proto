@@ -1,4 +1,4 @@
-// Copyright 2022 The Cross-Media Measurement Authors
+// Copyright 2026 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,24 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Test-only event message that deliberately has two fields of the same
+// template message type (Person). Used to verify that generateEvents
+// rejects such messages, since PopulationSpec attributes are keyed by
+// type URL and cannot distinguish between the two fields.
+
 syntax = "proto3";
 
-package wfa.measurement.api.v2alpha.event_templates.testing;
+package wfa.measurement.testing.event_templates;
 
 import "wfa/measurement/api/v2alpha/event_annotations.proto";
-import "wfa/measurement/api/v2alpha/event_templates/testing/banner_ad.proto";
-import "wfa/measurement/api/v2alpha/event_templates/testing/person.proto";
-import "wfa/measurement/api/v2alpha/event_templates/testing/video.proto";
+import "wfa/measurement/testing/event_templates/person.proto";
 
-option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing";
+option java_package = "org.wfanet.measurement.testing.event_templates";
 option java_multiple_files = true;
 
-message TestEvent {
+message DuplicatePersonEvent {
   option (.wfa.measurement.api.v2alpha.event) = {
     current_version: 1
   };
 
-  Person person = 1;
-  Video video_ad = 2;
-  Banner banner_ad = 3;
+  Person viewer = 1;
+  Person subject = 2;
 }

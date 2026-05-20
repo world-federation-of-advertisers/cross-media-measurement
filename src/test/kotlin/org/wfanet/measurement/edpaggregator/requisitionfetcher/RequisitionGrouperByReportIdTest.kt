@@ -47,7 +47,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.eventGroup
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.testing.event_templates.Person
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule

@@ -17,7 +17,7 @@ package org.wfanet.measurement.reporting.deploy.v2.common.service
 import java.nio.file.Paths
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.testing.event_templates.TestEvent
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig

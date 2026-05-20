@@ -41,10 +41,10 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
+import org.wfanet.measurement.testing.event_templates.Person
+import org.wfanet.measurement.testing.event_templates.TestEvent
+import org.wfanet.measurement.testing.event_templates.person
+import org.wfanet.measurement.testing.event_templates.testEvent
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap

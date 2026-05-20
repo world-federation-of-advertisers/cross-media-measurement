@@ -38,7 +38,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.testing.event_templates.Person
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.Hashing

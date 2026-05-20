@@ -4,7 +4,7 @@
 # Test fixture: a small SyntheticEventGroupSpec to be used with
 # small_market_population_spec.textproto and the test-only `MarketEvent`
 # template
-# (wfa.measurement.api.v2alpha.event_templates.testing.market.v1.MarketEvent).
+# (wfa.measurement.testing.event_templates.market.v1.MarketEvent).
 # Non-population field paths reference the boolean engagement-bucket fields
 # exposed by the `Video` and `Display` market templates.
 #

@@ -13,7 +13,7 @@ subpopulations {
     end_vid_inclusive: 9999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
       gender: MALE
       age_group: YEARS_18_TO_34
       social_grade_group: A_B_C1
@@ -28,7 +28,7 @@ subpopulations {
     end_vid_inclusive: 19999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
       gender: MALE
       age_group: YEARS_18_TO_34
       social_grade_group: C2_D_E
@@ -43,7 +43,7 @@ subpopulations {
     end_vid_inclusive: 29999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
       gender: MALE
       age_group: YEARS_35_TO_54
       social_grade_group: A_B_C1
@@ -58,7 +58,7 @@ subpopulations {
     end_vid_inclusive: 39999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
       gender: MALE
       age_group: YEARS_35_TO_54
       social_grade_group: C2_D_E
@@ -73,7 +73,7 @@ subpopulations {
     end_vid_inclusive: 49999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
       gender: MALE
       age_group: YEARS_55_PLUS
       social_grade_group: A_B_C1
@@ -88,7 +88,7 @@ subpopulations {
     end_vid_inclusive: 59999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
       gender: MALE
       age_group: YEARS_55_PLUS
       social_grade_group: C2_D_E
@@ -103,7 +103,7 @@ subpopulations {
     end_vid_inclusive: 69999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
       gender: FEMALE
       age_group: YEARS_18_TO_34
       social_grade_group: A_B_C1
@@ -118,7 +118,7 @@ subpopulations {
     end_vid_inclusive: 79999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
       gender: FEMALE
       age_group: YEARS_18_TO_34
       social_grade_group: C2_D_E
@@ -133,7 +133,7 @@ subpopulations {
     end_vid_inclusive: 84999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
       gender: FEMALE
       age_group: YEARS_35_TO_54
       social_grade_group: A_B_C1
@@ -148,7 +148,7 @@ subpopulations {
     end_vid_inclusive: 89999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
       gender: FEMALE
       age_group: YEARS_35_TO_54
       social_grade_group: C2_D_E
@@ -163,7 +163,7 @@ subpopulations {
     end_vid_inclusive: 94999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
       gender: FEMALE
       age_group: YEARS_55_PLUS
       social_grade_group: A_B_C1
@@ -178,7 +178,7 @@ subpopulations {
     end_vid_inclusive: 99999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
       gender: FEMALE
       age_group: YEARS_55_PLUS
       social_grade_group: C2_D_E

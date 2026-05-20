@@ -66,7 +66,7 @@ import org.wfanet.measurement.api.v2alpha.deleteEventGroupActivityRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupActivity
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as cmmsEventGroupMetadata
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.testing.event_templates.TestEvent
 import org.wfanet.measurement.api.v2alpha.updateEventGroupActivityRequest
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.identity.ExternalId

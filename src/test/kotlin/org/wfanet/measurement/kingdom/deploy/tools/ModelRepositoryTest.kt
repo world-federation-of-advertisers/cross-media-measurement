@@ -81,8 +81,8 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
+import org.wfanet.measurement.testing.event_templates.Person
+import org.wfanet.measurement.testing.event_templates.person
 import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.getModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
@@ -761,7 +761,7 @@ class ModelRepositoryTest {
       }
     }
     private const val EVENT_MESSAGE_TYPE_URL =
-      "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+      "type.googleapis.com/wfa.measurement.testing.event_templates.TestEvent"
     private val EVENT_MESSAGE_DESCRIPTOR_SET_PATH =
       getRuntimePath(
         Paths.get(

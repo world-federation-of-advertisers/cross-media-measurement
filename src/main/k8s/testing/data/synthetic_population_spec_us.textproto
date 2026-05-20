@@ -21,7 +21,7 @@ subpopulations {
     end_vid_inclusive: 38592425
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.testing.event_templates.Person] {
       gender: MALE
       age_group: YEARS_18_TO_34
       social_grade_group: A_B_C1

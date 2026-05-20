@@ -60,8 +60,8 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.testing.event_templates.Person
+import org.wfanet.measurement.testing.event_templates.TestEvent
 import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningCerts
