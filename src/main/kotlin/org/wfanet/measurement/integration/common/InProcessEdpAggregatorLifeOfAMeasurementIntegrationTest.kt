@@ -129,7 +129,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         ),
       "edp2" to
         mapOf(
-          "edpa-eg-reference-id-2" to
+          "ad_group/edpa-eg-reference-id-2" to
             EventGroupConfig.MultiEntityKey(
               entityKeySpecs =
                 listOf(
@@ -165,7 +165,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         ),
       "edp3" to
         mapOf(
-          "edpa-eg-reference-id-3" to
+          "ad_group/edpa-eg-reference-id-3" to
             EventGroupConfig.MultiEntityKey(
               entityKeySpecs =
                 listOf(
@@ -179,7 +179,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         ),
       "edp4" to
         mapOf(
-          "edpa-eg-reference-id-4" to
+          "ad_group/edpa-eg-reference-id-4" to
             EventGroupConfig.MultiEntityKey(
               entityKeySpecs =
                 listOf(
@@ -570,8 +570,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     private const val EDP_NO_ENTITY_KEY_DISPLAY_NAME = "edp1"
     private const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-1"
     private const val HMSS_NO_NOISE_EDP_EVENT_GROUP_REF_ID = EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID
-    private const val TRUSTEE_NO_NOISE_EDP_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-3"
-    private const val MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-4"
+    private const val TRUSTEE_NO_NOISE_EDP_EVENT_GROUP_REF_ID = "ad_group/edpa-eg-reference-id-3"
+    private const val MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID = "ad_group/edpa-eg-reference-id-4"
 
     private val MULTI_ENTITY_KEY_REF_IDS =
       setOf(
