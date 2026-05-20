@@ -1545,6 +1545,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     private const val AD_GROUP_EDP_EVENT_GROUP_REF_ID = "ad_group/edp4-eg-ref-1"
     private const val RESTRICTED_EDP_DISPLAY_NAME = AD_GROUP_EDP_DISPLAY_NAME
     private const val CREATIVE_ID_ENTITY_TYPE = "creative-id"
+    private const val EDP1_MULTI_CREATIVE_A_ID = "multi-creative-A"
+    private const val EDP1_MULTI_CREATIVE_B_ID = "multi-creative-B"
+    private val EDP1_CREATIVE_EVENT_GROUP_REF_ID = "$CREATIVE_ID_ENTITY_TYPE/edp1-eg-creative-1"
+    private val EDP2_CREATIVE_EVENT_GROUP_REF_ID = "$CREATIVE_ID_ENTITY_TYPE/edp2-eg-creative-1"
     private val EDP1_MULTI_ENTITY_KEY_REF_IDS =
       setOf(
         "$CREATIVE_ID_ENTITY_TYPE/$EDP1_MULTI_CREATIVE_A_ID",
@@ -1552,10 +1556,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       )
     private val EDP1_ALL_ENTITY_KEY_REF_IDS =
       EDP1_MULTI_ENTITY_KEY_REF_IDS + EDP1_CREATIVE_EVENT_GROUP_REF_ID
-    private const val EDP1_MULTI_CREATIVE_A_ID = "multi-creative-A"
-    private const val EDP1_MULTI_CREATIVE_B_ID = "multi-creative-B"
-    private val EDP1_CREATIVE_EVENT_GROUP_REF_ID = "$CREATIVE_ID_ENTITY_TYPE/edp1-eg-creative-1"
-    private val EDP2_CREATIVE_EVENT_GROUP_REF_ID = "$CREATIVE_ID_ENTITY_TYPE/edp2-eg-creative-1"
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val SECRETS_DIR: File =
       getRuntimePath(
