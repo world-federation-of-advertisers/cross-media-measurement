@@ -20,7 +20,7 @@ on:
     
 permissions:
   contents: read
-  
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.issue.number  }}
   cancel-in-progress: true
@@ -41,6 +41,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      id-token: write
     steps:
       - name: Check out revision
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
