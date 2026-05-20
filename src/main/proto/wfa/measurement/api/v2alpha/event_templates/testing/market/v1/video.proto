@@ -16,7 +16,7 @@
 //
 // Modeled after market-style video templates that report discretized
 // completion / viewability buckets as boolean flags rather than continuous
-// metrics. See //src/test/proto/.../market/v1/common.proto for the broader
+// metrics. See //src/main/proto/.../market/v1/common.proto for the broader
 // motivation behind the `MarketEvent` template.
 
 syntax = "proto3";
