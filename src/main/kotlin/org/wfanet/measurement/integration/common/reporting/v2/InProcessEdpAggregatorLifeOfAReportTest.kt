@@ -166,6 +166,26 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   private val reportingDataServicesProviderRule: ProviderRule<Services>,
 ) {
 
+  open val useNoisyAssertions: Boolean
+    get() = false
+
+  open val expectedCrossPublisherKPlusReach: List<Long>
+    get() = EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH
+
+  open val expectedTrusTeeBasicReportState: BasicReport.State
+    get() = BasicReport.State.SUCCEEDED
+
+  open fun assertTrusTeeMetricResults(basicReport: BasicReport) {
+    assertNoNoiseResults(
+      basicReport,
+      expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,
+      expectedCrossPublisherImpressions = EXPECTED_CROSS_PUBLISHER_IMPRESSIONS,
+      expectedKPlusReach = EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH,
+      expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
+      expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
+    )
+  }
+
   private val pubSubClient: GooglePubSubEmulatorClient by lazy {
     GooglePubSubEmulatorClient(
       host = pubSubEmulatorProvider.host,
@@ -644,7 +664,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         .withCallCredentials(credentials)
         .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
 
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+    assertThat(completedBasicReport.state).isEqualTo(expectedTrusTeeBasicReportState)
 
     val measurements = listMeasurements()
     val trusTeeProtocolMeasurements =
@@ -655,15 +675,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .that(trusTeeProtocolMeasurements)
       .isNotEmpty()
 
-    assertStructuralResults(completedBasicReport)
-    assertNoNoiseResults(
-      completedBasicReport,
-      expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,
-      expectedCrossPublisherImpressions = EXPECTED_CROSS_PUBLISHER_IMPRESSIONS,
-      expectedKPlusReach = EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH,
-      expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
-      expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
-    )
+    if (expectedTrusTeeBasicReportState == BasicReport.State.SUCCEEDED) {
+      assertStructuralResults(completedBasicReport)
+      assertTrusTeeMetricResults(completedBasicReport)
+    }
   }
 
   protected suspend fun assertHmssReportFailsWhenEdpRequiresGaussianNoise() {
@@ -851,7 +866,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
    * ranges) so that the cross-publisher reach (union of VIDs) is strictly greater than any
    * individual EDP's reach.
    */
-  private fun assertNoNoiseResults(
+  protected fun assertNoNoiseResults(
     basicReport: BasicReport,
     expectedCrossPublisherReach: Long,
     expectedCrossPublisherImpressions: Long,

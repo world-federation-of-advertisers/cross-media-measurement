@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.integration.common.reporting.v2
 
-import com.google.common.truth.Truth.assertWithMessage
 import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
@@ -34,12 +33,21 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.hmssProtocolConfigConfig
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPORTING_CHANGELOG_PATH as POSTGRES_REPORTING_CHANGELOG_PATH
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
-import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 
 /**
- * Implementation of [InProcessEdpAggregatorLifeOfAReportTest] for GCloud backends with Spanner
- * database. Uses Gaussian noise TrusTee protocol config with a very high small-cell suppression
- * threshold (min_users=100000) that zeroes all TrusTee reach metrics regardless of noise.
+ * Integration test for TrusTee with Gaussian noise and a very high small-cell suppression threshold
+ * (min_users=1000000000).
+ *
+ * This test verifies that the BasicReport correctly transitions to FAILED when the TrusTee
+ * protocol's small-cell suppression creates physically inconsistent measurement results:
+ * 1. TrusTee (cross-publisher) reach is zeroed because min_users (1 billion) far exceeds the actual
+ *    cross-publisher reach (~5330).
+ * 2. HMSS (per-EDP) measurements use noise_mechanism=NONE and have no small-cell suppression, so
+ *    they produce positive reach values (~3638, ~3937).
+ * 3. The noise correction post-processor (QP solver) enforces set-theoretic consistency
+ *    constraints, including that cross-publisher reach >= max(per-EDP reach). With cross-publisher
+ *    reach=0 but per-EDP reaches > 0, no feasible solution exists.
+ * 4. The PostProcessReportResultJob catches the solver failure and calls FailBasicReport.
  */
 class GCloudEdpAggregatorLifeOfAReportNoiseThresholdsHighTest :
   InProcessEdpAggregatorLifeOfAReportTest(
@@ -58,29 +66,12 @@ class GCloudEdpAggregatorLifeOfAReportNoiseThresholdsHighTest :
   override val useNoisyAssertions: Boolean
     get() = true
 
+  // The post-processor's QP solver cannot reconcile TrusTee cross-publisher reach=0
+  // (zeroed by min_users=1B threshold) with positive per-EDP HMSS reaches.
+  override val expectedTrusTeeBasicReportState: BasicReport.State
+    get() = BasicReport.State.FAILED
+
   @get:Rule val timeout: Timeout = Timeout.seconds(180)
-
-  override fun assertTrusTeeMetricResults(basicReport: BasicReport) {
-    val resultGroup = basicReport.resultGroupsList.single()
-    val totalResults =
-      resultGroup.resultsList.filter {
-        it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
-      }
-    val result = totalResults.single()
-    val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
-
-    assertWithMessage("cross-publisher reach zeroed by small-cell suppression (noise)")
-      .that(reportingUnitCumulative.reach)
-      .isEqualTo(0L)
-
-    assertWithMessage("cross-publisher impressions positive (noise)")
-      .that(reportingUnitCumulative.impressions)
-      .isGreaterThan(0L)
-
-    assertWithMessage("all k+ reach zeroed by small-cell suppression (noise)")
-      .that(reportingUnitCumulative.kPlusReachList.all { it == 0L })
-      .isTrue()
-  }
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()

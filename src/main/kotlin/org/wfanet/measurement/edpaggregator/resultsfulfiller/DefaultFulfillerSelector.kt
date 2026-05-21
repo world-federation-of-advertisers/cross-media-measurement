@@ -227,6 +227,16 @@ class DefaultFulfillerSelector(
           trusTeeEncryptionParams,
         )
       } else {
+        val trusTeeProtocolConfig =
+          requisition.protocolConfig.protocolsList.first { it.hasTrusTee() }.trusTee
+        val protocolMinUsers =
+          if (trusTeeProtocolConfig.hasResultMinimumThresholds())
+            trusTeeProtocolConfig.resultMinimumThresholds.minUsers
+          else 0
+        val protocolMinImpressions =
+          if (trusTeeProtocolConfig.hasResultMinimumThresholds())
+            trusTeeProtocolConfig.resultMinimumThresholds.minImpressions
+          else 0
         TrusTeeMeasurementFulfiller.buildKAnonymized(
           requisition,
           requisitionSpec.nonce,
@@ -236,6 +246,8 @@ class DefaultFulfillerSelector(
           requisitionFulfillmentStubMap,
           requisitionsStub,
           resultMinimumThresholds,
+          protocolMinUsers,
+          protocolMinImpressions,
           maxPopulation = null,
           trusTeeEncryptionParams,
         )

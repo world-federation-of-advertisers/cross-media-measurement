@@ -113,6 +113,8 @@ class HMShuffleMeasurementFulfiller(
           frequencyVectorBuilder,
           resultMinimumThresholds,
           maxPopulation,
+          protocolMinUsers = 0,
+          protocolMinImpressions = 0,
         )
       return HMShuffleMeasurementFulfiller(
         requisition,

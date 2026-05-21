@@ -97,6 +97,11 @@ val TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_THRESHOLDS: TrusTeeProtocolConfigConfig
     "trustee_protocol_config_config_noise_thresholds.textproto",
     TrusTeeProtocolConfigConfig.getDefaultInstance(),
   )
+val TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_THRESHOLDS_LOW: TrusTeeProtocolConfigConfig =
+  loadTextProto(
+    "trustee_protocol_config_config_noise_thresholds_low.textproto",
+    TrusTeeProtocolConfigConfig.getDefaultInstance(),
+  )
 val TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_THRESHOLDS_HIGH: TrusTeeProtocolConfigConfig =
   loadTextProto(
     "trustee_protocol_config_config_noise_thresholds_high.textproto",

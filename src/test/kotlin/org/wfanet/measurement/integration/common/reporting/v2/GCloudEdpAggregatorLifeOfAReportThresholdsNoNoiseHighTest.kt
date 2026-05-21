@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.integration.common.reporting.v2
 
-import com.google.common.truth.Truth.assertWithMessage
 import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
@@ -34,7 +33,6 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.hmssProtocolConfigConfig
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPORTING_CHANGELOG_PATH as POSTGRES_REPORTING_CHANGELOG_PATH
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
-import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 
 /**
  * Implementation of [InProcessEdpAggregatorLifeOfAReportTest] for GCloud backends with Spanner
@@ -61,25 +59,14 @@ class GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseHighTest :
     get() = listOf(5330L, 2572L, 647L, 0L, 0L)
 
   override fun assertTrusTeeMetricResults(basicReport: BasicReport) {
-    val resultGroup = basicReport.resultGroupsList.single()
-    val totalResults =
-      resultGroup.resultsList.filter {
-        it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
-      }
-    val result = totalResults.single()
-    val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
-
-    assertWithMessage("cross-publisher reach zeroed by high thresholds (no noise)")
-      .that(reportingUnitCumulative.reach)
-      .isEqualTo(0L)
-
-    assertWithMessage("cross-publisher impressions positive (no noise)")
-      .that(reportingUnitCumulative.impressions)
-      .isGreaterThan(0L)
-
-    assertWithMessage("all k+ reach zeroed by high thresholds (no noise)")
-      .that(reportingUnitCumulative.kPlusReachList.all { it == 0L })
-      .isTrue()
+    assertNoNoiseResults(
+      basicReport,
+      expectedCrossPublisherReach = EXPECTED_TRUSTEE_CROSS_PUBLISHER_REACH,
+      expectedCrossPublisherImpressions = EXPECTED_TRUSTEE_CROSS_PUBLISHER_IMPRESSIONS,
+      expectedKPlusReach = EXPECTED_TRUSTEE_K_PLUS_REACH,
+      expectedEdpSpec1Reach = EXPECTED_TRUSTEE_EDP_SPEC1_REACH,
+      expectedEdpSpec2Reach = EXPECTED_TRUSTEE_EDP_SPEC2_REACH,
+    )
   }
 
   companion object {
@@ -89,6 +76,12 @@ class GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseHighTest :
     @JvmStatic
     val reportingPostgresDatabaseProvider =
       PostgresDatabaseProviderRule(POSTGRES_REPORTING_CHANGELOG_PATH)
+
+    private const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_REACH = 5330L
+    private const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_IMPRESSIONS = 8860L
+    private val EXPECTED_TRUSTEE_K_PLUS_REACH = listOf(5330L, 2572L, 647L, 0L, 0L)
+    private const val EXPECTED_TRUSTEE_EDP_SPEC1_REACH = 3937L
+    private const val EXPECTED_TRUSTEE_EDP_SPEC2_REACH = 3638L
 
     @BeforeClass
     @JvmStatic

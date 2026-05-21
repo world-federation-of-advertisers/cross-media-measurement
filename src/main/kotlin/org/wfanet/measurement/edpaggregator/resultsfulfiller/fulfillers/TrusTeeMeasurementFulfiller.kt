@@ -99,6 +99,8 @@ class TrusTeeMeasurementFulfiller(
       requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
       requisitionsStub: RequisitionsCoroutineStub,
       resultMinimumThresholds: ResultMinimumThresholds,
+      protocolMinUsers: Int,
+      protocolMinImpressions: Int,
       maxPopulation: Int?,
       encryptionParams: FulfillRequisitionRequestBuilder.EncryptionParams?,
     ): TrusTeeMeasurementFulfiller {
@@ -109,6 +111,8 @@ class TrusTeeMeasurementFulfiller(
           frequencyVectorBuilder,
           resultMinimumThresholds,
           maxPopulation,
+          protocolMinUsers,
+          protocolMinImpressions,
         )
       return TrusTeeMeasurementFulfiller(
         requisition,
