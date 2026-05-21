@@ -1,0 +1,124 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
+import "google/api/resource.proto";
+import "wfa/measurement/edpaggregator/v1alpha/raw_impression_upload.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RawImpressionUploadServiceProto";
+
+// Service for managing RawImpressionUpload resources.
+service RawImpressionUploadService {
+  // Creates a new RawImpressionUpload.
+  rpc CreateRawImpressionUpload(CreateRawImpressionUploadRequest)
+      returns (RawImpressionUpload) {}
+
+  // Retrieves a specific RawImpressionUpload.
+  rpc GetRawImpressionUpload(GetRawImpressionUploadRequest)
+      returns (RawImpressionUpload) {}
+
+  // Lists RawImpressionUpload resources for a data provider.
+  rpc ListRawImpressionUploads(ListRawImpressionUploadsRequest)
+      returns (ListRawImpressionUploadsResponse) {}
+
+  // Deletes a RawImpressionUpload.
+  rpc DeleteRawImpressionUpload(DeleteRawImpressionUploadRequest)
+      returns (RawImpressionUpload) {}
+}
+
+// Request message for the `CreateRawImpressionUpload` method.
+message CreateRawImpressionUploadRequest {
+  // The parent data provider resource name.
+  // Format: `dataProviders/{data_provider}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+
+  // The RawImpressionUpload to create.
+  // The `name` and output-only fields are ignored.
+  RawImpressionUpload raw_impression_upload = 2
+      [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure idempotency.
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for the `GetRawImpressionUpload` method.
+message GetRawImpressionUploadRequest {
+  // The resource name of the RawImpressionUpload to retrieve.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+}
+
+// Request message for the `ListRawImpressionUploads` method.
+message ListRawImpressionUploadsRequest {
+  // The parent data provider resource name.
+  // Format: `dataProviders/{data_provider}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+
+  // The maximum number of results to return.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // A page token, received from a previous call.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Response message for the `ListRawImpressionUploads` method.
+message ListRawImpressionUploadsResponse {
+  // A list of `RawImpressionUpload` entries matching the request.
+  repeated RawImpressionUpload raw_impression_uploads = 1;
+
+  // A token to retrieve the next page of results.
+  // If this field is omitted, there are no subsequent pages.
+  string next_page_token = 2;
+}
+
+// Request message for the `DeleteRawImpressionUpload` method.
+message DeleteRawImpressionUploadRequest {
+  // The resource name of the RawImpressionUpload to delete.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+}
