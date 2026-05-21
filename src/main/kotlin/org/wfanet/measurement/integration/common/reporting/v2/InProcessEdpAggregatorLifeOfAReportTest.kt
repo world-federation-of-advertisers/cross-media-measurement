@@ -166,12 +166,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   private val reportingDataServicesProviderRule: ProviderRule<Services>,
 ) {
 
-  open val useNoisyAssertions: Boolean
-    get() = false
-
-  open val expectedCrossPublisherKPlusReach: List<Long>
-    get() = EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH
-
   private val pubSubClient: GooglePubSubEmulatorClient by lazy {
     GooglePubSubEmulatorClient(
       host = pubSubEmulatorProvider.host,
@@ -611,7 +605,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       completedBasicReport,
       expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,
       expectedCrossPublisherImpressions = EXPECTED_CROSS_PUBLISHER_IMPRESSIONS,
-      expectedKPlusReach = expectedCrossPublisherKPlusReach,
+      expectedKPlusReach = EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH,
       expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
       expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
     )
@@ -666,10 +660,64 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       completedBasicReport,
       expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,
       expectedCrossPublisherImpressions = EXPECTED_CROSS_PUBLISHER_IMPRESSIONS,
-      expectedKPlusReach = expectedCrossPublisherKPlusReach,
+      expectedKPlusReach = EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH,
       expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
       expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
     )
+  }
+
+  protected suspend fun assertHmssReportFailsWhenEdpRequiresGaussianNoise() {
+    val hmssEventGroups = getHmssEventGroupsIncludingRestrictedEdp()
+    check(hmssEventGroups.size > 1)
+
+    val createBasicReportRequest =
+      buildCreateBasicReportRequest(
+        hmssEventGroups,
+        "hmss-gaussian-campaign",
+        "hmss-gaussian-basicreport",
+        includeIqfFilter = false,
+      )
+
+    val createdBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .createBasicReport(createBasicReportRequest)
+
+    executeBasicReportsReportsJob(createdBasicReport.name)
+
+    val completedBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
+  }
+
+  protected suspend fun assertTrusTeeReportFailsWhenEdpRequiresGaussianNoise() {
+    val trusTeeEventGroups = getTrusTeeEventGroupsIncludingRestrictedEdp()
+    check(trusTeeEventGroups.size > 1)
+
+    val createBasicReportRequest =
+      buildCreateBasicReportRequest(
+        trusTeeEventGroups,
+        "trustee-gaussian-campaign",
+        "trustee-gaussian-basicreport",
+        includeIqfFilter = false,
+      )
+
+    val createdBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .createBasicReport(createBasicReportRequest)
+
+    executeBasicReportsReportsJob(createdBasicReport.name)
+
+    val completedBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
   }
 
   @Test
@@ -729,23 +777,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
    * Checks structural invariants on basic report results: all metrics are positive, k+ reach is
    * monotonically non-increasing, and component-level metrics are present.
    */
-  private fun assertTrusTeeResults(basicReport: BasicReport) {
-    assertStructuralResults(basicReport)
-    assertTrusTeeMetricResults(basicReport)
-  }
-
-  protected open fun assertTrusTeeMetricResults(basicReport: BasicReport) {
-    assertNoNoiseResults(
-      basicReport,
-      expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,
-      expectedCrossPublisherImpressions = EXPECTED_CROSS_PUBLISHER_IMPRESSIONS,
-      expectedKPlusReach = expectedCrossPublisherKPlusReach,
-      expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
-      expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
-    )
-  }
-
-  protected fun assertStructuralResults(basicReport: BasicReport) {
+  private fun assertStructuralResults(basicReport: BasicReport) {
     basicReport.resultGroupsList.forEach { resultGroup ->
       val totalResults =
         resultGroup.resultsList.filter {
@@ -819,7 +851,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
    * ranges) so that the cross-publisher reach (union of VIDs) is strictly greater than any
    * individual EDP's reach.
    */
-  protected fun assertNoNoiseResults(
+  private fun assertNoNoiseResults(
     basicReport: BasicReport,
     expectedCrossPublisherReach: Long,
     expectedCrossPublisherImpressions: Long,
@@ -841,31 +873,17 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
 
     assertWithMessage("population size").that(result.metricSet.populationSize).isGreaterThan(0)
 
-    if (useNoisyAssertions) {
-      assertWithMessage("cross-publisher reach")
-        .that(reportingUnitCumulative.reach)
-        .isWithin(REACH_NOISE_TOLERANCE)
-        .of(expectedCrossPublisherReach)
-    } else {
-      assertWithMessage("cross-publisher reach")
-        .that(reportingUnitCumulative.reach)
-        .isEqualTo(expectedCrossPublisherReach)
-    }
+    assertWithMessage("cross-publisher reach")
+      .that(reportingUnitCumulative.reach)
+      .isEqualTo(expectedCrossPublisherReach)
 
     assertWithMessage("cross-publisher percent reach")
       .that(reportingUnitCumulative.percentReach)
       .isGreaterThan(0f)
 
-    if (useNoisyAssertions) {
-      assertWithMessage("cross-publisher impressions")
-        .that(reportingUnitCumulative.impressions)
-        .isWithin(REACH_NOISE_TOLERANCE)
-        .of(expectedCrossPublisherImpressions)
-    } else {
-      assertWithMessage("cross-publisher impressions")
-        .that(reportingUnitCumulative.impressions)
-        .isEqualTo(expectedCrossPublisherImpressions)
-    }
+    assertWithMessage("cross-publisher impressions")
+      .that(reportingUnitCumulative.impressions)
+      .isEqualTo(expectedCrossPublisherImpressions)
 
     assertWithMessage("cross-publisher average frequency")
       .that(reportingUnitCumulative.averageFrequency)
@@ -873,22 +891,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
 
     assertWithMessage("cross-publisher grps").that(reportingUnitCumulative.grps).isGreaterThan(0f)
 
-    if (useNoisyAssertions) {
-      assertWithMessage("cross-publisher k+ reach size")
-        .that(reportingUnitCumulative.kPlusReachList.size)
-        .isEqualTo(expectedKPlusReach.size)
-      for ((i, expected) in expectedKPlusReach.withIndex()) {
-        assertWithMessage("cross-publisher k+ reach at ${i + 1}+")
-          .that(reportingUnitCumulative.kPlusReachList[i])
-          .isWithin(REACH_NOISE_TOLERANCE)
-          .of(expected)
-      }
-    } else {
-      assertWithMessage("cross-publisher k+ reach")
-        .that(reportingUnitCumulative.kPlusReachList)
-        .containsExactlyElementsIn(expectedKPlusReach)
-        .inOrder()
-    }
+    assertWithMessage("cross-publisher k+ reach")
+      .that(reportingUnitCumulative.kPlusReachList)
+      .containsExactlyElementsIn(expectedKPlusReach)
+      .inOrder()
 
     assertWithMessage("cross-publisher k+ reach is monotonically non-increasing")
       .that(reportingUnitCumulative.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it })
@@ -1276,6 +1282,47 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   private suspend fun getTrusTeeEventGroups(): List<EventGroup> =
     getEventGroupsByCapability({ it.trusTeeSupported }, setOf(RESTRICTED_EDP_DISPLAY_NAME))
 
+  /**
+   * Returns capable event groups that include exactly one restricted EDP (one whose multi-party
+   * noise config requires CONTINUOUS_GAUSSIAN) and one unrestricted EDP.
+   */
+  private suspend fun getEventGroupsIncludingRestrictedEdp(
+    capabilityFilter: (DataProvider.Capabilities) -> Boolean
+  ): List<EventGroup> {
+    val allGroups = getEventGroupsByCapability(capabilityFilter, emptySet())
+    var restrictedGroup: EventGroup? = null
+    var unrestrictedGroup: EventGroup? = null
+    for (eventGroup in allGroups) {
+      val dataProvider =
+        reportingDataProvidersClient
+          .withCallCredentials(credentials)
+          .getDataProvider(getDataProviderRequest { name = eventGroup.cmmsDataProvider })
+      val displayName =
+        inProcessCmmsComponents.getDataProviderDisplayNameFromDataProviderName(dataProvider.name)
+      if (displayName == RESTRICTED_EDP_DISPLAY_NAME && restrictedGroup == null) {
+        restrictedGroup = eventGroup
+      } else if (displayName != RESTRICTED_EDP_DISPLAY_NAME && unrestrictedGroup == null) {
+        unrestrictedGroup = eventGroup
+      }
+      if (restrictedGroup != null && unrestrictedGroup != null) break
+    }
+    check(restrictedGroup != null) {
+      "No event group found for restricted EDP '$RESTRICTED_EDP_DISPLAY_NAME'"
+    }
+    check(unrestrictedGroup != null) { "No unrestricted event group found" }
+    return listOf(unrestrictedGroup, restrictedGroup)
+  }
+
+  private suspend fun getHmssEventGroupsIncludingRestrictedEdp(): List<EventGroup> =
+    getEventGroupsIncludingRestrictedEdp {
+      it.honestMajorityShareShuffleSupported
+    }
+
+  private suspend fun getTrusTeeEventGroupsIncludingRestrictedEdp(): List<EventGroup> =
+    getEventGroupsIncludingRestrictedEdp {
+      it.trusTeeSupported
+    }
+
   private suspend fun getCreativeIdOnlyEventGroups(): List<EventGroup> {
     return listReportingEventGroups().filter {
       it.entityKey.entityType == CREATIVE_ID_ENTITY_TYPE &&
@@ -1368,7 +1415,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       completedBasicReport,
       expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,
       expectedCrossPublisherImpressions = EXPECTED_CROSS_PUBLISHER_IMPRESSIONS,
-      expectedKPlusReach = expectedCrossPublisherKPlusReach,
+      expectedKPlusReach = EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH,
       expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
       expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
     )
@@ -1674,8 +1721,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     private const val EXPECTED_CROSS_PUBLISHER_REACH = 5330L
     private const val EXPECTED_CROSS_PUBLISHER_IMPRESSIONS = 8860L
     private val EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH = listOf(5330L, 2572L, 647L, 311L, 0L)
-    private val EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH_HIGH_THRESHOLD =
-      listOf(5330L, 2572L, 647L, 0L, 0L)
     private const val EXPECTED_EDP_SPEC1_REACH = 3937L
     private const val EXPECTED_EDP_SPEC2_REACH = 3638L
 
@@ -1692,14 +1737,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         epsilon = 1.0
         delta = 1e-15
       }
-
-    private fun getNoiseTolerance(epsilon: Double, delta: Double): Long {
-      val stddev = kotlin.math.sqrt(2 * kotlin.math.ln(1.25 / delta)) / epsilon
-      return (6 * stddev).toLong()
-    }
-
-    private val REACH_NOISE_TOLERANCE =
-      getNoiseTolerance(NO_NOISE_PRIVACY_PARAMS.epsilon.toDouble(), NO_NOISE_PRIVACY_PARAMS.delta)
 
     /** MetricSpecConfig with width=1.0 so there's no VID sampling variance. */
     private val NO_SAMPLING_METRIC_SPEC_CONFIG = metricSpecConfig {
