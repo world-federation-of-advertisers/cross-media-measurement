@@ -27,7 +27,7 @@ object ReachAndFrequencyComputations {
    * @param rawHistogram A histogram of counts for frequencies 1 to `maxFrequency`.
    * @param vidSamplingIntervalWidth The sampling rate used to select VIDs.
    * @param vectorSize The total size of the frequency vector space, used for capping the result.
-   *   before scaling. If it is null (the default), no capping is applied.
+   *   before scaling. If null, no capping is applied.
    * @param dpParams The privacy parameters for the reach computation.
    * @param resultMinimumThresholds Optional result minimum thresholds.
    * @return The reach value, potentially with noise applied.
@@ -35,7 +35,7 @@ object ReachAndFrequencyComputations {
   fun computeReach(
     rawHistogram: LongArray,
     vidSamplingIntervalWidth: Double,
-    vectorSize: Int? = null,
+    vectorSize: Int?,
     dpParams: DifferentialPrivacyParams?,
     resultMinimumThresholds: ResultMinimumThresholds?,
   ): Long {
