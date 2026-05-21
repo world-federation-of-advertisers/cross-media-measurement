@@ -666,8 +666,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     )
   }
 
-  @Test
-  fun `HMSS no noise basic report fails when EDP requires Gaussian noise`() = runBlocking {
+  protected suspend fun assertHmssReportFailsWhenEdpRequiresGaussianNoise() {
     val hmssEventGroups = getHmssEventGroupsIncludingRestrictedEdp()
     check(hmssEventGroups.size > 1)
 
@@ -694,8 +693,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
   }
 
-  @Test
-  fun `TrusTee no noise basic report fails when EDP requires Gaussian noise`() = runBlocking {
+  protected suspend fun assertTrusTeeReportFailsWhenEdpRequiresGaussianNoise() {
     val trusTeeEventGroups = getTrusTeeEventGroupsIncludingRestrictedEdp()
     check(trusTeeEventGroups.size > 1)
 
