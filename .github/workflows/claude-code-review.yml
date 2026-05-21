@@ -17,53 +17,34 @@ name: Claude Code Review
 on:
   issue_comment:
     types: [created]
-  workflow_dispatch:
-    inputs:
-      pr_number:
-        description: Pull request number to review
-        required: true
-        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.issue.number }}
+  group: ${{ github.workflow }}-${{ github.event.issue.number  }}
   cancel-in-progress: true
 
 jobs:
   review:
+    # 1. Ensure it's a Pull Request (not a regular issue)
+    # 2. Check if the comment contains '@claude review'
+    # 3. Restrict to authorized repository roles
     if: >
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event.issue.pull_request &&
-        contains(github.event.comment.body, '@claude review') &&
-        (
-          github.event.comment.author_association == 'MEMBER' ||
-          github.event.comment.author_association == 'OWNER' ||
-          github.event.comment.author_association == 'COLLABORATOR'
-        )
-      )
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@claude review') &&
+      (github.event.comment.author_association == 'MEMBER' ||
+       github.event.comment.author_association == 'OWNER' ||
+       github.event.comment.author_association == 'COLLABORATOR')
     runs-on: ubuntu-latest
 
     permissions:
       contents: read
       pull-requests: write
       id-token: write
-
     steps:
       - name: Check out revision
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-
-      - name: Set PR number
-        id: pr
-        shell: bash
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "number=${{ github.event.inputs.pr_number }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "number=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
-          fi
 
       - uses: anthropics/claude-code-action@51ea8ea73a139f2a74ff649e3092c25a904aed7e # v1.0.123
         with:
@@ -72,4 +53,4 @@ jobs:
           # The slash command's own frontmatter only covers the driver's Bash(gh ...) palette;
           # Task and read tools must be opened at the action layer or every subagent is denied.
           claude_args: --allowed-tools "Task,Read,Glob,Grep,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr list:*),Bash(gh pr comment:*),Bash(gh search:*),Bash(gh issue view:*),Bash(gh issue list:*),mcp__github_inline_comment__create_inline_comment"
-          prompt: /code-review ${{ github.repository }}/pull/${{ steps.pr.outputs.number }} --comment
+          prompt: /code-review ${{ github.repository }}/pull/${{ github.event.issue.number }} --comment
