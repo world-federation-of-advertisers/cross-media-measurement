@@ -231,7 +231,7 @@ class ReachAndFrequencyComputationsTest {
   }
 
   @Test
-  fun `computeFrequencyDistribution calculates raw distribution with small-cell suppression`() {
+  fun `computeFrequencyDistribution zeroes only freq-1 bucket when it fails threshold`() {
     val rawHistogram = longArrayOf(10, 30, 70) // Frequencies 1, 2, 3
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
@@ -242,8 +242,9 @@ class ReachAndFrequencyComputationsTest {
         vidSamplingIntervalWidth = 1.0,
       )
     // With fold-down: freq1 (10 users) fails minUsers=11, cannot fold lower.
-    // 1+ failure zeros entire histogram.
-    val expected = mapOf(1L to 0.0, 2L to 0.0, 3L to 0.0)
+    // freq2 (30) and freq3 (70) pass, so only freq1 is suppressed.
+    val totalAfterFold = 30.0 + 70.0
+    val expected = mapOf(1L to 0.0, 2L to 30.0 / totalAfterFold, 3L to 70.0 / totalAfterFold)
     assertThat(distribution).isEqualTo(expected)
   }
 
@@ -325,8 +326,10 @@ class ReachAndFrequencyComputationsTest {
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 1, minImpressions = 15),
         vidSamplingIntervalWidth = 1.0,
       )
-    // freq1: 5*1=5 < 15 fails impressions, cannot fold lower → 1+ failure → all zeros
-    val expected = mapOf(1L to 0.0, 2L to 0.0, 3L to 0.0)
+    // freq1: 5*1=5 < 15 fails impressions, cannot fold lower. Only freq1 is suppressed.
+    // freq2 (10) and freq3 (20) pass, so they remain.
+    val totalAfterFold = 10.0 + 20.0
+    val expected = mapOf(1L to 0.0, 2L to 10.0 / totalAfterFold, 3L to 20.0 / totalAfterFold)
     assertThat(distribution).isEqualTo(expected)
   }
 

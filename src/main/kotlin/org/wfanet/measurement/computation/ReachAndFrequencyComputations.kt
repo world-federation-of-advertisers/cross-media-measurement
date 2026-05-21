@@ -192,7 +192,6 @@ object ReachAndFrequencyComputations {
     val thresholdedHistogram = noisedHistogram.copyOf()
     // Fold down from highest frequency to lowest. When a bucket fails the threshold,
     // its user count is added to the next lower bucket, which is then re-evaluated.
-    // If the 1+ bucket fails, the entire histogram is zeroed out.
     for (index in thresholdedHistogram.indices.reversed()) {
       val frequency = index + 1L
       val count = thresholdedHistogram[index]
@@ -205,10 +204,6 @@ object ReachAndFrequencyComputations {
           thresholdedHistogram[index - 1] += count
         }
       }
-    }
-    // If the 1+ bucket (index 0) was zeroed out, the entire histogram fails.
-    if (thresholdedHistogram[0] == 0L && noisedHistogram.sum() > 0) {
-      thresholdedHistogram.fill(0)
     }
     val numThresholdedActiveRegisters = thresholdedHistogram.sum()
     return thresholdedHistogram.withIndex().associate { (index, count) ->
