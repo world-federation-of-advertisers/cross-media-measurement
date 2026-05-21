@@ -24,6 +24,18 @@
       ],
       "matchUpdateTypes": ["digest"],
       "recreateWhen": "never"
-    }    
+    },
+    {
+      "description": "Group grpc updates across Poetry, Bazel module, and pip requirements",
+      "groupName": "grpc",
+      "groupSlug": "grpc",
+      "matchManagers": ["poetry", "bazel-module", "pip_requirements"],
+      "matchFileNames": [
+        "pyproject.toml",
+        "MODULE.bazel",
+        "requirements_lock.txt"
+      ],
+      "matchPackageNames": ["grpcio", "grpc"]
+    }
   ]
 }
