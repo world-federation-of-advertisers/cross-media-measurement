@@ -31,7 +31,7 @@ import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.readByteString
-import org.wfanet.measurement.computation.KAnonymityParams
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
@@ -159,7 +159,7 @@ class ResultsFulfillerApp(
         else -> throw Exception("Invalid noise type ${fulfillerParams.noiseParams.noiseType}")
       }
 
-    val kAnonymityParams: KAnonymityParams? =
+    val resultMinimumThresholds: ResultMinimumThresholds? =
       if (fulfillerParams.hasKAnonymityParams()) {
         require(fulfillerParams.kAnonymityParams.minUsers > 0) {
           "k-anonymity minUsers must be greater than 0, got ${fulfillerParams.kAnonymityParams.minUsers}"
@@ -170,7 +170,7 @@ class ResultsFulfillerApp(
         require(fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser > 0) {
           "k-anonymity reachMaxFrequencyPerUser must be greater than 0, got ${fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser}"
         }
-        KAnonymityParams(
+        ResultMinimumThresholds(
           minUsers = fulfillerParams.kAnonymityParams.minUsers,
           minImpressions = fulfillerParams.kAnonymityParams.minImpressions,
           reachMaxFrequencyPerUser = fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser,
@@ -207,7 +207,7 @@ class ResultsFulfillerApp(
         dataProviderCertificateKey = dataProviderCertificateKey,
         dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
         noiserSelector = noiseSelector,
-        kAnonymityParams = kAnonymityParams,
+        resultMinimumThresholds = resultMinimumThresholds,
         // When -1, treat as no frequency cap. When 0 or unset, use measurement spec value.
         overrideImpressionMaxFrequencyPerUser =
           if (fulfillerParams.impressionMaxFrequencyPerUser == -1) {

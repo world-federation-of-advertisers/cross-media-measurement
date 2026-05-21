@@ -373,12 +373,12 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "KAnonymizerTest",
-    srcs = ["KAnonymizerTest.kt"],
-    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.KAnonymizerTest",
+    name = "ResultMinimumThresholderTest",
+    srcs = ["ResultMinimumThresholderTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultMinimumThresholderTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/computation:k_anonymity_params",
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:k_anonymizer",
+        "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:result_minimum_thresholder",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
