@@ -45,11 +45,14 @@ message CreateRawImpressionUploadRequest {
   // Resource ID of the DataProvider.
   string data_provider_resource_id = 1;
 
+  // Resource ID for the new upload.
+  string raw_impression_upload_id = 2;
+
   // The RawImpressionUpload to create.
-  RawImpressionUpload raw_impression_upload = 2;
+  RawImpressionUpload raw_impression_upload = 3;
 
   // A request ID provided by the client to ensure idempotency.
-  string request_id = 3;
+  string request_id = 4;
 }
 
 // Request message for GetRawImpressionUpload.
