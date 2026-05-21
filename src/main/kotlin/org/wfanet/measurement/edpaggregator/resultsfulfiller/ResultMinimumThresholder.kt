@@ -20,6 +20,8 @@ import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.computation.HistogramComputations
+import org.wfanet.measurement.computation.ImpressionComputations
+import org.wfanet.measurement.computation.ReachAndFrequencyComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 
@@ -77,27 +79,22 @@ object ResultMinimumThresholder {
         maxFrequency = maxFrequency,
       )
 
-    val totalReach = histogram.sum()
-    if (totalReach == 0L) {
-      val emptyFrequencyVector =
-        FrequencyVectorBuilder(
-            measurementSpec = measurementSpec,
-            populationSpec = populationSpec,
-            strict = false,
-            overrideImpressionMaxFrequencyPerUser = null,
-          )
-          .build()
-      return emptyFrequencyVector
-    }
-
     val vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width.toDouble()
-    val scaledReach = totalReach / vidSamplingIntervalWidth
-
-    var totalImpressions = 0L
-    for ((index, count) in histogram.withIndex()) {
-      totalImpressions += (index + 1L) * count
-    }
-    val scaledImpressions = totalImpressions / vidSamplingIntervalWidth
+    val scaledReach =
+      ReachAndFrequencyComputations.computeReach(
+        rawHistogram = histogram,
+        vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+        dpParams = null,
+        resultMinimumThresholds = null,
+      )
+    val scaledImpressions =
+      ImpressionComputations.computeImpressionCount(
+        rawHistogram = histogram,
+        vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+        maxFrequency = null,
+        dpParams = null,
+        resultMinimumThresholds = null,
+      )
 
     if (
       scaledReach < resultMinimumThresholds.minUsers ||

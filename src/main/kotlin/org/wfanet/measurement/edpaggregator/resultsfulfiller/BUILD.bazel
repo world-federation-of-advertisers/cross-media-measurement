@@ -433,6 +433,7 @@ kt_jvm_library(
     srcs = ["ResultMinimumThresholder.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",
+        "//src/main/kotlin/org/wfanet/measurement/computation:impression_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:reach_and_frequency_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
