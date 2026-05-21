@@ -122,6 +122,7 @@ kt_jvm_test(
 java_test(
     name = "GCloudInProcessLifeOfAReportV2IntegrationTest",
     size = "large",
+    timeout = "long",
     # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
     flaky = True,
     tags = [
