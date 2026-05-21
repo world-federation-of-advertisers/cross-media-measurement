@@ -68,5 +68,8 @@ jobs:
       - uses: anthropics/claude-code-action@51ea8ea73a139f2a74ff649e3092c25a904aed7e # v1.0.123
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          show_full_output: true
+          # /code-review fans out to subagents and posts via the inline-comment MCP server.
+          # The slash command's own frontmatter only covers the driver's Bash(gh ...) palette;
+          # Task and read tools must be opened at the action layer or every subagent is denied.
+          claude_args: --allowed-tools "Task,Read,Glob,Grep,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr list:*),Bash(gh pr comment:*),Bash(gh search:*),Bash(gh issue view:*),Bash(gh issue list:*),mcp__github_inline_comment__create_inline_comment"
           prompt: /code-review ${{ github.repository }}/pull/${{ steps.pr.outputs.number }} --comment
