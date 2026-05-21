@@ -38,10 +38,6 @@ service RawImpressionUploadService {
   // Lists RawImpressionUpload resources for a data provider.
   rpc ListRawImpressionUploads(ListRawImpressionUploadsRequest)
       returns (ListRawImpressionUploadsResponse) {}
-
-  // Deletes a RawImpressionUpload.
-  rpc DeleteRawImpressionUpload(DeleteRawImpressionUploadRequest)
-      returns (RawImpressionUpload) {}
 }
 
 // Request message for the `CreateRawImpressionUpload` method.
@@ -108,17 +104,4 @@ message ListRawImpressionUploadsResponse {
   // A token to retrieve the next page of results.
   // If this field is omitted, there are no subsequent pages.
   string next_page_token = 2;
-}
-
-// Request message for the `DeleteRawImpressionUpload` method.
-message DeleteRawImpressionUploadRequest {
-  // The resource name of the RawImpressionUpload to delete.
-  // Format:
-  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
-  string name = 1 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = {
-      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
-    }
-  ];
 }

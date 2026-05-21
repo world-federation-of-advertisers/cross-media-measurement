@@ -24,7 +24,7 @@ option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "RawImpressionUploadProto";
 
-// An upload of raw impression files by an EDP.
+// An upload of raw impression files by a DataProvider.
 //
 // This is the top-level parent resource for the VID labeling pipeline.
 // One RawImpressionUpload is created per EDP impression-upload event.

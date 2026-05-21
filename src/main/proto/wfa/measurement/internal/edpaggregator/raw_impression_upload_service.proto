@@ -36,10 +36,6 @@ service RawImpressionUploadService {
   // Lists RawImpressionUpload entries for a data provider.
   rpc ListRawImpressionUploads(ListRawImpressionUploadsRequest)
       returns (ListRawImpressionUploadsResponse);
-
-  // Deletes a RawImpressionUpload.
-  rpc DeleteRawImpressionUpload(DeleteRawImpressionUploadRequest)
-      returns (RawImpressionUpload);
 }
 
 // Request message for CreateRawImpressionUpload.
@@ -47,11 +43,14 @@ message CreateRawImpressionUploadRequest {
   // Resource ID of the DataProvider.
   string data_provider_resource_id = 1;
 
+  // Resource ID for the new upload.
+  string raw_impression_upload_id = 2;
+
   // The RawImpressionUpload to create.
-  RawImpressionUpload raw_impression_upload = 2;
+  RawImpressionUpload raw_impression_upload = 3;
 
   // A request ID provided by the client to ensure idempotency.
-  string request_id = 3;
+  string request_id = 4;
 }
 
 // Request message for GetRawImpressionUpload.
@@ -98,13 +97,4 @@ message ListRawImpressionUploadsPageToken {
     string raw_impression_upload_id = 2;
   }
   After after = 1;
-}
-
-// Request message for DeleteRawImpressionUpload.
-message DeleteRawImpressionUploadRequest {
-  // Resource ID of the DataProvider.
-  string data_provider_resource_id = 1;
-
-  // The unique identifier of the upload to delete.
-  string raw_impression_upload_id = 2;
 }
