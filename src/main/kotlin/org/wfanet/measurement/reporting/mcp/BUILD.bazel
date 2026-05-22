@@ -3,26 +3,14 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 load("//src/main/docker:macros.bzl", "java_image")
 
 kt_jvm_library(
-    name = "mcp_protocol",
-    srcs = ["McpProtocol.kt"],
+    name = "halo_reporting_mcp_server",
+    srcs = ["HaloReportingMcpServer.kt"],
     visibility = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/reporting/mcp:__subpackages__",
     ],
     deps = [
-        "@wfa_common_jvm//imports/java/com/google/gson",
-        "@wfa_common_jvm//imports/java/io/grpc:api",
-    ],
-)
-
-kt_jvm_library(
-    name = "halo_reporting_mcp_server",
-    srcs = ["HaloReportingMcpServer.kt"],
-    deps = [
-        ":mcp_protocol",
-        "//imports/java/io/ktor/http",
         "//imports/java/io/ktor/server:cio",
-        "//imports/java/io/ktor/server:core",
+        "//imports/java/io/modelcontextprotocol/kotlin/sdk:server",
         "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/auth:bearer_token_extractor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
         "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/prompts:workflow_prompts",

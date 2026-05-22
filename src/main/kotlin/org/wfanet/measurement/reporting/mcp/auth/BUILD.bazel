@@ -6,15 +6,9 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "auth_context",
-    srcs = ["AuthContext.kt"],
-)
-
-kt_jvm_library(
     name = "bearer_token_extractor",
     srcs = ["BearerTokenExtractor.kt"],
     deps = [
-        "//imports/java/io/ktor/http",
-        "//imports/java/io/ktor/server:core",
+        "//imports/java/io/modelcontextprotocol/kotlin/sdk:server",
     ],
 )

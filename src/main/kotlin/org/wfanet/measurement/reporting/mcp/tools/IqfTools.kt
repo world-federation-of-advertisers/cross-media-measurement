@@ -17,8 +17,13 @@
 package org.wfanet.measurement.reporting.mcp.tools
 
 import com.google.protobuf.util.JsonFormat
-import org.wfanet.measurement.reporting.mcp.McpServer
-import org.wfanet.measurement.reporting.mcp.McpTool
+import io.modelcontextprotocol.kotlin.sdk.server.Server
+import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
+import io.modelcontextprotocol.kotlin.sdk.types.TextContent
+import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
 import org.wfanet.measurement.reporting.v2alpha.getImpressionQualificationFilterRequest
 import org.wfanet.measurement.reporting.v2alpha.listImpressionQualificationFiltersRequest
@@ -26,44 +31,62 @@ import org.wfanet.measurement.reporting.v2alpha.listImpressionQualificationFilte
 private val JSON_PRINTER: JsonFormat.Printer =
   JsonFormat.printer().omittingInsignificantWhitespace()
 
-fun McpServer.registerIqfTools(
+fun Server.registerIqfTools(
   client: ReportingPublicApiClient,
   getBearerToken: () -> String,
 ) {
   addTool(
-    McpTool(
-      name = "get_impression_qualification_filter",
-      description = "Get an ImpressionQualificationFilter by resource name.",
-      inputSchema = inputSchema {
-        stringProperty("name", "IQF resource name, e.g. impressionQualificationFilters/{iqf_id}")
-        required("name")
-      },
-    ) { args ->
-      val stubs = client.withBearerToken(getBearerToken())
-      val grpcRequest = getImpressionQualificationFilterRequest {
-        name = args.get("name").asString
-      }
-      JSON_PRINTER.print(stubs.impressionQualificationFilters.getImpressionQualificationFilter(grpcRequest))
-    },
-  )
+    name = "get_impression_qualification_filter",
+    description = "Get an ImpressionQualificationFilter by resource name.",
+    inputSchema =
+      ToolSchema(
+        properties =
+          buildJsonObject {
+            putJsonObject("name") {
+              put("type", "string")
+              put("description", "IQF resource name, e.g. impressionQualificationFilters/{id}")
+            }
+          },
+        required = listOf("name"),
+      ),
+  ) { request ->
+    val stubs = client.withBearerToken(getBearerToken())
+    val grpcRequest = getImpressionQualificationFilterRequest {
+      name = request.arguments!!.getString("name")
+    }
+    val result =
+      stubs.impressionQualificationFilters.getImpressionQualificationFilter(grpcRequest)
+    CallToolResult(content = listOf(TextContent(JSON_PRINTER.print(result))))
+  }
 
   addTool(
-    McpTool(
-      name = "list_impression_qualification_filters",
-      description =
-        "List all ImpressionQualificationFilters. These are top-level resources " +
-          "(not scoped to a MeasurementConsumer). Supports pagination.",
-      inputSchema = inputSchema {
-        intProperty("page_size", "Maximum filters to return (max 100, default 50)")
-        stringProperty("page_token", "Token from a previous list response for pagination")
-      },
-    ) { args ->
-      val stubs = client.withBearerToken(getBearerToken())
-      val grpcRequest = listImpressionQualificationFiltersRequest {
-        if (args.has("page_size")) pageSize = args.get("page_size").asInt
-        if (args.has("page_token")) pageToken = args.get("page_token").asString
-      }
-      JSON_PRINTER.print(stubs.impressionQualificationFilters.listImpressionQualificationFilters(grpcRequest))
-    },
-  )
+    name = "list_impression_qualification_filters",
+    description =
+      "List all ImpressionQualificationFilters. Top-level resources, not scoped to a " +
+        "MeasurementConsumer. Supports pagination.",
+    inputSchema =
+      ToolSchema(
+        properties =
+          buildJsonObject {
+            putJsonObject("page_size") {
+              put("type", "integer")
+              put("description", "Maximum filters to return (max 100, default 50)")
+            }
+            putJsonObject("page_token") {
+              put("type", "string")
+              put("description", "Pagination token from a previous response")
+            }
+          },
+      ),
+  ) { request ->
+    val args = request.arguments
+    val stubs = client.withBearerToken(getBearerToken())
+    val grpcRequest = listImpressionQualificationFiltersRequest {
+      args?.getIntOrNull("page_size")?.let { pageSize = it }
+      args?.getStringOrNull("page_token")?.let { pageToken = it }
+    }
+    val result =
+      stubs.impressionQualificationFilters.listImpressionQualificationFilters(grpcRequest)
+    CallToolResult(content = listOf(TextContent(JSON_PRINTER.print(result))))
+  }
 }

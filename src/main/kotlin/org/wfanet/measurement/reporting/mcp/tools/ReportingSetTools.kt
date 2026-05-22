@@ -17,8 +17,13 @@
 package org.wfanet.measurement.reporting.mcp.tools
 
 import com.google.protobuf.util.JsonFormat
-import org.wfanet.measurement.reporting.mcp.McpServer
-import org.wfanet.measurement.reporting.mcp.McpTool
+import io.modelcontextprotocol.kotlin.sdk.server.Server
+import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
+import io.modelcontextprotocol.kotlin.sdk.types.TextContent
+import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
@@ -28,70 +33,105 @@ import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
 private val JSON_PRINTER: JsonFormat.Printer =
   JsonFormat.printer().omittingInsignificantWhitespace()
 
-fun McpServer.registerReportingSetTools(
+fun Server.registerReportingSetTools(
   client: ReportingPublicApiClient,
   getBearerToken: () -> String,
 ) {
   addTool(
-    McpTool(
-      name = "create_reporting_set",
-      description =
-        "Create a ReportingSet. Provide either a primitive (with cmms_event_groups) or " +
-          "composite (with a set expression). Set campaign_group to the ReportingSet's own " +
-          "name to mark it as a campaign group for BasicReports.",
-      inputSchema = inputSchema {
-        stringProperty("parent", "MeasurementConsumer resource name, e.g. measurementConsumers/{mc_id}")
-        stringProperty("reporting_set_id", "RFC-1034 lower-case identifier for the reporting set")
-        objectProperty("reporting_set", "ReportingSet message in JSON")
-        required("parent", "reporting_set_id", "reporting_set")
-      },
-    ) { args ->
-      val stubs = client.withBearerToken(getBearerToken())
-      val rsBuilder = ReportingSet.newBuilder()
-      JsonFormat.parser().merge(args.getAsJsonObject("reporting_set").toString(), rsBuilder)
+    name = "create_reporting_set",
+    description =
+      "Create a ReportingSet. Provide either a primitive (with cmms_event_groups) or " +
+        "composite (with a set expression). Set campaign_group to the ReportingSet's own " +
+        "name to mark it as a campaign group for BasicReports.",
+    inputSchema =
+      ToolSchema(
+        properties =
+          buildJsonObject {
+            putJsonObject("parent") {
+              put("type", "string")
+              put("description", "MeasurementConsumer resource name")
+            }
+            putJsonObject("reporting_set_id") {
+              put("type", "string")
+              put("description", "RFC-1034 lower-case identifier for the reporting set")
+            }
+            putJsonObject("reporting_set") {
+              put("type", "object")
+              put("description", "ReportingSet message in JSON")
+            }
+          },
+        required = listOf("parent", "reporting_set_id", "reporting_set"),
+      ),
+  ) { request ->
+    val args = request.arguments!!
+    val stubs = client.withBearerToken(getBearerToken())
 
-      val grpcRequest = createReportingSetRequest {
-        parent = args.get("parent").asString
-        reportingSetId = args.get("reporting_set_id").asString
-        reportingSet = rsBuilder.build()
-      }
-      JSON_PRINTER.print(stubs.reportingSets.createReportingSet(grpcRequest))
-    },
-  )
+    val rsBuilder = ReportingSet.newBuilder()
+    JsonFormat.parser().merge(args.getValue("reporting_set").toString(), rsBuilder)
+
+    val grpcRequest = createReportingSetRequest {
+      parent = args.getString("parent")
+      reportingSetId = args.getString("reporting_set_id")
+      reportingSet = rsBuilder.build()
+    }
+
+    val result = stubs.reportingSets.createReportingSet(grpcRequest)
+    CallToolResult(content = listOf(TextContent(JSON_PRINTER.print(result))))
+  }
 
   addTool(
-    McpTool(
-      name = "get_reporting_set",
-      description = "Get a ReportingSet by resource name.",
-      inputSchema = inputSchema {
-        stringProperty("name", "ReportingSet resource name, e.g. measurementConsumers/{mc_id}/reportingSets/{rs_id}")
-        required("name")
-      },
-    ) { args ->
-      val stubs = client.withBearerToken(getBearerToken())
-      val grpcRequest = getReportingSetRequest { name = args.get("name").asString }
-      JSON_PRINTER.print(stubs.reportingSets.getReportingSet(grpcRequest))
-    },
-  )
+    name = "get_reporting_set",
+    description = "Get a ReportingSet by resource name.",
+    inputSchema =
+      ToolSchema(
+        properties =
+          buildJsonObject {
+            putJsonObject("name") {
+              put("type", "string")
+              put("description", "ReportingSet resource name")
+            }
+          },
+        required = listOf("name"),
+      ),
+  ) { request ->
+    val stubs = client.withBearerToken(getBearerToken())
+    val grpcRequest = getReportingSetRequest { name = request.arguments!!.getString("name") }
+    val result = stubs.reportingSets.getReportingSet(grpcRequest)
+    CallToolResult(content = listOf(TextContent(JSON_PRINTER.print(result))))
+  }
 
   addTool(
-    McpTool(
-      name = "list_reporting_sets",
-      description = "List ReportingSets for a MeasurementConsumer. Supports pagination.",
-      inputSchema = inputSchema {
-        stringProperty("parent", "MeasurementConsumer resource name, e.g. measurementConsumers/{mc_id}")
-        intProperty("page_size", "Maximum reporting sets to return (max 1000, default 50)")
-        stringProperty("page_token", "Token from a previous list response for pagination")
-        required("parent")
-      },
-    ) { args ->
-      val stubs = client.withBearerToken(getBearerToken())
-      val grpcRequest = listReportingSetsRequest {
-        parent = args.get("parent").asString
-        if (args.has("page_size")) pageSize = args.get("page_size").asInt
-        if (args.has("page_token")) pageToken = args.get("page_token").asString
-      }
-      JSON_PRINTER.print(stubs.reportingSets.listReportingSets(grpcRequest))
-    },
-  )
+    name = "list_reporting_sets",
+    description = "List ReportingSets for a MeasurementConsumer. Supports pagination.",
+    inputSchema =
+      ToolSchema(
+        properties =
+          buildJsonObject {
+            putJsonObject("parent") {
+              put("type", "string")
+              put("description", "MeasurementConsumer resource name")
+            }
+            putJsonObject("page_size") {
+              put("type", "integer")
+              put("description", "Maximum reporting sets to return (max 1000, default 50)")
+            }
+            putJsonObject("page_token") {
+              put("type", "string")
+              put("description", "Pagination token from a previous response")
+            }
+          },
+        required = listOf("parent"),
+      ),
+  ) { request ->
+    val args = request.arguments!!
+    val stubs = client.withBearerToken(getBearerToken())
+    val grpcRequest = listReportingSetsRequest {
+      parent = args.getString("parent")
+      args.getIntOrNull("page_size")?.let { pageSize = it }
+      args.getStringOrNull("page_token")?.let { pageToken = it }
+    }
+
+    val result = stubs.reportingSets.listReportingSets(grpcRequest)
+    CallToolResult(content = listOf(TextContent(JSON_PRINTER.print(result))))
+  }
 }

@@ -17,16 +17,17 @@
 package org.wfanet.measurement.reporting.mcp
 
 import io.grpc.Channel
-import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
-import io.ktor.server.request.receiveText
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
-import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
-import kotlinx.coroutines.runBlocking
+import io.modelcontextprotocol.kotlin.sdk.server.Server
+import io.modelcontextprotocol.kotlin.sdk.server.ServerOptions
+import io.modelcontextprotocol.kotlin.sdk.server.mcpStreamableHttp
+import io.modelcontextprotocol.kotlin.sdk.types.Implementation
+import io.modelcontextprotocol.kotlin.sdk.types.ServerCapabilities
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
@@ -41,9 +42,12 @@ import org.wfanet.measurement.reporting.mcp.tools.registerIqfTools
 import org.wfanet.measurement.reporting.mcp.tools.registerReportingSetTools
 import picocli.CommandLine
 
+private const val SERVER_NAME = "HaloReportingMcpServer"
+private const val SERVER_VERSION = "0.1.0"
+
 private object HaloReportingMcpServer {
   @CommandLine.Command(
-    name = "HaloReportingMcpServer",
+    name = SERVER_NAME,
     description = ["MCP server for the Halo Reporting v2alpha public API."],
     mixinStandardHelpOptions = true,
     showDefaultValues = true,
@@ -70,58 +74,59 @@ private object HaloReportingMcpServer {
     val apiClient = ReportingPublicApiClient(reportingChannel)
 
     embeddedServer(CIO, port = mcpServerFlags.port) {
+        mcpStreamableHttp(enableDnsRebindingProtection = false) {
+          val bearerToken =
+            BearerTokenExtractor.extract(call.request)
+              ?: error("Missing or invalid Authorization: Bearer header")
+
+          createMcpServer(apiClient) { bearerToken }
+        }
+
         routing {
-          post("/mcp") {
-            val bearerToken = BearerTokenExtractor.extract(call.request)
-            if (bearerToken == null) {
-              call.respondText(
-                McpServer.errorResponse(null, -32000, "Missing Authorization: Bearer header"),
-                ContentType.Application.Json,
-                HttpStatusCode.Unauthorized,
-              )
-              return@post
-            }
-
-            val mcpServer = createMcpServer(apiClient) { bearerToken }
-            val requestBody = call.receiveText()
-            val response = runBlocking { mcpServer.handleRequest(requestBody) }
-
-            if (response.isNotEmpty()) {
-              call.respondText(response, ContentType.Application.Json)
-            } else {
-              call.respondText("", status = HttpStatusCode.NoContent)
-            }
-          }
-
-          get("/healthz") {
-            call.respondText("OK", status = HttpStatusCode.OK)
-          }
+          get("/healthz") { call.respondText("OK", status = HttpStatusCode.OK) }
         }
       }
       .start(wait = true)
   }
 }
 
-internal fun createMcpServer(
+fun createMcpServer(
   apiClient: ReportingPublicApiClient,
   getBearerToken: () -> String,
-): McpServer {
-  val server = McpServer()
+): Server {
+  val server =
+    Server(
+      serverInfo = Implementation(name = SERVER_NAME, version = SERVER_VERSION),
+      options =
+        ServerOptions(
+          capabilities =
+            ServerCapabilities(
+              tools = ServerCapabilities.Tools(listChanged = false),
+              prompts = ServerCapabilities.Prompts(listChanged = false),
+            ),
+        ),
+    )
+
   server.registerBasicReportTools(apiClient, getBearerToken)
   server.registerEventGroupTools(apiClient, getBearerToken)
   server.registerReportingSetTools(apiClient, getBearerToken)
   server.registerIqfTools(apiClient, getBearerToken)
   server.registerWorkflowPrompts()
+
   return server
 }
 
 class McpServerFlags {
   @CommandLine.Option(
     names = ["--port"],
-    description = ["HTTP port for the MCP server."],
-    defaultValue = "8443",
+    description =
+      [
+        "HTTP port for the MCP server. Deploy behind a TLS-terminating proxy " +
+          "(e.g. Envoy, K8s Ingress) for production use."
+      ],
+    defaultValue = "8080",
   )
-  var port: Int = 8443
+  var port: Int = 8080
     private set
 
   @CommandLine.Option(

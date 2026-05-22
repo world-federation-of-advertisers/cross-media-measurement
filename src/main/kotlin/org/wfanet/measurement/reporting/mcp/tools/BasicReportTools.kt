@@ -16,11 +16,15 @@
 
 package org.wfanet.measurement.reporting.mcp.tools
 
-import com.google.gson.JsonObject
 import com.google.protobuf.util.JsonFormat
 import com.google.protobuf.util.Timestamps
-import org.wfanet.measurement.reporting.mcp.McpServer
-import org.wfanet.measurement.reporting.mcp.McpTool
+import io.modelcontextprotocol.kotlin.sdk.server.Server
+import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
+import io.modelcontextprotocol.kotlin.sdk.types.TextContent
+import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsRequestKt
@@ -31,87 +35,122 @@ import org.wfanet.measurement.reporting.v2alpha.listBasicReportsRequest
 private val JSON_PRINTER: JsonFormat.Printer =
   JsonFormat.printer().omittingInsignificantWhitespace()
 
-fun McpServer.registerBasicReportTools(
+fun Server.registerBasicReportTools(
   client: ReportingPublicApiClient,
   getBearerToken: () -> String,
 ) {
   addTool(
-    McpTool(
-      name = "create_basic_report",
-      description =
-        "Create a BasicReport. The report runs asynchronously; poll with get_basic_report " +
-          "until state is SUCCEEDED or FAILED. Supply request_id for idempotent retries.",
-      inputSchema = inputSchema {
-        stringProperty("parent", "MeasurementConsumer resource name, e.g. measurementConsumers/{mc_id}")
-        stringProperty("basic_report_id", "RFC-1034 lower-case identifier for the report")
-        stringProperty("request_id", "Optional UUID4 for idempotent retries")
-        objectProperty("basic_report", "BasicReport message in JSON")
-        required("parent", "basic_report_id", "basic_report")
-      },
-    ) { args ->
-      val stubs = client.withBearerToken(getBearerToken())
-      val basicReportBuilder = BasicReport.newBuilder()
-      JsonFormat.parser().merge(args.getAsJsonObject("basic_report").toString(), basicReportBuilder)
+    name = "create_basic_report",
+    description =
+      "Create a BasicReport. The report runs asynchronously; poll with get_basic_report " +
+        "until state is SUCCEEDED or FAILED. Supply request_id for idempotent retries.",
+    inputSchema =
+      ToolSchema(
+        properties =
+          buildJsonObject {
+            putJsonObject("parent") {
+              put("type", "string")
+              put("description", "MeasurementConsumer resource name")
+            }
+            putJsonObject("basic_report_id") {
+              put("type", "string")
+              put("description", "RFC-1034 lower-case identifier for the report")
+            }
+            putJsonObject("request_id") {
+              put("type", "string")
+              put("description", "Optional UUID4 for idempotent retries")
+            }
+            putJsonObject("basic_report") {
+              put("type", "object")
+              put("description", "BasicReport message in JSON")
+            }
+          },
+        required = listOf("parent", "basic_report_id", "basic_report"),
+      ),
+  ) { request ->
+    val args = request.arguments!!
+    val stubs = client.withBearerToken(getBearerToken())
 
-      val grpcRequest = createBasicReportRequest {
-        parent = args.get("parent").asString
-        basicReportId = args.get("basic_report_id").asString
-        basicReport = basicReportBuilder.build()
-        if (args.has("request_id")) {
-          requestId = args.get("request_id").asString
-        }
-      }
+    val basicReportBuilder = BasicReport.newBuilder()
+    JsonFormat.parser().merge(args.getValue("basic_report").toString(), basicReportBuilder)
 
-      JSON_PRINTER.print(stubs.basicReports.createBasicReport(grpcRequest))
-    },
-  )
+    val grpcRequest = createBasicReportRequest {
+      parent = args.getString("parent")
+      basicReportId = args.getString("basic_report_id")
+      basicReport = basicReportBuilder.build()
+      args.getStringOrNull("request_id")?.let { requestId = it }
+    }
 
-  addTool(
-    McpTool(
-      name = "get_basic_report",
-      description =
-        "Get a BasicReport by resource name. Use to poll report status until " +
-          "state is SUCCEEDED or FAILED.",
-      inputSchema = inputSchema {
-        stringProperty(
-          "name",
-          "BasicReport resource name, e.g. measurementConsumers/{mc_id}/basicReports/{report_id}",
-        )
-        required("name")
-      },
-    ) { args ->
-      val stubs = client.withBearerToken(getBearerToken())
-      val grpcRequest = getBasicReportRequest { name = args.get("name").asString }
-      JSON_PRINTER.print(stubs.basicReports.getBasicReport(grpcRequest))
-    },
-  )
+    val result = stubs.basicReports.createBasicReport(grpcRequest)
+    CallToolResult(content = listOf(TextContent(JSON_PRINTER.print(result))))
+  }
 
   addTool(
-    McpTool(
-      name = "list_basic_reports",
-      description =
-        "List BasicReports for a MeasurementConsumer. Supports pagination and " +
-          "filtering by create time.",
-      inputSchema = inputSchema {
-        stringProperty("parent", "MeasurementConsumer resource name, e.g. measurementConsumers/{mc_id}")
-        intProperty("page_size", "Maximum reports to return (max 25, default 10)")
-        stringProperty("page_token", "Token from a previous list response for pagination")
-        stringProperty("create_time_after", "RFC 3339 timestamp; only return reports created after this time")
-        required("parent")
-      },
-    ) { args ->
-      val stubs = client.withBearerToken(getBearerToken())
-      val grpcRequest = listBasicReportsRequest {
-        parent = args.get("parent").asString
-        if (args.has("page_size")) pageSize = args.get("page_size").asInt
-        if (args.has("page_token")) pageToken = args.get("page_token").asString
-        if (args.has("create_time_after")) {
-          filter = ListBasicReportsRequestKt.filter {
-            createTimeAfter = Timestamps.parse(args.get("create_time_after").asString)
-          }
+    name = "get_basic_report",
+    description =
+      "Get a BasicReport by resource name. Use to poll report status until " +
+        "state is SUCCEEDED or FAILED.",
+    inputSchema =
+      ToolSchema(
+        properties =
+          buildJsonObject {
+            putJsonObject("name") {
+              put("type", "string")
+              put("description", "BasicReport resource name")
+            }
+          },
+        required = listOf("name"),
+      ),
+  ) { request ->
+    val stubs = client.withBearerToken(getBearerToken())
+    val grpcRequest = getBasicReportRequest { name = request.arguments!!.getString("name") }
+    val result = stubs.basicReports.getBasicReport(grpcRequest)
+    CallToolResult(content = listOf(TextContent(JSON_PRINTER.print(result))))
+  }
+
+  addTool(
+    name = "list_basic_reports",
+    description =
+      "List BasicReports for a MeasurementConsumer. Supports pagination and " +
+        "filtering by create time.",
+    inputSchema =
+      ToolSchema(
+        properties =
+          buildJsonObject {
+            putJsonObject("parent") {
+              put("type", "string")
+              put("description", "MeasurementConsumer resource name")
+            }
+            putJsonObject("page_size") {
+              put("type", "integer")
+              put("description", "Maximum reports to return (max 25, default 10)")
+            }
+            putJsonObject("page_token") {
+              put("type", "string")
+              put("description", "Pagination token from a previous response")
+            }
+            putJsonObject("create_time_after") {
+              put("type", "string")
+              put("description", "RFC 3339 timestamp; only return reports created after this time")
+            }
+          },
+        required = listOf("parent"),
+      ),
+  ) { request ->
+    val args = request.arguments!!
+    val stubs = client.withBearerToken(getBearerToken())
+    val grpcRequest = listBasicReportsRequest {
+      parent = args.getString("parent")
+      args.getIntOrNull("page_size")?.let { pageSize = it }
+      args.getStringOrNull("page_token")?.let { pageToken = it }
+      args.getStringOrNull("create_time_after")?.let { timestamp ->
+        filter = ListBasicReportsRequestKt.filter {
+          createTimeAfter = Timestamps.parse(timestamp)
         }
       }
-      JSON_PRINTER.print(stubs.basicReports.listBasicReports(grpcRequest))
-    },
-  )
+    }
+
+    val result = stubs.basicReports.listBasicReports(grpcRequest)
+    CallToolResult(content = listOf(TextContent(JSON_PRINTER.print(result))))
+  }
 }

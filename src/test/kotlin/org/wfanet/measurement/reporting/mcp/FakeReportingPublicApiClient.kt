@@ -14,7 +14,14 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.reporting.mcp.auth
+package org.wfanet.measurement.reporting.mcp
 
-/** Holds a bearer token extracted from an inbound MCP HTTP request. */
-data class AuthContext(val bearerToken: String)
+import io.grpc.inprocess.InProcessChannelBuilder
+import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
+
+object FakeReportingPublicApiClient {
+  fun create(): ReportingPublicApiClient {
+    val channel = InProcessChannelBuilder.forName("fake-reporting").directExecutor().build()
+    return ReportingPublicApiClient(channel)
+  }
+}

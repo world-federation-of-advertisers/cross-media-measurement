@@ -4,13 +4,3 @@ alias(
     name = "cio",
     actual = "@maven//:io_ktor_ktor_server_cio_jvm",
 )
-
-alias(
-    name = "core",
-    actual = "@maven//:io_ktor_ktor_server_core_jvm",
-)
-
-alias(
-    name = "sse",
-    actual = "@maven//:io_ktor_ktor_server_sse_jvm",
-)
