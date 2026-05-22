@@ -46,7 +46,7 @@ jobs:
       - name: Check out revision
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - uses: anthropics/claude-code-action@51ea8ea73a139f2a74ff649e3092c25a904aed7e # v1.0.123
+      - uses: anthropics/claude-code-action@c9d66afb1788e701c57d58842e324dca17fd276e # v1.0.129
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # /code-review fans out to subagents and posts via the inline-comment MCP server.
