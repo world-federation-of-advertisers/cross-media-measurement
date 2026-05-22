@@ -115,6 +115,7 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
         "--trigger-event-filters=bucket=$TRIGGER_BUCKET"
         "--trigger-service-account=$TRIGGER_SERVICE_ACCOUNT"
         "--no-allow-unauthenticated"
+        "--cpu-throttling"
       )
 
       if [[ -n "$EXTRA_ENV_VARS" ]]; then

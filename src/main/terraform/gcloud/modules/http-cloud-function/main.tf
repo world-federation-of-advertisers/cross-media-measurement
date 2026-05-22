@@ -69,6 +69,7 @@ resource "terraform_data" "deploy_http_cloud_function" {
         "--source=$UBER_JAR_DIRECTORY"
         "--trigger-http"
         "--no-allow-unauthenticated"
+        "--cpu-throttling"
       )
 
       if [[ -n "$EXTRA_ENV_VARS" ]]; then
