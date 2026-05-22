@@ -84,6 +84,7 @@ object ResultMinimumThresholder {
       ReachAndFrequencyComputations.computeReach(
         rawHistogram = histogram,
         vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+        vectorSize = maxPopulation,
         dpParams = null,
         resultMinimumThresholds = null,
       )
