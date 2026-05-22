@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.reporting.mcp.tools
 
-import com.google.protobuf.util.JsonFormat
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
@@ -28,8 +27,6 @@ import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
 import org.wfanet.measurement.reporting.v2alpha.getImpressionQualificationFilterRequest
 import org.wfanet.measurement.reporting.v2alpha.listImpressionQualificationFiltersRequest
 
-private val JSON_PRINTER: JsonFormat.Printer =
-  JsonFormat.printer().omittingInsignificantWhitespace()
 
 fun Server.registerIqfTools(
   client: ReportingPublicApiClient,
@@ -56,7 +53,7 @@ fun Server.registerIqfTools(
     }
     val result =
       stubs.impressionQualificationFilters.getImpressionQualificationFilter(grpcRequest)
-    CallToolResult(content = listOf(TextContent(JSON_PRINTER.print(result))))
+    CallToolResult(content = listOf(TextContent(PROTO_JSON_PRINTER.print(result))))
   }
 
   addTool(
@@ -87,6 +84,6 @@ fun Server.registerIqfTools(
     }
     val result =
       stubs.impressionQualificationFilters.listImpressionQualificationFilters(grpcRequest)
-    CallToolResult(content = listOf(TextContent(JSON_PRINTER.print(result))))
+    CallToolResult(content = listOf(TextContent(PROTO_JSON_PRINTER.print(result))))
   }
 }

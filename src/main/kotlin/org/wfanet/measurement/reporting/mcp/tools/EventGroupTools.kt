@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.reporting.mcp.tools
 
-import com.google.protobuf.util.JsonFormat
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
@@ -28,8 +27,6 @@ import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequest
 
-private val JSON_PRINTER: JsonFormat.Printer =
-  JsonFormat.printer().omittingInsignificantWhitespace()
 
 fun Server.registerEventGroupTools(
   client: ReportingPublicApiClient,
@@ -89,19 +86,19 @@ fun Server.registerEventGroupTools(
 
     args["structured_filter"]?.let { filter ->
       val filterBuilder = ListEventGroupsRequest.Filter.newBuilder()
-      JsonFormat.parser().merge(filter.toString(), filterBuilder)
+      PROTO_JSON_PARSER.merge(filter.toString(), filterBuilder)
       builder.structuredFilter = filterBuilder.build()
     }
 
     args["order_by"]?.let { orderBy ->
       val orderByBuilder = ListEventGroupsRequest.OrderBy.newBuilder()
-      JsonFormat.parser().merge(orderBy.toString(), orderByBuilder)
+      PROTO_JSON_PARSER.merge(orderBy.toString(), orderByBuilder)
       builder.orderBy = orderByBuilder.build()
     }
 
     args.getStringOrNull("view")?.let { builder.view = EventGroup.View.valueOf(it) }
 
     val result = stubs.eventGroups.listEventGroups(builder.build())
-    CallToolResult(content = listOf(TextContent(JSON_PRINTER.print(result))))
+    CallToolResult(content = listOf(TextContent(PROTO_JSON_PRINTER.print(result))))
   }
 }

@@ -16,8 +16,7 @@
 
 package org.wfanet.measurement.reporting.mcp.auth
 
-import kotlin.test.assertEquals
-import kotlin.test.assertNull
+import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -26,44 +25,39 @@ import org.junit.runners.JUnit4
 class BearerTokenExtractorTest {
 
   @Test
-  fun `extracts token from valid Bearer header`() {
-    val token = BearerTokenExtractor.extract("Bearer my-secret-token")
-    assertEquals("my-secret-token", token)
+  fun extractsTokenFromValidBearerHeader() {
+    assertThat(BearerTokenExtractor.extract("Bearer my-secret-token"))
+      .isEqualTo("my-secret-token")
   }
 
   @Test
-  fun `extracts token case-insensitively`() {
-    val token = BearerTokenExtractor.extract("bearer my-token")
-    assertEquals("my-token", token)
+  fun extractsTokenCaseInsensitively() {
+    assertThat(BearerTokenExtractor.extract("bearer my-token")).isEqualTo("my-token")
   }
 
   @Test
-  fun `trims whitespace from token`() {
-    val token = BearerTokenExtractor.extract("Bearer   spaced-token  ")
-    assertEquals("spaced-token", token)
+  fun trimsWhitespaceFromToken() {
+    assertThat(BearerTokenExtractor.extract("Bearer   spaced-token  "))
+      .isEqualTo("spaced-token")
   }
 
   @Test
-  fun `returns null for missing header`() {
-    val token = BearerTokenExtractor.extract(null)
-    assertNull(token)
+  fun returnsNullForMissingHeader() {
+    assertThat(BearerTokenExtractor.extract(null as String?)).isNull()
   }
 
   @Test
-  fun `returns null for non-Bearer auth scheme`() {
-    val token = BearerTokenExtractor.extract("Basic dXNlcjpwYXNz")
-    assertNull(token)
+  fun returnsNullForNonBearerScheme() {
+    assertThat(BearerTokenExtractor.extract("Basic dXNlcjpwYXNz")).isNull()
   }
 
   @Test
-  fun `returns null for empty token after Bearer prefix`() {
-    val token = BearerTokenExtractor.extract("Bearer ")
-    assertNull(token)
+  fun returnsNullForEmptyTokenAfterPrefix() {
+    assertThat(BearerTokenExtractor.extract("Bearer ")).isNull()
   }
 
   @Test
-  fun `returns null for Bearer prefix only`() {
-    val token = BearerTokenExtractor.extract("Bearer")
-    assertNull(token)
+  fun returnsNullForBearerPrefixOnly() {
+    assertThat(BearerTokenExtractor.extract("Bearer")).isNull()
   }
 }

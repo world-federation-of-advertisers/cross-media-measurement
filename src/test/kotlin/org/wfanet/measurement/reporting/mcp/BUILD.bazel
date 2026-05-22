@@ -17,7 +17,7 @@ kt_jvm_test(
     deps = [
         ":fake_reporting_public_api_client",
         "//src/main/kotlin/org/wfanet/measurement/reporting/mcp:halo_reporting_mcp_server",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )

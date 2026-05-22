@@ -288,8 +288,10 @@ maven.install(
         # Avoid https://github.com/FasterXML/jackson-databind/issues/3637 from testcontainers.
         "com.fasterxml.jackson.core:jackson-annotations:2.20",
 
-        # MCP (Model Context Protocol) server SDK
+        # MCP (Model Context Protocol) SDK
         "io.modelcontextprotocol:kotlin-sdk-server-jvm:0.12.0",
+        "io.modelcontextprotocol:kotlin-sdk-client-jvm:0.12.0",
+        "io.modelcontextprotocol:kotlin-sdk-core-jvm:0.12.0",
 
         # Ktor HTTP server engine (required by MCP SDK)
         "io.ktor:ktor-server-cio-jvm:3.1.3",
@@ -454,7 +456,7 @@ single_version_override(
     version = BORINGSSL_VERSION,
 )
 
-# TODO: Replace with bazel_dep version bump once rules_kotlin_jvm v0.13.0 is released.
+# DO_NOT_SUBMIT: Replace with bazel_dep version bump once rules_kotlin_jvm v0.13.0 is released.
 git_override(
     module_name = "rules_kotlin_jvm",
     commit = "3696d7cc50cd197503addcad43c8d041f996531c",

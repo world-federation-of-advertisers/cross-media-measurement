@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.reporting.mcp.tools
 
-import com.google.protobuf.util.JsonFormat
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
@@ -30,8 +29,6 @@ import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
 
-private val JSON_PRINTER: JsonFormat.Printer =
-  JsonFormat.printer().omittingInsignificantWhitespace()
 
 fun Server.registerReportingSetTools(
   client: ReportingPublicApiClient,
@@ -67,7 +64,7 @@ fun Server.registerReportingSetTools(
     val stubs = client.withBearerToken(getBearerToken())
 
     val rsBuilder = ReportingSet.newBuilder()
-    JsonFormat.parser().merge(args.getValue("reporting_set").toString(), rsBuilder)
+    PROTO_JSON_PARSER.merge(args.getValue("reporting_set").toString(), rsBuilder)
 
     val grpcRequest = createReportingSetRequest {
       parent = args.getString("parent")
@@ -76,7 +73,7 @@ fun Server.registerReportingSetTools(
     }
 
     val result = stubs.reportingSets.createReportingSet(grpcRequest)
-    CallToolResult(content = listOf(TextContent(JSON_PRINTER.print(result))))
+    CallToolResult(content = listOf(TextContent(PROTO_JSON_PRINTER.print(result))))
   }
 
   addTool(
@@ -97,7 +94,7 @@ fun Server.registerReportingSetTools(
     val stubs = client.withBearerToken(getBearerToken())
     val grpcRequest = getReportingSetRequest { name = request.arguments!!.getString("name") }
     val result = stubs.reportingSets.getReportingSet(grpcRequest)
-    CallToolResult(content = listOf(TextContent(JSON_PRINTER.print(result))))
+    CallToolResult(content = listOf(TextContent(PROTO_JSON_PRINTER.print(result))))
   }
 
   addTool(
@@ -132,6 +129,6 @@ fun Server.registerReportingSetTools(
     }
 
     val result = stubs.reportingSets.listReportingSets(grpcRequest)
-    CallToolResult(content = listOf(TextContent(JSON_PRINTER.print(result))))
+    CallToolResult(content = listOf(TextContent(PROTO_JSON_PRINTER.print(result))))
   }
 }

@@ -141,7 +141,7 @@ class McpServerFlags {
     names = ["--reporting-server-api-cert-host"],
     description = ["TLS DNS-ID override for the Reporting API certificate."],
   )
-  var reportingServerApiCertHost: String = ""
+  var reportingServerApiCertHost: String? = null
     private set
 
   @CommandLine.Option(

@@ -4,3 +4,13 @@ alias(
     name = "server",
     actual = "@maven//:io_modelcontextprotocol_kotlin_sdk_server_jvm",
 )
+
+alias(
+    name = "client",
+    actual = "@maven//:io_modelcontextprotocol_kotlin_sdk_client_jvm",
+)
+
+alias(
+    name = "core",
+    actual = "@maven//:io_modelcontextprotocol_kotlin_sdk_core_jvm",
+)

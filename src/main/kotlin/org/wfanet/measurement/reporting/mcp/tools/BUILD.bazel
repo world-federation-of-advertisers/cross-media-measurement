@@ -14,10 +14,19 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "proto_json",
+    srcs = ["ProtoJson.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+    ],
+)
+
+kt_jvm_library(
     name = "basic_report_tools",
     srcs = ["BasicReportTools.kt"],
     deps = [
         ":json_helpers",
+        ":proto_json",
         "//imports/java/io/modelcontextprotocol/kotlin/sdk:server",
         "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_report_kt_jvm_proto",
@@ -31,11 +40,11 @@ kt_jvm_library(
     srcs = ["EventGroupTools.kt"],
     deps = [
         ":json_helpers",
+        ":proto_json",
         "//imports/java/io/modelcontextprotocol/kotlin/sdk:server",
         "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:event_group_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:event_groups_service_kt_jvm_grpc_proto",
-        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
     ],
 )
 
@@ -44,11 +53,11 @@ kt_jvm_library(
     srcs = ["ReportingSetTools.kt"],
     deps = [
         ":json_helpers",
+        ":proto_json",
         "//imports/java/io/modelcontextprotocol/kotlin/sdk:server",
         "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_set_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_sets_service_kt_jvm_grpc_proto",
-        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
     ],
 )
 
@@ -57,9 +66,9 @@ kt_jvm_library(
     srcs = ["IqfTools.kt"],
     deps = [
         ":json_helpers",
+        ":proto_json",
         "//imports/java/io/modelcontextprotocol/kotlin/sdk:server",
         "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:impression_qualification_filters_service_kt_jvm_grpc_proto",
-        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
     ],
 )

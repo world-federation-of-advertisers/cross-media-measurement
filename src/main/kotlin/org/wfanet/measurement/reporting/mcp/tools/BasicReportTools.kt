@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.reporting.mcp.tools
 
-import com.google.protobuf.util.JsonFormat
 import com.google.protobuf.util.Timestamps
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
@@ -32,8 +31,6 @@ import org.wfanet.measurement.reporting.v2alpha.createBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listBasicReportsRequest
 
-private val JSON_PRINTER: JsonFormat.Printer =
-  JsonFormat.printer().omittingInsignificantWhitespace()
 
 fun Server.registerBasicReportTools(
   client: ReportingPublicApiClient,
@@ -72,7 +69,7 @@ fun Server.registerBasicReportTools(
     val stubs = client.withBearerToken(getBearerToken())
 
     val basicReportBuilder = BasicReport.newBuilder()
-    JsonFormat.parser().merge(args.getValue("basic_report").toString(), basicReportBuilder)
+    PROTO_JSON_PARSER.merge(args.getValue("basic_report").toString(), basicReportBuilder)
 
     val grpcRequest = createBasicReportRequest {
       parent = args.getString("parent")
@@ -82,7 +79,7 @@ fun Server.registerBasicReportTools(
     }
 
     val result = stubs.basicReports.createBasicReport(grpcRequest)
-    CallToolResult(content = listOf(TextContent(JSON_PRINTER.print(result))))
+    CallToolResult(content = listOf(TextContent(PROTO_JSON_PRINTER.print(result))))
   }
 
   addTool(
@@ -105,7 +102,7 @@ fun Server.registerBasicReportTools(
     val stubs = client.withBearerToken(getBearerToken())
     val grpcRequest = getBasicReportRequest { name = request.arguments!!.getString("name") }
     val result = stubs.basicReports.getBasicReport(grpcRequest)
-    CallToolResult(content = listOf(TextContent(JSON_PRINTER.print(result))))
+    CallToolResult(content = listOf(TextContent(PROTO_JSON_PRINTER.print(result))))
   }
 
   addTool(
@@ -151,6 +148,6 @@ fun Server.registerBasicReportTools(
     }
 
     val result = stubs.basicReports.listBasicReports(grpcRequest)
-    CallToolResult(content = listOf(TextContent(JSON_PRINTER.print(result))))
+    CallToolResult(content = listOf(TextContent(PROTO_JSON_PRINTER.print(result))))
   }
 }
