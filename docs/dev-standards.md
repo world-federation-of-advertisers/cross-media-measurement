@@ -78,6 +78,14 @@ Note that it is **critical** to ensure that GitHub's line wrapping behavior does
 not interfere with the parseability of the commit message. Remove any line
 wrapping that GitHub introduces into PR title and the final commit message.
 
+Keep the PR description body concise and free of verbose markdown formatting
+such as headers, bullet lists, and code blocks. Since the PR description becomes
+the commit message, complex formatting creates noisy commit history and can
+interfere with
+[Git trailer](https://git-scm.com/docs/git-interpret-trailers) parsing used by
+release automation. If additional context is needed for reviewers, add it as a
+comment on the PR or in the corresponding issue.
+
 ### Use Reviewable
 
 Use https://reviewable.io for code reviews. GitHub’s code review tool does not
