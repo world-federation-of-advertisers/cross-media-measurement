@@ -15,6 +15,7 @@
 package org.wfanet.measurement.loadtest.measurementconsumer
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Message
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -29,18 +30,16 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.populationSpec
-import org.wfanet.measurement.integration.common.EventGroupConfig
+import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.common.toInterval
+import org.wfanet.measurement.loadtest.dataprovider.EventQuery
+import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 
 @RunWith(JUnit4::class)
-class EdpAggregatorMeasurementConsumerSimulatorTest : AbstractMeasurementConsumerSimulatorTest() {
+class EventQueryMeasurementConsumerSimulatorTest : AbstractMeasurementConsumerSimulatorTest() {
 
   override fun createSimulator(eventGroupRefIds: List<String>): MeasurementConsumerSimulator {
-    val syntheticEventGroupMap =
-      eventGroupRefIds.associateWith { EventGroupConfig.LegacySpec(SYNTHETIC_SPEC) }
-    return EdpAggregatorMeasurementConsumerSimulator(
+    return EventQueryMeasurementConsumerSimulator(
       measurementConsumerData = MC_DATA,
       outputDpParams = OUTPUT_DP_PARAMS,
       dataProvidersClient = DataProvidersCoroutineStub(grpcTestServerRule.channel),
@@ -49,23 +48,19 @@ class EdpAggregatorMeasurementConsumerSimulatorTest : AbstractMeasurementConsume
       measurementConsumersClient = MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
       certificatesClient = CertificatesCoroutineStub(grpcTestServerRule.channel),
       trustedCertificates = emptyMap(),
-      messageInstance = TestEvent.getDefaultInstance(),
+      eventQuery = STUB_EVENT_QUERY,
       expectedDirectNoiseMechanism = NoiseMechanism.GEOMETRIC,
-      populationSpec = populationSpec {},
-      syntheticEventGroupMap = syntheticEventGroupMap,
-      reportName = "$MC_NAME/reports/report1",
-      modelLineName = "modelLines/line1",
-      listEventGroupsEntityTypes = emptyList(),
+      eventRange = EVENT_RANGE,
       onMeasurementsCreated = { throw ShortCircuitException() },
     )
   }
 
   @Test
-  fun `filterEventGroups excludes event groups not in syntheticEventGroupMap`() {
-    val includedRefIds = listOf("sim-eg-included")
-    stubEventGroups(includedRefIds + "sim-eg-excluded")
+  fun `filterEventGroups excludes event groups without sim-eg prefix`() {
+    val allRefIds = listOf("sim-eg-included", "no-prefix-excluded")
+    stubEventGroups(allRefIds)
 
-    val simulator = createSimulator(includedRefIds)
+    val simulator = createSimulator(listOf("sim-eg-included"))
     assertFailsWith<ShortCircuitException> {
       runBlocking { simulator.testDirectReachAndFrequency("run1", 1) }
     }
@@ -82,7 +77,7 @@ class EdpAggregatorMeasurementConsumerSimulatorTest : AbstractMeasurementConsume
   }
 
   @Test
-  fun `collection interval matches event group data availability`() {
+  fun `collection interval uses configured eventRange`() {
     val refIds = listOf("sim-eg-ref-1")
     stubEventGroups(refIds)
 
@@ -98,11 +93,24 @@ class EdpAggregatorMeasurementConsumerSimulatorTest : AbstractMeasurementConsume
         captor.firstValue.measurement.dataProvidersList[0].value.encryptedRequisitionSpec
       )
     val collectionInterval = requisitionSpec.events.eventGroupsList[0].value.collectionInterval
-    assertThat(collectionInterval.startTime).isEqualTo(DATA_INTERVAL.startTime)
-    assertThat(collectionInterval.endTime).isEqualTo(DATA_INTERVAL.endTime)
+    val expectedInterval = EVENT_RANGE.toInterval()
+    assertThat(collectionInterval.startTime).isEqualTo(expectedInterval.startTime)
+    assertThat(collectionInterval.endTime).isEqualTo(expectedInterval.endTime)
   }
 
   companion object {
-    private val SYNTHETIC_SPEC = SyntheticEventGroupSpec.getDefaultInstance()
+    private val EVENT_RANGE =
+      OpenEndTimeRange.fromClosedDateRange(
+        java.time.LocalDate.of(2021, 3, 15)..java.time.LocalDate.of(2021, 3, 17)
+      )
+
+    private val STUB_EVENT_QUERY =
+      object : EventQuery<Message> {
+        override fun getLabeledEvents(
+          eventGroupSpec: EventQuery.EventGroupSpec
+        ): Sequence<LabeledEvent<Message>> = emptySequence()
+
+        override fun getUserVirtualIdUniverse(): Sequence<Long> = emptySequence()
+      }
   }
 }
