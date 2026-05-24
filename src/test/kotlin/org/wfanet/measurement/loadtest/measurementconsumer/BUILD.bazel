@@ -1,0 +1,40 @@
+load("@rules_java//java:defs.bzl", "java_test")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_testonly = True)
+
+kt_jvm_library(
+    name = "edp_aggregator_measurement_consumer_simulator_test",
+    srcs = ["EdpAggregatorMeasurementConsumerSimulatorTest.kt"],
+    data = [
+        "//src/main/k8s/testing/secretfiles:all_der_files",
+        "//src/main/k8s/testing/secretfiles:all_tink_keysets",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:event_group_config",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:edp_aggregator_measurement_consumer_simulator",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:simulator",
+        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumer_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/common:key_handles",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "EdpAggregatorMeasurementConsumerSimulatorTest",
+    test_class = "org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulatorTest",
+    runtime_deps = [":edp_aggregator_measurement_consumer_simulator_test"],
+)
