@@ -150,14 +150,11 @@ class InProcessCmmsComponents(
         certificateKey = certificateKey,
         mcResourceName = mcResourceName,
         kingdomPublicApiChannel = kingdom.publicApiChannel,
-        duchyPublicApiChannelMap =
-          mapOf(
-            duchies[1].externalDuchyId to duchies[1].publicApiChannel,
-            duchies[2].externalDuchyId to duchies[2].publicApiChannel,
-          ),
+        duchyPublicApiChannelMap = duchies.associate { it.externalDuchyId to it.publicApiChannel },
         trustedCertificates = TRUSTED_CERTIFICATES,
         eventGroupOptions = eventGroupOptions,
         eventQuery = eventQuery,
+        trusTeeSupported = trusTeeEnabled,
       )
     }
   }

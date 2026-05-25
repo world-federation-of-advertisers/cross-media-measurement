@@ -20,31 +20,23 @@ import org.junit.ClassRule
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.duchy.deploy.common.postgres.testing.Schemata.DUCHY_CHANGELOG_PATH
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
-import org.wfanet.measurement.integration.common.AGGREGATOR_NAME
+import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.IMPRESSION_QUALIFICATION_FILTER_MAPPING
-import org.wfanet.measurement.integration.common.reporting.v2.InProcessLifeOfAReportIntegrationTest
+import org.wfanet.measurement.integration.common.reporting.v2.InProcessMultiEdpReportIntegrationTest
 import org.wfanet.measurement.integration.deploy.common.postgres.PostgresDuchyDependencyProviderRule
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPORTING_CHANGELOG_PATH as POSTGRES_REPORTING_CHANGELOG_PATH
 
-/**
- * TrusTee-only implementation of [InProcessLifeOfAReportIntegrationTest].
- *
- * Uses a single duchy (aggregator) with the TrusTee protocol, which is significantly faster than
- * the HMSS variant that requires 3 duchies. HMSS-specific tests are automatically skipped.
- */
-class GCloudInProcessLifeOfAReportTrusTeeIntegrationTest :
-  InProcessLifeOfAReportIntegrationTest(
+/** HMSS implementation of [InProcessMultiEdpReportIntegrationTest] with 3 duchies. */
+class GCloudInProcessHmssMultiEdpReportIntegrationTest :
+  InProcessMultiEdpReportIntegrationTest(
     KingdomDataServicesProviderRule(spannerEmulator),
-    PostgresDuchyDependencyProviderRule(duchyDatabaseProvider, listOf(AGGREGATOR_NAME)),
+    PostgresDuchyDependencyProviderRule(duchyDatabaseProvider, ALL_DUCHY_NAMES),
     SpannerAccessServicesFactory(spannerEmulator),
     InternalReportingServicesProviderRule(
       spannerEmulator,
       reportingPostgresDatabaseProvider,
       IMPRESSION_QUALIFICATION_FILTER_MAPPING,
     ),
-    duchyNames = listOf(AGGREGATOR_NAME),
-    hmssEnabled = false,
-    trusTeeEnabled = true,
   ) {
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
