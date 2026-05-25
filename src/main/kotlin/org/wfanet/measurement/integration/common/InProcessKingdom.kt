@@ -292,7 +292,7 @@ class InProcessKingdom(
         io.grpc.serviceconfig.serviceConfig {
           methodConfig += methodConfig {
             name += io.grpc.serviceconfig.MethodConfig.Name.getDefaultInstance()
-            timeout = Durations.fromSeconds(300)
+            timeout = Durations.fromSeconds(600)
             retryPolicy = ProtobufServiceConfig.DEFAULT.message.methodConfigList[0].retryPolicy
           }
         }
@@ -303,7 +303,7 @@ class InProcessKingdom(
         methodConfig.clear()
         methodConfig += methodConfig {
           name += io.grpc.serviceconfig.MethodConfig.Name.getDefaultInstance()
-          timeout = Durations.fromSeconds(300)
+          timeout = Durations.fromSeconds(600)
           retryPolicy = ProtobufServiceConfig.DEFAULT.message.methodConfigList[0].retryPolicy
         }
         methodConfig += Herald.SERVICE_CONFIG.message.methodConfigList[1]
