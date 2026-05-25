@@ -22,6 +22,8 @@ import com.google.protobuf.util.Durations
 import io.grpc.Channel
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.serviceconfig.methodConfig
+import io.grpc.serviceconfig.serviceConfig
 import io.netty.handler.ssl.ClientAuth
 import java.io.File
 import java.nio.file.Paths
@@ -54,6 +56,7 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
@@ -127,8 +130,13 @@ class InProcessReportingServer(
   private val publicKingdomModelLinesClient =
     PublicKingdomModelLinesCoroutineStub(kingdomPublicApiChannel)
 
-  private val internalApiChannel
-    get() = buildMutualTlsChannel("localhost:${internalReportingServer.port}", SIGNING_CERTS)
+  private val internalApiChannel by lazy {
+    buildMutualTlsChannel(
+      "localhost:${internalReportingServer.port}",
+      SIGNING_CERTS,
+      defaultServiceConfig = IN_PROCESS_SERVICE_CONFIG,
+    )
+  }
 
   private val internalMeasurementConsumersClient by lazy {
     InternalMeasurementConsumersCoroutineStub(internalApiChannel)
@@ -192,7 +200,10 @@ class InProcessReportingServer(
     }
 
   private fun createPublicApiTestServerRule(): GrpcTestServerRule =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+    GrpcTestServerRule(
+      logAllRequests = verboseGrpcLogging,
+      defaultServiceConfig = IN_PROCESS_SERVICE_CONFIG,
+    ) {
       runBlocking {
         logger.info("Building Reporting Server's public API services")
 
@@ -381,6 +392,17 @@ class InProcessReportingServer(
         REPORTING_TLS_CERT_FILE,
         REPORTING_TLS_KEY_FILE,
         ALL_ROOT_CERTS_FILE,
+      )
+
+    private val IN_PROCESS_SERVICE_CONFIG =
+      ProtobufServiceConfig(
+        serviceConfig {
+          methodConfig += methodConfig {
+            name += io.grpc.serviceconfig.MethodConfig.Name.getDefaultInstance()
+            timeout = Durations.fromSeconds(300)
+            retryPolicy = ProtobufServiceConfig.DEFAULT.message.methodConfigList[0].retryPolicy
+          }
+        }
       )
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)

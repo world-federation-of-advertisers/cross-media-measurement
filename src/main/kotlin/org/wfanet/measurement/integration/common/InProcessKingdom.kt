@@ -15,13 +15,17 @@
 package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.Descriptors
+import com.google.protobuf.util.Durations
 import io.grpc.Channel
+import io.grpc.serviceconfig.methodConfig
+import io.grpc.serviceconfig.serviceConfig
 import java.util.logging.Logger
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.testing.withMetadataPrincipalIdentities
+import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
 import org.wfanet.measurement.common.testing.chainRulesSequentially
@@ -83,6 +87,8 @@ class InProcessKingdom(
   /** The open id client redirect uri when creating the authentication uri. */
   private val redirectUri: String,
   val verboseGrpcLogging: Boolean = true,
+  private val hmssEnabled: Boolean = true,
+  private val trusTeeEnabled: Boolean = true,
 ) : TestRule {
   private val kingdomDataServices by lazy { dataServicesProvider() }
 
@@ -130,14 +136,17 @@ class InProcessKingdom(
   }
 
   private val internalDataServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+    GrpcTestServerRule(
+      logAllRequests = verboseGrpcLogging,
+      defaultServiceConfig = IN_PROCESS_SERVICE_CONFIG,
+    ) {
       logger.info("Building Kingdom's internal Data services")
       kingdomDataServices.buildDataServices().toList().forEach { addService(it) }
     }
   private val systemApiServer =
     GrpcTestServerRule(
       logAllRequests = verboseGrpcLogging,
-      defaultServiceConfig = Herald.SERVICE_CONFIG,
+      defaultServiceConfig = IN_PROCESS_SYSTEM_API_SERVICE_CONFIG,
     ) {
       logger.info("Building Kingdom's system API services")
       listOf(
@@ -149,7 +158,10 @@ class InProcessKingdom(
         .forEach { addService(it.withMetadataDuchyIdentities()) }
     }
   private val publicApiServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+    GrpcTestServerRule(
+      logAllRequests = verboseGrpcLogging,
+      defaultServiceConfig = IN_PROCESS_SERVICE_CONFIG,
+    ) {
       logger.info("Building Kingdom's public API services")
 
       listOf(
@@ -178,8 +190,8 @@ class InProcessKingdom(
               internalDataProvidersClient,
               MEASUREMENT_NOISE_MECHANISMS,
               reachOnlyLlV2Enabled = true,
-              hmssEnabled = true,
-              trusTeeEnabled = true,
+              hmssEnabled = hmssEnabled,
+              trusTeeEnabled = trusTeeEnabled,
             )
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
@@ -275,6 +287,28 @@ class InProcessKingdom(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val IN_PROCESS_SERVICE_CONFIG =
+      ProtobufServiceConfig(
+        io.grpc.serviceconfig.serviceConfig {
+          methodConfig += methodConfig {
+            name += io.grpc.serviceconfig.MethodConfig.Name.getDefaultInstance()
+            timeout = Durations.fromSeconds(300)
+            retryPolicy = ProtobufServiceConfig.DEFAULT.message.methodConfigList[0].retryPolicy
+          }
+        }
+      )
+
+    private val IN_PROCESS_SYSTEM_API_SERVICE_CONFIG =
+      Herald.SERVICE_CONFIG.copy {
+        methodConfig.clear()
+        methodConfig += methodConfig {
+          name += io.grpc.serviceconfig.MethodConfig.Name.getDefaultInstance()
+          timeout = Durations.fromSeconds(300)
+          retryPolicy = ProtobufServiceConfig.DEFAULT.message.methodConfigList[0].retryPolicy
+        }
+        methodConfig += Herald.SERVICE_CONFIG.message.methodConfigList[1]
+      }
+
     private val MEASUREMENT_NOISE_MECHANISMS: List<ProtocolConfig.NoiseMechanism> =
       listOf(
         ProtocolConfig.NoiseMechanism.NONE,
