@@ -18,6 +18,7 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.util.Durations
 import io.grpc.Channel
 import io.grpc.serviceconfig.methodConfig
+import io.grpc.serviceconfig.serviceConfig
 import java.util.logging.Logger
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -133,14 +134,17 @@ class InProcessKingdom(
   }
 
   private val internalDataServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+    GrpcTestServerRule(
+      logAllRequests = verboseGrpcLogging,
+      defaultServiceConfig = IN_PROCESS_SERVICE_CONFIG,
+    ) {
       logger.info("Building Kingdom's internal Data services")
       kingdomDataServices.buildDataServices().toList().forEach { addService(it) }
     }
   private val systemApiServer =
     GrpcTestServerRule(
       logAllRequests = verboseGrpcLogging,
-      defaultServiceConfig = IN_PROCESS_SERVICE_CONFIG,
+      defaultServiceConfig = IN_PROCESS_SYSTEM_API_SERVICE_CONFIG,
     ) {
       logger.info("Building Kingdom's system API services")
       listOf(
@@ -152,7 +156,10 @@ class InProcessKingdom(
         .forEach { addService(it.withMetadataDuchyIdentities()) }
     }
   private val publicApiServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+    GrpcTestServerRule(
+      logAllRequests = verboseGrpcLogging,
+      defaultServiceConfig = IN_PROCESS_SERVICE_CONFIG,
+    ) {
       logger.info("Building Kingdom's public API services")
 
       listOf(
@@ -279,6 +286,18 @@ class InProcessKingdom(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val IN_PROCESS_SERVICE_CONFIG =
+      ProtobufServiceConfig(
+        io.grpc.serviceconfig.serviceConfig {
+          methodConfig += methodConfig {
+            name += io.grpc.serviceconfig.MethodConfig.Name.getDefaultInstance()
+            timeout = Durations.fromSeconds(120)
+            retryPolicy =
+              ProtobufServiceConfig.DEFAULT.message.methodConfigList[0].retryPolicy
+          }
+        }
+      )
+
+    private val IN_PROCESS_SYSTEM_API_SERVICE_CONFIG =
       Herald.SERVICE_CONFIG.copy {
         methodConfig.clear()
         methodConfig += methodConfig {
