@@ -11,7 +11,9 @@ package(
 kt_jvm_library(
     name = "in_process_life_of_a_report_integration_test",
     srcs = [
+        "InProcessDirectOnlyReportIntegrationTest.kt",
         "InProcessLifeOfAReportIntegrationTest.kt",
+        "InProcessMultiEdpReportIntegrationTest.kt",
     ],
     data = [
         "//src/main/k8s/testing/secretfiles:secret_files",
