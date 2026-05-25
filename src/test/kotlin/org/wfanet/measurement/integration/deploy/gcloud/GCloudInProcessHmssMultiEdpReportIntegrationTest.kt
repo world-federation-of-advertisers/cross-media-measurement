@@ -37,7 +37,7 @@ class GCloudInProcessHmssMultiEdpReportIntegrationTest :
       reportingPostgresDatabaseProvider,
       IMPRESSION_QUALIFICATION_FILTER_MAPPING,
     ),
-
+    trusTeeEnabled = false,
   ) {
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
