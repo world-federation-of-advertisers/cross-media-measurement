@@ -122,8 +122,6 @@ kt_jvm_library(
 java_test(
     name = "GCloudInProcessDirectOnlyReportIntegrationTest",
     size = "large",
-    timeout = "eternal",
-    flaky = True,
     tags = [
         "cpu:2",
         "no-remote-exec",
@@ -159,7 +157,7 @@ kt_jvm_library(
 java_test(
     name = "GCloudInProcessHmssMultiEdpReportIntegrationTest",
     size = "large",
-    timeout = "eternal",
+    # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
     flaky = True,
     tags = [
         "cpu:2",
@@ -196,7 +194,6 @@ kt_jvm_library(
 java_test(
     name = "GCloudInProcessTrusTeeMultiEdpReportIntegrationTest",
     size = "large",
-    timeout = "eternal",
     tags = [
         "cpu:2",
         "no-remote-exec",
