@@ -87,6 +87,8 @@ class InProcessKingdom(
   /** The open id client redirect uri when creating the authentication uri. */
   private val redirectUri: String,
   val verboseGrpcLogging: Boolean = true,
+  private val hmssEnabled: Boolean = true,
+  private val trusTeeEnabled: Boolean = true,
 ) : TestRule {
   private val kingdomDataServices by lazy { dataServicesProvider() }
 
@@ -188,8 +190,8 @@ class InProcessKingdom(
               internalDataProvidersClient,
               MEASUREMENT_NOISE_MECHANISMS,
               reachOnlyLlV2Enabled = true,
-              hmssEnabled = true,
-              trusTeeEnabled = true,
+              hmssEnabled = hmssEnabled,
+              trusTeeEnabled = trusTeeEnabled,
             )
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
@@ -291,8 +293,7 @@ class InProcessKingdom(
           methodConfig += methodConfig {
             name += io.grpc.serviceconfig.MethodConfig.Name.getDefaultInstance()
             timeout = Durations.fromSeconds(120)
-            retryPolicy =
-              ProtobufServiceConfig.DEFAULT.message.methodConfigList[0].retryPolicy
+            retryPolicy = ProtobufServiceConfig.DEFAULT.message.methodConfigList[0].retryPolicy
           }
         }
       )
@@ -303,8 +304,7 @@ class InProcessKingdom(
         methodConfig += methodConfig {
           name += io.grpc.serviceconfig.MethodConfig.Name.getDefaultInstance()
           timeout = Durations.fromSeconds(120)
-          retryPolicy =
-            ProtobufServiceConfig.DEFAULT.message.methodConfigList[0].retryPolicy
+          retryPolicy = ProtobufServiceConfig.DEFAULT.message.methodConfigList[0].retryPolicy
         }
         methodConfig += Herald.SERVICE_CONFIG.message.methodConfigList[1]
       }

@@ -200,7 +200,10 @@ class InProcessReportingServer(
     }
 
   private fun createPublicApiTestServerRule(): GrpcTestServerRule =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+    GrpcTestServerRule(
+      logAllRequests = verboseGrpcLogging,
+      defaultServiceConfig = IN_PROCESS_SERVICE_CONFIG,
+    ) {
       runBlocking {
         logger.info("Building Reporting Server's public API services")
 
@@ -397,8 +400,7 @@ class InProcessReportingServer(
           methodConfig += methodConfig {
             name += io.grpc.serviceconfig.MethodConfig.Name.getDefaultInstance()
             timeout = Durations.fromSeconds(120)
-            retryPolicy =
-              ProtobufServiceConfig.DEFAULT.message.methodConfigList[0].retryPolicy
+            retryPolicy = ProtobufServiceConfig.DEFAULT.message.methodConfigList[0].retryPolicy
           }
         }
       )

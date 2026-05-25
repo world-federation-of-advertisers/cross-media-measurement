@@ -36,6 +36,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import org.junit.Assume
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Rule
@@ -91,6 +92,7 @@ import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.dataprovider.MeasurementResults
+import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.ALL_EDP_DISPLAY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.HMSS_PROTOCOL_CONFIG_CONFIG
@@ -189,6 +191,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     >,
   accessServicesFactory: AccessServicesFactory,
   reportingDataServicesProviderRule: ProviderRule<Services>,
+  private val duchyNames: List<String> = ALL_DUCHY_NAMES,
+  private val hmssEnabled: Boolean = true,
+  private val trusTeeEnabled: Boolean = true,
 ) {
   private val inProcessCmmsComponents: InProcessCmmsComponents =
     InProcessCmmsComponents(
@@ -196,6 +201,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       duchyDependenciesRule,
       useEdpSimulators = true,
       trusTeeKmsClient = ThrowingKmsClient,
+      duchyNames = duchyNames,
+      hmssEnabled = hmssEnabled,
+      trusTeeEnabled = trusTeeEnabled,
     )
 
   private val inProcessCmmsComponentsStartup = TestRule { base, _ ->
@@ -647,6 +655,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
   @Test
   fun `report with HMSS union reach across 2 edps has the expected result`() = runBlocking {
+    Assume.assumeTrue("HMSS is enabled", hmssEnabled)
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val edpDisplayNames = ALL_EDP_DISPLAY_NAMES.take(2)
     val eventGroupsByEdpDisplayName: Map<String, List<EventGroup>> =

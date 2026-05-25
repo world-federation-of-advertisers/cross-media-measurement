@@ -86,6 +86,9 @@ class InProcessCmmsComponents(
     SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL,
   private val useEdpSimulators: Boolean,
   private val trusTeeKmsClient: KmsClient,
+  private val duchyNames: List<String> = ALL_DUCHY_NAMES,
+  private val hmssEnabled: Boolean = true,
+  private val trusTeeEnabled: Boolean = true,
 ) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value
@@ -95,6 +98,8 @@ class InProcessCmmsComponents(
       dataServicesProvider = { kingdomDataServices },
       REDIRECT_URI,
       verboseGrpcLogging = false,
+      hmssEnabled = hmssEnabled,
+      trusTeeEnabled = trusTeeEnabled,
     )
 
   val eventQuery by lazy {
@@ -106,7 +111,7 @@ class InProcessCmmsComponents(
   }
 
   val duchies: List<InProcessDuchy> by lazy {
-    ALL_DUCHY_NAMES.map {
+    duchyNames.map {
       InProcessDuchy(
         externalDuchyId = it,
         kingdomSystemApiChannel = kingdom.systemApiChannel,
@@ -422,7 +427,7 @@ class InProcessCmmsComponents(
     @JvmStatic
     fun initConfig(
       trusTeeProtocolConfigConfig: TrusTeeProtocolConfigConfig,
-      hmssProtocolConfigConfig: HmssProtocolConfigConfig,
+      hmssProtocolConfigConfig: HmssProtocolConfigConfig? = null,
     ) {
       DuchyIds.setForTest(ALL_DUCHIES)
       Llv2ProtocolConfig.setForTest(
@@ -437,12 +442,14 @@ class InProcessCmmsComponents(
         setOf("aggregator"),
         2,
       )
-      HmssProtocolConfig.setForTest(
-        hmssProtocolConfigConfig.protocolConfig,
-        hmssProtocolConfigConfig.firstNonAggregatorDuchyId,
-        hmssProtocolConfigConfig.secondNonAggregatorDuchyId,
-        hmssProtocolConfigConfig.aggregatorDuchyId,
-      )
+      if (hmssProtocolConfigConfig != null) {
+        HmssProtocolConfig.setForTest(
+          hmssProtocolConfigConfig.protocolConfig,
+          hmssProtocolConfigConfig.firstNonAggregatorDuchyId,
+          hmssProtocolConfigConfig.secondNonAggregatorDuchyId,
+          hmssProtocolConfigConfig.aggregatorDuchyId,
+        )
+      }
       TrusTeeProtocolConfig.setForTest(
         trusTeeProtocolConfigConfig.protocolConfig,
         trusTeeProtocolConfigConfig.duchyId,
