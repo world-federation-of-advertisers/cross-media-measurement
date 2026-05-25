@@ -50,6 +50,10 @@ import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
+import com.google.protobuf.util.Durations
+import io.grpc.serviceconfig.methodConfig
+import io.grpc.serviceconfig.serviceConfig
+import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
@@ -160,13 +164,19 @@ class InProcessDuchy(
   private val serviceDispatcher = Dispatchers.Default
 
   private val computationsServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+    GrpcTestServerRule(
+      logAllRequests = verboseGrpcLogging,
+      defaultServiceConfig = IN_PROCESS_SERVICE_CONFIG,
+    ) {
       addService(duchyDependencies.duchyDataServices.computationsService)
       addService(duchyDependencies.duchyDataServices.computationStatsService)
       addService(duchyDependencies.duchyDataServices.continuationTokensService)
     }
   private val requisitionFulfillmentServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+    GrpcTestServerRule(
+      logAllRequests = verboseGrpcLogging,
+      defaultServiceConfig = IN_PROCESS_SERVICE_CONFIG,
+    ) {
       addService(
         RequisitionFulfillmentService(
             externalDuchyId,
@@ -179,7 +189,10 @@ class InProcessDuchy(
       )
     }
   private val asyncComputationControlServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+    GrpcTestServerRule(
+      logAllRequests = verboseGrpcLogging,
+      defaultServiceConfig = IN_PROCESS_SERVICE_CONFIG,
+    ) {
       addService(
         AsyncComputationControlService(
           computationsClient,
@@ -193,6 +206,7 @@ class InProcessDuchy(
     GrpcTestServerRule(
       computationControlChannelName(externalDuchyId),
       logAllRequests = verboseGrpcLogging,
+      defaultServiceConfig = IN_PROCESS_SERVICE_CONFIG,
     ) {
       addService(
         ComputationControlService(
@@ -405,6 +419,18 @@ class InProcessDuchy(
     }
 
   companion object {
+    private val IN_PROCESS_SERVICE_CONFIG =
+      ProtobufServiceConfig(
+        serviceConfig {
+          methodConfig += methodConfig {
+            name += io.grpc.serviceconfig.MethodConfig.Name.getDefaultInstance()
+            timeout = Durations.fromSeconds(120)
+            retryPolicy =
+              ProtobufServiceConfig.DEFAULT.message.methodConfigList[0].retryPolicy
+          }
+        }
+      )
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
