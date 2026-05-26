@@ -23,15 +23,15 @@ import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseP
 import org.wfanet.measurement.duchy.deploy.common.postgres.testing.Schemata
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
-import org.wfanet.measurement.integration.common.InProcessLifeOfAMeasurementIntegrationTest
+import org.wfanet.measurement.integration.common.InProcessDirectMeasurementIntegrationTest
 import org.wfanet.measurement.integration.deploy.common.postgres.PostgresDuchyDependencyProviderRule
 
 /**
- * Implementation of [InProcessLifeOfAMeasurementIntegrationTest] for GCloud backends with Postgres
+ * Implementation of [InProcessDirectMeasurementIntegrationTest] for GCloud backends with Postgres
  * database.
  */
-class GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest :
-  InProcessLifeOfAMeasurementIntegrationTest(
+class GCloudPostgresInProcessDirectMeasurementIntegrationTest :
+  InProcessDirectMeasurementIntegrationTest(
     KingdomDataServicesProviderRule(spannerEmulator),
     PostgresDuchyDependencyProviderRule(databaseProvider, ALL_DUCHY_NAMES),
   ) {
