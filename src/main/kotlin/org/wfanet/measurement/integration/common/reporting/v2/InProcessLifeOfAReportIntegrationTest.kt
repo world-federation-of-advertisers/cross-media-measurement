@@ -144,7 +144,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
   protected val expectedProtocol: ProtocolConfig.Protocol.ProtocolCase =
     when {
-      hmssEnabled && trusTeeEnabled -> error("hmssEnabled and trusTeeEnabled are mutually exclusive")
+      hmssEnabled && trusTeeEnabled ->
+        error("hmssEnabled and trusTeeEnabled are mutually exclusive")
       hmssEnabled -> ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE
       trusTeeEnabled -> ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE
       else -> ProtocolConfig.Protocol.ProtocolCase.DIRECT
