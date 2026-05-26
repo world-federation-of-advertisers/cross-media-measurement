@@ -101,7 +101,7 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
       expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
       expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
     )
-    assertExpectedProtocolUsed(completedBasicReport.name)
+    assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
   }
 
   @Test
@@ -142,7 +142,7 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
       expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
       expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
     )
-    assertExpectedProtocolUsed(completedBasicReport.name)
+    assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
   }
 
   @Test
@@ -171,6 +171,6 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
         .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
 
     assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
-    assertExpectedProtocolUsed(completedBasicReport.name)
+    assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
   }
 }

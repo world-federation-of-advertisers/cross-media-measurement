@@ -924,7 +924,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .measurementsList
   }
 
-  private suspend fun getReportMeasurements(basicReportName: String): List<Measurement> {
+  protected suspend fun getMeasurementsForBasicReport(basicReportName: String): List<Measurement> {
     val basicReportKey = BasicReportKey.fromName(basicReportName)!!
     val internalBasicReport =
       reportingServer.internalBasicReportsClient.getBasicReport(
@@ -941,9 +941,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
-  protected suspend fun assertExpectedProtocolUsed(basicReportName: String) {
-    val measurements = getReportMeasurements(basicReportName)
-    assertWithMessage("measurements for $basicReportName").that(measurements).isNotEmpty()
+  protected fun assertExpectedProtocolUsed(measurements: List<Measurement>) {
+    assertWithMessage("measurements").that(measurements).isNotEmpty()
     var expectedProtocolFound = false
     for (measurement in measurements) {
       val protocol = measurement.protocolConfig.protocolsList.single()
@@ -952,7 +951,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         .isAnyOf(PublicProtocolConfig.Protocol.ProtocolCase.DIRECT, expectedProtocol)
       if (protocol.protocolCase == expectedProtocol) expectedProtocolFound = true
     }
-    assertWithMessage("at least one $expectedProtocol measurement for $basicReportName")
+    assertWithMessage("at least one $expectedProtocol measurement")
       .that(expectedProtocolFound)
       .isTrue()
   }

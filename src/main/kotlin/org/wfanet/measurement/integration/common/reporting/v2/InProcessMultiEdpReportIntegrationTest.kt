@@ -195,7 +195,7 @@ abstract class InProcessMultiEdpReportIntegrationTest(
     val report: Report = pollForCompletedReport(reportName)
     assertThat(report.state).isEqualTo(Report.State.SUCCEEDED)
 
-    assertExpectedProtocolUsedForReport(reportName)
+    assertExpectedProtocolUsed(getMeasurementsForReport(reportName))
 
     val eventGroupSpecs: List<EventQuery.EventGroupSpec> =
       eventGroupEntries.map { (eventGroup, filter) ->
@@ -376,7 +376,7 @@ abstract class InProcessMultiEdpReportIntegrationTest(
 
       assertThat(retrievedCompletedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
 
-      assertExpectedProtocolUsedForBasicReport(createdBasicReport.name)
+      assertExpectedProtocolUsed(getMeasurementsForBasicReport(createdBasicReport.name))
 
       // Check that non cumulative results are set. Dependent on current test data.
       retrievedBasicReport.resultGroupsList.forEach { resultGroup ->
@@ -546,12 +546,8 @@ abstract class InProcessMultiEdpReportIntegrationTest(
       }
     }
 
-  private suspend fun assertExpectedProtocolUsedForReport(reportName: String) {
-    val measurements =
-      listMeasurements().filter {
-        it.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.report == reportName
-      }
-    assertWithMessage("measurements for $reportName").that(measurements).isNotEmpty()
+  private fun assertExpectedProtocolUsed(measurements: List<Measurement>) {
+    assertWithMessage("measurements").that(measurements).isNotEmpty()
     var expectedProtocolFound = false
     for (measurement in measurements) {
       val protocol = measurement.protocolConfig.protocolsList.single()
@@ -560,12 +556,18 @@ abstract class InProcessMultiEdpReportIntegrationTest(
         .isAnyOf(ProtocolConfig.Protocol.ProtocolCase.DIRECT, expectedProtocol)
       if (protocol.protocolCase == expectedProtocol) expectedProtocolFound = true
     }
-    assertWithMessage("at least one $expectedProtocol measurement for $reportName")
+    assertWithMessage("at least one $expectedProtocol measurement")
       .that(expectedProtocolFound)
       .isTrue()
   }
 
-  private suspend fun assertExpectedProtocolUsedForBasicReport(basicReportName: String) {
+  private suspend fun getMeasurementsForReport(reportName: String): List<Measurement> {
+    return listMeasurements().filter {
+      it.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.report == reportName
+    }
+  }
+
+  private suspend fun getMeasurementsForBasicReport(basicReportName: String): List<Measurement> {
     val basicReportKey = BasicReportKey.fromName(basicReportName)!!
     val internalBasicReport =
       reportingServer.internalBasicReportsClient.getBasicReport(
@@ -577,6 +579,6 @@ abstract class InProcessMultiEdpReportIntegrationTest(
     val reportName =
       ReportKey(internalBasicReport.cmmsMeasurementConsumerId, internalBasicReport.externalReportId)
         .toName()
-    assertExpectedProtocolUsedForReport(reportName)
+    return getMeasurementsForReport(reportName)
   }
 }
