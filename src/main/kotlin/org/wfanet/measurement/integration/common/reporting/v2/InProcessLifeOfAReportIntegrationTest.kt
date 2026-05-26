@@ -137,8 +137,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   accessServicesFactory: AccessServicesFactory,
   reportingDataServicesProviderRule: ProviderRule<Services>,
   private val duchyNames: List<String> = ALL_DUCHY_NAMES,
-  private val hmssEnabled: Boolean = true,
-  private val trusTeeEnabled: Boolean = true,
+  private val hmssEnabled: Boolean,
+  private val trusTeeEnabled: Boolean,
 ) {
   protected val inProcessCmmsComponents: InProcessCmmsComponents =
     InProcessCmmsComponents(

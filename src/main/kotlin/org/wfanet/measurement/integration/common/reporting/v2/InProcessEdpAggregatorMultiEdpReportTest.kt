@@ -42,8 +42,8 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
   accessServicesFactory: AccessServicesFactory,
   reportingDataServicesProviderRule: ProviderRule<Services>,
   duchyNames: List<String> = ALL_DUCHY_NAMES,
-  hmssEnabled: Boolean = true,
-  trusTeeEnabled: Boolean = true,
+  hmssEnabled: Boolean,
+  trusTeeEnabled: Boolean,
 ) :
   InProcessEdpAggregatorLifeOfAReportTest(
     kingdomDataServicesRule,
@@ -100,9 +100,52 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
       expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
       expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
     )
+    assertExpectedProtocolUsed(completedBasicReport.name)
   }
 
-  protected suspend fun assertReportFailsWhenEdpRequiresGaussianNoise() {
+  @Test
+  fun `basic report with cross-publisher creative-id event groups succeeds`() = runBlocking {
+    val creativeIdEventGroups = getCreativeIdOnlyEventGroups()
+    check(creativeIdEventGroups.size >= 2) {
+      "Expected at least 2 creative-id event groups, got ${creativeIdEventGroups.size}"
+    }
+
+    val createBasicReportRequest =
+      buildCreateBasicReportRequest(
+        creativeIdEventGroups,
+        "creative-id-cross-pub-campaign",
+        "creative-id-cross-pub-basicreport",
+        includeIqfFilter = false,
+      )
+
+    val createdBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .createBasicReport(createBasicReportRequest)
+
+    executeBasicReportsReportsJob(createdBasicReport.name)
+    executeReportProcessorJob()
+
+    val completedBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+    assertStructuralResults(completedBasicReport)
+    assertNoNoiseResults(
+      completedBasicReport,
+      expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,
+      expectedCrossPublisherImpressions = EXPECTED_CROSS_PUBLISHER_IMPRESSIONS,
+      expectedKPlusReach = EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH,
+      expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
+      expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
+    )
+    assertExpectedProtocolUsed(completedBasicReport.name)
+  }
+
+  @Test
+  fun `no noise basic report fails when EDP requires Gaussian noise`() = runBlocking {
     val eventGroups = getMultiEdpEventGroupsIncludingRestrictedEdp()
     check(eventGroups.size > 1)
 
@@ -127,5 +170,6 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
         .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
 
     assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
+    assertExpectedProtocolUsed(completedBasicReport.name)
   }
 }

@@ -37,6 +37,7 @@ class GCloudInProcessHmssMultiEdpReportIntegrationTest :
       reportingPostgresDatabaseProvider,
       IMPRESSION_QUALIFICATION_FILTER_MAPPING,
     ),
+    hmssEnabled = true,
     trusTeeEnabled = false,
   ) {
   companion object {

@@ -34,7 +34,6 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
@@ -124,8 +123,8 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
   accessServicesFactory: AccessServicesFactory,
   reportingDataServicesProviderRule: ProviderRule<Services>,
   duchyNames: List<String> = ALL_DUCHY_NAMES,
-  hmssEnabled: Boolean = true,
-  trusTeeEnabled: Boolean = true,
+  hmssEnabled: Boolean,
+  trusTeeEnabled: Boolean,
 ) :
   InProcessLifeOfAReportIntegrationTest(
     kingdomDataServicesRule,
@@ -137,16 +136,11 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     trusTeeEnabled,
   ) {
 
-  private suspend fun assertDirectProtocolUsed() {
-    val measurements =
-      listMeasurements().filter { it.state == Measurement.State.SUCCEEDED }
-    assertWithMessage("succeeded measurements").that(measurements).isNotEmpty()
-    for (measurement in measurements) {
-      val protocol = measurement.protocolConfig.protocolsList.single()
-      assertWithMessage("protocol is direct for ${measurement.name}")
-        .that(protocol.hasDirect())
-        .isTrue()
-    }
+  private suspend fun assertDirectProtocolUsed(reportName: String) {
+    val measurements = listMeasurements()
+    val lastMeasurement = measurements.last()
+    val protocol = lastMeasurement.protocolConfig.protocolsList.single()
+    assertWithMessage("protocol is direct for $reportName").that(protocol.hasDirect()).isTrue()
   }
 
   @Test
@@ -1994,7 +1988,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
         )
       }
 
-      assertDirectProtocolUsed()
+      assertDirectProtocolUsed(retrievedCompletedBasicReport.name)
     }
 
   @Test

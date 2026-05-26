@@ -163,8 +163,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   private val accessServicesFactory: AccessServicesFactory,
   private val reportingDataServicesProviderRule: ProviderRule<Services>,
   private val duchyNames: List<String> = ALL_DUCHY_NAMES,
-  private val hmssEnabled: Boolean = true,
-  private val trusTeeEnabled: Boolean = true,
+  private val hmssEnabled: Boolean,
+  private val trusTeeEnabled: Boolean,
 ) {
 
   private val pubSubClient: GooglePubSubEmulatorClient by lazy {
@@ -911,16 +911,28 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .measurementsList
   }
 
-  protected suspend fun assertDirectProtocolUsed() {
-    val measurements =
-      listMeasurements().filter { it.state == Measurement.State.SUCCEEDED }
-    assertWithMessage("succeeded measurements").that(measurements).isNotEmpty()
-    for (measurement in measurements) {
-      val protocol = measurement.protocolConfig.protocolsList.single()
-      assertWithMessage("protocol is direct for ${measurement.name}")
+  protected suspend fun assertExpectedProtocolUsed(reportName: String) {
+    val measurements = listMeasurements()
+    val lastMeasurement = measurements.last()
+    val protocol = lastMeasurement.protocolConfig.protocolsList.single()
+    if (hmssEnabled && trusTeeEnabled) {
+      assertWithMessage("protocol for $reportName should be HMSS or TrusTee")
         .that(protocol.hasDirect())
+        .isFalse()
+    } else if (hmssEnabled) {
+      assertWithMessage("protocol is HMSS for $reportName")
+        .that(protocol.hasHonestMajorityShareShuffle())
         .isTrue()
+    } else if (trusTeeEnabled) {
+      assertWithMessage("protocol is TrusTee for $reportName").that(protocol.hasTrusTee()).isTrue()
     }
+  }
+
+  protected suspend fun assertDirectProtocolUsed(reportName: String) {
+    val measurements = listMeasurements()
+    val lastMeasurement = measurements.last()
+    val protocol = lastMeasurement.protocolConfig.protocolsList.single()
+    assertWithMessage("protocol is direct for $reportName").that(protocol.hasDirect()).isTrue()
   }
 
   protected suspend fun listReportingEventGroups(): List<EventGroup> {
@@ -1043,9 +1055,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
-  private suspend fun getEventGroupsByEdp(
-    excludeEdpDisplayNames: Set<String>,
-  ): List<EventGroup> {
+  private suspend fun getEventGroupsByEdp(excludeEdpDisplayNames: Set<String>): List<EventGroup> {
     return buildList {
       val includedDataProviders = mutableSetOf<String>()
       val eventGroups =

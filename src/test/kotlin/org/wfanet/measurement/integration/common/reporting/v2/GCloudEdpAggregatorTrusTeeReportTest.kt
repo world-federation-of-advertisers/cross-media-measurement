@@ -14,10 +14,8 @@
 
 package org.wfanet.measurement.integration.common.reporting.v2
 
-import kotlinx.coroutines.runBlocking
 import org.junit.ClassRule
 import org.junit.Rule
-import org.junit.Test
 import org.junit.rules.Timeout
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
@@ -45,6 +43,7 @@ class GCloudEdpAggregatorTrusTeeReportTest :
       ),
     duchyNames = listOf(AGGREGATOR_NAME),
     hmssEnabled = false,
+    trusTeeEnabled = true,
   ) {
 
   /**
@@ -53,11 +52,6 @@ class GCloudEdpAggregatorTrusTeeReportTest :
    * TODO(Kotlin/kotlinx.coroutines#3865): Switch back to CoroutinesTimeout when fixed.
    */
   @get:Rule val timeout: Timeout = Timeout.seconds(180)
-
-  @Test
-  fun `no noise basic report fails when EDP requires Gaussian noise`() = runBlocking {
-    assertReportFailsWhenEdpRequiresGaussianNoise()
-  }
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()

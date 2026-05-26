@@ -43,8 +43,8 @@ abstract class InProcessEdpAggregatorLifeOfAnEventGroupTest(
   accessServicesFactory: AccessServicesFactory,
   reportingDataServicesProviderRule: ProviderRule<Services>,
   duchyNames: List<String> = ALL_DUCHY_NAMES,
-  hmssEnabled: Boolean = true,
-  trusTeeEnabled: Boolean = true,
+  hmssEnabled: Boolean,
+  trusTeeEnabled: Boolean,
 ) :
   InProcessEdpAggregatorLifeOfAReportTest(
     kingdomDataServicesRule,

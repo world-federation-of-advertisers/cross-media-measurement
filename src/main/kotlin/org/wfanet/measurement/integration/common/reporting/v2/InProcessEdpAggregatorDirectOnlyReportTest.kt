@@ -44,8 +44,8 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
   accessServicesFactory: AccessServicesFactory,
   reportingDataServicesProviderRule: ProviderRule<Services>,
   duchyNames: List<String> = ALL_DUCHY_NAMES,
-  hmssEnabled: Boolean = true,
-  trusTeeEnabled: Boolean = true,
+  hmssEnabled: Boolean,
+  trusTeeEnabled: Boolean,
 ) :
   InProcessEdpAggregatorLifeOfAReportTest(
     kingdomDataServicesRule,
@@ -57,47 +57,6 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
     hmssEnabled,
     trusTeeEnabled,
   ) {
-
-  @Test
-  fun `basic report with cross-publisher creative-id event groups succeeds`() = runBlocking {
-    val creativeIdEventGroups = getCreativeIdOnlyEventGroups()
-    check(creativeIdEventGroups.size >= 2) {
-      "Expected at least 2 creative-id event groups, got \${creativeIdEventGroups.size}"
-    }
-
-    val createBasicReportRequest =
-      buildCreateBasicReportRequest(
-        creativeIdEventGroups,
-        "creative-id-cross-pub-campaign",
-        "creative-id-cross-pub-basicreport",
-        includeIqfFilter = false,
-      )
-
-    val createdBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .createBasicReport(createBasicReportRequest)
-
-    executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
-
-    val completedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
-    assertStructuralResults(completedBasicReport)
-    assertNoNoiseResults(
-      completedBasicReport,
-      expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,
-      expectedCrossPublisherImpressions = EXPECTED_CROSS_PUBLISHER_IMPRESSIONS,
-      expectedKPlusReach = EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH,
-      expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
-      expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
-    )
-    assertDirectProtocolUsed()
-  }
 
   @Test
   fun `basic report with reference-id-only event groups succeeds`() = runBlocking {
@@ -133,7 +92,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
       expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
       expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
     )
-    assertDirectProtocolUsed()
+    assertDirectProtocolUsed(completedBasicReport.name)
   }
 
   @Test
@@ -176,7 +135,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
       expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
       expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
     )
-    assertDirectProtocolUsed()
+    assertDirectProtocolUsed(completedBasicReport.name)
   }
 
   @Test
@@ -204,6 +163,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
         .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
 
     assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
+    assertDirectProtocolUsed(completedBasicReport.name)
   }
 
   @Test
@@ -244,7 +204,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
         expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
         expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
       )
-      assertDirectProtocolUsed()
+      assertDirectProtocolUsed(completedBasicReport.name)
     }
 
   @Test
@@ -302,6 +262,6 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
     assertWithMessage("number of components")
       .that(totalResult.metricSet.componentsCount)
       .isEqualTo(1)
-    assertDirectProtocolUsed()
+    assertDirectProtocolUsed(completedBasicReport.name)
   }
 }

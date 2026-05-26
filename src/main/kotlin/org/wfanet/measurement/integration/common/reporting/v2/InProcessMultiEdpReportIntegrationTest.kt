@@ -90,8 +90,8 @@ abstract class InProcessMultiEdpReportIntegrationTest(
   accessServicesFactory: AccessServicesFactory,
   reportingDataServicesProviderRule: ProviderRule<Services>,
   duchyNames: List<String> = ALL_DUCHY_NAMES,
-  private val hmssEnabled: Boolean = true,
-  trusTeeEnabled: Boolean = true,
+  private val hmssEnabled: Boolean,
+  trusTeeEnabled: Boolean,
 ) :
   InProcessLifeOfAReportIntegrationTest(
     kingdomDataServicesRule,
