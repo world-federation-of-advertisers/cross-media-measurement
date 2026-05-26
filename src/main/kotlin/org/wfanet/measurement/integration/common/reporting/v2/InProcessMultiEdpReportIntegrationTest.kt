@@ -382,6 +382,17 @@ abstract class InProcessMultiEdpReportIntegrationTest(
 
       assertThat(retrievedCompletedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
 
+      val basicReportMeasurements = listMeasurements()
+      assertThat(basicReportMeasurements).isNotEmpty()
+      val lastProtocol = basicReportMeasurements.last().protocolConfig.protocolsList.single()
+      if (hmssEnabled) {
+        assertWithMessage("protocol is HMSS")
+          .that(lastProtocol.hasHonestMajorityShareShuffle())
+          .isTrue()
+      } else {
+        assertWithMessage("protocol is TrusTee").that(lastProtocol.hasTrusTee()).isTrue()
+      }
+
       // Check that non cumulative results are set. Dependent on current test data.
       retrievedBasicReport.resultGroupsList.forEach { resultGroup ->
         assertNotNull(

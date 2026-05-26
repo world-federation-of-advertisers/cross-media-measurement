@@ -211,6 +211,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val retrievedMetric = pollForCompletedMetric(createdMetric.name)
 
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+    assertDirectProtocolUsed(retrievedMetric.name)
 
     val expectedResult =
       MeasurementResults.computePopulation(
@@ -289,6 +290,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val retrievedMetric = pollForCompletedMetric(createdMetric.name)
 
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+    assertDirectProtocolUsed(retrievedMetric.name)
 
     val expectedResult =
       MeasurementResults.computePopulation(
@@ -333,6 +335,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val retrievedMetric = pollForCompletedMetric(createdMetric.name)
 
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+    assertDirectProtocolUsed(retrievedMetric.name)
 
     val expectedResult =
       MeasurementResults.computePopulation(
@@ -468,6 +471,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
 
     val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
+    assertDirectProtocolUsed(retrievedReport.name)
 
     val equivalentFilter =
       "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE} && " +
@@ -574,6 +578,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
 
     val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
+    assertDirectProtocolUsed(retrievedReport.name)
 
     val equivalentFilter =
       "(${createdPrimitiveReportingSets[0].filter}) && (${createdPrimitiveReportingSets[1].filter})"
@@ -654,6 +659,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
 
     val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
+    assertDirectProtocolUsed(retrievedReport.name)
 
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
       eventGroupEntries.map { (eventGroup, filter) ->
@@ -729,6 +735,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
 
     val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
+    assertDirectProtocolUsed(retrievedReport.name)
 
     for (resultAttribute in retrievedReport.metricCalculationResultsList[0].resultAttributesList) {
       val reachResult = resultAttribute.metricResult.reach
@@ -842,6 +849,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
 
     val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
+    assertDirectProtocolUsed(retrievedReport.name)
 
     publicMetricsClient
       .withCallCredentials(credentials)
@@ -932,6 +940,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
 
     val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
+    assertDirectProtocolUsed(retrievedReport.name)
 
     for (resultAttribute in retrievedReport.metricCalculationResultsList[0].resultAttributesList) {
       val reachResult = resultAttribute.metricResult.reach
@@ -1026,6 +1035,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
 
     val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
+    assertDirectProtocolUsed(retrievedReport.name)
 
     assertThat(retrievedReport.metricCalculationResultsList[0].resultAttributesList).hasSize(2)
     val sortedResults =
@@ -1122,6 +1132,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
 
     val retrievedReport = pollForCompletedReport(createdReport.name)
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
+    assertDirectProtocolUsed(retrievedReport.name)
 
     for (resultAttribute in retrievedReport.metricCalculationResultsList[0].resultAttributesList) {
       val reachResult = resultAttribute.metricResult.reach
@@ -1261,6 +1272,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
 
     val retrievedMetric = pollForCompletedMetric(createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+    assertDirectProtocolUsed(retrievedMetric.name)
 
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
       eventGroupEntries.map { (eventGroup, filter) ->
@@ -1318,6 +1330,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
 
     val retrievedMetric = pollForCompletedMetric(createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+    assertDirectProtocolUsed(retrievedMetric.name)
 
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
       eventGroupEntries.map { (eventGroup, filter) ->
@@ -1369,6 +1382,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
 
     val retrievedMetric = pollForCompletedMetric(createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+    assertDirectProtocolUsed(retrievedMetric.name)
 
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
       eventGroupEntries.map { (eventGroup, filter) ->
@@ -1447,6 +1461,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
 
     val retrievedMetric = pollForCompletedMetric(createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+    assertDirectProtocolUsed(retrievedMetric.name)
 
     val reachAndFrequencyResult = retrievedMetric.result.reachAndFrequency
     val actualResult =
@@ -1522,6 +1537,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
 
     val retrievedMetric = pollForCompletedMetric(createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+    assertDirectProtocolUsed(retrievedMetric.name)
 
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
       eventGroupEntries.map { (eventGroup, filter) ->
@@ -1581,6 +1597,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
 
     val retrievedMetric = pollForCompletedMetric(createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+    assertDirectProtocolUsed(retrievedMetric.name)
 
     val impressionResult = retrievedMetric.result.impressionCount
     val actualResult =
@@ -1624,6 +1641,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
 
     val retrievedMetric = pollForCompletedMetric(createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+    assertDirectProtocolUsed(retrievedMetric.name)
 
     // TODO(@tristanvuong2021): Calculate watch duration using synthetic spec.
   }
@@ -1661,6 +1679,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
 
     val retrievedMetric = pollForCompletedMetric(createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+    assertDirectProtocolUsed(retrievedMetric.name)
 
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
       eventGroupEntries.map { (eventGroup, filter) ->
@@ -1713,6 +1732,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
 
     val retrievedMetric = pollForCompletedMetric(createdMetric.name)
     assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+    assertDirectProtocolUsed(retrievedMetric.name)
 
     val reachResult = retrievedMetric.result.reach
     val actualResult =
