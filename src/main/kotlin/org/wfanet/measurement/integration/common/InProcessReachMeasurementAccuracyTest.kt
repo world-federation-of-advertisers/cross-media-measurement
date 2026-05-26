@@ -78,6 +78,8 @@ abstract class InProcessReachMeasurementAccuracyTest(
       SYNTHETIC_EVENT_GROUP_SPECS,
       useEdpSimulators = true,
       trusTeeKmsClient = ThrowingKmsClient,
+      hmssEnabled = false,
+      trusTeeEnabled = false,
     )
 
   private lateinit var mcSimulator: EventQueryMeasurementConsumerSimulator

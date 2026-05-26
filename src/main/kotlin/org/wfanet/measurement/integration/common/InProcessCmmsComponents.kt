@@ -87,8 +87,8 @@ class InProcessCmmsComponents(
   private val useEdpSimulators: Boolean,
   private val trusTeeKmsClient: KmsClient,
   private val duchyNames: List<String> = ALL_DUCHY_NAMES,
-  private val hmssEnabled: Boolean = true,
-  private val trusTeeEnabled: Boolean = true,
+  private val hmssEnabled: Boolean,
+  private val trusTeeEnabled: Boolean,
 ) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value

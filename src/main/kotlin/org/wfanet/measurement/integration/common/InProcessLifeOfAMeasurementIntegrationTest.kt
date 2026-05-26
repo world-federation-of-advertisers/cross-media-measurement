@@ -76,6 +76,8 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
       duchyDependenciesRule,
       useEdpSimulators = true,
       trusTeeKmsClient = ThrowingKmsClient,
+      hmssEnabled = false,
+      trusTeeEnabled = false,
     )
 
   private lateinit var mcSimulator: EventQueryMeasurementConsumerSimulator

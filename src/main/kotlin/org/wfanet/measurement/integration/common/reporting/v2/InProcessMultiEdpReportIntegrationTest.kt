@@ -28,9 +28,9 @@ import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.toInterval
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
@@ -552,16 +552,16 @@ abstract class InProcessMultiEdpReportIntegrationTest(
         it.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.report == reportName
       }
     assertWithMessage("measurements for $reportName").that(measurements).isNotEmpty()
-    var mpcProtocolFound = false
+    var expectedProtocolFound = false
     for (measurement in measurements) {
       val protocol = measurement.protocolConfig.protocolsList.single()
       assertWithMessage("protocol for ${measurement.name}")
         .that(protocol.protocolCase)
         .isAnyOf(ProtocolConfig.Protocol.ProtocolCase.DIRECT, expectedProtocol)
-      if (protocol.protocolCase == expectedProtocol) mpcProtocolFound = true
+      if (protocol.protocolCase == expectedProtocol) expectedProtocolFound = true
     }
     assertWithMessage("at least one $expectedProtocol measurement for $reportName")
-      .that(mpcProtocolFound)
+      .that(expectedProtocolFound)
       .isTrue()
   }
 

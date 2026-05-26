@@ -173,7 +173,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
 
   protected val expectedProtocol: PublicProtocolConfig.Protocol.ProtocolCase =
     when {
-      hmssEnabled && trusTeeEnabled -> error("hmssEnabled and trusTeeEnabled are mutually exclusive")
+      hmssEnabled && trusTeeEnabled ->
+        error("hmssEnabled and trusTeeEnabled are mutually exclusive")
       hmssEnabled -> PublicProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE
       trusTeeEnabled -> PublicProtocolConfig.Protocol.ProtocolCase.TRUS_TEE
       else -> PublicProtocolConfig.Protocol.ProtocolCase.DIRECT
@@ -943,26 +944,17 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   protected suspend fun assertExpectedProtocolUsed(basicReportName: String) {
     val measurements = getReportMeasurements(basicReportName)
     assertWithMessage("measurements for $basicReportName").that(measurements).isNotEmpty()
-    if (expectedProtocol == PublicProtocolConfig.Protocol.ProtocolCase.DIRECT) {
-      for (measurement in measurements) {
-        val protocol = measurement.protocolConfig.protocolsList.single()
-        assertWithMessage("protocol for ${measurement.name}")
-          .that(protocol.protocolCase)
-          .isEqualTo(expectedProtocol)
-      }
-    } else {
-      var mpcProtocolFound = false
-      for (measurement in measurements) {
-        val protocol = measurement.protocolConfig.protocolsList.single()
-        assertWithMessage("protocol for ${measurement.name}")
-          .that(protocol.protocolCase)
-          .isAnyOf(PublicProtocolConfig.Protocol.ProtocolCase.DIRECT, expectedProtocol)
-        if (protocol.protocolCase == expectedProtocol) mpcProtocolFound = true
-      }
-      assertWithMessage("at least one $expectedProtocol measurement for $basicReportName")
-        .that(mpcProtocolFound)
-        .isTrue()
+    var expectedProtocolFound = false
+    for (measurement in measurements) {
+      val protocol = measurement.protocolConfig.protocolsList.single()
+      assertWithMessage("protocol for ${measurement.name}")
+        .that(protocol.protocolCase)
+        .isAnyOf(PublicProtocolConfig.Protocol.ProtocolCase.DIRECT, expectedProtocol)
+      if (protocol.protocolCase == expectedProtocol) expectedProtocolFound = true
     }
+    assertWithMessage("at least one $expectedProtocol measurement for $basicReportName")
+      .that(expectedProtocolFound)
+      .isTrue()
   }
 
   protected suspend fun listReportingEventGroups(): List<EventGroup> {

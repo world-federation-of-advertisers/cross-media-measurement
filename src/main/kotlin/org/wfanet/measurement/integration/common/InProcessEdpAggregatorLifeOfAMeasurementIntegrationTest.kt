@@ -106,6 +106,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       duchyDependenciesRule,
       useEdpSimulators = false,
       trusTeeKmsClient = sharedKmsClient,
+      hmssEnabled = false,
+      trusTeeEnabled = false,
     )
 
   @JvmField

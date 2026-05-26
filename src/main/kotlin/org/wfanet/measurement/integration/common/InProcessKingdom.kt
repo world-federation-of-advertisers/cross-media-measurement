@@ -83,8 +83,8 @@ class InProcessKingdom(
   /** The open id client redirect uri when creating the authentication uri. */
   private val redirectUri: String,
   val verboseGrpcLogging: Boolean = true,
-  private val hmssEnabled: Boolean = true,
-  private val trusTeeEnabled: Boolean = true,
+  private val hmssEnabled: Boolean,
+  private val trusTeeEnabled: Boolean,
 ) : TestRule {
   private val kingdomDataServices by lazy { dataServicesProvider() }
 
