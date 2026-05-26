@@ -127,9 +127,7 @@ message ListBasicReportsResponse {
   // could not be returned in `basic_reports` because the service was unable
   // to render their results (for example, due to internal data inconsistency).
   //
-  // The `BasicReport` resources themselves still exist; callers can issue a
-  // targeted `GetBasicReport` for any name in this list to obtain a specific
-  // error explaining why the resource cannot currently be served.
+  // The `BasicReport` resources themselves still exist.
   //
   // See AIP-217.
   repeated string unreachable = 3 [

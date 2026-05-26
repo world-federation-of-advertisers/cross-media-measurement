@@ -2223,6 +2223,243 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
+  fun `listBasicReports returns healthy BasicReport and lists poisoned one in unreachable`():
+    Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+
+    val primitiveReportingSet =
+      reportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            REPORTING_SET.copy {
+              clearFilter()
+              clearPrimitive()
+              primitive =
+                ReportingSetKt.primitive {
+                  eventGroupKeys += REPORTING_SET.primitive.eventGroupKeysList.first()
+                }
+            }
+          externalReportingSetId = "primitive-1"
+        }
+      )
+
+    // Healthy BasicReport inserted directly in SUCCEEDED state with no underlying result rows.
+    // The list path's withResults short-circuits on empty results and returns it as-is.
+    val healthyBasicReport =
+      service.insertBasicReport(
+        insertBasicReportRequest {
+          basicReport = BASIC_REPORT.copy { externalBasicReportId = "healthy-1" }
+        }
+      )
+
+    val poisonBasicReportToCreate = basicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalBasicReportId = "poison-1"
+      externalCampaignGroupId = REPORTING_SET.externalReportingSetId
+      details = basicReportDetails {
+        title = "title"
+        reportingInterval = reportingInterval {
+          reportStart = dateTime {
+            year = 2025
+            month = 7
+            day = 9
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          effectiveReportStart = dateTime {
+            year = 2025
+            month = 7
+            day = 9
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2025
+            month = 7
+            day = 16
+          }
+        }
+        impressionQualificationFilters += reportingImpressionQualificationFilter {
+          externalImpressionQualificationFilterId =
+            IMPRESSION_QUALIFICATION_FILTER_MAPPING.impressionQualificationFilters
+              .first()
+              .externalImpressionQualificationFilterId
+        }
+        resultGroupSpecs += resultGroupSpec {
+          title = "title"
+          reportingUnit = reportingUnit {
+            dataProviderKeys =
+              ReportingUnitKt.dataProviderKeys {
+                dataProviderKeys += dataProviderKey {
+                  cmmsDataProviderId =
+                    primitiveReportingSet.primitive.eventGroupKeysList.first().cmmsDataProviderId
+                }
+              }
+          }
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
+          dimensionSpec = dimensionSpec {
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              }
+          }
+        }
+      }
+      resultDetails = basicReportResultDetails {}
+      createReportRequestId = "1235"
+    }
+
+    val createdPoisonBasicReport =
+      service.createBasicReport(
+        createBasicReportRequest {
+          basicReport = poisonBasicReportToCreate
+          requestId = "1234"
+        }
+      )
+
+    service.setExternalReportId(
+      setExternalReportIdRequest {
+        cmmsMeasurementConsumerId = createdPoisonBasicReport.cmmsMeasurementConsumerId
+        externalBasicReportId = createdPoisonBasicReport.externalBasicReportId
+        externalReportId = "report1234"
+      }
+    )
+
+    val reportResult =
+      reportResultsService.createReportResult(
+        createReportResultRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          reportResult = reportResult {
+            reportStart = createdPoisonBasicReport.details.reportingInterval.reportStart
+          }
+        }
+      )
+
+    val createdReportingSetResults =
+      reportResultsService
+        .batchCreateReportingSetResults(
+          batchCreateReportingSetResultsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalReportResultId = reportResult.externalReportResultId
+            externalBasicReportId = createdPoisonBasicReport.externalBasicReportId
+            requests += createReportingSetResultRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalReportResultId = reportResult.externalReportResultId
+              reportingSetResult = reportingSetResult {
+                dimension =
+                  ReportingSetResultKt.dimension {
+                    externalReportingSetId = "poison-id"
+                    vennDiagramRegionType =
+                      ReportingSetResult.Dimension.VennDiagramRegionType.PRIMITIVE
+                    externalImpressionQualificationFilterId =
+                      poisonBasicReportToCreate.details.impressionQualificationFiltersList
+                        .first()
+                        .externalImpressionQualificationFilterId
+                    metricFrequencySpec = metricFrequencySpec {
+                      weekly =
+                        poisonBasicReportToCreate.details.resultGroupSpecsList
+                          .first()
+                          .metricFrequency
+                          .weekly
+                    }
+                    grouping =
+                      ReportingSetResultKt.DimensionKt.grouping {
+                        valueByPath["person.gender"] =
+                          EventTemplateFieldKt.fieldValue { enumValue = Person.Gender.MALE.name }
+                      }
+                    eventFilters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "person.age_group"
+                        value =
+                          EventTemplateFieldKt.fieldValue {
+                            enumValue = Person.AgeGroup.YEARS_18_TO_34.name
+                          }
+                      }
+                    }
+                  }
+                populationSize = 1000
+                reportingWindowResults += reportingWindowEntry {
+                  key = reportingWindow {
+                    nonCumulativeStart = date {
+                      year = poisonBasicReportToCreate.details.reportingInterval.reportStart.year
+                      month = poisonBasicReportToCreate.details.reportingInterval.reportStart.month
+                      day = poisonBasicReportToCreate.details.reportingInterval.reportStart.day
+                    }
+                    end = date {
+                      year = poisonBasicReportToCreate.details.reportingInterval.reportEnd.year
+                      month = poisonBasicReportToCreate.details.reportingInterval.reportEnd.month
+                      day = poisonBasicReportToCreate.details.reportingInterval.reportEnd.day
+                    }
+                  }
+                  value = reportingWindowResult {
+                    unprocessedReportResultValues =
+                      ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
+                        nonCumulativeResults = noisyMetricSet {
+                          reach = NoisyMetricSetKt.reachResult { value = 1 }
+                        }
+                      }
+                  }
+                }
+              }
+            }
+          }
+        )
+        .reportingSetResultsList
+
+    reportResultsService.addProcessedResultValues(
+      addProcessedResultValuesRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        externalReportResultId = reportResult.externalReportResultId
+        reportingSetResults[createdReportingSetResults[0].externalReportingSetResultId] =
+          AddProcessedResultValuesRequestKt.processedReportingSetResult {
+            reportingWindowResults +=
+              AddProcessedResultValuesRequestKt.ProcessedReportingSetResultKt.reportingWindowEntry {
+                key = createdReportingSetResults[0].reportingWindowResultsList[0].key
+                value =
+                  ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                    nonCumulativeResults = basicMetricSet { reach = 2 }
+                  }
+              }
+          }
+      }
+    )
+
+    val response =
+      service.listBasicReports(
+        listBasicReportsRequest {
+          filter =
+            ListBasicReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            }
+        }
+      )
+
+    assertThat(response.basicReportsList).containsExactly(healthyBasicReport)
+    assertThat(response.unreachableList)
+      .containsExactly(
+        "measurementConsumers/$CMMS_MEASUREMENT_CONSUMER_ID" +
+          "/basicReports/${createdPoisonBasicReport.externalBasicReportId}"
+      )
+  }
+
+  @Test
   fun `listBasicReports throws INVALID_ARGUMENT when page_size is negative`(): Unit = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
