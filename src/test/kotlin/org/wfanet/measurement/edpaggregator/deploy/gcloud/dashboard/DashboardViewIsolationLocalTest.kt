@@ -19,10 +19,8 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.ByteString
 import java.nio.file.Files
 import java.nio.file.Paths
-import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.ClassRule
 import org.junit.Test
@@ -53,29 +51,41 @@ class DashboardViewIsolationLocalTest {
     private const val MC_ID = 1000L
     private const val SHARED_REPORT = "measurementConsumers/mc1/reports/report1"
 
-    private val FORBIDDEN_COLUMNS = setOf(
-      "cross_publisher", "edp_distribution", "EdpCount", "TotalMcs",
-      "CoveragePercent", "ReportingSetFilter", "MetricCalcSpecDetails",
-      "SucceededMetrics", "FailedMetrics", "result_group_specs", "data_provider_keys",
-    )
+    private val FORBIDDEN_COLUMNS =
+      setOf(
+        "cross_publisher",
+        "edp_distribution",
+        "EdpCount",
+        "TotalMcs",
+        "CoveragePercent",
+        "ReportingSetFilter",
+        "MetricCalcSpecDetails",
+        "SucceededMetrics",
+        "FailedMetrics",
+        "result_group_specs",
+        "data_provider_keys",
+      )
 
-    private val FORBIDDEN_PATTERNS = listOf(
-      Regex("(?i).*edp.?count.*"),
-      Regex("(?i).*cross.?publisher.*"),
-      Regex("(?i).*data.?provider.?key.*"),
-      Regex("(?i).*total.?mcs.*"),
-      Regex("(?i).*edp.?distribution.*"),
-    )
+    private val FORBIDDEN_PATTERNS =
+      listOf(
+        Regex("(?i).*edp.?count.*"),
+        Regex("(?i).*cross.?publisher.*"),
+        Regex("(?i).*data.?provider.?key.*"),
+        Regex("(?i).*total.?mcs.*"),
+        Regex("(?i).*edp.?distribution.*"),
+      )
 
     private val SQL_DIR = "src/main/terraform/gcloud/cmms/sql"
 
     @JvmStatic val spannerEmulator = SpannerEmulatorRule()
 
     @JvmStatic
-    val edpaDatabase = SpannerEmulatorDatabaseRule(spannerEmulator, EdpaSchemata.EDP_AGGREGATOR_CHANGELOG_PATH)
+    val edpaDatabase =
+      SpannerEmulatorDatabaseRule(spannerEmulator, EdpaSchemata.EDP_AGGREGATOR_CHANGELOG_PATH)
 
     @JvmStatic
-    val kingdomDatabase = SpannerEmulatorDatabaseRule(spannerEmulator, KingdomSchemata.KINGDOM_CHANGELOG_PATH)
+    val kingdomDatabase =
+      SpannerEmulatorDatabaseRule(spannerEmulator, KingdomSchemata.KINGDOM_CHANGELOG_PATH)
 
     @get:ClassRule
     @JvmStatic
@@ -89,20 +99,32 @@ class DashboardViewIsolationLocalTest {
     edpaClient.write(
       listOf(
         Mutation.newInsertBuilder("RequisitionMetadata")
-          .set("DataProviderResourceId").to(EDP_A_RESOURCE_ID)
-          .set("RequisitionMetadataId").to(1L)
-          .set("Report").to(SHARED_REPORT)
-          .set("State").to(4L) // FULFILLED
-          .set("CmmsCreateTime").to(Value.COMMIT_TIMESTAMP)
-          .set("StoredTime").to(Value.COMMIT_TIMESTAMP)
+          .set("DataProviderResourceId")
+          .to(EDP_A_RESOURCE_ID)
+          .set("RequisitionMetadataId")
+          .to(1L)
+          .set("Report")
+          .to(SHARED_REPORT)
+          .set("State")
+          .to(4L) // FULFILLED
+          .set("CmmsCreateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .set("StoredTime")
+          .to(Value.COMMIT_TIMESTAMP)
           .build(),
         Mutation.newInsertBuilder("RequisitionMetadata")
-          .set("DataProviderResourceId").to(EDP_B_RESOURCE_ID)
-          .set("RequisitionMetadataId").to(2L)
-          .set("Report").to(SHARED_REPORT)
-          .set("State").to(4L) // FULFILLED
-          .set("CmmsCreateTime").to(Value.COMMIT_TIMESTAMP)
-          .set("StoredTime").to(Value.COMMIT_TIMESTAMP)
+          .set("DataProviderResourceId")
+          .to(EDP_B_RESOURCE_ID)
+          .set("RequisitionMetadataId")
+          .to(2L)
+          .set("Report")
+          .to(SHARED_REPORT)
+          .set("State")
+          .to(4L) // FULFILLED
+          .set("CmmsCreateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .set("StoredTime")
+          .to(Value.COMMIT_TIMESTAMP)
           .build(),
       )
     )
@@ -112,33 +134,52 @@ class DashboardViewIsolationLocalTest {
     kingdomClient.write(
       listOf(
         Mutation.newInsertBuilder("DataProviders")
-          .set("DataProviderId").to(EDP_A_DATA_PROVIDER_ID)
-          .set("ExternalDataProviderId").to(100L)
-          .set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+          .set("DataProviderId")
+          .to(EDP_A_DATA_PROVIDER_ID)
+          .set("ExternalDataProviderId")
+          .to(100L)
+          .set("CreateTime")
+          .to(Value.COMMIT_TIMESTAMP)
           .build(),
         Mutation.newInsertBuilder("DataProviders")
-          .set("DataProviderId").to(EDP_B_DATA_PROVIDER_ID)
-          .set("ExternalDataProviderId").to(200L)
-          .set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+          .set("DataProviderId")
+          .to(EDP_B_DATA_PROVIDER_ID)
+          .set("ExternalDataProviderId")
+          .to(200L)
+          .set("CreateTime")
+          .to(Value.COMMIT_TIMESTAMP)
           .build(),
         Mutation.newInsertBuilder("MeasurementConsumers")
-          .set("MeasurementConsumerId").to(MC_ID)
-          .set("ExternalMeasurementConsumerId").to(MC_ID)
-          .set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+          .set("MeasurementConsumerId")
+          .to(MC_ID)
+          .set("ExternalMeasurementConsumerId")
+          .to(MC_ID)
+          .set("CreateTime")
+          .to(Value.COMMIT_TIMESTAMP)
           .build(),
         Mutation.newInsertBuilder("EventGroups")
-          .set("DataProviderId").to(EDP_A_DATA_PROVIDER_ID)
-          .set("EventGroupId").to(1L)
-          .set("MeasurementConsumerId").to(MC_ID)
-          .set("ExternalEventGroupId").to(1L)
-          .set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+          .set("DataProviderId")
+          .to(EDP_A_DATA_PROVIDER_ID)
+          .set("EventGroupId")
+          .to(1L)
+          .set("MeasurementConsumerId")
+          .to(MC_ID)
+          .set("ExternalEventGroupId")
+          .to(1L)
+          .set("CreateTime")
+          .to(Value.COMMIT_TIMESTAMP)
           .build(),
         Mutation.newInsertBuilder("EventGroups")
-          .set("DataProviderId").to(EDP_B_DATA_PROVIDER_ID)
-          .set("EventGroupId").to(2L)
-          .set("MeasurementConsumerId").to(MC_ID)
-          .set("ExternalEventGroupId").to(2L)
-          .set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+          .set("DataProviderId")
+          .to(EDP_B_DATA_PROVIDER_ID)
+          .set("EventGroupId")
+          .to(2L)
+          .set("MeasurementConsumerId")
+          .to(MC_ID)
+          .set("ExternalEventGroupId")
+          .to(2L)
+          .set("CreateTime")
+          .to(Value.COMMIT_TIMESTAMP)
           .build(),
       )
     )
@@ -148,15 +189,19 @@ class DashboardViewIsolationLocalTest {
   @Test
   fun edpAggregatorQueryFiltersCorrectly() {
     val client = edpaDatabase.databaseClient
-    val resultSet = client.singleUse().executeQuery(
-      com.google.cloud.spanner.Statement.of(
-        """
+    val resultSet =
+      client
+        .singleUse()
+        .executeQuery(
+          com.google.cloud.spanner.Statement.of(
+            """
         SELECT rm.DataProviderResourceId, rm.Report
         FROM RequisitionMetadata rm
         WHERE rm.DataProviderResourceId = '$EDP_A_RESOURCE_ID'
-        """.trimIndent()
-      )
-    )
+        """
+              .trimIndent()
+          )
+        )
 
     val resourceIds = mutableListOf<String>()
     while (resultSet.next()) {
@@ -171,15 +216,19 @@ class DashboardViewIsolationLocalTest {
   @Test
   fun kingdomEventGroupQueryFiltersCorrectly() {
     val client = kingdomDatabase.databaseClient
-    val resultSet = client.singleUse().executeQuery(
-      com.google.cloud.spanner.Statement.of(
-        """
+    val resultSet =
+      client
+        .singleUse()
+        .executeQuery(
+          com.google.cloud.spanner.Statement.of(
+            """
         SELECT eg.DataProviderId, eg.MeasurementConsumerId
         FROM EventGroups eg
         WHERE eg.DataProviderId = $EDP_A_DATA_PROVIDER_ID
-        """.trimIndent()
-      )
-    )
+        """
+              .trimIndent()
+          )
+        )
 
     val dataProviderIds = mutableListOf<Long>()
     while (resultSet.next()) {
@@ -196,16 +245,20 @@ class DashboardViewIsolationLocalTest {
     val client = edpaDatabase.databaseClient
 
     // EDP A sees only its own requisition for the shared report
-    val resultA = client.singleUse().executeQuery(
-      com.google.cloud.spanner.Statement.of(
-        """
+    val resultA =
+      client
+        .singleUse()
+        .executeQuery(
+          com.google.cloud.spanner.Statement.of(
+            """
         SELECT rm.DataProviderResourceId, rm.Report
         FROM RequisitionMetadata rm
         WHERE rm.DataProviderResourceId = '$EDP_A_RESOURCE_ID'
           AND rm.Report = '$SHARED_REPORT'
-        """.trimIndent()
-      )
-    )
+        """
+              .trimIndent()
+          )
+        )
     var countA = 0
     while (resultA.next()) {
       assertThat(resultA.getString("DataProviderResourceId")).isEqualTo(EDP_A_RESOURCE_ID)
@@ -214,16 +267,20 @@ class DashboardViewIsolationLocalTest {
     assertThat(countA).isEqualTo(1)
 
     // EDP B sees only its own requisition for the same report
-    val resultB = client.singleUse().executeQuery(
-      com.google.cloud.spanner.Statement.of(
-        """
+    val resultB =
+      client
+        .singleUse()
+        .executeQuery(
+          com.google.cloud.spanner.Statement.of(
+            """
         SELECT rm.DataProviderResourceId, rm.Report
         FROM RequisitionMetadata rm
         WHERE rm.DataProviderResourceId = '$EDP_B_RESOURCE_ID'
           AND rm.Report = '$SHARED_REPORT'
-        """.trimIndent()
-      )
-    )
+        """
+              .trimIndent()
+          )
+        )
     var countB = 0
     while (resultB.next()) {
       assertThat(resultB.getString("DataProviderResourceId")).isEqualTo(EDP_B_RESOURCE_ID)
@@ -267,7 +324,9 @@ class DashboardViewIsolationLocalTest {
         }
         for (pattern in FORBIDDEN_PATTERNS) {
           if (pattern.matches(alias)) {
-            violations.add("$fileName: alias '$alias' matches forbidden pattern '${pattern.pattern}'")
+            violations.add(
+              "$fileName: alias '$alias' matches forbidden pattern '${pattern.pattern}'"
+            )
           }
         }
       }

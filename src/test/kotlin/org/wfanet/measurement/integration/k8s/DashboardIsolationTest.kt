@@ -47,8 +47,7 @@ class DashboardIsolationTest {
     private val EDP_NAME =
       System.getenv("EDP_NAME") ?: throw IllegalStateException("EDP_NAME not set")
     private val EDP_RESOURCE_ID =
-      System.getenv("EDP_RESOURCE_ID")
-        ?: throw IllegalStateException("EDP_RESOURCE_ID not set")
+      System.getenv("EDP_RESOURCE_ID") ?: throw IllegalStateException("EDP_RESOURCE_ID not set")
 
     private const val PLATFORM_DATASET = "dashboard_views"
     private const val EDP_DATASET = "dashboard_views_edp"
@@ -100,9 +99,7 @@ class DashboardIsolationTest {
 
     try {
       val result = bigQuery.query(QueryJobConfiguration.of(sql))
-      fail(
-        "EXTERNAL_QUERY bypass should have been denied but returned ${result.totalRows} rows"
-      )
+      fail("EXTERNAL_QUERY bypass should have been denied but returned ${result.totalRows} rows")
     } catch (e: BigQueryException) {
       logger.info("EXTERNAL_QUERY bypass correctly denied: ${e.message}")
       assertThat(e.code).isEqualTo(403)
@@ -119,9 +116,7 @@ class DashboardIsolationTest {
 
     try {
       val result = bigQuery.query(QueryJobConfiguration.of(sql))
-      fail(
-        "Platform view access should have been denied but returned ${result.totalRows} rows"
-      )
+      fail("Platform view access should have been denied but returned ${result.totalRows} rows")
     } catch (e: BigQueryException) {
       logger.info("Platform view access correctly denied: ${e.message}")
       assertThat(e.code).isEqualTo(403)
@@ -138,12 +133,13 @@ class DashboardIsolationTest {
         .trimIndent()
 
     val result = bigQuery.query(QueryJobConfiguration.of(sql))
-    val resourceIds =
-      result.iterateAll().map { it["DataProviderResourceId"].stringValue }
+    val resourceIds = result.iterateAll().map { it["DataProviderResourceId"].stringValue }
 
     assertThat(resourceIds).isNotEmpty()
     assertThat(resourceIds).containsExactly(EDP_RESOURCE_ID)
-    logger.info("requisition_overview_$EDP_NAME: ${result.totalRows} rows, all for $EDP_RESOURCE_ID")
+    logger.info(
+      "requisition_overview_$EDP_NAME: ${result.totalRows} rows, all for $EDP_RESOURCE_ID"
+    )
   }
 
   @Test

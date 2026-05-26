@@ -235,9 +235,9 @@ kt_jvm_library(
     name = "dashboard_isolation_test_lib",
     srcs = ["DashboardIsolationTest.kt"],
     deps = [
+        "@maven//:com_google_cloud_google_cloud_bigquery",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
-        "@maven//:com_google_cloud_google_cloud_bigquery",
     ],
 )
 
