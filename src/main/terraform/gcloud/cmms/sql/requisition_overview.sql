@@ -15,7 +15,6 @@
 SELECT
   r.DataProviderResourceId,
   r.Report,
-  REGEXP_EXTRACT(r.Report, r'reports/(.+)$') AS ReportId,
   r.CmmsMeasurementConsumer,
   CASE r.State
     WHEN 0 THEN 'UNSPECIFIED'
@@ -31,22 +30,25 @@ SELECT
   r.FulfilledTime,
   TIMESTAMP_DIFF(r.FulfilledTime, r.CmmsCreateTime, SECOND) AS FulfillmentDurationSeconds,
   CASE
-    WHEN rpt.FailedMetrics > 0 THEN 'FAILED'
-    WHEN rpt.MetricCount > 0 AND rpt.MetricCount = rpt.SucceededMetrics THEN 'SUCCEEDED'
-    WHEN rpt.MetricCount = 0 THEN 'NO_METRICS'
-    ELSE 'IN_PROGRESS'
+    WHEN br.State = 2 THEN 'SUCCEEDED'
+    WHEN br.State = 3 THEN 'FAILED'
+    WHEN br.State = 1 THEN 'RUNNING'
+    ELSE 'UNSPECIFIED'
   END AS ReportState,
-  rpt.ReportTimeStart,
-  rpt.ReportTimeEnd,
-  rd.ReportingSetFilter,
-  rd.EventGroupCount
+  JSON_VALUE(br.details, '$.reportingInterval.reportStartDate.year') AS ReportStartYear,
+  JSON_VALUE(br.details, '$.reportingInterval.reportStartDate.month') AS ReportStartMonth,
+  JSON_VALUE(br.details, '$.reportingInterval.reportStartDate.day') AS ReportStartDay,
+  JSON_VALUE(br.details, '$.reportingInterval.reportEnd.year') AS ReportEndYear,
+  JSON_VALUE(br.details, '$.reportingInterval.reportEnd.month') AS ReportEndMonth,
+  JSON_VALUE(br.details, '$.reportingInterval.reportEnd.day') AS ReportEndDay,
+  JSON_QUERY(br.details, '$.impressionQualificationFilters') AS ImpressionQualificationFilters
 FROM (
   SELECT * FROM EXTERNAL_QUERY(
     'projects/${project_id}/locations/${region}/connections/edp-aggregator-conn',
     '''SELECT
       rm.DataProviderResourceId,
       rm.Report,
-      REGEXP_EXTRACT(rm.Report, 'measurementConsumers/([^/]+)/') AS CmmsMeasurementConsumer,
+      REGEXP_EXTRACT(rm.Report, ''measurementConsumers/([^/]+)/'') AS CmmsMeasurementConsumer,
       CAST(rm.State AS INT64) AS State,
       rm.CmmsCreateTime,
       rma_fulfilled.CreateTime AS FulfilledTime
@@ -57,75 +59,20 @@ FROM (
       AND CAST(rma_fulfilled.CurrentState AS INT64) = 4''')
 ) r
 LEFT JOIN (
-  SELECT * FROM EXTERNAL_QUERY(
-    'projects/${project_id}/locations/${region}/connections/reporting-postgres-conn',
+  SELECT
+    br.BasicReportId,
+    CAST(br.State AS INT64) AS State,
+    `${project_id}.dashboard_views.decode_BasicReportDetails`(br.BasicReportDetails) AS details
+  FROM EXTERNAL_QUERY(
+    'projects/${project_id}/locations/${region}/connections/reporting-conn',
     '''SELECT
-      CAST(rp.externalreportid AS TEXT) AS externalreportid,
-      COUNT(m.metricid) AS MetricCount,
-      COUNT(CASE WHEN m.state = 2 THEN 1 END) AS SucceededMetrics,
-      COUNT(CASE WHEN m.state = 3 THEN 1 END) AS FailedMetrics,
-      json_extract_path_text(rp.reportdetailsjson::json, 'timeIntervals', 'timeIntervals', '0', 'startTime') AS ReportTimeStart,
-      json_extract_path_text(rp.reportdetailsjson::json, 'timeIntervals', 'timeIntervals', '0', 'endTime') AS ReportTimeEnd
-    FROM reports rp
-    LEFT JOIN metriccalculationspecreportingmetrics mcsrm
-      ON rp.measurementconsumerid = mcsrm.measurementconsumerid
-      AND rp.reportid = mcsrm.reportid
-    LEFT JOIN metrics m
-      ON mcsrm.measurementconsumerid = m.measurementconsumerid
-      AND mcsrm.metricid = m.metricid
-    GROUP BY rp.externalreportid, rp.reportdetailsjson''')
-) rpt
-  ON REGEXP_EXTRACT(r.Report, 'reports/(.+)$') = rpt.externalreportid
-LEFT JOIN (
-%{ if data_provider_id != "" }
-  SELECT * FROM EXTERNAL_QUERY(
-    'projects/${project_id}/locations/${region}/connections/reporting-postgres-conn',
-    '''SELECT
-      CAST(rp.externalreportid AS TEXT) AS externalreportid,
-      rs.filter AS ReportingSetFilter,
-      COUNT(DISTINCT rseg.eventgroupid) AS EventGroupCount
-    FROM reports rp
-    LEFT JOIN metriccalculationspecreportingmetrics mcsrm
-      ON rp.measurementconsumerid = mcsrm.measurementconsumerid
-      AND rp.reportid = mcsrm.reportid
-    LEFT JOIN metrics m
-      ON mcsrm.measurementconsumerid = m.measurementconsumerid
-      AND mcsrm.metricid = m.metricid
-    LEFT JOIN reportingsets rs
-      ON m.reportingsetid = rs.reportingsetid
-      AND m.measurementconsumerid = rs.measurementconsumerid
-    LEFT JOIN reportingseteventgroups rseg
-      ON rs.measurementconsumerid = rseg.measurementconsumerid
-      AND rs.reportingsetid = rseg.reportingsetid
-    LEFT JOIN eventgroups eg
-      ON rseg.measurementconsumerid = eg.measurementconsumerid
-      AND rseg.eventgroupid = eg.eventgroupid
-    WHERE eg.cmmsdataproviderid = '${data_provider_id}'
-    GROUP BY rp.externalreportid, rs.filter''')
-%{ else }
-  SELECT * FROM EXTERNAL_QUERY(
-    'projects/${project_id}/locations/${region}/connections/reporting-postgres-conn',
-    '''SELECT
-      CAST(rp.externalreportid AS TEXT) AS externalreportid,
-      rs.filter AS ReportingSetFilter,
-      COUNT(DISTINCT rseg.eventgroupid) AS EventGroupCount
-    FROM reports rp
-    LEFT JOIN metriccalculationspecreportingmetrics mcsrm
-      ON rp.measurementconsumerid = mcsrm.measurementconsumerid
-      AND rp.reportid = mcsrm.reportid
-    LEFT JOIN metrics m
-      ON mcsrm.measurementconsumerid = m.measurementconsumerid
-      AND mcsrm.metricid = m.metricid
-    LEFT JOIN reportingsets rs
-      ON m.reportingsetid = rs.reportingsetid
-      AND m.measurementconsumerid = rs.measurementconsumerid
-    LEFT JOIN reportingseteventgroups rseg
-      ON rs.measurementconsumerid = rseg.measurementconsumerid
-      AND rs.reportingsetid = rseg.reportingsetid
-    GROUP BY rp.externalreportid, rs.filter''')
-%{ endif }
-) rd
-  ON REGEXP_EXTRACT(r.Report, 'reports/(.+)$') = rd.externalreportid
+      br.BasicReportId,
+      CAST(br.State AS INT64) AS State,
+      br.ExternalReportId,
+      CAST(br.BasicReportDetails AS BYTES) AS BasicReportDetails
+    FROM BasicReports br''')
+) br
+  ON REGEXP_EXTRACT(r.Report, r'reports/([^/]+)$') = br.ExternalReportId
 %{ if data_provider_id != "" }
 WHERE r.DataProviderResourceId = '${data_provider_id}'
 %{ endif }
