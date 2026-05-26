@@ -73,6 +73,48 @@ message VidLabelingConfig {
   // Maximum batch size in bytes for partitioning raw impression files.
   // If unset, defaults to 10 GB (10000000000 bytes).
   int64 max_batch_size_bytes = 8 [(google.api.field_behavior) = OPTIONAL];
+
+  // KMS configuration for a specific cloud provider.
+  message KmsConfig {
+    // WIF credential audience as workload identity pool provider.
+    string kms_audience = 1 [(google.api.field_behavior) = REQUIRED];
+
+    // GCP-specific KMS configuration.
+    message GcpKmsConfig {
+      // Service account with KMS access.
+      string service_account = 1 [(google.api.field_behavior) = REQUIRED];
+    }
+
+    // AWS-specific KMS configuration, federated through GCP.
+    message AwsKmsConfig {
+      // GCP service account used for identity federation to AWS.
+      string service_account = 1 [(google.api.field_behavior) = REQUIRED];
+
+      // AWS IAM role ARN to assume via GCP identity federation.
+      string role_arn = 2 [(google.api.field_behavior) = REQUIRED];
+
+      // Identifier for the assumed AWS role session.
+      string role_session_name = 3 [(google.api.field_behavior) = REQUIRED];
+
+      // AWS region for STS and KMS endpoints.
+      string region = 4 [(google.api.field_behavior) = REQUIRED];
+
+      // OIDC audience for the GCP ID token presented to AWS IAM.
+      string audience = 5 [(google.api.field_behavior) = REQUIRED];
+    }
+
+    oneof provider_config {
+      GcpKmsConfig gcp = 2;
+      AwsKmsConfig aws = 3;
+    }
+  }
+
+  // KMS config for decrypting raw impression data.
+  KmsConfig raw_impressions_kms_config = 9 [(google.api.field_behavior) = REQUIRED];
+
+  // KMS config for encrypting VID-labeled impression output.
+  KmsConfig vid_labeled_impressions_kms_config = 10
+      [(google.api.field_behavior) = REQUIRED];
 }
 
 // Wrapper containing VID Labeling configurations for all EDPs.
