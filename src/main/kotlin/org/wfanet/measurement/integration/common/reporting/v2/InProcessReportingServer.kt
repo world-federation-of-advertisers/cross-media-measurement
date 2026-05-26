@@ -127,8 +127,9 @@ class InProcessReportingServer(
   private val publicKingdomModelLinesClient =
     PublicKingdomModelLinesCoroutineStub(kingdomPublicApiChannel)
 
-  private val internalApiChannel
-    get() = buildMutualTlsChannel("localhost:${internalReportingServer.port}", SIGNING_CERTS)
+  private val internalApiChannel by lazy {
+    buildMutualTlsChannel("localhost:${internalReportingServer.port}", SIGNING_CERTS)
+  }
 
   private val internalMeasurementConsumersClient by lazy {
     InternalMeasurementConsumersCoroutineStub(internalApiChannel)
