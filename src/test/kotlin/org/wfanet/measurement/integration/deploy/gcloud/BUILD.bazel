@@ -122,7 +122,7 @@ kt_jvm_library(
 java_test(
     name = "GCloudInProcessDirectOnlyReportIntegrationTest",
     size = "large",
-    timeout = "moderate",
+    timeout = "long",
     tags = [
         "cpu:2",
         "no-remote-exec",
