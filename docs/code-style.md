@@ -111,6 +111,8 @@ sections of this when reviewing others’ code.
 *   Prefer `if` over `?.let` when not chaining or not using the result.
 *   Extract a variable for repeated non-null assertions (`!!`) to avoid
     asserting multiple times.
+*   Prefer named data classes over `Pair` and `Triple` unless the generic
+    structure is required by the API (e.g. `zip`, `mapOf`).
 *   Use `kotlin.text.Regex` instead of `java.util.regex.Pattern`.
 
 #### Namespacing & Imports

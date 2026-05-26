@@ -23,6 +23,12 @@ import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.Descriptors
+import com.google.protobuf.DynamicMessage
+import com.google.protobuf.ExtensionRegistry
+import com.google.protobuf.Message
+import com.google.protobuf.TypeRegistry
 import java.io.File
 import java.nio.file.Paths
 import java.time.LocalDate
@@ -30,11 +36,13 @@ import java.time.ZoneId
 import java.util.SortedMap
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.aws.kms.AwsKmsClientFactory
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.tink.AwsWebIdentityCredentials
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
@@ -138,10 +146,43 @@ class GenerateSyntheticData : Runnable {
 
   @Option(
     names = ["--population-spec-resource-path"],
-    description = ["The path to the resource of the population-spec. Must be textproto format."],
+    description =
+      [
+        "The path to the resource of the v2alpha PopulationSpec. Must be textproto format.",
+        "The PopulationSpec must include attribute messages on each SubPopulation that are " +
+          "instances of the event message templates (e.g. for TestEvent, a Person attribute).",
+      ],
     required = true,
   )
   lateinit var populationSpecResourcePath: String
+    private set
+
+  @Option(
+    names = ["--event-message-type-url"],
+    description =
+      [
+        "Type URL (e.g. type.googleapis.com/<full_name>) of the event message type that the " +
+          "generated impressions carry. Defaults to TestEvent.",
+        "When set to a type other than TestEvent, --event-message-descriptor-set must be supplied.",
+      ],
+    required = false,
+    defaultValue = DEFAULT_EVENT_MESSAGE_TYPE_URL,
+  )
+  lateinit var eventMessageTypeUrl: String
+    private set
+
+  @Option(
+    names = ["--event-message-descriptor-set"],
+    description =
+      [
+        "Path to a serialized FileDescriptorSet containing the event message type referenced by " +
+          "--event-message-type-url and its dependencies.",
+        "May be specified multiple times.",
+        "May be omitted only when the event message type is TestEvent (the default).",
+      ],
+    required = false,
+  )
+  var eventMessageDescriptorSetFiles: List<File> = emptyList()
     private set
 
   @Option(
@@ -226,10 +267,14 @@ class GenerateSyntheticData : Runnable {
       "--fake-kek-keyset-file is only valid when --kms-type=FAKE"
     }
 
-    val syntheticPopulationSpec: SyntheticPopulationSpec =
+    val eventMessageInstance: Message =
+      resolveEventMessageInstance(eventMessageTypeUrl, eventMessageDescriptorSetFiles)
+
+    val populationSpec: PopulationSpec =
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve(populationSpecResourcePath).toFile(),
-        SyntheticPopulationSpec.getDefaultInstance(),
+        PopulationSpec.getDefaultInstance(),
+        buildEventMessageTypeRegistry(eventMessageInstance),
       )
     val kmsClient: KmsClient =
       when (kmsType) {
@@ -260,9 +305,7 @@ class GenerateSyntheticData : Runnable {
 
     runBlocking {
       for (specFlags in eventGroupSpecFlags) {
-        // TODO(world-federation-of-advertisers/cross-media-measurement#2360): Consider supporting
-        // other event types.
-        val perSubSpecShards: List<Sequence<LabeledEventDateShard<TestEvent>>> =
+        val perSubSpecShards: List<Sequence<LabeledEventDateShard<Message>>> =
           specFlags.subSpecFlags.map { subSpec ->
             val syntheticEventGroupSpec: SyntheticEventGroupSpec =
               parseTextProto(
@@ -270,8 +313,8 @@ class GenerateSyntheticData : Runnable {
                 SyntheticEventGroupSpec.getDefaultInstance(),
               )
             SyntheticDataGeneration.generateEvents(
-              messageInstance = TestEvent.getDefaultInstance(),
-              populationSpec = syntheticPopulationSpec,
+              messageInstance = eventMessageInstance,
+              populationSpec = populationSpec,
               syntheticEventGroupSpec = syntheticEventGroupSpec,
               zoneId = ZoneId.of(zoneId),
             )
@@ -280,7 +323,7 @@ class GenerateSyntheticData : Runnable {
           specFlags.subSpecFlags.map { subSpec ->
             subSpec.entityKeyFlags.map { EntityKey(it.entityType, it.entityId) }
           }
-        val coalescedShards: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
+        val coalescedShards: Sequence<EntityKeyedLabeledEventDateShard<Message>> =
           coalesceByDate(perSubSpecShards, perSubSpecEntityKeys)
         val eventGroupPath =
           "model-line/$modelLineName/event-group-reference-id/${specFlags.eventGroupReferenceId}"
@@ -311,12 +354,12 @@ class GenerateSyntheticData : Runnable {
    * that date, so a single impressions blob can hold impressions with different entity keys.
    */
   private fun coalesceByDate(
-    perSubSpecShards: List<Sequence<LabeledEventDateShard<TestEvent>>>,
+    perSubSpecShards: List<Sequence<LabeledEventDateShard<Message>>>,
     perSubSpecEntityKeys: List<List<EntityKey>>,
-  ): Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> {
+  ): Sequence<EntityKeyedLabeledEventDateShard<Message>> {
     require(perSubSpecShards.size == perSubSpecEntityKeys.size)
     // Materialize per-sub-spec, per-date groups so we can join across sub-specs by date.
-    val groupsByDate: SortedMap<LocalDate, MutableList<EntityKeysWithLabeledEvents<TestEvent>>> =
+    val groupsByDate: SortedMap<LocalDate, MutableList<EntityKeysWithLabeledEvents<Message>>> =
       sortedMapOf()
     for ((index, shards) in perSubSpecShards.withIndex()) {
       val entityKeys = perSubSpecEntityKeys[index]
@@ -337,6 +380,11 @@ class GenerateSyntheticData : Runnable {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val DEFAULT_KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "key1"
 
+    /** Type URL of the default event message ([TestEvent]). */
+    const val DEFAULT_EVENT_MESSAGE_TYPE_URL: String =
+      ProtoReflection.DEFAULT_TYPE_URL_PREFIX +
+        "/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+
     // This is the relative location from which population and data spec textprotos are read.
     private val TEST_DATA_PATH =
       Paths.get(
@@ -351,9 +399,77 @@ class GenerateSyntheticData : Runnable {
       )
     private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
 
+    private val EVENT_MESSAGE_EXTENSION_REGISTRY: ExtensionRegistry =
+      ExtensionRegistry.newInstance()
+        .also { EventAnnotationsProto.registerAllExtensions(it) }
+        .unmodifiable
+
+    /**
+     * [Descriptors.FileDescriptor]s of protobuf types known at compile time that may be loaded from
+     * a [DescriptorProtos.FileDescriptorSet] without being included in the set's contents.
+     */
+    private val COMPILED_PROTOBUF_TYPES: Iterable<Descriptors.FileDescriptor> =
+      (ProtoReflection.WELL_KNOWN_TYPES.asSequence() +
+          EventAnnotationsProto.getDescriptor() +
+          TestEvent.getDescriptor().file)
+        .asIterable()
+
     init {
       AeadConfig.register()
       StreamingAeadConfig.register()
+    }
+
+    /**
+     * Resolves the event message [Message] instance for the supplied [eventMessageTypeUrl].
+     *
+     * When [eventMessageTypeUrl] matches [DEFAULT_EVENT_MESSAGE_TYPE_URL], returns the compiled
+     * [TestEvent] default instance directly. Otherwise builds a [DynamicMessage] from the supplied
+     * [descriptorSetFiles].
+     */
+    fun resolveEventMessageInstance(
+      eventMessageTypeUrl: String,
+      descriptorSetFiles: Collection<File>,
+    ): Message {
+      if (eventMessageTypeUrl == DEFAULT_EVENT_MESSAGE_TYPE_URL) {
+        return TestEvent.getDefaultInstance()
+      }
+      require(descriptorSetFiles.isNotEmpty()) {
+        "--event-message-descriptor-set is required when --event-message-type-url is not " +
+          "$DEFAULT_EVENT_MESSAGE_TYPE_URL"
+      }
+      val expectedFullName = eventMessageTypeUrl.substringAfterLast('/')
+      val fileDescriptorSets: List<DescriptorProtos.FileDescriptorSet> =
+        descriptorSetFiles.map { file ->
+          file.inputStream().use { input ->
+            DescriptorProtos.FileDescriptorSet.parseFrom(input, EVENT_MESSAGE_EXTENSION_REGISTRY)
+          }
+        }
+      val descriptors: List<Descriptors.Descriptor> =
+        ProtoReflection.buildDescriptors(fileDescriptorSets, COMPILED_PROTOBUF_TYPES)
+      val descriptor: Descriptors.Descriptor =
+        descriptors.firstOrNull { it.fullName == expectedFullName }
+          ?: error(
+            "Event message type $expectedFullName not found in supplied descriptor sets " +
+              "(${descriptorSetFiles.joinToString(", ")})"
+          )
+      return DynamicMessage.getDefaultInstance(descriptor)
+    }
+
+    /**
+     * Builds a [TypeRegistry] containing the descriptor of [eventMessageInstance] plus the
+     * descriptors of all of its message-type template fields, so that textproto parsing can resolve
+     * `Any`-typed population attributes via the `[type.googleapis.com/<full_name>] { ... }` syntax.
+     */
+    fun buildEventMessageTypeRegistry(eventMessageInstance: Message): TypeRegistry {
+      val descriptors: Set<Descriptors.Descriptor> = buildSet {
+        add(eventMessageInstance.descriptorForType)
+        for (field in eventMessageInstance.descriptorForType.fields) {
+          if (field.type == Descriptors.FieldDescriptor.Type.MESSAGE) {
+            add(field.messageType)
+          }
+        }
+      }
+      return TypeRegistry.newBuilder().add(descriptors).build()
     }
 
     /**

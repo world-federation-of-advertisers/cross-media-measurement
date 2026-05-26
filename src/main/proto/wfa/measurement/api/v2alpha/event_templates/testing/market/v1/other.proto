@@ -1,0 +1,38 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Catch-all "other media" template slot for the test-only `MarketEvent`.
+//
+// Real market templates often reserve a dedicated message for media types
+// outside of Video and Display (e.g. audio, OOH). This empty template stands
+// in for that slot so `MarketEvent` exercises a 4-template top-level shape
+// rather than the 3-template shape of the default `TestEvent`.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha.event_templates.testing.market.v1;
+
+import "wfa/measurement/api/v2alpha/event_annotations.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1";
+option java_multiple_files = true;
+
+message Other {
+  option (.wfa.measurement.api.v2alpha.event_template) = {
+    name: "other"
+    media_type: OTHER
+    display_name: "Other Media Type Template"
+    description: "Catch-all template for non-Video/non-Display MarketEvent media."
+  };
+}

@@ -18,6 +18,7 @@ package org.wfanet.measurement.integration.k8s
 
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
+import com.google.protobuf.TypeRegistry
 import com.google.protobuf.struct
 import com.google.protobuf.timestamp
 import com.google.protobuf.value
@@ -53,9 +54,10 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
@@ -68,6 +70,9 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.Met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
+import org.wfanet.measurement.integration.common.EntityKeySpec
+import org.wfanet.measurement.integration.common.EventGroupConfig
+import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
@@ -108,11 +113,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           objectKey = "edp7/event-groups/edp7-event-group.binpb",
           blobUri = "gs://$bucket/edp7/event-groups/edp7-event-group.binpb",
           eventGroupReferenceIds =
-            setOf(
-              EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID,
-              CREATIVE_ID_EVENT_GROUP_REF_ID,
-              MULTI_CREATIVE_EVENT_GROUP_REF_ID,
-            ),
+            setOf(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID, CREATIVE_ID_EVENT_GROUP_REF_ID) +
+              MULTI_CREATIVE_REF_IDS,
         ),
         EdpStorage(
           objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.binpb",
@@ -176,54 +178,74 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
 
     private fun createEventGroups(): List<EventGroup> {
-      return syntheticEventGroupMap.flatMap { (eventGroupReferenceId, syntheticEventGroupSpec) ->
-        syntheticEventGroupSpec.dateSpecsList.map { dateSpec ->
-          val dateRange = dateSpec.dateRange
-          val startTime =
-            LocalDate.of(dateRange.start.year, dateRange.start.month, dateRange.start.day)
-              .atStartOfDay(ZONE_ID)
-              .toInstant()
-          val endTime =
-            LocalDate.of(
-                dateRange.endExclusive.year,
-                dateRange.endExclusive.month,
-                dateRange.endExclusive.day - 1,
+      return syntheticEventGroupMap.flatMap { (eventGroupReferenceId, config) ->
+        when (config) {
+          is EventGroupConfig.LegacySpec ->
+            buildEventGroupsFromSpec(
+              eventGroupReferenceId = eventGroupReferenceId,
+              spec = config.spec,
+              dataEntityKey = null,
+              entityMetadata = null,
+            )
+          is EventGroupConfig.MultiEntityKey ->
+            config.entityKeySpecs.flatMap { entityKeySpec ->
+              buildEventGroupsFromSpec(
+                eventGroupReferenceId = entityKeySpec.entityKey.entityId,
+                spec = entityKeySpec.spec,
+                dataEntityKey = entityKeySpec.entityKey,
+                entityMetadata = entityKeySpec.entityMetadata,
               )
-              .atTime(23, 59, 59)
-              .atZone(ZONE_ID)
-              .toInstant()
-          val hasCreativeIdEntityKey =
-            eventGroupReferenceId in
-              setOf(CREATIVE_ID_EVENT_GROUP_REF_ID, MULTI_CREATIVE_EVENT_GROUP_REF_ID)
-          eventGroup {
-            this.eventGroupReferenceId = eventGroupReferenceId
-            measurementConsumer = TEST_CONFIG.measurementConsumer
-            dataAvailabilityInterval = interval {
-              this.startTime = timestamp { seconds = startTime.epochSecond }
-              this.endTime = timestamp { seconds = endTime.epochSecond }
             }
-            this.eventGroupMetadata = eventGroupMetadata {
-              this.adMetadata = adMetadata {
-                this.campaignMetadata = campaignMetadata {
-                  brand = "some-brand"
-                  campaign = "some-campaign"
-                }
-              }
-              if (hasCreativeIdEntityKey) {
-                this.entityMetadata = struct {
-                  fields["placement"] = value { stringValue = "homepage_top" }
-                  fields["objective"] = value { stringValue = "awareness" }
-                }
-              }
-            }
-            if (hasCreativeIdEntityKey) {
-              this.entityKey = entityKey {
-                entityType = "creative-id"
-                entityId = eventGroupReferenceId
-              }
-            }
-            mediaTypes += MediaType.valueOf("VIDEO")
+        }
+      }
+    }
+
+    private fun buildEventGroupsFromSpec(
+      eventGroupReferenceId: String,
+      spec: SyntheticEventGroupSpec,
+      dataEntityKey: EntityKey?,
+      entityMetadata: com.google.protobuf.Struct?,
+    ): List<EventGroup> {
+      return spec.dateSpecsList.map { dateSpec ->
+        val dateRange = dateSpec.dateRange
+        val startTime =
+          LocalDate.of(dateRange.start.year, dateRange.start.month, dateRange.start.day)
+            .atStartOfDay(ZONE_ID)
+            .toInstant()
+        val endTime =
+          LocalDate.of(
+              dateRange.endExclusive.year,
+              dateRange.endExclusive.month,
+              dateRange.endExclusive.day - 1,
+            )
+            .atTime(23, 59, 59)
+            .atZone(ZONE_ID)
+            .toInstant()
+        eventGroup {
+          this.eventGroupReferenceId = eventGroupReferenceId
+          measurementConsumer = TEST_CONFIG.measurementConsumer
+          dataAvailabilityInterval = interval {
+            this.startTime = timestamp { seconds = startTime.epochSecond }
+            this.endTime = timestamp { seconds = endTime.epochSecond }
           }
+          this.eventGroupMetadata = eventGroupMetadata {
+            this.adMetadata = adMetadata {
+              this.campaignMetadata = campaignMetadata {
+                brand = "some-brand"
+                campaign = "some-campaign"
+              }
+            }
+            if (entityMetadata != null) {
+              this.entityMetadata = entityMetadata
+            }
+          }
+          if (dataEntityKey != null) {
+            this.entityKey = entityKey {
+              entityType = dataEntityKey.entityType
+              entityId = dataEntityKey.entityId
+            }
+          }
+          mediaTypes += MediaType.valueOf("VIDEO")
         }
       }
     }
@@ -399,8 +421,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
         TestEvent.getDefaultInstance(),
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
-        syntheticPopulationSpec,
-        syntheticEventGroupMap,
+        populationSpec,
+        resolvedSyntheticEventGroupMap,
         reportName,
         TEST_CONFIG.modelLine,
         listEventGroupsEntityTypes = listOf("campaign", "creative-id"),
@@ -465,24 +487,76 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     private val TEST_DATA_RUNTIME_PATH =
       org.wfanet.measurement.common.getRuntimePath(TEST_DATA_PATH)!!
 
-    val syntheticPopulationSpec: SyntheticPopulationSpec =
+    private val POPULATION_SPEC_TYPE_REGISTRY: TypeRegistry =
+      TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
+
+    val populationSpec: PopulationSpec =
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
-        SyntheticPopulationSpec.getDefaultInstance(),
+        PopulationSpec.getDefaultInstance(),
+        POPULATION_SPEC_TYPE_REGISTRY,
       )
     val syntheticEventGroupSpec: SyntheticEventGroupSpec =
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
-
-    val syntheticEventGroupMap =
-      mapOf(
-        EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID to syntheticEventGroupSpec,
-        CREATIVE_ID_EVENT_GROUP_REF_ID to syntheticEventGroupSpec,
-        MULTI_CREATIVE_EVENT_GROUP_REF_ID to syntheticEventGroupSpec,
-        EDPA_META_EVENT_GROUP_REF_ID to syntheticEventGroupSpec,
+    val syntheticEventGroupSpec2: SyntheticEventGroupSpec =
+      parseTextProto(
+        TEST_DATA_RUNTIME_PATH.resolve("small_data_spec_2.textproto").toFile(),
+        SyntheticEventGroupSpec.getDefaultInstance(),
       )
+
+    private val ENTITY_METADATA: com.google.protobuf.Struct = struct {
+      fields["placement"] = value { stringValue = "homepage_top" }
+      fields["objective"] = value { stringValue = "awareness" }
+    }
+
+    val syntheticEventGroupMap: Map<String, EventGroupConfig> =
+      mapOf(
+        EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID to
+          EventGroupConfig.LegacySpec(syntheticEventGroupSpec),
+        CREATIVE_ID_EVENT_GROUP_REF_ID to
+          EventGroupConfig.MultiEntityKey(
+            listOf(
+              EntityKeySpec(
+                entityKey = EntityKey("creative-id", CREATIVE_ID_ENTITY_ID),
+                spec = syntheticEventGroupSpec,
+                entityMetadata = ENTITY_METADATA,
+              )
+            )
+          ),
+        "multi-creative" to
+          EventGroupConfig.MultiEntityKey(
+            listOf(
+              EntityKeySpec(
+                entityKey = EntityKey("creative-id", MULTI_CREATIVE_A_ENTITY_ID),
+                spec = syntheticEventGroupSpec,
+                entityMetadata = ENTITY_METADATA,
+              ),
+              EntityKeySpec(
+                entityKey = EntityKey("creative-id", MULTI_CREATIVE_B_ENTITY_ID),
+                spec = syntheticEventGroupSpec2,
+                entityMetadata = ENTITY_METADATA,
+              ),
+            )
+          ),
+        EDPA_META_EVENT_GROUP_REF_ID to EventGroupConfig.LegacySpec(syntheticEventGroupSpec),
+      )
+
+    val resolvedSyntheticEventGroupMap: Map<String, EventGroupConfig> =
+      syntheticEventGroupMap
+        .flatMap { (refId, config) ->
+          when (config) {
+            is EventGroupConfig.LegacySpec -> listOf(refId to config)
+            is EventGroupConfig.MultiEntityKey ->
+              config.entityKeySpecs.map { entityKeySpec ->
+                entityKeySpec.entityKey.entityId to
+                  EventGroupConfig.MultiEntityKey(listOf(entityKeySpec))
+              }
+          }
+        }
+        .toMap()
 
     private val ZONE_ID = ZoneId.of("UTC")
 
