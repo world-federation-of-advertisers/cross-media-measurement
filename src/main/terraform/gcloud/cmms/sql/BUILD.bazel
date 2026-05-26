@@ -1,0 +1,5 @@
+exports_files([
+    "mc_details.sql",
+    "report_detail.sql",
+    "requisition_overview.sql",
+])

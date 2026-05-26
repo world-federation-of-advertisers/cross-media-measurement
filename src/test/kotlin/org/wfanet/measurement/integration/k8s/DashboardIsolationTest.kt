@@ -83,9 +83,7 @@ class DashboardIsolationTest {
     @BeforeClass
     fun setUp() {
       bigQuery = BigQueryOptions.getDefaultInstance().service
-      logger.info(
-        "Testing as EDP '$EDP_NAME' (resource ID: $EDP_RESOURCE_ID) in project $PROJECT"
-      )
+      logger.info("Testing as EDP '$EDP_NAME' (resource ID: $EDP_RESOURCE_ID) in project $PROJECT")
     }
   }
 
@@ -145,9 +143,7 @@ class DashboardIsolationTest {
 
     assertThat(resourceIds).isNotEmpty()
     assertThat(resourceIds).containsExactly(EDP_RESOURCE_ID)
-    logger.info(
-      "requisition_overview_$EDP_NAME: ${result.totalRows} rows, all for $EDP_RESOURCE_ID"
-    )
+    logger.info("requisition_overview_$EDP_NAME: ${result.totalRows} rows, all for $EDP_RESOURCE_ID")
   }
 
   @Test
@@ -160,14 +156,11 @@ class DashboardIsolationTest {
         .trimIndent()
 
     val result = bigQuery.query(QueryJobConfiguration.of(sql))
-    val dataProviders =
-      result.iterateAll().map { it["CmmsDataProvider"].stringValue }
+    val dataProviders = result.iterateAll().map { it["CmmsDataProvider"].stringValue }
 
     assertThat(dataProviders).isNotEmpty()
     assertThat(dataProviders).containsExactly(EDP_RESOURCE_ID)
-    logger.info(
-      "mc_details_$EDP_NAME: ${result.totalRows} rows, all for $EDP_RESOURCE_ID"
-    )
+    logger.info("mc_details_$EDP_NAME: ${result.totalRows} rows, all for $EDP_RESOURCE_ID")
   }
 
   @Test
@@ -180,15 +173,12 @@ class DashboardIsolationTest {
         .trimIndent()
 
     val result = bigQuery.query(QueryJobConfiguration.of(sql))
-    val dataProviders =
-      result.iterateAll().map { it["CmmsDataProvider"].stringValue }
+    val dataProviders = result.iterateAll().map { it["CmmsDataProvider"].stringValue }
 
     if (result.totalRows > 0) {
       assertThat(dataProviders).containsExactly(EDP_RESOURCE_ID)
     }
-    logger.info(
-      "report_detail_$EDP_NAME: ${result.totalRows} rows, all for $EDP_RESOURCE_ID"
-    )
+    logger.info("report_detail_$EDP_NAME: ${result.totalRows} rows, all for $EDP_RESOURCE_ID")
   }
 
   @Test
@@ -236,8 +226,7 @@ class DashboardIsolationTest {
         .trimIndent()
 
     val result = bigQuery.query(QueryJobConfiguration.of(sql))
-    val otherViews =
-      result.iterateAll().map { it["table_name"].stringValue }.toList()
+    val otherViews = result.iterateAll().map { it["table_name"].stringValue }.toList()
 
     for (viewName in otherViews) {
       try {
