@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.measurementSpec
@@ -43,7 +44,7 @@ class ResultMinimumThresholderTest {
       }
   }
 
-  private fun buildEmptyVector(): org.wfanet.frequencycount.FrequencyVector {
+  private fun buildEmptyVector(): FrequencyVector {
     return FrequencyVectorBuilder(
         measurementSpec = measurementSpec,
         populationSpec = populationSpec,
