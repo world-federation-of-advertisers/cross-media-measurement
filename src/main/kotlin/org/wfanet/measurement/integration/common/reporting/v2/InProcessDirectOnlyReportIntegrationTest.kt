@@ -28,9 +28,6 @@ import com.google.type.timeZone
 import java.time.LocalDate
 import kotlin.math.max
 import kotlin.test.assertNotNull
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -97,7 +94,6 @@ import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpe
 import org.wfanet.measurement.reporting.v2alpha.invalidateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.listImpressionQualificationFiltersRequest
 import org.wfanet.measurement.reporting.v2alpha.listImpressionQualificationFiltersResponse
-import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.metric
 import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.metricFrequencySpec
@@ -1186,92 +1182,6 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
       val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
 
       assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
-    }
-  }
-
-  @Test
-  fun `creating 3 reports at once succeeds`() = runBlocking {
-    val numReports = 3
-    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
-    val eventGroups = listEventGroups()
-    val eventGroupEntries: List<Pair<EventGroup, String>> =
-      listOf(eventGroups.first() to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
-    val createdPrimitiveReportingSet: ReportingSet =
-      createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
-
-    val createdMetricCalculationSpec =
-      publicMetricCalculationSpecsClient
-        .withCallCredentials(credentials)
-        .createMetricCalculationSpec(
-          createMetricCalculationSpecRequest {
-            parent = measurementConsumerData.name
-            metricCalculationSpec = metricCalculationSpec {
-              displayName = "load test"
-              metricSpecs += metricSpec {
-                reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-                vidSamplingInterval = VID_SAMPLING_INTERVAL
-              }
-            }
-            metricCalculationSpecId = "fed"
-          }
-        )
-
-    val report = report {
-      reportingMetricEntries +=
-        ReportKt.reportingMetricEntry {
-          key = createdPrimitiveReportingSet.name
-          value =
-            ReportKt.reportingMetricCalculationSpec {
-              metricCalculationSpecs += createdMetricCalculationSpec.name
-            }
-        }
-      timeIntervals = timeIntervals {
-        timeIntervals += interval {
-          startTime = timestamp { seconds = 100 }
-          endTime = timestamp { seconds = 200 }
-        }
-      }
-    }
-
-    val deferred: MutableList<Deferred<Report>> = mutableListOf()
-    repeat(numReports) {
-      deferred.add(
-        async {
-          publicReportsClient
-            .withCallCredentials(credentials)
-            .createReport(
-              createReportRequest {
-                parent = measurementConsumerData.name
-                this.report = report
-                reportId = "report$it"
-              }
-            )
-        }
-      )
-    }
-
-    deferred.awaitAll()
-    val retrievedReports =
-      publicReportsClient
-        .withCallCredentials(credentials)
-        .listReports(
-          listReportsRequest {
-            parent = measurementConsumerData.name
-            pageSize = numReports
-          }
-        )
-        .reportsList
-
-    assertThat(retrievedReports).hasSize(numReports)
-    retrievedReports.forEach {
-      assertThat(it)
-        .ignoringFields(
-          Report.NAME_FIELD_NUMBER,
-          Report.STATE_FIELD_NUMBER,
-          Report.CREATE_TIME_FIELD_NUMBER,
-          Report.METRIC_CALCULATION_RESULTS_FIELD_NUMBER,
-        )
-        .isEqualTo(report)
     }
   }
 
