@@ -124,7 +124,7 @@ abstract class InProcessDirectMultipleReportIntegrationTest(
               createReportRequest {
                 parent = measurementConsumerData.name
                 this.report = report
-                reportId = "report$$it"
+                reportId = "report$it"
               }
             )
         }
