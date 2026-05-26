@@ -276,6 +276,7 @@ class ReachAndFrequencyComputationsTest {
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 11, minImpressions = 5),
         vidSamplingIntervalWidth = 1.0,
       )
+    // With fold-down + noise, outcome is non-deterministic. Either all zeros or sums to 1.
     val sum = distribution.values.sum()
     assertThat(sum == 0.0 || Math.abs(sum - 1.0) < FLOAT_COMPARISON_TOLERANCE).isTrue()
   }
