@@ -21,7 +21,6 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.DoubleHistogram
 import io.opentelemetry.api.metrics.LongCounter
 import io.opentelemetry.api.metrics.Meter
-import kotlin.time.TimeSource
 import org.wfanet.measurement.common.Instrumentation
 
 /**
@@ -92,20 +91,5 @@ class VidLabelerMetrics(meter: Meter) {
 
     /** Creates a VidLabelerMetrics instance using the default Instrumentation meter. */
     fun create(): VidLabelerMetrics = VidLabelerMetrics(Instrumentation.meter)
-
-    /**
-     * Measures the execution time of a block and records it to the histogram.
-     *
-     * @param block The code block to measure
-     * @return The result of the block execution
-     */
-    inline fun <T> DoubleHistogram.measured(block: () -> T): T {
-      val timer = TimeSource.Monotonic.markNow()
-      return try {
-        block()
-      } finally {
-        this.record(timer.elapsedNow().inWholeNanoseconds / 1_000_000_000.0)
-      }
-    }
   }
 }

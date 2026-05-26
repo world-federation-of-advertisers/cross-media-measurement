@@ -49,6 +49,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchFi
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionMetadataBatchFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionMetadataBatchFile
@@ -168,7 +169,7 @@ class VidLabelerTest {
   }
 
   @Test
-  fun `encryptAndWriteLabeledImpressions round-trips through read`() = runBlocking {
+  fun `envelope encryption round-trips labeled impressions through write and read`() = runBlocking {
     val encryptKekUri = FakeKmsClient.KEY_URI_PREFIX + "encrypt-key"
     val encryptKmsClient = createFakeKmsClient(encryptKekUri)
 
@@ -242,6 +243,68 @@ class VidLabelerTest {
     assertThat(readImpression2.vid).isEqualTo(200L)
   }
 
+  @Test
+  fun `readBlobDetails parses binary proto metadata`() = runBlocking {
+    val blobDetails = blobDetails {
+      blobUri = "file:///data/impressions/blob1"
+      eventGroupReferenceId = "eg-ref-1"
+      modelLine = MODEL_LINE_1
+    }
+
+    val metadataDir = tempFolder.root.resolve("metadata")
+    metadataDir.mkdirs()
+    val metadataFile = metadataDir.resolve("details.binpb")
+    metadataFile.writeBytes(blobDetails.toByteArray())
+
+    val metadataUri = "file:///metadata/details.binpb"
+    mockBatchFileServiceToReturn(
+      listRawImpressionMetadataBatchFilesResponse {
+        rawImpressionMetadataBatchFiles += rawImpressionMetadataBatchFile {
+          name = "$BATCH_NAME/files/file1"
+          blobUri = metadataUri
+        }
+      }
+    )
+
+    val vidLabeler =
+      createVidLabeler(storageConfig = StorageConfig(rootDirectory = tempFolder.root))
+
+    // labelBatch reads BlobDetails from metadata URI, then fails at readAndDecryptRawImpressions
+    // because the data blob referenced in BlobDetails doesn't exist. This proves readBlobDetails
+    // successfully parsed the binary proto.
+    val error = assertFailsWith<IllegalStateException> { vidLabeler.labelBatch() }
+    assertThat(error).hasMessageThat().contains("Raw impression blob not found")
+  }
+
+  @Test
+  fun `readBlobDetails falls back to JSON when binary parsing fails`() = runBlocking {
+    val jsonContent =
+      """{"blobUri": "file:///data/impressions/blob1", "eventGroupReferenceId": "eg-ref-1"}"""
+
+    val metadataDir = tempFolder.root.resolve("metadata")
+    metadataDir.mkdirs()
+    val metadataFile = metadataDir.resolve("details.json")
+    metadataFile.writeText(jsonContent)
+
+    val metadataUri = "file:///metadata/details.json"
+    mockBatchFileServiceToReturn(
+      listRawImpressionMetadataBatchFilesResponse {
+        rawImpressionMetadataBatchFiles += rawImpressionMetadataBatchFile {
+          name = "$BATCH_NAME/files/file1"
+          blobUri = metadataUri
+        }
+      }
+    )
+
+    val vidLabeler =
+      createVidLabeler(storageConfig = StorageConfig(rootDirectory = tempFolder.root))
+
+    // labelBatch reads BlobDetails via JSON fallback, then fails at readAndDecryptRawImpressions
+    // because the data blob doesn't exist. This proves the JSON fallback path works.
+    val error = assertFailsWith<IllegalStateException> { vidLabeler.labelBatch() }
+    assertThat(error).hasMessageThat().contains("Raw impression blob not found")
+  }
+
   private fun mockBatchFileServiceToReturn(
     response:
       org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionMetadataBatchFilesResponse
@@ -260,14 +323,14 @@ class VidLabelerTest {
     private val DEFAULT_MODEL_LINE_CONFIGS =
       mapOf(
         MODEL_LINE_1 to
-          VidLabelerParams.ModelLineConfig.newBuilder()
-            .putLabelerInputFieldMapping("age", "user_age")
-            .putLabelerInputFieldMapping("gender", "user_gender")
-            .build(),
+          VidLabelerParamsKt.modelLineConfig {
+            labelerInputFieldMapping["age"] = "user_age"
+            labelerInputFieldMapping["gender"] = "user_gender"
+          },
         MODEL_LINE_2 to
-          VidLabelerParams.ModelLineConfig.newBuilder()
-            .putLabelerInputFieldMapping("age", "user_age")
-            .build(),
+          VidLabelerParamsKt.modelLineConfig {
+            labelerInputFieldMapping["age"] = "user_age"
+          },
       )
 
     private fun createFakeKmsClient(kekUri: String): FakeKmsClient {

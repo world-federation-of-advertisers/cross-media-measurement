@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
+import org.wfanet.measurement.edpaggregator.MetricsUtil.measured
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
@@ -45,7 +46,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionMetadataBatchFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionMetadataBatchFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionMetadataBatchProcessedRequest
-import org.wfanet.measurement.edpaggregator.vidlabeler.VidLabelerMetrics.Companion.measured
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
@@ -191,7 +191,16 @@ class VidLabeler(
     return rawImpressions
   }
 
-  /** Reads a [BlobDetails] proto from a metadata blob URI. */
+  /**
+   * Reads a [BlobDetails] proto from a metadata blob URI.
+   *
+   * Attempts to parse the blob as binary protobuf first. If that fails with
+   * [com.google.protobuf.InvalidProtocolBufferException], falls back to JSON parsing to support
+   * metadata blobs written in JSON format by earlier pipeline versions.
+   *
+   * @param metadataPath the blob URI of the metadata file.
+   * @return the parsed [BlobDetails].
+   */
   private suspend fun readBlobDetails(metadataPath: String): BlobDetails {
     val storageClientUri = SelectedStorageClient.parseBlobUri(metadataPath)
     val storageClient =
@@ -204,7 +213,7 @@ class VidLabeler(
       BlobDetails.parseFrom(bytes)
     } catch (e: com.google.protobuf.InvalidProtocolBufferException) {
       val builder = BlobDetails.newBuilder()
-      JsonFormat.parser().ignoringUnknownFields().merge(bytes.toString(Charsets.UTF_8), builder)
+      JsonFormat.parser().merge(bytes.toString(Charsets.UTF_8), builder)
       builder.build()
     }
   }
@@ -243,8 +252,7 @@ class VidLabeler(
     rawImpressions: List<RawImpression>,
     modelLines: Map<String, VidLabelerParams.ModelLineConfig>,
   ): List<LabeledImpressionOutput> {
-    // TODO(world-federation-of-advertisers/cross-media-measurement#T263656471): Implement VID
-    //  model inference using VidModelCache and VidModelResolver.
+    // TODO: Implement VID model inference using VidModelCache and VidModelResolver.
     //  1. For each model line, use vidRepoConnection to connect to the VID Model Repository.
     //  2. Download/cache the model.
     //  3. For each raw impression, apply labeler_input_field_mapping to extract model inputs.
