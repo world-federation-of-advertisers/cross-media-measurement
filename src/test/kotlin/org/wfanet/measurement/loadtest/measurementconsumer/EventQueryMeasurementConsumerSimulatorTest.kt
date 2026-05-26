@@ -16,6 +16,7 @@ package org.wfanet.measurement.loadtest.measurementconsumer
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Message
+import java.time.LocalDate
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -100,9 +101,7 @@ class EventQueryMeasurementConsumerSimulatorTest : AbstractMeasurementConsumerSi
 
   companion object {
     private val EVENT_RANGE =
-      OpenEndTimeRange.fromClosedDateRange(
-        java.time.LocalDate.of(2021, 3, 15)..java.time.LocalDate.of(2021, 3, 17)
-      )
+      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
 
     private val STUB_EVENT_QUERY =
       object : EventQuery<Message> {

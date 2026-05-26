@@ -15,6 +15,7 @@
 package org.wfanet.measurement.loadtest.measurementconsumer
 
 import com.google.common.truth.Truth.assertThat
+import com.google.type.Interval
 import com.google.type.interval
 import java.nio.file.Paths
 import java.time.LocalDate
@@ -30,11 +31,13 @@ import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
@@ -49,6 +52,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 
 abstract class AbstractMeasurementConsumerSimulatorTest {
@@ -68,7 +72,7 @@ abstract class AbstractMeasurementConsumerSimulatorTest {
     onBlocking { createMeasurement(any()) }
       .thenAnswer { invocation ->
         val request = invocation.getArgument<CreateMeasurementRequest>(0)
-        request.measurement.toBuilder().setName("$MC_NAME/measurements/m1").build()
+        request.measurement.copy { name = "$MC_NAME/measurements/m1" }
       }
   }
 
@@ -109,18 +113,14 @@ abstract class AbstractMeasurementConsumerSimulatorTest {
   }
 
   protected fun decryptAndParseRequisitionSpec(
-    encryptedRequisitionSpec: org.wfanet.measurement.api.v2alpha.EncryptedMessage
+    encryptedRequisitionSpec: EncryptedMessage
   ): RequisitionSpec {
-    val signedRequisitionSpec =
-      org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec(
-        encryptedRequisitionSpec,
-        EDP_PRIVATE_KEY,
-      )
+    val signedRequisitionSpec = decryptRequisitionSpec(encryptedRequisitionSpec, EDP_PRIVATE_KEY)
     return RequisitionSpec.parseFrom(signedRequisitionSpec.data)
   }
 
   @Test
-  fun `multiple event groups from same data provider all appear in requisition spec`() {
+  fun `buildRequisitionInfo accumulates all event groups from same data provider`() {
     val refIds = listOf("sim-eg-ref-1", "sim-eg-ref-2", "sim-eg-ref-3")
     stubEventGroups(refIds)
 
@@ -145,7 +145,7 @@ abstract class AbstractMeasurementConsumerSimulatorTest {
   }
 
   @Test
-  fun `single event group produces single entry in requisition spec`() {
+  fun `buildRequisitionInfo produces single entry for single event group`() {
     val refIds = listOf("sim-eg-ref-1")
     stubEventGroups(refIds)
 
@@ -164,7 +164,7 @@ abstract class AbstractMeasurementConsumerSimulatorTest {
   }
 
   @Test
-  fun `eventGroupFilter parameter further filters event groups`() {
+  fun `buildRequisitionInfo applies eventGroupFilter to further filter event groups`() {
     val refIds = listOf("sim-eg-wanted", "sim-eg-unwanted")
     stubEventGroups(refIds)
 
@@ -191,7 +191,7 @@ abstract class AbstractMeasurementConsumerSimulatorTest {
   }
 
   companion object {
-    protected val SECRETS_DIR =
+    private val SECRETS_DIR =
       checkNotNull(
           getRuntimePath(
             Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
@@ -248,7 +248,7 @@ abstract class AbstractMeasurementConsumerSimulatorTest {
 
     private val DATA_START = LocalDate.of(2021, 3, 15)
     private val DATA_END = LocalDate.of(2021, 3, 22)
-    val DATA_INTERVAL = interval {
+    val DATA_INTERVAL: Interval = interval {
       startTime = DATA_START.atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
       endTime = DATA_END.atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
     }

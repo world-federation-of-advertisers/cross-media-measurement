@@ -68,6 +68,7 @@ import org.wfanet.measurement.loadtest.dataprovider.EventQuery
  *   in the [MeasurementSpec].
  * @param initialResultPollingDelay Initial delay before polling for results.
  * @param maximumResultPollingDelay Maximum delay between polling attempts.
+ * @param onMeasurementsCreated Optional callback invoked after measurements are created.
  * @see MeasurementConsumerSimulator
  */
 class EventQueryMeasurementConsumerSimulator(
