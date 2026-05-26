@@ -22,9 +22,9 @@ import com.google.cloud.bigquery.BigQueryOptions
 import com.google.cloud.bigquery.QueryJobConfiguration
 import com.google.common.truth.Truth.assertThat
 import java.util.logging.Logger
+import org.junit.Assert.fail
 import org.junit.BeforeClass
 import org.junit.Test
-import org.junit.Assert.fail
 
 /**
  * Cloud test for EDPA Reporting Dashboard EDP isolation.
@@ -34,48 +34,48 @@ import org.junit.Assert.fail
  * 2. EDP service accounts cannot access platform views
  * 3. EDP service accounts can only see their own data through per-EDP views
  * 4. Per-EDP views contain no forbidden columns that leak cross-EDP data
- *
- * This test authenticates as an EDP service account and runs assertions against
- * live BigQuery. It should be run after terraform apply as part of the
- * dashboard-isolation-test workflow.
  */
 class DashboardIsolationTest {
 
   companion object {
     private val logger = Logger.getLogger(DashboardIsolationTest::class.java.name)
 
-    private val PROJECT = System.getenv("GOOGLE_CLOUD_PROJECT")
-      ?: throw IllegalStateException("GOOGLE_CLOUD_PROJECT not set")
+    private val PROJECT =
+      System.getenv("GOOGLE_CLOUD_PROJECT")
+        ?: throw IllegalStateException("GOOGLE_CLOUD_PROJECT not set")
     private val REGION = System.getenv("BIGQUERY_REGION") ?: "us-central1"
-    private val EDP_NAME = System.getenv("EDP_NAME")
-      ?: throw IllegalStateException("EDP_NAME not set")
-    private val EDP_RESOURCE_ID = System.getenv("EDP_RESOURCE_ID")
-      ?: throw IllegalStateException("EDP_RESOURCE_ID not set")
+    private val EDP_NAME =
+      System.getenv("EDP_NAME") ?: throw IllegalStateException("EDP_NAME not set")
+    private val EDP_RESOURCE_ID =
+      System.getenv("EDP_RESOURCE_ID")
+        ?: throw IllegalStateException("EDP_RESOURCE_ID not set")
 
-    private val PLATFORM_DATASET = "dashboard_views"
-    private val EDP_DATASET = "dashboard_views_edp"
+    private const val PLATFORM_DATASET = "dashboard_views"
+    private const val EDP_DATASET = "dashboard_views_edp"
 
-    private val FORBIDDEN_COLUMNS = setOf(
-      "cross_publisher",
-      "edp_distribution",
-      "EdpCount",
-      "TotalMcs",
-      "CoveragePercent",
-      "ReportingSetFilter",
-      "MetricCalcSpecDetails",
-      "SucceededMetrics",
-      "FailedMetrics",
-      "result_group_specs",
-      "data_provider_keys",
-    )
+    private val FORBIDDEN_COLUMNS =
+      setOf(
+        "cross_publisher",
+        "edp_distribution",
+        "EdpCount",
+        "TotalMcs",
+        "CoveragePercent",
+        "ReportingSetFilter",
+        "MetricCalcSpecDetails",
+        "SucceededMetrics",
+        "FailedMetrics",
+        "result_group_specs",
+        "data_provider_keys",
+      )
 
-    private val FORBIDDEN_PATTERNS = listOf(
-      Regex("(?i).*edp.?count.*"),
-      Regex("(?i).*cross.?publisher.*"),
-      Regex("(?i).*data.?provider.?key.*"),
-      Regex("(?i).*total.?mcs.*"),
-      Regex("(?i).*edp.?distribution.*"),
-    )
+    private val FORBIDDEN_PATTERNS =
+      listOf(
+        Regex("(?i).*edp.?count.*"),
+        Regex("(?i).*cross.?publisher.*"),
+        Regex("(?i).*data.?provider.?key.*"),
+        Regex("(?i).*total.?mcs.*"),
+        Regex("(?i).*edp.?distribution.*"),
+      )
 
     private lateinit var bigQuery: BigQuery
 
@@ -83,102 +83,123 @@ class DashboardIsolationTest {
     @BeforeClass
     fun setUp() {
       bigQuery = BigQueryOptions.getDefaultInstance().service
-      logger.info("Testing as EDP '$EDP_NAME' (resource ID: $EDP_RESOURCE_ID) in project $PROJECT")
+      logger.info(
+        "Testing as EDP '$EDP_NAME' (resource ID: $EDP_RESOURCE_ID) in project $PROJECT"
+      )
     }
   }
 
-  /** Structural test: EDP SA cannot run arbitrary EXTERNAL_QUERY to bypass views. */
   @Test
   fun externalQueryBypassIsDenied() {
-    val sql = """
+    val sql =
+      """
       SELECT * FROM EXTERNAL_QUERY(
         'projects/$PROJECT/locations/$REGION/connections/kingdom-conn',
         '''SELECT DataProviderId, MeasurementConsumerId FROM EventGroups LIMIT 10'''
       )
-    """.trimIndent()
+      """
+        .trimIndent()
 
     try {
       val result = bigQuery.query(QueryJobConfiguration.of(sql))
-      fail("EXTERNAL_QUERY bypass should have been denied but returned ${result.totalRows} rows")
+      fail(
+        "EXTERNAL_QUERY bypass should have been denied but returned ${result.totalRows} rows"
+      )
     } catch (e: BigQueryException) {
       logger.info("EXTERNAL_QUERY bypass correctly denied: ${e.message}")
       assertThat(e.code).isEqualTo(403)
     }
   }
 
-  /** Structural test: EDP SA cannot access platform views. */
   @Test
   fun platformViewAccessIsDenied() {
-    val sql = """
+    val sql =
+      """
       SELECT * FROM `$PROJECT.$PLATFORM_DATASET.requisition_overview_platform` LIMIT 1
-    """.trimIndent()
+      """
+        .trimIndent()
 
     try {
       val result = bigQuery.query(QueryJobConfiguration.of(sql))
-      fail("Platform view access should have been denied but returned ${result.totalRows} rows")
+      fail(
+        "Platform view access should have been denied but returned ${result.totalRows} rows"
+      )
     } catch (e: BigQueryException) {
       logger.info("Platform view access correctly denied: ${e.message}")
       assertThat(e.code).isEqualTo(403)
     }
   }
 
-  /** Data isolation: requisition_overview returns only this EDP's data. */
   @Test
   fun requisitionOverviewReturnsOnlyOwnData() {
-    val sql = """
+    val sql =
+      """
       SELECT DISTINCT DataProviderResourceId
       FROM `$PROJECT.$EDP_DATASET.requisition_overview_$EDP_NAME`
-    """.trimIndent()
+      """
+        .trimIndent()
 
     val result = bigQuery.query(QueryJobConfiguration.of(sql))
-    val resourceIds = result.iterateAll().map { it["DataProviderResourceId"].stringValue }
+    val resourceIds =
+      result.iterateAll().map { it["DataProviderResourceId"].stringValue }
 
     assertThat(resourceIds).isNotEmpty()
     assertThat(resourceIds).containsExactly(EDP_RESOURCE_ID)
-    logger.info("requisition_overview_$EDP_NAME: ${result.totalRows} rows, all for $EDP_RESOURCE_ID")
+    logger.info(
+      "requisition_overview_$EDP_NAME: ${result.totalRows} rows, all for $EDP_RESOURCE_ID"
+    )
   }
 
-  /** Data isolation: mc_details returns only this EDP's data. */
   @Test
   fun mcDetailsReturnsOnlyOwnData() {
-    val sql = """
+    val sql =
+      """
       SELECT DISTINCT CmmsDataProvider
       FROM `$PROJECT.$EDP_DATASET.mc_details_$EDP_NAME`
-    """.trimIndent()
+      """
+        .trimIndent()
 
     val result = bigQuery.query(QueryJobConfiguration.of(sql))
-    val dataProviders = result.iterateAll().map { it["CmmsDataProvider"].stringValue }
+    val dataProviders =
+      result.iterateAll().map { it["CmmsDataProvider"].stringValue }
 
     assertThat(dataProviders).isNotEmpty()
     assertThat(dataProviders).containsExactly(EDP_RESOURCE_ID)
-    logger.info("mc_details_$EDP_NAME: ${result.totalRows} rows, all for $EDP_RESOURCE_ID")
+    logger.info(
+      "mc_details_$EDP_NAME: ${result.totalRows} rows, all for $EDP_RESOURCE_ID"
+    )
   }
 
-  /** Data isolation: report_detail returns only this EDP's data. */
   @Test
   fun reportDetailReturnsOnlyOwnData() {
-    val sql = """
+    val sql =
+      """
       SELECT DISTINCT CmmsDataProvider
       FROM `$PROJECT.$EDP_DATASET.report_detail_$EDP_NAME`
-    """.trimIndent()
+      """
+        .trimIndent()
 
     val result = bigQuery.query(QueryJobConfiguration.of(sql))
-    val dataProviders = result.iterateAll().map { it["CmmsDataProvider"].stringValue }
+    val dataProviders =
+      result.iterateAll().map { it["CmmsDataProvider"].stringValue }
 
     if (result.totalRows > 0) {
       assertThat(dataProviders).containsExactly(EDP_RESOURCE_ID)
     }
-    logger.info("report_detail_$EDP_NAME: ${result.totalRows} rows, all for $EDP_RESOURCE_ID")
+    logger.info(
+      "report_detail_$EDP_NAME: ${result.totalRows} rows, all for $EDP_RESOURCE_ID"
+    )
   }
 
-  /** Column exclusion: per-EDP views contain no forbidden columns. */
   @Test
   fun noForbiddenColumnsInEdpViews() {
-    val sql = """
+    val sql =
+      """
       SELECT table_name, column_name
       FROM `$PROJECT.$EDP_DATASET.INFORMATION_SCHEMA.COLUMNS`
       WHERE table_name LIKE '%_$EDP_NAME'
-    """.trimIndent()
+      """
+        .trimIndent()
 
     val result = bigQuery.query(QueryJobConfiguration.of(sql))
     val violations = mutableListOf<String>()
@@ -193,7 +214,9 @@ class DashboardIsolationTest {
 
       for (pattern in FORBIDDEN_PATTERNS) {
         if (pattern.matches(columnName)) {
-          violations.add("$tableName: column '$columnName' matches forbidden pattern '${pattern.pattern}'")
+          violations.add(
+            "$tableName: column '$columnName' matches forbidden pattern '${pattern.pattern}'"
+          )
         }
       }
     }
@@ -202,17 +225,19 @@ class DashboardIsolationTest {
     logger.info("Column exclusion check passed for $EDP_NAME views")
   }
 
-  /** IAM boundary: EDP SA cannot access other EDPs' views. */
   @Test
   fun cannotAccessOtherEdpViews() {
-    val sql = """
+    val sql =
+      """
       SELECT table_name
       FROM `$PROJECT.$EDP_DATASET.INFORMATION_SCHEMA.TABLES`
       WHERE table_name NOT LIKE '%_$EDP_NAME'
-    """.trimIndent()
+      """
+        .trimIndent()
 
     val result = bigQuery.query(QueryJobConfiguration.of(sql))
-    val otherViews = result.iterateAll().map { it["table_name"].stringValue }.toList()
+    val otherViews =
+      result.iterateAll().map { it["table_name"].stringValue }.toList()
 
     for (viewName in otherViews) {
       try {
