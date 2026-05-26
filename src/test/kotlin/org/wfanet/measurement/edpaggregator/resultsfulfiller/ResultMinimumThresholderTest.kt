@@ -55,7 +55,7 @@ class ResultMinimumThresholderTest {
   }
 
   @Test
-  fun `passes through when protocol thresholds are sufficient`() {
+  fun `applyThresholds passes through when protocol thresholds are sufficient`() {
     val edpaThresholds =
       ResultMinimumThresholds(minUsers = 100, minImpressions = 10, reachMaxFrequencyPerUser = 5)
 
@@ -85,7 +85,7 @@ class ResultMinimumThresholderTest {
   }
 
   @Test
-  fun `passes through when protocol thresholds exceed EDPA thresholds`() {
+  fun `applyThresholds passes through when protocol thresholds exceed EDPA thresholds`() {
     val edpaThresholds =
       ResultMinimumThresholds(minUsers = 50, minImpressions = 5, reachMaxFrequencyPerUser = 5)
 
@@ -114,7 +114,7 @@ class ResultMinimumThresholderTest {
   }
 
   @Test
-  fun `returns original when no protocol thresholds and total meets EDPA thresholds`() {
+  fun `applyThresholds returns original when no protocol thresholds and total meets EDPA thresholds`() {
     val edpaThresholds =
       ResultMinimumThresholds(minUsers = 2, minImpressions = 2, reachMaxFrequencyPerUser = 10)
 
@@ -145,7 +145,7 @@ class ResultMinimumThresholderTest {
   }
 
   @Test
-  fun `zeros vector when no protocol thresholds and total reach below EDPA threshold`() {
+  fun `applyThresholds zeros vector when no protocol thresholds and total reach below EDPA threshold`() {
     val edpaThresholds =
       ResultMinimumThresholds(minUsers = 1000, minImpressions = 1000, reachMaxFrequencyPerUser = 10)
 
@@ -174,7 +174,7 @@ class ResultMinimumThresholderTest {
   }
 
   @Test
-  fun `zeros vector when protocol thresholds insufficient and total reach below EDPA threshold`() {
+  fun `applyThresholds zeros vector when protocol thresholds insufficient and total reach below EDPA threshold`() {
     val edpaThresholds =
       ResultMinimumThresholds(minUsers = 1000, minImpressions = 1000, reachMaxFrequencyPerUser = 10)
 
@@ -203,7 +203,7 @@ class ResultMinimumThresholderTest {
   }
 
   @Test
-  fun `zeros vector when total impressions below EDPA threshold but reach above`() {
+  fun `applyThresholds zeros vector when total impressions below EDPA threshold but reach above`() {
     val edpaThresholds =
       ResultMinimumThresholds(minUsers = 1, minImpressions = 10000, reachMaxFrequencyPerUser = 10)
 
@@ -232,7 +232,7 @@ class ResultMinimumThresholderTest {
   }
 
   @Test
-  fun `zeros vector when total reach below EDPA threshold but impressions above`() {
+  fun `applyThresholds zeros vector when total reach below EDPA threshold but impressions above`() {
     val edpaThresholds =
       ResultMinimumThresholds(minUsers = 1000, minImpressions = 1, reachMaxFrequencyPerUser = 10)
 
@@ -261,7 +261,7 @@ class ResultMinimumThresholderTest {
   }
 
   @Test
-  fun `returns empty vector for empty input data`() {
+  fun `applyThresholds returns empty vector for empty input data`() {
     val edpaThresholds =
       ResultMinimumThresholds(minUsers = 10, minImpressions = 10, reachMaxFrequencyPerUser = 5)
 
@@ -288,7 +288,7 @@ class ResultMinimumThresholderTest {
   }
 
   @Test
-  fun `zeros vector when protocol min_users sufficient but min_impressions not`() {
+  fun `applyThresholds zeros vector when protocol min_users sufficient but min_impressions not`() {
     val edpaThresholds =
       ResultMinimumThresholds(minUsers = 100, minImpressions = 100, reachMaxFrequencyPerUser = 5)
 
@@ -317,7 +317,7 @@ class ResultMinimumThresholderTest {
   }
 
   @Test
-  fun `zeros vector when protocol min_impressions sufficient but min_users not`() {
+  fun `applyThresholds zeros vector when protocol min_impressions sufficient but min_users not`() {
     val edpaThresholds =
       ResultMinimumThresholds(minUsers = 100, minImpressions = 100, reachMaxFrequencyPerUser = 5)
 
@@ -340,6 +340,36 @@ class ResultMinimumThresholderTest {
         maxPopulation = null,
         protocolMinUsers = 50,
         protocolMinImpressions = 200,
+      )
+
+    assertThat(result).isEqualTo(buildEmptyVector())
+  }
+
+  @Test
+  fun `applyThresholds zeros vector when maxPopulation caps reach below threshold`() {
+    val edpaThresholds =
+      ResultMinimumThresholds(minUsers = 100, minImpressions = 10, reachMaxFrequencyPerUser = 10)
+
+    val frequencyData = ByteArray(100) { if (it < 50) 1.toByte() else 0.toByte() }
+    val builder =
+      FrequencyVectorBuilder(
+        measurementSpec = measurementSpec,
+        populationSpec = populationSpec,
+        frequencyDataBytes = frequencyData,
+        strict = false,
+        resultMinimumThresholds = edpaThresholds,
+        overrideImpressionMaxFrequencyPerUser = null,
+      )
+
+    val result =
+      ResultMinimumThresholder.applyThresholds(
+        measurementSpec,
+        populationSpec,
+        builder,
+        edpaThresholds,
+        maxPopulation = 2,
+        protocolMinUsers = 0,
+        protocolMinImpressions = 0,
       )
 
     assertThat(result).isEqualTo(buildEmptyVector())

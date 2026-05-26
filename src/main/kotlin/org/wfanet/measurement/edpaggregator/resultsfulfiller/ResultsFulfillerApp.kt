@@ -162,13 +162,13 @@ class ResultsFulfillerApp(
     val resultMinimumThresholds: ResultMinimumThresholds? =
       if (fulfillerParams.hasKAnonymityParams()) {
         require(fulfillerParams.kAnonymityParams.minUsers > 0) {
-          "k-anonymity minUsers must be greater than 0, got ${fulfillerParams.kAnonymityParams.minUsers}"
+          "Result minimum thresholds minUsers must be greater than 0, got ${fulfillerParams.kAnonymityParams.minUsers}"
         }
         require(fulfillerParams.kAnonymityParams.minImpressions > 0) {
-          "k-anonymity minImpressions must be greater than 0, got ${fulfillerParams.kAnonymityParams.minImpressions}"
+          "Result minimum thresholds minImpressions must be greater than 0, got ${fulfillerParams.kAnonymityParams.minImpressions}"
         }
         require(fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser > 0) {
-          "k-anonymity reachMaxFrequencyPerUser must be greater than 0, got ${fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser}"
+          "Result minimum thresholds reachMaxFrequencyPerUser must be greater than 0, got ${fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser}"
         }
         ResultMinimumThresholds(
           minUsers = fulfillerParams.kAnonymityParams.minUsers,

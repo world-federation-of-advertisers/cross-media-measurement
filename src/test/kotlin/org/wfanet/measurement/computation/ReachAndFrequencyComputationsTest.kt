@@ -117,7 +117,6 @@ class ReachAndFrequencyComputationsTest {
   @Test
   fun `computeReach with noise and small-cell suppression`() {
     val rawHistogram = longArrayOf(100, 50, 20) // Reach in sample = 170
-    val tolerance = getNoiseTolerance(DP_PARAMS)
     val reach =
       ReachAndFrequencyComputations.computeReach(
         rawHistogram,
@@ -127,7 +126,9 @@ class ReachAndFrequencyComputationsTest {
         resultMinimumThresholds =
           ResultMinimumThresholds(minUsers = 30, minImpressions = 50, reachMaxFrequencyPerUser = 3),
       )
-    assertThat(reach).isEqualTo(170)
+    val tolerance = getNoiseTolerance(DP_PARAMS)
+    assertThat(reach).isAtMost(min(200, 170 + tolerance))
+    assertThat(reach).isAtLeast(max(0L, 170 - tolerance))
   }
 
   @Test
@@ -275,11 +276,8 @@ class ReachAndFrequencyComputationsTest {
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 11, minImpressions = 5),
         vidSamplingIntervalWidth = 1.0,
       )
-    // With fold-down + noise, outcome is non-deterministic. Either all zeros or sums to 1.
     val sum = distribution.values.sum()
-    if (sum != 0.0) {
-      assertThat(sum).isWithin(FLOAT_COMPARISON_TOLERANCE).of(1.0)
-    }
+    assertThat(sum == 0.0 || Math.abs(sum - 1.0) < FLOAT_COMPARISON_TOLERANCE).isTrue()
   }
 
   @Test

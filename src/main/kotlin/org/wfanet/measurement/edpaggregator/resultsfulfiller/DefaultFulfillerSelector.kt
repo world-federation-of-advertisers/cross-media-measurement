@@ -191,9 +191,9 @@ class DefaultFulfillerSelector(
         totalUncappedImpressions = totalUncappedImpressions,
       )
     } else if (requisition.protocolConfig.protocolsList.any { it.hasTrusTee() }) {
-      val trusTeeNoiseMechanism =
-        requisition.protocolConfig.protocolsList.first { it.hasTrusTee() }.trusTee.noiseMechanism
-      validateMultiPartyNoiseMechanism(trusTeeNoiseMechanism)
+      val trusTeeProtocolConfig =
+        requisition.protocolConfig.protocolsList.first { it.hasTrusTee() }.trusTee
+      validateMultiPartyNoiseMechanism(trusTeeProtocolConfig.noiseMechanism)
 
       // Build TrusTee encryption params dynamically using the kekUri from BlobDetails.
       // If kekUri is not null, trusTeeConfig must be provided.
@@ -227,16 +227,12 @@ class DefaultFulfillerSelector(
           trusTeeEncryptionParams,
         )
       } else {
-        val trusTeeProtocolConfig =
-          requisition.protocolConfig.protocolsList.first { it.hasTrusTee() }.trusTee
-        val protocolMinUsers =
+        val protocolThresholds =
           if (trusTeeProtocolConfig.hasResultMinimumThresholds())
-            trusTeeProtocolConfig.resultMinimumThresholds.minUsers
-          else 0
-        val protocolMinImpressions =
-          if (trusTeeProtocolConfig.hasResultMinimumThresholds())
-            trusTeeProtocolConfig.resultMinimumThresholds.minImpressions
-          else 0
+            trusTeeProtocolConfig.resultMinimumThresholds
+          else null
+        val protocolMinUsers = protocolThresholds?.minUsers ?: 0
+        val protocolMinImpressions = protocolThresholds?.minImpressions ?: 0
         TrusTeeMeasurementFulfiller.buildThresholded(
           requisition,
           requisitionSpec.nonce,
