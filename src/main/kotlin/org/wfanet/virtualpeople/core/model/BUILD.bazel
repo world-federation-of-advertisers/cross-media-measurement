@@ -13,6 +13,7 @@ kt_jvm_library(
         "ModelNode.kt",
         "MultiplicityImpl.kt",
         "PopulationNodeImpl.kt",
+        "RankedPopulationNodeImpl.kt",
         "SparseUpdateMatrixImpl.kt",
         "StopNodeImpl.kt",
         "UpdateMatrixImpl.kt",

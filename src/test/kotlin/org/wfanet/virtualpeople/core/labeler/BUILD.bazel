@@ -1,6 +1,17 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 kt_jvm_test(
+    name = "RankedLabelingIntegrationTest",
+    srcs = ["RankedLabelingIntegrationTest.kt"],
+    test_class = "org.wfanet.virtualpeople.core.labeler.RankedLabelingIntegrationTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/labeler",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
     name = "LabelerTest",
     srcs = ["LabelerTest.kt"],
     test_class = "org.wfanet.virtualpeople.core.labeler.LabelerTest",
