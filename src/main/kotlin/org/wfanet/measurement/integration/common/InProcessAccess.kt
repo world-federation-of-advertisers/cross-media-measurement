@@ -16,12 +16,16 @@
 
 package org.wfanet.measurement.integration.common
 
+import com.google.protobuf.util.Durations
 import io.grpc.Channel
+import io.grpc.serviceconfig.methodConfig
+import io.grpc.serviceconfig.serviceConfig
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.access.service.internal.Services as InternalServices
 import org.wfanet.measurement.access.service.v1alpha.Services
+import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 
@@ -30,7 +34,10 @@ class InProcessAccess(
   private val getInternalServices: () -> InternalServices,
 ) : TestRule {
   private val internalAccessServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+    GrpcTestServerRule(
+      logAllRequests = verboseGrpcLogging,
+      defaultServiceConfig = IN_PROCESS_SERVICE_CONFIG,
+    ) {
       val services = getInternalServices().toList()
       for (service in services) {
         addService(service)
@@ -38,7 +45,10 @@ class InProcessAccess(
     }
 
   private val accessServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+    GrpcTestServerRule(
+      logAllRequests = verboseGrpcLogging,
+      defaultServiceConfig = IN_PROCESS_SERVICE_CONFIG,
+    ) {
       val internalChannel = internalAccessServer.channel
       val services = Services.build(internalChannel).toList()
       for (service in services) {
@@ -51,5 +61,18 @@ class InProcessAccess(
 
   override fun apply(base: Statement, description: Description): Statement {
     return chainRulesSequentially(internalAccessServer, accessServer).apply(base, description)
+  }
+
+  companion object {
+    private val IN_PROCESS_SERVICE_CONFIG =
+      ProtobufServiceConfig(
+        serviceConfig {
+          methodConfig += methodConfig {
+            name += io.grpc.serviceconfig.MethodConfig.Name.getDefaultInstance()
+            timeout = Durations.fromSeconds(600)
+            retryPolicy = ProtobufServiceConfig.DEFAULT.message.methodConfigList[0].retryPolicy
+          }
+        }
+      )
   }
 }

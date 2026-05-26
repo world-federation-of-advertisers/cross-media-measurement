@@ -14,13 +14,17 @@
 
 package org.wfanet.measurement.integration.common
 
+import com.google.protobuf.util.Durations
 import io.grpc.Channel
+import io.grpc.serviceconfig.methodConfig
+import io.grpc.serviceconfig.serviceConfig
 import java.util.logging.Logger
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.InternalApiServices
@@ -40,7 +44,10 @@ class InProcessEdpAggregatorSystemApi(
     SpannerEmulatorDatabaseRule(emulatorDatabaseAdmin, Schemata.EDP_AGGREGATOR_CHANGELOG_PATH)
 
   private val internalApiServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+    GrpcTestServerRule(
+      logAllRequests = verboseGrpcLogging,
+      defaultServiceConfig = IN_PROCESS_SERVICE_CONFIG,
+    ) {
       logger.info("Building Edp Aggregator's internal API services")
       InternalApiServices.build(spannerDatabase.databaseClient, serviceContext).toList().forEach {
         logger.info("Adding service $it")
@@ -49,7 +56,10 @@ class InProcessEdpAggregatorSystemApi(
     }
 
   private val publicApiServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+    GrpcTestServerRule(
+      logAllRequests = verboseGrpcLogging,
+      defaultServiceConfig = IN_PROCESS_SERVICE_CONFIG,
+    ) {
       logger.info("Building Edp Aggregator's system API services")
       Services.build(internalApiChannel, serviceContext).toList().forEach {
         logger.info("Adding service $it")
@@ -70,6 +80,17 @@ class InProcessEdpAggregatorSystemApi(
   }
 
   companion object {
+    private val IN_PROCESS_SERVICE_CONFIG =
+      ProtobufServiceConfig(
+        serviceConfig {
+          methodConfig += methodConfig {
+            name += io.grpc.serviceconfig.MethodConfig.Name.getDefaultInstance()
+            timeout = Durations.fromSeconds(600)
+            retryPolicy = ProtobufServiceConfig.DEFAULT.message.methodConfigList[0].retryPolicy
+          }
+        }
+      )
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

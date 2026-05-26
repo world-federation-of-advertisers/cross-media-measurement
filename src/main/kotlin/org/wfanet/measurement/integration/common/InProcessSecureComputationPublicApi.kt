@@ -14,13 +14,17 @@
 
 package org.wfanet.measurement.integration.common
 
+import com.google.protobuf.util.Durations
 import io.grpc.Channel
+import io.grpc.serviceconfig.methodConfig
+import io.grpc.serviceconfig.serviceConfig
 import java.util.logging.Logger
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.Services
@@ -36,7 +40,10 @@ class InProcessSecureComputationPublicApi(
   private val internalServices: InternalApiServices by lazy { internalServicesProvider() }
 
   private val internalApiServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+    GrpcTestServerRule(
+      logAllRequests = verboseGrpcLogging,
+      defaultServiceConfig = IN_PROCESS_SERVICE_CONFIG,
+    ) {
       logger.info("Building Control Plane's internal API services")
       internalServices.build(serviceContext).toList().forEach {
         logger.info("Adding service $it")
@@ -45,7 +52,10 @@ class InProcessSecureComputationPublicApi(
     }
 
   private val publicApiServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+    GrpcTestServerRule(
+      logAllRequests = verboseGrpcLogging,
+      defaultServiceConfig = IN_PROCESS_SERVICE_CONFIG,
+    ) {
       logger.info("Building Control Plane's public API services")
       Services.build(internalApiChannel, serviceContext).toList().forEach {
         logger.info("Adding service $it")
@@ -65,6 +75,17 @@ class InProcessSecureComputationPublicApi(
   }
 
   companion object {
+    private val IN_PROCESS_SERVICE_CONFIG =
+      ProtobufServiceConfig(
+        serviceConfig {
+          methodConfig += methodConfig {
+            name += io.grpc.serviceconfig.MethodConfig.Name.getDefaultInstance()
+            timeout = Durations.fromSeconds(600)
+            retryPolicy = ProtobufServiceConfig.DEFAULT.message.methodConfigList[0].retryPolicy
+          }
+        }
+      )
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

@@ -423,6 +423,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/access/service/internal:services",
         "//src/main/kotlin/org/wfanet/measurement/access/service/v1alpha:services",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
