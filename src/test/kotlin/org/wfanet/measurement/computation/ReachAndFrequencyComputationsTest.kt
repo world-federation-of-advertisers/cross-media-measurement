@@ -127,8 +127,8 @@ class ReachAndFrequencyComputationsTest {
           ResultMinimumThresholds(minUsers = 30, minImpressions = 50, reachMaxFrequencyPerUser = 3),
       )
     val tolerance = getNoiseTolerance(DP_PARAMS)
-    assertThat(reach).isAtMost(min(200, 170 + tolerance))
-    assertThat(reach).isAtLeast(max(0L, 170 - tolerance))
+    assertThat(reach).isAtLeast(170 - tolerance)
+    assertThat(reach).isAtMost(170 + tolerance)
   }
 
   @Test
