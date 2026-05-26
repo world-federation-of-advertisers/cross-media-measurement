@@ -54,6 +54,7 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
     duchyNames,
     hmssEnabled,
     trusTeeEnabled,
+    multiEdpDisplayNames = setOf("edp1", "edp2"),
   ) {
 
   @Test

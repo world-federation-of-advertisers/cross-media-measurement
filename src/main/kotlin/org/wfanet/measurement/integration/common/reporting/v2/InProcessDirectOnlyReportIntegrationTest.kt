@@ -34,13 +34,16 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -50,11 +53,13 @@ import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.internal.reporting.v2.ListImpressionQualificationFiltersPageTokenKt
+import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listImpressionQualificationFiltersPageToken
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpecKt
@@ -136,11 +141,53 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     trusTeeEnabled,
   ) {
 
-  private suspend fun assertDirectProtocolUsed(reportName: String) {
-    val measurements = listMeasurements()
-    val lastMeasurement = measurements.last()
-    val protocol = lastMeasurement.protocolConfig.protocolsList.single()
-    assertWithMessage("protocol is direct for $reportName").that(protocol.hasDirect()).isTrue()
+  private suspend fun assertDirectProtocolUsed(resourceName: String) {
+    val measurements = getMeasurementsForResource(resourceName)
+    assertWithMessage("measurements for $resourceName").that(measurements).isNotEmpty()
+    for (measurement in measurements) {
+      val protocol = measurement.protocolConfig.protocolsList.single()
+      assertWithMessage("protocol is direct for ${measurement.name}")
+        .that(protocol.hasDirect())
+        .isTrue()
+    }
+  }
+
+  private suspend fun getMeasurementsForResource(resourceName: String): List<Measurement> {
+    val filterField: String
+    val filterValue: String
+    when {
+      resourceName.contains("/basicReports/") -> {
+        val basicReportKey = BasicReportKey.fromName(resourceName)!!
+        val internalBasicReport =
+          reportingServer.internalBasicReportsClient.getBasicReport(
+            internalGetBasicReportRequest {
+              cmmsMeasurementConsumerId = basicReportKey.cmmsMeasurementConsumerId
+              externalBasicReportId = basicReportKey.basicReportId
+            }
+          )
+        filterField = "report"
+        filterValue =
+          ReportKey(
+              internalBasicReport.cmmsMeasurementConsumerId,
+              internalBasicReport.externalReportId,
+            )
+            .toName()
+      }
+      resourceName.contains("/reports/") -> {
+        filterField = "report"
+        filterValue = resourceName
+      }
+      resourceName.contains("/metrics/") -> {
+        filterField = "metric"
+        filterValue = resourceName
+      }
+      else -> error("Unknown resource type: $resourceName")
+    }
+    return listMeasurements().filter {
+      val metadata = it.measurementSpec.unpack<MeasurementSpec>().reportingMetadata
+      if (filterField == "report") metadata.report == filterValue
+      else metadata.metric == filterValue
+    }
   }
 
   @Test

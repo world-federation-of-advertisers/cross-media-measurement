@@ -63,6 +63,7 @@ import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -72,6 +73,7 @@ import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
@@ -165,6 +167,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   private val duchyNames: List<String> = ALL_DUCHY_NAMES,
   private val hmssEnabled: Boolean,
   private val trusTeeEnabled: Boolean,
+  private val multiEdpDisplayNames: Set<String> = emptySet(),
 ) {
 
   private val pubSubClient: GooglePubSubEmulatorClient by lazy {
@@ -911,28 +914,58 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .measurementsList
   }
 
-  protected suspend fun assertExpectedProtocolUsed(reportName: String) {
-    val measurements = listMeasurements()
-    val lastMeasurement = measurements.last()
-    val protocol = lastMeasurement.protocolConfig.protocolsList.single()
-    if (hmssEnabled && trusTeeEnabled) {
-      assertWithMessage("protocol for $reportName should be HMSS or TrusTee")
-        .that(protocol.hasDirect())
-        .isFalse()
-    } else if (hmssEnabled) {
-      assertWithMessage("protocol is HMSS for $reportName")
-        .that(protocol.hasHonestMajorityShareShuffle())
-        .isTrue()
-    } else if (trusTeeEnabled) {
-      assertWithMessage("protocol is TrusTee for $reportName").that(protocol.hasTrusTee()).isTrue()
+  private suspend fun getReportMeasurements(basicReportName: String): List<Measurement> {
+    val basicReportKey = BasicReportKey.fromName(basicReportName)!!
+    val internalBasicReport =
+      reportingServer.internalBasicReportsClient.getBasicReport(
+        internalGetBasicReportRequest {
+          cmmsMeasurementConsumerId = basicReportKey.cmmsMeasurementConsumerId
+          externalBasicReportId = basicReportKey.basicReportId
+        }
+      )
+    val reportName =
+      ReportKey(internalBasicReport.cmmsMeasurementConsumerId, internalBasicReport.externalReportId)
+        .toName()
+    return listMeasurements().filter {
+      it.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.report == reportName
     }
   }
 
-  protected suspend fun assertDirectProtocolUsed(reportName: String) {
-    val measurements = listMeasurements()
-    val lastMeasurement = measurements.last()
-    val protocol = lastMeasurement.protocolConfig.protocolsList.single()
-    assertWithMessage("protocol is direct for $reportName").that(protocol.hasDirect()).isTrue()
+  protected suspend fun assertExpectedProtocolUsed(basicReportName: String) {
+    check(!(hmssEnabled && trusTeeEnabled)) {
+      "Tests must set exactly one of hmssEnabled or trusTeeEnabled"
+    }
+    val measurements = getReportMeasurements(basicReportName)
+    assertWithMessage("measurements for $basicReportName").that(measurements).isNotEmpty()
+    var mpcProtocolFound = false
+    for (measurement in measurements) {
+      val protocol = measurement.protocolConfig.protocolsList.single()
+      if (hmssEnabled) {
+        assertWithMessage("protocol is direct or HMSS for ${measurement.name}")
+          .that(protocol.hasDirect() || protocol.hasHonestMajorityShareShuffle())
+          .isTrue()
+        if (protocol.hasHonestMajorityShareShuffle()) mpcProtocolFound = true
+      } else {
+        assertWithMessage("protocol is direct or TrusTee for ${measurement.name}")
+          .that(protocol.hasDirect() || protocol.hasTrusTee())
+          .isTrue()
+        if (protocol.hasTrusTee()) mpcProtocolFound = true
+      }
+    }
+    assertWithMessage("at least one MPC protocol measurement for $basicReportName")
+      .that(mpcProtocolFound)
+      .isTrue()
+  }
+
+  protected suspend fun assertDirectProtocolUsed(basicReportName: String) {
+    val measurements = getReportMeasurements(basicReportName)
+    assertWithMessage("measurements for $basicReportName").that(measurements).isNotEmpty()
+    for (measurement in measurements) {
+      val protocol = measurement.protocolConfig.protocolsList.single()
+      assertWithMessage("protocol is direct for ${measurement.name}")
+        .that(protocol.hasDirect())
+        .isTrue()
+    }
   }
 
   protected suspend fun listReportingEventGroups(): List<EventGroup> {
@@ -1055,7 +1088,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
-  private suspend fun getEventGroupsByEdp(excludeEdpDisplayNames: Set<String>): List<EventGroup> {
+  private suspend fun getEventGroupsByEdp(
+    includeEdpDisplayNames: Set<String>,
+    excludeEdpDisplayNames: Set<String> = emptySet(),
+  ): List<EventGroup> {
     return buildList {
       val includedDataProviders = mutableSetOf<String>()
       val eventGroups =
@@ -1071,7 +1107,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           inProcessCmmsComponents.getDataProviderDisplayNameFromDataProviderName(dataProvider.name)
         if (
           !includedDataProviders.contains(dataProvider.name) &&
-            displayName !in excludeEdpDisplayNames
+            displayName !in excludeEdpDisplayNames &&
+            (includeEdpDisplayNames.isEmpty() || displayName in includeEdpDisplayNames)
         ) {
           includedDataProviders.add(dataProvider.name)
           add(eventGroup)
@@ -1081,7 +1118,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   }
 
   protected suspend fun getMultiEdpEventGroups(): List<EventGroup> =
-    getEventGroupsByEdp(setOf(RESTRICTED_EDP_DISPLAY_NAME)).take(2)
+    getEventGroupsByEdp(multiEdpDisplayNames)
 
   protected suspend fun getMultiEdpEventGroupsIncludingRestrictedEdp(): List<EventGroup> {
     val allGroups = getEventGroupsByEdp(emptySet())
