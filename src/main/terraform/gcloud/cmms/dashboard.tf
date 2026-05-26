@@ -92,10 +92,91 @@ resource "google_bigquery_routine" "decode_event_group_details" {
   ]
 
   definition_body = <<-JS
+    // SECURITY: Allowlisted output only. Do not return full decoded proto.
+    // Adding new fields requires security review for cross-EDP data leakage.
     const root = protobuf.Root.fromJSON(DESCRIPTOR_kingdom);
     const T = root.lookupType('wfa.measurement.internal.kingdom.EventGroupDetails');
     const m = T.decode(new Uint8Array(b));
-    return JSON.stringify(T.toObject(m, {longs: Number, enums: String, defaults: true}));
+    const decoded = T.toObject(m, {longs: Number, enums: String, defaults: true});
+    return JSON.stringify({
+      metadata: {
+        adMetadata: {
+          campaignMetadata: {
+            brandName: (decoded.metadata && decoded.metadata.adMetadata && decoded.metadata.adMetadata.campaignMetadata) ? decoded.metadata.adMetadata.campaignMetadata.brandName : null,
+            campaignName: (decoded.metadata && decoded.metadata.adMetadata && decoded.metadata.adMetadata.campaignMetadata) ? decoded.metadata.adMetadata.campaignMetadata.campaignName : null
+          }
+        }
+      }
+    });
+  JS
+}
+
+resource "google_bigquery_routine" "decode_basic_report_details" {
+  dataset_id   = google_bigquery_dataset.dashboard_views.dataset_id
+  project      = data.google_client_config.default.project
+  routine_id   = "decode_BasicReportDetails"
+  routine_type = "SCALAR_FUNCTION"
+  language     = "JAVASCRIPT"
+
+  arguments {
+    name      = "b"
+    data_type = jsonencode({ "typeKind" : "BYTES" })
+  }
+
+  return_type = jsonencode({ "typeKind" : "STRING" })
+
+  imported_libraries = [
+    "gs://${google_storage_bucket.dashboard_udfs.name}/lib/protobuf.global.min.js",
+    "gs://${google_storage_bucket.dashboard_udfs.name}/descriptors/reporting_descriptor.js",
+  ]
+
+  definition_body = <<-JS
+    // SECURITY: Allowlisted output only. Do not return full decoded proto.
+    // EXCLUDED: result_group_specs (contains data_provider_keys listing all EDPs).
+    // Adding new fields requires security review for cross-EDP data leakage.
+    const root = protobuf.Root.fromJSON(DESCRIPTOR_reporting);
+    const T = root.lookupType('wfa.measurement.internal.reporting.v2.BasicReportDetails');
+    const m = T.decode(new Uint8Array(b));
+    const decoded = T.toObject(m, {longs: Number, enums: String, defaults: true});
+    return JSON.stringify({
+      title: decoded.title || null,
+      reportingInterval: decoded.reportingInterval || null,
+      impressionQualificationFilters: decoded.impressionQualificationFilters || null
+    });
+  JS
+}
+
+resource "google_bigquery_routine" "decode_basic_report_result_details" {
+  dataset_id   = google_bigquery_dataset.dashboard_views.dataset_id
+  project      = data.google_client_config.default.project
+  routine_id   = "decode_BasicReportResultDetails"
+  routine_type = "SCALAR_FUNCTION"
+  language     = "JAVASCRIPT"
+
+  arguments {
+    name      = "b"
+    data_type = jsonencode({ "typeKind" : "BYTES" })
+  }
+
+  return_type = jsonencode({ "typeKind" : "STRING" })
+
+  imported_libraries = [
+    "gs://${google_storage_bucket.dashboard_udfs.name}/lib/protobuf.global.min.js",
+    "gs://${google_storage_bucket.dashboard_udfs.name}/descriptors/reporting_descriptor.js",
+  ]
+
+  definition_body = <<-JS
+    // SECURITY: Allowlisted output only. Do not return full decoded proto.
+    // EXCLUDED: Any future top-level aggregate fields that span across EDPs.
+    // The view filters per-EDP at the component level via cmmsDataProviderId.
+    // Adding new fields requires security review for cross-EDP data leakage.
+    const root = protobuf.Root.fromJSON(DESCRIPTOR_reporting);
+    const T = root.lookupType('wfa.measurement.internal.reporting.v2.BasicReportResultDetails');
+    const m = T.decode(new Uint8Array(b));
+    const decoded = T.toObject(m, {longs: Number, enums: String, defaults: true});
+    return JSON.stringify({
+      resultGroups: decoded.resultGroups || []
+    });
   JS
 }
 
@@ -125,30 +206,16 @@ resource "google_bigquery_connection" "kingdom" {
   }
 }
 
-# --- BigQuery Connection (Cloud SQL - Reporting Postgres) ---
-
-resource "google_bigquery_connection" "reporting_postgres" {
-  connection_id = "reporting-postgres-conn"
+resource "google_bigquery_connection" "reporting" {
+  connection_id = "reporting-conn"
   project       = data.google_client_config.default.project
   location      = data.google_client_config.default.region
 
-  cloud_sql {
-    instance_id = google_sql_database_instance.postgres.connection_name
-    database    = "reporting-v2"
-    type        = "POSTGRES"
-
-    credential {
-      username = google_sql_user.postgres.name
-      password = google_sql_user.postgres.password
-    }
+  cloud_spanner {
+    database        = "projects/${data.google_client_config.default.project}/instances/${google_spanner_instance.spanner_instance.name}/databases/reporting"
+    use_data_boost  = true
+    use_parallelism = true
   }
-}
-
-# IAM: BigQuery Connection Service Agent needs roles/cloudsql.client
-resource "google_project_iam_member" "bq_cloudsql_client" {
-  project = data.google_client_config.default.project
-  role    = "roles/cloudsql.client"
-  member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com"
 }
 
 data "google_project" "project" {
@@ -183,23 +250,6 @@ resource "google_bigquery_table" "mc_details" {
 
   view {
     query = templatefile("${path.module}/sql/mc_details.sql", {
-      project_id       = data.google_client_config.default.project
-      region           = data.google_client_config.default.region
-      data_provider_id = each.value
-    })
-    use_legacy_sql = false
-  }
-}
-
-resource "google_bigquery_table" "edp_coverage" {
-  for_each   = var.data_provider_resource_ids
-  dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
-  project    = data.google_client_config.default.project
-  table_id   = "edp_coverage_${each.key}"
-  deletion_protection = false
-
-  view {
-    query = templatefile("${path.module}/sql/edp_coverage.sql", {
       project_id       = data.google_client_config.default.project
       region           = data.google_client_config.default.region
       data_provider_id = each.value
@@ -244,15 +294,34 @@ resource "google_bigquery_table" "mc_details_platform" {
   }
 }
 
-resource "google_bigquery_table" "edp_coverage_platform" {
+# --- Report Detail Views ---
+
+resource "google_bigquery_table" "report_detail" {
+  for_each   = var.data_provider_resource_ids
+  dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
+  project    = data.google_client_config.default.project
+  table_id   = "report_detail_${each.key}"
+  deletion_protection = false
+
+  view {
+    query = templatefile("${path.module}/sql/report_detail.sql", {
+      project_id       = data.google_client_config.default.project
+      region           = data.google_client_config.default.region
+      data_provider_id = each.value
+    })
+    use_legacy_sql = false
+  }
+}
+
+resource "google_bigquery_table" "report_detail_platform" {
   dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
   project    = data.google_client_config.default.project
-  table_id   = "edp_coverage_platform"
+  table_id   = "report_detail_platform"
   description = "Platform view - all EDPs"
 
   deletion_protection = false
   view {
-    query = templatefile("${path.module}/sql/edp_coverage.sql", {
+    query = templatefile("${path.module}/sql/report_detail.sql", {
       project_id       = data.google_client_config.default.project
       region           = data.google_client_config.default.region
       data_provider_id = ""
@@ -289,11 +358,11 @@ resource "google_bigquery_table_iam_member" "mc_details_viewer" {
   member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }
 
-resource "google_bigquery_table_iam_member" "edp_coverage_viewer" {
+resource "google_bigquery_table_iam_member" "report_detail_viewer" {
   for_each   = var.data_provider_resource_ids
   project    = data.google_client_config.default.project
   dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
-  table_id   = google_bigquery_table.edp_coverage[each.key].table_id
+  table_id   = google_bigquery_table.report_detail[each.key].table_id
   role       = "roles/bigquery.dataViewer"
   member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }
@@ -342,8 +411,8 @@ resource "google_bigquery_dataset_access" "edp_mc_details_authorized" {
   }
 }
 
-resource "google_bigquery_dataset_access" "edp_coverage_authorized" {
-  for_each   = google_bigquery_table.edp_coverage
+resource "google_bigquery_dataset_access" "edp_report_detail_authorized" {
+  for_each   = google_bigquery_table.report_detail
   dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
   project    = data.google_client_config.default.project
   view {
@@ -353,50 +422,13 @@ resource "google_bigquery_dataset_access" "edp_coverage_authorized" {
   }
 }
 
-# EDP service accounts need connection access for EXTERNAL_QUERY in views
-resource "google_bigquery_connection_iam_member" "edp_aggregator_user" {
-  for_each      = var.data_provider_resource_ids
-  project       = data.google_client_config.default.project
-  location      = data.google_client_config.default.region
-  connection_id = google_bigquery_connection.edp_aggregator.connection_id
-  role          = "roles/bigquery.connectionUser"
-  member        = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
-}
+# REMOVED: bigquery.connectionUser grants for EDP SAs.
+# Authorized views execute EXTERNAL_QUERY via the connection service agent,
+# not the querying user. Granting connectionUser would allow bypassing
+# view-level filtering with arbitrary EXTERNAL_QUERY.
 
-resource "google_bigquery_connection_iam_member" "kingdom_user" {
-  for_each      = var.data_provider_resource_ids
-  project       = data.google_client_config.default.project
-  location      = data.google_client_config.default.region
-  connection_id = google_bigquery_connection.kingdom.connection_id
-  role          = "roles/bigquery.connectionUser"
-  member        = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
-}
-
-resource "google_bigquery_connection_iam_member" "reporting_postgres_user" {
-  for_each      = var.data_provider_resource_ids
-  project       = data.google_client_config.default.project
-  location      = data.google_client_config.default.region
-  connection_id = google_bigquery_connection.reporting_postgres.connection_id
-  role          = "roles/bigquery.connectionUser"
-  member        = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
-}
-
-# EDP service accounts need Spanner read access for EXTERNAL_QUERY
-resource "google_spanner_database_iam_member" "edp_aggregator_reader" {
-  for_each = var.data_provider_resource_ids
-  instance = google_spanner_instance.spanner_instance.name
-  database = "edp-aggregator"
-  role     = "roles/spanner.databaseReaderWithDataBoost"
-  member   = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
-}
-
-resource "google_spanner_database_iam_member" "kingdom_reader" {
-  for_each = var.data_provider_resource_ids
-  instance = google_spanner_instance.spanner_instance.name
-  database = "kingdom"
-  role     = "roles/spanner.databaseReaderWithDataBoost"
-  member   = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
-}
+# REMOVED: spanner.databaseReaderWithDataBoost grants for EDP SAs.
+# The BQ connection SA reads Spanner, not the end-user SAs.
 
 # --- GCS Bucket for UDF Libraries ---
 
@@ -418,6 +450,12 @@ resource "google_storage_bucket_object" "kingdom_descriptor" {
   name   = "descriptors/kingdom_descriptor.js"
   bucket = google_storage_bucket.dashboard_udfs.name
   source = "${path.module}/udf_libs/kingdom_descriptor.js"
+}
+
+resource "google_storage_bucket_object" "reporting_descriptor" {
+  name   = "descriptors/reporting_descriptor.js"
+  bucket = google_storage_bucket.dashboard_udfs.name
+  source = "${path.module}/udf_libs/reporting_descriptor.js"
 }
 
 # EDP service accounts need read access to UDF library files

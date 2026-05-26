@@ -1,0 +1,22 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "DashboardViewIsolationLocalTest",
+    srcs = ["DashboardViewIsolationLocalTest.kt"],
+    data = [
+        "//src/main/terraform/gcloud/cmms/sql:requisition_overview.sql",
+        "//src/main/terraform/gcloud/cmms/sql:mc_details.sql",
+        "//src/main/terraform/gcloud/cmms/sql:report_detail.sql",
+    ],
+    tags = ["no-remote-exec"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/testing:schemata",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing:schemata",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
