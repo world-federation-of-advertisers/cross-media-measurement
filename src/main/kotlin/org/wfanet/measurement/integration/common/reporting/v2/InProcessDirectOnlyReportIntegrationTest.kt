@@ -146,9 +146,9 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     assertWithMessage("measurements for $resourceName").that(measurements).isNotEmpty()
     for (measurement in measurements) {
       val protocol = measurement.protocolConfig.protocolsList.single()
-      assertWithMessage("protocol is direct for ${measurement.name}")
-        .that(protocol.hasDirect())
-        .isTrue()
+      assertWithMessage("protocol for ${measurement.name}")
+        .that(protocol.protocolCase)
+        .isEqualTo(expectedProtocol)
     }
   }
 

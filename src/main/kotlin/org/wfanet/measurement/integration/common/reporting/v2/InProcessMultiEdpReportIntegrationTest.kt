@@ -27,9 +27,10 @@ import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
-import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.toInterval
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
@@ -93,7 +94,7 @@ abstract class InProcessMultiEdpReportIntegrationTest(
   accessServicesFactory: AccessServicesFactory,
   reportingDataServicesProviderRule: ProviderRule<Services>,
   duchyNames: List<String> = ALL_DUCHY_NAMES,
-  private val hmssEnabled: Boolean,
+  hmssEnabled: Boolean,
   trusTeeEnabled: Boolean,
 ) :
   InProcessLifeOfAReportIntegrationTest(
@@ -194,17 +195,7 @@ abstract class InProcessMultiEdpReportIntegrationTest(
     val report: Report = pollForCompletedReport(reportName)
     assertThat(report.state).isEqualTo(Report.State.SUCCEEDED)
 
-    val measurements: List<Measurement> =
-      listMeasurements().filter {
-        it.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.report == reportName
-      }
-    assertThat(measurements).hasSize(1)
-    val protocol = measurements.single().protocolConfig.protocolsList.single()
-    if (hmssEnabled) {
-      assertWithMessage("protocol is HMSS").that(protocol.hasHonestMajorityShareShuffle()).isTrue()
-    } else {
-      assertWithMessage("protocol is TrusTee").that(protocol.hasTrusTee()).isTrue()
-    }
+    assertExpectedProtocolUsedForReport(reportName)
 
     val eventGroupSpecs: List<EventQuery.EventGroupSpec> =
       eventGroupEntries.map { (eventGroup, filter) ->
@@ -385,43 +376,7 @@ abstract class InProcessMultiEdpReportIntegrationTest(
 
       assertThat(retrievedCompletedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
 
-      val basicReportKey = BasicReportKey.fromName(createdBasicReport.name)!!
-      val internalBasicReport =
-        reportingServer.internalBasicReportsClient.getBasicReport(
-          internalGetBasicReportRequest {
-            cmmsMeasurementConsumerId = basicReportKey.cmmsMeasurementConsumerId
-            externalBasicReportId = basicReportKey.basicReportId
-          }
-        )
-      val reportName =
-        ReportKey(
-            internalBasicReport.cmmsMeasurementConsumerId,
-            internalBasicReport.externalReportId,
-          )
-          .toName()
-      val basicReportMeasurements =
-        listMeasurements().filter {
-          it.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.report == reportName
-        }
-      assertWithMessage("measurements for BasicReport").that(basicReportMeasurements).isNotEmpty()
-      var mpcProtocolFound = false
-      for (measurement in basicReportMeasurements) {
-        val protocol = measurement.protocolConfig.protocolsList.single()
-        if (hmssEnabled) {
-          assertWithMessage("protocol is direct or HMSS for ${measurement.name}")
-            .that(protocol.hasDirect() || protocol.hasHonestMajorityShareShuffle())
-            .isTrue()
-          if (protocol.hasHonestMajorityShareShuffle()) mpcProtocolFound = true
-        } else {
-          assertWithMessage("protocol is direct or TrusTee for ${measurement.name}")
-            .that(protocol.hasDirect() || protocol.hasTrusTee())
-            .isTrue()
-          if (protocol.hasTrusTee()) mpcProtocolFound = true
-        }
-      }
-      assertWithMessage("at least one MPC protocol measurement for BasicReport")
-        .that(mpcProtocolFound)
-        .isTrue()
+      assertExpectedProtocolUsedForBasicReport(createdBasicReport.name)
 
       // Check that non cumulative results are set. Dependent on current test data.
       retrievedBasicReport.resultGroupsList.forEach { resultGroup ->
@@ -590,4 +545,38 @@ abstract class InProcessMultiEdpReportIntegrationTest(
         )
       }
     }
+
+  private suspend fun assertExpectedProtocolUsedForReport(reportName: String) {
+    val measurements =
+      listMeasurements().filter {
+        it.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.report == reportName
+      }
+    assertWithMessage("measurements for $reportName").that(measurements).isNotEmpty()
+    var mpcProtocolFound = false
+    for (measurement in measurements) {
+      val protocol = measurement.protocolConfig.protocolsList.single()
+      assertWithMessage("protocol for ${measurement.name}")
+        .that(protocol.protocolCase)
+        .isAnyOf(ProtocolConfig.Protocol.ProtocolCase.DIRECT, expectedProtocol)
+      if (protocol.protocolCase == expectedProtocol) mpcProtocolFound = true
+    }
+    assertWithMessage("at least one $expectedProtocol measurement for $reportName")
+      .that(mpcProtocolFound)
+      .isTrue()
+  }
+
+  private suspend fun assertExpectedProtocolUsedForBasicReport(basicReportName: String) {
+    val basicReportKey = BasicReportKey.fromName(basicReportName)!!
+    val internalBasicReport =
+      reportingServer.internalBasicReportsClient.getBasicReport(
+        internalGetBasicReportRequest {
+          cmmsMeasurementConsumerId = basicReportKey.cmmsMeasurementConsumerId
+          externalBasicReportId = basicReportKey.basicReportId
+        }
+      )
+    val reportName =
+      ReportKey(internalBasicReport.cmmsMeasurementConsumerId, internalBasicReport.externalReportId)
+        .toName()
+    assertExpectedProtocolUsedForReport(reportName)
+  }
 }

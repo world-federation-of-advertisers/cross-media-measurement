@@ -52,6 +52,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
@@ -140,6 +141,15 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   private val hmssEnabled: Boolean,
   private val trusTeeEnabled: Boolean,
 ) {
+
+  protected val expectedProtocol: ProtocolConfig.Protocol.ProtocolCase =
+    when {
+      hmssEnabled && trusTeeEnabled -> error("hmssEnabled and trusTeeEnabled are mutually exclusive")
+      hmssEnabled -> ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE
+      trusTeeEnabled -> ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE
+      else -> ProtocolConfig.Protocol.ProtocolCase.DIRECT
+    }
+
   protected val inProcessCmmsComponents: InProcessCmmsComponents =
     InProcessCmmsComponents(
       kingdomDataServicesRule,

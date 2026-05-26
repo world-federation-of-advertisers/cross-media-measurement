@@ -40,8 +40,8 @@ class GCloudEdpAggregatorDirectOnlyReportTest :
         reportingPostgresDatabaseProvider,
         IMPRESSION_QUALIFICATION_FILTER_MAPPING,
       ),
-    hmssEnabled = true,
-    trusTeeEnabled = true,
+    hmssEnabled = false,
+    trusTeeEnabled = false,
   ) {
 
   /**

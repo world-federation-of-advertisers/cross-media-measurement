@@ -173,9 +173,9 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
 
   protected val expectedProtocol: PublicProtocolConfig.Protocol.ProtocolCase =
     when {
-      hmssEnabled && !trusTeeEnabled ->
-        PublicProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE
-      !hmssEnabled && trusTeeEnabled -> PublicProtocolConfig.Protocol.ProtocolCase.TRUS_TEE
+      hmssEnabled && trusTeeEnabled -> error("hmssEnabled and trusTeeEnabled are mutually exclusive")
+      hmssEnabled -> PublicProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE
+      trusTeeEnabled -> PublicProtocolConfig.Protocol.ProtocolCase.TRUS_TEE
       else -> PublicProtocolConfig.Protocol.ProtocolCase.DIRECT
     }
 
