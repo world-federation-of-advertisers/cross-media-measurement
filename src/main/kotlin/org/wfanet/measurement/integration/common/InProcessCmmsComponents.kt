@@ -423,7 +423,7 @@ class InProcessCmmsComponents(
 
     @JvmStatic
     fun initConfig(
-      trusTeeProtocolConfigConfig: TrusTeeProtocolConfigConfig,
+      trusTeeProtocolConfigConfig: TrusTeeProtocolConfigConfig? = null,
       hmssProtocolConfigConfig: HmssProtocolConfigConfig? = null,
     ) {
       DuchyIds.setForTest(ALL_DUCHIES)
@@ -447,10 +447,12 @@ class InProcessCmmsComponents(
           hmssProtocolConfigConfig.aggregatorDuchyId,
         )
       }
-      TrusTeeProtocolConfig.setForTest(
-        trusTeeProtocolConfigConfig.protocolConfig,
-        trusTeeProtocolConfigConfig.duchyId,
-      )
+      if (trusTeeProtocolConfigConfig != null) {
+        TrusTeeProtocolConfig.setForTest(
+          trusTeeProtocolConfigConfig.protocolConfig,
+          trusTeeProtocolConfigConfig.duchyId,
+        )
+      }
       DuchyInfo.initializeFromConfig(
         loadTextProto("duchy_cert_config.textproto", DuchyCertConfig.getDefaultInstance())
       )

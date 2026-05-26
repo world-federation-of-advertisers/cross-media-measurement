@@ -66,6 +66,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig as PublicProtocolConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
@@ -169,6 +170,14 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   private val trusTeeEnabled: Boolean,
   private val multiEdpDisplayNames: Set<String> = emptySet(),
 ) {
+
+  protected val expectedProtocol: PublicProtocolConfig.Protocol.ProtocolCase =
+    when {
+      hmssEnabled && !trusTeeEnabled ->
+        PublicProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE
+      !hmssEnabled && trusTeeEnabled -> PublicProtocolConfig.Protocol.ProtocolCase.TRUS_TEE
+      else -> PublicProtocolConfig.Protocol.ProtocolCase.DIRECT
+    }
 
   private val pubSubClient: GooglePubSubEmulatorClient by lazy {
     GooglePubSubEmulatorClient(
@@ -932,38 +941,26 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   }
 
   protected suspend fun assertExpectedProtocolUsed(basicReportName: String) {
-    check(!(hmssEnabled && trusTeeEnabled)) {
-      "Tests must set exactly one of hmssEnabled or trusTeeEnabled"
-    }
     val measurements = getReportMeasurements(basicReportName)
     assertWithMessage("measurements for $basicReportName").that(measurements).isNotEmpty()
-    var mpcProtocolFound = false
-    for (measurement in measurements) {
-      val protocol = measurement.protocolConfig.protocolsList.single()
-      if (hmssEnabled) {
-        assertWithMessage("protocol is direct or HMSS for ${measurement.name}")
-          .that(protocol.hasDirect() || protocol.hasHonestMajorityShareShuffle())
-          .isTrue()
-        if (protocol.hasHonestMajorityShareShuffle()) mpcProtocolFound = true
-      } else {
-        assertWithMessage("protocol is direct or TrusTee for ${measurement.name}")
-          .that(protocol.hasDirect() || protocol.hasTrusTee())
-          .isTrue()
-        if (protocol.hasTrusTee()) mpcProtocolFound = true
+    if (expectedProtocol == PublicProtocolConfig.Protocol.ProtocolCase.DIRECT) {
+      for (measurement in measurements) {
+        val protocol = measurement.protocolConfig.protocolsList.single()
+        assertWithMessage("protocol for ${measurement.name}")
+          .that(protocol.protocolCase)
+          .isEqualTo(expectedProtocol)
       }
-    }
-    assertWithMessage("at least one MPC protocol measurement for $basicReportName")
-      .that(mpcProtocolFound)
-      .isTrue()
-  }
-
-  protected suspend fun assertDirectProtocolUsed(basicReportName: String) {
-    val measurements = getReportMeasurements(basicReportName)
-    assertWithMessage("measurements for $basicReportName").that(measurements).isNotEmpty()
-    for (measurement in measurements) {
-      val protocol = measurement.protocolConfig.protocolsList.single()
-      assertWithMessage("protocol is direct for ${measurement.name}")
-        .that(protocol.hasDirect())
+    } else {
+      var mpcProtocolFound = false
+      for (measurement in measurements) {
+        val protocol = measurement.protocolConfig.protocolsList.single()
+        assertWithMessage("protocol for ${measurement.name}")
+          .that(protocol.protocolCase)
+          .isAnyOf(PublicProtocolConfig.Protocol.ProtocolCase.DIRECT, expectedProtocol)
+        if (protocol.protocolCase == expectedProtocol) mpcProtocolFound = true
+      }
+      assertWithMessage("at least one $expectedProtocol measurement for $basicReportName")
+        .that(mpcProtocolFound)
         .isTrue()
     }
   }

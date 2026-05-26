@@ -92,7 +92,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
       expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
       expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
     )
-    assertDirectProtocolUsed(completedBasicReport.name)
+    assertExpectedProtocolUsed(completedBasicReport.name)
   }
 
   @Test
@@ -135,7 +135,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
       expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
       expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
     )
-    assertDirectProtocolUsed(completedBasicReport.name)
+    assertExpectedProtocolUsed(completedBasicReport.name)
   }
 
   @Test
@@ -163,7 +163,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
         .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
 
     assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
-    assertDirectProtocolUsed(completedBasicReport.name)
+    assertExpectedProtocolUsed(completedBasicReport.name)
   }
 
   @Test
@@ -204,7 +204,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
         expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
         expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
       )
-      assertDirectProtocolUsed(completedBasicReport.name)
+      assertExpectedProtocolUsed(completedBasicReport.name)
     }
 
   @Test
@@ -262,6 +262,6 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
     assertWithMessage("number of components")
       .that(totalResult.metricSet.componentsCount)
       .isEqualTo(1)
-    assertDirectProtocolUsed(completedBasicReport.name)
+    assertExpectedProtocolUsed(completedBasicReport.name)
   }
 }
