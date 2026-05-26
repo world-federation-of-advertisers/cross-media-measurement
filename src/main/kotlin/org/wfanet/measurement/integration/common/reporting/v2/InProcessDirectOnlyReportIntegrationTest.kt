@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Cross-Media Measurement Authors
+ * Copyright 2026 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -2103,7 +2103,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
   }
 
   @Test
-  fun `getImpressionQualificationFilter retrives ImpressionQualificationFilter`() = runBlocking {
+  fun `getImpressionQualificationFilter retrieves ImpressionQualificationFilter`() = runBlocking {
     val impressionQualificationFilter =
       publicImpressionQualificationFiltersClient
         .withCallCredentials(credentials)
@@ -2124,7 +2124,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
   }
 
   @Test
-  fun `listImpressionQualificationFilters with page size and page token retrives ImpressionQualificationFilter`() =
+  fun `listImpressionQualificationFilters with page size and page token retrieves ImpressionQualificationFilter`() =
     runBlocking {
       val internalPageToken = listImpressionQualificationFiltersPageToken {
         after =
