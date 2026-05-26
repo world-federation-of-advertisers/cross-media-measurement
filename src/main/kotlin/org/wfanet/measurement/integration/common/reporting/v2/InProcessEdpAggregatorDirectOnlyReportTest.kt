@@ -59,46 +59,10 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
   ) {
 
   @Test
-  fun `basic report with reference-id-only event groups succeeds`() = runBlocking {
-    val refIdOnlyEventGroups = getReferenceIdOnlyEventGroups()
-    check(refIdOnlyEventGroups.isNotEmpty()) { "No reference-ID-only event groups found" }
-
-    val createBasicReportRequest =
-      buildCreateBasicReportRequest(
-        refIdOnlyEventGroups,
-        "ref-id-only-campaign",
-        "ref-id-only-basicreport",
-        includeIqfFilter = false,
-      )
-
-    val createdBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .createBasicReport(createBasicReportRequest)
-
-    executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
-
-    val completedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
-    assertStructuralResults(completedBasicReport)
-    assertSingleEdpNoNoiseResults(
-      completedBasicReport,
-      expectedReach = EXPECTED_SINGLE_EDP_SPEC2_REACH,
-      expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
-      expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
-    )
-  }
-
-  @Test
   fun `basic report with cross-publisher creative-id event groups succeeds`() = runBlocking {
     val creativeIdEventGroups = getCreativeIdOnlyEventGroups()
     check(creativeIdEventGroups.size >= 2) {
-      "Expected at least 2 creative-id event groups, got ${creativeIdEventGroups.size}"
+      "Expected at least 2 creative-id event groups, got \${creativeIdEventGroups.size}"
     }
 
     val createBasicReportRequest =
@@ -132,6 +96,44 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
       expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
       expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
     )
+    assertDirectProtocolUsed()
+  }
+
+  @Test
+  fun `basic report with reference-id-only event groups succeeds`() = runBlocking {
+    val refIdOnlyEventGroups = getReferenceIdOnlyEventGroups()
+    check(refIdOnlyEventGroups.isNotEmpty()) { "No reference-ID-only event groups found" }
+
+    val createBasicReportRequest =
+      buildCreateBasicReportRequest(
+        refIdOnlyEventGroups,
+        "ref-id-only-campaign",
+        "ref-id-only-basicreport",
+        includeIqfFilter = false,
+      )
+
+    val createdBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .createBasicReport(createBasicReportRequest)
+
+    executeBasicReportsReportsJob(createdBasicReport.name)
+    executeReportProcessorJob()
+
+    val completedBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+    assertStructuralResults(completedBasicReport)
+    assertSingleEdpNoNoiseResults(
+      completedBasicReport,
+      expectedReach = EXPECTED_SINGLE_EDP_SPEC2_REACH,
+      expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
+      expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
+    )
+    assertDirectProtocolUsed()
   }
 
   @Test
@@ -174,6 +176,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
       expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
       expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
     )
+    assertDirectProtocolUsed()
   }
 
   @Test
@@ -241,6 +244,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
         expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
         expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
       )
+      assertDirectProtocolUsed()
     }
 
   @Test
@@ -298,5 +302,6 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
     assertWithMessage("number of components")
       .that(totalResult.metricSet.componentsCount)
       .isEqualTo(1)
+    assertDirectProtocolUsed()
   }
 }

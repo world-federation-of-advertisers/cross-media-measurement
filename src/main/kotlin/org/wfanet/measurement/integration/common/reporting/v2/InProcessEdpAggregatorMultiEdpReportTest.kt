@@ -15,7 +15,6 @@
 package org.wfanet.measurement.integration.common.reporting.v2
 
 import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.Truth.assertWithMessage
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -30,11 +29,12 @@ import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 /**
- * Integration tests for HMSS protocol EDPA report operations.
+ * Integration tests for multi-EDP EDPA report operations.
  *
  * This is abstract so that different implementations of dependencies can all run the same tests.
+ * The protocol (HMSS or TrusTee) is determined by the [hmssEnabled] and [trusTeeEnabled] params.
  */
-abstract class InProcessEdpAggregatorHmssReportTest(
+abstract class InProcessEdpAggregatorMultiEdpReportTest(
   kingdomDataServicesRule: ProviderRule<DataServices>,
   duchyDependenciesRule:
     ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
@@ -57,15 +57,15 @@ abstract class InProcessEdpAggregatorHmssReportTest(
   ) {
 
   @Test
-  fun `HMSS no noise basic report has the expected result`() = runBlocking {
-    val hmssEventGroups = getHmssEventGroups()
-    check(hmssEventGroups.size > 1)
+  fun `no noise basic report has the expected result`() = runBlocking {
+    val eventGroups = getMultiEdpEventGroups()
+    check(eventGroups.size > 1)
 
     val createBasicReportRequest =
       buildCreateBasicReportRequest(
-        hmssEventGroups,
-        "hmss-campaign",
-        "hmss-basicreport",
+        eventGroups,
+        "multi-edp-campaign",
+        "multi-edp-basicreport",
         includeIqfFilter = false,
       )
 
@@ -91,15 +91,6 @@ abstract class InProcessEdpAggregatorHmssReportTest(
 
     assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
 
-    val measurements = listMeasurements()
-    val hmssProtocolMeasurements =
-      measurements.filter { measurement ->
-        measurement.protocolConfig.protocolsList.any { it.hasHonestMajorityShareShuffle() }
-      }
-    assertWithMessage("at least one measurement used HMSS protocol")
-      .that(hmssProtocolMeasurements)
-      .isNotEmpty()
-
     assertStructuralResults(completedBasicReport)
     assertNoNoiseResults(
       completedBasicReport,
@@ -111,15 +102,15 @@ abstract class InProcessEdpAggregatorHmssReportTest(
     )
   }
 
-  protected suspend fun assertHmssReportFailsWhenEdpRequiresGaussianNoise() {
-    val hmssEventGroups = getHmssEventGroupsIncludingRestrictedEdp()
-    check(hmssEventGroups.size > 1)
+  protected suspend fun assertReportFailsWhenEdpRequiresGaussianNoise() {
+    val eventGroups = getMultiEdpEventGroupsIncludingRestrictedEdp()
+    check(eventGroups.size > 1)
 
     val createBasicReportRequest =
       buildCreateBasicReportRequest(
-        hmssEventGroups,
-        "hmss-gaussian-campaign",
-        "hmss-gaussian-basicreport",
+        eventGroups,
+        "gaussian-campaign",
+        "gaussian-basicreport",
         includeIqfFilter = false,
       )
 

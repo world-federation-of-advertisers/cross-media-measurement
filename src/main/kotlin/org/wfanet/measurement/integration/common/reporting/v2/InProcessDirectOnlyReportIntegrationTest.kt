@@ -17,6 +17,7 @@
 package org.wfanet.measurement.integration.common.reporting.v2
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
 import com.google.type.DayOfWeek
@@ -33,6 +34,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
@@ -134,6 +136,18 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     hmssEnabled,
     trusTeeEnabled,
   ) {
+
+  private suspend fun assertDirectProtocolUsed() {
+    val measurements =
+      listMeasurements().filter { it.state == Measurement.State.SUCCEEDED }
+    assertWithMessage("succeeded measurements").that(measurements).isNotEmpty()
+    for (measurement in measurements) {
+      val protocol = measurement.protocolConfig.protocolsList.single()
+      assertWithMessage("protocol is direct for ${measurement.name}")
+        .that(protocol.hasDirect())
+        .isTrue()
+    }
+  }
 
   @Test
   fun `population metric for union has correct result`() = runBlocking {
@@ -1979,6 +1993,8 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
             }
         )
       }
+
+      assertDirectProtocolUsed()
     }
 
   @Test

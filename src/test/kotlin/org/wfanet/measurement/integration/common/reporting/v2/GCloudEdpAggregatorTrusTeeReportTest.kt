@@ -21,7 +21,7 @@ import org.junit.Test
 import org.junit.rules.Timeout
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
-import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
+import org.wfanet.measurement.integration.common.AGGREGATOR_NAME
 import org.wfanet.measurement.integration.common.IMPRESSION_QUALIFICATION_FILTER_MAPPING
 import org.wfanet.measurement.integration.deploy.gcloud.InternalReportingServicesProviderRule
 import org.wfanet.measurement.integration.deploy.gcloud.KingdomDataServicesProviderRule
@@ -29,11 +29,12 @@ import org.wfanet.measurement.integration.deploy.gcloud.SpannerAccessServicesFac
 import org.wfanet.measurement.integration.deploy.gcloud.SpannerDuchyDependencyProviderRule
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPORTING_CHANGELOG_PATH as POSTGRES_REPORTING_CHANGELOG_PATH
 
-/** Implementation of [InProcessEdpAggregatorTrusTeeReportTest] for GCloud backends. */
+/** TrusTee implementation of [InProcessEdpAggregatorMultiEdpReportTest] for GCloud backends. */
 class GCloudEdpAggregatorTrusTeeReportTest :
-  InProcessEdpAggregatorTrusTeeReportTest(
+  InProcessEdpAggregatorMultiEdpReportTest(
     kingdomDataServicesRule = KingdomDataServicesProviderRule(spannerEmulator),
-    duchyDependenciesRule = SpannerDuchyDependencyProviderRule(spannerEmulator, ALL_DUCHY_NAMES),
+    duchyDependenciesRule =
+      SpannerDuchyDependencyProviderRule(spannerEmulator, listOf(AGGREGATOR_NAME)),
     secureComputationDatabaseAdmin = spannerEmulator,
     accessServicesFactory = SpannerAccessServicesFactory(spannerEmulator),
     reportingDataServicesProviderRule =
@@ -42,6 +43,8 @@ class GCloudEdpAggregatorTrusTeeReportTest :
         reportingPostgresDatabaseProvider,
         IMPRESSION_QUALIFICATION_FILTER_MAPPING,
       ),
+    duchyNames = listOf(AGGREGATOR_NAME),
+    hmssEnabled = false,
   ) {
 
   /**
@@ -52,8 +55,8 @@ class GCloudEdpAggregatorTrusTeeReportTest :
   @get:Rule val timeout: Timeout = Timeout.seconds(180)
 
   @Test
-  fun `TrusTee no noise basic report fails when EDP requires Gaussian noise`() = runBlocking {
-    assertTrusTeeReportFailsWhenEdpRequiresGaussianNoise()
+  fun `no noise basic report fails when EDP requires Gaussian noise`() = runBlocking {
+    assertReportFailsWhenEdpRequiresGaussianNoise()
   }
 
   companion object {

@@ -55,7 +55,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCorouti
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.withAuthenticationKey
@@ -533,16 +532,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       val includedDataProviders = mutableSetOf<String>()
       val eventGroups = listEventGroups()
       eventGroups.forEach { eventGroup ->
-        val dataProvider =
-          publicDataProvidersClient
-            .withCallCredentials(credentials)
-            .getDataProvider(getDataProviderRequest { name = eventGroup.cmmsDataProvider })
-
-        if (
-          dataProvider.capabilities.honestMajorityShareShuffleSupported and
-            includedDataProviders.contains(dataProvider.name).not()
-        ) {
-          includedDataProviders.add(dataProvider.name)
+        if (includedDataProviders.add(eventGroup.cmmsDataProvider)) {
           add(eventGroup)
         }
       }

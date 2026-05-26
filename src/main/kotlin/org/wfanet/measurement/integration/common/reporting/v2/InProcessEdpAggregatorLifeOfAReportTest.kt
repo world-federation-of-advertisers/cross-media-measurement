@@ -57,7 +57,6 @@ import org.wfanet.measurement.access.v1alpha.createRoleRequest
 import org.wfanet.measurement.access.v1alpha.policy
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.access.v1alpha.role
-import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
@@ -332,23 +331,23 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           mapOf(
             "edp1" to
               DataProviderKt.capabilities {
-                honestMajorityShareShuffleSupported = true
-                trusTeeSupported = false
+                honestMajorityShareShuffleSupported = hmssEnabled
+                trusTeeSupported = trusTeeEnabled
               },
             "edp2" to
               DataProviderKt.capabilities {
-                honestMajorityShareShuffleSupported = true
-                trusTeeSupported = true
+                honestMajorityShareShuffleSupported = hmssEnabled
+                trusTeeSupported = trusTeeEnabled
               },
             "edp3" to
               DataProviderKt.capabilities {
-                honestMajorityShareShuffleSupported = false
-                trusTeeSupported = true
+                honestMajorityShareShuffleSupported = hmssEnabled
+                trusTeeSupported = trusTeeEnabled
               },
             "edp4" to
               DataProviderKt.capabilities {
-                honestMajorityShareShuffleSupported = true
-                trusTeeSupported = true
+                honestMajorityShareShuffleSupported = hmssEnabled
+                trusTeeSupported = trusTeeEnabled
               },
           ),
           duchyMap,
@@ -912,6 +911,18 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .measurementsList
   }
 
+  protected suspend fun assertDirectProtocolUsed() {
+    val measurements =
+      listMeasurements().filter { it.state == Measurement.State.SUCCEEDED }
+    assertWithMessage("succeeded measurements").that(measurements).isNotEmpty()
+    for (measurement in measurements) {
+      val protocol = measurement.protocolConfig.protocolsList.single()
+      assertWithMessage("protocol is direct for ${measurement.name}")
+        .that(protocol.hasDirect())
+        .isTrue()
+    }
+  }
+
   protected suspend fun listReportingEventGroups(): List<EventGroup> {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     return reportingEventGroupsClient
@@ -1032,8 +1043,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
-  private suspend fun getEventGroupsByCapability(
-    isCapable: (DataProvider.Capabilities) -> Boolean,
+  private suspend fun getEventGroupsByEdp(
     excludeEdpDisplayNames: Set<String>,
   ): List<EventGroup> {
     return buildList {
@@ -1050,8 +1060,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         val displayName =
           inProcessCmmsComponents.getDataProviderDisplayNameFromDataProviderName(dataProvider.name)
         if (
-          isCapable(dataProvider.capabilities) &&
-            !includedDataProviders.contains(dataProvider.name) &&
+          !includedDataProviders.contains(dataProvider.name) &&
             displayName !in excludeEdpDisplayNames
         ) {
           includedDataProviders.add(dataProvider.name)
@@ -1061,23 +1070,11 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
-  protected suspend fun getHmssEventGroups(): List<EventGroup> =
-    getEventGroupsByCapability(
-      { it.honestMajorityShareShuffleSupported },
-      setOf(RESTRICTED_EDP_DISPLAY_NAME),
-    )
+  protected suspend fun getMultiEdpEventGroups(): List<EventGroup> =
+    getEventGroupsByEdp(setOf(RESTRICTED_EDP_DISPLAY_NAME)).take(2)
 
-  protected suspend fun getTrusTeeEventGroups(): List<EventGroup> =
-    getEventGroupsByCapability({ it.trusTeeSupported }, setOf(RESTRICTED_EDP_DISPLAY_NAME))
-
-  /**
-   * Returns capable event groups that include exactly one restricted EDP (one whose multi-party
-   * noise config requires CONTINUOUS_GAUSSIAN) and one unrestricted EDP.
-   */
-  private suspend fun getEventGroupsIncludingRestrictedEdp(
-    capabilityFilter: (DataProvider.Capabilities) -> Boolean
-  ): List<EventGroup> {
-    val allGroups = getEventGroupsByCapability(capabilityFilter, emptySet())
+  protected suspend fun getMultiEdpEventGroupsIncludingRestrictedEdp(): List<EventGroup> {
+    val allGroups = getEventGroupsByEdp(emptySet())
     var restrictedGroup: EventGroup? = null
     var unrestrictedGroup: EventGroup? = null
     for (eventGroup in allGroups) {
@@ -1100,16 +1097,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     check(unrestrictedGroup != null) { "No unrestricted event group found" }
     return listOf(unrestrictedGroup, restrictedGroup)
   }
-
-  protected suspend fun getHmssEventGroupsIncludingRestrictedEdp(): List<EventGroup> =
-    getEventGroupsIncludingRestrictedEdp {
-      it.honestMajorityShareShuffleSupported
-    }
-
-  protected suspend fun getTrusTeeEventGroupsIncludingRestrictedEdp(): List<EventGroup> =
-    getEventGroupsIncludingRestrictedEdp {
-      it.trusTeeSupported
-    }
 
   protected suspend fun getCreativeIdOnlyEventGroups(): List<EventGroup> {
     return listReportingEventGroups().filter {

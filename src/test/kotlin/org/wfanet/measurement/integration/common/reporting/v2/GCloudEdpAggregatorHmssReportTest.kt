@@ -29,9 +29,9 @@ import org.wfanet.measurement.integration.deploy.gcloud.SpannerAccessServicesFac
 import org.wfanet.measurement.integration.deploy.gcloud.SpannerDuchyDependencyProviderRule
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPORTING_CHANGELOG_PATH as POSTGRES_REPORTING_CHANGELOG_PATH
 
-/** Implementation of [InProcessEdpAggregatorHmssReportTest] for GCloud backends. */
+/** HMSS implementation of [InProcessEdpAggregatorMultiEdpReportTest] for GCloud backends. */
 class GCloudEdpAggregatorHmssReportTest :
-  InProcessEdpAggregatorHmssReportTest(
+  InProcessEdpAggregatorMultiEdpReportTest(
     kingdomDataServicesRule = KingdomDataServicesProviderRule(spannerEmulator),
     duchyDependenciesRule = SpannerDuchyDependencyProviderRule(spannerEmulator, ALL_DUCHY_NAMES),
     secureComputationDatabaseAdmin = spannerEmulator,
@@ -42,6 +42,7 @@ class GCloudEdpAggregatorHmssReportTest :
         reportingPostgresDatabaseProvider,
         IMPRESSION_QUALIFICATION_FILTER_MAPPING,
       ),
+    trusTeeEnabled = false,
   ) {
 
   /**
@@ -52,8 +53,8 @@ class GCloudEdpAggregatorHmssReportTest :
   @get:Rule val timeout: Timeout = Timeout.seconds(180)
 
   @Test
-  fun `HMSS no noise basic report fails when EDP requires Gaussian noise`() = runBlocking {
-    assertHmssReportFailsWhenEdpRequiresGaussianNoise()
+  fun `no noise basic report fails when EDP requires Gaussian noise`() = runBlocking {
+    assertReportFailsWhenEdpRequiresGaussianNoise()
   }
 
   companion object {
