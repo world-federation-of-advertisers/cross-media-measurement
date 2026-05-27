@@ -2019,22 +2019,55 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `sync logs and skips event group when measurement consumer resolution fails`() {
+  fun `throws exception if API returns malformed value`() {
     wheneverBlocking { clientAccountsServiceMock.listClientAccounts(any()) }
       .thenThrow(StatusRuntimeException(io.grpc.Status.INTERNAL.withDescription("API error")))
 
+    val eventGroupWithFailingLookup = eventGroup {
+      eventGroupReferenceId = "reference-id-failing"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-failing"
+            campaign = "campaign-failing"
+          }
+        }
+      }
+      clientAccountReferenceId = "client-ref-failing"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        listOf(eventGroupWithFailingLookup).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+      )
+
+    assertFailsWith<Exception> { runBlocking { eventGroupSync.sync().toList() } }
+  }
+
+  @Test
+  fun `sync skips event group with malformed measurement_consumer and records failure`() {
     runBlocking {
-      val eventGroupWithFailingLookup = eventGroup {
-        eventGroupReferenceId = "reference-id-failing"
+      val malformedEventGroup = eventGroup {
+        eventGroupReferenceId = "120238654476370672"
         this.eventGroupMetadata = eventGroupMetadata {
           this.adMetadata = adMetadata {
             this.campaignMetadata = campaignMetadata {
-              brand = "brand-failing"
-              campaign = "campaign-failing"
+              brand = "UNKNOWN"
+              campaign = "New Traffic Campaign"
             }
           }
         }
-        clientAccountReferenceId = "client-ref-failing"
+        measurementConsumer = "measurementConsumers/"
         dataAvailabilityInterval = interval {
           startTime = timestamp { seconds = 200 }
           endTime = timestamp { seconds = 300 }
@@ -2047,7 +2080,7 @@ class EventGroupSyncTest {
           "edp-name",
           eventGroupsStub,
           clientAccountsStub,
-          listOf(eventGroupWithFailingLookup).asFlow(),
+          listOf(malformedEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
         )
@@ -2057,10 +2090,9 @@ class EventGroupSyncTest {
       assertThat(result).isEmpty()
 
       val metrics = getMetrics()
-      val syncFailureMetric = metrics.find { it.name == "edpa.event_group.sync_failure" }
-
-      assertThat(syncFailureMetric).isNotNull()
-      assertThat(syncFailureMetric!!.longSumData.points.sumOf { it.value }).isEqualTo(1)
+      val invalidMetric = metrics.find { it.name == "edpa.event_group.invalid_event_group_failure" }
+      assertThat(invalidMetric).isNotNull()
+      assertThat(invalidMetric!!.longSumData.points.sumOf { it.value }).isEqualTo(1)
 
       verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
     }
@@ -2283,6 +2315,31 @@ class EventGroupSyncTest {
       assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
     assertThat(exception.message)
       .contains("Either Measurement Consumer or Client Account Reference ID must be set")
+  }
+
+  @Test
+  fun `validateEventGroup rejects malformed measurement_consumer with empty ID`() {
+    val eventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id"
+      measurementConsumer = "measurementConsumers/"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand"
+            campaign = "campaign"
+          }
+        }
+      }
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+
+    val exception =
+      assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
+    assertThat(exception.message).contains("Malformed measurement_consumer")
   }
 
   companion object {

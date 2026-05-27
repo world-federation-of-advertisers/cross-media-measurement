@@ -185,14 +185,6 @@ class EventGroupSync(
             }
             metrics.syncFailure.add(1, metricAttributes())
             continue
-          } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            logger.log(Level.SEVERE, e) {
-              "Skipping Event Group ${eventGroup.eventGroupReferenceId}: " +
-                "Failed to resolve measurement consumers"
-            }
-            metrics.syncFailure.add(1, metricAttributes())
-            continue
           }
 
         for (measurementConsumerKey in measurementConsumerKeys) {
@@ -511,9 +503,15 @@ class EventGroupSync(
       check(eventGroup.eventGroupReferenceId.isNotBlank()) {
         "Event Group Reference Id must be set"
       }
-      val hasClientAccountRef = eventGroup.clientAccountReferenceId.isNotEmpty()
-      check(eventGroup.measurementConsumer.isNotBlank() || hasClientAccountRef) {
-        "Either Measurement Consumer or Client Account Reference ID must be set"
+      if (eventGroup.measurementConsumer.isNotBlank()) {
+        val mcKey = MeasurementConsumerKey.fromName(eventGroup.measurementConsumer)
+        check(mcKey != null && mcKey.measurementConsumerId.isNotBlank()) {
+          "Malformed measurement_consumer: ${eventGroup.measurementConsumer}"
+        }
+      } else {
+        check(eventGroup.clientAccountReferenceId.isNotEmpty()) {
+          "Either Measurement Consumer or Client Account Reference ID must be set"
+        }
       }
     }
 
