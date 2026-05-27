@@ -61,6 +61,8 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
 import org.wfanet.measurement.edpaggregator.telemetry.withSpan
 
+class UnresolvedMeasurementConsumerException(message: String) : Exception(message)
+
 /**
  * Key used to uniquely identify an event group.
  *
@@ -71,8 +73,6 @@ import org.wfanet.measurement.edpaggregator.telemetry.withSpan
  * This is intended to be used as a map key when grouping or associating event groups by both
  * attributes, ensuring uniqueness across consumers.
  */
-class UnresolvedMeasurementConsumerException(message: String) : Exception(message)
-
 data class EventGroupKey(val eventGroupReferenceId: String, val measurementConsumer: String)
 
 /*
