@@ -2686,7 +2686,6 @@ class EventGroupSyncTest {
     assertThat(failureMetric).isNotNull()
   }
 
-
   @Test
   fun `validateEventGroup rejects malformed measurement_consumer with empty ID`() {
     val eventGroup = eventGroup {
