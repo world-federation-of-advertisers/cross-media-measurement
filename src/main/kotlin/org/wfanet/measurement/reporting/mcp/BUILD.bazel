@@ -1,0 +1,39 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+load("//src/main/docker:macros.bzl", "java_image")
+
+kt_jvm_library(
+    name = "halo_reporting_mcp_server",
+    srcs = ["HaloReportingMcpServer.kt"],
+    visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/reporting/mcp:__subpackages__",
+    ],
+    deps = [
+        "//imports/java/io/ktor/server:cio",
+        "//imports/java/io/modelcontextprotocol/kotlin/sdk:server",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/auth:bearer_token_extractor",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/prompts:workflow_prompts",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/tools:basic_report_tools",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/tools:event_group_tools",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/tools:iqf_tools",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/tools:reporting_set_tools",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+java_binary(
+    name = "HaloReportingMcpServer",
+    main_class = "org.wfanet.measurement.reporting.mcp.HaloReportingMcpServerKt",
+    runtime_deps = [":halo_reporting_mcp_server"],
+)
+
+java_image(
+    name = "halo_reporting_mcp_server_image",
+    binary = ":HaloReportingMcpServer",
+    main_class = "org.wfanet.measurement.reporting.mcp.HaloReportingMcpServerKt",
+    visibility = ["//src:docker_image_deployment"],
+)
