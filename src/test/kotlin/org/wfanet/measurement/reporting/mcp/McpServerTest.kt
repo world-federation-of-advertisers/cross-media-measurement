@@ -26,14 +26,18 @@ class McpServerTest {
 
   @Test
   fun createMcpServerDoesNotThrow() {
-    val server = createMcpServer(FakeReportingPublicApiClient.create()) { "test-token" }
+    val server =
+      HaloReportingMcpServer.createMcpServer(
+        FakeReportingPublicApiClient.create(),
+      ) { "test-token" }
     assertThat(server).isNotNull()
   }
 
   @Test
   fun createMcpServerWithDifferentTokensProducesSeparateInstances() {
-    val server1 = createMcpServer(FakeReportingPublicApiClient.create()) { "token-1" }
-    val server2 = createMcpServer(FakeReportingPublicApiClient.create()) { "token-2" }
+    val apiClient = FakeReportingPublicApiClient.create()
+    val server1 = HaloReportingMcpServer.createMcpServer(apiClient) { "token-1" }
+    val server2 = HaloReportingMcpServer.createMcpServer(apiClient) { "token-2" }
     assertThat(server1).isNotSameInstanceAs(server2)
   }
 }

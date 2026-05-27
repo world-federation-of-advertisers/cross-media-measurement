@@ -42,12 +42,12 @@ import org.wfanet.measurement.reporting.mcp.tools.registerIqfTools
 import org.wfanet.measurement.reporting.mcp.tools.registerReportingSetTools
 import picocli.CommandLine
 
-private const val SERVER_NAME = "HaloReportingMcpServer"
-private const val SERVER_VERSION = "0.1.0"
+object HaloReportingMcpServer {
+  private const val SERVER_NAME = "HaloReportingMcpServer"
+  private const val SERVER_VERSION = "0.1.0"
 
-private object HaloReportingMcpServer {
   @CommandLine.Command(
-    name = SERVER_NAME,
+    name = "HaloReportingMcpServer",
     description = ["MCP server for the Halo Reporting v2alpha public API."],
     mixinStandardHelpOptions = true,
     showDefaultValues = true,
@@ -88,32 +88,32 @@ private object HaloReportingMcpServer {
       }
       .start(wait = true)
   }
-}
 
-fun createMcpServer(
-  apiClient: ReportingPublicApiClient,
-  getBearerToken: () -> String,
-): Server {
-  val server =
-    Server(
-      serverInfo = Implementation(name = SERVER_NAME, version = SERVER_VERSION),
-      options =
-        ServerOptions(
-          capabilities =
-            ServerCapabilities(
-              tools = ServerCapabilities.Tools(listChanged = false),
-              prompts = ServerCapabilities.Prompts(listChanged = false),
-            ),
-        ),
-    )
+  fun createMcpServer(
+    apiClient: ReportingPublicApiClient,
+    getBearerToken: () -> String,
+  ): Server {
+    val server =
+      Server(
+        serverInfo = Implementation(name = SERVER_NAME, version = SERVER_VERSION),
+        options =
+          ServerOptions(
+            capabilities =
+              ServerCapabilities(
+                tools = ServerCapabilities.Tools(listChanged = false),
+                prompts = ServerCapabilities.Prompts(listChanged = false),
+              ),
+          ),
+      )
 
-  server.registerBasicReportTools(apiClient, getBearerToken)
-  server.registerEventGroupTools(apiClient, getBearerToken)
-  server.registerReportingSetTools(apiClient, getBearerToken)
-  server.registerIqfTools(apiClient, getBearerToken)
-  server.registerWorkflowPrompts()
+    server.registerBasicReportTools(apiClient, getBearerToken)
+    server.registerEventGroupTools(apiClient, getBearerToken)
+    server.registerReportingSetTools(apiClient, getBearerToken)
+    server.registerIqfTools(apiClient, getBearerToken)
+    server.registerWorkflowPrompts()
 
-  return server
+    return server
+  }
 }
 
 class McpServerFlags {
@@ -126,7 +126,7 @@ class McpServerFlags {
       ],
     defaultValue = "8080",
   )
-  var port: Int = 8080
+  var port: Int = 0
     private set
 
   @CommandLine.Option(

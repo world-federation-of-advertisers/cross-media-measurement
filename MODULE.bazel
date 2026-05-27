@@ -456,7 +456,7 @@ single_version_override(
     version = BORINGSSL_VERSION,
 )
 
-# DO_NOT_SUBMIT: Replace with bazel_dep version bump once rules_kotlin_jvm v0.13.0 is released.
+# DO_NOT_SUBMIT(#3834): Replace with bazel_dep version bump once rules_kotlin_jvm v0.13.0 is released.
 git_override(
     module_name = "rules_kotlin_jvm",
     commit = "3696d7cc50cd197503addcad43c8d041f996531c",
