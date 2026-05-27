@@ -98,7 +98,7 @@ jobs:
           EOF
 
       - name: Set up Bazel
-        uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
+        uses: world-federation-of-advertisers/actions/setup-bazel@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
 
       - name: Export BAZEL_BIN
         run: echo "BAZEL_BIN=$(bazel info bazel-bin)" >> $GITHUB_ENV
@@ -166,6 +166,6 @@ jobs:
       - name: Wait for rollout
         if: ${{ inputs.apply }}
         run: |
-          for deployment in $(kubectl get deployments -o name); do
+          for deployment in $(kubectl get deployments -l app.kubernetes.io/component=population -o name); do
             kubectl rollout status "$deployment" --timeout=5m
           done

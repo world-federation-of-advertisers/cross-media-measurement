@@ -66,6 +66,7 @@ class InProcessEdpSimulator(
   trustedCertificates: Map<ByteString, X509Certificate>,
   eventGroupOptions: EventGroupOptions,
   eventQuery: SyntheticGeneratorEventQuery,
+  trusTeeSupported: Boolean = false,
   coroutineContext: CoroutineContext = Dispatchers.Default,
 ) : Health {
   data class EventGroupOptions(
@@ -123,7 +124,7 @@ class InProcessEdpSimulator(
           ),
         trustedCertificates = trustedCertificates,
         vidIndexMap = vidIndexMap,
-        trusTeeSupported = false,
+        trusTeeSupported = trusTeeSupported,
         random = random,
       )
   }

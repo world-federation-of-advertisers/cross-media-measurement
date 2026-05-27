@@ -203,6 +203,21 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
   @Test
   fun `direct measurement with multi-entity-key blob filtering to one entity key succeeds`() =
     runBlocking {
+      val response =
+        measurementSystem.publicEventGroupsStub
+          .withAuthenticationKey(measurementSystem.apiAuthenticationKey)
+          .listEventGroups(
+            listEventGroupsRequest {
+              parent = measurementSystem.measurementConsumerName
+              pageSize = 100
+              filter = ListEventGroupsRequestKt.filter { entityTypeIn += "creative-id" }
+            }
+          )
+      val refIds = response.eventGroupsList.map { it.eventGroupReferenceId }.toSet()
+      for (expectedRefId in MULTI_CREATIVE_REF_IDS) {
+        assertThat(refIds).contains(expectedRefId)
+      }
+
       mcSimulator.testDirectReachAndFrequency(
         "1242",
         1,
@@ -225,11 +240,11 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
 
     const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-1"
     const val CREATIVE_ID_ENTITY_ID = "edpa-eg-creative-id-1"
-    val CREATIVE_ID_EVENT_GROUP_REF_ID = CREATIVE_ID_ENTITY_ID
+    val CREATIVE_ID_EVENT_GROUP_REF_ID = "creative-id-$CREATIVE_ID_ENTITY_ID"
     const val MULTI_CREATIVE_A_ENTITY_ID = "edpa-eg-multi-creative-1"
     const val MULTI_CREATIVE_B_ENTITY_ID = "edpa-eg-multi-creative-2"
-    val MULTI_CREATIVE_A_REF_ID = MULTI_CREATIVE_A_ENTITY_ID
-    val MULTI_CREATIVE_B_REF_ID = MULTI_CREATIVE_B_ENTITY_ID
+    val MULTI_CREATIVE_A_REF_ID = "creative-id-$MULTI_CREATIVE_A_ENTITY_ID"
+    val MULTI_CREATIVE_B_REF_ID = "creative-id-$MULTI_CREATIVE_B_ENTITY_ID"
     val MULTI_CREATIVE_REF_IDS = setOf(MULTI_CREATIVE_A_REF_ID, MULTI_CREATIVE_B_REF_ID)
     const val EDPA_META_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-2"
 

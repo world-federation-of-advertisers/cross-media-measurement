@@ -65,8 +65,10 @@ import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig as PublicProtocolConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
@@ -74,6 +76,7 @@ import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
@@ -97,6 +100,7 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMem
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
+import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.EntityKeySpec
 import org.wfanet.measurement.integration.common.EventGroupConfig
@@ -142,9 +146,9 @@ import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
+import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.eventFilter
 import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
-import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
@@ -164,25 +168,21 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
   private val accessServicesFactory: AccessServicesFactory,
   private val reportingDataServicesProviderRule: ProviderRule<Services>,
+  private val duchyNames: List<String> = ALL_DUCHY_NAMES,
+  private val hmssEnabled: Boolean,
+  private val trusTeeEnabled: Boolean,
+  private val multiEdpDisplayNames: Set<String> = emptySet(),
 ) {
 
-  // Noisy tests use approximate assertions instead of exact equality. Subclasses override
-  // this when testing configurations that add differential privacy noise.
   open val useNoisyAssertions: Boolean
     get() = false
 
-  // Small-cell suppression fold-down can zero out high-frequency buckets, changing the expected
-  // k+ reach distribution. Subclasses override this for threshold configurations.
   open val expectedCrossPublisherKPlusReach: List<Long>
     get() = EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH
 
-  // Reports generally succeed, but some server-side conditions (e.g. infeasible noise
-  // correction) cause reports to fail. Subclasses override this to test those failure paths.
   open val expectedTrusTeeBasicReportState: BasicReport.State
     get() = BasicReport.State.SUCCEEDED
 
-  // Subclasses override this to use approximate assertions for noisy results or to check
-  // different expected values for threshold configurations.
   open fun assertTrusTeeMetricResults(basicReport: BasicReport) {
     assertNoNoiseResults(
       basicReport,
@@ -193,6 +193,15 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
     )
   }
+
+  protected val expectedProtocol: PublicProtocolConfig.Protocol.ProtocolCase =
+    when {
+      hmssEnabled && trusTeeEnabled ->
+        error("hmssEnabled and trusTeeEnabled are mutually exclusive")
+      hmssEnabled -> PublicProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE
+      trusTeeEnabled -> PublicProtocolConfig.Protocol.ProtocolCase.TRUS_TEE
+      else -> PublicProtocolConfig.Protocol.ProtocolCase.DIRECT
+    }
 
   private val pubSubClient: GooglePubSubEmulatorClient by lazy {
     GooglePubSubEmulatorClient(
@@ -214,6 +223,9 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       kingdomDataServicesRule,
       duchyDependenciesRule,
       useEdpSimulators = false,
+      duchyNames = duchyNames,
+      hmssEnabled = hmssEnabled,
+      trusTeeEnabled = trusTeeEnabled,
       trusTeeKmsClient = sharedKmsClient,
     )
 
@@ -234,7 +246,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   //   - edp4-eg-ref-1: entity_type="ad_group" (non-default type round-trip).
   // listReportingEventGroups() filters entity_type_in=["campaign", "ad_group", "creative-id"]
   // so all event groups are visible.
-  private val eventGroupConfigsByEdp: Map<String, Map<String, EventGroupConfig>> =
+  protected val eventGroupConfigsByEdp: Map<String, Map<String, EventGroupConfig>> =
     mapOf(
       "edp1" to
         mapOf(
@@ -355,23 +367,23 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           mapOf(
             "edp1" to
               DataProviderKt.capabilities {
-                honestMajorityShareShuffleSupported = true
-                trusTeeSupported = false
+                honestMajorityShareShuffleSupported = hmssEnabled
+                trusTeeSupported = trusTeeEnabled
               },
             "edp2" to
               DataProviderKt.capabilities {
-                honestMajorityShareShuffleSupported = true
-                trusTeeSupported = true
+                honestMajorityShareShuffleSupported = hmssEnabled
+                trusTeeSupported = trusTeeEnabled
               },
             "edp3" to
               DataProviderKt.capabilities {
-                honestMajorityShareShuffleSupported = false
-                trusTeeSupported = true
+                honestMajorityShareShuffleSupported = hmssEnabled
+                trusTeeSupported = trusTeeEnabled
               },
             "edp4" to
               DataProviderKt.capabilities {
-                honestMajorityShareShuffleSupported = true
-                trusTeeSupported = true
+                honestMajorityShareShuffleSupported = hmssEnabled
+                trusTeeSupported = trusTeeEnabled
               },
           ),
           duchyMap,
@@ -491,14 +503,14 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   private val reportingDataProvidersClient by lazy {
     DataProvidersCoroutineStub(reportingServer.publicApiChannel)
   }
-  private val reportingBasicReportsClient by lazy {
+  protected val reportingBasicReportsClient by lazy {
     ReportingBasicReportsCoroutineStub(reportingServer.publicApiChannel)
   }
   private val reportingReportsClient by lazy {
     ReportingReportsCoroutineStub(reportingServer.publicApiChannel)
   }
 
-  private lateinit var credentials: TrustedPrincipalAuthInterceptor.Credentials
+  protected lateinit var credentials: TrustedPrincipalAuthInterceptor.Credentials
 
   @Before
   fun setup() {
@@ -743,64 +755,12 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
   }
 
-  @Test
-  fun `EDPA EventGroups with explicit entity_key round-trip to the Reporting API`() = runBlocking {
-    val byRefId: Map<String, EventGroup> =
-      listReportingEventGroups().associateBy { it.eventGroupReferenceId }
-
-    for ((_, refConfigs) in eventGroupConfigsByEdp) {
-      for ((_, config) in refConfigs) {
-        when (config) {
-          is EventGroupConfig.LegacySpec -> continue
-          is EventGroupConfig.MultiEntityKey -> {
-            for (entityKeySpec in config.entityKeySpecs) {
-              val derivedRefId =
-                "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}"
-              val eventGroup = byRefId.getValue(derivedRefId)
-              assertWithMessage("entity_key.entity_type for $derivedRefId")
-                .that(eventGroup.entityKey.entityType)
-                .isEqualTo(entityKeySpec.entityKey.entityType)
-              assertWithMessage("entity_key.entity_id for $derivedRefId")
-                .that(eventGroup.entityKey.entityId)
-                .isEqualTo(entityKeySpec.entityKey.entityId)
-              assertWithMessage("entity_metadata for $derivedRefId")
-                .that(eventGroup.eventGroupMetadata.entityMetadata)
-                .isEqualTo(entityKeySpec.entityMetadata)
-            }
-          }
-        }
-      }
-    }
-  }
-
-  @Test
-  fun `EDPA EventGroups without entity_key default to campaign with no entity_id or metadata`() =
-    runBlocking {
-      val byRefId: Map<String, EventGroup> =
-        listReportingEventGroups().associateBy { it.eventGroupReferenceId }
-
-      val legacy: EventGroup = byRefId.getValue(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID)
-      assertThat(legacy.entityKey.entityType).isEqualTo("campaign")
-      assertThat(legacy.entityKey.entityId).isEmpty()
-      assertThat(legacy.eventGroupMetadata.hasEntityMetadata()).isFalse()
-    }
-
-  @Test
-  fun `EDPA EventGroups with non-default entity_type round-trip through Reporting`() = runBlocking {
-    val byRefId: Map<String, EventGroup> =
-      listReportingEventGroups().associateBy { it.eventGroupReferenceId }
-
-    val adGroupEventGroup = byRefId.getValue("ad_group/$AD_GROUP_EDP_EVENT_GROUP_REF_ID")
-    assertThat(adGroupEventGroup.entityKey.entityType).isEqualTo("ad_group")
-    assertThat(adGroupEventGroup.entityKey.entityId).isEqualTo(AD_GROUP_EDP_EVENT_GROUP_REF_ID)
-    assertThat(adGroupEventGroup.eventGroupMetadata.entityMetadata).isEqualTo(ENTITY_METADATA)
-  }
 
   /**
    * Checks structural invariants on basic report results: all metrics are positive, k+ reach is
    * monotonically non-increasing, and component-level metrics are present.
    */
-  private fun assertStructuralResults(basicReport: BasicReport) {
+  protected fun assertStructuralResults(basicReport: BasicReport) {
     basicReport.resultGroupsList.forEach { resultGroup ->
       val totalResults =
         resultGroup.resultsList.filter {
@@ -973,7 +933,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .isLessThan(componentReaches.sum())
   }
 
-  private fun assertSingleEdpNoNoiseResults(
+  protected fun assertSingleEdpNoNoiseResults(
     basicReport: BasicReport,
     expectedReach: Long,
     expectedImpressions: Long,
@@ -1016,7 +976,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .isEqualTo(expectedImpressions)
   }
 
-  private fun assertRunningBasicReport(
+  protected fun assertRunningBasicReport(
     createBasicReportRequest: CreateBasicReportRequest,
     createdBasicReport: BasicReport,
     retrievedBasicReport: BasicReport,
@@ -1040,7 +1000,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     assertThat(retrievedBasicReport.createTime).isEqualTo(createdBasicReport.createTime)
   }
 
-  private suspend fun buildCreateBasicReportRequest(
+  protected suspend fun buildCreateBasicReportRequest(
     eventGroups: List<EventGroup>,
     campaignGroupId: String,
     basicReportId: String,
@@ -1141,7 +1101,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
-  private suspend fun listMeasurements(): List<Measurement> {
+  protected suspend fun listMeasurements(): List<Measurement> {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     return publicMeasurementsClient
       .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
@@ -1149,7 +1109,39 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .measurementsList
   }
 
-  private suspend fun listReportingEventGroups(): List<EventGroup> {
+  protected suspend fun getMeasurementsForBasicReport(basicReportName: String): List<Measurement> {
+    val basicReportKey = BasicReportKey.fromName(basicReportName)!!
+    val internalBasicReport =
+      reportingServer.internalBasicReportsClient.getBasicReport(
+        internalGetBasicReportRequest {
+          cmmsMeasurementConsumerId = basicReportKey.cmmsMeasurementConsumerId
+          externalBasicReportId = basicReportKey.basicReportId
+        }
+      )
+    val reportName =
+      ReportKey(internalBasicReport.cmmsMeasurementConsumerId, internalBasicReport.externalReportId)
+        .toName()
+    return listMeasurements().filter {
+      it.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.report == reportName
+    }
+  }
+
+  protected fun assertExpectedProtocolUsed(measurements: List<Measurement>) {
+    assertWithMessage("measurements").that(measurements).isNotEmpty()
+    var expectedProtocolFound = false
+    for (measurement in measurements) {
+      val protocol = measurement.protocolConfig.protocolsList.single()
+      assertWithMessage("protocol for ${measurement.name}")
+        .that(protocol.protocolCase)
+        .isAnyOf(PublicProtocolConfig.Protocol.ProtocolCase.DIRECT, expectedProtocol)
+      if (protocol.protocolCase == expectedProtocol) expectedProtocolFound = true
+    }
+    assertWithMessage("at least one $expectedProtocol measurement")
+      .that(expectedProtocolFound)
+      .isTrue()
+  }
+
+  protected suspend fun listReportingEventGroups(): List<EventGroup> {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     return reportingEventGroupsClient
       .withCallCredentials(credentials)
@@ -1187,7 +1179,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
-  private suspend fun executeBasicReportsReportsJob(basicReportName: String) {
+  protected suspend fun executeBasicReportsReportsJob(basicReportName: String) {
     val basicReportKey = BasicReportKey.fromName(basicReportName)!!
     val internalBasicReport =
       reportingServer.internalBasicReportsClient.getBasicReport(
@@ -1212,7 +1204,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .execute()
   }
 
-  private fun executeReportProcessorJob() {
+  protected fun executeReportProcessorJob() {
     val processBuilder =
       ProcessBuilder("python3", POST_PROCESS_REPORT_RESULT_FILE.toPath().toString())
     processBuilder
@@ -1269,6 +1261,38 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
+  private suspend fun getEventGroupsByEdp(
+    includeEdpDisplayNames: Set<String>,
+    excludeEdpDisplayNames: Set<String> = emptySet(),
+  ): List<EventGroup> {
+    return buildList {
+      val includedDataProviders = mutableSetOf<String>()
+      val eventGroups =
+        listReportingEventGroups().filter {
+          it.eventGroupReferenceId !in EDP1_ALL_ENTITY_KEY_REF_IDS
+        }
+      eventGroups.forEach { eventGroup ->
+        val dataProvider =
+          reportingDataProvidersClient
+            .withCallCredentials(credentials)
+            .getDataProvider(getDataProviderRequest { name = eventGroup.cmmsDataProvider })
+        val displayName =
+          inProcessCmmsComponents.getDataProviderDisplayNameFromDataProviderName(dataProvider.name)
+        if (
+          !includedDataProviders.contains(dataProvider.name) &&
+            displayName !in excludeEdpDisplayNames &&
+            (includeEdpDisplayNames.isEmpty() || displayName in includeEdpDisplayNames)
+        ) {
+          includedDataProviders.add(dataProvider.name)
+          add(eventGroup)
+        }
+      }
+    }
+  }
+
+  protected suspend fun getMultiEdpEventGroups(): List<EventGroup> =
+    getEventGroupsByEdp(multiEdpDisplayNames)
+
   private suspend fun getEventGroupsByCapability(
     isCapable: (DataProvider.Capabilities) -> Boolean,
     excludeEdpDisplayNames: Set<String>,
@@ -1307,14 +1331,46 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   private suspend fun getTrusTeeEventGroups(): List<EventGroup> =
     getEventGroupsByCapability({ it.trusTeeSupported }, setOf(RESTRICTED_EDP_DISPLAY_NAME))
 
-  /**
-   * Returns capable event groups that include exactly one restricted EDP (one whose multi-party
-   * noise config requires CONTINUOUS_GAUSSIAN) and one unrestricted EDP.
-   */
   private suspend fun getEventGroupsIncludingRestrictedEdp(
     capabilityFilter: (DataProvider.Capabilities) -> Boolean
   ): List<EventGroup> {
     val allGroups = getEventGroupsByCapability(capabilityFilter, emptySet())
+    var restrictedGroup: EventGroup? = null
+    var unrestrictedGroup: EventGroup? = null
+    for (eventGroup in allGroups) {
+      val dataProvider =
+        reportingDataProvidersClient
+          .withCallCredentials(credentials)
+          .getDataProvider(getDataProviderRequest { name = eventGroup.cmmsDataProvider })
+      val displayName =
+        inProcessCmmsComponents.getDataProviderDisplayNameFromDataProviderName(dataProvider.name)
+      if (displayName == RESTRICTED_EDP_DISPLAY_NAME && restrictedGroup == null) {
+        restrictedGroup = eventGroup
+      } else if (displayName != RESTRICTED_EDP_DISPLAY_NAME && unrestrictedGroup == null) {
+        unrestrictedGroup = eventGroup
+      }
+      if (restrictedGroup != null && unrestrictedGroup != null) break
+    }
+    check(restrictedGroup != null) {
+      "No event group found for restricted EDP "
+    }
+    check(unrestrictedGroup != null) { "No unrestricted event group found" }
+    return listOf(unrestrictedGroup, restrictedGroup)
+  }
+
+  private suspend fun getHmssEventGroupsIncludingRestrictedEdp(): List<EventGroup> =
+    getEventGroupsIncludingRestrictedEdp {
+      it.honestMajorityShareShuffleSupported
+    }
+
+  private suspend fun getTrusTeeEventGroupsIncludingRestrictedEdp(): List<EventGroup> =
+    getEventGroupsIncludingRestrictedEdp {
+      it.trusTeeSupported
+    }
+
+
+  protected suspend fun getMultiEdpEventGroupsIncludingRestrictedEdp(): List<EventGroup> {
+    val allGroups = getEventGroupsByEdp(emptySet())
     var restrictedGroup: EventGroup? = null
     var unrestrictedGroup: EventGroup? = null
     for (eventGroup in allGroups) {
@@ -1338,28 +1394,18 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     return listOf(unrestrictedGroup, restrictedGroup)
   }
 
-  private suspend fun getHmssEventGroupsIncludingRestrictedEdp(): List<EventGroup> =
-    getEventGroupsIncludingRestrictedEdp {
-      it.honestMajorityShareShuffleSupported
-    }
-
-  private suspend fun getTrusTeeEventGroupsIncludingRestrictedEdp(): List<EventGroup> =
-    getEventGroupsIncludingRestrictedEdp {
-      it.trusTeeSupported
-    }
-
-  private suspend fun getCreativeIdOnlyEventGroups(): List<EventGroup> {
+  protected suspend fun getCreativeIdOnlyEventGroups(): List<EventGroup> {
     return listReportingEventGroups().filter {
       it.entityKey.entityType == CREATIVE_ID_ENTITY_TYPE &&
         it.eventGroupReferenceId !in EDP1_MULTI_ENTITY_KEY_REF_IDS
     }
   }
 
-  private suspend fun getReferenceIdOnlyEventGroups(): List<EventGroup> {
+  protected suspend fun getReferenceIdOnlyEventGroups(): List<EventGroup> {
     return listReportingEventGroups().filter { it.entityKey.entityId.isEmpty() }
   }
 
-  private suspend fun getMixedEntityKeyEventGroups(): List<EventGroup> {
+  protected suspend fun getMixedEntityKeyEventGroups(): List<EventGroup> {
     val allEventGroups = listReportingEventGroups()
     val edp1RefIdOnly =
       allEventGroups.first { it.eventGroupReferenceId == EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID }
@@ -1370,263 +1416,21 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     return listOf(edp1RefIdOnly, edp1CreativeId)
   }
 
-  @Test
-  fun `basic report with reference-id-only event groups succeeds`() = runBlocking {
-    val refIdOnlyEventGroups = getReferenceIdOnlyEventGroups()
-    check(refIdOnlyEventGroups.isNotEmpty()) { "No reference-ID-only event groups found" }
-
-    val createBasicReportRequest =
-      buildCreateBasicReportRequest(
-        refIdOnlyEventGroups,
-        "ref-id-only-campaign",
-        "ref-id-only-basicreport",
-        includeIqfFilter = false,
-      )
-
-    val createdBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .createBasicReport(createBasicReportRequest)
-
-    executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
-
-    val completedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
-    assertStructuralResults(completedBasicReport)
-    assertSingleEdpNoNoiseResults(
-      completedBasicReport,
-      expectedReach = EXPECTED_SINGLE_EDP_SPEC2_REACH,
-      expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
-      expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
-    )
-  }
-
-  @Test
-  fun `basic report with cross-publisher creative-id event groups succeeds`() = runBlocking {
-    val creativeIdEventGroups = getCreativeIdOnlyEventGroups()
-    check(creativeIdEventGroups.size >= 2) {
-      "Expected at least 2 creative-id event groups, got ${creativeIdEventGroups.size}"
-    }
-
-    val createBasicReportRequest =
-      buildCreateBasicReportRequest(
-        creativeIdEventGroups,
-        "creative-id-cross-pub-campaign",
-        "creative-id-cross-pub-basicreport",
-        includeIqfFilter = false,
-      )
-
-    val createdBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .createBasicReport(createBasicReportRequest)
-
-    executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
-
-    val completedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
-    assertStructuralResults(completedBasicReport)
-    assertNoNoiseResults(
-      completedBasicReport,
-      expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,
-      expectedCrossPublisherImpressions = EXPECTED_CROSS_PUBLISHER_IMPRESSIONS,
-      expectedKPlusReach = EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH,
-      expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
-      expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
-    )
-  }
-
-  @Test
-  fun `basic report with single-edp creative-id event group succeeds`() = runBlocking {
-    val allEventGroups = listReportingEventGroups()
-    val singleCreativeIdEventGroup =
-      allEventGroups.filter {
-        it.eventGroupReferenceId == "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_EVENT_GROUP_REF_ID"
-      }
-    check(singleCreativeIdEventGroup.isNotEmpty()) {
-      "No single creative-id event group found for edp1"
-    }
-
-    val createBasicReportRequest =
-      buildCreateBasicReportRequest(
-        singleCreativeIdEventGroup,
-        "creative-id-single-edp-campaign",
-        "creative-id-single-edp-basicreport",
-        includeIqfFilter = false,
-      )
-
-    val createdBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .createBasicReport(createBasicReportRequest)
-
-    executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
-
-    val completedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
-    assertStructuralResults(completedBasicReport)
-    assertSingleEdpNoNoiseResults(
-      completedBasicReport,
-      expectedReach = EXPECTED_SINGLE_EDP_SPEC2_REACH,
-      expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
-      expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
-    )
-  }
-
-  @Test
-  fun `basic report with mixed reference-id and entity-key event groups fails`() = runBlocking {
-    val mixedEventGroups = getMixedEntityKeyEventGroups()
-
-    val createBasicReportRequest =
-      buildCreateBasicReportRequest(
-        mixedEventGroups,
-        "mixed-selectors-campaign",
-        "mixed-selectors-basicreport",
-        includeIqfFilter = false,
-      )
-
-    val createdBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .createBasicReport(createBasicReportRequest)
-
-    executeBasicReportsReportsJob(createdBasicReport.name)
-
-    val completedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
-  }
-
-  @Test
-  fun `basic report with multi-entity-key blob filtering to one entity key succeeds`() =
-    runBlocking {
-      val singleEntityKeyEventGroup =
-        listReportingEventGroups().filter {
-          it.eventGroupReferenceId == "$CREATIVE_ID_ENTITY_TYPE/$EDP1_MULTI_CREATIVE_A_ID"
-        }
-      check(singleEntityKeyEventGroup.isNotEmpty()) { "No multi-entity-key event group found" }
-
-      val createBasicReportRequest =
-        buildCreateBasicReportRequest(
-          singleEntityKeyEventGroup,
-          "multi-entity-key-campaign",
-          "multi-entity-key-basicreport",
-          includeIqfFilter = false,
-        )
-
-      val createdBasicReport =
-        reportingBasicReportsClient
-          .withCallCredentials(credentials)
-          .createBasicReport(createBasicReportRequest)
-
-      executeBasicReportsReportsJob(createdBasicReport.name)
-      executeReportProcessorJob()
-
-      val completedBasicReport =
-        reportingBasicReportsClient
-          .withCallCredentials(credentials)
-          .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-      assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
-      assertStructuralResults(completedBasicReport)
-      assertSingleEdpNoNoiseResults(
-        completedBasicReport,
-        expectedReach = EXPECTED_SINGLE_EDP_SPEC2_REACH,
-        expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
-        expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
-      )
-    }
-
-  @Test
-  fun `basic report with two same-edp entity-key event groups succeeds`() = runBlocking {
-    val bothEntityKeyEventGroups =
-      listReportingEventGroups().filter {
-        it.eventGroupReferenceId in EDP1_MULTI_ENTITY_KEY_REF_IDS
-      }
-    check(bothEntityKeyEventGroups.size == 2) {
-      "Expected 2 multi-entity-key event groups, got ${bothEntityKeyEventGroups.size}"
-    }
-
-    val createBasicReportRequest =
-      buildCreateBasicReportRequest(
-        bothEntityKeyEventGroups,
-        "two-entity-key-campaign",
-        "two-entity-key-basicreport",
-        includeIqfFilter = false,
-      )
-
-    val createdBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .createBasicReport(createBasicReportRequest)
-
-    executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
-
-    val completedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
-    assertStructuralResults(completedBasicReport)
-
-    val resultGroup = completedBasicReport.resultGroupsList.single()
-    val totalResult =
-      resultGroup.resultsList.single {
-        it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
-      }
-    val reportingUnitCumulative = totalResult.metricSet.reportingUnit.cumulative
-
-    assertWithMessage("reach")
-      .that(reportingUnitCumulative.reach)
-      .isEqualTo(EXPECTED_SINGLE_EDP_SPEC2_REACH)
-    assertWithMessage("impressions")
-      .that(reportingUnitCumulative.impressions)
-      .isEqualTo(EXPECTED_TWO_ENTITY_KEY_IMPRESSIONS)
-    assertWithMessage("k+ reach")
-      .that(reportingUnitCumulative.kPlusReachList)
-      .containsExactlyElementsIn(EXPECTED_TWO_ENTITY_KEY_K_PLUS_REACH)
-      .inOrder()
-    assertWithMessage("population size").that(totalResult.metricSet.populationSize).isGreaterThan(0)
-    assertWithMessage("number of components")
-      .that(totalResult.metricSet.componentsCount)
-      .isEqualTo(1)
-  }
-
   companion object {
     // edp1 has no entity_key/entity_metadata override (legacy path).
     // edp4 is configured with multi-party noise CONTINUOUS_GAUSSIAN, so it's the "restricted"
     // EDP for the no-noise failure path tests; the same EDP also carries the non-default
     // entity_type ("ad_group") in this fixture.
-    private const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edp1-eg-ref-1"
-    private const val AD_GROUP_EDP_DISPLAY_NAME = "edp4"
-    private const val AD_GROUP_EDP_EVENT_GROUP_REF_ID = "ad_group/edp4-eg-ref-1"
+    internal const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edp1-eg-ref-1"
+    internal const val AD_GROUP_EDP_DISPLAY_NAME = "edp4"
+    internal const val AD_GROUP_EDP_EVENT_GROUP_REF_ID = "ad_group/edp4-eg-ref-1"
     private const val RESTRICTED_EDP_DISPLAY_NAME = AD_GROUP_EDP_DISPLAY_NAME
-    private const val CREATIVE_ID_ENTITY_TYPE = "creative-id"
-    private const val EDP1_MULTI_CREATIVE_A_ID = "multi-creative-A"
-    private const val EDP1_MULTI_CREATIVE_B_ID = "multi-creative-B"
-    private val EDP1_CREATIVE_EVENT_GROUP_REF_ID = "$CREATIVE_ID_ENTITY_TYPE/edp1-eg-creative-1"
+    internal const val CREATIVE_ID_ENTITY_TYPE = "creative-id"
+    internal const val EDP1_MULTI_CREATIVE_A_ID = "multi-creative-A"
+    internal const val EDP1_MULTI_CREATIVE_B_ID = "multi-creative-B"
+    internal val EDP1_CREATIVE_EVENT_GROUP_REF_ID = "$CREATIVE_ID_ENTITY_TYPE/edp1-eg-creative-1"
     private val EDP2_CREATIVE_EVENT_GROUP_REF_ID = "$CREATIVE_ID_ENTITY_TYPE/edp2-eg-creative-1"
-    private val EDP1_MULTI_ENTITY_KEY_REF_IDS =
+    internal val EDP1_MULTI_ENTITY_KEY_REF_IDS =
       setOf(
         "$CREATIVE_ID_ENTITY_TYPE/$EDP1_MULTI_CREATIVE_A_ID",
         "$CREATIVE_ID_ENTITY_TYPE/$EDP1_MULTI_CREATIVE_B_ID",
@@ -1743,18 +1547,18 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
     // All computation methods (HMSS, TrusTee, etc.) are expected to produce exactly the same
     // results when using the same input data and no noise.
-    private const val EXPECTED_CROSS_PUBLISHER_REACH = 5330L
-    private const val EXPECTED_CROSS_PUBLISHER_IMPRESSIONS = 8860L
-    private val EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH = listOf(5330L, 2572L, 647L, 311L, 0L)
-    private const val EXPECTED_EDP_SPEC1_REACH = 3937L
-    private const val EXPECTED_EDP_SPEC2_REACH = 3638L
+    internal const val EXPECTED_CROSS_PUBLISHER_REACH = 5330L
+    internal const val EXPECTED_CROSS_PUBLISHER_IMPRESSIONS = 8860L
+    internal val EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH = listOf(5330L, 2572L, 647L, 311L, 0L)
+    internal const val EXPECTED_EDP_SPEC1_REACH = 3937L
+    internal const val EXPECTED_EDP_SPEC2_REACH = 3638L
 
-    private const val EXPECTED_SINGLE_EDP_SPEC2_REACH = 3638L
-    private const val EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS = 4276L
-    private val EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH = listOf(3638L, 638L, 0L, 0L, 0L)
+    internal const val EXPECTED_SINGLE_EDP_SPEC2_REACH = 3638L
+    internal const val EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS = 4276L
+    internal val EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH = listOf(3638L, 638L, 0L, 0L, 0L)
 
-    private const val EXPECTED_TWO_ENTITY_KEY_IMPRESSIONS = 8552L
-    private val EXPECTED_TWO_ENTITY_KEY_K_PLUS_REACH = listOf(3638L, 3638L, 638L, 638L, 0L)
+    internal const val EXPECTED_TWO_ENTITY_KEY_IMPRESSIONS = 8552L
+    internal val EXPECTED_TWO_ENTITY_KEY_K_PLUS_REACH = listOf(3638L, 3638L, 638L, 638L, 0L)
 
     // Placeholder values required by the MeasurementSpec. Unused since NoiseMechanism is NONE.
     private val NO_NOISE_PRIVACY_PARAMS =
@@ -1871,7 +1675,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
 
     @get:ClassRule @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
 
-    private val ENTITY_METADATA = struct {
+    internal val ENTITY_METADATA = struct {
       fields["placement"] = value { stringValue = "homepage_top" }
       fields["objective"] = value { stringValue = "awareness" }
     }

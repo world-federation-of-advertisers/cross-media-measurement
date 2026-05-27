@@ -81,11 +81,14 @@ class InProcessCmmsComponents(
   private val kingdomDataServicesRule: ProviderRule<DataServices>,
   private val duchyDependenciesRule:
     ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
+  private val useEdpSimulators: Boolean,
+  private val trusTeeKmsClient: KmsClient,
+  private val hmssEnabled: Boolean,
+  private val trusTeeEnabled: Boolean,
   private val populationSpec: PopulationSpec = SyntheticGenerationSpecs.POPULATION_SPEC_SMALL,
   private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
     SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL,
-  private val useEdpSimulators: Boolean,
-  private val trusTeeKmsClient: KmsClient,
+  private val duchyNames: List<String> = ALL_DUCHY_NAMES,
 ) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value
@@ -95,6 +98,8 @@ class InProcessCmmsComponents(
       dataServicesProvider = { kingdomDataServices },
       REDIRECT_URI,
       verboseGrpcLogging = false,
+      hmssEnabled = hmssEnabled,
+      trusTeeEnabled = trusTeeEnabled,
     )
 
   val eventQuery by lazy {
@@ -106,7 +111,7 @@ class InProcessCmmsComponents(
   }
 
   val duchies: List<InProcessDuchy> by lazy {
-    ALL_DUCHY_NAMES.map {
+    duchyNames.map {
       InProcessDuchy(
         externalDuchyId = it,
         kingdomSystemApiChannel = kingdom.systemApiChannel,
@@ -145,14 +150,11 @@ class InProcessCmmsComponents(
         certificateKey = certificateKey,
         mcResourceName = mcResourceName,
         kingdomPublicApiChannel = kingdom.publicApiChannel,
-        duchyPublicApiChannelMap =
-          mapOf(
-            duchies[1].externalDuchyId to duchies[1].publicApiChannel,
-            duchies[2].externalDuchyId to duchies[2].publicApiChannel,
-          ),
+        duchyPublicApiChannelMap = duchies.associate { it.externalDuchyId to it.publicApiChannel },
         trustedCertificates = TRUSTED_CERTIFICATES,
         eventGroupOptions = eventGroupOptions,
         eventQuery = eventQuery,
+        trusTeeSupported = trusTeeEnabled,
       )
     }
   }
@@ -421,8 +423,8 @@ class InProcessCmmsComponents(
 
     @JvmStatic
     fun initConfig(
-      trusTeeProtocolConfigConfig: TrusTeeProtocolConfigConfig,
-      hmssProtocolConfigConfig: HmssProtocolConfigConfig,
+      trusTeeProtocolConfigConfig: TrusTeeProtocolConfigConfig? = null,
+      hmssProtocolConfigConfig: HmssProtocolConfigConfig? = null,
     ) {
       DuchyIds.setForTest(ALL_DUCHIES)
       Llv2ProtocolConfig.setForTest(
@@ -437,16 +439,20 @@ class InProcessCmmsComponents(
         setOf("aggregator"),
         2,
       )
-      HmssProtocolConfig.setForTest(
-        hmssProtocolConfigConfig.protocolConfig,
-        hmssProtocolConfigConfig.firstNonAggregatorDuchyId,
-        hmssProtocolConfigConfig.secondNonAggregatorDuchyId,
-        hmssProtocolConfigConfig.aggregatorDuchyId,
-      )
-      TrusTeeProtocolConfig.setForTest(
-        trusTeeProtocolConfigConfig.protocolConfig,
-        trusTeeProtocolConfigConfig.duchyId,
-      )
+      if (hmssProtocolConfigConfig != null) {
+        HmssProtocolConfig.setForTest(
+          hmssProtocolConfigConfig.protocolConfig,
+          hmssProtocolConfigConfig.firstNonAggregatorDuchyId,
+          hmssProtocolConfigConfig.secondNonAggregatorDuchyId,
+          hmssProtocolConfigConfig.aggregatorDuchyId,
+        )
+      }
+      if (trusTeeProtocolConfigConfig != null) {
+        TrusTeeProtocolConfig.setForTest(
+          trusTeeProtocolConfigConfig.protocolConfig,
+          trusTeeProtocolConfigConfig.duchyId,
+        )
+      }
       DuchyInfo.initializeFromConfig(
         loadTextProto("duchy_cert_config.textproto", DuchyCertConfig.getDefaultInstance())
       )

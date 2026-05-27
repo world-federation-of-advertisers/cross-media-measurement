@@ -51,6 +51,8 @@ class GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseHighTest :
         reportingPostgresDatabaseProvider,
         IMPRESSION_QUALIFICATION_FILTER_MAPPING,
       ),
+    hmssEnabled = false,
+    trusTeeEnabled = true,
   ) {
 
   @get:Rule val timeout: Timeout = Timeout.seconds(180)

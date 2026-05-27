@@ -65,6 +65,8 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
       duchyDependenciesRule,
       useEdpSimulators = true,
       trusTeeKmsClient = ThrowingKmsClient,
+      hmssEnabled = false,
+      trusTeeEnabled = false,
     )
 
   private val publicMeasurementsClient by lazy {

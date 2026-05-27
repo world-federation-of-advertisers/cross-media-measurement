@@ -52,6 +52,8 @@ class GCloudEdpAggregatorLifeOfAReportNoiseNoThresholdsTest :
         reportingPostgresDatabaseProvider,
         IMPRESSION_QUALIFICATION_FILTER_MAPPING,
       ),
+    hmssEnabled = false,
+    trusTeeEnabled = true,
   ) {
 
   override val useNoisyAssertions: Boolean

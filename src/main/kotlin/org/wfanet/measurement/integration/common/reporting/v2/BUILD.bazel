@@ -11,7 +11,10 @@ package(
 kt_jvm_library(
     name = "in_process_life_of_a_report_integration_test",
     srcs = [
+        "InProcessDirectMultipleReportIntegrationTest.kt",
+        "InProcessDirectOnlyReportIntegrationTest.kt",
         "InProcessLifeOfAReportIntegrationTest.kt",
+        "InProcessMultiEdpReportIntegrationTest.kt",
     ],
     data = [
         "//src/main/k8s/testing/secretfiles:secret_files",
@@ -53,7 +56,10 @@ kt_jvm_library(
 kt_jvm_library(
     name = "in_process_edp_aggregator_life_of_a_report_test",
     srcs = [
+        "InProcessEdpAggregatorDirectOnlyReportTest.kt",
         "InProcessEdpAggregatorLifeOfAReportTest.kt",
+        "InProcessEdpAggregatorLifeOfAnEventGroupTest.kt",
+        "InProcessEdpAggregatorMultiEdpReportTest.kt",
     ],
     data = [
         "//src/main/k8s/testing/secretfiles:secret_files",
