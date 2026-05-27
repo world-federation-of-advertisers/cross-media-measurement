@@ -57,7 +57,6 @@ import org.wfanet.measurement.access.v1alpha.createRoleRequest
 import org.wfanet.measurement.access.v1alpha.policy
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.access.v1alpha.role
-import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
@@ -147,7 +146,6 @@ import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.eventFilter
 import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
-import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
@@ -573,60 +571,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       }
     )
     credentials = TrustedPrincipalAuthInterceptor.Credentials(principal, setOf("reporting.*"))
-  }
-
-  protected suspend fun assertHmssReportFailsWhenEdpRequiresGaussianNoise() {
-    val hmssEventGroups = getHmssEventGroupsIncludingRestrictedEdp()
-    check(hmssEventGroups.size > 1)
-
-    val createBasicReportRequest =
-      buildCreateBasicReportRequest(
-        hmssEventGroups,
-        "hmss-gaussian-campaign",
-        "hmss-gaussian-basicreport",
-        includeIqfFilter = false,
-      )
-
-    val createdBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .createBasicReport(createBasicReportRequest)
-
-    executeBasicReportsReportsJob(createdBasicReport.name)
-
-    val completedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
-  }
-
-  protected suspend fun assertTrusTeeReportFailsWhenEdpRequiresGaussianNoise() {
-    val trusTeeEventGroups = getTrusTeeEventGroupsIncludingRestrictedEdp()
-    check(trusTeeEventGroups.size > 1)
-
-    val createBasicReportRequest =
-      buildCreateBasicReportRequest(
-        trusTeeEventGroups,
-        "trustee-gaussian-campaign",
-        "trustee-gaussian-basicreport",
-        includeIqfFilter = false,
-      )
-
-    val createdBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .createBasicReport(createBasicReportRequest)
-
-    executeBasicReportsReportsJob(createdBasicReport.name)
-
-    val completedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
   }
 
   /**
@@ -1165,81 +1109,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
 
   protected suspend fun getMultiEdpEventGroups(): List<EventGroup> =
     getEventGroupsByEdp(multiEdpDisplayNames)
-
-  protected suspend fun getEventGroupsByCapability(
-    isCapable: (DataProvider.Capabilities) -> Boolean,
-    excludeEdpDisplayNames: Set<String>,
-  ): List<EventGroup> {
-    return buildList {
-      val includedDataProviders = mutableSetOf<String>()
-      val eventGroups =
-        listReportingEventGroups().filter {
-          it.eventGroupReferenceId !in EDP1_ALL_ENTITY_KEY_REF_IDS
-        }
-      eventGroups.forEach { eventGroup ->
-        val dataProvider =
-          reportingDataProvidersClient
-            .withCallCredentials(credentials)
-            .getDataProvider(getDataProviderRequest { name = eventGroup.cmmsDataProvider })
-        val displayName =
-          inProcessCmmsComponents.getDataProviderDisplayNameFromDataProviderName(dataProvider.name)
-        if (
-          isCapable(dataProvider.capabilities) &&
-            !includedDataProviders.contains(dataProvider.name) &&
-            displayName !in excludeEdpDisplayNames
-        ) {
-          includedDataProviders.add(dataProvider.name)
-          add(eventGroup)
-        }
-      }
-    }
-  }
-
-  protected suspend fun getHmssEventGroups(): List<EventGroup> =
-    getEventGroupsByCapability(
-      { it.honestMajorityShareShuffleSupported },
-      setOf(RESTRICTED_EDP_DISPLAY_NAME),
-    )
-
-  protected suspend fun getTrusTeeEventGroups(): List<EventGroup> =
-    getEventGroupsByCapability({ it.trusTeeSupported }, setOf(RESTRICTED_EDP_DISPLAY_NAME))
-
-  protected suspend fun getEventGroupsIncludingRestrictedEdp(
-    capabilityFilter: (DataProvider.Capabilities) -> Boolean
-  ): List<EventGroup> {
-    val allGroups = getEventGroupsByCapability(capabilityFilter, emptySet())
-    var restrictedGroup: EventGroup? = null
-    var unrestrictedGroup: EventGroup? = null
-    for (eventGroup in allGroups) {
-      val dataProvider =
-        reportingDataProvidersClient
-          .withCallCredentials(credentials)
-          .getDataProvider(getDataProviderRequest { name = eventGroup.cmmsDataProvider })
-      val displayName =
-        inProcessCmmsComponents.getDataProviderDisplayNameFromDataProviderName(dataProvider.name)
-      if (displayName == RESTRICTED_EDP_DISPLAY_NAME && restrictedGroup == null) {
-        restrictedGroup = eventGroup
-      } else if (displayName != RESTRICTED_EDP_DISPLAY_NAME && unrestrictedGroup == null) {
-        unrestrictedGroup = eventGroup
-      }
-      if (restrictedGroup != null && unrestrictedGroup != null) break
-    }
-    check(restrictedGroup != null) {
-      "No event group found for restricted EDP '$RESTRICTED_EDP_DISPLAY_NAME'"
-    }
-    check(unrestrictedGroup != null) { "No unrestricted event group found" }
-    return listOf(unrestrictedGroup, restrictedGroup)
-  }
-
-  protected suspend fun getHmssEventGroupsIncludingRestrictedEdp(): List<EventGroup> =
-    getEventGroupsIncludingRestrictedEdp {
-      it.honestMajorityShareShuffleSupported
-    }
-
-  protected suspend fun getTrusTeeEventGroupsIncludingRestrictedEdp(): List<EventGroup> =
-    getEventGroupsIncludingRestrictedEdp {
-      it.trusTeeSupported
-    }
 
   protected suspend fun getMultiEdpEventGroupsIncludingRestrictedEdp(): List<EventGroup> {
     val allGroups = getEventGroupsByEdp(emptySet())
