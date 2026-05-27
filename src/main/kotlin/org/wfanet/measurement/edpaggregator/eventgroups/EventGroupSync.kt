@@ -145,8 +145,12 @@ class EventGroupSync(
             validateDeletedEventGroup(eventGroup)
           } catch (e: Exception) {
             logger.log(Level.SEVERE, e) {
-              "Skipping deleted Event Group ${eventGroup.eventGroupReferenceId}: " +
-                "Validation failed"
+              "Skipping deleted Event Group ${eventGroup.eventGroupReferenceId}" +
+                (if (eventGroup.hasEntityKey())
+                  " (entityType=${eventGroup.entityKey.entityType}," +
+                    " entityId=${eventGroup.entityKey.entityId})"
+                else "") +
+                ": Validation failed"
             }
             metrics.invalidEventGroupFailure.add(1, metricAttributes())
             continue
@@ -165,7 +169,12 @@ class EventGroupSync(
           validateEventGroup(eventGroup)
         } catch (e: Exception) {
           logger.log(Level.SEVERE, e) {
-            "Skipping Event Group ${eventGroup.eventGroupReferenceId}: " + "Validation failed"
+            "Skipping Event Group ${eventGroup.eventGroupReferenceId}" +
+              (if (eventGroup.hasEntityKey())
+                " (entityType=${eventGroup.entityKey.entityType}," +
+                  " entityId=${eventGroup.entityKey.entityId})"
+              else "") +
+              ": Validation failed"
           }
           metrics.invalidEventGroupFailure.add(1, metricAttributes())
           continue
@@ -195,8 +204,12 @@ class EventGroupSync(
           } catch (e: Exception) {
             if (e is CancellationException) throw e
             logger.log(Level.SEVERE, e) {
-              "Skipping Event Group ${eventGroup.eventGroupReferenceId}: " +
-                "Failed to process for measurement consumer"
+              "Skipping Event Group ${eventGroup.eventGroupReferenceId}" +
+                (if (eventGroup.hasEntityKey())
+                  " (entityType=${eventGroup.entityKey.entityType}," +
+                    " entityId=${eventGroup.entityKey.entityId})"
+                else "") +
+                ": Failed to process for measurement consumer"
             }
             metrics.syncFailure.add(1, metricAttributes())
           }
@@ -309,7 +322,12 @@ class EventGroupSync(
         measurementConsumerKeys.add(key)
       } else {
         logger.log(Level.WARNING) {
-          "Ignoring malformed measurement_consumer: ${eventGroup.measurementConsumer}"
+          "Ignoring malformed measurement_consumer: ${eventGroup.measurementConsumer}" +
+            " for Event Group ${eventGroup.eventGroupReferenceId}" +
+            (if (eventGroup.hasEntityKey())
+              " (entityType=${eventGroup.entityKey.entityType}," +
+                " entityId=${eventGroup.entityKey.entityId})"
+            else "")
         }
       }
     }
