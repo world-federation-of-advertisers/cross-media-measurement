@@ -71,6 +71,8 @@ import org.wfanet.measurement.edpaggregator.telemetry.withSpan
  * This is intended to be used as a map key when grouping or associating event groups by both
  * attributes, ensuring uniqueness across consumers.
  */
+class BlankMeasurementConsumerException(message: String) : Exception(message)
+
 data class EventGroupKey(val eventGroupReferenceId: String, val measurementConsumer: String)
 
 /*
@@ -170,7 +172,24 @@ class EventGroupSync(
         }
 
         val measurementConsumerKeys: Set<MeasurementConsumerKey> =
-          resolveMeasurementConsumers(eventGroup)
+          try {
+            resolveMeasurementConsumers(eventGroup)
+          } catch (e: BlankMeasurementConsumerException) {
+            logger.log(Level.SEVERE, e) {
+              "Skipping Event Group ${eventGroup.eventGroupReferenceId}: " +
+                "No measurement consumer resolved"
+            }
+            metrics.syncFailure.add(1, metricAttributes())
+            continue
+          } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            logger.log(Level.SEVERE, e) {
+              "Skipping Event Group ${eventGroup.eventGroupReferenceId}: " +
+                "Failed to resolve measurement consumers"
+            }
+            metrics.syncFailure.add(1, metricAttributes())
+            continue
+          }
 
         for (measurementConsumerKey in measurementConsumerKeys) {
           val eventGroupWithConsumer =
@@ -333,7 +352,7 @@ class EventGroupSync(
 
     if (measurementConsumerKeys.isEmpty()) {
       metrics.unmappedEventGroups.add(1, metricAttributes())
-      logger.warning(
+      throw BlankMeasurementConsumerException(
         "EventGroup ${eventGroup.eventGroupReferenceId} has neither measurementConsumer " +
           "nor clientAccountReferenceId, or both failed to resolve"
       )

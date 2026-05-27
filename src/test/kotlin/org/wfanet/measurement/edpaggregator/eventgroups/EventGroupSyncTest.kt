@@ -23,6 +23,7 @@ import com.google.protobuf.struct
 import com.google.protobuf.timestamp
 import com.google.protobuf.value
 import com.google.type.interval
+import io.grpc.StatusRuntimeException
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.trace.StatusCode
@@ -1942,9 +1943,139 @@ class EventGroupSyncTest {
         .isEqualTo("Number of Event Groups that could not be mapped to any MeasurementConsumer")
       assertThat(unmappedMetric.longSumData.points.sumOf { it.value }).isEqualTo(1)
 
+      val syncFailureMetric = metrics.find { it.name == "edpa.event_group.sync_failure" }
+      assertThat(syncFailureMetric).isNotNull()
+      assertThat(syncFailureMetric!!.longSumData.points.sumOf { it.value }).isEqualTo(1)
+
       // Verify no EventGroup was created
       verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
     }
+  }
+
+  @Test
+  fun `sync continues processing after blank measurement consumer exception`() {
+    runBlocking {
+      val unmappableEventGroup = eventGroup {
+        eventGroupReferenceId = "reference-id-unmapped"
+        this.eventGroupMetadata = eventGroupMetadata {
+          this.adMetadata = adMetadata {
+            this.campaignMetadata = campaignMetadata {
+              brand = "brand-unmapped"
+              campaign = "campaign-unmapped"
+            }
+          }
+        }
+        clientAccountReferenceId = "client-ref-nonexistent"
+        dataAvailabilityInterval = interval {
+          startTime = timestamp { seconds = 200 }
+          endTime = timestamp { seconds = 300 }
+        }
+        mediaTypes += listOf(MediaType.valueOf("OTHER"))
+      }
+
+      val validEventGroup = eventGroup {
+        eventGroupReferenceId = "reference-id-1"
+        measurementConsumer = "measurementConsumers/measurement-consumer-1"
+        this.eventGroupMetadata = eventGroupMetadata {
+          this.adMetadata = adMetadata {
+            this.campaignMetadata = campaignMetadata {
+              brand = "brand-1"
+              campaign = "campaign-1"
+            }
+          }
+        }
+        dataAvailabilityInterval = interval {
+          startTime = timestamp { seconds = 200 }
+          endTime = timestamp { seconds = 300 }
+        }
+        mediaTypes += listOf(MediaType.valueOf("VIDEO"), MediaType.valueOf("DISPLAY"))
+      }
+
+      val eventGroupSync =
+        EventGroupSync(
+          "edp-name",
+          eventGroupsStub,
+          clientAccountsStub,
+          listOf(unmappableEventGroup, validEventGroup).asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+        )
+
+      val result = eventGroupSync.sync().toList()
+
+      assertThat(result).hasSize(1)
+      assertThat(result[0].eventGroupReferenceId).isEqualTo("reference-id-1")
+
+      val metrics = getMetrics()
+      val syncFailureMetric = metrics.find { it.name == "edpa.event_group.sync_failure" }
+      assertThat(syncFailureMetric).isNotNull()
+      assertThat(syncFailureMetric!!.longSumData.points.sumOf { it.value }).isEqualTo(1)
+
+      val syncSuccessMetric = metrics.find { it.name == "edpa.event_group.sync_success" }
+      assertThat(syncSuccessMetric).isNotNull()
+      assertThat(syncSuccessMetric!!.longSumData.points.sumOf { it.value }).isEqualTo(1)
+    }
+  }
+
+  @Test
+  fun `sync logs and skips event group when measurement consumer resolution fails`() {
+    val failingClientAccountsMock: ClientAccountsCoroutineImplBase = mockService {
+      onBlocking { listClientAccounts(any<ListClientAccountsRequest>()) }
+        .thenThrow(StatusRuntimeException(io.grpc.Status.INTERNAL.withDescription("API error")))
+    }
+
+    val testRule = GrpcTestServerRule {
+      addService(eventGroupsServiceMock)
+      addService(failingClientAccountsMock)
+    }
+
+    val statement =
+      object : org.junit.runners.model.Statement() {
+        override fun evaluate() {
+          runBlocking {
+            val eventGroupWithFailingLookup = eventGroup {
+              eventGroupReferenceId = "reference-id-failing"
+              this.eventGroupMetadata = eventGroupMetadata {
+                this.adMetadata = adMetadata {
+                  this.campaignMetadata = campaignMetadata {
+                    brand = "brand-failing"
+                    campaign = "campaign-failing"
+                  }
+                }
+              }
+              clientAccountReferenceId = "client-ref-failing"
+              dataAvailabilityInterval = interval {
+                startTime = timestamp { seconds = 200 }
+                endTime = timestamp { seconds = 300 }
+              }
+              mediaTypes += listOf(MediaType.valueOf("OTHER"))
+            }
+
+            val eventGroupSync =
+              EventGroupSync(
+                "edp-name",
+                EventGroupsCoroutineStub(testRule.channel),
+                ClientAccountsCoroutineStub(testRule.channel),
+                listOf(eventGroupWithFailingLookup).asFlow(),
+                MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+                100,
+              )
+
+            val result = eventGroupSync.sync().toList()
+
+            assertThat(result).isEmpty()
+
+            val metrics = getMetrics()
+            val syncFailureMetric = metrics.find { it.name == "edpa.event_group.sync_failure" }
+
+            assertThat(syncFailureMetric).isNotNull()
+            assertThat(syncFailureMetric!!.longSumData.points.sumOf { it.value }).isEqualTo(1)
+
+            verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+          }
+        }
+      }
+    testRule.apply(statement, org.junit.runner.Description.EMPTY).evaluate()
   }
 
   @Test
