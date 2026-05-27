@@ -43,7 +43,7 @@ FROM (
         CAST(br.BasicReportResultDetails AS BYTES) AS BasicReportResultDetails
       FROM BasicReports br''')
   ) br,
-  UNNEST(JSON_QUERY_ARRAY(details, '$.resultGroups')) AS rg,
+  UNNEST(JSON_QUERY_ARRAY(br.details, '$.resultGroups')) AS rg,
   UNNEST(JSON_QUERY_ARRAY(rg, '$.results')) AS result,
   UNNEST(JSON_QUERY_ARRAY(result, '$.metadata.reportingUnitSummary.reportingUnitComponentSummary')) AS comp,
   UNNEST(JSON_QUERY_ARRAY(comp, '$.eventGroupSummaries')) AS eg

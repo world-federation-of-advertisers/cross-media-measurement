@@ -48,7 +48,7 @@ FROM (
     '''SELECT
       rm.DataProviderResourceId,
       rm.Report,
-      REGEXP_EXTRACT(rm.Report, ''measurementConsumers/([^/]+)/'') AS CmmsMeasurementConsumer,
+      REGEXP_EXTRACT(rm.Report, 'measurementConsumers/([^/]+)/') AS CmmsMeasurementConsumer,
       CAST(rm.State AS INT64) AS State,
       rm.CmmsCreateTime,
       rma_fulfilled.CreateTime AS FulfilledTime
