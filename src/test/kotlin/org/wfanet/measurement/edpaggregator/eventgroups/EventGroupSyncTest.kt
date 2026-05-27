@@ -54,6 +54,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
@@ -2019,63 +2020,50 @@ class EventGroupSyncTest {
 
   @Test
   fun `sync logs and skips event group when measurement consumer resolution fails`() {
-    val failingClientAccountsMock: ClientAccountsCoroutineImplBase = mockService {
-      onBlocking { listClientAccounts(any<ListClientAccountsRequest>()) }
-        .thenThrow(StatusRuntimeException(io.grpc.Status.INTERNAL.withDescription("API error")))
-    }
+    wheneverBlocking { clientAccountsServiceMock.listClientAccounts(any()) }
+      .thenThrow(StatusRuntimeException(io.grpc.Status.INTERNAL.withDescription("API error")))
 
-    val testRule = GrpcTestServerRule {
-      addService(eventGroupsServiceMock)
-      addService(failingClientAccountsMock)
-    }
-
-    val statement =
-      object : org.junit.runners.model.Statement() {
-        override fun evaluate() {
-          runBlocking {
-            val eventGroupWithFailingLookup = eventGroup {
-              eventGroupReferenceId = "reference-id-failing"
-              this.eventGroupMetadata = eventGroupMetadata {
-                this.adMetadata = adMetadata {
-                  this.campaignMetadata = campaignMetadata {
-                    brand = "brand-failing"
-                    campaign = "campaign-failing"
-                  }
-                }
-              }
-              clientAccountReferenceId = "client-ref-failing"
-              dataAvailabilityInterval = interval {
-                startTime = timestamp { seconds = 200 }
-                endTime = timestamp { seconds = 300 }
-              }
-              mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    runBlocking {
+      val eventGroupWithFailingLookup = eventGroup {
+        eventGroupReferenceId = "reference-id-failing"
+        this.eventGroupMetadata = eventGroupMetadata {
+          this.adMetadata = adMetadata {
+            this.campaignMetadata = campaignMetadata {
+              brand = "brand-failing"
+              campaign = "campaign-failing"
             }
-
-            val eventGroupSync =
-              EventGroupSync(
-                "edp-name",
-                EventGroupsCoroutineStub(testRule.channel),
-                ClientAccountsCoroutineStub(testRule.channel),
-                listOf(eventGroupWithFailingLookup).asFlow(),
-                MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-                100,
-              )
-
-            val result = eventGroupSync.sync().toList()
-
-            assertThat(result).isEmpty()
-
-            val metrics = getMetrics()
-            val syncFailureMetric = metrics.find { it.name == "edpa.event_group.sync_failure" }
-
-            assertThat(syncFailureMetric).isNotNull()
-            assertThat(syncFailureMetric!!.longSumData.points.sumOf { it.value }).isEqualTo(1)
-
-            verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
           }
         }
+        clientAccountReferenceId = "client-ref-failing"
+        dataAvailabilityInterval = interval {
+          startTime = timestamp { seconds = 200 }
+          endTime = timestamp { seconds = 300 }
+        }
+        mediaTypes += listOf(MediaType.valueOf("OTHER"))
       }
-    testRule.apply(statement, org.junit.runner.Description.EMPTY).evaluate()
+
+      val eventGroupSync =
+        EventGroupSync(
+          "edp-name",
+          eventGroupsStub,
+          clientAccountsStub,
+          listOf(eventGroupWithFailingLookup).asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+        )
+
+      val result = eventGroupSync.sync().toList()
+
+      assertThat(result).isEmpty()
+
+      val metrics = getMetrics()
+      val syncFailureMetric = metrics.find { it.name == "edpa.event_group.sync_failure" }
+
+      assertThat(syncFailureMetric).isNotNull()
+      assertThat(syncFailureMetric!!.longSumData.points.sumOf { it.value }).isEqualTo(1)
+
+      verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+    }
   }
 
   @Test
