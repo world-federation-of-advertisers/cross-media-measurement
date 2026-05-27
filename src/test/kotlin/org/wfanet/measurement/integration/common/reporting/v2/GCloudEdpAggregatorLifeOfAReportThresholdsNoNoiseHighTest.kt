@@ -35,12 +35,12 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPO
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 
 /**
- * Implementation of [InProcessEdpAggregatorLifeOfAReportTest] for GCloud backends with Spanner
+ * Implementation of [InProcessEdpAggregatorTrusTeeThresholdTest] for GCloud backends with Spanner
  * database. Uses no-noise TrusTee protocol config with high small-cell suppression thresholds that
  * cause some k+ reach entries to be zeroed.
  */
 class GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseHighTest :
-  InProcessEdpAggregatorLifeOfAReportTest(
+  InProcessEdpAggregatorTrusTeeThresholdTest(
     kingdomDataServicesRule = KingdomDataServicesProviderRule(spannerEmulator),
     duchyDependenciesRule = SpannerDuchyDependencyProviderRule(spannerEmulator, ALL_DUCHY_NAMES),
     secureComputationDatabaseAdmin = spannerEmulator,
@@ -51,8 +51,6 @@ class GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseHighTest :
         reportingPostgresDatabaseProvider,
         IMPRESSION_QUALIFICATION_FILTER_MAPPING,
       ),
-    hmssEnabled = false,
-    trusTeeEnabled = true,
   ) {
 
   @get:Rule val timeout: Timeout = Timeout.seconds(180)

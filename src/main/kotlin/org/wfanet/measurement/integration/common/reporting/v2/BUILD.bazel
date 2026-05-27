@@ -60,6 +60,7 @@ kt_jvm_library(
         "InProcessEdpAggregatorLifeOfAReportTest.kt",
         "InProcessEdpAggregatorLifeOfAnEventGroupTest.kt",
         "InProcessEdpAggregatorMultiEdpReportTest.kt",
+        "InProcessEdpAggregatorTrusTeeThresholdTest.kt",
     ],
     data = [
         "//src/main/k8s/testing/secretfiles:secret_files",

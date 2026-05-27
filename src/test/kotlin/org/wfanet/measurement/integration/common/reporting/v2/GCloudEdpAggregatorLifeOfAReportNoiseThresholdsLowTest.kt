@@ -48,7 +48,7 @@ import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
  * solution and the BasicReport should SUCCEED with values approximately matching the no-noise case.
  */
 class GCloudEdpAggregatorLifeOfAReportNoiseThresholdsLowTest :
-  InProcessEdpAggregatorLifeOfAReportTest(
+  InProcessEdpAggregatorTrusTeeThresholdTest(
     kingdomDataServicesRule = KingdomDataServicesProviderRule(spannerEmulator),
     duchyDependenciesRule = SpannerDuchyDependencyProviderRule(spannerEmulator, ALL_DUCHY_NAMES),
     secureComputationDatabaseAdmin = spannerEmulator,
@@ -59,8 +59,6 @@ class GCloudEdpAggregatorLifeOfAReportNoiseThresholdsLowTest :
         reportingPostgresDatabaseProvider,
         IMPRESSION_QUALIFICATION_FILTER_MAPPING,
       ),
-    hmssEnabled = false,
-    trusTeeEnabled = true,
   ) {
 
   override val useNoisyAssertions: Boolean

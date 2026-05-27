@@ -50,7 +50,7 @@ import org.wfanet.measurement.reporting.v2alpha.BasicReport
  * 4. The PostProcessReportResultJob catches the solver failure and calls FailBasicReport.
  */
 class GCloudEdpAggregatorLifeOfAReportNoiseThresholdsHighTest :
-  InProcessEdpAggregatorLifeOfAReportTest(
+  InProcessEdpAggregatorTrusTeeThresholdTest(
     kingdomDataServicesRule = KingdomDataServicesProviderRule(spannerEmulator),
     duchyDependenciesRule = SpannerDuchyDependencyProviderRule(spannerEmulator, ALL_DUCHY_NAMES),
     secureComputationDatabaseAdmin = spannerEmulator,
@@ -61,8 +61,6 @@ class GCloudEdpAggregatorLifeOfAReportNoiseThresholdsHighTest :
         reportingPostgresDatabaseProvider,
         IMPRESSION_QUALIFICATION_FILTER_MAPPING,
       ),
-    hmssEnabled = false,
-    trusTeeEnabled = true,
   ) {
 
   override val useNoisyAssertions: Boolean

@@ -40,7 +40,6 @@ import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
-import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -146,9 +145,9 @@ import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
-import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.eventFilter
 import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
+import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
@@ -173,26 +172,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   private val trusTeeEnabled: Boolean,
   private val multiEdpDisplayNames: Set<String> = emptySet(),
 ) {
-
-  open val useNoisyAssertions: Boolean
-    get() = false
-
-  open val expectedCrossPublisherKPlusReach: List<Long>
-    get() = EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH
-
-  open val expectedTrusTeeBasicReportState: BasicReport.State
-    get() = BasicReport.State.SUCCEEDED
-
-  open fun assertTrusTeeMetricResults(basicReport: BasicReport) {
-    assertNoNoiseResults(
-      basicReport,
-      expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,
-      expectedCrossPublisherImpressions = EXPECTED_CROSS_PUBLISHER_IMPRESSIONS,
-      expectedKPlusReach = EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH,
-      expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
-      expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
-    )
-  }
 
   protected val expectedProtocol: PublicProtocolConfig.Protocol.ProtocolCase =
     when {
@@ -596,111 +575,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     credentials = TrustedPrincipalAuthInterceptor.Credentials(principal, setOf("reporting.*"))
   }
 
-  @Test
-  fun `HMSS no noise basic report has the expected result`() = runBlocking {
-    val hmssEventGroups = getHmssEventGroups()
-    check(hmssEventGroups.size > 1)
-
-    val createBasicReportRequest =
-      buildCreateBasicReportRequest(
-        hmssEventGroups,
-        "hmss-campaign",
-        "hmss-basicreport",
-        includeIqfFilter = false,
-      )
-
-    val createdBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .createBasicReport(createBasicReportRequest)
-
-    val retrievedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertRunningBasicReport(createBasicReportRequest, createdBasicReport, retrievedBasicReport)
-
-    executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
-
-    val completedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
-
-    val measurements = listMeasurements()
-    val hmssProtocolMeasurements =
-      measurements.filter { measurement ->
-        measurement.protocolConfig.protocolsList.any { it.hasHonestMajorityShareShuffle() }
-      }
-    assertWithMessage("at least one measurement used HMSS protocol")
-      .that(hmssProtocolMeasurements)
-      .isNotEmpty()
-
-    assertStructuralResults(completedBasicReport)
-    assertNoNoiseResults(
-      completedBasicReport,
-      expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,
-      expectedCrossPublisherImpressions = EXPECTED_CROSS_PUBLISHER_IMPRESSIONS,
-      expectedKPlusReach = EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH,
-      expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
-      expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
-    )
-  }
-
-  @Test
-  fun `TrusTee no noise basic report has the expected result`() = runBlocking {
-    val trusTeeEventGroups = getTrusTeeEventGroups()
-    check(trusTeeEventGroups.size > 1)
-
-    val createBasicReportRequest =
-      buildCreateBasicReportRequest(
-        trusTeeEventGroups,
-        "trustee-campaign",
-        "trustee-basicreport",
-        includeIqfFilter = false,
-      )
-
-    val createdBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .createBasicReport(createBasicReportRequest)
-
-    val retrievedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertRunningBasicReport(createBasicReportRequest, createdBasicReport, retrievedBasicReport)
-
-    executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
-
-    val completedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertThat(completedBasicReport.state).isEqualTo(expectedTrusTeeBasicReportState)
-
-    val measurements = listMeasurements()
-    val trusTeeProtocolMeasurements =
-      measurements.filter { measurement ->
-        measurement.protocolConfig.protocolsList.any { it.hasTrusTee() }
-      }
-    assertWithMessage("at least one measurement used TrusTee protocol")
-      .that(trusTeeProtocolMeasurements)
-      .isNotEmpty()
-
-    if (expectedTrusTeeBasicReportState == BasicReport.State.SUCCEEDED) {
-      assertStructuralResults(completedBasicReport)
-      assertTrusTeeMetricResults(completedBasicReport)
-    }
-  }
-
   protected suspend fun assertHmssReportFailsWhenEdpRequiresGaussianNoise() {
     val hmssEventGroups = getHmssEventGroupsIncludingRestrictedEdp()
     check(hmssEventGroups.size > 1)
@@ -754,7 +628,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
 
     assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
   }
-
 
   /**
    * Checks structural invariants on basic report results: all metrics are positive, k+ reach is
@@ -1293,7 +1166,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   protected suspend fun getMultiEdpEventGroups(): List<EventGroup> =
     getEventGroupsByEdp(multiEdpDisplayNames)
 
-  private suspend fun getEventGroupsByCapability(
+  protected suspend fun getEventGroupsByCapability(
     isCapable: (DataProvider.Capabilities) -> Boolean,
     excludeEdpDisplayNames: Set<String>,
   ): List<EventGroup> {
@@ -1322,16 +1195,16 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
-  private suspend fun getHmssEventGroups(): List<EventGroup> =
+  protected suspend fun getHmssEventGroups(): List<EventGroup> =
     getEventGroupsByCapability(
       { it.honestMajorityShareShuffleSupported },
       setOf(RESTRICTED_EDP_DISPLAY_NAME),
     )
 
-  private suspend fun getTrusTeeEventGroups(): List<EventGroup> =
+  protected suspend fun getTrusTeeEventGroups(): List<EventGroup> =
     getEventGroupsByCapability({ it.trusTeeSupported }, setOf(RESTRICTED_EDP_DISPLAY_NAME))
 
-  private suspend fun getEventGroupsIncludingRestrictedEdp(
+  protected suspend fun getEventGroupsIncludingRestrictedEdp(
     capabilityFilter: (DataProvider.Capabilities) -> Boolean
   ): List<EventGroup> {
     val allGroups = getEventGroupsByCapability(capabilityFilter, emptySet())
@@ -1352,22 +1225,21 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       if (restrictedGroup != null && unrestrictedGroup != null) break
     }
     check(restrictedGroup != null) {
-      "No event group found for restricted EDP "
+      "No event group found for restricted EDP '$RESTRICTED_EDP_DISPLAY_NAME'"
     }
     check(unrestrictedGroup != null) { "No unrestricted event group found" }
     return listOf(unrestrictedGroup, restrictedGroup)
   }
 
-  private suspend fun getHmssEventGroupsIncludingRestrictedEdp(): List<EventGroup> =
+  protected suspend fun getHmssEventGroupsIncludingRestrictedEdp(): List<EventGroup> =
     getEventGroupsIncludingRestrictedEdp {
       it.honestMajorityShareShuffleSupported
     }
 
-  private suspend fun getTrusTeeEventGroupsIncludingRestrictedEdp(): List<EventGroup> =
+  protected suspend fun getTrusTeeEventGroupsIncludingRestrictedEdp(): List<EventGroup> =
     getEventGroupsIncludingRestrictedEdp {
       it.trusTeeSupported
     }
-
 
   protected suspend fun getMultiEdpEventGroupsIncludingRestrictedEdp(): List<EventGroup> {
     val allGroups = getEventGroupsByEdp(emptySet())

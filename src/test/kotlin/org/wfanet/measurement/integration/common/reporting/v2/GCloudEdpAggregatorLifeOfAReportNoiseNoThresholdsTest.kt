@@ -37,11 +37,11 @@ import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 
 /**
- * Implementation of [InProcessEdpAggregatorLifeOfAReportTest] for GCloud backends with Spanner
+ * Implementation of [InProcessEdpAggregatorTrusTeeThresholdTest] for GCloud backends with Spanner
  * database. Uses Gaussian noise TrusTee protocol config without small-cell suppression.
  */
 class GCloudEdpAggregatorLifeOfAReportNoiseNoThresholdsTest :
-  InProcessEdpAggregatorLifeOfAReportTest(
+  InProcessEdpAggregatorTrusTeeThresholdTest(
     kingdomDataServicesRule = KingdomDataServicesProviderRule(spannerEmulator),
     duchyDependenciesRule = SpannerDuchyDependencyProviderRule(spannerEmulator, ALL_DUCHY_NAMES),
     secureComputationDatabaseAdmin = spannerEmulator,
@@ -52,8 +52,6 @@ class GCloudEdpAggregatorLifeOfAReportNoiseNoThresholdsTest :
         reportingPostgresDatabaseProvider,
         IMPRESSION_QUALIFICATION_FILTER_MAPPING,
       ),
-    hmssEnabled = false,
-    trusTeeEnabled = true,
   ) {
 
   override val useNoisyAssertions: Boolean

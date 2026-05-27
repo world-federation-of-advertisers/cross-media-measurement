@@ -3,19 +3,6 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_testonly = True)
 
-_REPORT_TEST_DEPS = [
-    "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
-    "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_cmms_components",
-    "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
-    "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
-    "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
-    "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
-    "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
-    "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_config_kt_jvm_proto",
-    "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
-    "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
-]
-
 kt_jvm_library(
     name = "gcloud_edp_aggregator_life_of_an_event_group_test",
     srcs = ["GCloudEdpAggregatorLifeOfAnEventGroupTest.kt"],
@@ -160,12 +147,23 @@ kt_jvm_library(
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
     ],
-    deps = _REPORT_TEST_DEPS + [
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_cmms_components",
         "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_edp_aggregator_life_of_a_report_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
     ],
 )
 
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
 java_test(
     name = "GCloudEdpAggregatorLifeOfAReportNoiseNoThresholdsTest",
     size = "large",
@@ -188,12 +186,23 @@ kt_jvm_library(
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
     ],
-    deps = _REPORT_TEST_DEPS + [
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_cmms_components",
         "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_edp_aggregator_life_of_a_report_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
     ],
 )
 
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
 java_test(
     name = "GCloudEdpAggregatorLifeOfAReportNoiseThresholdsTest",
     size = "large",
@@ -216,12 +225,23 @@ kt_jvm_library(
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
     ],
-    deps = _REPORT_TEST_DEPS + [
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_cmms_components",
         "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_edp_aggregator_life_of_a_report_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
     ],
 )
 
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
 java_test(
     name = "GCloudEdpAggregatorLifeOfAReportNoiseThresholdsHighTest",
     size = "large",
@@ -244,12 +264,23 @@ kt_jvm_library(
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
     ],
-    deps = _REPORT_TEST_DEPS + [
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_cmms_components",
         "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_edp_aggregator_life_of_a_report_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
     ],
 )
 
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
 java_test(
     name = "GCloudEdpAggregatorLifeOfAReportNoiseThresholdsLowTest",
     size = "large",
@@ -272,11 +303,22 @@ kt_jvm_library(
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
     ],
-    deps = _REPORT_TEST_DEPS + [
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_cmms_components",
         "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_edp_aggregator_life_of_a_report_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
     ],
 )
 
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
 java_test(
     name = "GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseTest",
     size = "large",
@@ -299,12 +341,23 @@ kt_jvm_library(
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
     ],
-    deps = _REPORT_TEST_DEPS + [
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_cmms_components",
         "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_edp_aggregator_life_of_a_report_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
     ],
 )
 
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
 java_test(
     name = "GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseHighTest",
     size = "large",
@@ -327,11 +380,22 @@ kt_jvm_library(
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
     ],
-    deps = _REPORT_TEST_DEPS + [
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_cmms_components",
         "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_edp_aggregator_life_of_a_report_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
     ],
 )
 
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
 java_test(
     name = "GCloudEdpAggregatorLifeOfAReportNoNoiseNoThresholdsTest",
     size = "large",
