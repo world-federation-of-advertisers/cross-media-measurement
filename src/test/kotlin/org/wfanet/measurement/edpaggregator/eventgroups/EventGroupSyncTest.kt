@@ -346,10 +346,67 @@ class EventGroupSyncTest {
 
   @Test
   fun `sync deletes event groups with DELETED state`() {
+    wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
+      .thenAnswer {
+        listEventGroupsResponse {
+          eventGroups +=
+            listOf(
+              cmmsEventGroup {
+                name = "dataProviders/data-provider-1/eventGroups/resource-id-1"
+                measurementConsumer = "measurementConsumers/measurement-consumer-1"
+                eventGroupReferenceId = "reference-id-1"
+                mediaTypes += listOf("VIDEO", "DISPLAY").map { CmmsMediaType.valueOf(it) }
+                eventGroupMetadata = cmmsEventGroupMetadata {
+                  this.adMetadata = cmmsAdMetadata {
+                    this.campaignMetadata = cmmsCampaignMetadata {
+                      brandName = "brand-1"
+                      campaignName = "campaign-1"
+                    }
+                  }
+                }
+                dataAvailabilityInterval = interval {
+                  startTime = timestamp { seconds = 200 }
+                  endTime = timestamp { seconds = 300 }
+                }
+                this.entityKey = cmmsEntityKey {
+                  entityType = "campaign"
+                  entityId = "reference-id-1"
+                }
+              },
+              cmmsEventGroup {
+                name = "dataProviders/data-provider-3/eventGroups/resource-id-4"
+                measurementConsumer = "measurementConsumers/measurement-consumer-other"
+                eventGroupReferenceId = "reference-id-1"
+                mediaTypes += listOf("VIDEO", "DISPLAY").map { CmmsMediaType.valueOf(it) }
+                eventGroupMetadata = cmmsEventGroupMetadata {
+                  this.adMetadata = cmmsAdMetadata {
+                    this.campaignMetadata = cmmsCampaignMetadata {
+                      brandName = "brand-1"
+                      campaignName = "campaign-1"
+                    }
+                  }
+                }
+                dataAvailabilityInterval = interval {
+                  startTime = timestamp { seconds = 200 }
+                  endTime = timestamp { seconds = 300 }
+                }
+                this.entityKey = cmmsEntityKey {
+                  entityType = "campaign"
+                  entityId = "reference-id-1"
+                }
+              },
+            )
+        }
+      }
+
     val deletedEventGroup = eventGroup {
       eventGroupReferenceId = "reference-id-1"
       measurementConsumer = "measurementConsumers/measurement-consumer-1"
       state = State.DELETED
+      entityKey = entityKey {
+        entityType = "campaign"
+        entityId = "reference-id-1"
+      }
     }
     val eventGroupSync =
       EventGroupSync(
@@ -373,10 +430,63 @@ class EventGroupSyncTest {
 
   @Test
   fun `sync deletes only the targeted MC event group when same ref id is mapped to multiple MCs`() {
+    wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
+      .thenAnswer {
+        listEventGroupsResponse {
+          eventGroups +=
+            listOf(
+              cmmsEventGroup {
+                name = "dataProviders/data-provider-1/eventGroups/resource-id-1"
+                measurementConsumer = "measurementConsumers/measurement-consumer-1"
+                eventGroupReferenceId = "reference-id-1"
+                mediaTypes += listOf("VIDEO", "DISPLAY").map { CmmsMediaType.valueOf(it) }
+                eventGroupMetadata = cmmsEventGroupMetadata {
+                  this.adMetadata = cmmsAdMetadata {
+                    this.campaignMetadata = cmmsCampaignMetadata {
+                      brandName = "brand-1"
+                      campaignName = "campaign-1"
+                    }
+                  }
+                }
+                dataAvailabilityInterval = interval {
+                  startTime = timestamp { seconds = 200 }
+                  endTime = timestamp { seconds = 300 }
+                }
+                this.entityKey = cmmsEntityKey {
+                  entityType = "campaign"
+                  entityId = "reference-id-1"
+                }
+              },
+              cmmsEventGroup {
+                name = "dataProviders/data-provider-3/eventGroups/resource-id-4"
+                measurementConsumer = "measurementConsumers/measurement-consumer-other"
+                eventGroupReferenceId = "reference-id-1"
+                mediaTypes += listOf("VIDEO", "DISPLAY").map { CmmsMediaType.valueOf(it) }
+                eventGroupMetadata = cmmsEventGroupMetadata {
+                  this.adMetadata = cmmsAdMetadata {
+                    this.campaignMetadata = cmmsCampaignMetadata {
+                      brandName = "brand-1"
+                      campaignName = "campaign-1"
+                    }
+                  }
+                }
+                dataAvailabilityInterval = interval {
+                  startTime = timestamp { seconds = 200 }
+                  endTime = timestamp { seconds = 300 }
+                }
+              },
+            )
+        }
+      }
+
     val deletedEventGroup = eventGroup {
       eventGroupReferenceId = "reference-id-1"
       measurementConsumer = "measurementConsumers/measurement-consumer-1"
       state = State.DELETED
+      entityKey = entityKey {
+        entityType = "campaign"
+        entityId = "reference-id-1"
+      }
     }
     val activeEventGroup = eventGroup {
       eventGroupReferenceId = "reference-id-1"
@@ -427,6 +537,10 @@ class EventGroupSyncTest {
       eventGroupReferenceId = "reference-id-nonexistent"
       measurementConsumer = "measurementConsumers/measurement-consumer-1"
       state = State.DELETED
+      entityKey = entityKey {
+        entityType = "campaign"
+        entityId = "reference-id-nonexistent"
+      }
     }
     val eventGroupSync =
       EventGroupSync(
@@ -445,11 +559,34 @@ class EventGroupSyncTest {
 
   @Test
   fun `records sync_deleted metric when event group is deleted`() {
+    wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
+      .thenAnswer {
+        listEventGroupsResponse {
+          eventGroups += cmmsEventGroup {
+            name = "dataProviders/data-provider-1/eventGroups/resource-id-1"
+            measurementConsumer = "measurementConsumers/measurement-consumer-1"
+            eventGroupReferenceId = "reference-id-1"
+            mediaTypes += listOf("VIDEO", "DISPLAY").map { CmmsMediaType.valueOf(it) }
+            dataAvailabilityInterval = interval {
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
+            }
+            this.entityKey = cmmsEntityKey {
+              entityType = "campaign"
+              entityId = "reference-id-1"
+            }
+          }
+        }
+      }
     runBlocking {
       val deletedEventGroup = eventGroup {
         eventGroupReferenceId = "reference-id-1"
         measurementConsumer = "measurementConsumers/measurement-consumer-1"
         state = State.DELETED
+        entityKey = entityKey {
+          entityType = "campaign"
+          entityId = "reference-id-1"
+        }
       }
       val eventGroupSync =
         EventGroupSync(
@@ -483,6 +620,10 @@ class EventGroupSyncTest {
         eventGroupReferenceId = "reference-id-nonexistent"
         measurementConsumer = "measurementConsumers/measurement-consumer-1"
         state = State.DELETED
+        entityKey = entityKey {
+          entityType = "campaign"
+          entityId = "reference-id-nonexistent"
+        }
       }
       val eventGroupSync =
         EventGroupSync(
@@ -2107,30 +2248,41 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `validateDeletedEventGroup accepts event group with reference id and measurement consumer`() {
+  fun `validateDeletedEventGroup accepts event group with entity key and measurement consumer`() {
     val eventGroup = eventGroup {
-      eventGroupReferenceId = "reference-id"
       measurementConsumer = "measurementConsumers/mc-1"
       state = State.DELETED
+      entityKey = entityKey {
+        entityType = "campaign"
+        entityId = "eg-1"
+      }
     }
     EventGroupSync.validateDeletedEventGroup(eventGroup)
   }
 
   @Test
-  fun `validateDeletedEventGroup rejects event group with blank reference id`() {
+  fun `validateDeletedEventGroup rejects event group without entity key`() {
     val eventGroup = eventGroup {
-      eventGroupReferenceId = ""
+      eventGroupReferenceId = "reference-id"
       measurementConsumer = "measurementConsumers/mc-1"
       state = State.DELETED
     }
-    assertFailsWith<IllegalStateException> { EventGroupSync.validateDeletedEventGroup(eventGroup) }
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        EventGroupSync.validateDeletedEventGroup(eventGroup)
+      }
+    assertThat(exception.message)
+      .contains("Entity Key with entity ID must be set for deleted Event Groups")
   }
 
   @Test
   fun `validateDeletedEventGroup rejects event group with no measurement consumer`() {
     val eventGroup = eventGroup {
-      eventGroupReferenceId = "reference-id"
       state = State.DELETED
+      entityKey = entityKey {
+        entityType = "campaign"
+        entityId = "eg-1"
+      }
     }
     val exception =
       assertFailsWith<IllegalStateException> {
@@ -2143,9 +2295,12 @@ class EventGroupSyncTest {
   @Test
   fun `validateDeletedEventGroup rejects event group with only client account reference id`() {
     val eventGroup = eventGroup {
-      eventGroupReferenceId = "reference-id"
       clientAccountReferenceId = "client-ref-1"
       state = State.DELETED
+      entityKey = entityKey {
+        entityType = "campaign"
+        entityId = "eg-1"
+      }
     }
     val exception =
       assertFailsWith<IllegalStateException> {
@@ -2205,58 +2360,66 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `sync with entityKeyTypes sees all entity types and updates existing event groups`() {
+  fun `sync skips delete and records metric when DELETED event group has no entity key`() {
+    runBlocking {
+      val deletedEventGroup = eventGroup {
+        eventGroupReferenceId = "reference-id-1"
+        measurementConsumer = "measurementConsumers/measurement-consumer-1"
+        state = State.DELETED
+      }
+      val eventGroupSync =
+        EventGroupSync(
+          "edp-name",
+          eventGroupsStub,
+          clientAccountsStub,
+          listOf(deletedEventGroup).asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+          entityKeyTypes = emptyList(),
+        )
+      eventGroupSync.sync().collect()
+
+      verifyBlocking(eventGroupsServiceMock, times(0)) { deleteEventGroup(any()) }
+
+      val metrics = getMetrics()
+      val invalidMetric =
+        metrics.firstOrNull { it.name == "edpa.event_group.invalid_event_group_failure" }
+      assertThat(invalidMetric).isNotNull()
+    }
+  }
+
+  @Test
+  fun `sync matches by entity key when reference ID changes`() {
     wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
       .thenAnswer {
         listEventGroupsResponse {
-          eventGroups +=
-            listOf(
-              cmmsEventGroup {
-                name = "dataProviders/data-provider-1/eventGroups/eg-campaign-1"
-                measurementConsumer = "measurementConsumers/measurement-consumer-1"
-                eventGroupReferenceId = "edpa-eg-campaign-1"
-                mediaTypes += CmmsMediaType.VIDEO
-                eventGroupMetadata = cmmsEventGroupMetadata {
-                  this.adMetadata = cmmsAdMetadata {
-                    this.campaignMetadata = cmmsCampaignMetadata {
-                      brandName = "brand-1"
-                      campaignName = "campaign-1"
-                    }
-                  }
+          eventGroups += cmmsEventGroup {
+            name = "dataProviders/data-provider-1/eventGroups/eg-creative-1"
+            measurementConsumer = "measurementConsumers/measurement-consumer-1"
+            eventGroupReferenceId = "old-ref-id"
+            mediaTypes += CmmsMediaType.VIDEO
+            eventGroupMetadata = cmmsEventGroupMetadata {
+              this.adMetadata = cmmsAdMetadata {
+                this.campaignMetadata = cmmsCampaignMetadata {
+                  brandName = "brand-1"
+                  campaignName = "campaign-1"
                 }
-                dataAvailabilityInterval = interval {
-                  startTime = timestamp { seconds = 200 }
-                  endTime = timestamp { seconds = 300 }
-                }
-              },
-              cmmsEventGroup {
-                name = "dataProviders/data-provider-1/eventGroups/eg-creative-1"
-                measurementConsumer = "measurementConsumers/measurement-consumer-1"
-                eventGroupReferenceId = "edpa-eg-creative-id-1"
-                mediaTypes += CmmsMediaType.VIDEO
-                eventGroupMetadata = cmmsEventGroupMetadata {
-                  this.adMetadata = cmmsAdMetadata {
-                    this.campaignMetadata = cmmsCampaignMetadata {
-                      brandName = "brand-1"
-                      campaignName = "campaign-1"
-                    }
-                  }
-                }
-                dataAvailabilityInterval = interval {
-                  startTime = timestamp { seconds = 200 }
-                  endTime = timestamp { seconds = 300 }
-                }
-                this.entityKey = cmmsEntityKey {
-                  entityType = "creative-id"
-                  entityId = "edpa-eg-creative-id-1"
-                }
-              },
-            )
+              }
+            }
+            dataAvailabilityInterval = interval {
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
+            }
+            this.entityKey = cmmsEntityKey {
+              entityType = "creative-id"
+              entityId = "edpa-eg-creative-id-1"
+            }
+          }
         }
       }
 
     val sourceEventGroup = eventGroup {
-      eventGroupReferenceId = "edpa-eg-creative-id-1"
+      eventGroupReferenceId = "new-ref-id"
       measurementConsumer = "measurementConsumers/measurement-consumer-1"
       this.eventGroupMetadata = eventGroupMetadata {
         this.adMetadata = adMetadata {
@@ -2291,7 +2454,13 @@ class EventGroupSyncTest {
     val results = runBlocking { eventGroupSync.sync().toList() }
 
     assertThat(results).hasSize(1)
-    assertThat(results[0].eventGroupReferenceId).isEqualTo("edpa-eg-creative-id-1")
+
+    val updateCaptor = argumentCaptor<UpdateEventGroupRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(updateCaptor.capture()) }
+    val updated = updateCaptor.firstValue.eventGroup
+    assertThat(updated.eventGroupReferenceId).isEqualTo("new-ref-id")
+    assertThat(updated.entityKey.entityType).isEqualTo("creative-id")
+    assertThat(updated.entityKey.entityId).isEqualTo("edpa-eg-creative-id-1")
 
     verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
 
