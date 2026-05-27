@@ -172,6 +172,15 @@ sections of this when reviewing others’ code.
 *   Use trailing commas on multiline structures to reduce merge conflicts.
 *   Use a regular for-each loop when not chaining a set of operations.
 
+#### Function Parameters
+
+*   Avoid default parameter values in general. Default values make call sites
+    harder to understand and can hide incorrect usage. Prefer requiring all
+    arguments explicitly.
+*   When default parameter values are necessary, place parameters with defaults
+    after all required parameters. This follows the Kotlin convention and
+    prevents positional argument errors when parameters are reordered.
+
 #### CLI Flags
 
 *   For Picocli flags, use `lateinit var` with the `defaultValue` annotation
