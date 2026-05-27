@@ -81,14 +81,14 @@ class InProcessCmmsComponents(
   private val kingdomDataServicesRule: ProviderRule<DataServices>,
   private val duchyDependenciesRule:
     ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
+  private val useEdpSimulators: Boolean,
+  private val trusTeeKmsClient: KmsClient,
+  private val hmssEnabled: Boolean,
+  private val trusTeeEnabled: Boolean,
   private val populationSpec: PopulationSpec = SyntheticGenerationSpecs.POPULATION_SPEC_SMALL,
   private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
     SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL,
-  private val useEdpSimulators: Boolean,
-  private val trusTeeKmsClient: KmsClient,
   private val duchyNames: List<String> = ALL_DUCHY_NAMES,
-  private val hmssEnabled: Boolean,
-  private val trusTeeEnabled: Boolean,
 ) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value
