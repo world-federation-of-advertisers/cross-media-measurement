@@ -333,6 +333,8 @@ class EventGroupSync(
           .putAll(metricAttributes())
           .put(AttributeKey.stringKey("error_type"), errorType)
           .put(AttributeKey.stringKey("event_group_reference_id"), eventGroup.eventGroupReferenceId)
+          .put(AttributeKey.stringKey("entity_type"), eventGroup.entityKey.entityType)
+          .put(AttributeKey.stringKey("entity_id"), eventGroup.entityKey.entityId)
           .build(),
       )
 
