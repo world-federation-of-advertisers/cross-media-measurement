@@ -429,7 +429,7 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `sync deletes only the targeted MC event group when same ref id is mapped to multiple MCs`() {
+  fun `sync deletes only the targeted MC event group when same entity key is mapped to multiple MCs`() {
     wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
       .thenAnswer {
         listEventGroupsResponse {
