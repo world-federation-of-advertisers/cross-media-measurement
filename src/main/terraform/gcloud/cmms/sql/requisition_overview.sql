@@ -60,9 +60,9 @@ FROM (
 ) r
 LEFT JOIN (
   SELECT
-    br.BasicReportId,
-    CAST(br.State AS INT64) AS State,
-    `${project_id}.dashboard_views.decode_BasicReportDetails`(br.BasicReportDetails) AS details
+    BasicReportId,
+    CAST(State AS INT64) AS State,
+    `${project_id}.dashboard_views.decode_BasicReportDetails`(BasicReportDetails) AS details
   FROM EXTERNAL_QUERY(
     'projects/${project_id}/locations/${region}/connections/reporting-conn',
     '''SELECT
