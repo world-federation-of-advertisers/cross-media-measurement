@@ -192,9 +192,18 @@ class EventGroupSync(
           }
 
         for (measurementConsumerKey in measurementConsumerKeys) {
-          val eventGroupWithConsumer =
-            eventGroup.copy { measurementConsumer = measurementConsumerKey.toName() }
-          syncEventGroupItem(eventGroupWithConsumer, cmmsEventGroups)?.let { emit(it) }
+          try {
+            val eventGroupWithConsumer =
+              eventGroup.copy { measurementConsumer = measurementConsumerKey.toName() }
+            syncEventGroupItem(eventGroupWithConsumer, cmmsEventGroups)?.let { emit(it) }
+          } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            logger.log(Level.SEVERE, e) {
+              "Skipping Event Group ${eventGroup.eventGroupReferenceId}: " +
+                "Failed to process for measurement consumer"
+            }
+            metrics.syncFailure.add(1, metricAttributes())
+          }
         }
       }
     }
