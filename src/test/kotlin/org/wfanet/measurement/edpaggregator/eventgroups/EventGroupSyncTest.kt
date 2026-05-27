@@ -2626,7 +2626,6 @@ class EventGroupSyncTest {
     assertThat(failureMetric).isNull()
   }
 
-
   @Test
   fun `sync matches by event group reference id when entity key not present`() {
     wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
@@ -2762,8 +2761,7 @@ class EventGroupSyncTest {
       .isEqualTo("ALREADY_EXISTS")
     assertThat(point.attributes.get(AttributeKey.stringKey("event_group_reference_id")))
       .isEqualTo("creative-id-edpa-eg-creative-id-1")
-    assertThat(point.attributes.get(AttributeKey.stringKey("entity_type")))
-      .isEqualTo("creative-id")
+    assertThat(point.attributes.get(AttributeKey.stringKey("entity_type"))).isEqualTo("creative-id")
     assertThat(point.attributes.get(AttributeKey.stringKey("entity_id")))
       .isEqualTo("edpa-eg-creative-id-1")
   }
