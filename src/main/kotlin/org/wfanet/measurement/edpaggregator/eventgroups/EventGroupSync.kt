@@ -176,8 +176,12 @@ class EventGroupSync(
             resolveMeasurementConsumers(eventGroup)
           } catch (e: BlankMeasurementConsumerException) {
             logger.log(Level.SEVERE, e) {
-              "Skipping Event Group ${eventGroup.eventGroupReferenceId}: " +
-                "No measurement consumer resolved"
+              "Skipping Event Group ${eventGroup.eventGroupReferenceId}" +
+                (if (eventGroup.hasEntityKey())
+                  " (entityType=${eventGroup.entityKey.entityType}," +
+                    " entityId=${eventGroup.entityKey.entityId})"
+                else "") +
+                ": No measurement consumer resolved"
             }
             metrics.syncFailure.add(1, metricAttributes())
             continue
