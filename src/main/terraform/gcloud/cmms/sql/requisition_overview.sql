@@ -61,6 +61,7 @@ FROM (
 LEFT JOIN (
   SELECT
     BasicReportId,
+    ExternalReportId,
     CAST(State AS INT64) AS State,
     `${project_id}.dashboard_views.decode_BasicReportDetails`(BasicReportDetails) AS details
   FROM EXTERNAL_QUERY(
