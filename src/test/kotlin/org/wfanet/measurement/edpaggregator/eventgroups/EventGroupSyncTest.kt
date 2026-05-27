@@ -2684,6 +2684,17 @@ class EventGroupSyncTest {
     val metrics = getMetrics()
     val failureMetric = metrics.firstOrNull { it.name == "edpa.event_group.sync_failure" }
     assertThat(failureMetric).isNotNull()
+    assertThat(failureMetric!!.longSumData.points.sumOf { it.value }).isEqualTo(1)
+
+    val point = failureMetric.longSumData.points.first()
+    assertThat(point.attributes.get(AttributeKey.stringKey("error_type")))
+      .isEqualTo("ALREADY_EXISTS")
+    assertThat(point.attributes.get(AttributeKey.stringKey("event_group_reference_id")))
+      .isEqualTo("creative-id-edpa-eg-creative-id-1")
+    assertThat(point.attributes.get(AttributeKey.stringKey("entity_type")))
+      .isEqualTo("creative-id")
+    assertThat(point.attributes.get(AttributeKey.stringKey("entity_id")))
+      .isEqualTo("edpa-eg-creative-id-1")
   }
 
   @Test
