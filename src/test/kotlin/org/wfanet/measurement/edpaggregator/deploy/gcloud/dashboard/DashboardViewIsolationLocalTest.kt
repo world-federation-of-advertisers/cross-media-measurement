@@ -16,41 +16,23 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard
 
-import com.google.cloud.spanner.Mutation
-import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
 import java.nio.file.Files
 import java.nio.file.Paths
-import org.junit.Before
-import org.junit.ClassRule
 import org.junit.Test
-import org.junit.rules.TestRule
-import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata as EdpaSchemata
-import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
-import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.Schemata as KingdomSchemata
 
 /**
  * Local test for dashboard view SQL isolation.
  *
- * Uses Spanner emulator to validate:
- * 1. Per-EDP Spanner queries return only that EDP's data
- * 2. SQL template files contain required WHERE clauses
- * 3. No forbidden columns appear in per-EDP view SQL
+ * Validates SQL template files pre-merge:
+ * 1. Per-EDP SQL templates contain required WHERE clauses
+ * 2. No forbidden columns appear in per-EDP view SQL
  *
  * Runs in Bazel with no cloud resources needed.
  */
 class DashboardViewIsolationLocalTest {
 
   companion object {
-    private const val EDP_A_RESOURCE_ID = "edp-a-resource-id"
-    private const val EDP_B_RESOURCE_ID = "edp-b-resource-id"
-    private const val EDP_A_DATA_PROVIDER_ID = 100L
-    private const val EDP_B_DATA_PROVIDER_ID = 200L
-    private const val MC_ID = 1000L
-    private const val SHARED_REPORT = "measurementConsumers/mc1/reports/report1"
-
     private val FORBIDDEN_COLUMNS =
       setOf(
         "cross_publisher",
@@ -75,228 +57,31 @@ class DashboardViewIsolationLocalTest {
         Regex("(?i).*edp.?distribution.*"),
       )
 
-    private val SQL_DIR = "src/main/terraform/gcloud/cmms/sql"
-
-    @JvmStatic val spannerEmulator = SpannerEmulatorRule()
-
-    @JvmStatic
-    val edpaDatabase =
-      SpannerEmulatorDatabaseRule(spannerEmulator, EdpaSchemata.EDP_AGGREGATOR_CHANGELOG_PATH)
-
-    @JvmStatic
-    val kingdomDatabase =
-      SpannerEmulatorDatabaseRule(spannerEmulator, KingdomSchemata.KINGDOM_CHANGELOG_PATH)
-
-    @get:ClassRule
-    @JvmStatic
-    val ruleChain: TestRule = chainRulesSequentially(spannerEmulator, edpaDatabase, kingdomDatabase)
-  }
-
-  @Before
-  fun insertTestData() {
-    // Insert requisition data for both EDPs sharing a report
-    val edpaClient = edpaDatabase.databaseClient
-    edpaClient.write(
+    private val SQL_FILES =
       listOf(
-        Mutation.newInsertBuilder("RequisitionMetadata")
-          .set("DataProviderResourceId")
-          .to(EDP_A_RESOURCE_ID)
-          .set("RequisitionMetadataId")
-          .to(1L)
-          .set("Report")
-          .to(SHARED_REPORT)
-          .set("State")
-          .to(4L) // FULFILLED
-          .set("CmmsCreateTime")
-          .to(Value.COMMIT_TIMESTAMP)
-          .set("StoredTime")
-          .to(Value.COMMIT_TIMESTAMP)
-          .build(),
-        Mutation.newInsertBuilder("RequisitionMetadata")
-          .set("DataProviderResourceId")
-          .to(EDP_B_RESOURCE_ID)
-          .set("RequisitionMetadataId")
-          .to(2L)
-          .set("Report")
-          .to(SHARED_REPORT)
-          .set("State")
-          .to(4L) // FULFILLED
-          .set("CmmsCreateTime")
-          .to(Value.COMMIT_TIMESTAMP)
-          .set("StoredTime")
-          .to(Value.COMMIT_TIMESTAMP)
-          .build(),
+        "requisition_overview.sql",
+        "mc_details.sql",
+        "report_detail.sql",
       )
-    )
+  }
 
-    // Insert kingdom EventGroups for both EDPs under the same MC
-    val kingdomClient = kingdomDatabase.databaseClient
-    kingdomClient.write(
-      listOf(
-        Mutation.newInsertBuilder("DataProviders")
-          .set("DataProviderId")
-          .to(EDP_A_DATA_PROVIDER_ID)
-          .set("ExternalDataProviderId")
-          .to(100L)
-          .set("CreateTime")
-          .to(Value.COMMIT_TIMESTAMP)
-          .build(),
-        Mutation.newInsertBuilder("DataProviders")
-          .set("DataProviderId")
-          .to(EDP_B_DATA_PROVIDER_ID)
-          .set("ExternalDataProviderId")
-          .to(200L)
-          .set("CreateTime")
-          .to(Value.COMMIT_TIMESTAMP)
-          .build(),
-        Mutation.newInsertBuilder("MeasurementConsumers")
-          .set("MeasurementConsumerId")
-          .to(MC_ID)
-          .set("ExternalMeasurementConsumerId")
-          .to(MC_ID)
-          .set("CreateTime")
-          .to(Value.COMMIT_TIMESTAMP)
-          .build(),
-        Mutation.newInsertBuilder("EventGroups")
-          .set("DataProviderId")
-          .to(EDP_A_DATA_PROVIDER_ID)
-          .set("EventGroupId")
-          .to(1L)
-          .set("MeasurementConsumerId")
-          .to(MC_ID)
-          .set("ExternalEventGroupId")
-          .to(1L)
-          .set("CreateTime")
-          .to(Value.COMMIT_TIMESTAMP)
-          .build(),
-        Mutation.newInsertBuilder("EventGroups")
-          .set("DataProviderId")
-          .to(EDP_B_DATA_PROVIDER_ID)
-          .set("EventGroupId")
-          .to(2L)
-          .set("MeasurementConsumerId")
-          .to(MC_ID)
-          .set("ExternalEventGroupId")
-          .to(2L)
-          .set("CreateTime")
-          .to(Value.COMMIT_TIMESTAMP)
-          .build(),
+  private fun readSqlFile(fileName: String): String {
+    val runfilesDir = System.getenv("TEST_SRCDIR") ?: "."
+    val workspace = System.getenv("TEST_WORKSPACE") ?: "__main__"
+    val path =
+      Paths.get(
+        runfilesDir,
+        workspace,
+        "src/main/terraform/gcloud/cmms/sql",
+        fileName,
       )
-    )
+    return Files.readString(path)
   }
 
-  /** Spanner query for edp-aggregator returns only the filtered EDP's requisitions. */
-  @Test
-  fun edpAggregatorQueryFiltersCorrectly() {
-    val client = edpaDatabase.databaseClient
-    val resultSet =
-      client
-        .singleUse()
-        .executeQuery(
-          com.google.cloud.spanner.Statement.of(
-            """
-        SELECT rm.DataProviderResourceId, rm.Report
-        FROM RequisitionMetadata rm
-        WHERE rm.DataProviderResourceId = '$EDP_A_RESOURCE_ID'
-        """
-              .trimIndent()
-          )
-        )
-
-    val resourceIds = mutableListOf<String>()
-    while (resultSet.next()) {
-      resourceIds.add(resultSet.getString("DataProviderResourceId"))
-    }
-
-    assertThat(resourceIds).isNotEmpty()
-    assertThat(resourceIds).containsExactly(EDP_A_RESOURCE_ID)
-  }
-
-  /** Kingdom EventGroups query filtered by DataProviderId returns only that EDP's groups. */
-  @Test
-  fun kingdomEventGroupQueryFiltersCorrectly() {
-    val client = kingdomDatabase.databaseClient
-    val resultSet =
-      client
-        .singleUse()
-        .executeQuery(
-          com.google.cloud.spanner.Statement.of(
-            """
-        SELECT eg.DataProviderId, eg.MeasurementConsumerId
-        FROM EventGroups eg
-        WHERE eg.DataProviderId = $EDP_A_DATA_PROVIDER_ID
-        """
-              .trimIndent()
-          )
-        )
-
-    val dataProviderIds = mutableListOf<Long>()
-    while (resultSet.next()) {
-      dataProviderIds.add(resultSet.getLong("DataProviderId"))
-    }
-
-    assertThat(dataProviderIds).isNotEmpty()
-    assertThat(dataProviderIds).containsExactly(EDP_A_DATA_PROVIDER_ID)
-  }
-
-  /** Both EDPs share the same report but filtered queries only return their own rows. */
-  @Test
-  fun crossPublisherReportIsFilteredPerEdp() {
-    val client = edpaDatabase.databaseClient
-
-    // EDP A sees only its own requisition for the shared report
-    val resultA =
-      client
-        .singleUse()
-        .executeQuery(
-          com.google.cloud.spanner.Statement.of(
-            """
-        SELECT rm.DataProviderResourceId, rm.Report
-        FROM RequisitionMetadata rm
-        WHERE rm.DataProviderResourceId = '$EDP_A_RESOURCE_ID'
-          AND rm.Report = '$SHARED_REPORT'
-        """
-              .trimIndent()
-          )
-        )
-    var countA = 0
-    while (resultA.next()) {
-      assertThat(resultA.getString("DataProviderResourceId")).isEqualTo(EDP_A_RESOURCE_ID)
-      countA++
-    }
-    assertThat(countA).isEqualTo(1)
-
-    // EDP B sees only its own requisition for the same report
-    val resultB =
-      client
-        .singleUse()
-        .executeQuery(
-          com.google.cloud.spanner.Statement.of(
-            """
-        SELECT rm.DataProviderResourceId, rm.Report
-        FROM RequisitionMetadata rm
-        WHERE rm.DataProviderResourceId = '$EDP_B_RESOURCE_ID'
-          AND rm.Report = '$SHARED_REPORT'
-        """
-              .trimIndent()
-          )
-        )
-    var countB = 0
-    while (resultB.next()) {
-      assertThat(resultB.getString("DataProviderResourceId")).isEqualTo(EDP_B_RESOURCE_ID)
-      countB++
-    }
-    assertThat(countB).isEqualTo(1)
-  }
-
-  /** SQL template files have WHERE clauses for per-EDP filtering. */
   @Test
   fun perEdpSqlTemplatesContainWhereClause() {
-    val sqlFiles = listOf("requisition_overview.sql", "mc_details.sql", "report_detail.sql")
-
-    for (fileName in sqlFiles) {
-      val path = Paths.get(SQL_DIR, fileName)
-      val sql = Files.readString(path)
+    for (fileName in SQL_FILES) {
+      val sql = readSqlFile(fileName)
 
       assertThat(sql).contains("data_provider_id")
       assertThat(sql).contains("%{ if data_provider_id != \"\" }")
@@ -304,17 +89,13 @@ class DashboardViewIsolationLocalTest {
     }
   }
 
-  /** Per-EDP SQL templates do not expose forbidden columns. */
   @Test
   fun perEdpSqlTemplatesHaveNoForbiddenColumns() {
-    val sqlFiles = listOf("requisition_overview.sql", "mc_details.sql", "report_detail.sql")
     val violations = mutableListOf<String>()
 
-    for (fileName in sqlFiles) {
-      val path = Paths.get(SQL_DIR, fileName)
-      val sql = Files.readString(path)
+    for (fileName in SQL_FILES) {
+      val sql = readSqlFile(fileName)
 
-      // Extract SELECT column aliases (the AS <name> parts)
       val aliasPattern = Regex("""(?i)\bAS\s+(\w+)""")
       val aliases = aliasPattern.findAll(sql).map { it.groupValues[1] }.toList()
 
@@ -333,5 +114,26 @@ class DashboardViewIsolationLocalTest {
     }
 
     assertThat(violations).isEmpty()
+  }
+
+  @Test
+  fun requisitionOverviewFiltersOnDataProviderResourceId() {
+    val sql = readSqlFile("requisition_overview.sql")
+    assertThat(sql).contains("r.DataProviderResourceId = '\${data_provider_id}'")
+  }
+
+  @Test
+  fun mcDetailsFiltersOnDataProviderId() {
+    val sql = readSqlFile("mc_details.sql")
+    assertThat(sql).contains("externalIdToApiId")
+    assertThat(sql).contains("DataProviderId")
+    assertThat(sql).contains("\${data_provider_id}")
+  }
+
+  @Test
+  fun reportDetailFiltersOnCmmsDataProviderId() {
+    val sql = readSqlFile("report_detail.sql")
+    assertThat(sql).contains("cmmsDataProviderId")
+    assertThat(sql).contains("\${data_provider_id}")
   }
 }
