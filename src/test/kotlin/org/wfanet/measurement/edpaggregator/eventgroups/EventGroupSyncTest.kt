@@ -2626,6 +2626,77 @@ class EventGroupSyncTest {
     assertThat(failureMetric).isNull()
   }
 
+
+  @Test
+  fun `sync matches by event group reference id when entity key not present`() {
+    wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
+      .thenAnswer {
+        listEventGroupsResponse {
+          eventGroups += cmmsEventGroup {
+            name = "dataProviders/data-provider-1/eventGroups/eg-ref-1"
+            measurementConsumer = "measurementConsumers/measurement-consumer-1"
+            eventGroupReferenceId = "ref-id-1"
+            mediaTypes += CmmsMediaType.VIDEO
+            eventGroupMetadata = cmmsEventGroupMetadata {
+              this.adMetadata = cmmsAdMetadata {
+                this.campaignMetadata = cmmsCampaignMetadata {
+                  brandName = "brand-1"
+                  campaignName = "campaign-1"
+                }
+              }
+            }
+            dataAvailabilityInterval = interval {
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
+            }
+          }
+        }
+      }
+
+    val sourceEventGroup = eventGroup {
+      eventGroupReferenceId = "ref-id-1"
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-1"
+            campaign = "campaign-updated"
+          }
+        }
+      }
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += MediaType.VIDEO
+    }
+
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        listOf(sourceEventGroup).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+        entityKeyTypes = emptyList(),
+      )
+
+    val results = runBlocking { eventGroupSync.sync().toList() }
+
+    assertThat(results).hasSize(1)
+
+    val updateCaptor = argumentCaptor<UpdateEventGroupRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(updateCaptor.capture()) }
+    val updated = updateCaptor.firstValue.eventGroup
+    assertThat(updated.eventGroupReferenceId).isEqualTo("ref-id-1")
+
+    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+
+    val failureMetric = getMetrics().firstOrNull { it.name == "edpa.event_group.sync_failure" }
+    assertThat(failureMetric).isNull()
+  }
+
   @Test
   fun `sync fails silently when entity key types not populated properly`() {
     wheneverBlocking { eventGroupsServiceMock.createEventGroup(any<CreateEventGroupRequest>()) }
