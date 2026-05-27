@@ -34,8 +34,8 @@ FROM (
     ) AS BrandName
   FROM (
     SELECT
-      br.BasicReportId,
-      `${project_id}.dashboard_views.decode_BasicReportResultDetails`(br.BasicReportResultDetails) AS details
+      BasicReportId,
+      `${project_id}.dashboard_views.decode_BasicReportResultDetails`(BasicReportResultDetails) AS details
     FROM EXTERNAL_QUERY(
       'projects/${project_id}/locations/${region}/connections/reporting-conn',
       '''SELECT
