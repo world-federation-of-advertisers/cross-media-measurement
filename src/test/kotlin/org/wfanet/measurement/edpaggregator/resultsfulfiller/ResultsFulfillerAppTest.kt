@@ -114,7 +114,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.computation.KAnonymityParams
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
@@ -292,7 +292,7 @@ class ResultsFulfillerAppTest {
     val workItemParams =
       createWorkItemParams(
         ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
       )
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
@@ -436,7 +436,7 @@ class ResultsFulfillerAppTest {
       val workItemParams =
         createWorkItemParams(
           ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
         )
       val workItem = createWorkItem(workItemParams)
       workItemAttemptsServiceMock.stub {
@@ -562,7 +562,7 @@ class ResultsFulfillerAppTest {
     val workItemParams =
       createWorkItemParams(
         ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
       )
 
     val workItem = createWorkItem(workItemParams)
@@ -692,7 +692,7 @@ class ResultsFulfillerAppTest {
     val workItemParams =
       createWorkItemParams(
         ResultsFulfillerParams.NoiseParams.NoiseType.UNSPECIFIED,
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
       )
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
@@ -835,8 +835,12 @@ class ResultsFulfillerAppTest {
     val workItemParams =
       createWorkItemParams(
         ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
-        kAnonymityParams =
-          KAnonymityParams(minUsers = 100, minImpressions = 10, reachMaxFrequencyPerUser = 10),
+        resultMinimumThresholds =
+          ResultMinimumThresholds(
+            minUsers = 100,
+            minImpressions = 10,
+            reachMaxFrequencyPerUser = 10,
+          ),
       )
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
@@ -964,8 +968,8 @@ class ResultsFulfillerAppTest {
     val workItemParams =
       createWorkItemParams(
         ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
-        kAnonymityParams =
-          KAnonymityParams(minUsers = 10, minImpressions = 10, reachMaxFrequencyPerUser = 10),
+        resultMinimumThresholds =
+          ResultMinimumThresholds(minUsers = 10, minImpressions = 10, reachMaxFrequencyPerUser = 10),
       )
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
@@ -1108,8 +1112,8 @@ class ResultsFulfillerAppTest {
     val workItemParams =
       createWorkItemParams(
         ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
-        kAnonymityParams =
-          KAnonymityParams(minUsers = 0, minImpressions = 10, reachMaxFrequencyPerUser = 10),
+        resultMinimumThresholds =
+          ResultMinimumThresholds(minUsers = 0, minImpressions = 10, reachMaxFrequencyPerUser = 10),
       )
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
@@ -1261,7 +1265,7 @@ class ResultsFulfillerAppTest {
     val workItemParams =
       createWorkItemParams(
         ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
       )
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
@@ -1420,7 +1424,7 @@ class ResultsFulfillerAppTest {
     val workItemParams =
       createWorkItemParams(
         ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
       )
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
@@ -1612,7 +1616,7 @@ class ResultsFulfillerAppTest {
 
   private fun createWorkItemParams(
     noiseType: ResultsFulfillerParams.NoiseParams.NoiseType,
-    kAnonymityParams: KAnonymityParams?,
+    resultMinimumThresholds: ResultMinimumThresholds?,
   ): WorkItemParams {
     return workItemParams {
       appParams =
@@ -1637,12 +1641,12 @@ class ResultsFulfillerAppTest {
                 edpCertificateName = DATA_PROVIDER_CERTIFICATE_KEY.toName()
               }
             this.noiseParams = ResultsFulfillerParamsKt.noiseParams { this.noiseType = noiseType }
-            if (kAnonymityParams != null) {
+            if (resultMinimumThresholds != null) {
               this.kAnonymityParams =
                 ResultsFulfillerParamsKt.kAnonymityParams {
-                  this.minImpressions = kAnonymityParams.minImpressions
-                  this.minUsers = kAnonymityParams.minUsers
-                  this.reachMaxFrequencyPerUser = kAnonymityParams.reachMaxFrequencyPerUser
+                  this.minImpressions = resultMinimumThresholds.minImpressions
+                  this.minUsers = resultMinimumThresholds.minUsers
+                  this.reachMaxFrequencyPerUser = resultMinimumThresholds.reachMaxFrequencyPerUser
                 }
             }
           }

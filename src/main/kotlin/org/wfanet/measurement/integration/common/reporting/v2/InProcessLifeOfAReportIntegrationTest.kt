@@ -78,7 +78,7 @@ import org.wfanet.measurement.integration.common.HMSS_PROTOCOL_CONFIG_CONFIG
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
-import org.wfanet.measurement.integration.common.TRUSTEE_PROTOCOL_CONFIG_CONFIG
+import org.wfanet.measurement.integration.common.TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_NO_THRESHOLDS
 import org.wfanet.measurement.integration.crypto.testing.ThrowingKmsClient
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
@@ -745,7 +745,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     @JvmStatic
     fun initConfig() {
       InProcessCmmsComponents.initConfig(
-        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG,
+        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_NO_THRESHOLDS,
         hmssProtocolConfigConfig = HMSS_PROTOCOL_CONFIG_CONFIG,
       )
     }

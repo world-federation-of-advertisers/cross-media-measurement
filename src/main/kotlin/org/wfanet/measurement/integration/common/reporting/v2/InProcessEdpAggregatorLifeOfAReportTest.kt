@@ -651,6 +651,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
    * ranges) so that the cross-publisher reach (union of VIDs) is strictly greater than any
    * individual EDP's reach.
    */
+  // Protected so subclasses can call this from their assertTrusTeeMetricResults overrides
+  // with different expected values (e.g. after fold-down changes k+ reach).
   protected fun assertNoNoiseResults(
     basicReport: BasicReport,
     expectedCrossPublisherReach: Long,

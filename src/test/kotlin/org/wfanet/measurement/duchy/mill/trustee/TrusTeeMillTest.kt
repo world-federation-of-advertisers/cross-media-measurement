@@ -641,6 +641,121 @@ class TrusTeeMillTest {
     verify(mockSystemComputations, never()).setComputationResult(any())
   }
 
+  @Test
+  fun `computingPhase fails when resultMinimumThresholds has zero minUsers`(): Unit = runBlocking {
+    writeRequisitionData()
+    val invalidParameters =
+      TrusTeeKt.ComputationDetailsKt.parameters {
+        maximumFrequency = 5
+        reachDpParams = differentialPrivacyParams {
+          epsilon = 1.1
+          delta = 0.1
+        }
+        frequencyDpParams = differentialPrivacyParams {
+          epsilon = 2.1
+          delta = 0.1
+        }
+        noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
+        resultMinimumThresholds =
+          TrusTeeKt.ComputationDetailsKt.resultMinimumThresholds {
+            minUsers = 0
+            minImpressions = 1
+          }
+      }
+    val invalidDetails = computationDetails {
+      kingdomComputation =
+        ComputationDetailsKt.kingdomComputationDetails {
+          publicApiVersion = PUBLIC_API_VERSION
+          measurementPublicKey = MEASUREMENT_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+          measurementSpec = SERIALIZED_MEASUREMENT_SPEC
+          participantCount = 1
+        }
+      trusTee =
+        TrusTeeKt.computationDetails {
+          role = RoleInComputation.AGGREGATOR
+          type = TrusTeeDetails.Type.REACH_AND_FREQUENCY
+          parameters = invalidParameters
+        }
+    }
+
+    fakeComputationDb.addComputation(
+      LOCAL_ID,
+      Stage.COMPUTING.toProtocolStage(),
+      computationDetails = invalidDetails,
+      requisitions = REQUISITIONS,
+    )
+
+    val mill = createMill()
+    mill.claimAndProcessWork()
+
+    val finalToken = fakeComputationDb[LOCAL_ID]!!
+    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
+    assertThat(finalToken.computationDetails.endingState)
+      .isEqualTo(ComputationDetails.CompletedReason.FAILED)
+
+    verify(mockProcessor, never()).addFrequencyVector(any())
+    verify(mockProcessor, never()).computeResult()
+    verify(mockSystemComputations, never()).setComputationResult(any())
+  }
+
+  @Test
+  fun `computingPhase fails when resultMinimumThresholds has zero minImpressions`(): Unit =
+    runBlocking {
+      writeRequisitionData()
+      val invalidParameters =
+        TrusTeeKt.ComputationDetailsKt.parameters {
+          maximumFrequency = 5
+          reachDpParams = differentialPrivacyParams {
+            epsilon = 1.1
+            delta = 0.1
+          }
+          frequencyDpParams = differentialPrivacyParams {
+            epsilon = 2.1
+            delta = 0.1
+          }
+          noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
+          resultMinimumThresholds =
+            TrusTeeKt.ComputationDetailsKt.resultMinimumThresholds {
+              minUsers = 1
+              minImpressions = 0
+            }
+        }
+      val invalidDetails = computationDetails {
+        kingdomComputation =
+          ComputationDetailsKt.kingdomComputationDetails {
+            publicApiVersion = PUBLIC_API_VERSION
+            measurementPublicKey = MEASUREMENT_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+            measurementSpec = SERIALIZED_MEASUREMENT_SPEC
+            participantCount = 1
+          }
+        trusTee =
+          TrusTeeKt.computationDetails {
+            role = RoleInComputation.AGGREGATOR
+            type = TrusTeeDetails.Type.REACH_AND_FREQUENCY
+            parameters = invalidParameters
+          }
+      }
+
+      fakeComputationDb.addComputation(
+        LOCAL_ID,
+        Stage.COMPUTING.toProtocolStage(),
+        computationDetails = invalidDetails,
+        requisitions = REQUISITIONS,
+      )
+
+      val mill = createMill()
+      mill.claimAndProcessWork()
+
+      val finalToken = fakeComputationDb[LOCAL_ID]!!
+      assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
+      assertThat(finalToken.computationDetails.endingState)
+        .isEqualTo(ComputationDetails.CompletedReason.FAILED)
+
+      verify(mockProcessor, never()).addFrequencyVector(any())
+      verify(mockProcessor, never()).computeResult()
+      verify(mockSystemComputations, never()).setComputationResult(any())
+    }
+
   companion object {
     init {
       AeadConfig.register()
@@ -780,6 +895,11 @@ class TrusTeeMillTest {
           delta = 0.1
         }
         noiseMechanism = NoiseMechanism.CONTINUOUS_GAUSSIAN
+        resultMinimumThresholds =
+          TrusTeeKt.ComputationDetailsKt.resultMinimumThresholds {
+            minUsers = 1
+            minImpressions = 1
+          }
       }
 
     private val COMPUTATION_DETAILS = computationDetails {
