@@ -74,10 +74,12 @@ abstract class InProcessReachMeasurementAccuracyTest(
     InProcessCmmsComponents(
       kingdomDataServicesRule,
       duchyDependenciesRule,
-      POPULATION_SPEC,
-      SYNTHETIC_EVENT_GROUP_SPECS,
       useEdpSimulators = true,
       trusTeeKmsClient = ThrowingKmsClient,
+      hmssEnabled = false,
+      trusTeeEnabled = false,
+      populationSpec = POPULATION_SPEC,
+      syntheticEventGroupSpecs = SYNTHETIC_EVENT_GROUP_SPECS,
     )
 
   private lateinit var mcSimulator: EventQueryMeasurementConsumerSimulator
