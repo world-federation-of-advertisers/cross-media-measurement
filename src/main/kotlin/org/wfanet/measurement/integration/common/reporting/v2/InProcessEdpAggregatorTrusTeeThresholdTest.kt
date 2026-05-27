@@ -53,6 +53,7 @@ abstract class InProcessEdpAggregatorTrusTeeThresholdTest(
     duchyNames,
     hmssEnabled = false,
     trusTeeEnabled = true,
+    multiEdpDisplayNames = setOf("edp1", "edp2"),
   ) {
 
   // Noisy tests use approximate assertions instead of exact equality. Subclasses override
@@ -85,12 +86,12 @@ abstract class InProcessEdpAggregatorTrusTeeThresholdTest(
 
   @Test
   fun `TrusTee basic report has the expected result`() = runBlocking {
-    val trusTeeEventGroups = getTrusTeeEventGroups()
-    check(trusTeeEventGroups.size > 1)
+    val eventGroups = getMultiEdpEventGroups()
+    check(eventGroups.size > 1)
 
     val createBasicReportRequest =
       buildCreateBasicReportRequest(
-        trusTeeEventGroups,
+        eventGroups,
         "trustee-campaign",
         "trustee-basicreport",
         includeIqfFilter = false,
