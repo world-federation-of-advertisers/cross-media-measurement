@@ -61,6 +61,8 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
 import org.wfanet.measurement.edpaggregator.telemetry.withSpan
 
+class UnresolvedMeasurementConsumerException(message: String) : Exception(message)
+
 /**
  * Key used to uniquely identify an event group.
  *
@@ -143,8 +145,12 @@ class EventGroupSync(
             validateDeletedEventGroup(eventGroup)
           } catch (e: Exception) {
             logger.log(Level.SEVERE, e) {
-              "Skipping deleted Event Group ${eventGroup.eventGroupReferenceId}: " +
-                "Validation failed"
+              "Skipping deleted Event Group ${eventGroup.eventGroupReferenceId}" +
+                (if (eventGroup.hasEntityKey())
+                  " (entityType=${eventGroup.entityKey.entityType}," +
+                    " entityId=${eventGroup.entityKey.entityId})"
+                else "") +
+                ": Validation failed"
             }
             metrics.invalidEventGroupFailure.add(1, metricAttributes())
             continue
@@ -163,19 +169,50 @@ class EventGroupSync(
           validateEventGroup(eventGroup)
         } catch (e: Exception) {
           logger.log(Level.SEVERE, e) {
-            "Skipping Event Group ${eventGroup.eventGroupReferenceId}: " + "Validation failed"
+            "Skipping Event Group ${eventGroup.eventGroupReferenceId}" +
+              (if (eventGroup.hasEntityKey())
+                " (entityType=${eventGroup.entityKey.entityType}," +
+                  " entityId=${eventGroup.entityKey.entityId})"
+              else "") +
+              ": Validation failed"
           }
           metrics.invalidEventGroupFailure.add(1, metricAttributes())
           continue
         }
 
         val measurementConsumerKeys: Set<MeasurementConsumerKey> =
-          resolveMeasurementConsumers(eventGroup)
+          try {
+            resolveMeasurementConsumers(eventGroup)
+          } catch (e: UnresolvedMeasurementConsumerException) {
+            logger.log(Level.SEVERE, e) {
+              "Skipping Event Group ${eventGroup.eventGroupReferenceId}" +
+                (if (eventGroup.hasEntityKey())
+                  " (entityType=${eventGroup.entityKey.entityType}," +
+                    " entityId=${eventGroup.entityKey.entityId})"
+                else "") +
+                ": No measurement consumer resolved"
+            }
+            metrics.syncFailure.add(1, metricAttributes())
+            continue
+          }
 
         for (measurementConsumerKey in measurementConsumerKeys) {
-          val eventGroupWithConsumer =
-            eventGroup.copy { measurementConsumer = measurementConsumerKey.toName() }
-          syncEventGroupItem(eventGroupWithConsumer, cmmsEventGroups)?.let { emit(it) }
+          try {
+            val eventGroupWithConsumer =
+              eventGroup.copy { measurementConsumer = measurementConsumerKey.toName() }
+            syncEventGroupItem(eventGroupWithConsumer, cmmsEventGroups)?.let { emit(it) }
+          } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            logger.log(Level.SEVERE, e) {
+              "Skipping Event Group ${eventGroup.eventGroupReferenceId}" +
+                (if (eventGroup.hasEntityKey())
+                  " (entityType=${eventGroup.entityKey.entityType}," +
+                    " entityId=${eventGroup.entityKey.entityId})"
+                else "") +
+                ": Failed to process for measurement consumer"
+            }
+            metrics.syncFailure.add(1, metricAttributes())
+          }
         }
       }
     }
@@ -280,11 +317,19 @@ class EventGroupSync(
 
     // Collect direct measurement consumer (EDP's mapping)
     if (eventGroup.measurementConsumer.isNotEmpty()) {
-      val key =
-        requireNotNull(MeasurementConsumerKey.fromName(eventGroup.measurementConsumer)) {
-          "Invalid measurementConsumer resource name: ${eventGroup.measurementConsumer}"
+      val key = MeasurementConsumerKey.fromName(eventGroup.measurementConsumer)
+      if (key != null && key.measurementConsumerId.isNotBlank()) {
+        measurementConsumerKeys.add(key)
+      } else {
+        logger.log(Level.WARNING) {
+          "Ignoring malformed measurement_consumer: ${eventGroup.measurementConsumer}" +
+            " for Event Group ${eventGroup.eventGroupReferenceId}" +
+            (if (eventGroup.hasEntityKey())
+              " (entityType=${eventGroup.entityKey.entityType}," +
+                " entityId=${eventGroup.entityKey.entityId})"
+            else "")
         }
-      measurementConsumerKeys.add(key)
+      }
     }
 
     // Also collect from client_account_reference_id lookup (operator's mapping)
@@ -333,7 +378,7 @@ class EventGroupSync(
 
     if (measurementConsumerKeys.isEmpty()) {
       metrics.unmappedEventGroups.add(1, metricAttributes())
-      logger.warning(
+      throw UnresolvedMeasurementConsumerException(
         "EventGroup ${eventGroup.eventGroupReferenceId} has neither measurementConsumer " +
           "nor clientAccountReferenceId, or both failed to resolve"
       )
@@ -479,9 +524,15 @@ class EventGroupSync(
       check(eventGroup.eventGroupReferenceId.isNotBlank()) {
         "Event Group Reference Id must be set"
       }
-      val hasClientAccountRef = eventGroup.clientAccountReferenceId.isNotEmpty()
-      check(eventGroup.measurementConsumer.isNotBlank() || hasClientAccountRef) {
-        "Either Measurement Consumer or Client Account Reference ID must be set"
+      if (eventGroup.measurementConsumer.isNotBlank()) {
+        val mcKey = MeasurementConsumerKey.fromName(eventGroup.measurementConsumer)
+        check(mcKey != null && mcKey.measurementConsumerId.isNotBlank()) {
+          "Malformed measurement_consumer: ${eventGroup.measurementConsumer}"
+        }
+      } else {
+        check(eventGroup.clientAccountReferenceId.isNotEmpty()) {
+          "Either Measurement Consumer or Client Account Reference ID must be set"
+        }
       }
     }
 
