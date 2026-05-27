@@ -38,6 +38,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt as C
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ListClientAccountsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListClientAccountsResponse
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter as listEventGroupsFilter
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerClientAccountKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
@@ -90,6 +91,7 @@ class EventGroupSync(
   private val eventGroups: Flow<EventGroup>,
   private val throttler: Throttler,
   private val listEventGroupPageSize: Int,
+  private val entityKeyTypes: List<String>,
   private val tracer: Tracer = GlobalOpenTelemetry.getTracer("wfa.edpa"),
 ) {
   private val metrics = EventGroupSyncMetrics(Instrumentation.meter)
@@ -244,13 +246,27 @@ class EventGroupSync(
     } catch (e: Exception) {
       if (e is CancellationException) throw e
 
-      // Record sync failure
-      metrics.syncFailure.add(1, metricAttributes())
+      val errorType =
+        if (e is StatusException || e.cause is StatusException) {
+          val status = (e as? StatusException ?: e.cause as StatusException).status
+          status.code.name
+        } else {
+          e.javaClass.simpleName
+        }
+
+      metrics.syncFailure.add(
+        1,
+        Attributes.builder()
+          .putAll(metricAttributes())
+          .put(AttributeKey.stringKey("error_type"), errorType)
+          .put(AttributeKey.stringKey("event_group_reference_id"), eventGroup.eventGroupReferenceId)
+          .build(),
+      )
 
       logger.log(Level.SEVERE, e) {
-        "Unable to process Event Group ${eventGroup.eventGroupReferenceId}"
+        "Unable to process Event Group ${eventGroup.eventGroupReferenceId}: " +
+          "error_type=$errorType"
       }
-      // Note: sync attempt was already recorded, but no success/latency on failure
       null
     }
   }
@@ -418,6 +434,9 @@ class EventGroupSync(
                   parent = edpName
                   this.pageToken = pageToken
                   pageSize = listEventGroupPageSize
+                  if (entityKeyTypes.isNotEmpty()) {
+                    filter = listEventGroupsFilter { entityTypeIn += entityKeyTypes }
+                  }
                 }
               )
             }

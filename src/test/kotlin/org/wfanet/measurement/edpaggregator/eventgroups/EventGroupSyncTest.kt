@@ -23,6 +23,8 @@ import com.google.protobuf.struct
 import com.google.protobuf.timestamp
 import com.google.protobuf.value
 import com.google.type.interval
+import io.grpc.Status
+import io.grpc.StatusException
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.trace.StatusCode
@@ -53,6 +55,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
@@ -297,6 +300,7 @@ class EventGroupSyncTest {
         testCampaigns.asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
+        entityKeyTypes = emptyList(),
       )
     runBlocking { eventGroupSync.sync().collect() }
     verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
@@ -331,6 +335,7 @@ class EventGroupSyncTest {
         testCampaigns.asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
+        entityKeyTypes = emptyList(),
       )
     runBlocking { eventGroupSync.sync().collect() }
     val createCaptor = argumentCaptor<CreateEventGroupRequest>()
@@ -354,6 +359,7 @@ class EventGroupSyncTest {
         listOf(deletedEventGroup).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
+        entityKeyTypes = emptyList(),
       )
     val result = runBlocking { eventGroupSync.sync().toList() }
     val deleteCaptor = argumentCaptor<DeleteEventGroupRequest>()
@@ -397,6 +403,7 @@ class EventGroupSyncTest {
         listOf(deletedEventGroup, activeEventGroup).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
+        entityKeyTypes = emptyList(),
       )
     val result = runBlocking { eventGroupSync.sync().toList() }
 
@@ -429,6 +436,7 @@ class EventGroupSyncTest {
         listOf(deletedEventGroup).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
+        entityKeyTypes = emptyList(),
       )
     val result = runBlocking { eventGroupSync.sync().toList() }
     verifyBlocking(eventGroupsServiceMock, times(0)) { deleteEventGroup(any()) }
@@ -451,6 +459,7 @@ class EventGroupSyncTest {
           listOf(deletedEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
+          entityKeyTypes = emptyList(),
         )
       eventGroupSync.sync().collect()
 
@@ -483,6 +492,7 @@ class EventGroupSyncTest {
           listOf(deletedEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
+          entityKeyTypes = emptyList(),
         )
       eventGroupSync.sync().collect()
 
@@ -523,6 +533,7 @@ class EventGroupSyncTest {
         testCampaigns.asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
+        entityKeyTypes = emptyList(),
       )
     runBlocking { eventGroupSync.sync().collect() }
     verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
@@ -565,6 +576,7 @@ class EventGroupSyncTest {
         listOf(newStyleEventGroup).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
+        entityKeyTypes = emptyList(),
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -607,6 +619,7 @@ class EventGroupSyncTest {
         listOf(legacyEventGroup).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
+        entityKeyTypes = emptyList(),
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -667,6 +680,7 @@ class EventGroupSyncTest {
         listOf(legacyEventGroup, newStyleEventGroup).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
+        entityKeyTypes = emptyList(),
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -734,6 +748,7 @@ class EventGroupSyncTest {
         listOf(sourceEventGroup).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
+        entityKeyTypes = emptyList(),
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -763,6 +778,7 @@ class EventGroupSyncTest {
         CAMPAIGNS.asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
+        entityKeyTypes = emptyList(),
       )
     runBlocking { eventGroupSync.sync().collect() }
     verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(any()) }
@@ -801,6 +817,7 @@ class EventGroupSyncTest {
         listOf(sourceEventGroup).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
+        entityKeyTypes = emptyList(),
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -883,6 +900,7 @@ class EventGroupSyncTest {
               listOf(sourceEventGroup).asFlow(),
               MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
               100,
+              entityKeyTypes = emptyList(),
             )
 
           runBlocking { eventGroupSync.sync().collect() }
@@ -979,6 +997,7 @@ class EventGroupSyncTest {
               listOf(sourceEventGroup).asFlow(),
               MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
               100,
+              entityKeyTypes = emptyList(),
             )
           runBlocking { eventGroupSync.sync().collect() }
 
@@ -1069,6 +1088,7 @@ class EventGroupSyncTest {
               listOf(sourceEventGroup).asFlow(),
               MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
               100,
+              entityKeyTypes = emptyList(),
             )
           runBlocking { eventGroupSync.sync().collect() }
 
@@ -1159,6 +1179,7 @@ class EventGroupSyncTest {
               listOf(sourceEventGroup).asFlow(),
               MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
               100,
+              entityKeyTypes = emptyList(),
             )
           runBlocking { eventGroupSync.sync().collect() }
 
@@ -1251,6 +1272,7 @@ class EventGroupSyncTest {
               listOf(sourceEventGroup).asFlow(),
               MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
               100,
+              entityKeyTypes = emptyList(),
             )
           runBlocking { eventGroupSync.sync().collect() }
 
@@ -1276,6 +1298,7 @@ class EventGroupSyncTest {
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
+          entityKeyTypes = emptyList(),
         )
       val result = runBlocking { eventGroupSync.sync() }
       assertThat(result.toList().map { it.eventGroupResource to it.eventGroupReferenceId })
@@ -1398,6 +1421,7 @@ class EventGroupSyncTest {
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
+          entityKeyTypes = emptyList(),
         )
       eventGroupSync.sync().collect()
 
@@ -1430,6 +1454,7 @@ class EventGroupSyncTest {
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
+          entityKeyTypes = emptyList(),
         )
       eventGroupSync.sync().collect()
 
@@ -1458,6 +1483,7 @@ class EventGroupSyncTest {
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
+          entityKeyTypes = emptyList(),
         )
       eventGroupSync.sync().collect()
 
@@ -1502,6 +1528,7 @@ class EventGroupSyncTest {
           listOf(invalidEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
+          entityKeyTypes = emptyList(),
         )
       eventGroupSync.sync().collect()
 
@@ -1540,6 +1567,7 @@ class EventGroupSyncTest {
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
+          entityKeyTypes = emptyList(),
         )
       eventGroupSync.sync().collect()
 
@@ -1568,6 +1596,7 @@ class EventGroupSyncTest {
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
+          entityKeyTypes = emptyList(),
         )
       eventGroupSync.sync().collect()
 
@@ -1616,6 +1645,7 @@ class EventGroupSyncTest {
           listOf(invalidEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
+          entityKeyTypes = emptyList(),
         )
       eventGroupSync.sync().collect()
 
@@ -1652,6 +1682,7 @@ class EventGroupSyncTest {
           listOf(invalidEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
+          entityKeyTypes = emptyList(),
         )
       eventGroupSync.sync().collect()
 
@@ -1677,6 +1708,7 @@ class EventGroupSyncTest {
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
+          entityKeyTypes = emptyList(),
         )
       eventGroupSync.sync().collect()
 
@@ -1744,6 +1776,7 @@ class EventGroupSyncTest {
         listOf(eventGroupWithClientRef).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
+        entityKeyTypes = emptyList(),
       )
 
     runBlocking { eventGroupSync.sync().collect() }
@@ -1787,6 +1820,7 @@ class EventGroupSyncTest {
         listOf(eventGroupWithBoth).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
+        entityKeyTypes = emptyList(),
       )
 
     val result = runBlocking { eventGroupSync.sync().toList() }
@@ -1837,6 +1871,7 @@ class EventGroupSyncTest {
         listOf(eventGroupWithNoMatch).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
+        entityKeyTypes = emptyList(),
       )
 
     val result = runBlocking { eventGroupSync.sync().toList() }
@@ -1879,6 +1914,7 @@ class EventGroupSyncTest {
         listOf(eventGroupWithMultiple).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
+        entityKeyTypes = emptyList(),
       )
 
     val result = runBlocking { eventGroupSync.sync().toList() }
@@ -1930,6 +1966,7 @@ class EventGroupSyncTest {
           listOf(unmappableEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
+          entityKeyTypes = emptyList(),
         )
 
       eventGroupSync.sync().collect()
@@ -2056,6 +2093,7 @@ class EventGroupSyncTest {
               listOf(eventGroupWithReducedMapping).asFlow(),
               MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
               100,
+              entityKeyTypes = emptyList(),
             )
 
           runBlocking { eventGroupSync.sync().collect() }
@@ -2164,6 +2202,166 @@ class EventGroupSyncTest {
       assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
     assertThat(exception.message)
       .contains("Either Measurement Consumer or Client Account Reference ID must be set")
+  }
+
+  @Test
+  fun `sync with entityKeyTypes sees all entity types and updates existing event groups`() {
+    wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
+      .thenAnswer {
+        listEventGroupsResponse {
+          eventGroups +=
+            listOf(
+              cmmsEventGroup {
+                name = "dataProviders/data-provider-1/eventGroups/eg-campaign-1"
+                measurementConsumer = "measurementConsumers/measurement-consumer-1"
+                eventGroupReferenceId = "edpa-eg-campaign-1"
+                mediaTypes += CmmsMediaType.VIDEO
+                eventGroupMetadata = cmmsEventGroupMetadata {
+                  this.adMetadata = cmmsAdMetadata {
+                    this.campaignMetadata = cmmsCampaignMetadata {
+                      brandName = "brand-1"
+                      campaignName = "campaign-1"
+                    }
+                  }
+                }
+                dataAvailabilityInterval = interval {
+                  startTime = timestamp { seconds = 200 }
+                  endTime = timestamp { seconds = 300 }
+                }
+              },
+              cmmsEventGroup {
+                name = "dataProviders/data-provider-1/eventGroups/eg-creative-1"
+                measurementConsumer = "measurementConsumers/measurement-consumer-1"
+                eventGroupReferenceId = "edpa-eg-creative-id-1"
+                mediaTypes += CmmsMediaType.VIDEO
+                eventGroupMetadata = cmmsEventGroupMetadata {
+                  this.adMetadata = cmmsAdMetadata {
+                    this.campaignMetadata = cmmsCampaignMetadata {
+                      brandName = "brand-1"
+                      campaignName = "campaign-1"
+                    }
+                  }
+                }
+                dataAvailabilityInterval = interval {
+                  startTime = timestamp { seconds = 200 }
+                  endTime = timestamp { seconds = 300 }
+                }
+                this.entityKey = cmmsEntityKey {
+                  entityType = "creative-id"
+                  entityId = "edpa-eg-creative-id-1"
+                }
+              },
+            )
+        }
+      }
+
+    val sourceEventGroup = eventGroup {
+      eventGroupReferenceId = "edpa-eg-creative-id-1"
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-1"
+            campaign = "campaign-1"
+          }
+        }
+      }
+      entityKey = entityKey {
+        entityType = "creative-id"
+        entityId = "edpa-eg-creative-id-1"
+      }
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += MediaType.VIDEO
+    }
+
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        listOf(sourceEventGroup).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+        entityKeyTypes = listOf("campaign", "creative-id"),
+      )
+
+    val results = runBlocking { eventGroupSync.sync().toList() }
+
+    assertThat(results).hasSize(1)
+    assertThat(results[0].eventGroupReferenceId).isEqualTo("edpa-eg-creative-id-1")
+
+    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+
+    val listCaptor = argumentCaptor<ListEventGroupsRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) { listEventGroups(listCaptor.capture()) }
+    assertThat(listCaptor.firstValue.filter.entityTypeInList)
+      .containsExactly("campaign", "creative-id")
+
+    val failureMetric = getMetrics().firstOrNull { it.name == "edpa.event_group.sync_failure" }
+    assertThat(failureMetric).isNull()
+  }
+
+  @Test
+  fun `sync fails silently when entity key types not populated properly`() {
+    wheneverBlocking { eventGroupsServiceMock.createEventGroup(any<CreateEventGroupRequest>()) }
+      .thenAnswer {
+        throw StatusException(
+          Status.ALREADY_EXISTS.withDescription(
+            "EventGroup already exists with entity key (creative-id, edpa-eg-creative-id-1)"
+          )
+        )
+      }
+
+    val sourceEventGroup = eventGroup {
+      eventGroupReferenceId = "creative-id-edpa-eg-creative-id-1"
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-1"
+            campaign = "campaign-1"
+          }
+        }
+      }
+      entityKey = entityKey {
+        entityType = "creative-id"
+        entityId = "edpa-eg-creative-id-1"
+      }
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += MediaType.VIDEO
+    }
+
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        listOf(sourceEventGroup).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+        entityKeyTypes = emptyList(),
+      )
+
+    val results = runBlocking { eventGroupSync.sync().toList() }
+
+    assertThat(results).isEmpty()
+
+    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { updateEventGroup(any()) }
+
+    val listCaptor = argumentCaptor<ListEventGroupsRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) { listEventGroups(listCaptor.capture()) }
+    assertThat(listCaptor.firstValue.hasFilter()).isFalse()
+
+    val metrics = getMetrics()
+    val failureMetric = metrics.firstOrNull { it.name == "edpa.event_group.sync_failure" }
+    assertThat(failureMetric).isNotNull()
   }
 
   companion object {

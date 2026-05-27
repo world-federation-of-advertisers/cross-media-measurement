@@ -116,6 +116,7 @@ class EventGroupSyncFunction() : HttpFunction {
                   eventGroups = eventGroups,
                   throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration),
                   listEventGroupPageSize,
+                  entityKeyTypes = eventGroupSyncConfig.entityKeyTypesList,
                 )
                 .sync(),
             eventGroupSyncConfig = eventGroupSyncConfig,
