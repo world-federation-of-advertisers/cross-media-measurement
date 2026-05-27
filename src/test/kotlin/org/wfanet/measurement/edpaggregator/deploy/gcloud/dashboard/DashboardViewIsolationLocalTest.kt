@@ -58,23 +58,13 @@ class DashboardViewIsolationLocalTest {
       )
 
     private val SQL_FILES =
-      listOf(
-        "requisition_overview.sql",
-        "mc_details.sql",
-        "report_detail.sql",
-      )
+      listOf("requisition_overview.sql", "mc_details.sql", "report_detail.sql")
   }
 
   private fun readSqlFile(fileName: String): String {
     val runfilesDir = System.getenv("TEST_SRCDIR") ?: "."
     val workspace = System.getenv("TEST_WORKSPACE") ?: "__main__"
-    val path =
-      Paths.get(
-        runfilesDir,
-        workspace,
-        "src/main/terraform/gcloud/cmms/sql",
-        fileName,
-      )
+    val path = Paths.get(runfilesDir, workspace, "src/main/terraform/gcloud/cmms/sql", fileName)
     return Files.readString(path)
   }
 
