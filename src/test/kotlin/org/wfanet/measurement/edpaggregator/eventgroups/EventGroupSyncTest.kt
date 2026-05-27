@@ -1954,7 +1954,7 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `sync continues processing after blank measurement consumer exception`() {
+  fun `sync continues processing after unresolved measurement consumer`() {
     runBlocking {
       val unmappableEventGroup = eventGroup {
         eventGroupReferenceId = "reference-id-unmapped"
