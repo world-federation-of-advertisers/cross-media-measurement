@@ -375,6 +375,14 @@ resource "google_project_iam_member" "edp_bigquery_job_user" {
   member   = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }
 
+# Operators can impersonate EDP SAs for manual isolation testing
+resource "google_service_account_iam_member" "edp_sa_operator_token_creator" {
+  for_each           = var.data_provider_resource_ids
+  service_account_id = google_service_account.edp_dashboard[each.key].name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "user:tinage@meta.com"
+}
+
 # Authorize dashboard_views_edp to access UDFs in dashboard_views
 resource "google_bigquery_dataset_access" "edp_authorized_routines" {
   dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
