@@ -431,6 +431,8 @@ kt_jvm_library(
 kt_jvm_library(
     name = "in_process_life_of_a_measurement_integration_test",
     srcs = [
+        "InProcessDirectMeasurementIntegrationTest.kt",
+        "InProcessHmssMeasurementIntegrationTest.kt",
         "InProcessLifeOfAMeasurementIntegrationTest.kt",
     ],
     deps = [
@@ -449,7 +451,10 @@ kt_jvm_library(
 kt_jvm_library(
     name = "in_process_edp_aggregator_life_of_a_measurement_integration_test",
     srcs = [
+        "InProcessEdpAggregatorDirectMeasurementTest.kt",
+        "InProcessEdpAggregatorHmssMeasurementTest.kt",
         "InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest.kt",
+        "InProcessEdpAggregatorTrusteeMeasurementTest.kt",
     ],
     data = [
         "//src/main/proto/wfa/measurement/loadtest/dataprovider:specs",

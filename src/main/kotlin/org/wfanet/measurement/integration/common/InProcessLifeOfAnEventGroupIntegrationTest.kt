@@ -78,6 +78,8 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
       dataServicesProvider = { kingdomDataServices },
       REDIRECT_URI,
       verboseGrpcLogging = false,
+      hmssEnabled = false,
+      trusTeeEnabled = false,
     )
 
   @get:Rule
