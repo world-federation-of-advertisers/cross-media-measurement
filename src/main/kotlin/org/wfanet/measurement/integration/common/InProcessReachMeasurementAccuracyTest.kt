@@ -76,7 +76,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
       duchyDependenciesRule,
       useEdpSimulators = true,
       trusTeeKmsClient = ThrowingKmsClient,
-      hmssEnabled = false,
+      hmssEnabled = true,
       trusTeeEnabled = false,
       populationSpec = POPULATION_SPEC,
       syntheticEventGroupSpecs = SYNTHETIC_EVENT_GROUP_SPECS,
