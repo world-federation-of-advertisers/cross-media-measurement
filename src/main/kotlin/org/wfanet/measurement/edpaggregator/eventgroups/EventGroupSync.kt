@@ -304,11 +304,14 @@ class EventGroupSync(
 
     // Collect direct measurement consumer (EDP's mapping)
     if (eventGroup.measurementConsumer.isNotEmpty()) {
-      val key =
-        requireNotNull(MeasurementConsumerKey.fromName(eventGroup.measurementConsumer)) {
-          "Invalid measurementConsumer resource name: ${eventGroup.measurementConsumer}"
+      val key = MeasurementConsumerKey.fromName(eventGroup.measurementConsumer)
+      if (key != null && key.measurementConsumerId.isNotBlank()) {
+        measurementConsumerKeys.add(key)
+      } else {
+        logger.log(Level.WARNING) {
+          "Ignoring malformed measurement_consumer: ${eventGroup.measurementConsumer}"
         }
-      measurementConsumerKeys.add(key)
+      }
     }
 
     // Also collect from client_account_reference_id lookup (operator's mapping)
