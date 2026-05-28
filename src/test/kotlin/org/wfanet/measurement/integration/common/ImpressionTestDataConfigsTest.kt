@@ -33,13 +33,13 @@ class ImpressionTestDataConfigsTest {
 
   @Test
   fun `toEventGroupMap returns correct map structure`() {
-    val result = ImpressionTestDataConfigs.toEventGroupMap(CONFIG, specResolver)
+    val result = ImpressionTestDataConfigs.toEventGroupMap(CONFIG)
 
     assertThat(result).hasSize(4)
 
     val legacy = result["edpa-eg-reference-id-1"]
     assertIs<EventGroupConfig.LegacySpec>(legacy)
-    assertThat(legacy.spec).isEqualTo(specResolver("small_data_spec.textproto"))
+    assertThat(legacy.spec).isEqualTo(parseSpec("small_data_spec.textproto"))
 
     val singleEntityKey = result["creative-id-edpa-eg-creative-id-1"]
     assertIs<EventGroupConfig.MultiEntityKey>(singleEntityKey)
@@ -55,11 +55,11 @@ class ImpressionTestDataConfigsTest {
     assertThat(multiCreative.entityKeySpecs[0].entityKey.entityId)
       .isEqualTo("edpa-eg-multi-creative-1")
     assertThat(multiCreative.entityKeySpecs[0].spec)
-      .isEqualTo(specResolver("small_data_spec.textproto"))
+      .isEqualTo(parseSpec("small_data_spec.textproto"))
     assertThat(multiCreative.entityKeySpecs[1].entityKey.entityId)
       .isEqualTo("edpa-eg-multi-creative-2")
     assertThat(multiCreative.entityKeySpecs[1].spec)
-      .isEqualTo(specResolver("small_data_spec_2.textproto"))
+      .isEqualTo(parseSpec("small_data_spec_2.textproto"))
 
     val edpaMeta = result["edpa-eg-reference-id-2"]
     assertIs<EventGroupConfig.LegacySpec>(edpaMeta)
@@ -67,7 +67,7 @@ class ImpressionTestDataConfigsTest {
 
   @Test
   fun `toFlatEventGroupMap flattens multi-entity-key entries`() {
-    val result = ImpressionTestDataConfigs.toFlatEventGroupMap(CONFIG, specResolver)
+    val result = ImpressionTestDataConfigs.toFlatEventGroupMap(CONFIG)
 
     assertThat(result).hasSize(5)
     assertThat(result).containsKey("edpa-eg-reference-id-1")
@@ -79,17 +79,17 @@ class ImpressionTestDataConfigsTest {
     val multiA = result["creative-id-edpa-eg-multi-creative-1"]
     assertIs<EventGroupConfig.MultiEntityKey>(multiA)
     assertThat(multiA.entityKeySpecs).hasSize(1)
-    assertThat(multiA.entityKeySpecs[0].spec).isEqualTo(specResolver("small_data_spec.textproto"))
+    assertThat(multiA.entityKeySpecs[0].spec).isEqualTo(parseSpec("small_data_spec.textproto"))
 
     val multiB = result["creative-id-edpa-eg-multi-creative-2"]
     assertIs<EventGroupConfig.MultiEntityKey>(multiB)
     assertThat(multiB.entityKeySpecs).hasSize(1)
-    assertThat(multiB.entityKeySpecs[0].spec).isEqualTo(specResolver("small_data_spec_2.textproto"))
+    assertThat(multiB.entityKeySpecs[0].spec).isEqualTo(parseSpec("small_data_spec_2.textproto"))
   }
 
   @Test
   fun `toEventGroupMap legacy event group has no entity metadata`() {
-    val result = ImpressionTestDataConfigs.toEventGroupMap(CONFIG, specResolver)
+    val result = ImpressionTestDataConfigs.toEventGroupMap(CONFIG)
 
     val legacy = result["edpa-eg-reference-id-1"]
     assertIs<EventGroupConfig.LegacySpec>(legacy)
@@ -97,7 +97,7 @@ class ImpressionTestDataConfigsTest {
 
   @Test
   fun `toFlatEventGroupMap preserves entity metadata on resolved entries`() {
-    val result = ImpressionTestDataConfigs.toFlatEventGroupMap(CONFIG, specResolver)
+    val result = ImpressionTestDataConfigs.toFlatEventGroupMap(CONFIG)
 
     val multiA = result["creative-id-edpa-eg-multi-creative-1"]
     assertIs<EventGroupConfig.MultiEntityKey>(multiA)
@@ -161,12 +161,11 @@ class ImpressionTestDataConfigsTest {
         )
       )!!
 
-    private val specResolver: (String) -> SyntheticEventGroupSpec = { path ->
+    private fun parseSpec(path: String): SyntheticEventGroupSpec =
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve(path).toFile(),
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
-    }
 
     private val ENTITY_METADATA = struct {
       fields["placement"] = value { stringValue = "homepage_top" }

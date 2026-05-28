@@ -504,18 +504,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       parseTextProto(configFile, ImpressionTestDataConfig.getDefaultInstance())
     }
 
-    private val specResolver: (String) -> SyntheticEventGroupSpec = { path ->
-      parseTextProto(
-        TEST_DATA_RUNTIME_PATH.resolve(path).toFile(),
-        SyntheticEventGroupSpec.getDefaultInstance(),
-      )
-    }
-
     val syntheticEventGroupMap: Map<String, EventGroupConfig> =
-      ImpressionTestDataConfigs.toEventGroupMap(IMPRESSION_TEST_DATA_CONFIG, specResolver)
+      ImpressionTestDataConfigs.toEventGroupMap(IMPRESSION_TEST_DATA_CONFIG)
 
     val resolvedSyntheticEventGroupMap: Map<String, EventGroupConfig> =
-      ImpressionTestDataConfigs.toFlatEventGroupMap(IMPRESSION_TEST_DATA_CONFIG, specResolver)
+      ImpressionTestDataConfigs.toFlatEventGroupMap(IMPRESSION_TEST_DATA_CONFIG)
 
     private val ZONE_ID = ZoneId.of("UTC")
 
