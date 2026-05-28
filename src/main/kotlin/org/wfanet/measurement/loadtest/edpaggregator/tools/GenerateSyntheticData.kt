@@ -38,6 +38,7 @@ import java.util.logging.Logger
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
+import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -47,7 +48,6 @@ import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.tink.AwsWebIdentityCredentials
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
-import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
@@ -270,7 +270,7 @@ class GenerateSyntheticData : Runnable {
 
     val populationSpec: PopulationSpec =
       parseTextProto(
-        resolveSpecFile(resolvedPopulationSpecPath),
+        ImpressionTestDataConfigs.resolveSpecPath(resolvedPopulationSpecPath),
         PopulationSpec.getDefaultInstance(),
         buildEventMessageTypeRegistry(eventMessageInstance),
       )
@@ -286,7 +286,7 @@ class GenerateSyntheticData : Runnable {
           spec.subSpecs.map { subSpec ->
             val syntheticEventGroupSpec: SyntheticEventGroupSpec =
               parseTextProto(
-                resolveSpecFile(subSpec.dataSpecResourcePath),
+                ImpressionTestDataConfigs.resolveSpecPath(subSpec.dataSpecResourcePath),
                 SyntheticEventGroupSpec.getDefaultInstance(),
               )
             SyntheticDataGeneration.generateEvents(
@@ -370,26 +370,6 @@ class GenerateSyntheticData : Runnable {
     const val DEFAULT_EVENT_MESSAGE_TYPE_URL: String =
       ProtoReflection.DEFAULT_TYPE_URL_PREFIX +
         "/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
-
-    // This is the relative location from which population and data spec textprotos are read.
-    private val TEST_DATA_PATH =
-      Paths.get(
-        "wfa_measurement_system",
-        "src",
-        "main",
-        "proto",
-        "wfa",
-        "measurement",
-        "loadtest",
-        "dataprovider",
-      )
-    private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
-
-    private fun resolveSpecFile(path: String): File {
-      val specPath = Paths.get(path)
-      return if (specPath.isAbsolute) specPath.toFile()
-      else TEST_DATA_RUNTIME_PATH.resolve(path).toFile()
-    }
 
     private val EVENT_MESSAGE_EXTENSION_REGISTRY: ExtensionRegistry =
       ExtensionRegistry.newInstance()
