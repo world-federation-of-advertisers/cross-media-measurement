@@ -38,11 +38,12 @@ message ImpressionTestDataConfig {
     // "${entity_type}-${entity_id}" from each entity_key_spec.
     string event_group_reference_id = 1;
 
-    // Resource path of the SyntheticEventGroupSpec textproto relative to the
-    // loadtest dataprovider test data directory.
+    // Path to the SyntheticEventGroupSpec textproto. Either an absolute
+    // filesystem path or a path relative to the loadtest dataprovider
+    // directory.
     //
-    // Used for event groups with no entity key specs (i.e. no creative-id
-    // sub-populations). Mutually exclusive with entity_key_specs.
+    // Used for event groups with no entity key specs. Mutually exclusive
+    // with entity_key_specs.
     string data_spec_resource_path = 2;
 
     // Suffix appended (with a hyphen separator) to output filenames in the
@@ -69,14 +70,16 @@ message ImpressionTestDataConfig {
   message EntityKeySpec {
     string entity_type = 1;
     string entity_id = 2;
-    // Resource path of the SyntheticEventGroupSpec textproto.
+    // Path to the SyntheticEventGroupSpec textproto. Either an absolute
+    // filesystem path or a path relative to the loadtest dataprovider
+    // directory.
     string data_spec_resource_path = 3;
   }
 
   // The synthetic event groups to generate.
   repeated SyntheticEventGroup event_groups = 1;
 
-  // Resource path of the PopulationSpec textproto relative to the loadtest
-  // dataprovider test data directory.
+  // Path to the PopulationSpec textproto. Either an absolute filesystem
+  // path or a path relative to the loadtest dataprovider directory.
   string population_spec_resource_path = 2;
 }
