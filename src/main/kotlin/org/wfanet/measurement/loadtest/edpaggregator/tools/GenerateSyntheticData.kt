@@ -279,7 +279,7 @@ class GenerateSyntheticData : Runnable {
 
     val populationSpec: PopulationSpec =
       parseTextProto(
-        TEST_DATA_RUNTIME_PATH.resolve(resolvedPopulationSpecPath).toFile(),
+        resolveSpecFile(resolvedPopulationSpecPath),
         PopulationSpec.getDefaultInstance(),
         buildEventMessageTypeRegistry(eventMessageInstance),
       )
@@ -316,7 +316,7 @@ class GenerateSyntheticData : Runnable {
           spec.subSpecs.map { subSpec ->
             val syntheticEventGroupSpec: SyntheticEventGroupSpec =
               parseTextProto(
-                TEST_DATA_RUNTIME_PATH.resolve(subSpec.dataSpecResourcePath).toFile(),
+                resolveSpecFile(subSpec.dataSpecResourcePath),
                 SyntheticEventGroupSpec.getDefaultInstance(),
               )
             SyntheticDataGeneration.generateEvents(
@@ -411,6 +411,12 @@ class GenerateSyntheticData : Runnable {
         "dataprovider",
       )
     private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
+
+    private fun resolveSpecFile(path: String): File {
+      val specPath = Paths.get(path)
+      return if (specPath.isAbsolute) specPath.toFile()
+      else TEST_DATA_RUNTIME_PATH.resolve(path).toFile()
+    }
 
     private val EVENT_MESSAGE_EXTENSION_REGISTRY: ExtensionRegistry =
       ExtensionRegistry.newInstance()
