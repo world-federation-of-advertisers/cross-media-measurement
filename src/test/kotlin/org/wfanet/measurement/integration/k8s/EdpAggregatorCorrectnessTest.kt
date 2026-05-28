@@ -58,6 +58,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
@@ -484,8 +485,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         "dataprovider",
       )
 
-    private val TEST_DATA_RUNTIME_PATH =
-      org.wfanet.measurement.common.getRuntimePath(TEST_DATA_PATH)!!
+    private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
 
     private val POPULATION_SPEC_TYPE_REGISTRY: TypeRegistry =
       TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
@@ -498,9 +498,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       )
     private val IMPRESSION_TEST_DATA_CONFIG: ImpressionTestDataConfig by lazy {
       val configFile =
-        org.wfanet.measurement.common
-          .getRuntimePath(CONFIG_PATH.resolve("impression_test_data_config.textproto"))!!
-          .toFile()
+        getRuntimePath(CONFIG_PATH.resolve("impression_test_data_config.textproto"))!!.toFile()
       parseTextProto(configFile, ImpressionTestDataConfig.getDefaultInstance())
     }
 
