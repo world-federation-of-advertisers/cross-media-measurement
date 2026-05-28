@@ -209,9 +209,10 @@ class GenerateSyntheticData : Runnable {
         "EDP short name (e.g. edp7, edpa_meta). Selects which event groups from the " +
           "--config-file to generate."
       ],
-    required = true,
+    required = false,
   )
-  private lateinit var edpName: String
+  var edpName: String? = null
+    private set
 
   @Option(
     names = ["--aws-role-arn"],
@@ -523,10 +524,16 @@ class GenerateSyntheticData : Runnable {
 
     fun buildSpecsFromConfig(
       config: ImpressionTestDataConfig,
-      edpName: String,
+      edpName: String? = null,
     ): List<ResolvedEventGroupSpec> {
-      val edpEventGroups = config.eventGroupsList.filter { it.edpName == edpName }
-      require(edpEventGroups.isNotEmpty()) { "No event groups found for EDP '$edpName' in config" }
+      val edpEventGroups =
+        if (edpName != null) {
+          val filtered = config.eventGroupsList.filter { it.edpName == edpName }
+          require(filtered.isNotEmpty()) { "No event groups found for EDP '$edpName' in config" }
+          filtered
+        } else {
+          config.eventGroupsList
+        }
       return edpEventGroups.flatMap { eg ->
         if (eg.entityKeySpecsList.isEmpty()) {
           listOf(
