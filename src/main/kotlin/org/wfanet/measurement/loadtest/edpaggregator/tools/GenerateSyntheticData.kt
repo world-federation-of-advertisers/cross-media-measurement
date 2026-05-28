@@ -530,7 +530,7 @@ class GenerateSyntheticData : Runnable {
               edpName = eg.edpName,
               subSpecs =
                 listOf(
-                  ResolvedSubSpec(
+                  ResolvedEntityKeySpec(
                     dataSpecResourcePath = eg.dataSpecResourcePath,
                     entityKey = EntityKey("campaign", eg.eventGroupReferenceId),
                   )
@@ -546,7 +546,7 @@ class GenerateSyntheticData : Runnable {
               edpName = eg.edpName,
               subSpecs =
                 eg.entityKeySpecsList.map { eks ->
-                  ResolvedSubSpec(
+                  ResolvedEntityKeySpec(
                     dataSpecResourcePath = eks.dataSpecResourcePath,
                     entityKey = EntityKey(eks.entityType, eks.entityId),
                   )
@@ -566,9 +566,9 @@ data class ResolvedEventGroupSpec(
   val outputKey: String,
   val outputBasePath: String,
   val edpName: String,
-  val subSpecs: List<ResolvedSubSpec>,
+  val subSpecs: List<ResolvedEntityKeySpec>,
 )
 
-data class ResolvedSubSpec(val dataSpecResourcePath: String, val entityKey: EntityKey)
+data class ResolvedEntityKeySpec(val dataSpecResourcePath: String, val entityKey: EntityKey)
 
 fun main(args: Array<String>) = commandLineMain(GenerateSyntheticData(), args)
