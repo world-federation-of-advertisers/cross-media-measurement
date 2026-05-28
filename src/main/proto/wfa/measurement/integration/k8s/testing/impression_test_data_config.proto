@@ -20,14 +20,14 @@ import "google/protobuf/struct.proto";
 
 option java_package = "org.measurement.integration.k8s.testing";
 option java_multiple_files = true;
-option java_outer_classname = "CloudTestDataConfigProto";
+option java_outer_classname = "ImpressionTestDataConfigProto";
 
 // Configuration for cloud test synthetic data generation and event group setup.
 //
 // Defines the set of event groups, their data specs, and entity key mappings
 // used by both the EdpAggregatorCorrectnessTest and the GenerateSyntheticData
 // CLI tool.
-message CloudTestDataConfig {
+message ImpressionTestDataConfig {
   // Configuration for a single synthetic event group.
   message SyntheticEventGroup {
     // Event group reference ID as registered with the Kingdom.

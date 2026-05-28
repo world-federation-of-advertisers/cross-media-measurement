@@ -36,7 +36,7 @@ import java.time.ZoneId
 import java.util.SortedMap
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
-import org.measurement.integration.k8s.testing.CloudTestDataConfig
+import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
@@ -195,7 +195,7 @@ class GenerateSyntheticData : Runnable {
     names = ["--config-file"],
     description =
       [
-        "Path to a CloudTestDataConfig textproto file that defines the event group specs " +
+        "Path to a ImpressionTestDataConfig textproto file that defines the event group specs " +
           "to generate for the EDP specified by --edp-name."
       ],
     required = true,
@@ -259,7 +259,9 @@ class GenerateSyntheticData : Runnable {
       "--fake-kek-keyset-file is only valid when --kms-type=FAKE"
     }
 
-    val eventGroupSpecs: List<ResolvedEventGroupSpec> = resolveEventGroupSpecs()
+    val config: ImpressionTestDataConfig =
+      parseTextProto(configFile, ImpressionTestDataConfig.getDefaultInstance())
+    val eventGroupSpecs: List<ResolvedEventGroupSpec> = buildSpecsFromConfig(config, edpName)
 
     if (flatOutputBasePath != null) {
       val outputKeys = eventGroupSpecs.map { it.outputKey }
@@ -272,7 +274,7 @@ class GenerateSyntheticData : Runnable {
       "event-group-reference-id values must be unique: $eventGroupReferenceIds"
     }
 
-    val resolvedPopulationSpecPath = populationSpecResourcePath
+    val resolvedPopulationSpecPath = config.populationSpecResourcePath
 
     val eventMessageInstance: Message =
       resolveEventMessageInstance(eventMessageTypeUrl, eventMessageDescriptorSetFiles)
@@ -350,15 +352,6 @@ class GenerateSyntheticData : Runnable {
         )
       }
     }
-  }
-
-  private var populationSpecResourcePath: String = ""
-
-  private fun resolveEventGroupSpecs(): List<ResolvedEventGroupSpec> {
-    val config: CloudTestDataConfig =
-      parseTextProto(configFile, CloudTestDataConfig.getDefaultInstance())
-    populationSpecResourcePath = config.populationSpecResourcePath
-    return buildSpecsFromConfig(config, edpName)
   }
 
   /**
@@ -529,7 +522,7 @@ class GenerateSyntheticData : Runnable {
     }
 
     fun buildSpecsFromConfig(
-      config: CloudTestDataConfig,
+      config: ImpressionTestDataConfig,
       edpName: String,
     ): List<ResolvedEventGroupSpec> {
       val edpEventGroups = config.eventGroupsList.filter { it.edpName == edpName }

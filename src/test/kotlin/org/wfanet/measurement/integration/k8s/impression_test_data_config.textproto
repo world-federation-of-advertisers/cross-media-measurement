@@ -1,5 +1,5 @@
-# proto-file: src/main/proto/wfa/measurement/integration/k8s/testing/cloud_test_data_config.proto
-# proto-message: wfa.measurement.integration.k8s.testing.CloudTestDataConfig
+# proto-file: src/main/proto/wfa/measurement/integration/k8s/testing/impression_test_data_config.proto
+# proto-message: wfa.measurement.integration.k8s.testing.ImpressionTestDataConfig
 
 population_spec_resource_path: "small_population_spec.textproto"
 

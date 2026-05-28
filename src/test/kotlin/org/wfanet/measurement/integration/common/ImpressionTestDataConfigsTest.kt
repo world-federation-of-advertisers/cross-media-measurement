@@ -21,9 +21,9 @@ import java.nio.file.Paths
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import org.junit.Test
-import org.measurement.integration.k8s.testing.CloudTestDataConfigKt.entityKeySpec
-import org.measurement.integration.k8s.testing.CloudTestDataConfigKt.syntheticEventGroup
-import org.measurement.integration.k8s.testing.cloudTestDataConfig
+import org.measurement.integration.k8s.testing.ImpressionTestDataConfigKt.entityKeySpec
+import org.measurement.integration.k8s.testing.ImpressionTestDataConfigKt.syntheticEventGroup
+import org.measurement.integration.k8s.testing.impressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
@@ -172,7 +172,7 @@ class ImpressionTestDataConfigsTest {
       fields["placement"] = value { stringValue = "homepage_top" }
     }
 
-    private val CONFIG = cloudTestDataConfig {
+    private val CONFIG = impressionTestDataConfig {
       populationSpecResourcePath = "small_population_spec.textproto"
       eventGroups += syntheticEventGroup {
         eventGroupReferenceId = "edpa-eg-reference-id-1"

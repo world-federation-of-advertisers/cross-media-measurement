@@ -44,8 +44,8 @@ import org.junit.ClassRule
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
-import org.measurement.integration.k8s.testing.CloudTestDataConfig
 import org.measurement.integration.k8s.testing.EdpaCorrectnessTestConfig
+import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
@@ -496,12 +496,12 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         PopulationSpec.getDefaultInstance(),
         POPULATION_SPEC_TYPE_REGISTRY,
       )
-    private val CLOUD_TEST_DATA_CONFIG: CloudTestDataConfig by lazy {
+    private val IMPRESSION_TEST_DATA_CONFIG: ImpressionTestDataConfig by lazy {
       val configFile =
         org.wfanet.measurement.common
-          .getRuntimePath(CONFIG_PATH.resolve("cloud_test_data_config.textproto"))!!
+          .getRuntimePath(CONFIG_PATH.resolve("impression_test_data_config.textproto"))!!
           .toFile()
-      parseTextProto(configFile, CloudTestDataConfig.getDefaultInstance())
+      parseTextProto(configFile, ImpressionTestDataConfig.getDefaultInstance())
     }
 
     private val specResolver: (String) -> SyntheticEventGroupSpec = { path ->
@@ -512,10 +512,10 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
 
     val syntheticEventGroupMap: Map<String, EventGroupConfig> =
-      ImpressionTestDataConfigs.toEventGroupMap(CLOUD_TEST_DATA_CONFIG, specResolver)
+      ImpressionTestDataConfigs.toEventGroupMap(IMPRESSION_TEST_DATA_CONFIG, specResolver)
 
     val resolvedSyntheticEventGroupMap: Map<String, EventGroupConfig> =
-      ImpressionTestDataConfigs.toFlatEventGroupMap(CLOUD_TEST_DATA_CONFIG, specResolver)
+      ImpressionTestDataConfigs.toFlatEventGroupMap(IMPRESSION_TEST_DATA_CONFIG, specResolver)
 
     private val ZONE_ID = ZoneId.of("UTC")
 

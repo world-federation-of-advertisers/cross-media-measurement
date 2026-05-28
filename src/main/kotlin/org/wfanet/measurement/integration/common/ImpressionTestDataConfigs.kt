@@ -14,20 +14,20 @@
 
 package org.wfanet.measurement.integration.common
 
-import org.measurement.integration.k8s.testing.CloudTestDataConfig
-import org.measurement.integration.k8s.testing.CloudTestDataConfig.SyntheticEventGroup
+import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
+import org.measurement.integration.k8s.testing.ImpressionTestDataConfig.SyntheticEventGroup
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 
 object ImpressionTestDataConfigs {
 
   /**
-   * Converts a [CloudTestDataConfig] proto into an [EventGroupConfig] map keyed by
+   * Converts a [ImpressionTestDataConfig] proto into an [EventGroupConfig] map keyed by
    * event_group_reference_id. Multi-entity-key event groups are kept as a single
    * [EventGroupConfig.MultiEntityKey] entry with all their entity key specs.
    */
   fun toEventGroupMap(
-    config: CloudTestDataConfig,
+    config: ImpressionTestDataConfig,
     specResolver: (String) -> SyntheticEventGroupSpec,
   ): Map<String, EventGroupConfig> {
     return config.eventGroupsList.associate { eg ->
@@ -40,7 +40,7 @@ object ImpressionTestDataConfigs {
    * becomes its own entry keyed by "${entityType}-${entityId}".
    */
   fun toFlatEventGroupMap(
-    config: CloudTestDataConfig,
+    config: ImpressionTestDataConfig,
     specResolver: (String) -> SyntheticEventGroupSpec,
   ): Map<String, EventGroupConfig> {
     return toEventGroupMap(config, specResolver)
