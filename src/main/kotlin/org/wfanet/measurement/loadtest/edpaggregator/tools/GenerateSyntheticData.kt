@@ -234,6 +234,14 @@ class GenerateSyntheticData : Runnable {
   var createDoneBlobs: Boolean = false
     private set
 
+  @Option(
+    names = ["--model-line"],
+    description = ["Full ModelLine resource name."],
+    required = true,
+  )
+  lateinit var modelLine: String
+    private set
+
   @kotlin.io.path.ExperimentalPathApi
   override fun run() {
     val edpKmsConfigsByName: Map<String, EdpKmsConfig> = edpKmsConfigs.associateBy { it.edpName }
@@ -309,7 +317,7 @@ class GenerateSyntheticData : Runnable {
           )
         impressionWriter.writeLabeledImpressionData(
           trackingShards,
-          config.modelLine,
+          modelLine,
           flatOutputBasePath = spec.outputBasePath,
         )
       }

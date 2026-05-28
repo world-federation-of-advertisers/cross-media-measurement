@@ -173,7 +173,6 @@ class ImpressionTestDataConfigsTest {
 
     private val CONFIG = impressionTestDataConfig {
       populationSpecResourcePath = "small_population_spec.textproto"
-      modelLine = "modelProviders/foo/modelSuites/bar/modelLines/baz"
       eventGroups += syntheticEventGroup {
         eventGroupReferenceId = "edpa-eg-reference-id-1"
         dataSpecResourcePath = "small_data_spec.textproto"

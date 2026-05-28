@@ -92,6 +92,7 @@ class GenerateAndVerifySyntheticDataTest {
           "--local-storage-path=${tempFolder.root.path}",
           "--output-bucket=$OUTPUT_BUCKET",
           "--schema=file:///",
+          "--model-line=$MODEL_LINE",
           "--config-file=${configFile.path}",
         )
     check(exitCode == 0) { "GenerateSyntheticData exited with code $exitCode" }
@@ -190,7 +191,6 @@ class GenerateAndVerifySyntheticDataTest {
 
     val mixedConfig = impressionTestDataConfig {
       populationSpecResourcePath = POPULATION_SPEC
-      modelLine = MODEL_LINE
       eventGroups += syntheticEventGroup {
         eventGroupReferenceId = "eg-mixed"
         edpName = EDP_NAME
@@ -223,6 +223,7 @@ class GenerateAndVerifySyntheticDataTest {
           "--local-storage-path=${tempFolder.root.path}",
           "--output-bucket=$OUTPUT_BUCKET",
           "--schema=file:///",
+          "--model-line=$MODEL_LINE",
           "--config-file=${configFile.path}",
         )
     check(exitCode == 0) { "GenerateSyntheticData exited with code $exitCode" }
@@ -337,7 +338,6 @@ class GenerateAndVerifySyntheticDataTest {
 
     val singleConfig = impressionTestDataConfig {
       populationSpecResourcePath = POPULATION_SPEC
-      modelLine = MODEL_LINE
       eventGroups += syntheticEventGroup {
         eventGroupReferenceId = SPEC_A.eventGroupReferenceId
         edpName = EDP_NAME
@@ -361,6 +361,7 @@ class GenerateAndVerifySyntheticDataTest {
           "--local-storage-path=${tempFolder.root.path}",
           "--output-bucket=$OUTPUT_BUCKET",
           "--schema=file:///",
+          "--model-line=$MODEL_LINE",
           "--config-file=${configFile.path}",
           // Explicitly supply the type URL flag (defaults to the same value).
           "--event-message-type-url=${GenerateSyntheticData.DEFAULT_EVENT_MESSAGE_TYPE_URL}",
@@ -397,7 +398,6 @@ class GenerateAndVerifySyntheticDataTest {
 
     val marketConfig = impressionTestDataConfig {
       populationSpecResourcePath = MARKET_POPULATION_SPEC
-      modelLine = MODEL_LINE
       eventGroups += syntheticEventGroup {
         eventGroupReferenceId = "eg-market"
         edpName = EDP_NAME
@@ -421,6 +421,7 @@ class GenerateAndVerifySyntheticDataTest {
           "--local-storage-path=${tempFolder.root.path}",
           "--output-bucket=$OUTPUT_BUCKET",
           "--schema=file:///",
+          "--model-line=$MODEL_LINE",
           "--config-file=${configFile.path}",
           "--event-message-type-url=$MARKET_EVENT_TYPE_URL",
           "--event-message-descriptor-set=${descriptorSetFile.path}",
@@ -698,7 +699,6 @@ class GenerateAndVerifySyntheticDataTest {
 
     private val DEFAULT_CONFIG = impressionTestDataConfig {
       populationSpecResourcePath = POPULATION_SPEC
-      modelLine = MODEL_LINE
       eventGroups += syntheticEventGroup {
         eventGroupReferenceId = SPEC_A.eventGroupReferenceId
         edpName = EDP_NAME

@@ -88,6 +88,4 @@ message ImpressionTestDataConfig {
   // path or a path relative to the loadtest dataprovider directory.
   string population_spec_resource_path = 2;
 
-  // Full ModelLine resource name written into BlobDetails metadata.
-  string model_line = 3;
 }

@@ -2,7 +2,6 @@
 # proto-message: wfa.measurement.integration.k8s.testing.ImpressionTestDataConfig
 
 population_spec_resource_path: "small_population_spec.textproto"
-model_line: "modelProviders/foo/modelSuites/bar/modelLines/baz"
 
 # Legacy event group with no entity keys (edp7).
 event_groups {
