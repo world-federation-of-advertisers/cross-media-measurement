@@ -45,10 +45,7 @@ object ImpressionTestDataConfigs {
   }
 
   fun resolveSpecFile(path: String): SyntheticEventGroupSpec {
-    val specPath = Paths.get(path)
-    val file =
-      if (specPath.isAbsolute) specPath.toFile() else TEST_DATA_RUNTIME_PATH.resolve(path).toFile()
-    return parseTextProto(file, SyntheticEventGroupSpec.getDefaultInstance())
+    return parseTextProto(resolveSpecPath(path), SyntheticEventGroupSpec.getDefaultInstance())
   }
 
   /**
