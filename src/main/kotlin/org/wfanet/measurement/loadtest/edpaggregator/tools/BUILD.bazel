@@ -19,7 +19,7 @@ kt_jvm_library(
     ],
     visibility = [
         "//src/test/kotlin/org/wfanet/measurement/integration/common:__pkg__",
-        "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:__pkg__",
     ],
     deps = [
         "//imports/java/com/google/crypto/tink/integration/gcpkms",
