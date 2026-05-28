@@ -19,9 +19,7 @@ package org.wfanet.measurement.integration.k8s
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
 import com.google.protobuf.TypeRegistry
-import com.google.protobuf.struct
 import com.google.protobuf.timestamp
-import com.google.protobuf.value
 import com.google.type.interval
 import io.grpc.ManagedChannel
 import java.net.URI
@@ -46,6 +44,7 @@ import org.junit.ClassRule
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.measurement.integration.k8s.testing.CloudTestDataConfig
 import org.measurement.integration.k8s.testing.EdpaCorrectnessTestConfig
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
@@ -70,7 +69,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.Met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
-import org.wfanet.measurement.integration.common.EntityKeySpec
+import org.wfanet.measurement.integration.common.CloudTestDataConfigs
 import org.wfanet.measurement.integration.common.EventGroupConfig
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
@@ -497,67 +496,26 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         PopulationSpec.getDefaultInstance(),
         POPULATION_SPEC_TYPE_REGISTRY,
       )
-    val syntheticEventGroupSpec: SyntheticEventGroupSpec =
-      parseTextProto(
-        TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
-        SyntheticEventGroupSpec.getDefaultInstance(),
-      )
-    val syntheticEventGroupSpec2: SyntheticEventGroupSpec =
-      parseTextProto(
-        TEST_DATA_RUNTIME_PATH.resolve("small_data_spec_2.textproto").toFile(),
-        SyntheticEventGroupSpec.getDefaultInstance(),
-      )
+    private val CLOUD_TEST_DATA_CONFIG: CloudTestDataConfig by lazy {
+      val configFile =
+        org.wfanet.measurement.common
+          .getRuntimePath(CONFIG_PATH.resolve("cloud_test_data_config.textproto"))!!
+          .toFile()
+      parseTextProto(configFile, CloudTestDataConfig.getDefaultInstance())
+    }
 
-    private val ENTITY_METADATA: com.google.protobuf.Struct = struct {
-      fields["placement"] = value { stringValue = "homepage_top" }
-      fields["objective"] = value { stringValue = "awareness" }
+    private val specResolver: (String) -> SyntheticEventGroupSpec = { path ->
+      parseTextProto(
+        TEST_DATA_RUNTIME_PATH.resolve(path).toFile(),
+        SyntheticEventGroupSpec.getDefaultInstance(),
+      )
     }
 
     val syntheticEventGroupMap: Map<String, EventGroupConfig> =
-      mapOf(
-        EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID to
-          EventGroupConfig.LegacySpec(syntheticEventGroupSpec),
-        CREATIVE_ID_EVENT_GROUP_REF_ID to
-          EventGroupConfig.MultiEntityKey(
-            listOf(
-              EntityKeySpec(
-                entityKey = EntityKey("creative-id", CREATIVE_ID_ENTITY_ID),
-                spec = syntheticEventGroupSpec,
-                entityMetadata = ENTITY_METADATA,
-              )
-            )
-          ),
-        "multi-creative" to
-          EventGroupConfig.MultiEntityKey(
-            listOf(
-              EntityKeySpec(
-                entityKey = EntityKey("creative-id", MULTI_CREATIVE_A_ENTITY_ID),
-                spec = syntheticEventGroupSpec,
-                entityMetadata = ENTITY_METADATA,
-              ),
-              EntityKeySpec(
-                entityKey = EntityKey("creative-id", MULTI_CREATIVE_B_ENTITY_ID),
-                spec = syntheticEventGroupSpec2,
-                entityMetadata = ENTITY_METADATA,
-              ),
-            )
-          ),
-        EDPA_META_EVENT_GROUP_REF_ID to EventGroupConfig.LegacySpec(syntheticEventGroupSpec),
-      )
+      CloudTestDataConfigs.toSyntheticEventGroupMap(CLOUD_TEST_DATA_CONFIG, specResolver)
 
     val resolvedSyntheticEventGroupMap: Map<String, EventGroupConfig> =
-      syntheticEventGroupMap
-        .flatMap { (refId, config) ->
-          when (config) {
-            is EventGroupConfig.LegacySpec -> listOf(refId to config)
-            is EventGroupConfig.MultiEntityKey ->
-              config.entityKeySpecs.map { entityKeySpec ->
-                "${entityKeySpec.entityKey.entityType}-${entityKeySpec.entityKey.entityId}" to
-                  EventGroupConfig.MultiEntityKey(listOf(entityKeySpec))
-              }
-          }
-        }
-        .toMap()
+      CloudTestDataConfigs.toResolvedEventGroupMap(CLOUD_TEST_DATA_CONFIG, specResolver)
 
     private val ZONE_ID = ZoneId.of("UTC")
 

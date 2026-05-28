@@ -25,8 +25,8 @@ object CloudTestDataConfigs {
    * Converts a [CloudTestDataConfig] proto into the [EventGroupConfig] map keyed by
    * event_group_reference_id.
    *
-   * Legacy event groups (no entity key specs) produce [EventGroupConfig.LegacySpec] entries.
-   * Entity-key event groups produce [EventGroupConfig.MultiEntityKey] entries.
+   * Event groups without entity key specs produce [EventGroupConfig.LegacySpec] entries. Entity-key
+   * event groups produce [EventGroupConfig.MultiEntityKey] entries.
    *
    * @param config the proto config
    * @param specResolver resolves a data spec resource path to a [SyntheticEventGroupSpec]

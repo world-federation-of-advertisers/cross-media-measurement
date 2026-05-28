@@ -47,10 +47,12 @@ class CloudTestDataConfigsTest {
       eventGroupReferenceId = "edpa-eg-reference-id-1"
       dataSpecResourcePath = "small_data_spec.textproto"
       edpName = "edp7"
+      outputKey = ""
     }
     eventGroups += syntheticEventGroup {
       eventGroupReferenceId = "creative-id-edpa-eg-creative-id-1"
       edpName = "edp7"
+      outputKey = "-creative"
       this.entityMetadata = this@CloudTestDataConfigsTest.entityMetadata
       entityKeySpecs += entityKeySpec {
         entityType = "creative-id"
@@ -61,6 +63,7 @@ class CloudTestDataConfigsTest {
     eventGroups += syntheticEventGroup {
       eventGroupReferenceId = "multi-creative"
       edpName = "edp7"
+      outputKey = "-multi-creative"
       this.entityMetadata = this@CloudTestDataConfigsTest.entityMetadata
       entityKeySpecs += entityKeySpec {
         entityType = "creative-id"
@@ -77,6 +80,7 @@ class CloudTestDataConfigsTest {
       eventGroupReferenceId = "edpa-eg-reference-id-2"
       dataSpecResourcePath = "small_data_spec.textproto"
       edpName = "edpa_meta"
+      outputKey = ""
     }
   }
 

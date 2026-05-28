@@ -32,7 +32,7 @@ message CloudTestDataConfig {
   message SyntheticEventGroup {
     // Event group reference ID as registered with the Kingdom.
     //
-    // For legacy (no entity key) event groups, this is the final ref ID.
+    // For event groups without entity key specs, this is the final ref ID.
     // For entity-key event groups, this is the logical group name (e.g.
     // "multi-creative"); the resolved ref ID is derived as
     // "${entity_type}-${entity_id}" from each entity_key_spec.
@@ -41,21 +41,26 @@ message CloudTestDataConfig {
     // Resource path of the SyntheticEventGroupSpec textproto relative to the
     // loadtest dataprovider test data directory.
     //
-    // Used only for legacy event groups (no entity key specs). For entity-key
-    // event groups, the spec is defined per EntityKeySpec.
+    // Used for event groups with no entity key specs (i.e. no creative-id
+    // sub-populations). Mutually exclusive with entity_key_specs.
     string data_spec_resource_path = 2;
 
-    // Entity key specs for entity-key event groups. When non-empty, each spec
-    // contributes its own sub-population of impressions to the same per-date
-    // blob, with different entity keys.
-    //
-    // When empty, this is a legacy event group that uses data_spec_resource_path.
+    // Entity key specs for entity-key event groups. Each spec maps an entity
+    // key to its own data spec textproto. When non-empty, data_spec_resource_path
+    // must be empty.
     repeated EntityKeySpec entity_key_specs = 3;
+
+    // Suffix appended to output filenames in the flat-folder layout (e.g.
+    // "" produces "metadata.binpb" and "impressions", "-creative" produces
+    // "metadata-creative.binpb" and "impressions-creative").
+    string output_key = 6;
 
     // EDP short name that owns this event group (e.g. "edp7", "edpa_meta").
     string edp_name = 4;
 
-    // Optional entity metadata attached to event groups with entity keys.
+    // Optional entity metadata set on the Kingdom event group during
+    // registration (e.g. placement, objective). Used only by test-side code
+    // (EdpAggregatorCorrectnessTest); not consumed by GenerateSyntheticData.
     google.protobuf.Struct entity_metadata = 5;
   }
 

@@ -55,7 +55,6 @@ import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
-import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 
@@ -205,37 +204,27 @@ class GenerateSyntheticData : Runnable {
   var flatOutputBasePath: String? = null
     private set
 
-  @ArgGroup(
-    exclusive = false,
-    multiplicity = "0..*",
-    heading =
-      "Per-event-group flags. Repeat the group to generate multiple event groups in a single " +
-        "invocation; each event group has its own data-spec textproto, event group reference id, " +
-        "and EntityKeys.%n",
-  )
-  private var eventGroupSpecFlags: List<EventGroupSpecFlags> = emptyList()
-
   @Option(
     names = ["--config-file"],
     description =
       [
-        "Path to a CloudTestDataConfig textproto file. When set, event group specs are " +
-          "derived from the config for the EDP specified by --edp-name."
+        "Path to a CloudTestDataConfig textproto file that defines the event group specs " +
+          "to generate for the EDP specified by --edp-name."
       ],
-    required = false,
+    required = true,
   )
-  private var configFile: File? = null
+  private lateinit var configFile: File
 
   @Option(
     names = ["--edp-name"],
     description =
       [
-        "EDP short name (e.g. edp7, edpa_meta). Required when --config-file is set. " +
-          "Selects which event groups from the config to generate."
+        "EDP short name (e.g. edp7, edpa_meta). Selects which event groups from the " +
+          "--config-file to generate."
       ],
-    required = false,
+    required = true,
   )
-  private var edpName: String? = null
+  private lateinit var edpName: String
 
   @Option(
     names = ["--aws-role-arn"],
@@ -295,7 +284,7 @@ class GenerateSyntheticData : Runnable {
 
     val resolvedPopulationSpecPath =
       requireNotNull(populationSpecResourcePath) {
-        "--population-spec-resource-path is required (or use --config-file with population_spec_resource_path set)"
+        "--population-spec-resource-path is required when config file does not set population_spec_resource_path"
       }
 
     val eventMessageInstance: Message =
@@ -378,33 +367,12 @@ class GenerateSyntheticData : Runnable {
   }
 
   private fun resolveEventGroupSpecs(): List<ResolvedEventGroupSpec> {
-    if (configFile != null) {
-      requireNotNull(edpName) { "--edp-name is required when --config-file is set" }
-      require(eventGroupSpecFlags.isEmpty()) {
-        "--config-file is mutually exclusive with manual --event-group-reference-id flags"
-      }
-      val config: CloudTestDataConfig =
-        parseTextProto(configFile!!, CloudTestDataConfig.getDefaultInstance())
-      if (populationSpecResourcePath == null) {
-        populationSpecResourcePath = config.populationSpecResourcePath
-      }
-      return buildSpecsFromConfig(config, edpName!!)
+    val config: CloudTestDataConfig =
+      parseTextProto(configFile, CloudTestDataConfig.getDefaultInstance())
+    if (populationSpecResourcePath == null) {
+      populationSpecResourcePath = config.populationSpecResourcePath
     }
-    require(eventGroupSpecFlags.isNotEmpty()) {
-      "Either --config-file or at least one --event-group-reference-id must be specified"
-    }
-    return eventGroupSpecFlags.map { flags ->
-      ResolvedEventGroupSpec(
-        eventGroupReferenceId = flags.eventGroupReferenceId,
-        subSpecs =
-          flags.subSpecFlags.map { subSpec ->
-            ResolvedSubSpec(
-              dataSpecResourcePath = subSpec.dataSpecResourcePath,
-              entityKeys = subSpec.entityKeyFlags.map { EntityKey(it.entityType, it.entityId) },
-            )
-          },
-      )
-    }
+    return buildSpecsFromConfig(config, edpName)
   }
 
   /**
@@ -579,6 +547,7 @@ class GenerateSyntheticData : Runnable {
           listOf(
             ResolvedEventGroupSpec(
               eventGroupReferenceId = eg.eventGroupReferenceId,
+              outputKey = eg.outputKey,
               subSpecs =
                 listOf(
                   ResolvedSubSpec(
@@ -592,6 +561,7 @@ class GenerateSyntheticData : Runnable {
           eg.entityKeySpecsList.map { eks ->
             ResolvedEventGroupSpec(
               eventGroupReferenceId = "${eks.entityType}-${eks.entityId}",
+              outputKey = eg.outputKey,
               subSpecs =
                 listOf(
                   ResolvedSubSpec(
@@ -609,87 +579,10 @@ class GenerateSyntheticData : Runnable {
 
 data class ResolvedEventGroupSpec(
   val eventGroupReferenceId: String,
+  val outputKey: String = "",
   val subSpecs: List<ResolvedSubSpec>,
 )
 
 data class ResolvedSubSpec(val dataSpecResourcePath: String, val entityKeys: List<EntityKey>)
-
-/**
- * Flags describing a single synthetic event group to generate. An event group is identified by its
- * [eventGroupReferenceId] and produces one impressions blob per date. Each blob is populated by one
- * or more [EntityKeysSubSpecFlags]: each sub-spec contributes its own data-spec textproto and its
- * own EntityKeys, allowing different impressions in the same blob to carry different EntityKeys.
- */
-private class EventGroupSpecFlags {
-  @Option(
-    names = ["--event-group-reference-id"],
-    description = ["The EDP-generated event group reference id for this synthetic event group."],
-    required = true,
-  )
-  lateinit var eventGroupReferenceId: String
-    private set
-
-  @ArgGroup(
-    exclusive = false,
-    multiplicity = "1..*",
-    heading =
-      "Sub-spec flags for this event group. Each sub-spec contributes its own data-spec textproto " +
-        "and EntityKeys; impressions from all sub-specs land in the same per-date impressions " +
-        "blob, with each impression stamped with its sub-spec's EntityKeys.%n",
-  )
-  lateinit var subSpecFlags: List<EntityKeysSubSpecFlags>
-    private set
-}
-
-/**
- * One sub-spec contribution to an event group's per-date impressions blob: a data-spec textproto
- * and a list of [LabeledImpression.EntityKey]s that should be stamped on every impression generated
- * from this sub-spec.
- */
-private class EntityKeysSubSpecFlags {
-  @Option(
-    names = ["--data-spec-resource-path"],
-    description =
-      ["The path to the data-spec resource for this sub-spec. Must be textproto format."],
-    required = true,
-  )
-  lateinit var dataSpecResourcePath: String
-    private set
-
-  @ArgGroup(
-    exclusive = false,
-    multiplicity = "1..*",
-    heading =
-      "EntityKey to attach to every LabeledImpression contributed by this sub-spec. " +
-        "At least one must be specified; pass the pair multiple times for multiple EntityKeys.%n",
-  )
-  lateinit var entityKeyFlags: List<EntityKeyFlags>
-    private set
-}
-
-/**
- * Flags describing a single `LabeledImpression.EntityKey` to stamp on every generated impression.
- */
-private class EntityKeyFlags {
-  @Option(
-    names = ["--entity-key-type"],
-    description =
-      [
-        "Type of the entity in the DataProvider's system. Must be URL-safe. " +
-          "Pair with --entity-key-id; specify both flags together repeatedly to attach multiple EntityKeys."
-      ],
-    required = true,
-  )
-  lateinit var entityType: String
-    private set
-
-  @Option(
-    names = ["--entity-key-id"],
-    description = ["ID of the entity in the DataProvider's system. Must be URL-safe."],
-    required = true,
-  )
-  lateinit var entityId: String
-    private set
-}
 
 fun main(args: Array<String>) = commandLineMain(GenerateSyntheticData(), args)
