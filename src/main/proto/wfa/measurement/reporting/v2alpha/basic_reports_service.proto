@@ -130,7 +130,8 @@ message ListBasicReportsResponse {
   // The `BasicReport` resources themselves still exist.
   //
   // See AIP-217.
-  repeated string unreachable = 3 [(google.api.field_behavior) = UNORDERED_LIST];
+  repeated string unreachable = 3
+      [(google.api.field_behavior) = UNORDERED_LIST];
 }
 
 // Request message for `CreateBasicReport` method
