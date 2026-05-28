@@ -328,24 +328,20 @@ class GenerateSyntheticData : Runnable {
 
     runBlocking {
       for (spec in eventGroupSpecs) {
-        val perSubSpecShards: List<Sequence<LabeledEventDateShard<Message>>> =
-          spec.subSpecs.map { subSpec ->
-            val syntheticEventGroupSpec: SyntheticEventGroupSpec =
-              parseTextProto(
-                TEST_DATA_RUNTIME_PATH.resolve(subSpec.dataSpecResourcePath).toFile(),
-                SyntheticEventGroupSpec.getDefaultInstance(),
-              )
-            SyntheticDataGeneration.generateEvents(
-              messageInstance = eventMessageInstance,
-              populationSpec = populationSpec,
-              syntheticEventGroupSpec = syntheticEventGroupSpec,
-              zoneId = ZoneId.of(zoneId),
-            )
-          }
-        val perSubSpecEntityKeys: List<List<EntityKey>> =
-          spec.subSpecs.map { subSpec -> subSpec.entityKeys }
+        val syntheticEventGroupSpec: SyntheticEventGroupSpec =
+          parseTextProto(
+            TEST_DATA_RUNTIME_PATH.resolve(spec.dataSpecResourcePath).toFile(),
+            SyntheticEventGroupSpec.getDefaultInstance(),
+          )
+        val shards: Sequence<LabeledEventDateShard<Message>> =
+          SyntheticDataGeneration.generateEvents(
+            messageInstance = eventMessageInstance,
+            populationSpec = populationSpec,
+            syntheticEventGroupSpec = syntheticEventGroupSpec,
+            zoneId = ZoneId.of(zoneId),
+          )
         val coalescedShards: Sequence<EntityKeyedLabeledEventDateShard<Message>> =
-          coalesceByDate(perSubSpecShards, perSubSpecEntityKeys)
+          coalesceByDate(listOf(shards), listOf(listOf(spec.entityKey)))
         val eventGroupPath =
           "model-line/$modelLineName/event-group-reference-id/${spec.eventGroupReferenceId}"
         val impressionWriter =
@@ -552,13 +548,8 @@ class GenerateSyntheticData : Runnable {
             ResolvedEventGroupSpec(
               eventGroupReferenceId = eg.eventGroupReferenceId,
               outputKey = eg.outputKey,
-              subSpecs =
-                listOf(
-                  ResolvedSubSpec(
-                    dataSpecResourcePath = eg.dataSpecResourcePath,
-                    entityKeys = listOf(EntityKey("campaign", eg.eventGroupReferenceId)),
-                  )
-                ),
+              dataSpecResourcePath = eg.dataSpecResourcePath,
+              entityKey = EntityKey("campaign", eg.eventGroupReferenceId),
             )
           )
         } else {
@@ -566,13 +557,8 @@ class GenerateSyntheticData : Runnable {
             ResolvedEventGroupSpec(
               eventGroupReferenceId = "${eks.entityType}-${eks.entityId}",
               outputKey = eks.outputKey,
-              subSpecs =
-                listOf(
-                  ResolvedSubSpec(
-                    dataSpecResourcePath = eks.dataSpecResourcePath,
-                    entityKeys = listOf(EntityKey(eks.entityType, eks.entityId)),
-                  )
-                ),
+              dataSpecResourcePath = eks.dataSpecResourcePath,
+              entityKey = EntityKey(eks.entityType, eks.entityId),
             )
           }
         }
@@ -584,9 +570,8 @@ class GenerateSyntheticData : Runnable {
 data class ResolvedEventGroupSpec(
   val eventGroupReferenceId: String,
   val outputKey: String = "",
-  val subSpecs: List<ResolvedSubSpec>,
+  val dataSpecResourcePath: String,
+  val entityKey: EntityKey,
 )
-
-data class ResolvedSubSpec(val dataSpecResourcePath: String, val entityKeys: List<EntityKey>)
 
 fun main(args: Array<String>) = commandLineMain(GenerateSyntheticData(), args)

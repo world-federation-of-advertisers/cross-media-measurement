@@ -125,8 +125,7 @@ class ImpressionTestDataConfigsTest {
 
     val legacy = specs.first { it.eventGroupReferenceId == "edpa-eg-reference-id-1" }
     assertThat(legacy.outputKey).isEmpty()
-    assertThat(legacy.subSpecs).hasSize(1)
-    assertThat(legacy.subSpecs[0].entityKeys[0].entityType).isEqualTo("campaign")
+    assertThat(legacy.entityKey.entityType).isEqualTo("campaign")
   }
 
   @Test
@@ -169,7 +168,6 @@ class ImpressionTestDataConfigsTest {
       eventGroupReferenceId = "edpa-eg-reference-id-1"
       dataSpecResourcePath = "small_data_spec.textproto"
       edpName = "edp7"
-      outputKey = ""
     }
     eventGroups += syntheticEventGroup {
       eventGroupReferenceId = "creative-id-edpa-eg-creative-id-1"
@@ -203,7 +201,6 @@ class ImpressionTestDataConfigsTest {
       eventGroupReferenceId = "edpa-eg-reference-id-2"
       dataSpecResourcePath = "small_data_spec.textproto"
       edpName = "edpa_meta"
-      outputKey = ""
     }
   }
 }

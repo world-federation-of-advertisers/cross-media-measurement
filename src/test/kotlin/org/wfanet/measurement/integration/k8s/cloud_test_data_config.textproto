@@ -8,7 +8,6 @@ event_groups {
   event_group_reference_id: "edpa-eg-reference-id-1"
   data_spec_resource_path: "small_data_spec.textproto"
   edp_name: "edp7"
-  output_key: ""
 }
 
 # Single creative-id entity key event group (edp7).
@@ -66,5 +65,4 @@ event_groups {
   event_group_reference_id: "edpa-eg-reference-id-2"
   data_spec_resource_path: "small_data_spec.textproto"
   edp_name: "edpa_meta"
-  output_key: ""
 }
