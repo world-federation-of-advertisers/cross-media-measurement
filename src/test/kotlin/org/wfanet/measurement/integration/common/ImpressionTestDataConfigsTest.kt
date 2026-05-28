@@ -125,7 +125,8 @@ class ImpressionTestDataConfigsTest {
 
     val legacy = specs.first { it.eventGroupReferenceId == "edpa-eg-reference-id-1" }
     assertThat(legacy.outputKey).isEmpty()
-    assertThat(legacy.entityKey.entityType).isEqualTo("campaign")
+    assertThat(legacy.subSpecs).hasSize(1)
+    assertThat(legacy.subSpecs[0].entityKey.entityType).isEqualTo("campaign")
   }
 
   @Test
@@ -135,12 +136,13 @@ class ImpressionTestDataConfigsTest {
 
     val creative = specs.first { it.eventGroupReferenceId == "creative-id-edpa-eg-creative-id-1" }
     assertThat(creative.outputKey).isEqualTo("creative")
+    assertThat(creative.subSpecs).hasSize(1)
 
-    val multi1 = specs.first { it.eventGroupReferenceId == "creative-id-edpa-eg-multi-creative-1" }
-    assertThat(multi1.outputKey).isEqualTo("multi-creative")
-
-    val multi2 = specs.first { it.eventGroupReferenceId == "creative-id-edpa-eg-multi-creative-2" }
-    assertThat(multi2.outputKey).isEqualTo("multi-creative-2")
+    val multi = specs.first { it.eventGroupReferenceId == "multi-creative" }
+    assertThat(multi.outputKey).isEqualTo("multi-creative")
+    assertThat(multi.subSpecs).hasSize(2)
+    assertThat(multi.subSpecs[0].entityKey.entityId).isEqualTo("edpa-eg-multi-creative-1")
+    assertThat(multi.subSpecs[1].entityKey.entityId).isEqualTo("edpa-eg-multi-creative-2")
   }
 
   @Test
@@ -149,7 +151,7 @@ class ImpressionTestDataConfigsTest {
     val edp7Specs = GenerateSyntheticData.buildSpecsFromConfig(config, "edp7")
     val metaSpecs = GenerateSyntheticData.buildSpecsFromConfig(config, "edpa_meta")
 
-    assertThat(edp7Specs).hasSize(4)
+    assertThat(edp7Specs).hasSize(3)
     assertThat(metaSpecs).hasSize(1)
     assertThat(metaSpecs[0].eventGroupReferenceId).isEqualTo("edpa-eg-reference-id-2")
   }
@@ -172,29 +174,28 @@ class ImpressionTestDataConfigsTest {
     eventGroups += syntheticEventGroup {
       eventGroupReferenceId = "creative-id-edpa-eg-creative-id-1"
       edpName = "edp7"
+      outputKey = "creative"
       this.entityMetadata = this@ImpressionTestDataConfigsTest.entityMetadata
       entityKeySpecs += entityKeySpec {
         entityType = "creative-id"
         entityId = "edpa-eg-creative-id-1"
         dataSpecResourcePath = "small_data_spec.textproto"
-        outputKey = "creative"
       }
     }
     eventGroups += syntheticEventGroup {
       eventGroupReferenceId = "multi-creative"
       edpName = "edp7"
+      outputKey = "multi-creative"
       this.entityMetadata = this@ImpressionTestDataConfigsTest.entityMetadata
       entityKeySpecs += entityKeySpec {
         entityType = "creative-id"
         entityId = "edpa-eg-multi-creative-1"
         dataSpecResourcePath = "small_data_spec.textproto"
-        outputKey = "multi-creative"
       }
       entityKeySpecs += entityKeySpec {
         entityType = "creative-id"
         entityId = "edpa-eg-multi-creative-2"
         dataSpecResourcePath = "small_data_spec_2.textproto"
-        outputKey = "multi-creative-2"
       }
     }
     eventGroups += syntheticEventGroup {

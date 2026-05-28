@@ -46,10 +46,8 @@ message CloudTestDataConfig {
     string data_spec_resource_path = 2;
 
     // Suffix appended (with a hyphen separator) to output filenames in the
-    // flat-folder layout for legacy event groups (no entity key specs). For
-    // entity-key event groups, use EntityKeySpec.output_key instead.
-    // E.g. "creative" produces "impressions-creative" and
-    // "metadata-creative.binpb".
+    // flat-folder layout. E.g. "creative" produces "impressions-creative"
+    // and "metadata-creative.binpb".
     string output_key = 6;
 
     // Entity key specs for entity-key event groups. Each spec maps an entity
@@ -73,10 +71,6 @@ message CloudTestDataConfig {
     string entity_id = 2;
     // Resource path of the SyntheticEventGroupSpec textproto.
     string data_spec_resource_path = 3;
-    // Suffix appended (with a hyphen separator) to output filenames in the
-    // flat-folder layout. E.g. "creative" produces "impressions-creative"
-    // and "metadata-creative.binpb". Empty string means no suffix.
-    string output_key = 4;
   }
 
   // The synthetic event groups to generate.

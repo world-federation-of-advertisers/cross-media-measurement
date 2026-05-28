@@ -14,11 +14,11 @@ event_groups {
 event_groups {
   event_group_reference_id: "creative-id-edpa-eg-creative-id-1"
   edp_name: "edp7"
+  output_key: "creative"
   entity_key_specs {
     entity_type: "creative-id"
     entity_id: "edpa-eg-creative-id-1"
     data_spec_resource_path: "small_data_spec.textproto"
-    output_key: "creative"
   }
   entity_metadata {
     fields {
@@ -36,17 +36,16 @@ event_groups {
 event_groups {
   event_group_reference_id: "multi-creative"
   edp_name: "edp7"
+  output_key: "multi-creative"
   entity_key_specs {
     entity_type: "creative-id"
     entity_id: "edpa-eg-multi-creative-1"
     data_spec_resource_path: "small_data_spec.textproto"
-    output_key: "multi-creative"
   }
   entity_key_specs {
     entity_type: "creative-id"
     entity_id: "edpa-eg-multi-creative-2"
     data_spec_resource_path: "small_data_spec_2.textproto"
-    output_key: "multi-creative-2"
   }
   entity_metadata {
     fields {
