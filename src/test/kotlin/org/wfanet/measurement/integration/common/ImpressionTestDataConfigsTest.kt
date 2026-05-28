@@ -17,6 +17,7 @@ package org.wfanet.measurement.integration.common
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.struct
 import com.google.protobuf.value
+import java.nio.file.Paths
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import org.junit.Test
@@ -24,17 +25,11 @@ import org.measurement.integration.k8s.testing.CloudTestDataConfigKt.entityKeySp
 import org.measurement.integration.k8s.testing.CloudTestDataConfigKt.syntheticEventGroup
 import org.measurement.integration.k8s.testing.cloudTestDataConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.loadtest.edpaggregator.tools.GenerateSyntheticData
 
 class ImpressionTestDataConfigsTest {
-
-  private val specResolver: (String) -> SyntheticEventGroupSpec = { path ->
-    when (path) {
-      "small_data_spec.textproto" -> SPEC_A
-      "small_data_spec_2.textproto" -> SPEC_B
-      else -> error("Unknown spec path: $path")
-    }
-  }
 
   @Test
   fun `toEventGroupMap returns correct map structure`() {
@@ -44,7 +39,7 @@ class ImpressionTestDataConfigsTest {
 
     val legacy = result["edpa-eg-reference-id-1"]
     assertIs<EventGroupConfig.LegacySpec>(legacy)
-    assertThat(legacy.spec).isEqualTo(SPEC_A)
+    assertThat(legacy.spec).isEqualTo(specResolver("small_data_spec.textproto"))
 
     val singleEntityKey = result["creative-id-edpa-eg-creative-id-1"]
     assertIs<EventGroupConfig.MultiEntityKey>(singleEntityKey)
@@ -59,10 +54,12 @@ class ImpressionTestDataConfigsTest {
     assertThat(multiCreative.entityKeySpecs).hasSize(2)
     assertThat(multiCreative.entityKeySpecs[0].entityKey.entityId)
       .isEqualTo("edpa-eg-multi-creative-1")
-    assertThat(multiCreative.entityKeySpecs[0].spec).isEqualTo(SPEC_A)
+    assertThat(multiCreative.entityKeySpecs[0].spec)
+      .isEqualTo(specResolver("small_data_spec.textproto"))
     assertThat(multiCreative.entityKeySpecs[1].entityKey.entityId)
       .isEqualTo("edpa-eg-multi-creative-2")
-    assertThat(multiCreative.entityKeySpecs[1].spec).isEqualTo(SPEC_B)
+    assertThat(multiCreative.entityKeySpecs[1].spec)
+      .isEqualTo(specResolver("small_data_spec_2.textproto"))
 
     val edpaMeta = result["edpa-eg-reference-id-2"]
     assertIs<EventGroupConfig.LegacySpec>(edpaMeta)
@@ -82,12 +79,12 @@ class ImpressionTestDataConfigsTest {
     val multiA = result["creative-id-edpa-eg-multi-creative-1"]
     assertIs<EventGroupConfig.MultiEntityKey>(multiA)
     assertThat(multiA.entityKeySpecs).hasSize(1)
-    assertThat(multiA.entityKeySpecs[0].spec).isEqualTo(SPEC_A)
+    assertThat(multiA.entityKeySpecs[0].spec).isEqualTo(specResolver("small_data_spec.textproto"))
 
     val multiB = result["creative-id-edpa-eg-multi-creative-2"]
     assertIs<EventGroupConfig.MultiEntityKey>(multiB)
     assertThat(multiB.entityKeySpecs).hasSize(1)
-    assertThat(multiB.entityKeySpecs[0].spec).isEqualTo(SPEC_B)
+    assertThat(multiB.entityKeySpecs[0].spec).isEqualTo(specResolver("small_data_spec_2.textproto"))
   }
 
   @Test
@@ -150,8 +147,26 @@ class ImpressionTestDataConfigsTest {
   }
 
   companion object {
-    private val SPEC_A = SyntheticEventGroupSpec.getDefaultInstance()
-    private val SPEC_B = SyntheticEventGroupSpec.newBuilder().setDescription("spec-b").build()
+    private val TEST_DATA_RUNTIME_PATH =
+      getRuntimePath(
+        Paths.get(
+          "wfa_measurement_system",
+          "src",
+          "main",
+          "proto",
+          "wfa",
+          "measurement",
+          "loadtest",
+          "dataprovider",
+        )
+      )!!
+
+    private val specResolver: (String) -> SyntheticEventGroupSpec = { path ->
+      parseTextProto(
+        TEST_DATA_RUNTIME_PATH.resolve(path).toFile(),
+        SyntheticEventGroupSpec.getDefaultInstance(),
+      )
+    }
 
     private val ENTITY_METADATA = struct {
       fields["placement"] = value { stringValue = "homepage_top" }

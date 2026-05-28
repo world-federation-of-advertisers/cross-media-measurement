@@ -27,12 +27,14 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
 kt_jvm_test(
     name = "ImpressionTestDataConfigsTest",
     srcs = ["ImpressionTestDataConfigsTest.kt"],
+    data = ["//src/main/proto/wfa/measurement/loadtest/dataprovider:specs"],
     test_class = "org.wfanet.measurement.integration.common.ImpressionTestDataConfigsTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/integration/common:impression_test_data_configs",
@@ -44,5 +46,6 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
