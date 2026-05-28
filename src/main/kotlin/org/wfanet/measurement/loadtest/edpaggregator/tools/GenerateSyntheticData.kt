@@ -35,6 +35,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.SortedMap
 import java.util.logging.Logger
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
@@ -54,6 +55,7 @@ import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
+import org.wfanet.measurement.storage.SelectedStorageClient
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 
@@ -223,6 +225,15 @@ class GenerateSyntheticData : Runnable {
   lateinit var awsRegion: String
     private set
 
+  @Option(
+    names = ["--create-done-blobs"],
+    description = ["Write an empty done blob in each date directory after generation."],
+    required = false,
+    defaultValue = "false",
+  )
+  var createDoneBlobs: Boolean = false
+    private set
+
   @kotlin.io.path.ExperimentalPathApi
   override fun run() {
     require(kmsType == KmsType.FAKE || fakeKekKeysetFile == null) {
@@ -275,6 +286,8 @@ class GenerateSyntheticData : Runnable {
           )
       }
 
+    val writtenDatePaths = mutableSetOf<String>()
+
     runBlocking {
       for (spec in eventGroupSpecs) {
         val perSubSpecShards: List<Sequence<LabeledEventDateShard<Message>>> =
@@ -293,6 +306,11 @@ class GenerateSyntheticData : Runnable {
           }
         val coalescedShards: Sequence<EntityKeyedLabeledEventDateShard<Message>> =
           coalesceByDate(perSubSpecShards, spec.subSpecs.map { listOf(it.entityKey) })
+        val trackingShards =
+          coalescedShards.map { (date, groups) ->
+            writtenDatePaths.add("${spec.outputBasePath}/$date")
+            EntityKeyedLabeledEventDateShard(date, groups)
+          }
         val impressionWriter =
           ImpressionsWriter(
             spec.eventGroupReferenceId,
@@ -306,10 +324,20 @@ class GenerateSyntheticData : Runnable {
             spec.outputKey,
           )
         impressionWriter.writeLabeledImpressionData(
-          coalescedShards,
+          trackingShards,
           config.modelLine,
           flatOutputBasePath = spec.outputBasePath,
         )
+      }
+
+      if (createDoneBlobs) {
+        for (datePath in writtenDatePaths) {
+          val doneKey = "$datePath/done"
+          val doneUri = "$schema$outputBucket/$doneKey"
+          val storageClient = SelectedStorageClient(doneUri, storagePath)
+          logger.info("Writing done blob: $doneKey")
+          storageClient.writeBlob(doneKey, emptyFlow())
+        }
       }
     }
   }
