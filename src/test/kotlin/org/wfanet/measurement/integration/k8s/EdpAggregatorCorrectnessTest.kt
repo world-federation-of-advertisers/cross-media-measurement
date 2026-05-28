@@ -512,10 +512,10 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
 
     val syntheticEventGroupMap: Map<String, EventGroupConfig> =
-      ImpressionTestDataConfigs.toSyntheticEventGroupMap(CLOUD_TEST_DATA_CONFIG, specResolver)
+      ImpressionTestDataConfigs.toEventGroupMap(CLOUD_TEST_DATA_CONFIG, specResolver)
 
     val resolvedSyntheticEventGroupMap: Map<String, EventGroupConfig> =
-      ImpressionTestDataConfigs.toResolvedEventGroupMap(CLOUD_TEST_DATA_CONFIG, specResolver)
+      ImpressionTestDataConfigs.toFlatEventGroupMap(CLOUD_TEST_DATA_CONFIG, specResolver)
 
     private val ZONE_ID = ZoneId.of("UTC")
 

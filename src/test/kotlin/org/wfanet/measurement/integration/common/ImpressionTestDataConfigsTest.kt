@@ -44,9 +44,9 @@ class ImpressionTestDataConfigsTest {
   }
 
   @Test
-  fun `toSyntheticEventGroupMap returns correct map structure`() {
+  fun `toEventGroupMap returns correct map structure`() {
     val config = buildConfig()
-    val result = ImpressionTestDataConfigs.toSyntheticEventGroupMap(config, specResolver)
+    val result = ImpressionTestDataConfigs.toEventGroupMap(config, specResolver)
 
     assertThat(result).hasSize(4)
 
@@ -77,9 +77,9 @@ class ImpressionTestDataConfigsTest {
   }
 
   @Test
-  fun `toResolvedEventGroupMap flattens multi-entity-key entries`() {
+  fun `toFlatEventGroupMap flattens multi-entity-key entries`() {
     val config = buildConfig()
-    val result = ImpressionTestDataConfigs.toResolvedEventGroupMap(config, specResolver)
+    val result = ImpressionTestDataConfigs.toFlatEventGroupMap(config, specResolver)
 
     assertThat(result).hasSize(5)
     assertThat(result).containsKey("edpa-eg-reference-id-1")
@@ -100,18 +100,18 @@ class ImpressionTestDataConfigsTest {
   }
 
   @Test
-  fun `toSyntheticEventGroupMap legacy event group has no entity metadata`() {
+  fun `toEventGroupMap legacy event group has no entity metadata`() {
     val config = buildConfig()
-    val result = ImpressionTestDataConfigs.toSyntheticEventGroupMap(config, specResolver)
+    val result = ImpressionTestDataConfigs.toEventGroupMap(config, specResolver)
 
     val legacy = result["edpa-eg-reference-id-1"]
     assertIs<EventGroupConfig.LegacySpec>(legacy)
   }
 
   @Test
-  fun `toResolvedEventGroupMap preserves entity metadata on resolved entries`() {
+  fun `toFlatEventGroupMap preserves entity metadata on resolved entries`() {
     val config = buildConfig()
-    val result = ImpressionTestDataConfigs.toResolvedEventGroupMap(config, specResolver)
+    val result = ImpressionTestDataConfigs.toFlatEventGroupMap(config, specResolver)
 
     val multiA = result["creative-id-edpa-eg-multi-creative-1"]
     assertIs<EventGroupConfig.MultiEntityKey>(multiA)

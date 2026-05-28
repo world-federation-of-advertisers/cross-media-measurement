@@ -22,16 +22,11 @@ import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 object ImpressionTestDataConfigs {
 
   /**
-   * Converts a [CloudTestDataConfig] proto into the [EventGroupConfig] map keyed by
-   * event_group_reference_id.
-   *
-   * Event groups without entity key specs produce [EventGroupConfig.LegacySpec] entries. Entity-key
-   * event groups produce [EventGroupConfig.MultiEntityKey] entries.
-   *
-   * @param config the proto config
-   * @param specResolver resolves a data spec resource path to a [SyntheticEventGroupSpec]
+   * Converts a [CloudTestDataConfig] proto into an [EventGroupConfig] map keyed by
+   * event_group_reference_id. Multi-entity-key event groups are kept as a single
+   * [EventGroupConfig.MultiEntityKey] entry with all their entity key specs.
    */
-  fun toSyntheticEventGroupMap(
+  fun toEventGroupMap(
     config: CloudTestDataConfig,
     specResolver: (String) -> SyntheticEventGroupSpec,
   ): Map<String, EventGroupConfig> {
@@ -41,22 +36,19 @@ object ImpressionTestDataConfigs {
   }
 
   /**
-   * Resolves a [CloudTestDataConfig] into a flat map where each entity-key sub-spec becomes its own
-   * entry keyed by "${entityType}-${entityId}".
-   *
-   * This is the format expected by [EdpAggregatorMeasurementConsumerSimulator].
+   * Like [toEventGroupMap], but splits multi-entity-key event groups so each entity key spec
+   * becomes its own entry keyed by "${entityType}-${entityId}".
    */
-  fun toResolvedEventGroupMap(
+  fun toFlatEventGroupMap(
     config: CloudTestDataConfig,
     specResolver: (String) -> SyntheticEventGroupSpec,
   ): Map<String, EventGroupConfig> {
-    return config.eventGroupsList
-      .flatMap { eg ->
-        val eventGroupConfig = toEventGroupConfig(eg, specResolver)
-        when (eventGroupConfig) {
-          is EventGroupConfig.LegacySpec -> listOf(eg.eventGroupReferenceId to eventGroupConfig)
+    return toEventGroupMap(config, specResolver)
+      .flatMap { (key, config) ->
+        when (config) {
+          is EventGroupConfig.LegacySpec -> listOf(key to config)
           is EventGroupConfig.MultiEntityKey ->
-            eventGroupConfig.entityKeySpecs.map { entityKeySpec ->
+            config.entityKeySpecs.map { entityKeySpec ->
               "${entityKeySpec.entityKey.entityType}-${entityKeySpec.entityKey.entityId}" to
                 EventGroupConfig.MultiEntityKey(listOf(entityKeySpec))
             }
