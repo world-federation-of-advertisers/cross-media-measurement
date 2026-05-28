@@ -28,31 +28,23 @@ import org.wfanet.measurement.loadtest.edpaggregator.tools.GenerateSyntheticData
 
 class ImpressionTestDataConfigsTest {
 
-  private val specA = SyntheticEventGroupSpec.getDefaultInstance()
-  private val specB = SyntheticEventGroupSpec.newBuilder().build()
-
   private val specResolver: (String) -> SyntheticEventGroupSpec = { path ->
     when (path) {
-      "small_data_spec.textproto" -> specA
-      "small_data_spec_2.textproto" -> specB
+      "small_data_spec.textproto" -> SPEC_A
+      "small_data_spec_2.textproto" -> SPEC_B
       else -> error("Unknown spec path: $path")
     }
   }
 
-  private val entityMetadata = struct {
-    fields["placement"] = value { stringValue = "homepage_top" }
-  }
-
   @Test
   fun `toEventGroupMap returns correct map structure`() {
-    val config = buildConfig()
-    val result = ImpressionTestDataConfigs.toEventGroupMap(config, specResolver)
+    val result = ImpressionTestDataConfigs.toEventGroupMap(CONFIG, specResolver)
 
     assertThat(result).hasSize(4)
 
     val legacy = result["edpa-eg-reference-id-1"]
     assertIs<EventGroupConfig.LegacySpec>(legacy)
-    assertThat(legacy.spec).isEqualTo(specA)
+    assertThat(legacy.spec).isEqualTo(SPEC_A)
 
     val singleEntityKey = result["creative-id-edpa-eg-creative-id-1"]
     assertIs<EventGroupConfig.MultiEntityKey>(singleEntityKey)
@@ -60,17 +52,17 @@ class ImpressionTestDataConfigsTest {
     assertThat(singleEntityKey.entityKeySpecs[0].entityKey.entityType).isEqualTo("creative-id")
     assertThat(singleEntityKey.entityKeySpecs[0].entityKey.entityId)
       .isEqualTo("edpa-eg-creative-id-1")
-    assertThat(singleEntityKey.entityKeySpecs[0].entityMetadata).isEqualTo(entityMetadata)
+    assertThat(singleEntityKey.entityKeySpecs[0].entityMetadata).isEqualTo(ENTITY_METADATA)
 
     val multiCreative = result["multi-creative"]
     assertIs<EventGroupConfig.MultiEntityKey>(multiCreative)
     assertThat(multiCreative.entityKeySpecs).hasSize(2)
     assertThat(multiCreative.entityKeySpecs[0].entityKey.entityId)
       .isEqualTo("edpa-eg-multi-creative-1")
-    assertThat(multiCreative.entityKeySpecs[0].spec).isEqualTo(specA)
+    assertThat(multiCreative.entityKeySpecs[0].spec).isEqualTo(SPEC_A)
     assertThat(multiCreative.entityKeySpecs[1].entityKey.entityId)
       .isEqualTo("edpa-eg-multi-creative-2")
-    assertThat(multiCreative.entityKeySpecs[1].spec).isEqualTo(specB)
+    assertThat(multiCreative.entityKeySpecs[1].spec).isEqualTo(SPEC_B)
 
     val edpaMeta = result["edpa-eg-reference-id-2"]
     assertIs<EventGroupConfig.LegacySpec>(edpaMeta)
@@ -78,8 +70,7 @@ class ImpressionTestDataConfigsTest {
 
   @Test
   fun `toFlatEventGroupMap flattens multi-entity-key entries`() {
-    val config = buildConfig()
-    val result = ImpressionTestDataConfigs.toFlatEventGroupMap(config, specResolver)
+    val result = ImpressionTestDataConfigs.toFlatEventGroupMap(CONFIG, specResolver)
 
     assertThat(result).hasSize(5)
     assertThat(result).containsKey("edpa-eg-reference-id-1")
@@ -91,18 +82,17 @@ class ImpressionTestDataConfigsTest {
     val multiA = result["creative-id-edpa-eg-multi-creative-1"]
     assertIs<EventGroupConfig.MultiEntityKey>(multiA)
     assertThat(multiA.entityKeySpecs).hasSize(1)
-    assertThat(multiA.entityKeySpecs[0].spec).isEqualTo(specA)
+    assertThat(multiA.entityKeySpecs[0].spec).isEqualTo(SPEC_A)
 
     val multiB = result["creative-id-edpa-eg-multi-creative-2"]
     assertIs<EventGroupConfig.MultiEntityKey>(multiB)
     assertThat(multiB.entityKeySpecs).hasSize(1)
-    assertThat(multiB.entityKeySpecs[0].spec).isEqualTo(specB)
+    assertThat(multiB.entityKeySpecs[0].spec).isEqualTo(SPEC_B)
   }
 
   @Test
   fun `toEventGroupMap legacy event group has no entity metadata`() {
-    val config = buildConfig()
-    val result = ImpressionTestDataConfigs.toEventGroupMap(config, specResolver)
+    val result = ImpressionTestDataConfigs.toEventGroupMap(CONFIG, specResolver)
 
     val legacy = result["edpa-eg-reference-id-1"]
     assertIs<EventGroupConfig.LegacySpec>(legacy)
@@ -110,18 +100,16 @@ class ImpressionTestDataConfigsTest {
 
   @Test
   fun `toFlatEventGroupMap preserves entity metadata on resolved entries`() {
-    val config = buildConfig()
-    val result = ImpressionTestDataConfigs.toFlatEventGroupMap(config, specResolver)
+    val result = ImpressionTestDataConfigs.toFlatEventGroupMap(CONFIG, specResolver)
 
     val multiA = result["creative-id-edpa-eg-multi-creative-1"]
     assertIs<EventGroupConfig.MultiEntityKey>(multiA)
-    assertThat(multiA.entityKeySpecs[0].entityMetadata).isEqualTo(entityMetadata)
+    assertThat(multiA.entityKeySpecs[0].entityMetadata).isEqualTo(ENTITY_METADATA)
   }
 
   @Test
   fun `buildSpecsFromConfig produces correct output keys for legacy event group`() {
-    val config = buildConfig()
-    val specs = GenerateSyntheticData.buildSpecsFromConfig(config, "edp7")
+    val specs = GenerateSyntheticData.buildSpecsFromConfig(CONFIG, "edp7")
 
     val legacy = specs.first { it.eventGroupReferenceId == "edpa-eg-reference-id-1" }
     assertThat(legacy.outputKey).isEmpty()
@@ -131,8 +119,7 @@ class ImpressionTestDataConfigsTest {
 
   @Test
   fun `buildSpecsFromConfig produces correct output keys for entity-key event groups`() {
-    val config = buildConfig()
-    val specs = GenerateSyntheticData.buildSpecsFromConfig(config, "edp7")
+    val specs = GenerateSyntheticData.buildSpecsFromConfig(CONFIG, "edp7")
 
     val creative = specs.first { it.eventGroupReferenceId == "creative-id-edpa-eg-creative-id-1" }
     assertThat(creative.outputKey).isEqualTo("creative")
@@ -147,9 +134,8 @@ class ImpressionTestDataConfigsTest {
 
   @Test
   fun `buildSpecsFromConfig filters by edp name`() {
-    val config = buildConfig()
-    val edp7Specs = GenerateSyntheticData.buildSpecsFromConfig(config, "edp7")
-    val metaSpecs = GenerateSyntheticData.buildSpecsFromConfig(config, "edpa_meta")
+    val edp7Specs = GenerateSyntheticData.buildSpecsFromConfig(CONFIG, "edp7")
+    val metaSpecs = GenerateSyntheticData.buildSpecsFromConfig(CONFIG, "edpa_meta")
 
     assertThat(edp7Specs).hasSize(3)
     assertThat(metaSpecs).hasSize(1)
@@ -158,50 +144,58 @@ class ImpressionTestDataConfigsTest {
 
   @Test
   fun `buildSpecsFromConfig fails for unknown edp`() {
-    val config = buildConfig()
     assertFailsWith<IllegalArgumentException> {
-      GenerateSyntheticData.buildSpecsFromConfig(config, "unknown-edp")
+      GenerateSyntheticData.buildSpecsFromConfig(CONFIG, "unknown-edp")
     }
   }
 
-  private fun buildConfig() = cloudTestDataConfig {
-    populationSpecResourcePath = "small_population_spec.textproto"
-    eventGroups += syntheticEventGroup {
-      eventGroupReferenceId = "edpa-eg-reference-id-1"
-      dataSpecResourcePath = "small_data_spec.textproto"
-      edpName = "edp7"
+  companion object {
+    private val SPEC_A = SyntheticEventGroupSpec.getDefaultInstance()
+    private val SPEC_B = SyntheticEventGroupSpec.newBuilder().setDescription("spec-b").build()
+
+    private val ENTITY_METADATA = struct {
+      fields["placement"] = value { stringValue = "homepage_top" }
     }
-    eventGroups += syntheticEventGroup {
-      eventGroupReferenceId = "creative-id-edpa-eg-creative-id-1"
-      edpName = "edp7"
-      outputKey = "creative"
-      this.entityMetadata = this@ImpressionTestDataConfigsTest.entityMetadata
-      entityKeySpecs += entityKeySpec {
-        entityType = "creative-id"
-        entityId = "edpa-eg-creative-id-1"
+
+    private val CONFIG = cloudTestDataConfig {
+      populationSpecResourcePath = "small_population_spec.textproto"
+      eventGroups += syntheticEventGroup {
+        eventGroupReferenceId = "edpa-eg-reference-id-1"
         dataSpecResourcePath = "small_data_spec.textproto"
+        edpName = "edp7"
       }
-    }
-    eventGroups += syntheticEventGroup {
-      eventGroupReferenceId = "multi-creative"
-      edpName = "edp7"
-      outputKey = "multi-creative"
-      this.entityMetadata = this@ImpressionTestDataConfigsTest.entityMetadata
-      entityKeySpecs += entityKeySpec {
-        entityType = "creative-id"
-        entityId = "edpa-eg-multi-creative-1"
+      eventGroups += syntheticEventGroup {
+        eventGroupReferenceId = "creative-id-edpa-eg-creative-id-1"
+        edpName = "edp7"
+        outputKey = "creative"
+        entityMetadata = ENTITY_METADATA
+        entityKeySpecs += entityKeySpec {
+          entityType = "creative-id"
+          entityId = "edpa-eg-creative-id-1"
+          dataSpecResourcePath = "small_data_spec.textproto"
+        }
+      }
+      eventGroups += syntheticEventGroup {
+        eventGroupReferenceId = "multi-creative"
+        edpName = "edp7"
+        outputKey = "multi-creative"
+        entityMetadata = ENTITY_METADATA
+        entityKeySpecs += entityKeySpec {
+          entityType = "creative-id"
+          entityId = "edpa-eg-multi-creative-1"
+          dataSpecResourcePath = "small_data_spec.textproto"
+        }
+        entityKeySpecs += entityKeySpec {
+          entityType = "creative-id"
+          entityId = "edpa-eg-multi-creative-2"
+          dataSpecResourcePath = "small_data_spec_2.textproto"
+        }
+      }
+      eventGroups += syntheticEventGroup {
+        eventGroupReferenceId = "edpa-eg-reference-id-2"
         dataSpecResourcePath = "small_data_spec.textproto"
+        edpName = "edpa_meta"
       }
-      entityKeySpecs += entityKeySpec {
-        entityType = "creative-id"
-        entityId = "edpa-eg-multi-creative-2"
-        dataSpecResourcePath = "small_data_spec_2.textproto"
-      }
-    }
-    eventGroups += syntheticEventGroup {
-      eventGroupReferenceId = "edpa-eg-reference-id-2"
-      dataSpecResourcePath = "small_data_spec.textproto"
-      edpName = "edpa_meta"
     }
   }
 }
