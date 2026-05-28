@@ -417,6 +417,7 @@ class GenerateSyntheticData : Runnable {
     perSubSpecEntityKeys: List<List<EntityKey>>,
   ): Sequence<EntityKeyedLabeledEventDateShard<Message>> {
     require(perSubSpecShards.size == perSubSpecEntityKeys.size)
+    // Materialize per-sub-spec, per-date groups so we can join across sub-specs by date.
     val groupsByDate: SortedMap<LocalDate, MutableList<EntityKeysWithLabeledEvents<Message>>> =
       sortedMapOf()
     for ((index, shards) in perSubSpecShards.withIndex()) {
@@ -443,6 +444,7 @@ class GenerateSyntheticData : Runnable {
       ProtoReflection.DEFAULT_TYPE_URL_PREFIX +
         "/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
 
+    // This is the relative location from which population and data spec textprotos are read.
     private val TEST_DATA_PATH =
       Paths.get(
         "wfa_measurement_system",
@@ -461,6 +463,10 @@ class GenerateSyntheticData : Runnable {
         .also { EventAnnotationsProto.registerAllExtensions(it) }
         .unmodifiable
 
+    /**
+     * [Descriptors.FileDescriptor]s of protobuf types known at compile time that may be loaded from
+     * a [DescriptorProtos.FileDescriptorSet] without being included in the set's contents.
+     */
     private val COMPILED_PROTOBUF_TYPES: Iterable<Descriptors.FileDescriptor> =
       (ProtoReflection.WELL_KNOWN_TYPES.asSequence() +
           EventAnnotationsProto.getDescriptor() +
@@ -472,6 +478,13 @@ class GenerateSyntheticData : Runnable {
       StreamingAeadConfig.register()
     }
 
+    /**
+     * Resolves the event message [Message] instance for the supplied [eventMessageTypeUrl].
+     *
+     * When [eventMessageTypeUrl] matches [DEFAULT_EVENT_MESSAGE_TYPE_URL], returns the compiled
+     * [TestEvent] default instance directly. Otherwise builds a [DynamicMessage] from the supplied
+     * [descriptorSetFiles].
+     */
     fun resolveEventMessageInstance(
       eventMessageTypeUrl: String,
       descriptorSetFiles: Collection<File>,
@@ -501,6 +514,11 @@ class GenerateSyntheticData : Runnable {
       return DynamicMessage.getDefaultInstance(descriptor)
     }
 
+    /**
+     * Builds a [TypeRegistry] containing the descriptor of [eventMessageInstance] plus the
+     * descriptors of all of its message-type template fields, so that textproto parsing can resolve
+     * `Any`-typed population attributes via the `[type.googleapis.com/<full_name>] { ... }` syntax.
+     */
     fun buildEventMessageTypeRegistry(eventMessageInstance: Message): TypeRegistry {
       val descriptors: Set<Descriptors.Descriptor> = buildSet {
         add(eventMessageInstance.descriptorForType)
@@ -513,6 +531,21 @@ class GenerateSyntheticData : Runnable {
       return TypeRegistry.newBuilder().add(descriptors).build()
     }
 
+    /**
+     * Builds a [FakeKmsClient] registered to serve [kekUri] from a fake KEK keyset persisted at
+     * [fakeKekKeysetFile].
+     *
+     * `FakeKmsClient` is in-memory only, so to round-trip envelope-encrypted data across processes
+     * the underlying fake KEK keyset must itself be persisted somewhere. Behavior:
+     * * `fakeKekKeysetFile == null` — generate a fresh fake KEK keyset in memory (process-local;
+     *   cannot be decrypted by a later process).
+     * * `fakeKekKeysetFile` exists — load and reuse the fake KEK keyset from disk.
+     * * `fakeKekKeysetFile` does not exist — generate a fresh fake KEK keyset and write it to disk
+     *   so it can be reloaded later.
+     *
+     * The keyset is serialized in cleartext via [TinkProtoKeysetFormat], which is appropriate
+     * because [FakeKmsClient] itself provides no protection — this is a testing-only KMS.
+     */
     fun buildFakeKmsClient(kekUri: String, fakeKekKeysetFile: File?): FakeKmsClient {
       val fakeKekKeysetHandle: KeysetHandle =
         if (fakeKekKeysetFile != null && fakeKekKeysetFile.exists()) {
@@ -581,6 +614,12 @@ data class ResolvedEventGroupSpec(
 
 data class ResolvedSubSpec(val dataSpecResourcePath: String, val entityKeys: List<EntityKey>)
 
+/**
+ * Flags describing a single synthetic event group to generate. An event group is identified by its
+ * [eventGroupReferenceId] and produces one impressions blob per date. Each blob is populated by one
+ * or more [EntityKeysSubSpecFlags]: each sub-spec contributes its own data-spec textproto and its
+ * own EntityKeys, allowing different impressions in the same blob to carry different EntityKeys.
+ */
 private class EventGroupSpecFlags {
   @Option(
     names = ["--event-group-reference-id"],
@@ -602,6 +641,11 @@ private class EventGroupSpecFlags {
     private set
 }
 
+/**
+ * One sub-spec contribution to an event group's per-date impressions blob: a data-spec textproto
+ * and a list of [LabeledImpression.EntityKey]s that should be stamped on every impression generated
+ * from this sub-spec.
+ */
 private class EntityKeysSubSpecFlags {
   @Option(
     names = ["--data-spec-resource-path"],
@@ -623,6 +667,9 @@ private class EntityKeysSubSpecFlags {
     private set
 }
 
+/**
+ * Flags describing a single `LabeledImpression.EntityKey` to stamp on every generated impression.
+ */
 private class EntityKeyFlags {
   @Option(
     names = ["--entity-key-type"],

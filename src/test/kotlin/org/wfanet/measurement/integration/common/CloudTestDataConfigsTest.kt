@@ -19,7 +19,9 @@ import com.google.protobuf.struct
 import com.google.protobuf.value
 import kotlin.test.assertIs
 import org.junit.Test
-import org.measurement.integration.k8s.testing.CloudTestDataConfig
+import org.measurement.integration.k8s.testing.CloudTestDataConfigKt.entityKeySpec
+import org.measurement.integration.k8s.testing.CloudTestDataConfigKt.syntheticEventGroup
+import org.measurement.integration.k8s.testing.cloudTestDataConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 
 class CloudTestDataConfigsTest {
@@ -39,52 +41,43 @@ class CloudTestDataConfigsTest {
     fields["placement"] = value { stringValue = "homepage_top" }
   }
 
-  private fun buildConfig(): CloudTestDataConfig {
-    return CloudTestDataConfig.newBuilder()
-      .setPopulationSpecResourcePath("small_population_spec.textproto")
-      .addEventGroups(
-        CloudTestDataConfig.SyntheticEventGroup.newBuilder()
-          .setEventGroupReferenceId("edpa-eg-reference-id-1")
-          .setDataSpecResourcePath("small_data_spec.textproto")
-          .setEdpName("edp7")
-      )
-      .addEventGroups(
-        CloudTestDataConfig.SyntheticEventGroup.newBuilder()
-          .setEventGroupReferenceId("creative-id-edpa-eg-creative-id-1")
-          .setEdpName("edp7")
-          .setEntityMetadata(entityMetadata)
-          .addEntityKeySpecs(
-            CloudTestDataConfig.EntityKeySpec.newBuilder()
-              .setEntityType("creative-id")
-              .setEntityId("edpa-eg-creative-id-1")
-              .setDataSpecResourcePath("small_data_spec.textproto")
-          )
-      )
-      .addEventGroups(
-        CloudTestDataConfig.SyntheticEventGroup.newBuilder()
-          .setEventGroupReferenceId("multi-creative")
-          .setEdpName("edp7")
-          .setEntityMetadata(entityMetadata)
-          .addEntityKeySpecs(
-            CloudTestDataConfig.EntityKeySpec.newBuilder()
-              .setEntityType("creative-id")
-              .setEntityId("edpa-eg-multi-creative-1")
-              .setDataSpecResourcePath("small_data_spec.textproto")
-          )
-          .addEntityKeySpecs(
-            CloudTestDataConfig.EntityKeySpec.newBuilder()
-              .setEntityType("creative-id")
-              .setEntityId("edpa-eg-multi-creative-2")
-              .setDataSpecResourcePath("small_data_spec_2.textproto")
-          )
-      )
-      .addEventGroups(
-        CloudTestDataConfig.SyntheticEventGroup.newBuilder()
-          .setEventGroupReferenceId("edpa-eg-reference-id-2")
-          .setDataSpecResourcePath("small_data_spec.textproto")
-          .setEdpName("edpa_meta")
-      )
-      .build()
+  private fun buildConfig() = cloudTestDataConfig {
+    populationSpecResourcePath = "small_population_spec.textproto"
+    eventGroups += syntheticEventGroup {
+      eventGroupReferenceId = "edpa-eg-reference-id-1"
+      dataSpecResourcePath = "small_data_spec.textproto"
+      edpName = "edp7"
+    }
+    eventGroups += syntheticEventGroup {
+      eventGroupReferenceId = "creative-id-edpa-eg-creative-id-1"
+      edpName = "edp7"
+      this.entityMetadata = this@CloudTestDataConfigsTest.entityMetadata
+      entityKeySpecs += entityKeySpec {
+        entityType = "creative-id"
+        entityId = "edpa-eg-creative-id-1"
+        dataSpecResourcePath = "small_data_spec.textproto"
+      }
+    }
+    eventGroups += syntheticEventGroup {
+      eventGroupReferenceId = "multi-creative"
+      edpName = "edp7"
+      this.entityMetadata = this@CloudTestDataConfigsTest.entityMetadata
+      entityKeySpecs += entityKeySpec {
+        entityType = "creative-id"
+        entityId = "edpa-eg-multi-creative-1"
+        dataSpecResourcePath = "small_data_spec.textproto"
+      }
+      entityKeySpecs += entityKeySpec {
+        entityType = "creative-id"
+        entityId = "edpa-eg-multi-creative-2"
+        dataSpecResourcePath = "small_data_spec_2.textproto"
+      }
+    }
+    eventGroups += syntheticEventGroup {
+      eventGroupReferenceId = "edpa-eg-reference-id-2"
+      dataSpecResourcePath = "small_data_spec.textproto"
+      edpName = "edpa_meta"
+    }
   }
 
   @Test
