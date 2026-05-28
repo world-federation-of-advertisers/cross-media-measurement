@@ -56,6 +56,7 @@ import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
 import org.wfanet.measurement.storage.SelectedStorageClient
+import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 
@@ -71,13 +72,89 @@ enum class KmsType {
   description = ["Generates synthetic data for Panel Match."],
 )
 class GenerateSyntheticData : Runnable {
-  @Option(
-    names = ["--kms-type"],
-    description = ["Type of kms: \${COMPLETION-CANDIDATES}"],
-    required = true,
-  )
-  lateinit var kmsType: KmsType
-    private set
+  class EdpKmsConfig {
+    @Option(
+      names = ["--edp-name"],
+      description =
+        [
+          "EDP short name (e.g. edp7, edpa_meta). Selects which event groups from the " +
+            "--config-file to generate."
+        ],
+      required = true,
+    )
+    lateinit var edpName: String
+      private set
+
+    @Option(
+      names = ["--kms-type"],
+      description = ["Type of kms: \${COMPLETION-CANDIDATES}"],
+      required = true,
+    )
+    lateinit var kmsType: KmsType
+      private set
+
+    @Option(
+      names = ["--kek-uri"],
+      description = ["The KMS kek uri."],
+      required = true,
+    )
+    lateinit var kekUri: String
+      private set
+
+    @Option(
+      names = ["--fake-kek-keyset-file"],
+      description =
+        [
+          "Optional. Path to a Tink keyset file that backs the FAKE KEK identified by --kek-uri. " +
+            "Only valid when --kms-type=FAKE. When set, on first run the generated fake KEK " +
+            "keyset is written here so that VerifySyntheticData (in a separate process) can load " +
+            "the same keyset and decrypt the impressions. When the file already exists it is reused."
+        ],
+      required = false,
+    )
+    var fakeKekKeysetFile: File? = null
+      private set
+
+    @Option(
+      names = ["--aws-role-arn"],
+      description =
+        ["AWS IAM role ARN for STS AssumeRoleWithWebIdentity. Required when --kms-type=AWS."],
+      required = false,
+      defaultValue = "",
+    )
+    lateinit var awsRoleArn: String
+      private set
+
+    @Option(
+      names = ["--aws-web-identity-token-file"],
+      description = ["AWS web identity token file path. Required when --kms-type=AWS."],
+      required = false,
+      defaultValue = "",
+    )
+    lateinit var awsWebIdentityTokenFile: String
+      private set
+
+    @Option(
+      names = ["--aws-role-session-name"],
+      description = ["AWS STS role session name. Required when --kms-type=AWS."],
+      required = false,
+      defaultValue = "generate-synthetic-data",
+    )
+    lateinit var awsRoleSessionName: String
+      private set
+
+    @Option(
+      names = ["--aws-region"],
+      description = ["AWS region for STS and KMS. Required when --kms-type=AWS."],
+      required = false,
+      defaultValue = "",
+    )
+    lateinit var awsRegion: String
+      private set
+  }
+
+  @ArgGroup(exclusive = false, multiplicity = "1..*")
+  lateinit var edpKmsConfigs: List<EdpKmsConfig>
 
   @Option(
     names = ["--local-storage-path"],
@@ -85,28 +162,6 @@ class GenerateSyntheticData : Runnable {
     required = false,
   )
   private var storagePath: File? = null
-
-  @Option(
-    names = ["--kek-uri"],
-    description = ["The KMS kek uri."],
-    required = true,
-    defaultValue = DEFAULT_KEK_URI,
-  )
-  lateinit var kekUri: String
-    private set
-
-  @Option(
-    names = ["--fake-kek-keyset-file"],
-    description =
-      [
-        "Optional. Path to a Tink keyset file that backs the FAKE KEK identified by --kek-uri. " +
-          "Only valid when --kms-type=FAKE. When set, on first run the generated fake KEK " +
-          "keyset is written here so that VerifySyntheticData (in a separate process) can load " +
-          "the same keyset and decrypt the impressions. When the file already exists it is reused."
-      ],
-    required = false,
-  )
-  private var fakeKekKeysetFile: File? = null
 
   @Option(
     names = ["--output-bucket"],
@@ -170,60 +225,11 @@ class GenerateSyntheticData : Runnable {
     description =
       [
         "Path to a ImpressionTestDataConfig textproto file that defines the event group specs " +
-          "to generate for the EDP specified by --edp-name."
+          "to generate."
       ],
     required = true,
   )
   private lateinit var configFile: File
-
-  @Option(
-    names = ["--edp-name"],
-    description =
-      [
-        "EDP short name (e.g. edp7, edpa_meta). Selects which event groups from the " +
-          "--config-file to generate."
-      ],
-    required = false,
-  )
-  var edpName: String? = null
-    private set
-
-  @Option(
-    names = ["--aws-role-arn"],
-    description =
-      ["AWS IAM role ARN for STS AssumeRoleWithWebIdentity. Required when --kms-type=AWS."],
-    required = false,
-    defaultValue = "",
-  )
-  lateinit var awsRoleArn: String
-    private set
-
-  @Option(
-    names = ["--aws-web-identity-token-file"],
-    description = ["AWS web identity token file path. Required when --kms-type=AWS."],
-    required = false,
-    defaultValue = "",
-  )
-  lateinit var awsWebIdentityTokenFile: String
-    private set
-
-  @Option(
-    names = ["--aws-role-session-name"],
-    description = ["AWS STS role session name. Required when --kms-type=AWS."],
-    required = false,
-    defaultValue = "generate-synthetic-data",
-  )
-  lateinit var awsRoleSessionName: String
-    private set
-
-  @Option(
-    names = ["--aws-region"],
-    description = ["AWS region for STS and KMS. Required when --kms-type=AWS."],
-    required = false,
-    defaultValue = "",
-  )
-  lateinit var awsRegion: String
-    private set
 
   @Option(
     names = ["--create-done-blobs"],
@@ -236,13 +242,21 @@ class GenerateSyntheticData : Runnable {
 
   @kotlin.io.path.ExperimentalPathApi
   override fun run() {
-    require(kmsType == KmsType.FAKE || fakeKekKeysetFile == null) {
-      "--fake-kek-keyset-file is only valid when --kms-type=FAKE"
+    val edpKmsConfigsByName: Map<String, EdpKmsConfig> =
+      edpKmsConfigs.associateBy { it.edpName }
+
+    for (edpKmsConfig in edpKmsConfigs) {
+      require(edpKmsConfig.kmsType == KmsType.FAKE || edpKmsConfig.fakeKekKeysetFile == null) {
+        "--fake-kek-keyset-file is only valid when --kms-type=FAKE (edp: ${edpKmsConfig.edpName})"
+      }
     }
 
     val config: ImpressionTestDataConfig =
       parseTextProto(configFile, ImpressionTestDataConfig.getDefaultInstance())
-    val eventGroupSpecs: List<ResolvedEventGroupSpec> = buildSpecsFromConfig(config, edpName)
+
+    val edpNames = edpKmsConfigsByName.keys
+    val eventGroupSpecs: List<ResolvedEventGroupSpec> =
+      buildSpecsFromConfig(config, edpNames)
 
     val eventGroupReferenceIds = eventGroupSpecs.map { it.eventGroupReferenceId }
     require(eventGroupReferenceIds.toSet().size == eventGroupReferenceIds.size) {
@@ -260,36 +274,14 @@ class GenerateSyntheticData : Runnable {
         PopulationSpec.getDefaultInstance(),
         buildEventMessageTypeRegistry(eventMessageInstance),
       )
-    val kmsClient: KmsClient =
-      when (kmsType) {
-        KmsType.FAKE -> buildFakeKmsClient(kekUri, fakeKekKeysetFile)
-        KmsType.GCP -> GcpKmsClient().withDefaultCredentials()
-        KmsType.AWS -> {
-          require(awsRoleArn.isNotEmpty()) { "--aws-role-arn is required when --kms-type=AWS" }
-          require(awsWebIdentityTokenFile.isNotEmpty()) {
-            "--aws-web-identity-token-file is required when --kms-type=AWS"
-          }
-          require(awsRegion.isNotEmpty()) { "--aws-region is required when --kms-type=AWS" }
-          AwsKmsClientFactory()
-            .getKmsClient(
-              AwsWebIdentityCredentials(
-                roleArn = awsRoleArn,
-                webIdentityTokenFilePath = awsWebIdentityTokenFile,
-                roleSessionName = awsRoleSessionName,
-                region = awsRegion,
-              )
-            )
-        }
-        KmsType.GCP_TO_AWS ->
-          throw UnsupportedOperationException(
-            "GCP_TO_AWS is not yet supported in GenerateSyntheticData. Use VerifySyntheticData."
-          )
-      }
 
     val writtenDatePaths = mutableSetOf<String>()
 
     runBlocking {
       for (spec in eventGroupSpecs) {
+        val edpKmsConfig = edpKmsConfigsByName.getValue(spec.edpName)
+        val kmsClient: KmsClient = buildKmsClient(edpKmsConfig)
+
         val perSubSpecShards: List<Sequence<LabeledEventDateShard<Message>>> =
           spec.subSpecs.map { subSpec ->
             val syntheticEventGroupSpec: SyntheticEventGroupSpec =
@@ -315,7 +307,7 @@ class GenerateSyntheticData : Runnable {
           ImpressionsWriter(
             spec.eventGroupReferenceId,
             "",
-            kekUri,
+            edpKmsConfig.kekUri,
             kmsClient,
             outputBucket,
             outputBucket,
@@ -478,14 +470,14 @@ class GenerateSyntheticData : Runnable {
      *
      * `FakeKmsClient` is in-memory only, so to round-trip envelope-encrypted data across processes
      * the underlying fake KEK keyset must itself be persisted somewhere. Behavior:
-     * * `fakeKekKeysetFile == null` — generate a fresh fake KEK keyset in memory (process-local;
+     * * `fakeKekKeysetFile == null` -- generate a fresh fake KEK keyset in memory (process-local;
      *   cannot be decrypted by a later process).
-     * * `fakeKekKeysetFile` exists — load and reuse the fake KEK keyset from disk.
-     * * `fakeKekKeysetFile` does not exist — generate a fresh fake KEK keyset and write it to disk
+     * * `fakeKekKeysetFile` exists -- load and reuse the fake KEK keyset from disk.
+     * * `fakeKekKeysetFile` does not exist -- generate a fresh fake KEK keyset and write it to disk
      *   so it can be reloaded later.
      *
      * The keyset is serialized in cleartext via [TinkProtoKeysetFormat], which is appropriate
-     * because [FakeKmsClient] itself provides no protection — this is a testing-only KMS.
+     * because [FakeKmsClient] itself provides no protection -- this is a testing-only KMS.
      */
     fun buildFakeKmsClient(kekUri: String, fakeKekKeysetFile: File?): FakeKmsClient {
       val fakeKekKeysetHandle: KeysetHandle =
@@ -509,18 +501,45 @@ class GenerateSyntheticData : Runnable {
       }
     }
 
+    fun buildKmsClient(edpKmsConfig: EdpKmsConfig): KmsClient {
+      return when (edpKmsConfig.kmsType) {
+        KmsType.FAKE -> buildFakeKmsClient(edpKmsConfig.kekUri, edpKmsConfig.fakeKekKeysetFile)
+        KmsType.GCP -> GcpKmsClient().withDefaultCredentials()
+        KmsType.AWS -> {
+          require(edpKmsConfig.awsRoleArn.isNotEmpty()) {
+            "--aws-role-arn is required when --kms-type=AWS (edp: ${edpKmsConfig.edpName})"
+          }
+          require(edpKmsConfig.awsWebIdentityTokenFile.isNotEmpty()) {
+            "--aws-web-identity-token-file is required when --kms-type=AWS (edp: ${edpKmsConfig.edpName})"
+          }
+          require(edpKmsConfig.awsRegion.isNotEmpty()) {
+            "--aws-region is required when --kms-type=AWS (edp: ${edpKmsConfig.edpName})"
+          }
+          AwsKmsClientFactory()
+            .getKmsClient(
+              AwsWebIdentityCredentials(
+                roleArn = edpKmsConfig.awsRoleArn,
+                webIdentityTokenFilePath = edpKmsConfig.awsWebIdentityTokenFile,
+                roleSessionName = edpKmsConfig.awsRoleSessionName,
+                region = edpKmsConfig.awsRegion,
+              )
+            )
+        }
+        KmsType.GCP_TO_AWS ->
+          throw UnsupportedOperationException(
+            "GCP_TO_AWS is not yet supported in GenerateSyntheticData. Use VerifySyntheticData."
+          )
+      }
+    }
+
     fun buildSpecsFromConfig(
       config: ImpressionTestDataConfig,
-      edpName: String? = null,
+      edpNames: Set<String>,
     ): List<ResolvedEventGroupSpec> {
-      val edpEventGroups =
-        if (edpName != null) {
-          val filtered = config.eventGroupsList.filter { it.edpName == edpName }
-          require(filtered.isNotEmpty()) { "No event groups found for EDP '$edpName' in config" }
-          filtered
-        } else {
-          config.eventGroupsList
-        }
+      val edpEventGroups = config.eventGroupsList.filter { it.edpName in edpNames }
+      require(edpEventGroups.isNotEmpty()) {
+        "No event groups found for EDPs $edpNames in config"
+      }
       return edpEventGroups.flatMap { eg ->
         if (eg.entityKeySpecsList.isEmpty()) {
           listOf(
@@ -528,6 +547,7 @@ class GenerateSyntheticData : Runnable {
               eventGroupReferenceId = eg.eventGroupReferenceId,
               outputKey = eg.outputKey,
               outputBasePath = eg.outputBasePath,
+              edpName = eg.edpName,
               subSpecs =
                 listOf(
                   ResolvedSubSpec(
@@ -543,6 +563,7 @@ class GenerateSyntheticData : Runnable {
               eventGroupReferenceId = eg.eventGroupReferenceId,
               outputKey = eg.outputKey,
               outputBasePath = eg.outputBasePath,
+              edpName = eg.edpName,
               subSpecs =
                 eg.entityKeySpecsList.map { eks ->
                   ResolvedSubSpec(
@@ -555,6 +576,8 @@ class GenerateSyntheticData : Runnable {
         }
       }
     }
+
+
   }
 }
 
@@ -562,6 +585,7 @@ data class ResolvedEventGroupSpec(
   val eventGroupReferenceId: String,
   val outputKey: String,
   val outputBasePath: String,
+  val edpName: String,
   val subSpecs: List<ResolvedSubSpec>,
 )
 

@@ -81,8 +81,13 @@ class GenerateAndVerifySyntheticDataTest {
     val exitCode =
       CommandLine(generateCmd)
         .execute(
+          "--edp-name=$EDP_NAME",
           "--kms-type=FAKE",
           "--kek-uri=$KEK_URI",
+          "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+          "--edp-name=$EDP_NAME_2",
+          "--kms-type=FAKE",
+          "--kek-uri=$KEK_URI_2",
           "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
           "--local-storage-path=${tempFolder.root.path}",
           "--output-bucket=$OUTPUT_BUCKET",
@@ -117,6 +122,17 @@ class GenerateAndVerifySyntheticDataTest {
     val metadataFileCount =
       outputDir.walkTopDown().count { it.name.startsWith("metadata") && it.name.endsWith(".binpb") }
     assertThat(metadataFileCount).isEqualTo(EXPECTED_DATES.size * 2)
+
+    // Verify edpa_meta output directory.
+    val metaDir = tempFolder.root.resolve(OUTPUT_BUCKET).resolve(OUTPUT_BASE_PATH_2)
+    assertThat(metaDir.exists()).isTrue()
+    val metaDates = metaDir.listFiles()!!.filter { it.isDirectory }.map { it.name }.sorted()
+    assertThat(metaDates).isEqualTo(EXPECTED_DATES)
+    for (date in EXPECTED_DATES) {
+      val dateDir = metaDir.resolve(date)
+      assertThat(dateDir.resolve("metadata.binpb").exists()).isTrue()
+      assertThat(dateDir.resolve("impressions").exists()).isTrue()
+    }
   }
 
   @Test
@@ -148,6 +164,23 @@ class GenerateAndVerifySyntheticDataTest {
         SPEC_B.eventGroupReferenceId,
         SPEC_B.expectedImpressions,
       )
+
+    // Verify edpa_meta data with its own KMS key.
+    val verifyMeta = VerifySyntheticData()
+    val verifyMetaExit =
+      CommandLine(verifyMeta)
+        .execute(
+          "--kms-type=FAKE",
+          "--kek-uri=$KEK_URI_2",
+          "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+          "--local-storage-path=${tempFolder.root.path}",
+          "--output-bucket=$OUTPUT_BUCKET",
+          "--base-path=$OUTPUT_BASE_PATH_2",
+        )
+    assertThat(verifyMetaExit).isEqualTo(0)
+    val metaResult = verifyMeta.lastResult!!
+    assertThat(metaResult.errors).isEqualTo(0)
+    assertThat(metaResult.totalImpressions).isEqualTo(SPEC_A.expectedImpressions)
   }
 
   @Test
@@ -160,6 +193,7 @@ class GenerateAndVerifySyntheticDataTest {
       modelLine = MODEL_LINE
       eventGroups += syntheticEventGroup {
         eventGroupReferenceId = "eg-mixed"
+        edpName = EDP_NAME
         outputBasePath = OUTPUT_BASE_PATH
         entityKeySpecs += entityKeySpec {
           entityType = "creative"
@@ -178,8 +212,13 @@ class GenerateAndVerifySyntheticDataTest {
     val exitCode =
       CommandLine(generateCmd)
         .execute(
+          "--edp-name=$EDP_NAME",
           "--kms-type=FAKE",
           "--kek-uri=$KEK_URI",
+          "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+          "--edp-name=$EDP_NAME_2",
+          "--kms-type=FAKE",
+          "--kek-uri=$KEK_URI_2",
           "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
           "--local-storage-path=${tempFolder.root.path}",
           "--output-bucket=$OUTPUT_BUCKET",
@@ -301,6 +340,7 @@ class GenerateAndVerifySyntheticDataTest {
       modelLine = MODEL_LINE
       eventGroups += syntheticEventGroup {
         eventGroupReferenceId = SPEC_A.eventGroupReferenceId
+        edpName = EDP_NAME
         outputBasePath = OUTPUT_BASE_PATH
         entityKeySpecs += entityKeySpec {
           entityType = SPEC_A.entityKeyType
@@ -314,6 +354,7 @@ class GenerateAndVerifySyntheticDataTest {
     val exitCode =
       CommandLine(generateCmd)
         .execute(
+          "--edp-name=$EDP_NAME",
           "--kms-type=FAKE",
           "--kek-uri=$KEK_URI",
           "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
@@ -359,6 +400,7 @@ class GenerateAndVerifySyntheticDataTest {
       modelLine = MODEL_LINE
       eventGroups += syntheticEventGroup {
         eventGroupReferenceId = "eg-market"
+        edpName = EDP_NAME
         outputBasePath = MARKET_OUTPUT_BASE_PATH
         entityKeySpecs += entityKeySpec {
           entityType = "creative"
@@ -372,6 +414,7 @@ class GenerateAndVerifySyntheticDataTest {
     val generateExitCode =
       CommandLine(generateCmd)
         .execute(
+          "--edp-name=$EDP_NAME",
           "--kms-type=FAKE",
           "--kek-uri=$KEK_URI",
           "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
@@ -627,6 +670,10 @@ class GenerateAndVerifySyntheticDataTest {
     private const val POPULATION_SPEC = "small_population_spec.textproto"
     private const val OUTPUT_BASE_PATH = "edp/edp7"
     private const val INSPECT_DATE = "2021-03-15"
+    private const val EDP_NAME = "edp7"
+    private const val EDP_NAME_2 = "edpa_meta"
+    private const val KEK_URI_2 = FakeKmsClient.KEY_URI_PREFIX + "key2"
+    private const val OUTPUT_BASE_PATH_2 = "edp/edpa_meta"
 
     /** small_data_spec.textproto: 8001 impressions across 2021-03-15..2021-03-21. */
     private val SPEC_A =
@@ -654,6 +701,7 @@ class GenerateAndVerifySyntheticDataTest {
       modelLine = MODEL_LINE
       eventGroups += syntheticEventGroup {
         eventGroupReferenceId = SPEC_A.eventGroupReferenceId
+        edpName = EDP_NAME
         outputBasePath = OUTPUT_BASE_PATH
         entityKeySpecs += entityKeySpec {
           entityType = SPEC_A.entityKeyType
@@ -668,12 +716,23 @@ class GenerateAndVerifySyntheticDataTest {
       }
       eventGroups += syntheticEventGroup {
         eventGroupReferenceId = SPEC_B.eventGroupReferenceId
+        edpName = EDP_NAME
         outputBasePath = OUTPUT_BASE_PATH
         outputKey = SPEC_B.outputKey
         entityKeySpecs += entityKeySpec {
           entityType = SPEC_B.entityKeyType
           entityId = SPEC_B.entityKeyIds[0]
           dataSpecResourcePath = SPEC_B.dataSpecResourcePath
+        }
+      }
+      eventGroups += syntheticEventGroup {
+        eventGroupReferenceId = "eg-meta"
+        edpName = EDP_NAME_2
+        outputBasePath = OUTPUT_BASE_PATH_2
+        entityKeySpecs += entityKeySpec {
+          entityType = "creative"
+          entityId = "creative-meta-1"
+          dataSpecResourcePath = SPEC_A.dataSpecResourcePath
         }
       }
     }

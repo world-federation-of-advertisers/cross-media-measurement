@@ -106,7 +106,7 @@ class ImpressionTestDataConfigsTest {
 
   @Test
   fun `buildSpecsFromConfig produces correct output keys for legacy event group`() {
-    val specs = GenerateSyntheticData.buildSpecsFromConfig(CONFIG, "edp7")
+    val specs = GenerateSyntheticData.buildSpecsFromConfig(CONFIG, setOf("edp7"))
 
     val legacy = specs.first { it.eventGroupReferenceId == "edpa-eg-reference-id-1" }
     assertThat(legacy.outputKey).isEmpty()
@@ -116,7 +116,7 @@ class ImpressionTestDataConfigsTest {
 
   @Test
   fun `buildSpecsFromConfig produces correct output keys for entity-key event groups`() {
-    val specs = GenerateSyntheticData.buildSpecsFromConfig(CONFIG, "edp7")
+    val specs = GenerateSyntheticData.buildSpecsFromConfig(CONFIG, setOf("edp7"))
 
     val creative = specs.first { it.eventGroupReferenceId == "creative-id-edpa-eg-creative-id-1" }
     assertThat(creative.outputKey).isEqualTo("creative")
@@ -131,8 +131,8 @@ class ImpressionTestDataConfigsTest {
 
   @Test
   fun `buildSpecsFromConfig filters by edp name`() {
-    val edp7Specs = GenerateSyntheticData.buildSpecsFromConfig(CONFIG, "edp7")
-    val metaSpecs = GenerateSyntheticData.buildSpecsFromConfig(CONFIG, "edpa_meta")
+    val edp7Specs = GenerateSyntheticData.buildSpecsFromConfig(CONFIG, setOf("edp7"))
+    val metaSpecs = GenerateSyntheticData.buildSpecsFromConfig(CONFIG, setOf("edpa_meta"))
 
     assertThat(edp7Specs).hasSize(3)
     assertThat(metaSpecs).hasSize(1)
@@ -142,7 +142,7 @@ class ImpressionTestDataConfigsTest {
   @Test
   fun `buildSpecsFromConfig fails for unknown edp`() {
     assertFailsWith<IllegalArgumentException> {
-      GenerateSyntheticData.buildSpecsFromConfig(CONFIG, "unknown-edp")
+      GenerateSyntheticData.buildSpecsFromConfig(CONFIG, setOf("unknown-edp"))
     }
   }
 
