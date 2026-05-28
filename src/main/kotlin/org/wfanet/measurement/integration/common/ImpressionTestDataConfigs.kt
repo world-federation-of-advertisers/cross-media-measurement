@@ -38,7 +38,13 @@ object ImpressionTestDataConfigs {
       )
     )!!
 
-  private fun resolveSpec(path: String): SyntheticEventGroupSpec {
+  fun resolveSpecPath(path: String): java.io.File {
+    val specPath = Paths.get(path)
+    return if (specPath.isAbsolute) specPath.toFile()
+    else TEST_DATA_RUNTIME_PATH.resolve(path).toFile()
+  }
+
+  fun resolveSpecFile(path: String): SyntheticEventGroupSpec {
     val specPath = Paths.get(path)
     val file =
       if (specPath.isAbsolute) specPath.toFile() else TEST_DATA_RUNTIME_PATH.resolve(path).toFile()
@@ -77,13 +83,13 @@ object ImpressionTestDataConfigs {
 
   private fun toEventGroupConfig(eg: SyntheticEventGroup): EventGroupConfig {
     return if (eg.entityKeySpecsList.isEmpty()) {
-      EventGroupConfig.LegacySpec(resolveSpec(eg.dataSpecResourcePath))
+      EventGroupConfig.LegacySpec(resolveSpecFile(eg.dataSpecResourcePath))
     } else {
       EventGroupConfig.MultiEntityKey(
         eg.entityKeySpecsList.map { eksProto ->
           EntityKeySpec(
             entityKey = EntityKey(eksProto.entityType, eksProto.entityId),
-            spec = resolveSpec(eksProto.dataSpecResourcePath),
+            spec = resolveSpecFile(eksProto.dataSpecResourcePath),
             entityMetadata = if (eg.hasEntityMetadata()) eg.entityMetadata else null,
           )
         }

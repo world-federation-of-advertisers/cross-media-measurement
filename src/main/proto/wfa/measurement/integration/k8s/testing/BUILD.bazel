@@ -50,8 +50,8 @@ kt_jvm_proto_library(
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/integration/common:__pkg__",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:__pkg__",
-        "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/integration/common:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__",
     ],
     deps = [":impression_test_data_config_proto"],
 )

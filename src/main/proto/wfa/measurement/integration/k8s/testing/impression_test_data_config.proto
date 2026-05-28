@@ -52,8 +52,8 @@ message ImpressionTestDataConfig {
     string output_key = 6;
 
     // Entity key specs for entity-key event groups. Each spec maps an entity
-    // key to its own data spec textproto. When non-empty, data_spec_resource_path
-    // must be empty.
+    // key to its own data spec textproto. When non-empty,
+    // data_spec_resource_path must be empty.
     repeated EntityKeySpec entity_key_specs = 3;
 
     // EDP short name that owns this event group (e.g. "edp7", "edpa_meta").

@@ -473,33 +473,23 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       parseTextProto(configFile, EdpaCorrectnessTestConfig.getDefaultInstance())
     }
 
-    private val TEST_DATA_PATH =
-      Paths.get(
-        "wfa_measurement_system",
-        "src",
-        "main",
-        "proto",
-        "wfa",
-        "measurement",
-        "loadtest",
-        "dataprovider",
-      )
-
-    private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
-
     private val POPULATION_SPEC_TYPE_REGISTRY: TypeRegistry =
       TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
 
-    val populationSpec: PopulationSpec =
-      parseTextProto(
-        TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
-        PopulationSpec.getDefaultInstance(),
-        POPULATION_SPEC_TYPE_REGISTRY,
-      )
     private val IMPRESSION_TEST_DATA_CONFIG: ImpressionTestDataConfig by lazy {
       val configFile =
         getRuntimePath(CONFIG_PATH.resolve("impression_test_data_config.textproto"))!!.toFile()
       parseTextProto(configFile, ImpressionTestDataConfig.getDefaultInstance())
+    }
+
+    val populationSpec: PopulationSpec by lazy {
+      parseTextProto(
+        ImpressionTestDataConfigs.resolveSpecPath(
+          IMPRESSION_TEST_DATA_CONFIG.populationSpecResourcePath
+        ),
+        PopulationSpec.getDefaultInstance(),
+        POPULATION_SPEC_TYPE_REGISTRY,
+      )
     }
 
     val syntheticEventGroupMap: Map<String, EventGroupConfig> =
