@@ -30,7 +30,6 @@ import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Message
 import com.google.protobuf.TypeRegistry
 import java.io.File
-import java.nio.file.Paths
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.SortedMap
@@ -38,7 +37,6 @@ import java.util.logging.Logger
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
-import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -49,6 +47,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.tink.AwsWebIdentityCredentials
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
@@ -93,11 +92,7 @@ class GenerateSyntheticData : Runnable {
     lateinit var kmsType: KmsType
       private set
 
-    @Option(
-      names = ["--kek-uri"],
-      description = ["The KMS kek uri."],
-      required = true,
-    )
+    @Option(names = ["--kek-uri"], description = ["The KMS kek uri."], required = true)
     lateinit var kekUri: String
       private set
 
@@ -153,8 +148,7 @@ class GenerateSyntheticData : Runnable {
       private set
   }
 
-  @ArgGroup(exclusive = false, multiplicity = "1..*")
-  lateinit var edpKmsConfigs: List<EdpKmsConfig>
+  @ArgGroup(exclusive = false, multiplicity = "1..*") lateinit var edpKmsConfigs: List<EdpKmsConfig>
 
   @Option(
     names = ["--local-storage-path"],
@@ -242,8 +236,7 @@ class GenerateSyntheticData : Runnable {
 
   @kotlin.io.path.ExperimentalPathApi
   override fun run() {
-    val edpKmsConfigsByName: Map<String, EdpKmsConfig> =
-      edpKmsConfigs.associateBy { it.edpName }
+    val edpKmsConfigsByName: Map<String, EdpKmsConfig> = edpKmsConfigs.associateBy { it.edpName }
 
     for (edpKmsConfig in edpKmsConfigs) {
       require(edpKmsConfig.kmsType == KmsType.FAKE || edpKmsConfig.fakeKekKeysetFile == null) {
@@ -255,8 +248,7 @@ class GenerateSyntheticData : Runnable {
       parseTextProto(configFile, ImpressionTestDataConfig.getDefaultInstance())
 
     val edpNames = edpKmsConfigsByName.keys
-    val eventGroupSpecs: List<ResolvedEventGroupSpec> =
-      buildSpecsFromConfig(config, edpNames)
+    val eventGroupSpecs: List<ResolvedEventGroupSpec> = buildSpecsFromConfig(config, edpNames)
 
     val eventGroupReferenceIds = eventGroupSpecs.map { it.eventGroupReferenceId }
     require(eventGroupReferenceIds.toSet().size == eventGroupReferenceIds.size) {
@@ -517,9 +509,7 @@ class GenerateSyntheticData : Runnable {
       edpNames: Set<String>,
     ): List<ResolvedEventGroupSpec> {
       val edpEventGroups = config.eventGroupsList.filter { it.edpName in edpNames }
-      require(edpEventGroups.isNotEmpty()) {
-        "No event groups found for EDPs $edpNames in config"
-      }
+      require(edpEventGroups.isNotEmpty()) { "No event groups found for EDPs $edpNames in config" }
       return edpEventGroups.flatMap { eg ->
         if (eg.entityKeySpecsList.isEmpty()) {
           listOf(
@@ -556,8 +546,6 @@ class GenerateSyntheticData : Runnable {
         }
       }
     }
-
-
   }
 }
 
