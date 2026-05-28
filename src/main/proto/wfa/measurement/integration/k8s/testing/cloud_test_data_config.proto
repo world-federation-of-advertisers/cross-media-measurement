@@ -1,0 +1,77 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.integration.k8s.testing;
+
+import "google/protobuf/struct.proto";
+
+option java_package = "org.measurement.integration.k8s.testing";
+option java_multiple_files = true;
+option java_outer_classname = "CloudTestDataConfigProto";
+
+// Configuration for cloud test synthetic data generation and event group setup.
+//
+// Defines the set of event groups, their data specs, and entity key mappings
+// used by both the EdpAggregatorCorrectnessTest and the GenerateSyntheticData
+// CLI tool.
+message CloudTestDataConfig {
+  // Configuration for a single synthetic event group.
+  message SyntheticEventGroup {
+    // Event group reference ID as registered with the Kingdom.
+    //
+    // For legacy (no entity key) event groups, this is the final ref ID.
+    // For entity-key event groups, this is the logical group name (e.g.
+    // "multi-creative"); the resolved ref ID is derived as
+    // "${entity_type}-${entity_id}" from each entity_key_spec.
+    string event_group_reference_id = 1;
+
+    // Resource path of the SyntheticEventGroupSpec textproto relative to the
+    // loadtest dataprovider test data directory.
+    //
+    // Used only for legacy event groups (no entity key specs). For entity-key
+    // event groups, the spec is defined per EntityKeySpec.
+    string data_spec_resource_path = 2;
+
+    // Entity key specs for entity-key event groups. When non-empty, each spec
+    // contributes its own sub-population of impressions to the same per-date
+    // blob, with different entity keys.
+    //
+    // When empty, this is a legacy event group that uses data_spec_resource_path.
+    repeated EntityKeySpec entity_key_specs = 3;
+
+    // EDP short name that owns this event group (e.g. "edp7", "edpa_meta").
+    string edp_name = 4;
+
+    // Optional entity metadata attached to event groups with entity keys.
+    google.protobuf.Struct entity_metadata = 5;
+  }
+
+  // A sub-spec within an entity-key event group, mapping an entity key to a
+  // data spec.
+  message EntityKeySpec {
+    string entity_type = 1;
+    string entity_id = 2;
+    // Resource path of the SyntheticEventGroupSpec textproto.
+    string data_spec_resource_path = 3;
+  }
+
+  // The synthetic event groups to generate.
+  repeated SyntheticEventGroup event_groups = 1;
+
+  // Resource path of the PopulationSpec textproto relative to the loadtest
+  // dataprovider test data directory.
+  string population_spec_resource_path = 2;
+}

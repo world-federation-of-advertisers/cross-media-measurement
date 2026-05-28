@@ -36,6 +36,7 @@ import java.time.ZoneId
 import java.util.SortedMap
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
+import org.measurement.integration.k8s.testing.CloudTestDataConfig
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
@@ -152,9 +153,9 @@ class GenerateSyntheticData : Runnable {
         "The PopulationSpec must include attribute messages on each SubPopulation that are " +
           "instances of the event message templates (e.g. for TestEvent, a Person attribute).",
       ],
-    required = true,
+    required = false,
   )
-  lateinit var populationSpecResourcePath: String
+  var populationSpecResourcePath: String? = null
     private set
 
   @Option(
@@ -206,13 +207,35 @@ class GenerateSyntheticData : Runnable {
 
   @ArgGroup(
     exclusive = false,
-    multiplicity = "1..*",
+    multiplicity = "0..*",
     heading =
       "Per-event-group flags. Repeat the group to generate multiple event groups in a single " +
         "invocation; each event group has its own data-spec textproto, event group reference id, " +
         "and EntityKeys.%n",
   )
-  private lateinit var eventGroupSpecFlags: List<EventGroupSpecFlags>
+  private var eventGroupSpecFlags: List<EventGroupSpecFlags> = emptyList()
+
+  @Option(
+    names = ["--config-file"],
+    description =
+      [
+        "Path to a CloudTestDataConfig textproto file. When set, event group specs are " +
+          "derived from the config for the EDP specified by --edp-name."
+      ],
+    required = false,
+  )
+  private var configFile: File? = null
+
+  @Option(
+    names = ["--edp-name"],
+    description =
+      [
+        "EDP short name (e.g. edp7, edpa_meta). Required when --config-file is set. " +
+          "Selects which event groups from the config to generate."
+      ],
+    required = false,
+  )
+  private var edpName: String? = null
 
   @Option(
     names = ["--aws-role-arn"],
@@ -256,23 +279,31 @@ class GenerateSyntheticData : Runnable {
     require(flatOutputBasePath == null || impressionMetadataBasePath == null) {
       "Cannot specify both --impression-metadata-base-path and --flat-output-base-path; set exactly one or neither"
     }
-    require(flatOutputBasePath == null || eventGroupSpecFlags.size == 1) {
-      "--flat-output-base-path is incompatible with multiple event group specs (output paths would collide)"
-    }
-    val eventGroupReferenceIds = eventGroupSpecFlags.map { it.eventGroupReferenceId }
-    require(eventGroupReferenceIds.toSet().size == eventGroupReferenceIds.size) {
-      "--event-group-reference-id values must be unique across event group specs: $eventGroupReferenceIds"
-    }
     require(kmsType == KmsType.FAKE || fakeKekKeysetFile == null) {
       "--fake-kek-keyset-file is only valid when --kms-type=FAKE"
     }
+
+    val eventGroupSpecs: List<ResolvedEventGroupSpec> = resolveEventGroupSpecs()
+
+    require(flatOutputBasePath == null || eventGroupSpecs.size == 1) {
+      "--flat-output-base-path is incompatible with multiple event group specs (output paths would collide)"
+    }
+    val eventGroupReferenceIds = eventGroupSpecs.map { it.eventGroupReferenceId }
+    require(eventGroupReferenceIds.toSet().size == eventGroupReferenceIds.size) {
+      "event-group-reference-id values must be unique: $eventGroupReferenceIds"
+    }
+
+    val resolvedPopulationSpecPath =
+      requireNotNull(populationSpecResourcePath) {
+        "--population-spec-resource-path is required (or use --config-file with population_spec_resource_path set)"
+      }
 
     val eventMessageInstance: Message =
       resolveEventMessageInstance(eventMessageTypeUrl, eventMessageDescriptorSetFiles)
 
     val populationSpec: PopulationSpec =
       parseTextProto(
-        TEST_DATA_RUNTIME_PATH.resolve(populationSpecResourcePath).toFile(),
+        TEST_DATA_RUNTIME_PATH.resolve(resolvedPopulationSpecPath).toFile(),
         PopulationSpec.getDefaultInstance(),
         buildEventMessageTypeRegistry(eventMessageInstance),
       )
@@ -304,9 +335,9 @@ class GenerateSyntheticData : Runnable {
     val modelLineName = ModelLineKey.fromName(modelLine)?.modelLineId
 
     runBlocking {
-      for (specFlags in eventGroupSpecFlags) {
+      for (spec in eventGroupSpecs) {
         val perSubSpecShards: List<Sequence<LabeledEventDateShard<Message>>> =
-          specFlags.subSpecFlags.map { subSpec ->
+          spec.subSpecs.map { subSpec ->
             val syntheticEventGroupSpec: SyntheticEventGroupSpec =
               parseTextProto(
                 TEST_DATA_RUNTIME_PATH.resolve(subSpec.dataSpecResourcePath).toFile(),
@@ -320,16 +351,14 @@ class GenerateSyntheticData : Runnable {
             )
           }
         val perSubSpecEntityKeys: List<List<EntityKey>> =
-          specFlags.subSpecFlags.map { subSpec ->
-            subSpec.entityKeyFlags.map { EntityKey(it.entityType, it.entityId) }
-          }
+          spec.subSpecs.map { subSpec -> subSpec.entityKeys }
         val coalescedShards: Sequence<EntityKeyedLabeledEventDateShard<Message>> =
           coalesceByDate(perSubSpecShards, perSubSpecEntityKeys)
         val eventGroupPath =
-          "model-line/$modelLineName/event-group-reference-id/${specFlags.eventGroupReferenceId}"
+          "model-line/$modelLineName/event-group-reference-id/${spec.eventGroupReferenceId}"
         val impressionWriter =
           ImpressionsWriter(
-            specFlags.eventGroupReferenceId,
+            spec.eventGroupReferenceId,
             eventGroupPath,
             kekUri,
             kmsClient,
@@ -348,6 +377,36 @@ class GenerateSyntheticData : Runnable {
     }
   }
 
+  private fun resolveEventGroupSpecs(): List<ResolvedEventGroupSpec> {
+    if (configFile != null) {
+      requireNotNull(edpName) { "--edp-name is required when --config-file is set" }
+      require(eventGroupSpecFlags.isEmpty()) {
+        "--config-file is mutually exclusive with manual --event-group-reference-id flags"
+      }
+      val config: CloudTestDataConfig =
+        parseTextProto(configFile!!, CloudTestDataConfig.getDefaultInstance())
+      if (populationSpecResourcePath == null) {
+        populationSpecResourcePath = config.populationSpecResourcePath
+      }
+      return buildSpecsFromConfig(config, edpName!!)
+    }
+    require(eventGroupSpecFlags.isNotEmpty()) {
+      "Either --config-file or at least one --event-group-reference-id must be specified"
+    }
+    return eventGroupSpecFlags.map { flags ->
+      ResolvedEventGroupSpec(
+        eventGroupReferenceId = flags.eventGroupReferenceId,
+        subSpecs =
+          flags.subSpecFlags.map { subSpec ->
+            ResolvedSubSpec(
+              dataSpecResourcePath = subSpec.dataSpecResourcePath,
+              entityKeys = subSpec.entityKeyFlags.map { EntityKey(it.entityType, it.entityId) },
+            )
+          },
+      )
+    }
+  }
+
   /**
    * Coalesces per-sub-spec date shard sequences into a single per-event-group sequence. Each output
    * shard contains one [EntityKeysWithLabeledEvents] group per sub-spec that emitted events for
@@ -358,7 +417,6 @@ class GenerateSyntheticData : Runnable {
     perSubSpecEntityKeys: List<List<EntityKey>>,
   ): Sequence<EntityKeyedLabeledEventDateShard<Message>> {
     require(perSubSpecShards.size == perSubSpecEntityKeys.size)
-    // Materialize per-sub-spec, per-date groups so we can join across sub-specs by date.
     val groupsByDate: SortedMap<LocalDate, MutableList<EntityKeysWithLabeledEvents<Message>>> =
       sortedMapOf()
     for ((index, shards) in perSubSpecShards.withIndex()) {
@@ -385,7 +443,6 @@ class GenerateSyntheticData : Runnable {
       ProtoReflection.DEFAULT_TYPE_URL_PREFIX +
         "/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
 
-    // This is the relative location from which population and data spec textprotos are read.
     private val TEST_DATA_PATH =
       Paths.get(
         "wfa_measurement_system",
@@ -404,10 +461,6 @@ class GenerateSyntheticData : Runnable {
         .also { EventAnnotationsProto.registerAllExtensions(it) }
         .unmodifiable
 
-    /**
-     * [Descriptors.FileDescriptor]s of protobuf types known at compile time that may be loaded from
-     * a [DescriptorProtos.FileDescriptorSet] without being included in the set's contents.
-     */
     private val COMPILED_PROTOBUF_TYPES: Iterable<Descriptors.FileDescriptor> =
       (ProtoReflection.WELL_KNOWN_TYPES.asSequence() +
           EventAnnotationsProto.getDescriptor() +
@@ -419,13 +472,6 @@ class GenerateSyntheticData : Runnable {
       StreamingAeadConfig.register()
     }
 
-    /**
-     * Resolves the event message [Message] instance for the supplied [eventMessageTypeUrl].
-     *
-     * When [eventMessageTypeUrl] matches [DEFAULT_EVENT_MESSAGE_TYPE_URL], returns the compiled
-     * [TestEvent] default instance directly. Otherwise builds a [DynamicMessage] from the supplied
-     * [descriptorSetFiles].
-     */
     fun resolveEventMessageInstance(
       eventMessageTypeUrl: String,
       descriptorSetFiles: Collection<File>,
@@ -455,11 +501,6 @@ class GenerateSyntheticData : Runnable {
       return DynamicMessage.getDefaultInstance(descriptor)
     }
 
-    /**
-     * Builds a [TypeRegistry] containing the descriptor of [eventMessageInstance] plus the
-     * descriptors of all of its message-type template fields, so that textproto parsing can resolve
-     * `Any`-typed population attributes via the `[type.googleapis.com/<full_name>] { ... }` syntax.
-     */
     fun buildEventMessageTypeRegistry(eventMessageInstance: Message): TypeRegistry {
       val descriptors: Set<Descriptors.Descriptor> = buildSet {
         add(eventMessageInstance.descriptorForType)
@@ -472,21 +513,6 @@ class GenerateSyntheticData : Runnable {
       return TypeRegistry.newBuilder().add(descriptors).build()
     }
 
-    /**
-     * Builds a [FakeKmsClient] registered to serve [kekUri] from a fake KEK keyset persisted at
-     * [fakeKekKeysetFile].
-     *
-     * `FakeKmsClient` is in-memory only, so to round-trip envelope-encrypted data across processes
-     * the underlying fake KEK keyset must itself be persisted somewhere. Behavior:
-     * * `fakeKekKeysetFile == null` — generate a fresh fake KEK keyset in memory (process-local;
-     *   cannot be decrypted by a later process).
-     * * `fakeKekKeysetFile` exists — load and reuse the fake KEK keyset from disk.
-     * * `fakeKekKeysetFile` does not exist — generate a fresh fake KEK keyset and write it to disk
-     *   so it can be reloaded later.
-     *
-     * The keyset is serialized in cleartext via [TinkProtoKeysetFormat], which is appropriate
-     * because [FakeKmsClient] itself provides no protection — this is a testing-only KMS.
-     */
     fun buildFakeKmsClient(kekUri: String, fakeKekKeysetFile: File?): FakeKmsClient {
       val fakeKekKeysetHandle: KeysetHandle =
         if (fakeKekKeysetFile != null && fakeKekKeysetFile.exists()) {
@@ -508,15 +534,53 @@ class GenerateSyntheticData : Runnable {
         setAead(kekUri, fakeKekKeysetHandle.getPrimitive(Aead::class.java))
       }
     }
+
+    fun buildSpecsFromConfig(
+      config: CloudTestDataConfig,
+      edpName: String,
+    ): List<ResolvedEventGroupSpec> {
+      val edpEventGroups = config.eventGroupsList.filter { it.edpName == edpName }
+      require(edpEventGroups.isNotEmpty()) { "No event groups found for EDP '$edpName' in config" }
+      return edpEventGroups.flatMap { eg ->
+        if (eg.entityKeySpecsList.isEmpty()) {
+          listOf(
+            ResolvedEventGroupSpec(
+              eventGroupReferenceId = eg.eventGroupReferenceId,
+              subSpecs =
+                listOf(
+                  ResolvedSubSpec(
+                    dataSpecResourcePath = eg.dataSpecResourcePath,
+                    entityKeys = listOf(EntityKey("campaign", eg.eventGroupReferenceId)),
+                  )
+                ),
+            )
+          )
+        } else {
+          eg.entityKeySpecsList.map { eks ->
+            ResolvedEventGroupSpec(
+              eventGroupReferenceId = "${eks.entityType}-${eks.entityId}",
+              subSpecs =
+                listOf(
+                  ResolvedSubSpec(
+                    dataSpecResourcePath = eks.dataSpecResourcePath,
+                    entityKeys = listOf(EntityKey(eks.entityType, eks.entityId)),
+                  )
+                ),
+            )
+          }
+        }
+      }
+    }
   }
 }
 
-/**
- * Flags describing a single synthetic event group to generate. An event group is identified by its
- * [eventGroupReferenceId] and produces one impressions blob per date. Each blob is populated by one
- * or more [EntityKeysSubSpecFlags]: each sub-spec contributes its own data-spec textproto and its
- * own EntityKeys, allowing different impressions in the same blob to carry different EntityKeys.
- */
+data class ResolvedEventGroupSpec(
+  val eventGroupReferenceId: String,
+  val subSpecs: List<ResolvedSubSpec>,
+)
+
+data class ResolvedSubSpec(val dataSpecResourcePath: String, val entityKeys: List<EntityKey>)
+
 private class EventGroupSpecFlags {
   @Option(
     names = ["--event-group-reference-id"],
@@ -538,11 +602,6 @@ private class EventGroupSpecFlags {
     private set
 }
 
-/**
- * One sub-spec contribution to an event group's per-date impressions blob: a data-spec textproto
- * and a list of [LabeledImpression.EntityKey]s that should be stamped on every impression generated
- * from this sub-spec.
- */
 private class EntityKeysSubSpecFlags {
   @Option(
     names = ["--data-spec-resource-path"],
@@ -564,9 +623,6 @@ private class EntityKeysSubSpecFlags {
     private set
 }
 
-/**
- * Flags describing a single `LabeledImpression.EntityKey` to stamp on every generated impression.
- */
 private class EntityKeyFlags {
   @Option(
     names = ["--entity-key-type"],
