@@ -44,7 +44,7 @@ object ImpressionTestDataConfigs {
     else TEST_DATA_RUNTIME_PATH.resolve(path).toFile()
   }
 
-  fun resolveSpecFile(path: String): SyntheticEventGroupSpec {
+  fun resolveSyntheticEventGroupSpec(path: String): SyntheticEventGroupSpec {
     return parseTextProto(resolveSpecPath(path), SyntheticEventGroupSpec.getDefaultInstance())
   }
 
@@ -80,13 +80,13 @@ object ImpressionTestDataConfigs {
 
   private fun toEventGroupConfig(eg: SyntheticEventGroup): EventGroupConfig {
     return if (eg.entityKeySpecsList.isEmpty()) {
-      EventGroupConfig.LegacySpec(resolveSpecFile(eg.dataSpecResourcePath))
+      EventGroupConfig.LegacySpec(resolveSyntheticEventGroupSpec(eg.dataSpecResourcePath))
     } else {
       EventGroupConfig.MultiEntityKey(
         eg.entityKeySpecsList.map { eksProto ->
           EntityKeySpec(
             entityKey = EntityKey(eksProto.entityType, eksProto.entityId),
-            spec = resolveSpecFile(eksProto.dataSpecResourcePath),
+            spec = resolveSyntheticEventGroupSpec(eksProto.dataSpecResourcePath),
             entityMetadata = if (eg.hasEntityMetadata()) eg.entityMetadata else null,
           )
         }
