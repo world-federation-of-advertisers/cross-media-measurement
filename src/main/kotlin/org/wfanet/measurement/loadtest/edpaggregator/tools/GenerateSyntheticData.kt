@@ -145,19 +145,6 @@ class GenerateSyntheticData : Runnable {
     private set
 
   @Option(
-    names = ["--population-spec-resource-path"],
-    description =
-      [
-        "The path to the resource of the v2alpha PopulationSpec. Must be textproto format.",
-        "The PopulationSpec must include attribute messages on each SubPopulation that are " +
-          "instances of the event message templates (e.g. for TestEvent, a Person attribute).",
-      ],
-    required = false,
-  )
-  var populationSpecResourcePath: String? = null
-    private set
-
-  @Option(
     names = ["--event-message-type-url"],
     description =
       [
@@ -285,10 +272,7 @@ class GenerateSyntheticData : Runnable {
       "event-group-reference-id values must be unique: $eventGroupReferenceIds"
     }
 
-    val resolvedPopulationSpecPath =
-      requireNotNull(populationSpecResourcePath) {
-        "--population-spec-resource-path is required when config file does not set population_spec_resource_path"
-      }
+    val resolvedPopulationSpecPath = populationSpecResourcePath
 
     val eventMessageInstance: Message =
       resolveEventMessageInstance(eventMessageTypeUrl, eventMessageDescriptorSetFiles)
@@ -368,12 +352,12 @@ class GenerateSyntheticData : Runnable {
     }
   }
 
+  private var populationSpecResourcePath: String = ""
+
   private fun resolveEventGroupSpecs(): List<ResolvedEventGroupSpec> {
     val config: CloudTestDataConfig =
       parseTextProto(configFile, CloudTestDataConfig.getDefaultInstance())
-    if (populationSpecResourcePath == null) {
-      populationSpecResourcePath = config.populationSpecResourcePath
-    }
+    populationSpecResourcePath = config.populationSpecResourcePath
     return buildSpecsFromConfig(config, edpName)
   }
 
