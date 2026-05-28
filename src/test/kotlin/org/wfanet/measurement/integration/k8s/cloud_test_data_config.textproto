@@ -19,6 +19,7 @@ event_groups {
     entity_type: "creative-id"
     entity_id: "edpa-eg-creative-id-1"
     data_spec_resource_path: "small_data_spec.textproto"
+    output_key: "creative"
   }
   entity_metadata {
     fields {
@@ -30,7 +31,6 @@ event_groups {
       value { string_value: "awareness" }
     }
   }
-  output_key: "-creative"
 }
 
 # Multi-creative entity key event group with two sub-specs (edp7).
@@ -41,11 +41,13 @@ event_groups {
     entity_type: "creative-id"
     entity_id: "edpa-eg-multi-creative-1"
     data_spec_resource_path: "small_data_spec.textproto"
+    output_key: "multi-creative"
   }
   entity_key_specs {
     entity_type: "creative-id"
     entity_id: "edpa-eg-multi-creative-2"
     data_spec_resource_path: "small_data_spec_2.textproto"
+    output_key: "multi-creative-2"
   }
   entity_metadata {
     fields {
@@ -57,7 +59,6 @@ event_groups {
       value { string_value: "awareness" }
     }
   }
-  output_key: "-multi-creative"
 }
 
 # Legacy event group for edpa_meta EDP.

@@ -274,8 +274,11 @@ class GenerateSyntheticData : Runnable {
 
     val eventGroupSpecs: List<ResolvedEventGroupSpec> = resolveEventGroupSpecs()
 
-    require(flatOutputBasePath == null || eventGroupSpecs.size == 1) {
-      "--flat-output-base-path is incompatible with multiple event group specs (output paths would collide)"
+    if (flatOutputBasePath != null) {
+      val outputKeys = eventGroupSpecs.map { it.outputKey }
+      require(outputKeys.toSet().size == outputKeys.size) {
+        "output_key values must be unique when using --flat-output-base-path: $outputKeys"
+      }
     }
     val eventGroupReferenceIds = eventGroupSpecs.map { it.eventGroupReferenceId }
     require(eventGroupReferenceIds.toSet().size == eventGroupReferenceIds.size) {
@@ -355,6 +358,7 @@ class GenerateSyntheticData : Runnable {
             outputBucket,
             storagePath,
             schema,
+            spec.outputKey,
           )
         impressionWriter.writeLabeledImpressionData(
           coalescedShards,
@@ -561,7 +565,7 @@ class GenerateSyntheticData : Runnable {
           eg.entityKeySpecsList.map { eks ->
             ResolvedEventGroupSpec(
               eventGroupReferenceId = "${eks.entityType}-${eks.entityId}",
-              outputKey = eg.outputKey,
+              outputKey = eks.outputKey,
               subSpecs =
                 listOf(
                   ResolvedSubSpec(

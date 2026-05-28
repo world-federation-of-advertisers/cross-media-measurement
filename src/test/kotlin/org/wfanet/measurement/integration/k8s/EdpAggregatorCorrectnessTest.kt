@@ -69,8 +69,8 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.Met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
-import org.wfanet.measurement.integration.common.CloudTestDataConfigs
 import org.wfanet.measurement.integration.common.EventGroupConfig
+import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
@@ -512,10 +512,10 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
 
     val syntheticEventGroupMap: Map<String, EventGroupConfig> =
-      CloudTestDataConfigs.toSyntheticEventGroupMap(CLOUD_TEST_DATA_CONFIG, specResolver)
+      ImpressionTestDataConfigs.toSyntheticEventGroupMap(CLOUD_TEST_DATA_CONFIG, specResolver)
 
     val resolvedSyntheticEventGroupMap: Map<String, EventGroupConfig> =
-      CloudTestDataConfigs.toResolvedEventGroupMap(CLOUD_TEST_DATA_CONFIG, specResolver)
+      ImpressionTestDataConfigs.toResolvedEventGroupMap(CLOUD_TEST_DATA_CONFIG, specResolver)
 
     private val ZONE_ID = ZoneId.of("UTC")
 

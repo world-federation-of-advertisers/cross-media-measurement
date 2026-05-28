@@ -19,7 +19,7 @@ import org.measurement.integration.k8s.testing.CloudTestDataConfig.SyntheticEven
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 
-object CloudTestDataConfigs {
+object ImpressionTestDataConfigs {
 
   /**
    * Converts a [CloudTestDataConfig] proto into the [EventGroupConfig] map keyed by
@@ -65,20 +65,6 @@ object CloudTestDataConfigs {
       .toMap()
   }
 
-  /**
-   * Builds GenerateSyntheticData CLI arguments from the config, grouped by EDP name.
-   *
-   * Each entity-key spec becomes its own event group invocation so that the ResultsFulfiller can
-   * match blobs by the resolved ref ID (${entityType}-${entityId}).
-   *
-   * Returns a map of edpName to the list of per-event-group CLI flag segments.
-   */
-  fun toGenerateSyntheticDataArgs(config: CloudTestDataConfig): Map<String, List<String>> {
-    return config.eventGroupsList
-      .groupBy { it.edpName }
-      .mapValues { (_, eventGroups) -> eventGroups.flatMap { eg -> toEventGroupArgs(eg) } }
-  }
-
   private fun toEventGroupConfig(
     eg: SyntheticEventGroup,
     specResolver: (String) -> SyntheticEventGroupSpec,
@@ -94,25 +80,6 @@ object CloudTestDataConfigs {
             entityMetadata = if (eg.hasEntityMetadata()) eg.entityMetadata else null,
           )
         }
-      )
-    }
-  }
-
-  private fun toEventGroupArgs(eg: SyntheticEventGroup): List<String> {
-    if (eg.entityKeySpecsList.isEmpty()) {
-      return listOf(
-        "--event-group-reference-id=${eg.eventGroupReferenceId}",
-        "--data-spec-resource-path=${eg.dataSpecResourcePath}",
-        "--entity-key-type=campaign",
-        "--entity-key-id=${eg.eventGroupReferenceId}",
-      )
-    }
-    return eg.entityKeySpecsList.flatMap { eks ->
-      listOf(
-        "--event-group-reference-id=${eks.entityType}-${eks.entityId}",
-        "--data-spec-resource-path=${eks.dataSpecResourcePath}",
-        "--entity-key-type=${eks.entityType}",
-        "--entity-key-id=${eks.entityId}",
       )
     }
   }

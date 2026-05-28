@@ -343,8 +343,8 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "cloud_test_data_configs",
-    srcs = ["CloudTestDataConfigs.kt"],
+    name = "impression_test_data_configs",
+    srcs = ["ImpressionTestDataConfigs.kt"],
     deps = [
         ":event_group_config",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_data_generation",
