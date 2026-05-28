@@ -571,7 +571,7 @@ class GenerateSyntheticData : Runnable {
 
 data class ResolvedEventGroupSpec(
   val eventGroupReferenceId: String,
-  val outputKey: String = "",
+  val outputKey: String,
   val subSpecs: List<ResolvedSubSpec>,
 )
 
