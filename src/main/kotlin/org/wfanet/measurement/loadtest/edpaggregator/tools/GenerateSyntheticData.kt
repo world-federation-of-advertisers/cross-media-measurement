@@ -38,7 +38,6 @@ import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
@@ -84,14 +83,6 @@ class GenerateSyntheticData : Runnable {
     required = false,
   )
   private var storagePath: File? = null
-
-  @Option(
-    names = ["--model-line"],
-    description = ["The full model line resource name for this campaign."],
-    required = true,
-  )
-  lateinit var modelLine: String
-    private set
 
   @Option(
     names = ["--kek-uri"],
@@ -173,25 +164,6 @@ class GenerateSyntheticData : Runnable {
     private set
 
   @Option(
-    names = ["--impression-metadata-base-path"],
-    description = ["Base path where to store the Impressions files"],
-    required = false,
-  )
-  var impressionMetadataBasePath: String? = null
-    private set
-
-  @Option(
-    names = ["--flat-output-base-path"],
-    description =
-      [
-        "Optional. When set, outputs files directly under <base-path>/<date>/ without model-line and event-group-reference-id path segments."
-      ],
-    required = false,
-  )
-  var flatOutputBasePath: String? = null
-    private set
-
-  @Option(
     names = ["--config-file"],
     description =
       [
@@ -253,9 +225,6 @@ class GenerateSyntheticData : Runnable {
 
   @kotlin.io.path.ExperimentalPathApi
   override fun run() {
-    require(flatOutputBasePath == null || impressionMetadataBasePath == null) {
-      "Cannot specify both --impression-metadata-base-path and --flat-output-base-path; set exactly one or neither"
-    }
     require(kmsType == KmsType.FAKE || fakeKekKeysetFile == null) {
       "--fake-kek-keyset-file is only valid when --kms-type=FAKE"
     }
@@ -264,12 +233,6 @@ class GenerateSyntheticData : Runnable {
       parseTextProto(configFile, ImpressionTestDataConfig.getDefaultInstance())
     val eventGroupSpecs: List<ResolvedEventGroupSpec> = buildSpecsFromConfig(config, edpName)
 
-    if (flatOutputBasePath != null) {
-      val outputKeys = eventGroupSpecs.map { it.outputKey }
-      require(outputKeys.toSet().size == outputKeys.size) {
-        "output_key values must be unique when using --flat-output-base-path: $outputKeys"
-      }
-    }
     val eventGroupReferenceIds = eventGroupSpecs.map { it.eventGroupReferenceId }
     require(eventGroupReferenceIds.toSet().size == eventGroupReferenceIds.size) {
       "event-group-reference-id values must be unique: $eventGroupReferenceIds"
@@ -311,7 +274,6 @@ class GenerateSyntheticData : Runnable {
             "GCP_TO_AWS is not yet supported in GenerateSyntheticData. Use VerifySyntheticData."
           )
       }
-    val modelLineName = ModelLineKey.fromName(modelLine)?.modelLineId
 
     runBlocking {
       for (spec in eventGroupSpecs) {
@@ -331,12 +293,10 @@ class GenerateSyntheticData : Runnable {
           }
         val coalescedShards: Sequence<EntityKeyedLabeledEventDateShard<Message>> =
           coalesceByDate(perSubSpecShards, spec.subSpecs.map { listOf(it.entityKey) })
-        val eventGroupPath =
-          "model-line/$modelLineName/event-group-reference-id/${spec.eventGroupReferenceId}"
         val impressionWriter =
           ImpressionsWriter(
             spec.eventGroupReferenceId,
-            eventGroupPath,
+            "",
             kekUri,
             kmsClient,
             outputBucket,
@@ -347,9 +307,8 @@ class GenerateSyntheticData : Runnable {
           )
         impressionWriter.writeLabeledImpressionData(
           coalescedShards,
-          modelLine,
-          impressionsBasePath = impressionMetadataBasePath,
-          flatOutputBasePath = flatOutputBasePath,
+          config.modelLine,
+          flatOutputBasePath = spec.outputBasePath,
         )
       }
     }
@@ -540,6 +499,7 @@ class GenerateSyntheticData : Runnable {
             ResolvedEventGroupSpec(
               eventGroupReferenceId = eg.eventGroupReferenceId,
               outputKey = eg.outputKey,
+              outputBasePath = eg.outputBasePath,
               subSpecs =
                 listOf(
                   ResolvedSubSpec(
@@ -554,6 +514,7 @@ class GenerateSyntheticData : Runnable {
             ResolvedEventGroupSpec(
               eventGroupReferenceId = eg.eventGroupReferenceId,
               outputKey = eg.outputKey,
+              outputBasePath = eg.outputBasePath,
               subSpecs =
                 eg.entityKeySpecsList.map { eks ->
                   ResolvedSubSpec(
@@ -572,6 +533,7 @@ class GenerateSyntheticData : Runnable {
 data class ResolvedEventGroupSpec(
   val eventGroupReferenceId: String,
   val outputKey: String,
+  val outputBasePath: String,
   val subSpecs: List<ResolvedSubSpec>,
 )
 

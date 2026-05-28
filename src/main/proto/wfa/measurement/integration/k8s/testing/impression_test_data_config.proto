@@ -59,6 +59,11 @@ message ImpressionTestDataConfig {
     // EDP short name that owns this event group (e.g. "edp7", "edpa_meta").
     string edp_name = 4;
 
+    // Base path for flat-folder output. Files are written as
+    // {output_base_path}/{date}/impressions{output_key_suffix} and
+    // {output_base_path}/{date}/metadata{output_key_suffix}.binpb.
+    string output_base_path = 7;
+
     // Optional entity metadata set on the Kingdom event group during
     // registration (e.g. placement, objective). Used only by test-side code
     // (EdpAggregatorCorrectnessTest); not consumed by GenerateSyntheticData.
@@ -82,4 +87,7 @@ message ImpressionTestDataConfig {
   // Path to the PopulationSpec textproto. Either an absolute filesystem
   // path or a path relative to the loadtest dataprovider directory.
   string population_spec_resource_path = 2;
+
+  // Full ModelLine resource name written into BlobDetails metadata.
+  string model_line = 3;
 }

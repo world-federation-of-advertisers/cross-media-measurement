@@ -173,15 +173,18 @@ class ImpressionTestDataConfigsTest {
 
     private val CONFIG = impressionTestDataConfig {
       populationSpecResourcePath = "small_population_spec.textproto"
+      modelLine = "modelProviders/foo/modelSuites/bar/modelLines/baz"
       eventGroups += syntheticEventGroup {
         eventGroupReferenceId = "edpa-eg-reference-id-1"
         dataSpecResourcePath = "small_data_spec.textproto"
         edpName = "edp7"
+        outputBasePath = "edp/edp7"
       }
       eventGroups += syntheticEventGroup {
         eventGroupReferenceId = "creative-id-edpa-eg-creative-id-1"
         edpName = "edp7"
         outputKey = "creative"
+        outputBasePath = "edp/edp7"
         entityMetadata = ENTITY_METADATA
         entityKeySpecs += entityKeySpec {
           entityType = "creative-id"
@@ -193,6 +196,7 @@ class ImpressionTestDataConfigsTest {
         eventGroupReferenceId = "multi-creative"
         edpName = "edp7"
         outputKey = "multi-creative"
+        outputBasePath = "edp/edp7"
         entityMetadata = ENTITY_METADATA
         entityKeySpecs += entityKeySpec {
           entityType = "creative-id"
@@ -209,6 +213,7 @@ class ImpressionTestDataConfigsTest {
         eventGroupReferenceId = "edpa-eg-reference-id-2"
         dataSpecResourcePath = "small_data_spec.textproto"
         edpName = "edpa_meta"
+        outputBasePath = "edp/edpa_meta"
       }
     }
   }
