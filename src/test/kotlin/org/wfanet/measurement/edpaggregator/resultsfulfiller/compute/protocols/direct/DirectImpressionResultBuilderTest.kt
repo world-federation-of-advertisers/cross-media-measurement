@@ -47,7 +47,7 @@ class DirectImpressionResultBuilderTest {
           directNoiseMechanism = DirectNoiseMechanism.NONE,
           maxPopulation = null,
           maxFrequencyFromSpec = MAX_FREQUENCY,
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = null,
           totalUncappedImpressions = 9999L, // Bogus value to verify it's not used
         )
@@ -76,7 +76,7 @@ class DirectImpressionResultBuilderTest {
           directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
           maxPopulation = null,
           maxFrequencyFromSpec = MAX_FREQUENCY,
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = null,
           totalUncappedImpressions = 9999L, // Bogus value to verify it's not used
         )
@@ -107,7 +107,7 @@ class DirectImpressionResultBuilderTest {
           directNoiseMechanism = DirectNoiseMechanism.NONE,
           maxPopulation = null,
           maxFrequencyFromSpec = MAX_FREQUENCY,
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = -1,
           totalUncappedImpressions = 500L,
         )
@@ -136,7 +136,7 @@ class DirectImpressionResultBuilderTest {
           directNoiseMechanism = DirectNoiseMechanism.NONE,
           maxPopulation = null,
           maxFrequencyFromSpec = MAX_FREQUENCY,
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = MAX_FREQUENCY,
           totalUncappedImpressions = 500L,
         )

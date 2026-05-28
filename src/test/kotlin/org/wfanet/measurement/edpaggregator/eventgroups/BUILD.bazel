@@ -20,6 +20,7 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/com/google/events",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/io/opentelemetry/api",
         "@wfa_common_jvm//imports/java/io/opentelemetry/sdk",
         "@wfa_common_jvm//imports/java/io/opentelemetry/sdk/testing",

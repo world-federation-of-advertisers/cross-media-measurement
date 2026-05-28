@@ -74,10 +74,12 @@ abstract class InProcessReachMeasurementAccuracyTest(
     InProcessCmmsComponents(
       kingdomDataServicesRule,
       duchyDependenciesRule,
-      POPULATION_SPEC,
-      SYNTHETIC_EVENT_GROUP_SPECS,
       useEdpSimulators = true,
       trusTeeKmsClient = ThrowingKmsClient,
+      hmssEnabled = true,
+      trusTeeEnabled = false,
+      populationSpec = POPULATION_SPEC,
+      syntheticEventGroupSpecs = SYNTHETIC_EVENT_GROUP_SPECS,
     )
 
   private lateinit var mcSimulator: EventQueryMeasurementConsumerSimulator
@@ -475,7 +477,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
     @JvmStatic
     fun initConfig() {
       InProcessCmmsComponents.initConfig(
-        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG,
+        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_NO_THRESHOLDS,
         hmssProtocolConfigConfig = HMSS_PROTOCOL_CONFIG_CONFIG,
       )
     }

@@ -21,7 +21,7 @@ import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.computation.KAnonymityParams
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
 /** Factory for creating direct measurement results. */
@@ -36,7 +36,7 @@ object DirectMeasurementResultFactory {
    * @param measurementSpec The measurement specification.
    * @param frequencyData IntArray of VID indices.
    * @param maxPopulation Optional parameter of the max result that should be returned.
-   * @param kAnonymityParams Optional k-anonymity parameters.
+   * @param resultMinimumThresholds Optional small-cell suppression parameters.
    * @param impressionMaxFrequencyPerUser Optional override for max frequency per user. -1 means no
    *   frequency cap.
    * @param totalUncappedImpressions Total impression count without frequency capping.
@@ -48,7 +48,7 @@ object DirectMeasurementResultFactory {
     measurementSpec: MeasurementSpec,
     frequencyData: IntArray,
     maxPopulation: Int?,
-    kAnonymityParams: KAnonymityParams?,
+    resultMinimumThresholds: ResultMinimumThresholds?,
     impressionMaxFrequencyPerUser: Int?,
     totalUncappedImpressions: Long,
   ): Measurement.Result {
@@ -65,7 +65,7 @@ object DirectMeasurementResultFactory {
             measurementSpec.vidSamplingInterval.width,
             directNoiseMechanism,
             maxPopulation,
-            kAnonymityParams,
+            resultMinimumThresholds,
           )
         reachAndFrequencyResultBuilder.buildMeasurementResult()
       }
@@ -79,7 +79,7 @@ object DirectMeasurementResultFactory {
             directNoiseMechanism,
             maxPopulation,
             measurementSpec.impression.maximumFrequencyPerUser,
-            kAnonymityParams,
+            resultMinimumThresholds,
             impressionMaxFrequencyPerUser,
             totalUncappedImpressions,
           )
@@ -100,7 +100,7 @@ object DirectMeasurementResultFactory {
             measurementSpec.vidSamplingInterval.width,
             directNoiseMechanism,
             maxPopulation,
-            kAnonymityParams = kAnonymityParams,
+            resultMinimumThresholds = resultMinimumThresholds,
           )
         reachAndFrequencyResultBuilder.buildMeasurementResult()
       }

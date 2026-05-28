@@ -14,9 +14,6 @@
 
 package org.wfanet.measurement.integration.common
 
-import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.Truth.assertWithMessage
-import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
@@ -25,37 +22,28 @@ import com.google.protobuf.struct
 import com.google.protobuf.value
 import java.nio.file.Path
 import java.nio.file.Paths
-import java.util.logging.Logger
-import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
-import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
-import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
-import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
@@ -82,6 +70,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   duchyDependenciesRule:
     ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
   secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
+  hmssEnabled: Boolean,
+  trusTeeEnabled: Boolean,
 ) {
 
   private val pubSubClient: GooglePubSubEmulatorClient by lazy {
@@ -106,6 +96,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       duchyDependenciesRule,
       useEdpSimulators = false,
       trusTeeKmsClient = sharedKmsClient,
+      hmssEnabled = hmssEnabled,
+      trusTeeEnabled = trusTeeEnabled,
     )
 
   @JvmField
@@ -120,7 +112,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   // entity_type="campaign", entity_id and entity_metadata unset). The simulator's
   // ListEventGroups uses the default filter (entity_type_in defaults to ["campaign"]),
   // so edp1 stays visible to existing measurement tests.
-  private val eventGroupConfigsByEdp: Map<String, Map<String, EventGroupConfig>> =
+  protected val eventGroupConfigsByEdp: Map<String, Map<String, EventGroupConfig>> =
     mapOf(
       "edp1" to
         mapOf(
@@ -266,9 +258,9 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     initMcSimulator()
   }
 
-  private lateinit var mcSimulator: EdpAggregatorMeasurementConsumerSimulator
-  private lateinit var mcName: String
-  private lateinit var mcApiKey: String
+  protected lateinit var mcSimulator: EdpAggregatorMeasurementConsumerSimulator
+  protected lateinit var mcName: String
+  protected lateinit var mcApiKey: String
 
   private val publicMeasurementsClient by lazy {
     MeasurementsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
@@ -279,7 +271,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   private val publicCertificatesClient by lazy {
     CertificatesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
   }
-  private val publicEventGroupsClient by lazy {
+  protected val publicEventGroupsClient by lazy {
     EventGroupsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
   }
   private val publicDataProvidersClient by lazy {
@@ -330,264 +322,18 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     }
   }
 
-  @Test
-  fun `create a direct RF measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a direct reach and frequency measurement and verify
-      // its
-      // result.
-      mcSimulator.testDirectReachAndFrequency(runId = "1234", numMeasurements = 1)
-    }
-
-  @Test
-  fun `create a direct reach only measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a direct reach and frequency measurement and verify
-      // its
-      // result.
-      mcSimulator.testDirectReachOnly(runId = "1234", numMeasurements = 1)
-    }
-
-  @Test
-  fun `create incremental direct reach only measurements in same report and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create N incremental direct reach and frequency
-      // measurements and
-      // verify its result.
-      mcSimulator.testDirectReachOnly(runId = "1234", numMeasurements = 3)
-    }
-
-  @Test
-  fun `create an impression measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create an impression measurement and verify its result.
-      mcSimulator.testImpression(
-        "1234",
-        eventGroupFilter = { it.eventGroupReferenceId !in MULTI_ENTITY_KEY_REF_IDS },
-      )
-    }
-
-  @Test
-  fun `create a Hmss reach-only measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a reach and frequency measurement and verify its
-      // result.
-      mcSimulator.testReachOnly(
-        "1234",
-        ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
-        eventGroupFilter = {
-          it.eventGroupReferenceId != MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID &&
-            it.eventGroupReferenceId !in MULTI_ENTITY_KEY_REF_IDS
-        },
-      )
-    }
-
-  @Test
-  fun `create a Hmss RF measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a reach and frequency measurement and verify its
-      // result.
-      mcSimulator.testReachAndFrequency(
-        "1234",
-        ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
-        eventGroupFilter = {
-          it.eventGroupReferenceId != MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID &&
-            it.eventGroupReferenceId !in MULTI_ENTITY_KEY_REF_IDS
-        },
-      )
-    }
-
-  @Test
-  fun `create a TrusTee reach-only measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a TrusTee reach-only measurement and verify its
-      // result.
-      mcSimulator.testReachOnly(
-        "1234",
-        ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
-        eventGroupFilter = {
-          it.eventGroupReferenceId != MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID &&
-            it.eventGroupReferenceId !in MULTI_ENTITY_KEY_REF_IDS
-        },
-      )
-    }
-
-  @Test
-  fun `create a TrusTee RF measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a TrusTee reach and frequency measurement and verify
-      // its
-      // result.
-      mcSimulator.testReachAndFrequency(
-        "1234",
-        ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
-        eventGroupFilter = {
-          it.eventGroupReferenceId != MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID &&
-            it.eventGroupReferenceId !in MULTI_ENTITY_KEY_REF_IDS
-        },
-      )
-    }
-
-  @Test
-  fun `HMSS measurement fails when EDP requires no noise`() {
-    assertFailsWith<IllegalStateException>("Expected measurement to fail") {
-      runBlocking {
-        mcSimulator.testReachOnly(
-          "hmss-no-noise-1234",
-          ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
-          eventGroupFilter = { it.eventGroupReferenceId in HMSS_NO_NOISE_EVENT_GROUP_REF_IDS },
-        )
-      }
-    }
-  }
-
-  @Test
-  fun `TrusTee measurement fails when EDP requires no noise`() {
-    assertFailsWith<IllegalStateException>("Expected measurement to fail") {
-      runBlocking {
-        mcSimulator.testReachOnly(
-          "trustee-no-noise-1234",
-          ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE,
-          eventGroupFilter = { it.eventGroupReferenceId in TRUSTEE_NO_NOISE_EVENT_GROUP_REF_IDS },
-        )
-      }
-    }
-  }
-
-  @Test
-  fun `EDPA-registered EventGroups with entity_key round-trip to the CMMS public API`() =
-    runBlocking {
-      val edpDisplayNameToResourceMap = inProcessCmmsComponents.edpDisplayNameToResourceMap
-
-      for ((edpDisplayName, refConfigs) in eventGroupConfigsByEdp) {
-        val edpResourceName = edpDisplayNameToResourceMap.getValue(edpDisplayName).name
-        val response =
-          publicEventGroupsClient
-            .withPrincipalName(edpResourceName)
-            .listEventGroups(
-              listEventGroupsRequest {
-                parent = edpResourceName
-                pageSize = 1000
-                filter =
-                  ListEventGroupsRequestKt.filter {
-                    entityTypeIn += "campaign"
-                    entityTypeIn += "ad_group"
-                    entityTypeIn += "creative-id"
-                  }
-              }
-            )
-
-        val byRefId = response.eventGroupsList.associateBy { it.eventGroupReferenceId }
-        val expectedRefIds =
-          refConfigs.flatMap { (refId, config) ->
-            when (config) {
-              is EventGroupConfig.LegacySpec -> listOf(refId)
-              is EventGroupConfig.MultiEntityKey ->
-                config.entityKeySpecs.map { spec ->
-                  "${spec.entityKey.entityType}/${spec.entityKey.entityId}"
-                }
-            }
-          }
-        assertWithMessage("EventGroups for $edpDisplayName")
-          .that(byRefId.keys)
-          .containsAtLeastElementsIn(expectedRefIds)
-
-        for ((refId, config) in refConfigs) {
-          when (config) {
-            is EventGroupConfig.LegacySpec -> continue
-            is EventGroupConfig.MultiEntityKey -> {
-              for (entityKeySpec in config.entityKeySpecs) {
-                val derivedRefId =
-                  "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}"
-                val eventGroup = byRefId.getValue(derivedRefId)
-                assertWithMessage("entity_key.entity_type for $derivedRefId")
-                  .that(eventGroup.entityKey.entityType)
-                  .isEqualTo(entityKeySpec.entityKey.entityType)
-                assertWithMessage("entity_key.entity_id for $derivedRefId")
-                  .that(eventGroup.entityKey.entityId)
-                  .isEqualTo(entityKeySpec.entityKey.entityId)
-                assertWithMessage("entity_metadata for $derivedRefId")
-                  .that(eventGroup.eventGroupMetadata.entityMetadata)
-                  .isEqualTo(entityKeySpec.entityMetadata)
-              }
-            }
-          }
-        }
-      }
-    }
-
-  @Test
-  fun `EDPA EventGroups without entity_key default to campaign with no entity_id or metadata`() =
-    runBlocking {
-      val edpDisplayNameToResourceMap = inProcessCmmsComponents.edpDisplayNameToResourceMap
-      val edpResourceName = edpDisplayNameToResourceMap.getValue("edp1").name
-
-      val response =
-        publicEventGroupsClient
-          .withPrincipalName(edpResourceName)
-          .listEventGroups(
-            listEventGroupsRequest {
-              parent = edpResourceName
-              pageSize = 1000
-            }
-          )
-
-      val legacy: EventGroup =
-        response.eventGroupsList.single {
-          it.eventGroupReferenceId == EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID
-        }
-      assertThat(legacy.entityKey.entityType).isEqualTo("campaign")
-      assertThat(legacy.entityKey.entityId).isEmpty()
-      assertThat(legacy.eventGroupMetadata.hasEntityMetadata()).isFalse()
-    }
-
-  @Test
-  fun `direct measurement with multi-entity-key filtering returns correct subset`() = runBlocking {
-    mcSimulator.testDirectReachAndFrequency(
-      runId = "1235",
-      numMeasurements = 1,
-      eventGroupFilter = { it.eventGroupReferenceId in MULTI_ENTITY_KEY_REF_IDS },
-    )
-  }
-
-  @Test
-  fun `default ListEventGroups filter hides non-campaign EventGroups`() = runBlocking {
-    val response =
-      publicEventGroupsClient
-        .withAuthenticationKey(mcApiKey)
-        .listEventGroups(
-          listEventGroupsRequest {
-            parent = mcName
-            pageSize = 1000
-          }
-        )
-
-    val refIds = response.eventGroupsList.map { it.eventGroupReferenceId }.toSet()
-    assertThat(refIds).contains(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID)
-    for ((_, refConfigs) in eventGroupConfigsByEdp) {
-      for ((_, config) in refConfigs) {
-        if (config is EventGroupConfig.MultiEntityKey) {
-          for (entityKeySpec in config.entityKeySpecs) {
-            val derivedRefId =
-              "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}"
-            assertThat(refIds).doesNotContain(derivedRefId)
-          }
-        }
-      }
-    }
-  }
-
   companion object {
     // edp1 deliberately has no entity_key/entity_metadata override (legacy path); it also
     // happens
     // to be the EDP that requires no measurement noise on the HMSS protocol, used by the
     // HMSS-failure path test.
-    private const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-1"
+    internal const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-1"
     private const val HMSS_NO_NOISE_EDP_EVENT_GROUP_REF_ID = EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID
     private const val TRUSTEE_NO_NOISE_EDP_EVENT_GROUP_REF_ID = "ad_group/edpa-eg-reference-id-3"
-    private const val MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID = "ad_group/edpa-eg-reference-id-4"
+    internal const val MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID =
+      "ad_group/edpa-eg-reference-id-4"
 
-    private val MULTI_ENTITY_KEY_REF_IDS =
+    internal val MULTI_ENTITY_KEY_REF_IDS =
       setOf(
         "$CREATIVE_ID_ENTITY_TYPE/$MULTI_CREATIVE_A_ID",
         "$CREATIVE_ID_ENTITY_TYPE/$MULTI_CREATIVE_B_ID",
@@ -597,16 +343,15 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     private const val CREATIVE_ID_ENTITY_TYPE = "creative-id"
 
     /** EventGroups whose EDPs cannot satisfy a single-party HMSS measurement's noise contract. */
-    private val HMSS_NO_NOISE_EVENT_GROUP_REF_IDS =
+    internal val HMSS_NO_NOISE_EVENT_GROUP_REF_IDS =
       setOf(HMSS_NO_NOISE_EDP_EVENT_GROUP_REF_ID, MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID)
 
     /**
      * EventGroups whose EDPs cannot satisfy a single-party TrusTee measurement's noise contract.
      */
-    private val TRUSTEE_NO_NOISE_EVENT_GROUP_REF_IDS =
+    internal val TRUSTEE_NO_NOISE_EVENT_GROUP_REF_IDS =
       setOf(TRUSTEE_NO_NOISE_EDP_EVENT_GROUP_REF_ID, MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID)
 
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val modelLineName =
       "modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelLines/AAAAAAAAAHs"
     // Epsilon can vary from 0.0001 to 1.0, delta = 1e-15 is a realistic value.
@@ -680,7 +425,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     @JvmStatic
     fun initConfig() {
       InProcessCmmsComponents.initConfig(
-        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG,
+        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_NO_THRESHOLDS,
         hmssProtocolConfigConfig = HMSS_PROTOCOL_CONFIG_CONFIG,
       )
     }

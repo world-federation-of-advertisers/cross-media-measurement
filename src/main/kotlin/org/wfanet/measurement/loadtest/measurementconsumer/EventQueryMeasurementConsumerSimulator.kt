@@ -68,6 +68,7 @@ import org.wfanet.measurement.loadtest.dataprovider.EventQuery
  *   in the [MeasurementSpec].
  * @param initialResultPollingDelay Initial delay before polling for results.
  * @param maximumResultPollingDelay Maximum delay between polling attempts.
+ * @param onMeasurementsCreated Optional callback invoked after measurements are created.
  * @see MeasurementConsumerSimulator
  */
 class EventQueryMeasurementConsumerSimulator(
@@ -85,6 +86,7 @@ class EventQueryMeasurementConsumerSimulator(
   private val eventRange: OpenEndTimeRange = DEFAULT_EVENT_RANGE,
   initialResultPollingDelay: Duration = Duration.ofSeconds(1),
   maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
+  onMeasurementsCreated: (() -> Unit)? = null,
 ) :
   MeasurementConsumerSimulator(
     measurementConsumerData,
@@ -98,6 +100,7 @@ class EventQueryMeasurementConsumerSimulator(
     expectedDirectNoiseMechanism,
     initialResultPollingDelay,
     maximumResultPollingDelay,
+    onMeasurementsCreated = onMeasurementsCreated,
   ) {
 
   override fun Flow<EventGroup>.filterEventGroups(): Flow<EventGroup> {
@@ -151,9 +154,9 @@ class EventQueryMeasurementConsumerSimulator(
     percentage: Double,
   ): RequisitionInfo {
     val requisitionSpec = requisitionSpec {
-      for (eventGroup in eventGroups) {
-        events =
-          RequisitionSpecKt.events {
+      events =
+        RequisitionSpecKt.events {
+          for (eventGroup in eventGroups) {
             this.eventGroups +=
               RequisitionSpecKt.eventGroupEntry {
                 key = eventGroup.name
@@ -164,7 +167,7 @@ class EventQueryMeasurementConsumerSimulator(
                   }
               }
           }
-      }
+        }
       measurementPublicKey = measurementConsumer.publicKey.message
       this.nonce = nonce
     }
