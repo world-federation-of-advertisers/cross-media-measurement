@@ -22,7 +22,6 @@ import com.google.type.interval
 import java.io.File
 import java.time.LocalDate
 import java.time.ZoneId
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -392,7 +391,7 @@ class ImpressionDataSourceProviderTest {
     }
 
   @Test
-  fun `getImpressionsMetadataByEntityKey builds correct filter`(): Unit = runBlocking {
+  fun `listImpressionDataSources by entity key builds correct filter`(): Unit = runBlocking {
     val svc = createService()
 
     whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
@@ -418,7 +417,7 @@ class ImpressionDataSourceProviderTest {
       }
     }
 
-    val results = svc.getImpressionsMetadataByEntityKey(modelLine, queryEntityKey, period).toList()
+    val results = svc.listImpressionDataSources(modelLine, queryEntityKey, period)
 
     assertThat(results).isEmpty()
 

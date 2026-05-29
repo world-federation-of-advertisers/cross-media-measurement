@@ -176,7 +176,7 @@ class ImpressionDataSourceProvider(
    * @param period the time period to filter by
    */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  fun getImpressionsMetadataByEntityKey(
+  private fun getImpressionsMetadataByEntityKey(
     reportModelLine: String,
     entityKey: EntityKey,
     period: Interval,
