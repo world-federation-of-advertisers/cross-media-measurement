@@ -31,9 +31,11 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 import org.wfanet.measurement.storage.SelectedStorageClient
 
@@ -95,6 +97,39 @@ class ImpressionDataSourceProvider(
   }
 
   /**
+   * Lists impression data sources for an entity key within a period.
+   *
+   * @param entityKey entity key to query by.
+   * @param period closed-open time interval in UTC.
+   * @return sources covering the requested period; empty if the period maps to no dates.
+   * @throws ImpressionReadException if a required metadata blob does not exist.
+   * @throws com.google.protobuf.InvalidProtocolBufferException if a metadata blob is present but
+   *   contains invalid `BlobDetails`.
+   */
+  suspend fun listImpressionDataSources(
+    modelLine: String,
+    entityKey: EntityKey,
+    period: Interval,
+  ): List<ImpressionDataSource> {
+    logger.info("Listing impression Data Sources by entity key...")
+    val impressionMetadata: Flow<ImpressionMetadata> =
+      getImpressionsMetadataByEntityKey(modelLine, entityKey, period)
+    return impressionMetadata
+      .map { metadata ->
+        logger.info("Processing impression metadata: $metadata")
+        val blobDetails = readBlobDetails(metadata.blobUri)
+
+        ImpressionDataSource(
+          modelLine = modelLine,
+          eventGroupReferenceId = metadata.eventGroupReferenceId,
+          interval = metadata.interval,
+          blobDetails = blobDetails,
+        )
+      }
+      .toList()
+  }
+
+  /**
    * Resolve a path to a blob details protobuf record.
    *
    * @param reportModelLine the model line
@@ -127,6 +162,47 @@ class ImpressionDataSourceProvider(
             )
           } catch (e: StatusException) {
             throw Exception("Error listing EventGroups", e)
+          }
+        ResourceList(response.impressionMetadataList, response.nextPageToken)
+      }
+      .flattenConcat()
+  }
+
+  /**
+   * Queries impression metadata by entity key.
+   *
+   * @param reportModelLine the model line
+   * @param entityKey the entity key to query by
+   * @param period the time period to filter by
+   */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+  fun getImpressionsMetadataByEntityKey(
+    reportModelLine: String,
+    entityKey: EntityKey,
+    period: Interval,
+  ): Flow<ImpressionMetadata> {
+
+    logger.info(
+      "Resolving path for impression metadata by entity key: $reportModelLine, $entityKey, $period"
+    )
+    return impressionMetadataStub
+      .listResources { pageToken: String ->
+        val response =
+          try {
+            impressionMetadataStub.listImpressionMetadata(
+              listImpressionMetadataRequest {
+                parent = dataProvider
+                filter =
+                  ListImpressionMetadataRequestKt.filter {
+                    modelLine = reportModelLine
+                    this.entityKeys += entityKey
+                    intervalOverlaps = period
+                  }
+                this.pageToken = pageToken
+              }
+            )
+          } catch (e: StatusException) {
+            throw Exception("Error listing ImpressionMetadata by entity key", e)
           }
         ResourceList(response.impressionMetadataList, response.nextPageToken)
       }

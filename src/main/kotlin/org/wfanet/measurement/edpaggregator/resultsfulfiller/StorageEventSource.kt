@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.launch
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 
 /** Result of processing a single EventReader. */
 data class EventReaderResult(val batchCount: Int, val eventCount: Int)
@@ -182,11 +183,19 @@ class StorageEventSource(
         logger.info("EventGroup details: $details")
         details.collectionIntervalsList.flatMap { interval ->
           logger.info("EventGroup collection interval: $interval")
-          impressionDataSourceProvider.listImpressionDataSources(
-            modelLine,
-            details.eventGroupReferenceId,
-            interval,
-          )
+          if (details.hasEntityKey() && details.entityKey.entityId.isNotEmpty()) {
+            val ek = entityKey {
+              entityType = details.entityKey.entityType
+              entityId = details.entityKey.entityId
+            }
+            impressionDataSourceProvider.listImpressionDataSources(modelLine, ek, interval)
+          } else {
+            impressionDataSourceProvider.listImpressionDataSources(
+              modelLine,
+              details.eventGroupReferenceId,
+              interval,
+            )
+          }
         }
       }
     val result = allSources.distinctBy { it.blobDetails.blobUri }
