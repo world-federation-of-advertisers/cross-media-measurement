@@ -45,6 +45,8 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.Mockito.reset
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
@@ -59,11 +61,13 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.EventGroupDetailsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
@@ -1072,6 +1076,83 @@ class StorageEventSourceTest {
 
     assertFailsWith<IllegalArgumentException> { eventSource.getKekUri() }
   }
+
+  @Test
+  fun `generateEventBatches queries by entity key when EventGroupDetails has entity key`(): Unit =
+    runBlocking {
+      val date = LocalDate.of(2025, 1, 1)
+      val sharedRefId = "multi-creative"
+      val entityKeyType = "creative-id"
+      val entityKeyId = "creative-a"
+
+      val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
+
+      val impressionsTmpPath = tmp.newFolder("impressions-entity-key")
+      val metadataTmpPath = tmp.newFolder("metadata-entity-key")
+
+      createImpressionFilesForDate(
+        impressionsTmpPath,
+        metadataTmpPath,
+        date,
+        sharedRefId,
+        kmsClient,
+        kekUri,
+        serializedEncryptionKey,
+      )
+
+      val metadataList =
+        createImpressionMetadataList(listOf(date), sharedRefId, "meta-bucket", modelLine)
+
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(
+          listImpressionMetadataResponse { impressionMetadata += metadataList },
+          ListImpressionMetadataResponse.getDefaultInstance(),
+        )
+
+      val eventGroupDetailsList =
+        listOf(
+          eventGroupDetails {
+            eventGroupReferenceId = "$entityKeyType/$entityKeyId"
+            entityKey =
+              EventGroupDetailsKt.entityKey {
+                this.entityType = entityKeyType
+                this.entityId = entityKeyId
+              }
+            collectionIntervals += interval {
+              startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+              endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+            }
+          }
+        )
+
+      val impressionService = createImpressionDataSourceProvider(metadataTmpPath)
+      val eventSource =
+        StorageEventSource(
+          impressionDataSourceProvider = impressionService,
+          eventGroupDetailsList = eventGroupDetailsList,
+          modelLine = modelLine,
+          kmsClient = kmsClient,
+          impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+          descriptor = TestEvent.getDescriptor(),
+          batchSize = 1000,
+        )
+
+      val batches = eventSource.generateEventBatches().toList()
+
+      assertThat(batches).isNotEmpty()
+      assertThat(batches.flatMap { it.events }).hasSize(5)
+
+      // Verify the request used entity_keys filter, not eventGroupReferenceId
+      val captor = argumentCaptor<ListImpressionMetadataRequest>()
+      org.mockito.kotlin
+        .verify(impressionMetadataServiceMock)
+        .listImpressionMetadata(captor.capture())
+      val request = captor.firstValue
+      assertThat(request.filter.entityKeysList).isNotEmpty()
+      assertThat(request.filter.entityKeysList.first().entityType).isEqualTo(entityKeyType)
+      assertThat(request.filter.entityKeysList.first().entityId).isEqualTo(entityKeyId)
+      assertThat(request.filter.eventGroupReferenceId).isEmpty()
+    }
 
   companion object {
     private val TEST_EVENT = testEvent {

@@ -92,6 +92,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrp
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
@@ -359,14 +360,69 @@ class InProcessEdpAggregatorComponents(
       logger.info("Received mappedEventGroups: $mappedEventGroups")
       runBlocking { writeImpressionData(mappedEventGroups, edpAggregatorShortName) }
 
+      val originalConfigs: Map<String, EventGroupConfig> =
+        eventGroupConfigsByEdp.getValue(edpAggregatorShortName)
       val configByRefId: Map<String, EventGroupConfig> =
         resolveSpecsByReferenceId(edpAggregatorShortName)
 
+      // Create metadata for multi-entity-key configs under the shared ref ID.
+      val handledMultiEntityKeyRefIds = mutableSetOf<String>()
+      for ((refId, config) in originalConfigs) {
+        if (config is EventGroupConfig.MultiEntityKey) {
+          handledMultiEntityKeyRefIds += refId
+          config.entityKeySpecs.forEach { entityKeySpec ->
+            handledMultiEntityKeyRefIds +=
+              "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}"
+          }
+          val allDates: List<LocalDate> =
+            config.entityKeySpecs
+              .flatMap { entityKeySpec ->
+                SyntheticDataGeneration.generateEvents(
+                    TestEvent.getDefaultInstance(),
+                    populationSpec,
+                    entityKeySpec.spec,
+                  )
+                  .map { it.localDate }
+                  .toList()
+              }
+              .distinct()
+          val startDate = allDates.min()
+          val endExclusive = allDates.max().plusDays(1)
+
+          val eventGroupPath = "model-line/$modelLineName/event-group-reference-id/$refId"
+          val impressionsMetadataBucket = "$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName"
+
+          val entityKeys: List<org.wfanet.measurement.edpaggregator.v1alpha.EntityKey> =
+            config.entityKeySpecs.map { entityKeySpec ->
+              entityKey {
+                entityType = entityKeySpec.entityKey.entityType
+                entityId = entityKeySpec.entityKey.entityId
+              }
+            }
+          val impressionsMetadata: List<ImpressionMetadata> =
+            buildImpressionMetadataForDateRange(
+              startInclusive = startDate,
+              endExclusive = endExclusive,
+              eventGroupPath = eventGroupPath,
+              modelLine = modelLineName,
+              eventGroupReferenceId = refId,
+              impressionsMetadataBucket = impressionsMetadataBucket,
+              entityKeys = entityKeys,
+            )
+          logger.info("Storing impression metadata for edp: $edpResourceName (shared ref=$refId)")
+          saveImpressionMetadata(impressionsMetadata, edpResourceName)
+        }
+      }
+
+      // Create metadata for legacy/single-entity-key mapped event groups.
       mappedEventGroups.forEach { mappedEventGroup ->
+        val mappedRefId = mappedEventGroup.eventGroupReferenceId
+        if (handledMultiEntityKeyRefIds.contains(mappedRefId)) return@forEach
+        val resolvedConfig = configByRefId[mappedRefId] ?: return@forEach
         val metaSpec =
-          when (val config = configByRefId.getValue(mappedEventGroup.eventGroupReferenceId)) {
-            is EventGroupConfig.LegacySpec -> config.spec
-            is EventGroupConfig.MultiEntityKey -> config.entityKeySpecs.single().spec
+          when (resolvedConfig) {
+            is EventGroupConfig.LegacySpec -> resolvedConfig.spec
+            is EventGroupConfig.MultiEntityKey -> resolvedConfig.entityKeySpecs.single().spec
           }
         val allDates: List<LocalDate> =
           SyntheticDataGeneration.generateEvents(
@@ -379,7 +435,7 @@ class InProcessEdpAggregatorComponents(
         val startDate = allDates.min()
         val endExclusive = allDates.max().plusDays(1)
 
-        val eventGroupReferenceId = mappedEventGroup.eventGroupReferenceId
+        val eventGroupReferenceId = mappedRefId
         val eventGroupPath =
           "model-line/$modelLineName/event-group-reference-id/$eventGroupReferenceId"
         val impressionsMetadataBucket = "$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName"
@@ -425,6 +481,7 @@ class InProcessEdpAggregatorComponents(
     eventGroupReferenceId: String,
     impressionsMetadataBucket: String,
     zoneId: ZoneId = ZONE_ID,
+    entityKeys: List<org.wfanet.measurement.edpaggregator.v1alpha.EntityKey> = emptyList(),
   ): List<ImpressionMetadata> {
 
     fun dailyInterval(day: LocalDate): Interval = interval {
@@ -450,6 +507,7 @@ class InProcessEdpAggregatorComponents(
         this.eventGroupReferenceId = eventGroupReferenceId
         this.modelLine = modelLine
         interval = perDayInterval
+        this.entityKeys += entityKeys
       }
       logger.info("Impression metadata object: $impressionMetadata")
       out += impressionMetadata
@@ -578,12 +636,65 @@ class InProcessEdpAggregatorComponents(
       )
     }
 
+    val originalConfigs: Map<String, EventGroupConfig> =
+      eventGroupConfigsByEdp.getValue(edpAggregatorShortName)
+
+    // Write multi-entity-key configs as shared blobs under their original ref ID.
+    val writtenMultiEntityKeyRefIds = mutableSetOf<String>()
+    for ((refId, config) in originalConfigs) {
+      when (config) {
+        is EventGroupConfig.MultiEntityKey -> {
+          writtenMultiEntityKeyRefIds += refId
+          config.entityKeySpecs.forEach { entityKeySpec ->
+            writtenMultiEntityKeyRefIds +=
+              "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}"
+          }
+          val impressionWriter =
+            ImpressionsWriter(
+              refId,
+              "model-line/$modelLineName/event-group-reference-id/$refId",
+              kekUri,
+              kmsClient,
+              "$IMPRESSIONS_BUCKET-$edpAggregatorShortName",
+              "$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName",
+              storagePath.toFile(),
+              "file:///",
+            )
+          val shardsByDate =
+            mutableMapOf<LocalDate, MutableList<EntityKeysWithLabeledEvents<TestEvent>>>()
+          for (entityKeySpec in config.entityKeySpecs) {
+            val events =
+              SyntheticDataGeneration.generateEvents(
+                TestEvent.getDefaultInstance(),
+                populationSpec,
+                entityKeySpec.spec,
+              )
+            for (shard in events) {
+              shardsByDate
+                .getOrPut(shard.localDate) { mutableListOf() }
+                .add(
+                  EntityKeysWithLabeledEvents(listOf(entityKeySpec.entityKey), shard.labeledEvents)
+                )
+            }
+          }
+          val entityKeyedEvents: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
+            shardsByDate.entries
+              .sortedBy { it.key }
+              .asSequence()
+              .map { (date, groups) -> EntityKeyedLabeledEventDateShard(date, groups.asSequence()) }
+          impressionWriter.writeLabeledImpressionData(entityKeyedEvents, modelLineName, null)
+        }
+        is EventGroupConfig.LegacySpec -> {}
+      }
+    }
+
+    // Write legacy (non-multi-entity-key) configs as before.
     val configByRefId: Map<String, EventGroupConfig> =
       resolveSpecsByReferenceId(edpAggregatorShortName)
-
     mappedEventGroups.forEach { mappedEventGroup ->
       val refId = mappedEventGroup.eventGroupReferenceId
-      val resolvedConfig = configByRefId.getValue(refId)
+      if (refId in writtenMultiEntityKeyRefIds) return@forEach
+      val resolvedConfig = configByRefId[refId] ?: return@forEach
       val entityKey =
         when (resolvedConfig) {
           is EventGroupConfig.LegacySpec -> null
