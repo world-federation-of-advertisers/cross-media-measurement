@@ -29,6 +29,8 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -37,7 +39,9 @@ import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -176,5 +180,83 @@ class ImpressionDataSourceProviderTest {
     } catch (e: ImpressionReadException) {
       assertThat(e.code).isEqualTo(ImpressionReadException.Code.BLOB_NOT_FOUND)
     }
+  }
+
+  @Test
+  fun `storage-backed returns one source for entity key query`(): Unit = runBlocking {
+    val svc = createService()
+    val bucketName = "meta-bucket"
+    val bucketDir = File(tmp.root, bucketName)
+    bucketDir.mkdirs()
+
+    val date = LocalDate.of(2025, 1, 15)
+    val sharedRefId = "multi-creative"
+    val key = "ds/$date/model-line/$modelLine/event-group-reference-id/$sharedRefId/metadata"
+    val blobDetailsBytes =
+      blobDetails {
+          blobUri = "file:///impressions/$date/$sharedRefId"
+          encryptedDek = EncryptedDek.getDefaultInstance()
+        }
+        .toByteString()
+    val fs = FileSystemStorageClient(bucketDir)
+    fs.writeBlob(key, blobDetailsBytes)
+
+    val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
+    val end = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant()
+
+    val queryEntityKey = entityKey {
+      entityType = "creative-id"
+      entityId = "creative-a"
+    }
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            state = ImpressionMetadata.State.ACTIVE
+            blobUri = "file:///$bucketName/$key"
+            eventGroupReferenceId = sharedRefId
+            interval = interval {
+              startTime = timestamp {
+                seconds = start.epochSecond
+                nanos = start.nano
+              }
+              endTime = timestamp {
+                seconds = end.epochSecond
+                nanos = end.nano
+              }
+            }
+          }
+        }
+      )
+
+    val sources =
+      svc.listImpressionDataSources(
+        modelLine = modelLine,
+        entityKey = queryEntityKey,
+        period =
+          interval {
+            startTime = timestamp {
+              seconds = start.epochSecond
+              nanos = start.nano
+            }
+            endTime = timestamp {
+              seconds = end.epochSecond
+              nanos = end.nano
+            }
+          },
+      )
+
+    assertThat(sources).hasSize(1)
+    assertThat(sources[0].blobDetails.blobUri).isEqualTo("file:///impressions/$date/$sharedRefId")
+    assertThat(sources[0].eventGroupReferenceId).isEqualTo(sharedRefId)
+
+    val captor = argumentCaptor<ListImpressionMetadataRequest>()
+    verify(impressionMetadataServiceMock).listImpressionMetadata(captor.capture())
+    val request = captor.firstValue
+    assertThat(request.filter.entityKeysList).hasSize(1)
+    assertThat(request.filter.entityKeysList[0].entityType).isEqualTo("creative-id")
+    assertThat(request.filter.entityKeysList[0].entityId).isEqualTo("creative-a")
+    assertThat(request.filter.eventGroupReferenceId).isEmpty()
   }
 }
