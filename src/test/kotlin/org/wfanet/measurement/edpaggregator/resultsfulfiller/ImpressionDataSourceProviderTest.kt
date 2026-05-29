@@ -22,6 +22,7 @@ import com.google.type.interval
 import java.io.File
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -258,5 +259,177 @@ class ImpressionDataSourceProviderTest {
     assertThat(request.filter.entityKeysList[0].entityType).isEqualTo("creative-id")
     assertThat(request.filter.entityKeysList[0].entityId).isEqualTo("creative-a")
     assertThat(request.filter.eventGroupReferenceId).isEmpty()
+  }
+
+  @Test
+  fun `storage-backed returns multiple sources for multi-day entity key query`(): Unit =
+    runBlocking {
+      val svc = createService()
+      val bucketName = "meta-bucket"
+      val bucketDir = File(tmp.root, bucketName)
+      bucketDir.mkdirs()
+
+      val dates =
+        listOf(LocalDate.of(2025, 1, 15), LocalDate.of(2025, 1, 16), LocalDate.of(2025, 1, 17))
+      val sharedRefIds = listOf("ref-a", "ref-b", "ref-c")
+      val fs = FileSystemStorageClient(bucketDir)
+
+      for ((i, date) in dates.withIndex()) {
+        val refId = sharedRefIds[i]
+        val key = "ds/$date/model-line/$modelLine/event-group-reference-id/$refId/metadata"
+        val blobDetailsBytes =
+          blobDetails {
+              blobUri = "file:///impressions/$date/$refId"
+              encryptedDek = EncryptedDek.getDefaultInstance()
+            }
+            .toByteString()
+        fs.writeBlob(key, blobDetailsBytes)
+      }
+
+      val start = dates.first().atStartOfDay(ZoneId.of("UTC")).toInstant()
+      val end = dates.last().plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant()
+
+      val testModelLine = modelLine
+      val metadataEntries =
+        dates.mapIndexed { i, date ->
+          val refId = sharedRefIds[i]
+          val dayStart = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
+          val dayEnd = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant()
+          impressionMetadata {
+            state = ImpressionMetadata.State.ACTIVE
+            blobUri =
+              "file:///$bucketName/ds/$date/model-line/$testModelLine/event-group-reference-id/$refId/metadata"
+            eventGroupReferenceId = refId
+            interval = interval {
+              startTime = timestamp {
+                seconds = dayStart.epochSecond
+                nanos = dayStart.nano
+              }
+              endTime = timestamp {
+                seconds = dayEnd.epochSecond
+                nanos = dayEnd.nano
+              }
+            }
+          }
+        }
+
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse { impressionMetadata += metadataEntries })
+
+      val queryEntityKey = entityKey {
+        entityType = "campaign-id"
+        entityId = "campaign-123"
+      }
+
+      val sources =
+        svc.listImpressionDataSources(
+          modelLine = modelLine,
+          entityKey = queryEntityKey,
+          period =
+            interval {
+              startTime = timestamp {
+                seconds = start.epochSecond
+                nanos = start.nano
+              }
+              endTime = timestamp {
+                seconds = end.epochSecond
+                nanos = end.nano
+              }
+            },
+        )
+
+      assertThat(sources).hasSize(3)
+      for ((i, source) in sources.withIndex()) {
+        assertThat(source.blobDetails.blobUri)
+          .isEqualTo("file:///impressions/${dates[i]}/${sharedRefIds[i]}")
+        assertThat(source.eventGroupReferenceId).isEqualTo(sharedRefIds[i])
+      }
+
+      val captor = argumentCaptor<ListImpressionMetadataRequest>()
+      verify(impressionMetadataServiceMock).listImpressionMetadata(captor.capture())
+      val request = captor.firstValue
+      assertThat(request.filter.entityKeysList).hasSize(1)
+      assertThat(request.filter.entityKeysList[0].entityType).isEqualTo("campaign-id")
+      assertThat(request.filter.entityKeysList[0].entityId).isEqualTo("campaign-123")
+      assertThat(request.filter.eventGroupReferenceId).isEmpty()
+    }
+
+  @Test
+  fun `storage-backed returns empty list when no metadata matches entity key`(): Unit =
+    runBlocking {
+      val svc = createService()
+
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse {})
+
+      val queryEntityKey = entityKey {
+        entityType = "creative-id"
+        entityId = "nonexistent"
+      }
+
+      val date = LocalDate.of(2025, 3, 1)
+      val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
+      val end = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant()
+
+      val sources =
+        svc.listImpressionDataSources(
+          modelLine = modelLine,
+          entityKey = queryEntityKey,
+          period =
+            interval {
+              startTime = timestamp {
+                seconds = start.epochSecond
+                nanos = start.nano
+              }
+              endTime = timestamp {
+                seconds = end.epochSecond
+                nanos = end.nano
+              }
+            },
+        )
+
+      assertThat(sources).isEmpty()
+    }
+
+  @Test
+  fun `getImpressionsMetadataByEntityKey builds correct filter`(): Unit = runBlocking {
+    val svc = createService()
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse {})
+
+    val queryEntityKey = entityKey {
+      entityType = "placement-id"
+      entityId = "placement-42"
+    }
+
+    val date = LocalDate.of(2025, 4, 10)
+    val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
+    val end = date.plusDays(5).atStartOfDay(ZoneId.of("UTC")).toInstant()
+
+    val period = interval {
+      startTime = timestamp {
+        seconds = start.epochSecond
+        nanos = start.nano
+      }
+      endTime = timestamp {
+        seconds = end.epochSecond
+        nanos = end.nano
+      }
+    }
+
+    val results = svc.getImpressionsMetadataByEntityKey(modelLine, queryEntityKey, period).toList()
+
+    assertThat(results).isEmpty()
+
+    val captor = argumentCaptor<ListImpressionMetadataRequest>()
+    verify(impressionMetadataServiceMock).listImpressionMetadata(captor.capture())
+    val request = captor.firstValue
+    assertThat(request.filter.entityKeysList).hasSize(1)
+    assertThat(request.filter.entityKeysList[0].entityType).isEqualTo("placement-id")
+    assertThat(request.filter.entityKeysList[0].entityId).isEqualTo("placement-42")
+    assertThat(request.filter.eventGroupReferenceId).isEmpty()
+    assertThat(request.filter.modelLine).isEqualTo(modelLine)
+    assertThat(request.filter.hasIntervalOverlaps()).isTrue()
   }
 }

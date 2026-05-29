@@ -1154,6 +1154,130 @@ class StorageEventSourceTest {
       assertThat(request.filter.eventGroupReferenceId).isEmpty()
     }
 
+  @Test
+  fun `generateEventBatches queries by eventGroupReferenceId when no entity key set`(): Unit =
+    runBlocking {
+      val date = LocalDate.of(2025, 1, 1)
+      val eventGroupRef = "standard-ref"
+
+      val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
+
+      val impressionsTmpPath = tmp.newFolder("impressions-no-entity-key")
+      val metadataTmpPath = tmp.newFolder("metadata-no-entity-key")
+
+      createImpressionFilesForDate(
+        impressionsTmpPath,
+        metadataTmpPath,
+        date,
+        eventGroupRef,
+        kmsClient,
+        kekUri,
+        serializedEncryptionKey,
+      )
+
+      val metadataList =
+        createImpressionMetadataList(listOf(date), eventGroupRef, "meta-bucket", modelLine)
+
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse { impressionMetadata += metadataList })
+
+      val eventGroupDetailsList =
+        listOf(createEventGroupDetails(eventGroupRef, date, date.plusDays(1), ZoneId.of("UTC")))
+
+      val impressionService = createImpressionDataSourceProvider(metadataTmpPath)
+      val eventSource =
+        StorageEventSource(
+          impressionDataSourceProvider = impressionService,
+          eventGroupDetailsList = eventGroupDetailsList,
+          modelLine = modelLine,
+          kmsClient = kmsClient,
+          impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+          descriptor = TestEvent.getDescriptor(),
+          batchSize = 1000,
+        )
+
+      val batches = eventSource.generateEventBatches().toList()
+
+      assertThat(batches).isNotEmpty()
+      assertThat(batches.flatMap { it.events }).hasSize(5)
+
+      // Verify the request used eventGroupReferenceId filter, not entity_keys
+      val captor = argumentCaptor<ListImpressionMetadataRequest>()
+      verify(impressionMetadataServiceMock).listImpressionMetadata(captor.capture())
+      val request = captor.firstValue
+      assertThat(request.filter.eventGroupReferenceId).isEqualTo(eventGroupRef)
+      assertThat(request.filter.entityKeysList).isEmpty()
+    }
+
+  @Test
+  fun `generateEventBatches queries by eventGroupReferenceId when entity key has empty entityId`():
+    Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    val eventGroupRef = "ref-with-empty-entity"
+
+    val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
+
+    val impressionsTmpPath = tmp.newFolder("impressions-empty-entity")
+    val metadataTmpPath = tmp.newFolder("metadata-empty-entity")
+
+    createImpressionFilesForDate(
+      impressionsTmpPath,
+      metadataTmpPath,
+      date,
+      eventGroupRef,
+      kmsClient,
+      kekUri,
+      serializedEncryptionKey,
+    )
+
+    val metadataList =
+      createImpressionMetadataList(listOf(date), eventGroupRef, "meta-bucket", modelLine)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += metadataList })
+
+    // Entity key is present but entityId is empty - should fall back to ref ID query
+    val eventGroupDetailsList =
+      listOf(
+        eventGroupDetails {
+          eventGroupReferenceId = eventGroupRef
+          entityKey =
+            EventGroupDetailsKt.entityKey {
+              entityType = "creative-id"
+              entityId = ""
+            }
+          collectionIntervals += interval {
+            startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+            endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+          }
+        }
+      )
+
+    val impressionService = createImpressionDataSourceProvider(metadataTmpPath)
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = impressionService,
+        eventGroupDetailsList = eventGroupDetailsList,
+        modelLine = modelLine,
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    val batches = eventSource.generateEventBatches().toList()
+
+    assertThat(batches).isNotEmpty()
+    assertThat(batches.flatMap { it.events }).hasSize(5)
+
+    // Verify the request used eventGroupReferenceId filter, not entity_keys
+    val captor = argumentCaptor<ListImpressionMetadataRequest>()
+    verify(impressionMetadataServiceMock).listImpressionMetadata(captor.capture())
+    val request = captor.firstValue
+    assertThat(request.filter.eventGroupReferenceId).isEqualTo(eventGroupRef)
+    assertThat(request.filter.entityKeysList).isEmpty()
+  }
+
   companion object {
     private val TEST_EVENT = testEvent {
       person = person {
