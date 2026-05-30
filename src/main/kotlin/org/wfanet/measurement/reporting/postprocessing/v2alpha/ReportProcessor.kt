@@ -108,6 +108,8 @@ interface ReportProcessor {
    * @param report The JSON [String] containing the report data to be processed.
    * @param projectId The GCS Project ID.
    * @param bucketName The GCS bucket name.
+   * @param amiMrcExemptedList A list of Event Data Provider (EDP) IDs for which the `ami >= mrc`
+   *   constraint should be exempted.
    * @param verbose If true, enables verbose logging from the underlying report processor library.
    *   Default value is false.
    * @return A [ReportProcessingOutput] that contains the corrected serialized [Report] in JSON
@@ -118,6 +120,7 @@ interface ReportProcessor {
     report: String,
     projectId: String,
     bucketName: String,
+    amiMrcExemptedList: List<String> = emptyList(),
     verbose: Boolean = false,
   ): ReportProcessingOutput
 
@@ -182,7 +185,7 @@ interface ReportProcessor {
      * @return a corrected report, serialized as a standard JSON string.
      */
     override fun processReportJson(report: String, verbose: Boolean): String {
-      return processReport(ReportConversion.getReportFromJsonString(report), verbose)
+      return processReport(ReportConversion.getReportFromJsonString(report), verbose = verbose)
         .updatedReportJson
     }
 
@@ -204,6 +207,7 @@ interface ReportProcessor {
       report: String,
       projectId: String,
       bucketName: String,
+      amiMrcExemptedList: List<String>,
       verbose: Boolean,
     ): ReportProcessingOutput {
       require(projectId.isNotEmpty()) { "projectId cannot be empty." }
@@ -213,6 +217,7 @@ interface ReportProcessor {
         ReportConversion.getReportFromJsonString(report),
         projectId,
         bucketName,
+        amiMrcExemptedList,
         verbose,
       )
     }
@@ -232,12 +237,14 @@ interface ReportProcessor {
       report: Report,
       projectId: String,
       bucketName: String,
+      amiMrcExemptedList: List<String> = emptyList(),
       verbose: Boolean = false,
     ): ReportProcessingOutput {
       require(projectId.isNotEmpty()) { "projectId cannot be empty." }
       require(bucketName.isNotEmpty()) { "bucketName cannot be empty." }
 
-      val reportProcessingOutput: ReportProcessingOutput = processReport(report, verbose)
+      val reportProcessingOutput: ReportProcessingOutput =
+        processReport(report, amiMrcExemptedList, verbose)
 
       val storageClient: StorageClient = getStorageClient(projectId, bucketName)
       val blobKey: String = getBlobKey(report)
@@ -254,7 +261,11 @@ interface ReportProcessor {
      * @return A [ReportProcessingOutput] object which contains an updated [Report] and a
      *   [ReportPostProcessorLog] object.
      */
-    private fun processReport(report: Report, verbose: Boolean = false): ReportProcessingOutput {
+    private fun processReport(
+      report: Report,
+      amiMrcExemptedList: List<String> = emptyList(),
+      verbose: Boolean = false,
+    ): ReportProcessingOutput {
       val reportSummaries = report.toReportSummaries()
       val correctedMeasurementsMap = mutableMapOf<String, Double>()
       val resultMap = mutableMapOf<String, ReportPostProcessorResult>()
@@ -263,7 +274,7 @@ interface ReportProcessor {
       for (reportSummary in reportSummaries) {
         val result: ReportPostProcessorResult =
           try {
-            processReportSummary(reportSummary, verbose)
+            processReportSummary(reportSummary, amiMrcExemptedList, verbose)
           } catch (e: Exception) {
             val errorMessage =
               "Report processing for the demographic groups " +
@@ -382,6 +393,7 @@ interface ReportProcessor {
      */
     private fun processReportSummary(
       reportSummary: ReportSummary,
+      amiMrcExemptedList: List<String> = emptyList(),
       verbose: Boolean = false,
     ): ReportPostProcessorResult {
       logger.info { "Start processing report summary.." }
@@ -414,6 +426,9 @@ interface ReportProcessor {
         }
         add("--input_file=${tempInputFile.absolutePath}")
         add("--output_file=${tempOutputFile.absolutePath}")
+        if (amiMrcExemptedList.isNotEmpty()) {
+          add("--ami_mrc_exemption_list=${amiMrcExemptedList.joinToString(separator = ",")}")
+        }
       }
       val process = ProcessBuilder(command).start()
 

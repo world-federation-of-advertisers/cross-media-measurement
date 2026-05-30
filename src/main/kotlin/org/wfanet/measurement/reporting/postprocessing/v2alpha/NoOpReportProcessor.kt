@@ -42,6 +42,7 @@ class NoOpReportProcessor : ReportProcessor {
     report: String,
     projectId: String,
     bucketName: String,
+    amiMrcExemptedList: List<String>,
     verbose: Boolean,
   ): ReportProcessingOutput {
     return ReportProcessingOutput(report, reportPostProcessorLog {})

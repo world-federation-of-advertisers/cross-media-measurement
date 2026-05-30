@@ -46,6 +46,11 @@ FLAGS = flags.FLAGS
 flags.DEFINE_boolean("debug", False, "Enable debug mode.")
 flags.DEFINE_string("output_file", None, "The output file path.")
 flags.DEFINE_string("input_file", None, "The input file path.")
+flags.DEFINE_list(
+    "ami_mrc_exemption_list",
+    [],
+    "List of EDPs exempted from AMI >= MRC constraint.",
+)
 
 ami = "ami"
 mrc = "mrc"
@@ -153,6 +158,7 @@ class ReportSummaryProcessor:
         metric_subsets_by_parent={
             ami: children_metric} if "ami" in all_policies and children_metric else {},
         cumulative_inconsistency_allowed_edp_combinations={},
+        ami_mrc_exemption_list=FLAGS.ami_mrc_exemption_list,
         population_size=self._report_summary.population,
     )
 

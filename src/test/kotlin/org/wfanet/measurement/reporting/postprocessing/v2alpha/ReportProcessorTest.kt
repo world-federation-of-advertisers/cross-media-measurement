@@ -198,6 +198,42 @@ class ReportProcessorTest {
   }
 
   @Test
+  fun `run report with ami mrc exemption fails without exemption`() = runBlocking {
+    val reportFile =
+      TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_ami_mrc_exemption.json").toFile()
+    val reportAsJson = reportFile.readText()
+
+    val reportProcessingOutput: ReportProcessingOutput =
+      ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+
+    assertThat(reportProcessingOutput.reportPostProcessorLog.issuesList)
+      .contains(ReportPostProcessorLog.ReportPostProcessorIssue.QP_SOLUTION_NOT_FOUND)
+    assertThat(reportProcessingOutput.reportPostProcessorLog.postProcessingSuccessful).isFalse()
+  }
+
+  @Test
+  fun `run report with ami mrc exemption succeeds with exemption`() = runBlocking {
+    val reportFile =
+      TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_ami_mrc_exemption.json").toFile()
+    val reportAsJson = reportFile.readText()
+
+    val exemptionList = listOf("edp1")
+    val reportProcessingOutput: ReportProcessingOutput =
+      ReportProcessor.processReportJsonAndLogResult(
+        reportAsJson,
+        "projectId",
+        "bucketName",
+        amiMrcExemptedList = exemptionList,
+      )
+
+    assertThat(reportProcessingOutput.reportPostProcessorLog.postProcessingSuccessful).isTrue()
+
+    val updatedReport =
+      ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
+    assertThat(updatedReport.hasConsistentMeasurements(exemptionList)).isTrue()
+  }
+
+  @Test
   fun `run correct report with logging with custom policy successfully`() = runBlocking {
     val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_custom_policy.json").toFile()
     val reportAsJson = reportFile.readText()
@@ -667,7 +703,9 @@ class ReportProcessorTest {
       return true
     }
 
-    private fun Report.hasConsistentMeasurements(): Boolean {
+    private fun Report.hasConsistentMeasurements(
+      amiMrcExemptedList: List<String> = emptyList()
+    ): Boolean {
       val reportSummaries = this.toReportSummaries()
 
       for (reportSummary in reportSummaries) {
@@ -678,7 +716,13 @@ class ReportProcessorTest {
         }
 
         if (metricReports.containsKey("ami") && metricReports.containsKey("mrc")) {
-          if (!metricReportsAreConsistent(metricReports["ami"]!!, metricReports["mrc"]!!)) {
+          if (
+            !metricReportsAreConsistent(
+              metricReports["ami"]!!,
+              metricReports["mrc"]!!,
+              amiMrcExemptedList,
+            )
+          ) {
             return false
           }
         }
@@ -687,40 +731,53 @@ class ReportProcessorTest {
       return true
     }
 
-    private fun metricReportsAreConsistent(parent: MetricReport, child: MetricReport): Boolean {
+    private fun metricReportsAreConsistent(
+      parent: MetricReport,
+      child: MetricReport,
+      amiMrcExemptedList: List<String> = emptyList(),
+    ): Boolean {
       for (edpCombination in
         parent.cumulativeMeasurements.keys.intersect(child.cumulativeMeasurements.keys)) {
-        if (
-          !child.cumulativeMeasurements[edpCombination]!!
-            .zip(parent.cumulativeMeasurements[edpCombination]!!)
-            .all { (a, b) -> fuzzyLessEqual(a.toDouble(), b.toDouble(), TOLERANCE) }
-        ) {
-          return false
+        val skipCheck = edpCombination.size == 1 && edpCombination.first() in amiMrcExemptedList
+        if (!skipCheck) {
+          if (
+            !child.cumulativeMeasurements[edpCombination]!!
+              .zip(parent.cumulativeMeasurements[edpCombination]!!)
+              .all { (a, b) -> fuzzyLessEqual(a.toDouble(), b.toDouble(), TOLERANCE) }
+          ) {
+            return false
+          }
         }
       }
 
       for (edpCombination in
         parent.totalMeasurements.keys.intersect(child.totalMeasurements.keys)) {
-        if (
-          !fuzzyLessEqual(
-            child.totalMeasurements[edpCombination]!!.toDouble(),
-            parent.totalMeasurements[edpCombination]!!.toDouble(),
-            TOLERANCE,
-          )
-        ) {
-          return false
+        val skipCheck = edpCombination.size == 1 && edpCombination.first() in amiMrcExemptedList
+        if (!skipCheck) {
+          if (
+            !fuzzyLessEqual(
+              child.totalMeasurements[edpCombination]!!.toDouble(),
+              parent.totalMeasurements[edpCombination]!!.toDouble(),
+              TOLERANCE,
+            )
+          ) {
+            return false
+          }
         }
       }
 
       for (edpCombination in parent.impression.keys.intersect(child.impression.keys)) {
-        if (
-          !fuzzyLessEqual(
-            child.impression[edpCombination]!!.toDouble(),
-            parent.impression[edpCombination]!!.toDouble(),
-            TOLERANCE,
-          )
-        ) {
-          return false
+        val skipCheck = edpCombination.size == 1 && edpCombination.first() in amiMrcExemptedList
+        if (!skipCheck) {
+          if (
+            !fuzzyLessEqual(
+              child.impression[edpCombination]!!.toDouble(),
+              parent.impression[edpCombination]!!.toDouble(),
+              TOLERANCE,
+            )
+          ) {
+            return false
+          }
         }
       }
 
