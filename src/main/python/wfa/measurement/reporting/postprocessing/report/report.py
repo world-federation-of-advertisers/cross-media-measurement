@@ -607,8 +607,6 @@ class Report:
             relationship between the metrics. .e.g. ami >= [custom, mrc]
         cumulative_inconsistency_allowed_edps : a set containing edp keys that won't
             be forced to have self cumulative reaches be increasing
-        ami_mrc_exemption_list: a list containing edp keys for which the AMI >= MRC
-            constraint will not be enforced.
     """
     self._metric_reports = metric_reports
     self._metric_subsets_by_parent = metric_subsets_by_parent
@@ -833,7 +831,7 @@ class Report:
           metric_subsets_by_parent=self._metric_subsets_by_parent,
           cumulative_inconsistency_allowed_edp_combinations=self._cumulative_inconsistency_allowed_edp_combinations,
           ami_mrc_exemption_list=self._ami_mrc_exemption_list,
-          population_size=self._population_size,
+          population_size=self._population_size
       )
     else:
       return None
@@ -1334,6 +1332,7 @@ class Report:
                 f"{next(iter(edp_combination))}"
             )
             continue
+          # For each period, child_reach <= parent_reach.
           for period in range(0, self._num_periods):
             spec.add_subset_relation(
                 child_set_id=self._get_measurement_index(
@@ -1347,6 +1346,9 @@ class Report:
         # Enforce overlap constraints for cumulative reach across metrics.
         for edp_combination in common_cumulative_edp_combinations:
           if len(edp_combination) <= 1:
+            continue
+          if self._is_ami_mrc_exempted(parent_metric, child_metric,
+                                       edp_combination):
             continue
           edps: list[EdpCombination] = get_edps_from_edp_combination(
               edp_combination, common_cumulative_edp_combinations
@@ -1387,7 +1389,6 @@ class Report:
           if self._is_ami_mrc_exempted(parent_metric, child_metric,
                                        edp_combination):
             continue
-
           spec.add_subset_relation(
               # child_reach <= parent_reach
               child_set_id=self._get_measurement_index(
@@ -1401,6 +1402,10 @@ class Report:
         # Enforce overlap constraints for whole campaign reach across metrics.
         for edp_combination in common_whole_campaign_edp_combinations:
           if len(edp_combination) <= 1:
+            continue
+
+          if self._is_ami_mrc_exempted(parent_metric, child_metric,
+                                       edp_combination):
             continue
 
           edps: list[EdpCombination] = get_edps_from_edp_combination(
@@ -1441,7 +1446,6 @@ class Report:
           if self._is_ami_mrc_exempted(parent_metric, child_metric,
                                        edp_combination):
             continue
-
           spec.add_subset_relation(
               # child_impression <= parent_impression
               child_set_id=self._get_measurement_index(
@@ -1463,7 +1467,6 @@ class Report:
           if self._is_ami_mrc_exempted(parent_metric, child_metric,
                                        edp_combination):
             continue
-
           for period in range(self._num_periods):
             spec.add_subset_relation(
                 # child_reach <= parent_reach for each week.
@@ -1483,6 +1486,10 @@ class Report:
         # metrics.
         for edp_combination in common_weekly_non_cumulative_edp_combinations:
           if len(edp_combination) <= 1:
+            continue
+
+          if self._is_ami_mrc_exempted(parent_metric, child_metric,
+                                       edp_combination):
             continue
 
           edps: list[EdpCombination] = get_edps_from_edp_combination(
@@ -1520,7 +1527,6 @@ class Report:
           if self._is_ami_mrc_exempted(parent_metric, child_metric,
                                        edp_combination):
             continue
-
           for period in range(self._num_periods):
               spec.add_subset_relation(
                   # child_impression <= parent_impression for each week.
@@ -2042,6 +2048,7 @@ class Report:
             return False
 
     # Check for the consistency between ordered metrics.
+    for parent_metric in self._metric_subsets_by_parent:
       for child_metric in self._metric_subsets_by_parent[parent_metric]:
         if self._is_ami_mrc_exempted(parent_metric, child_metric,
                                      edp_combination):
@@ -2132,6 +2139,23 @@ class Report:
             return False
 
     return True
+
+  def _is_ami_mrc_exempted(
+      self,
+      parent_metric: str,
+      child_metric: str,
+      edp_combination: EdpCombination,
+  ) -> bool:
+    """Checks if the given metric relationship is exempted from AMI >= MRC."""
+    if len(edp_combination) != 1:
+      return False
+
+    edp = next(iter(edp_combination))
+    return (
+        parent_metric == "ami"
+        and child_metric == "mrc"
+        and edp in self._ami_mrc_exemption_list
+    )
 
   def _get_zero_variance_edps(self) -> list[EdpCombination]:
     """Get the zero variance EDPs.
