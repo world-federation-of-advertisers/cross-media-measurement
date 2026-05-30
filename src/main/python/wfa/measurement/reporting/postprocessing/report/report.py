@@ -597,6 +597,7 @@ class Report:
       metric_reports: dict[str, MetricReport],
       metric_subsets_by_parent: dict[str, list[str]],
       cumulative_inconsistency_allowed_edp_combinations: set[str],
+      ami_mrc_exemption_list: list[str] = None,
       population_size: float = 0.0,
   ):
     """
@@ -606,12 +607,15 @@ class Report:
             relationship between the metrics. .e.g. ami >= [custom, mrc]
         cumulative_inconsistency_allowed_edps : a set containing edp keys that won't
             be forced to have self cumulative reaches be increasing
+        ami_mrc_exemption_list: a list containing edp keys for which the AMI >= MRC
+            constraint will not be enforced.
     """
     self._metric_reports = metric_reports
     self._metric_subsets_by_parent = metric_subsets_by_parent
     self._cumulative_inconsistency_allowed_edp_combinations = (
         cumulative_inconsistency_allowed_edp_combinations
     )
+    self._ami_mrc_exemption_list = ami_mrc_exemption_list or []
     self._population_size = population_size
 
     # All metrics in the set relationships must have a corresponding report.
@@ -828,7 +832,8 @@ class Report:
           },
           metric_subsets_by_parent=self._metric_subsets_by_parent,
           cumulative_inconsistency_allowed_edp_combinations=self._cumulative_inconsistency_allowed_edp_combinations,
-          population_size=self._population_size
+          ami_mrc_exemption_list=self._ami_mrc_exemption_list,
+          population_size=self._population_size,
       )
     else:
       return None
@@ -1322,7 +1327,13 @@ class Report:
               child_metric_report.get_weekly_cumulative_reach_edp_combinations()
           )
         for edp_combination in common_cumulative_edp_combinations:
-          # For each period, child_reach <= parent_reach.
+          if self._is_ami_mrc_exempted(parent_metric, child_metric,
+                                       edp_combination):
+            logging.info(
+                f"Skipping AMI >= MRC constraint for exempted EDP: "
+                f"{next(iter(edp_combination))}"
+            )
+            continue
           for period in range(0, self._num_periods):
             spec.add_subset_relation(
                 child_set_id=self._get_measurement_index(
@@ -1373,6 +1384,10 @@ class Report:
           parent_metric_report.get_whole_campaign_reach_edp_combinations().intersection(
               child_metric_report.get_whole_campaign_reach_edp_combinations())
         for edp_combination in common_whole_campaign_edp_combinations:
+          if self._is_ami_mrc_exempted(parent_metric, child_metric,
+                                       edp_combination):
+            continue
+
           spec.add_subset_relation(
               # child_reach <= parent_reach
               child_set_id=self._get_measurement_index(
@@ -1423,6 +1438,10 @@ class Report:
           parent_metric_report.get_whole_campaign_impression_edp_combinations().intersection(
               child_metric_report.get_whole_campaign_impression_edp_combinations())
         for edp_combination in common_impression_edp_combinations:
+          if self._is_ami_mrc_exempted(parent_metric, child_metric,
+                                       edp_combination):
+            continue
+
           spec.add_subset_relation(
               # child_impression <= parent_impression
               child_set_id=self._get_measurement_index(
@@ -1441,6 +1460,10 @@ class Report:
             )
         )
         for edp_combination in common_weekly_non_cumulative_edp_combinations:
+          if self._is_ami_mrc_exempted(parent_metric, child_metric,
+                                       edp_combination):
+            continue
+
           for period in range(self._num_periods):
             spec.add_subset_relation(
                 # child_reach <= parent_reach for each week.
@@ -1494,6 +1517,10 @@ class Report:
             )
         )
         for edp_combination in common_weekly_non_cumulative_impression_edp_combinations:
+          if self._is_ami_mrc_exempted(parent_metric, child_metric,
+                                       edp_combination):
+            continue
+
           for period in range(self._num_periods):
               spec.add_subset_relation(
                   # child_impression <= parent_impression for each week.
@@ -2015,8 +2042,11 @@ class Report:
             return False
 
     # Check for the consistency between ordered metrics.
-    for parent_metric in self._metric_subsets_by_parent:
       for child_metric in self._metric_subsets_by_parent[parent_metric]:
+        if self._is_ami_mrc_exempted(parent_metric, child_metric,
+                                     edp_combination):
+          continue
+
         parent_metric_report = self._metric_reports[parent_metric]
         child_metric_report = self._metric_reports[child_metric]
 
