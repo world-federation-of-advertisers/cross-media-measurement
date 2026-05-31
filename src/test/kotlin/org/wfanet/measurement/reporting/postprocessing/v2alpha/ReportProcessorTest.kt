@@ -715,16 +715,16 @@ class ReportProcessorTest {
           return false
         }
 
-        if (metricReports.containsKey("ami") && metricReports.containsKey("mrc")) {
-          if (
-            !metricReportsAreConsistent(
-              metricReports["ami"]!!,
-              metricReports["mrc"]!!,
-              amiMrcExemptedList,
-            )
-          ) {
-            return false
-          }
+        if (!metricReports.containsKey("ami") || !metricReports.containsKey("mrc")) {
+          continue
+        }
+        if (!metricReportsAreConsistent(
+            metricReports["ami"]!!,
+            metricReports["mrc"]!!,
+            amiMrcExemptedList,
+          )
+        ) {
+          return false
         }
       }
 
@@ -739,45 +739,39 @@ class ReportProcessorTest {
       for (edpCombination in
         parent.cumulativeMeasurements.keys.intersect(child.cumulativeMeasurements.keys)) {
         val skipCheck = edpCombination.size == 1 && edpCombination.first() in amiMrcExemptedList
-        if (!skipCheck) {
-          if (
-            !child.cumulativeMeasurements[edpCombination]!!
+        if (skipCheck) continue
+        if (!child.cumulativeMeasurements[edpCombination]!!
               .zip(parent.cumulativeMeasurements[edpCombination]!!)
               .all { (a, b) -> fuzzyLessEqual(a.toDouble(), b.toDouble(), TOLERANCE) }
-          ) {
-            return false
-          }
+        ) {
+          return false
         }
       }
 
       for (edpCombination in
         parent.totalMeasurements.keys.intersect(child.totalMeasurements.keys)) {
         val skipCheck = edpCombination.size == 1 && edpCombination.first() in amiMrcExemptedList
-        if (!skipCheck) {
-          if (
-            !fuzzyLessEqual(
+        if (skipCheck) continue
+        if (!fuzzyLessEqual(
               child.totalMeasurements[edpCombination]!!.toDouble(),
               parent.totalMeasurements[edpCombination]!!.toDouble(),
               TOLERANCE,
             )
-          ) {
-            return false
-          }
+        ) {
+          return false
         }
       }
 
       for (edpCombination in parent.impression.keys.intersect(child.impression.keys)) {
         val skipCheck = edpCombination.size == 1 && edpCombination.first() in amiMrcExemptedList
-        if (!skipCheck) {
-          if (
-            !fuzzyLessEqual(
+        if (skipCheck) continue
+        if (!fuzzyLessEqual(
               child.impression[edpCombination]!!.toDouble(),
               parent.impression[edpCombination]!!.toDouble(),
               TOLERANCE,
             )
-          ) {
-            return false
-          }
+        ) {
+          return false
         }
       }
 

@@ -236,37 +236,119 @@ class TestReport(unittest.TestCase):
     ami_report = MetricReport(
         weekly_cumulative_reaches={
             # EDP_ONE is exempted, EDP_TWO is NOT.
-            frozenset({EDP_ONE}): [Measurement(10.0, 1.0, "ami_edp1")],
-            frozenset({EDP_TWO}): [Measurement(20.0, 1.0, "ami_edp2")],
+            frozenset({EDP_ONE}): [
+                Measurement(
+                    10.0, 0.0, "ami_weekly_cumulative_reach_edp1"
+                )
+            ],
+            frozenset({EDP_TWO}): [
+                Measurement(
+                    20.0, 1.0, "ami_weekly_cumulative_reach_edp2"
+                )
+            ],
         },
         whole_campaign_measurements=build_measurement_set(
             reach={
-                frozenset({EDP_ONE}): Measurement(10.0, 1.0, "ami_whole_edp1"),
-                frozenset({EDP_TWO}): Measurement(20.0, 1.0, "ami_whole_edp2"),
+                frozenset({EDP_ONE}): Measurement(
+                    10.0, 0.0, "ami_whole_campaign_reach_edp1"
+                ),
+                frozenset({EDP_TWO}): Measurement(
+                    20.0, 1.0, "ami_whole_campaign_reach_edp2"
+                ),
             },
             k_reach={},
             impression={
-                frozenset({EDP_ONE}): Measurement(10.0, 1.0, "ami_imp_edp1"),
-                frozenset({EDP_TWO}): Measurement(20.0, 1.0, "ami_imp_edp2"),
+                frozenset({EDP_ONE}): Measurement(
+                    10.0, 0.0, "ami_whole_campaign_impression_edp1"
+                ),
+                frozenset({EDP_TWO}): Measurement(
+                    20.0, 1.0, "ami_whole_campaign_impression_edp2"
+                ),
             }),
-        weekly_non_cumulative_measurements={},
+        weekly_non_cumulative_measurements={
+            frozenset({EDP_ONE}): [
+                MeasurementSet(
+                    reach=Measurement(
+                        10.0, 0.0, "ami_weekly_non_cumulative_reach_edp1_w0"
+                    ),
+                    k_reach={},
+                    impression=Measurement(
+                        100.0,
+                        0.0,
+                        "ami_weekly_non_cumulative_impression_edp1_w0",
+                    ),
+                )
+            ],
+            frozenset({EDP_TWO}): [
+                MeasurementSet(
+                    reach=Measurement(
+                        20.0, 1.0, "ami_weekly_non_cumulative_reach_edp2_w0"
+                    ),
+                    k_reach={},
+                    impression=Measurement(
+                        200.0,
+                        1.0,
+                        "ami_weekly_non_cumulative_impression_edp2_w0",
+                    ),
+                )
+            ],
+        },
     )
     mrc_report = MetricReport(
         weekly_cumulative_reaches={
-            frozenset({EDP_ONE}): [Measurement(15.0, 1.0, "mrc_edp1")],
-            frozenset({EDP_TWO}): [Measurement(15.0, 1.0, "mrc_edp2")],
+            frozenset({EDP_ONE}): [
+                Measurement(15.0, 0.0, "mrc_weekly_cumulative_reach_edp1")
+            ],
+            frozenset({EDP_TWO}): [
+                Measurement(15.0, 1.0, "mrc_weekly_cumulative_reach_edp2")
+            ],
         },
         whole_campaign_measurements=build_measurement_set(
             reach={
-                frozenset({EDP_ONE}): Measurement(15.0, 1.0, "mrc_whole_edp1"),
-                frozenset({EDP_TWO}): Measurement(15.0, 1.0, "mrc_whole_edp2"),
+                frozenset({EDP_ONE}): Measurement(
+                    15.0, 0.0, "mrc_whole_campaign_reach_edp1"
+                ),
+                frozenset({EDP_TWO}): Measurement(
+                    15.0, 1.0, "mrc_whole_campaign_reach_edp2"
+                ),
             },
             k_reach={},
             impression={
-                frozenset({EDP_ONE}): Measurement(15.0, 1.0, "mrc_imp_edp1"),
-                frozenset({EDP_TWO}): Measurement(15.0, 1.0, "mrc_imp_edp1"),
+                frozenset({EDP_ONE}): Measurement(
+                    15.0, 0.0, "mrc_whole_campaign_impression_edp1"
+                ),
+                frozenset({EDP_TWO}): Measurement(
+                    15.0, 1.0, "mrc_whole_campaign_impression_edp1"
+                ),
             }),
-        weekly_non_cumulative_measurements={},
+        weekly_non_cumulative_measurements={
+            frozenset({EDP_ONE}): [
+                MeasurementSet(
+                    reach=Measurement(
+                        15.0, 0.0, "mrc_weekly_non_cumulative_reach_edp1_w0"
+                    ),
+                    k_reach={},
+                    impression=Measurement(
+                        150.0,
+                        0.0,
+                        "mrc_weekly_non_cumulative_impression_edp1_w0",
+                    ),
+                )
+            ],
+            frozenset({EDP_TWO}): [
+                MeasurementSet(
+                    reach=Measurement(
+                        15.0, 1.0, "mrc_weekly_non_cumulative_reach_edp2_w0"
+                    ),
+                    k_reach={},
+                    impression=Measurement(
+                        150.0,
+                        1.0,
+                        "mrc_weekly_non_cumulative_impression_edp2_w0",
+                    ),
+                )
+            ],
+        },
     )
 
     report = Report(
@@ -282,93 +364,42 @@ class TestReport(unittest.TestCase):
     name_to_index = report._measurement_name_to_index
     subsets = spec._subsets_by_set
 
-    # For EDP_ONE (exempted), there should be NO subset relation AMI >= MRC.
-    # Cumulative:
-    self.assertNotIn(name_to_index["ami_edp1"], subsets)
-    # Whole campaign:
-    self.assertNotIn(name_to_index["ami_whole_edp1"], subsets)
-    # Impression:
-    self.assertNotIn(name_to_index["ami_imp_edp1"], subsets)
-
-    # For EDP_TWO (NOT exempted), there SHOULD be a subset relation AMI >= MRC.
-    # Cumulative:
-    self.assertIn(name_to_index["ami_edp2"], subsets)
-    self.assertEqual(subsets[name_to_index["ami_edp2"]], [name_to_index["mrc_edp2"]])
-    # Whole campaign:
-    self.assertIn(name_to_index["ami_whole_edp2"], subsets)
-    self.assertEqual(subsets[name_to_index["ami_whole_edp2"]], [name_to_index["mrc_whole_edp2"]])
-    # Impression:
-    self.assertIn(name_to_index["ami_imp_edp2"], subsets)
-    self.assertEqual(subsets[name_to_index["ami_imp_edp2"]], [name_to_index["mrc_imp_edp1"]])
-
-  def test_ami_mrc_exemption_list_weekly_non_cumulative(self):
-    ami_report = MetricReport(
-        weekly_cumulative_reaches={},
-        whole_campaign_measurements=build_measurement_set(reach={}, k_reach={}, impression={}),
-        weekly_non_cumulative_measurements={
-            frozenset({EDP_ONE}): [
-                MeasurementSet(
-                    reach=Measurement(10.0, 1.0, "ami_reach_edp1_w0"),
-                    k_reach={},
-                    impression=Measurement(100.0, 1.0, "ami_imp_edp1_w0")
-                )
-            ],
-            frozenset({EDP_TWO}): [
-                MeasurementSet(
-                    reach=Measurement(20.0, 1.0, "ami_reach_edp2_w0"),
-                    k_reach={},
-                    impression=Measurement(200.0, 1.0, "ami_imp_edp2_w0")
-                )
-            ],
-        },
+    # For EDP_ONE (exempted), there is no subset relation AMI >= MRC.
+    self.assertNotIn(
+        name_to_index["ami_weekly_cumulative_reach_edp1"], subsets
     )
-    mrc_report = MetricReport(
-        weekly_cumulative_reaches={},
-        whole_campaign_measurements=build_measurement_set(reach={}, k_reach={}, impression={}),
-        weekly_non_cumulative_measurements={
-            frozenset({EDP_ONE}): [
-                MeasurementSet(
-                    reach=Measurement(15.0, 1.0, "mrc_reach_edp1_w0"),
-                    k_reach={},
-                    impression=Measurement(150.0, 1.0, "mrc_imp_edp1_w0")
-                )
-            ],
-            frozenset({EDP_TWO}): [
-                MeasurementSet(
-                    reach=Measurement(15.0, 1.0, "mrc_reach_edp2_w0"),
-                    k_reach={},
-                    impression=Measurement(150.0, 1.0, "mrc_imp_edp2_w0")
-                )
-            ],
-        },
+    self.assertNotIn(name_to_index["ami_whole_campaign_reach_edp1"], subsets)
+    self.assertNotIn(
+        name_to_index["ami_whole_campaign_impression_edp1"], subsets
+    )
+    self.assertNotIn(
+        name_to_index["ami_weekly_non_cumulative_reach_edp1_w0"], subsets
+    )
+    self.assertNotIn(
+        name_to_index["ami_weekly_non_cumulative_impression_edp1_w0"], subsets
     )
 
-    report = Report(
-        metric_reports={"ami": ami_report, "mrc": mrc_report},
-        metric_subsets_by_parent={"ami": ["mrc"]},
-        cumulative_inconsistency_allowed_edp_combinations={},
-        ami_mrc_exemption_list=[EDP_ONE],
+    # For EDP_TWO (NOT exempted), there are subset relations AMI >= MRC.
+    self.assertEqual(
+        subsets[name_to_index["ami_weekly_cumulative_reach_edp2"]],
+        [name_to_index["mrc_weekly_cumulative_reach_edp2"]],
     )
-
-    spec = SetMeasurementsSpec()
-    report._add_metric_relations_to_spec(spec)
-
-    name_to_index = report._measurement_name_to_index
-    subsets = spec._subsets_by_set
-
-    # For EDP_ONE (exempted), there should be NO subset relation AMI >= MRC.
-    # Weekly Non-Cumulative Reach:
-    self.assertNotIn(name_to_index["ami_reach_edp1_w0"], subsets)
-    # Weekly Non-Cumulative Impression:
-    self.assertNotIn(name_to_index["ami_imp_edp1_w0"], subsets)
-
-    # For EDP_TWO (NOT exempted), there SHOULD be a subset relation AMI >= MRC.
-    # Weekly Non-Cumulative Reach:
-    self.assertIn(name_to_index["ami_reach_edp2_w0"], subsets)
-    self.assertEqual(subsets[name_to_index["ami_reach_edp2_w0"]], [name_to_index["mrc_reach_edp2_w0"]])
-    # Weekly Non-Cumulative Impression:
-    self.assertIn(name_to_index["ami_imp_edp2_w0"], subsets)
-    self.assertEqual(subsets[name_to_index["ami_imp_edp2_w0"]], [name_to_index["mrc_imp_edp2_w0"]])
+    self.assertEqual(
+        subsets[name_to_index["ami_whole_campaign_reach_edp2"]],
+        [name_to_index["mrc_whole_campaign_reach_edp2"]],
+    )
+    self.assertEqual(
+        subsets[name_to_index["ami_whole_campaign_impression_edp2"]],
+        [name_to_index["mrc_whole_campaign_impression_edp1"]],
+    )
+    self.assertEqual(
+        subsets[name_to_index["ami_weekly_non_cumulative_reach_edp2_w0"]],
+        [name_to_index["mrc_weekly_non_cumulative_reach_edp2_w0"]],
+    )
+    self.assertEqual(
+        subsets[name_to_index["ami_weekly_non_cumulative_impression_edp2_w0"]],
+        [name_to_index["mrc_weekly_non_cumulative_impression_edp2_w0"]],
+    )
 
 
   def test_is_cover_returns_true_for_valid_cover_sets(self):
