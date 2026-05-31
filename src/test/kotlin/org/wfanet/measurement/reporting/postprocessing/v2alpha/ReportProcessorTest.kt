@@ -718,7 +718,8 @@ class ReportProcessorTest {
         if (!metricReports.containsKey("ami") || !metricReports.containsKey("mrc")) {
           continue
         }
-        if (!metricReportsAreConsistent(
+        if (
+          !metricReportsAreConsistent(
             metricReports["ami"]!!,
             metricReports["mrc"]!!,
             amiMrcExemptedList,
@@ -740,9 +741,10 @@ class ReportProcessorTest {
         parent.cumulativeMeasurements.keys.intersect(child.cumulativeMeasurements.keys)) {
         val skipCheck = edpCombination.size == 1 && edpCombination.first() in amiMrcExemptedList
         if (skipCheck) continue
-        if (!child.cumulativeMeasurements[edpCombination]!!
-              .zip(parent.cumulativeMeasurements[edpCombination]!!)
-              .all { (a, b) -> fuzzyLessEqual(a.toDouble(), b.toDouble(), TOLERANCE) }
+        if (
+          !child.cumulativeMeasurements[edpCombination]!!
+            .zip(parent.cumulativeMeasurements[edpCombination]!!)
+            .all { (a, b) -> fuzzyLessEqual(a.toDouble(), b.toDouble(), TOLERANCE) }
         ) {
           return false
         }
@@ -752,11 +754,12 @@ class ReportProcessorTest {
         parent.totalMeasurements.keys.intersect(child.totalMeasurements.keys)) {
         val skipCheck = edpCombination.size == 1 && edpCombination.first() in amiMrcExemptedList
         if (skipCheck) continue
-        if (!fuzzyLessEqual(
-              child.totalMeasurements[edpCombination]!!.toDouble(),
-              parent.totalMeasurements[edpCombination]!!.toDouble(),
-              TOLERANCE,
-            )
+        if (
+          !fuzzyLessEqual(
+            child.totalMeasurements[edpCombination]!!.toDouble(),
+            parent.totalMeasurements[edpCombination]!!.toDouble(),
+            TOLERANCE,
+          )
         ) {
           return false
         }
@@ -765,11 +768,12 @@ class ReportProcessorTest {
       for (edpCombination in parent.impression.keys.intersect(child.impression.keys)) {
         val skipCheck = edpCombination.size == 1 && edpCombination.first() in amiMrcExemptedList
         if (skipCheck) continue
-        if (!fuzzyLessEqual(
-              child.impression[edpCombination]!!.toDouble(),
-              parent.impression[edpCombination]!!.toDouble(),
-              TOLERANCE,
-            )
+        if (
+          !fuzzyLessEqual(
+            child.impression[edpCombination]!!.toDouble(),
+            parent.impression[edpCombination]!!.toDouble(),
+            TOLERANCE,
+          )
         ) {
           return false
         }

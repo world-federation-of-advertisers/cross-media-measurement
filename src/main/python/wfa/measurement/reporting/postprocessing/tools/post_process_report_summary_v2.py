@@ -56,9 +56,14 @@ class ReportSummaryV2Processor:
   2. Constructs a Report object.
   """
 
-    def __init__(self, report_summary: report_summary_v2_pb2.ReportSummaryV2):
+    def __init__(
+        self,
+        report_summary: report_summary_v2_pb2.ReportSummaryV2,
+        ami_mrc_exemption_list: list[str] = None,
+    ):
         """Initializes the processor with a ReportSummary v2 proto."""
         self._report_summary = report_summary
+        self._ami_mrc_exemption_list = ami_mrc_exemption_list or []
         self._weekly_cumulative_reaches: dict[ImpressionFilter,
                                               dict[EdpCombination,
                                                    list[Measurement]]] = {}
@@ -102,8 +107,10 @@ class ReportSummaryV2Processor:
         return Report(
             metric_reports,
             metric_subsets_by_parent={"ami": children_metrics}
-            if "ami" in all_impression_filters and children_metrics else {},
+            if "ami" in all_impression_filters and children_metrics
+            else {},
             cumulative_inconsistency_allowed_edp_combinations={},
+            ami_mrc_exemption_list=self._ami_mrc_exemption_list,
         )
 
     def _process_union_results(self):
@@ -201,7 +208,8 @@ class ReportSummaryV2Processor:
     def process(self) -> ReportPostProcessorResult:
         """Corrects the report and returns the result."""
         report = self._build_report()
-        corrected_report, report_post_processor_result = report.get_corrected_report(
+        corrected_report, report_post_processor_result = (
+            report.get_corrected_report()
         )
 
         report_post_processor_result.pre_correction_report_summary_v2.CopyFrom(

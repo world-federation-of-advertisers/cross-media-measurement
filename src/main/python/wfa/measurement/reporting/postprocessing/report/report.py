@@ -1347,9 +1347,6 @@ class Report:
         for edp_combination in common_cumulative_edp_combinations:
           if len(edp_combination) <= 1:
             continue
-          if self._is_ami_mrc_exempted(parent_metric, child_metric,
-                                       edp_combination):
-            continue
           edps: list[EdpCombination] = get_edps_from_edp_combination(
               edp_combination, common_cumulative_edp_combinations
           )
@@ -1402,10 +1399,6 @@ class Report:
         # Enforce overlap constraints for whole campaign reach across metrics.
         for edp_combination in common_whole_campaign_edp_combinations:
           if len(edp_combination) <= 1:
-            continue
-
-          if self._is_ami_mrc_exempted(parent_metric, child_metric,
-                                       edp_combination):
             continue
 
           edps: list[EdpCombination] = get_edps_from_edp_combination(
@@ -1486,10 +1479,6 @@ class Report:
         # metrics.
         for edp_combination in common_weekly_non_cumulative_edp_combinations:
           if len(edp_combination) <= 1:
-            continue
-
-          if self._is_ami_mrc_exempted(parent_metric, child_metric,
-                                       edp_combination):
             continue
 
           edps: list[EdpCombination] = get_edps_from_edp_combination(
