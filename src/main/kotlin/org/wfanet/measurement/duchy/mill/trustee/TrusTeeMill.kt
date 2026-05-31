@@ -31,6 +31,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.PermanentErrorException
 import org.wfanet.measurement.duchy.mill.Certificate
@@ -166,6 +167,23 @@ class TrusTeeMill(
   /** Converts internal [TrusTee.ComputationDetails] to the internal [TrusTeeParams]. */
   fun TrusTeeDetails.toTrusTeeParams(): TrusTeeParams {
     val isNoNoise = parameters.noiseMechanism == NoiseMechanism.NONE
+
+    val resultMinimumThresholds: ResultMinimumThresholds? =
+      if (parameters.hasResultMinimumThresholds()) {
+        require(parameters.resultMinimumThresholds.minUsers > 0) {
+          "small-cell suppression minUsers must be greater than 0, got ${parameters.resultMinimumThresholds.minUsers}"
+        }
+        require(parameters.resultMinimumThresholds.minImpressions > 0) {
+          "small-cell suppression minImpressions must be greater than 0, got ${parameters.resultMinimumThresholds.minImpressions}"
+        }
+        ResultMinimumThresholds(
+          minUsers = parameters.resultMinimumThresholds.minUsers,
+          minImpressions = parameters.resultMinimumThresholds.minImpressions,
+        )
+      } else {
+        null
+      }
+
     return when (type) {
       TrusTeeDetails.Type.REACH -> {
         if (!isNoNoise) {
@@ -176,6 +194,7 @@ class TrusTeeMill(
         TrusTeeReachParams(
           parameters.vidSamplingIntervalWidth.toDouble(),
           if (isNoNoise) null else parameters.reachDpParams,
+          resultMinimumThresholds,
         )
       }
       TrusTeeDetails.Type.REACH_AND_FREQUENCY -> {
@@ -192,6 +211,7 @@ class TrusTeeMill(
           parameters.vidSamplingIntervalWidth.toDouble(),
           if (isNoNoise) null else parameters.reachDpParams,
           if (isNoNoise) null else parameters.frequencyDpParams,
+          resultMinimumThresholds,
         )
       }
       TrusTeeDetails.Type.TYPE_UNSPECIFIED,

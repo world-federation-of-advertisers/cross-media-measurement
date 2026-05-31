@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The Cross-Media Measurement Authors
+ * Copyright 2026 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,13 +22,13 @@ import org.wfanet.measurement.duchy.deploy.common.postgres.testing.Schemata.DUCH
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.IMPRESSION_QUALIFICATION_FILTER_MAPPING
-import org.wfanet.measurement.integration.common.reporting.v2.InProcessLifeOfAReportIntegrationTest
+import org.wfanet.measurement.integration.common.reporting.v2.InProcessMultiEdpReportIntegrationTest
 import org.wfanet.measurement.integration.deploy.common.postgres.PostgresDuchyDependencyProviderRule
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPORTING_CHANGELOG_PATH as POSTGRES_REPORTING_CHANGELOG_PATH
 
-/** Implementation of [InProcessLifeOfAReportIntegrationTest] for Google Cloud. */
-class GCloudInProcessLifeOfAReportV2IntegrationTest :
-  InProcessLifeOfAReportIntegrationTest(
+/** HMSS implementation of [InProcessMultiEdpReportIntegrationTest] with 3 duchies. */
+class GCloudInProcessHmssMultiEdpReportIntegrationTest :
+  InProcessMultiEdpReportIntegrationTest(
     KingdomDataServicesProviderRule(spannerEmulator),
     PostgresDuchyDependencyProviderRule(duchyDatabaseProvider, ALL_DUCHY_NAMES),
     SpannerAccessServicesFactory(spannerEmulator),
@@ -37,6 +37,8 @@ class GCloudInProcessLifeOfAReportV2IntegrationTest :
       reportingPostgresDatabaseProvider,
       IMPRESSION_QUALIFICATION_FILTER_MAPPING,
     ),
+    hmssEnabled = true,
+    trusTeeEnabled = false,
   ) {
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
