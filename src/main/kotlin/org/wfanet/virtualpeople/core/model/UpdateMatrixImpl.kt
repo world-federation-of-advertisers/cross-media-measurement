@@ -21,15 +21,15 @@ import org.wfanet.virtualpeople.core.model.utils.*
 
 /**
  * @param hashMatcher The matcher used to match input events to the column events when using hash
- * field mask.
+ *   field mask.
  * @param filtersMatcher The matcher used to match input events to the column conditions when not
- * using hash field mask.
+ *   using hash field mask.
  * @param rowHashings Each entry of the list represents a hashing based on the probability
- * distribution of a column. The size of the list is the columns count.
+ *   distribution of a column. The size of the list is the columns count.
  * @param randomSeed The seed used in hashing.
  * @param rows All the rows, of which the selected row will be merged to the input event.
  * @param passThroughNonMatches When calling Update, if no column matches, throws error if
- * passThroughNonMatches is [PassThroughNonMatches.NO].
+ *   passThroughNonMatches is [PassThroughNonMatches.NO].
  */
 internal class UpdateMatrixImpl
 private constructor(
@@ -38,7 +38,7 @@ private constructor(
   private val rowHashings: List<DistributedConsistentHashing>,
   private val randomSeed: String,
   private val rows: List<LabelerEvent>,
-  private val passThroughNonMatches: PassThroughNonMatches
+  private val passThroughNonMatches: PassThroughNonMatches,
 ) : AttributesUpdaterInterface {
 
   /**
@@ -50,8 +50,7 @@ private constructor(
    * [PassThroughNonMatches.NO].
    */
   override fun update(event: LabelerEvent.Builder) {
-    val indexes =
-      selectFromMatrix(hashMatcher, filtersMatcher, rowHashings, randomSeed, event.build())
+    val indexes = selectFromMatrix(hashMatcher, filtersMatcher, rowHashings, randomSeed, event)
     if (indexes.columnIndex == -1) {
       if (passThroughNonMatches == PassThroughNonMatches.YES) {
         return
@@ -77,10 +76,10 @@ private constructor(
      * 1. [config].rows is empty.
      * 2. [config].columns is empty.
      * 3. In [config], the probabilities count does not equal to rows count multiplies columns
-     * count.
+     *    count.
      * 4. Fails to build [FieldFilter] from any column.
      * 5. Fails to build [DistributedConsistentHashing] from the probability distribution of any
-     * column.
+     *    column.
      */
     internal fun build(config: UpdateMatrix): UpdateMatrixImpl {
       if (config.rowsCount == 0) {
@@ -126,7 +125,7 @@ private constructor(
         rowHashings,
         config.randomSeed,
         config.rowsList,
-        passThroughNonMatches
+        passThroughNonMatches,
       )
     }
   }

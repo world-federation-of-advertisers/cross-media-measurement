@@ -33,4 +33,13 @@ object Hashing {
       .asBytes()
       .toByteString()
   }
+
+  /**
+   * Returns the Fingerprint64 digest of [input] as a Long, in the same byte order Guava produces
+   * (matches `hashFingerprint64(input).toLong(LITTLE_ENDIAN)`) but skips the byte[]/ByteString
+   * round-trip.
+   */
+  fun hashFingerprint64Long(input: String): Long {
+    return Hashing.farmHashFingerprint64().hashString(input, StandardCharsets.UTF_8).asLong()
+  }
 }

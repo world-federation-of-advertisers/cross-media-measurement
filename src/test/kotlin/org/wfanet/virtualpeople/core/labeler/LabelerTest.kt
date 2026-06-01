@@ -14,6 +14,7 @@
 
 package org.wfanet.virtualpeople.core.labeler
 
+import com.google.protobuf.TextFormat
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
@@ -570,5 +571,80 @@ class LabelerTest {
     assertTrue(
       exception.message!!.contains("The ModelNode object of the child node index 3 is not provided")
     )
+  }
+
+  /** A minimal single-pool model used by the debug-trace tests below. */
+  private fun buildSinglePoolLabeler(): Labeler {
+    val root = compiledNode {
+      name = "TestNode1"
+      branchNode = branchNode {
+        branches.add(
+          branch {
+            node = compiledNode {
+              populationNode = populationNode {
+                pools.add(
+                  virtualPersonPool {
+                    populationOffset = 10
+                    totalPopulation = 1
+                  }
+                )
+                randomSeed = "TestPopulationNodeSeed1"
+              }
+            }
+            chance = 1.0
+          }
+        )
+        randomSeed = "TestBranchNodeSeed"
+      }
+    }
+    return Labeler.build(root)
+  }
+
+  @Test
+  fun `serialized debug trace is empty when enable_debug_trace is unset`() {
+    val labeler = buildSinglePoolLabeler()
+    // Default: enableDebugTrace is unset (== false).
+    val output = labeler.label(labelerInput { eventId = eventId { id = "evt_42" } })
+    assertEquals("", output.serializedDebugTrace)
+  }
+
+  @Test
+  fun `serialized debug trace is empty when enable_debug_trace is explicitly false`() {
+    val labeler = buildSinglePoolLabeler()
+    val output =
+      labeler.label(
+        labelerInput {
+          eventId = eventId { id = "evt_42" }
+          enableDebugTrace = false
+        }
+      )
+    assertEquals("", output.serializedDebugTrace)
+  }
+
+  @Test
+  fun `serialized debug trace is populated when enable_debug_trace is true`() {
+    val labeler = buildSinglePoolLabeler()
+    val output =
+      labeler.label(
+        labelerInput {
+          eventId = eventId { id = "evt_42" }
+          enableDebugTrace = true
+        }
+      )
+    assertTrue(
+      output.serializedDebugTrace.isNotEmpty(),
+      "expected non-empty debug trace when enable_debug_trace=true",
+    )
+    // The trace is the TextFormat dump of the LabelerEvent — the input event id we set
+    // should be visible verbatim in the trace.
+    assertTrue(
+      output.serializedDebugTrace.contains("evt_42"),
+      "expected debug trace to contain input event id; got:\n${output.serializedDebugTrace}",
+    )
+    // And the trace should be re-parseable as a LabelerEvent text format, round-tripping
+    // back to the original input event id.
+    val rebuilt = LabelerEvent.newBuilder()
+    TextFormat.merge(output.serializedDebugTrace, rebuilt)
+    assertEquals("evt_42", rebuilt.build().labelerInput.eventId.id)
   }
 }

@@ -34,7 +34,9 @@ private constructor(private val condition: FieldFilter, private val assignments:
    */
   override fun update(event: LabelerEvent.Builder) {
     if (condition.matches(event)) {
-      assignments.forEach { it.assign(event, it.source, it.target) }
+      for (a in assignments) {
+        a.assigner.apply(event, a.source, a.target)
+      }
     }
   }
 
@@ -43,7 +45,7 @@ private constructor(private val condition: FieldFilter, private val assignments:
     private inline fun <reified T> assign(
       event: LabelerEvent.Builder,
       source: List<FieldDescriptor>,
-      target: List<FieldDescriptor>
+      target: List<FieldDescriptor>,
     ) {
       val fieldValue = getValueFromProto<T>(event, source)
       if (!fieldValue.isSet) {
@@ -52,17 +54,15 @@ private constructor(private val condition: FieldFilter, private val assignments:
       setValueToProtoBuilder(event, target, fieldValue.value)
     }
 
-    private fun getAssignmentFunction(
-      type: Type
-    ): (LabelerEvent.Builder, List<FieldDescriptor>, List<FieldDescriptor>) -> Unit {
+    private fun getAssigner(type: Type): Assigner {
       return when (type) {
-        Type.INT32 -> { a, b, c -> assign<Int>(a, b, c) }
-        Type.UINT32 -> { a, b, c -> assign<UInt>(a, b, c) }
-        Type.INT64 -> { a, b, c -> assign<Long>(a, b, c) }
-        Type.UINT64 -> { a, b, c -> assign<ULong>(a, b, c) }
-        Type.BOOL -> { a, b, c -> assign<Boolean>(a, b, c) }
-        Type.ENUM -> { a, b, c -> assign<EnumValueDescriptor>(a, b, c) }
-        Type.STRING -> { a, b, c -> assign<String>(a, b, c) }
+        Type.INT32 -> Int32Assigner
+        Type.UINT32 -> UInt32Assigner
+        Type.INT64 -> Int64Assigner
+        Type.UINT64 -> UInt64Assigner
+        Type.BOOL -> BoolAssigner
+        Type.ENUM -> EnumAssigner
+        Type.STRING -> StringAssigner
         else -> error("Unsupported field type for ConditionalAssignment: $type")
       }
     }
@@ -76,9 +76,9 @@ private constructor(private val condition: FieldFilter, private val assignments:
      * 2. [config].assignments is empty.
      * 3. Fails to build a [FieldFilter] from [config].condition.
      * 4. In any entry of [config].assignments, sourceField or targetField is not set or does not
-     * refer to a valid field.
+     *    refer to a valid field.
      * 5. In any entry of [config].assignments, sourceField and targetField refer to different type
-     * of fields. (like int32 vs int64)
+     *    of fields. (like int32 vs int64)
      */
     internal fun build(config: ConditionalAssignment): ConditionalAssignmentImpl {
       if (!config.hasCondition()) {
@@ -107,10 +107,80 @@ private constructor(private val condition: FieldFilter, private val assignments:
                 "the same type in ConditionalAssignment: $config "
             )
           }
-          Assignment(source, target, getAssignmentFunction(source.last().type))
+          Assignment(source, target, getAssigner(source.last().type))
         }
 
       return ConditionalAssignmentImpl(condition, assignments)
+    }
+
+    /**
+     * Monomorphic per-type assigner. Each `object` is a single instance with a single `apply`
+     * method, so the JIT sees a monomorphic call site at each `assigner.apply(...)` invocation and
+     * can inline through. The reified-T lambda dispatch the previous code used was erased at
+     * runtime and forced primitive boxing.
+     */
+    internal sealed interface Assigner {
+      fun apply(
+        event: LabelerEvent.Builder,
+        source: List<FieldDescriptor>,
+        target: List<FieldDescriptor>,
+      )
+    }
+
+    internal object Int32Assigner : Assigner {
+      override fun apply(
+        event: LabelerEvent.Builder,
+        source: List<FieldDescriptor>,
+        target: List<FieldDescriptor>,
+      ) = assign<Int>(event, source, target)
+    }
+
+    internal object UInt32Assigner : Assigner {
+      override fun apply(
+        event: LabelerEvent.Builder,
+        source: List<FieldDescriptor>,
+        target: List<FieldDescriptor>,
+      ) = assign<UInt>(event, source, target)
+    }
+
+    internal object Int64Assigner : Assigner {
+      override fun apply(
+        event: LabelerEvent.Builder,
+        source: List<FieldDescriptor>,
+        target: List<FieldDescriptor>,
+      ) = assign<Long>(event, source, target)
+    }
+
+    internal object UInt64Assigner : Assigner {
+      override fun apply(
+        event: LabelerEvent.Builder,
+        source: List<FieldDescriptor>,
+        target: List<FieldDescriptor>,
+      ) = assign<ULong>(event, source, target)
+    }
+
+    internal object BoolAssigner : Assigner {
+      override fun apply(
+        event: LabelerEvent.Builder,
+        source: List<FieldDescriptor>,
+        target: List<FieldDescriptor>,
+      ) = assign<Boolean>(event, source, target)
+    }
+
+    internal object EnumAssigner : Assigner {
+      override fun apply(
+        event: LabelerEvent.Builder,
+        source: List<FieldDescriptor>,
+        target: List<FieldDescriptor>,
+      ) = assign<EnumValueDescriptor>(event, source, target)
+    }
+
+    internal object StringAssigner : Assigner {
+      override fun apply(
+        event: LabelerEvent.Builder,
+        source: List<FieldDescriptor>,
+        target: List<FieldDescriptor>,
+      ) = assign<String>(event, source, target)
     }
   }
 }
@@ -118,5 +188,5 @@ private constructor(private val condition: FieldFilter, private val assignments:
 private data class Assignment(
   val source: List<FieldDescriptor>,
   val target: List<FieldDescriptor>,
-  val assign: (LabelerEvent.Builder, List<FieldDescriptor>, List<FieldDescriptor>) -> Unit
+  val assigner: ConditionalAssignmentImpl.Companion.Assigner,
 )

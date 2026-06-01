@@ -14,6 +14,9 @@
 
 #include "wfa/virtual_people/core/labeler/labeler.h"
 
+#include <string>
+#include <vector>
+
 #include "absl/container/flat_hash_map.h"
 #include "common_cpp/testing/status_macros.h"
 #include "common_cpp/testing/status_matchers.h"
@@ -424,6 +427,77 @@ TEST(LabelerTest, TestBuildFromNodesMultipleParents) {
       &nodes.emplace_back()));
   EXPECT_THAT(Labeler::Build(nodes).status(),
               StatusIs(absl::StatusCode::kInvalidArgument, ""));
+}
+
+namespace {
+
+// Returns a minimal single-pool model used by the debug-trace tests below.
+absl::StatusOr<std::unique_ptr<Labeler>> BuildSinglePoolLabeler() {
+  CompiledNode root;
+  if (!google::protobuf::TextFormat::ParseFromString(
+          R"pb(
+            name: "TestNode1"
+            branch_node {
+              branches {
+                node {
+                  population_node {
+                    pools { population_offset: 10 total_population: 1 }
+                    random_seed: "TestPopulationNodeSeed1"
+                  }
+                }
+                chance: 1.0
+              }
+              random_seed: "TestBranchNodeSeed"
+            }
+          )pb",
+          &root)) {
+    return absl::InternalError("failed to parse test model");
+  }
+  return Labeler::Build(root);
+}
+
+}  // namespace
+
+TEST(LabelerTest, SerializedDebugTraceEmptyWhenEnableDebugTraceUnset) {
+  ASSERT_OK_AND_ASSIGN(std::unique_ptr<Labeler> labeler,
+                       BuildSinglePoolLabeler());
+  LabelerInput input;
+  input.mutable_event_id()->set_id("evt_42");
+  // Default: enable_debug_trace is unset (== false).
+  LabelerOutput output;
+  EXPECT_THAT(labeler->Label(input, output), IsOk());
+  EXPECT_EQ(output.serialized_debug_trace(), "");
+}
+
+TEST(LabelerTest, SerializedDebugTraceEmptyWhenEnableDebugTraceFalse) {
+  ASSERT_OK_AND_ASSIGN(std::unique_ptr<Labeler> labeler,
+                       BuildSinglePoolLabeler());
+  LabelerInput input;
+  input.mutable_event_id()->set_id("evt_42");
+  input.set_enable_debug_trace(false);
+  LabelerOutput output;
+  EXPECT_THAT(labeler->Label(input, output), IsOk());
+  EXPECT_EQ(output.serialized_debug_trace(), "");
+}
+
+TEST(LabelerTest, SerializedDebugTracePopulatedWhenEnableDebugTraceTrue) {
+  ASSERT_OK_AND_ASSIGN(std::unique_ptr<Labeler> labeler,
+                       BuildSinglePoolLabeler());
+  LabelerInput input;
+  input.mutable_event_id()->set_id("evt_42");
+  input.set_enable_debug_trace(true);
+  LabelerOutput output;
+  EXPECT_THAT(labeler->Label(input, output), IsOk());
+  EXPECT_FALSE(output.serialized_debug_trace().empty());
+  // The trace is the DebugString() of the LabelerEvent, so the input event
+  // id we set should be visible verbatim in the trace.
+  EXPECT_NE(output.serialized_debug_trace().find("evt_42"), std::string::npos);
+  // And the trace should be re-parseable as a LabelerEvent text format,
+  // round-tripping back to the original input event id.
+  LabelerEvent rebuilt;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(
+      output.serialized_debug_trace(), &rebuilt));
+  EXPECT_EQ(rebuilt.labeler_input().event_id().id(), "evt_42");
 }
 
 }  // namespace

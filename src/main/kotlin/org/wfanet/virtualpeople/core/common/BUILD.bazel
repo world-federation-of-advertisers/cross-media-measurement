@@ -2,6 +2,7 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/virtualpeople/core:__subpackages__",
+    "//src/test/kotlin/org/wfanet/virtualpeople/core:__subpackages__",
 ])
 
 kt_jvm_library(

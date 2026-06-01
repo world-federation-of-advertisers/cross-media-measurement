@@ -58,16 +58,16 @@ import org.wfanet.virtualpeople.core.model.utils.*
  * ```
  *
  * @param hashMatcher The matcher used to match input events to the column events when using hash
- * field mask.
+ *   field mask.
  * @param filtersMatcher The matcher used to match input events to the column conditions when not
- * using hash field mask.
+ *   using hash field mask.
  * @param rowHashings Each entry of the list represents a hashing based on the probability
- * distribution of a column. The size of the list is the columns count.
+ *   distribution of a column. The size of the list is the columns count.
  * @param randomSeed The seed used in hashing.
  * @param rows Each entry of the vector contains all the rows of the corresponding column. The
- * selected row will be merged to the input event.
+ *   selected row will be merged to the input event.
  * @param passThroughNonMatches When calling Update, if no column matches, throws error if
- * passThroughNonMatches is [PassThroughNonMatches.NO].
+ *   passThroughNonMatches is [PassThroughNonMatches.NO].
  */
 internal class SparseUpdateMatrixImpl
 private constructor(
@@ -76,7 +76,7 @@ private constructor(
   private val rowHashings: List<DistributedConsistentHashing>,
   private val randomSeed: String,
   private val rows: List<List<LabelerEvent>>,
-  private val passThroughNonMatches: PassThroughNonMatches
+  private val passThroughNonMatches: PassThroughNonMatches,
 ) : AttributesUpdaterInterface {
 
   /**
@@ -88,8 +88,7 @@ private constructor(
    * [PassThroughNonMatches.NO].
    */
   override fun update(event: LabelerEvent.Builder) {
-    val indexes =
-      selectFromMatrix(hashMatcher, filtersMatcher, rowHashings, randomSeed, event.build())
+    val indexes = selectFromMatrix(hashMatcher, filtersMatcher, rowHashings, randomSeed, event)
     if (indexes.columnIndex == -1) {
       if (passThroughNonMatches == PassThroughNonMatches.YES) {
         return
@@ -115,9 +114,10 @@ private constructor(
      * 1. [config].columns is empty.
      * 2. [config].columns.column_attrs is not set.
      * 3. [config].columns.rows is empty. In any [config].columns, the counts of probabilities and
-     * rows are not equal.
+     *    rows are not equal.
      * 4. Fails to build [FieldFilter] from any [config].columns.column_attrs. Fails to build
-     * [DistributedConsistentHashing] from the probabilities distribution of any [config].columns.
+     *    [DistributedConsistentHashing] from the probabilities distribution of any
+     *    [config].columns.
      */
     internal fun build(config: SparseUpdateMatrix): SparseUpdateMatrixImpl {
       if (config.columnsCount == 0) {
@@ -141,7 +141,7 @@ private constructor(
         if (config.hasHashFieldMask()) {
           HashFieldMaskMatcher.build(
             config.columnsList.map { it.columnAttrs },
-            config.hashFieldMask
+            config.hashFieldMask,
           )
         } else {
           null
@@ -173,7 +173,7 @@ private constructor(
         rowHashings,
         config.randomSeed,
         rows,
-        passThroughNonMatches
+        passThroughNonMatches,
       )
     }
   }

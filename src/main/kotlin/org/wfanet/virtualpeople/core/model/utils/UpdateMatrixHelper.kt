@@ -15,6 +15,7 @@
 package org.wfanet.virtualpeople.core.model.utils
 
 import org.wfanet.virtualpeople.common.LabelerEvent
+import org.wfanet.virtualpeople.common.LabelerEventOrBuilder
 
 data class MatrixIndexes(val columnIndex: Int, val rowIndex: Int)
 
@@ -26,17 +27,31 @@ data class MatrixIndexes(val columnIndex: Int, val rowIndex: Int)
  * returns {-1, -1}. [randomSeed] is used as part of the seed when selecting row by hashing. At
  * least one of [hashMatcher] and [filtersMatcher] cannot be null. The output of applying
  * [hashMatcher] or [filtersMatcher] must be in the range of [0, [rowHashings].size() - 1].
+ *
+ * Accepting `LabelerEventOrBuilder` avoids materializing a full `LabelerEvent` per call when the
+ * caller already has the builder; only the hash-matcher path (which needs an immutable event for
+ * `FieldMaskUtil.merge`) builds.
  */
 fun selectFromMatrix(
   hashMatcher: HashFieldMaskMatcher?,
   filtersMatcher: FieldFiltersMatcher?,
   rowHashings: List<DistributedConsistentHashing>,
   randomSeed: String,
-  event: LabelerEvent
+  event: LabelerEventOrBuilder,
 ): MatrixIndexes {
   val columnIndex =
-    hashMatcher?.getMatch(event)
-      ?: (filtersMatcher?.getFirstMatch(event) ?: error("No column matcher is set."))
+    when {
+      hashMatcher != null ->
+        hashMatcher.getMatch(
+          when (event) {
+            is LabelerEvent -> event
+            is LabelerEvent.Builder -> event.build()
+            else -> error("Unexpected LabelerEventOrBuilder implementation: ${event::class}")
+          }
+        )
+      filtersMatcher != null -> filtersMatcher.getFirstMatch(event)
+      else -> error("No column matcher is set.")
+    }
   if (columnIndex == -1) {
     return MatrixIndexes(-1, -1)
   }
