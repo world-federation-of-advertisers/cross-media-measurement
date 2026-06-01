@@ -87,5 +87,4 @@ message ImpressionTestDataConfig {
   // Path to the PopulationSpec textproto. Either an absolute filesystem
   // path or a path relative to the loadtest dataprovider directory.
   string population_spec_resource_path = 2;
-
 }
