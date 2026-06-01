@@ -40,8 +40,11 @@ object ImpressionTestDataConfigs {
 
   fun resolveSpecPath(path: String): java.io.File {
     val specPath = Paths.get(path)
-    return if (specPath.isAbsolute) specPath.toFile()
-    else TEST_DATA_RUNTIME_PATH.resolve(path).toFile()
+    return if (specPath.isAbsolute) {
+      specPath.toFile()
+    } else {
+      TEST_DATA_RUNTIME_PATH.resolve(path).toFile()
+    }
   }
 
   fun resolveSyntheticEventGroupSpec(path: String): SyntheticEventGroupSpec {
