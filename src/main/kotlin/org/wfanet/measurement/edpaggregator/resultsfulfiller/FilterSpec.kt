@@ -59,11 +59,16 @@ sealed class BatchMatchResult {
   /** The batch does not match this filter; skip it entirely. */
   object Skip : BatchMatchResult()
 
-  /** The batch matched by reference ID; no per-event entity-key filtering needed. */
-  object MatchedByReferenceId : BatchMatchResult()
+  /**
+   * All events in the batch match the filter; no per-event entity-key filtering needed.
+   *
+   * Returned when matching by reference ID, or when the batch's entity keys are fully contained
+   * within the filter's entity keys.
+   */
+  object MatchedAllEvents : BatchMatchResult()
 
   /**
-   * The batch matched by entity keys; per-event entity-key filtering is required.
+   * The batch partially overlaps the filter's entity keys; per-event filtering is required.
    *
    * @property entityKeyFilter The set of entity keys to filter individual events against.
    */
@@ -94,8 +99,7 @@ sealed class FilterSpec {
    * Checks whether [identifier] matches this filter's batch-level selector.
    *
    * @return [BatchMatchResult.Skip] if the batch should be skipped,
-   *   [BatchMatchResult.MatchedByReferenceId] or [BatchMatchResult.MatchedByEntityKeys] if it
-   *   passed.
+   *   [BatchMatchResult.MatchedAllEvents] or [BatchMatchResult.MatchedByEntityKeys] if it passed.
    * @throws MissingBatchEntityKeysException when this is [ByEntityKeys] and [identifier] is not
    *   [EventGroupIdentifier.ByEntityKeys].
    */
@@ -131,7 +135,7 @@ sealed class FilterSpec {
           )
         is EventGroupIdentifier.ByReferenceId -> {
           return if (eventGroupReferenceIds.contains(identifier.refId)) {
-            BatchMatchResult.MatchedByReferenceId
+            BatchMatchResult.MatchedAllEvents
           } else {
             BatchMatchResult.Skip
           }
@@ -166,10 +170,13 @@ sealed class FilterSpec {
           )
         is EventGroupIdentifier.ByEntityKeys -> {
           if (identifier.entityKeys.isEmpty()) throw MissingBatchEntityKeysException()
-          return if (batchEntityKeysOverlap(identifier.entityKeys)) {
-            BatchMatchResult.MatchedByEntityKeys(entityKeyFilter = entityKeys)
+          if (!batchEntityKeysOverlap(identifier.entityKeys)) {
+            return BatchMatchResult.Skip
+          }
+          return if (allBatchKeysContained(identifier.entityKeys)) {
+            BatchMatchResult.MatchedAllEvents
           } else {
-            BatchMatchResult.Skip
+            BatchMatchResult.MatchedByEntityKeys(entityKeyFilter = entityKeys)
           }
         }
       }
@@ -188,6 +195,18 @@ sealed class FilterSpec {
           .flatMap { g -> g.entityIdsList.map { id -> EntityKeyPair(g.entityType, id) } }
           .toSet()
       return entityKeys.any { fk -> EntityKeyPair(fk.entityType, fk.entityId) in batchKeyPairs }
+    }
+
+    /**
+     * Checks whether all entity keys in [batchEntityKeys] are contained within this spec's
+     * [entityKeys].
+     */
+    private fun allBatchKeysContained(batchEntityKeys: List<EntityKeyGroup>): Boolean {
+      val filterKeyPairs: Set<EntityKeyPair> =
+        entityKeys.map { fk -> EntityKeyPair(fk.entityType, fk.entityId) }.toSet()
+      return batchEntityKeys.all { g ->
+        g.entityIdsList.all { id -> EntityKeyPair(g.entityType, id) in filterKeyPairs }
+      }
     }
 
     /** Flattened (entity_type, entity_id) pair for O(1) batch entity-key lookups. */

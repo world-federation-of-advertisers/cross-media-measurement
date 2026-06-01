@@ -631,7 +631,9 @@ class FilterProcessorTest {
         filterProcessor.processBatch(
           createEventBatch(
             events,
-            EventGroupIdentifier.ByEntityKeys(listOf(makeEntityKeyGroup("ad", "X"))),
+            EventGroupIdentifier.ByEntityKeys(
+              listOf(makeEntityKeyGroup("ad", "X", "Y"), makeEntityKeyGroup("placement", "X"))
+            ),
           )
         )
 
@@ -754,7 +756,7 @@ class FilterProcessorTest {
         filterProcessor.processBatch(
           createEventBatch(
             events,
-            EventGroupIdentifier.ByEntityKeys(listOf(makeEntityKeyGroup("ad", "X"))),
+            EventGroupIdentifier.ByEntityKeys(listOf(makeEntityKeyGroup("ad", "X", "Y"))),
           )
         )
 
