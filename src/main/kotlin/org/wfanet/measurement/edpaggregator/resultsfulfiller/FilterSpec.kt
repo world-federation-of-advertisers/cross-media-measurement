@@ -143,14 +143,16 @@ sealed class FilterSpec {
     }
 
     override fun matchBatch(identifier: EventGroupIdentifier): BatchMatchResult {
-      val batchKeys =
-        (identifier as? EventGroupIdentifier.ByEntityKeys)?.entityKeys
-          ?: throw MissingBatchEntityKeysException()
-      if (batchKeys.isEmpty()) throw MissingBatchEntityKeysException()
-      return if (batchEntityKeysOverlap(batchKeys)) {
-        BatchMatchResult.Matched(entityKeyFilter = entityKeys)
-      } else {
-        BatchMatchResult.Skip
+      when (identifier) {
+        is EventGroupIdentifier.ByReferenceId -> throw MissingBatchEntityKeysException()
+        is EventGroupIdentifier.ByEntityKeys -> {
+          if (identifier.entityKeys.isEmpty()) throw MissingBatchEntityKeysException()
+          return if (batchEntityKeysOverlap(identifier.entityKeys)) {
+            BatchMatchResult.Matched(entityKeyFilter = entityKeys)
+          } else {
+            BatchMatchResult.Skip
+          }
+        }
       }
     }
 
