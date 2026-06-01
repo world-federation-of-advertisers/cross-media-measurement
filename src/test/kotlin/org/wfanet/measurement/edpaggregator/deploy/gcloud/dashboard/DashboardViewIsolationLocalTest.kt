@@ -34,12 +34,7 @@ import org.junit.Test
 class DashboardViewIsolationLocalTest {
 
   companion object {
-    private val FORBIDDEN_EDP_COLUMNS =
-      setOf(
-        "CoveragePercent",
-        "TotalMcs",
-        "EdpCount",
-      )
+    private val FORBIDDEN_EDP_COLUMNS = setOf("CoveragePercent", "TotalMcs", "EdpCount")
 
     private val FORBIDDEN_EDP_PATTERNS =
       listOf(
@@ -49,29 +44,15 @@ class DashboardViewIsolationLocalTest {
       )
 
     private val EDP_SQL_FILES =
-      listOf(
-        "mc_details_edp.sql",
-        "report_detail_edp.sql",
-        "requisition_overview.sql",
-      )
+      listOf("mc_details_edp.sql", "report_detail_edp.sql", "requisition_overview.sql")
 
-    private val PLATFORM_SQL_FILES =
-      listOf(
-        "mc_details.sql",
-        "report_detail.sql",
-      )
+    private val PLATFORM_SQL_FILES = listOf("mc_details.sql", "report_detail.sql")
   }
 
   private fun readSqlFile(fileName: String): String {
     val runfilesDir = System.getenv("TEST_SRCDIR") ?: "."
     val workspace = System.getenv("TEST_WORKSPACE") ?: "__main__"
-    val path =
-      Paths.get(
-        runfilesDir,
-        workspace,
-        "src/main/terraform/gcloud/cmms/sql",
-        fileName,
-      )
+    val path = Paths.get(runfilesDir, workspace, "src/main/terraform/gcloud/cmms/sql", fileName)
     return Files.readString(path)
   }
 
