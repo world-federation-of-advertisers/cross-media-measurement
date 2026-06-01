@@ -215,6 +215,43 @@ data "google_project" "project" {
   project_id = data.google_client_config.default.project
 }
 
+# --- Tables (created empty, populated by scheduled queries via WRITE_TRUNCATE) ---
+
+resource "google_bigquery_table" "requisition_overview" {
+  dataset_id          = google_bigquery_dataset.dashboard.dataset_id
+  project             = data.google_client_config.default.project
+  table_id            = "requisition_overview"
+  deletion_protection = false
+}
+
+resource "google_bigquery_table" "mc_details" {
+  dataset_id          = google_bigquery_dataset.dashboard.dataset_id
+  project             = data.google_client_config.default.project
+  table_id            = "mc_details"
+  deletion_protection = false
+}
+
+resource "google_bigquery_table" "mc_details_edp" {
+  dataset_id          = google_bigquery_dataset.dashboard.dataset_id
+  project             = data.google_client_config.default.project
+  table_id            = "mc_details_edp"
+  deletion_protection = false
+}
+
+resource "google_bigquery_table" "report_detail" {
+  dataset_id          = google_bigquery_dataset.dashboard.dataset_id
+  project             = data.google_client_config.default.project
+  table_id            = "report_detail"
+  deletion_protection = false
+}
+
+resource "google_bigquery_table" "report_detail_edp" {
+  dataset_id          = google_bigquery_dataset.dashboard.dataset_id
+  project             = data.google_client_config.default.project
+  table_id            = "report_detail_edp"
+  deletion_protection = false
+}
+
 # --- Scheduled Queries (materialize Spanner data into BigQuery tables) ---
 
 resource "google_bigquery_data_transfer_config" "requisition_overview" {
