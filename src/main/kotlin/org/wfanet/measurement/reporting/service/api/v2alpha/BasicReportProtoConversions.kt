@@ -729,6 +729,8 @@ fun InternalResultGroup.toResultGroup(): ResultGroup {
         source.hasMetricMetadata() && source.metricMetadata.hasReportingUnitSummary() ->
           source.metricMetadata.reportingUnitSummary
         else ->
+          // Legacy ResultGroups stored this shared summary on each Result rather than on the
+          // group itself, so migrate from the first Result when group-level metadata is absent.
           source.resultsList
             .firstOrNull { it.metadata.hasReportingUnitSummary() }
             ?.metadata
@@ -743,7 +745,7 @@ fun InternalResultGroup.toResultGroup(): ResultGroup {
     for (internalResult in source.resultsList) {
       results +=
         ResultGroupKt.result {
-          metadata = internalResult.metadata.toMetricMetadata(omitReportingUnitSummary = true)
+          metadata = internalResult.metadata.toMetricMetadata(includeReportingUnitSummary = false)
           metricSet = internalResult.metricSet.toMetricSet()
         }
     }
@@ -796,11 +798,11 @@ private fun InternalMetricMetadata.ReportingUnitSummary.toReportingUnitSummary()
 
 /** Converts the internal [InternalMetricMetadata] to the public [MetricMetadata]. */
 fun InternalMetricMetadata.toMetricMetadata(
-  omitReportingUnitSummary: Boolean = false
+  includeReportingUnitSummary: Boolean = true
 ): MetricMetadata {
   val source = this
   return ResultGroupKt.metricMetadata {
-    if (!omitReportingUnitSummary && source.hasReportingUnitSummary()) {
+    if (includeReportingUnitSummary && source.hasReportingUnitSummary()) {
       reportingUnitSummary = source.reportingUnitSummary.toReportingUnitSummary()
     }
     nonCumulativeMetricStartTime = source.nonCumulativeMetricStartTime
