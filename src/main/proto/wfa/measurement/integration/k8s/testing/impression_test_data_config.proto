@@ -1,0 +1,90 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.integration.k8s.testing;
+
+import "google/protobuf/struct.proto";
+
+option java_package = "org.measurement.integration.k8s.testing";
+option java_multiple_files = true;
+option java_outer_classname = "ImpressionTestDataConfigProto";
+
+// Configuration for cloud test synthetic data generation and event group setup.
+//
+// Defines the set of event groups, their data specs, and entity key mappings
+// used by both the EdpAggregatorCorrectnessTest and the GenerateSyntheticData
+// CLI tool.
+message ImpressionTestDataConfig {
+  // Configuration for a single synthetic event group.
+  message SyntheticEventGroup {
+    // Event group reference ID as registered with the Kingdom.
+    //
+    // For event groups without entity key specs, this is the final ref ID.
+    // For entity-key event groups, this is the logical group name (e.g.
+    // "multi-creative"); the resolved ref ID is derived as
+    // "${entity_type}-${entity_id}" from each entity_key_spec.
+    string event_group_reference_id = 1;
+
+    // Path to the SyntheticEventGroupSpec textproto. Either an absolute
+    // filesystem path or a path relative to the loadtest dataprovider
+    // directory.
+    //
+    // Used for event groups with no entity key specs. Mutually exclusive
+    // with entity_key_specs.
+    string data_spec_resource_path = 2;
+
+    // Suffix appended (with a hyphen separator) to output filenames in the
+    // flat-folder layout. E.g. "creative" produces "impressions-creative"
+    // and "metadata-creative.binpb".
+    string output_key = 6;
+
+    // Entity key specs for entity-key event groups. Each spec maps an entity
+    // key to its own data spec textproto. When non-empty,
+    // data_spec_resource_path must be empty.
+    repeated EntityKeySpec entity_key_specs = 3;
+
+    // EDP short name that owns this event group (e.g. "edp7", "edpa_meta").
+    string edp_name = 4;
+
+    // Base path for flat-folder output. Files are written as
+    // {output_base_path}/{date}/impressions{output_key_suffix} and
+    // {output_base_path}/{date}/metadata{output_key_suffix}.binpb.
+    string output_base_path = 7;
+
+    // Optional entity metadata set on the Kingdom event group during
+    // registration (e.g. placement, objective). Used only by test-side code
+    // (EdpAggregatorCorrectnessTest); not consumed by GenerateSyntheticData.
+    google.protobuf.Struct entity_metadata = 5;
+  }
+
+  // A sub-spec within an entity-key event group, mapping an entity key to a
+  // data spec.
+  message EntityKeySpec {
+    string entity_type = 1;
+    string entity_id = 2;
+    // Path to the SyntheticEventGroupSpec textproto. Either an absolute
+    // filesystem path or a path relative to the loadtest dataprovider
+    // directory.
+    string data_spec_resource_path = 3;
+  }
+
+  // The synthetic event groups to generate.
+  repeated SyntheticEventGroup event_groups = 1;
+
+  // Path to the PopulationSpec textproto. Either an absolute filesystem
+  // path or a path relative to the loadtest dataprovider directory.
+  string population_spec_resource_path = 2;
+}

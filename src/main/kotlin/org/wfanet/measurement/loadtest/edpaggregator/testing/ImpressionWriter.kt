@@ -78,6 +78,7 @@ class ImpressionsWriter(
   private val impressionsMetadataBucket: String,
   private val storagePath: File? = null,
   private val schema: String = "file:///",
+  private val outputKey: String = "",
 ) {
 
   /**
@@ -139,9 +140,10 @@ class ImpressionsWriter(
       val ds = localDate.toString()
       logger.info("Writing Date: $ds")
 
+      val outputKeySuffix = if (outputKey.isEmpty()) "" else "-$outputKey"
       val impressionsBlobKey =
         if (flatOutputBasePath != null) {
-          "$flatOutputBasePath/$ds/impressions"
+          "$flatOutputBasePath/$ds/impressions$outputKeySuffix"
         } else if (impressionsBasePath != null) {
           "$impressionsBasePath/ds/$ds/$eventGroupPath/impressions"
         } else {
@@ -164,7 +166,7 @@ class ImpressionsWriter(
       )
       val impressionsMetaDataBlobKey =
         if (flatOutputBasePath != null) {
-          "$flatOutputBasePath/$ds/metadata.binpb"
+          "$flatOutputBasePath/$ds/metadata$outputKeySuffix.binpb"
         } else if (impressionsBasePath != null) {
           "$impressionsBasePath/ds/$ds/$eventGroupPath/metadata.binpb"
         } else {
