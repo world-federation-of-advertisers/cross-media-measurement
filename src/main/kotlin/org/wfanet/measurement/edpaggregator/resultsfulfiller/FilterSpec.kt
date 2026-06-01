@@ -53,13 +53,16 @@ sealed class BatchMatchResult {
   /** The batch does not match this filter; skip it entirely. */
   object Skip : BatchMatchResult()
 
+  /** The batch matched by reference ID; no per-event entity-key filtering needed. */
+  object MatchedByReferenceId : BatchMatchResult()
+
   /**
-   * The batch passed the batch-level selector check.
+   * The batch matched by entity keys; per-event entity-key filtering is required.
    *
-   * @property entityKeyFilter When non-null, per-event entity-key filtering is required using this
-   *   set. Null means no per-event entity-key check is needed (reference-id path).
+   * @property entityKeyFilter The set of entity keys to filter individual events against.
    */
-  data class Matched(val entityKeyFilter: Set<LabeledImpression.EntityKey>?) : BatchMatchResult()
+  data class MatchedByEntityKeys(val entityKeyFilter: Set<LabeledImpression.EntityKey>) :
+    BatchMatchResult()
 }
 
 /**
@@ -84,8 +87,9 @@ sealed class FilterSpec {
   /**
    * Checks whether [identifier] matches this filter's batch-level selector.
    *
-   * @return [BatchMatchResult.Skip] if the batch should be skipped, [BatchMatchResult.Matched] if
-   *   it passed (with an optional per-event entity-key filter set).
+   * @return [BatchMatchResult.Skip] if the batch should be skipped,
+   *   [BatchMatchResult.MatchedByReferenceId] or [BatchMatchResult.MatchedByEntityKeys] if it
+   *   passed.
    * @throws MissingBatchEntityKeysException when this is [ByEntityKeys] and [identifier] is not
    *   [EventGroupIdentifier.ByEntityKeys].
    */
@@ -118,7 +122,7 @@ sealed class FilterSpec {
         is EventGroupIdentifier.ByEntityKeys -> return BatchMatchResult.Skip
         is EventGroupIdentifier.ByReferenceId -> {
           return if (eventGroupReferenceIds.contains(identifier.refId)) {
-            BatchMatchResult.Matched(entityKeyFilter = null)
+            BatchMatchResult.MatchedByReferenceId
           } else {
             BatchMatchResult.Skip
           }
@@ -151,7 +155,7 @@ sealed class FilterSpec {
         is EventGroupIdentifier.ByEntityKeys -> {
           if (identifier.entityKeys.isEmpty()) throw MissingBatchEntityKeysException()
           return if (batchEntityKeysOverlap(identifier.entityKeys)) {
-            BatchMatchResult.Matched(entityKeyFilter = entityKeys)
+            BatchMatchResult.MatchedByEntityKeys(entityKeyFilter = entityKeys)
           } else {
             BatchMatchResult.Skip
           }
