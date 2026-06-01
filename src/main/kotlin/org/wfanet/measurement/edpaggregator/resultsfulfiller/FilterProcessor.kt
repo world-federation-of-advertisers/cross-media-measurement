@@ -93,12 +93,10 @@ class FilterProcessor<T : Message>(
       return batch
     }
 
-    val entityKeyFilter: Set<LabeledImpression.EntityKey>? =
-      when (val result = filterSpec.matchBatch(batch.eventGroupIdentifier)) {
-        is BatchMatchResult.Skip -> return emptyBatchLike(batch)
-        is BatchMatchResult.MatchedByReferenceId -> null
-        is BatchMatchResult.MatchedByEntityKeys -> result.entityKeyFilter
-      }
+    val matchResult = filterSpec.matchBatch(batch.eventGroupIdentifier)
+    if (matchResult is BatchMatchResult.Skip) {
+      return emptyBatchLike(batch)
+    }
 
     // Fast batch-level time range check: skip entire batch if no overlap
     if (!batchTimeRangeOverlaps(batch)) {
@@ -111,7 +109,10 @@ class FilterProcessor<T : Message>(
           return@filter false
         }
 
-        if (entityKeyFilter != null && !eventMatchesEntityKeyFilter(event, entityKeyFilter)) {
+        if (
+          matchResult is BatchMatchResult.MatchedByEntityKeys &&
+            !eventMatchesEntityKeyFilter(event, matchResult.entityKeyFilter)
+        ) {
           return@filter false
         }
 
