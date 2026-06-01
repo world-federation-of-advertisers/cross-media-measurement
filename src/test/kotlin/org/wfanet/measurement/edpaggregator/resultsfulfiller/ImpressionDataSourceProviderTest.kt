@@ -41,7 +41,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -119,7 +118,7 @@ class ImpressionDataSourceProviderTest {
     val sources =
       svc.listImpressionDataSources(
         modelLine = modelLine,
-        eventGroupReferenceId = eventGroupRef,
+        selector = ImpressionQuerySelector.ByEventGroupReferenceId(eventGroupRef),
         period =
           interval {
             startTime = timestamp {
@@ -163,7 +162,7 @@ class ImpressionDataSourceProviderTest {
     try {
       svc.listImpressionDataSources(
         modelLine = modelLine,
-        eventGroupReferenceId = "eg-3",
+        selector = ImpressionQuerySelector.ByEventGroupReferenceId("eg-3"),
         period =
           interval {
             startTime = timestamp {
@@ -204,10 +203,11 @@ class ImpressionDataSourceProviderTest {
     val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
     val end = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant()
 
-    val queryEntityKey = entityKey {
-      entityType = "creative-id"
-      entityId = "creative-a"
-    }
+    val queryEntityKey =
+      org.wfanet.measurement.edpaggregator.v1alpha.entityKey {
+        entityType = "creative-id"
+        entityId = "creative-a"
+      }
 
     whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
       .thenReturn(
@@ -233,7 +233,7 @@ class ImpressionDataSourceProviderTest {
     val sources =
       svc.listImpressionDataSources(
         modelLine = modelLine,
-        entityKey = queryEntityKey,
+        selector = ImpressionQuerySelector.ByEntityKey(queryEntityKey),
         period =
           interval {
             startTime = timestamp {
@@ -315,15 +315,16 @@ class ImpressionDataSourceProviderTest {
       whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
         .thenReturn(listImpressionMetadataResponse { impressionMetadata += metadataEntries })
 
-      val queryEntityKey = entityKey {
-        entityType = "campaign-id"
-        entityId = "campaign-123"
-      }
+      val queryEntityKey =
+        org.wfanet.measurement.edpaggregator.v1alpha.entityKey {
+          entityType = "campaign-id"
+          entityId = "campaign-123"
+        }
 
       val sources =
         svc.listImpressionDataSources(
           modelLine = modelLine,
-          entityKey = queryEntityKey,
+          selector = ImpressionQuerySelector.ByEntityKey(queryEntityKey),
           period =
             interval {
               startTime = timestamp {
@@ -361,10 +362,11 @@ class ImpressionDataSourceProviderTest {
       whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
         .thenReturn(listImpressionMetadataResponse {})
 
-      val queryEntityKey = entityKey {
-        entityType = "creative-id"
-        entityId = "nonexistent"
-      }
+      val queryEntityKey =
+        org.wfanet.measurement.edpaggregator.v1alpha.entityKey {
+          entityType = "creative-id"
+          entityId = "nonexistent"
+        }
 
       val date = LocalDate.of(2025, 3, 1)
       val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
@@ -373,7 +375,7 @@ class ImpressionDataSourceProviderTest {
       val sources =
         svc.listImpressionDataSources(
           modelLine = modelLine,
-          entityKey = queryEntityKey,
+          selector = ImpressionQuerySelector.ByEntityKey(queryEntityKey),
           period =
             interval {
               startTime = timestamp {
@@ -397,10 +399,11 @@ class ImpressionDataSourceProviderTest {
     whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
       .thenReturn(listImpressionMetadataResponse {})
 
-    val queryEntityKey = entityKey {
-      entityType = "placement-id"
-      entityId = "placement-42"
-    }
+    val queryEntityKey =
+      org.wfanet.measurement.edpaggregator.v1alpha.entityKey {
+        entityType = "placement-id"
+        entityId = "placement-42"
+      }
 
     val date = LocalDate.of(2025, 4, 10)
     val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
@@ -417,7 +420,12 @@ class ImpressionDataSourceProviderTest {
       }
     }
 
-    val results = svc.listImpressionDataSources(modelLine, queryEntityKey, period)
+    val results =
+      svc.listImpressionDataSources(
+        modelLine,
+        ImpressionQuerySelector.ByEntityKey(queryEntityKey),
+        period,
+      )
 
     assertThat(results).isEmpty()
 

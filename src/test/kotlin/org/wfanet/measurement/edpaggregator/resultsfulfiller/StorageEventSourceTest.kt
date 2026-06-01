@@ -1278,6 +1278,56 @@ class StorageEventSourceTest {
     assertThat(request.filter.entityKeysList).isEmpty()
   }
 
+  @Test
+  fun `generateEventBatches throws when mixing entity-key and reference-id event groups`(): Unit =
+    runBlocking {
+      val (kmsClient, _, _) = createKmsSetup()
+
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(ListImpressionMetadataResponse.getDefaultInstance())
+
+      // One event group with entity key, one without
+      val eventGroupDetailsList =
+        listOf(
+          eventGroupDetails {
+            eventGroupReferenceId = "creative-id/creative-a"
+            entityKey =
+              EventGroupDetailsKt.entityKey {
+                entityType = "creative-id"
+                entityId = "creative-a"
+              }
+            collectionIntervals += interval {
+              startTime =
+                LocalDate.of(2025, 1, 1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+              endTime =
+                LocalDate.of(2025, 1, 2).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+            }
+          },
+          createEventGroupDetails(
+            "standard-ref",
+            LocalDate.of(2025, 1, 1),
+            LocalDate.of(2025, 1, 2),
+            ZoneId.of("UTC"),
+          ),
+        )
+
+      val impressionService = createImpressionDataSourceProvider(tmp.root)
+      val eventSource =
+        StorageEventSource(
+          impressionDataSourceProvider = impressionService,
+          eventGroupDetailsList = eventGroupDetailsList,
+          modelLine = modelLine,
+          kmsClient = kmsClient,
+          impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+          descriptor = TestEvent.getDescriptor(),
+          batchSize = 1000,
+        )
+
+      val exception =
+        assertFailsWith<IllegalArgumentException> { eventSource.generateEventBatches().toList() }
+      assertThat(exception.message).isEqualTo("Cannot mix entity-key and reference-id event groups")
+    }
+
   companion object {
     private val TEST_EVENT = testEvent {
       person = person {

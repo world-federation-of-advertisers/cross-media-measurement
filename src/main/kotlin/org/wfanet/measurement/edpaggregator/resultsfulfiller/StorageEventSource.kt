@@ -172,30 +172,44 @@ class StorageEventSource(
     }
   }
 
+  /** Returns true if [details] has an entity key with a non-empty entity ID. */
+  private fun hasEntityKey(details: EventGroupDetails): Boolean {
+    return details.hasEntityKey() && details.entityKey.entityId.isNotEmpty()
+  }
+
   /** Collects all impression data sources and deduplicates by blob URI. */
   private suspend fun getUniqueImpressionDataSources(): List<ImpressionDataSource> {
     cachedImpressionDataSources?.let {
       return it
     }
 
+    // Validate that all event group details use the same query strategy.
+    if (eventGroupDetailsList.isNotEmpty()) {
+      val hasEntityKeys = eventGroupDetailsList.map { hasEntityKey(it) }
+      val allEntityKey = hasEntityKeys.all { it }
+      val noneEntityKey = hasEntityKeys.none { it }
+      require(allEntityKey || noneEntityKey) {
+        "Cannot mix entity-key and reference-id event groups"
+      }
+    }
+
     val allSources =
       eventGroupDetailsList.flatMap { details ->
         logger.info("EventGroup details: $details")
+        val selector =
+          if (hasEntityKey(details)) {
+            ImpressionQuerySelector.ByEntityKey(
+              entityKey {
+                entityType = details.entityKey.entityType
+                entityId = details.entityKey.entityId
+              }
+            )
+          } else {
+            ImpressionQuerySelector.ByEventGroupReferenceId(details.eventGroupReferenceId)
+          }
         details.collectionIntervalsList.flatMap { interval ->
           logger.info("EventGroup collection interval: $interval")
-          if (details.hasEntityKey() && details.entityKey.entityId.isNotEmpty()) {
-            val ek = entityKey {
-              entityType = details.entityKey.entityType
-              entityId = details.entityKey.entityId
-            }
-            impressionDataSourceProvider.listImpressionDataSources(modelLine, ek, interval)
-          } else {
-            impressionDataSourceProvider.listImpressionDataSources(
-              modelLine,
-              details.eventGroupReferenceId,
-              interval,
-            )
-          }
+          impressionDataSourceProvider.listImpressionDataSources(modelLine, selector, interval)
         }
       }
     val result = allSources.distinctBy { it.blobDetails.blobUri }
