@@ -346,28 +346,23 @@ class StorageEventSourceTest {
   }
 
   @Test
-  fun `generateEventBatches handles empty event group list`(): Unit = runBlocking {
-    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
-      .thenReturn(ListImpressionMetadataResponse.getDefaultInstance())
-
-    val eventGroupDetailsList = emptyList<GroupedRequisitions.EventGroupDetails>()
-
+  fun `generateEventBatches handles empty event group list`() {
     val impressionService = createImpressionDataSourceProvider(tmp.root)
     val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
-    val eventSource =
-      StorageEventSource(
-        impressionDataSourceProvider = impressionService,
-        eventGroupDetailsList = eventGroupDetailsList,
-        modelLine = modelLine,
-        kmsClient = kmsClient,
-        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
-        descriptor = Empty.getDescriptor(),
-        batchSize = 1000,
-      )
 
-    val batches = eventSource.generateEventBatches().toList()
-
-    assertThat(batches).isEmpty()
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        StorageEventSource(
+          impressionDataSourceProvider = impressionService,
+          eventGroupDetailsList = emptyList(),
+          modelLine = modelLine,
+          kmsClient = kmsClient,
+          impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+          descriptor = Empty.getDescriptor(),
+          batchSize = 1000,
+        )
+      }
+    assertThat(exception.message).isEqualTo("eventGroupDetailsList must not be empty")
   }
 
   @Test
@@ -1312,19 +1307,19 @@ class StorageEventSourceTest {
         )
 
       val impressionService = createImpressionDataSourceProvider(tmp.root)
-      val eventSource =
-        StorageEventSource(
-          impressionDataSourceProvider = impressionService,
-          eventGroupDetailsList = eventGroupDetailsList,
-          modelLine = modelLine,
-          kmsClient = kmsClient,
-          impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
-          descriptor = TestEvent.getDescriptor(),
-          batchSize = 1000,
-        )
 
       val exception =
-        assertFailsWith<IllegalArgumentException> { eventSource.generateEventBatches().toList() }
+        assertFailsWith<IllegalArgumentException> {
+          StorageEventSource(
+            impressionDataSourceProvider = impressionService,
+            eventGroupDetailsList = eventGroupDetailsList,
+            modelLine = modelLine,
+            kmsClient = kmsClient,
+            impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+            descriptor = TestEvent.getDescriptor(),
+            batchSize = 1000,
+          )
+        }
       assertThat(exception.message).isEqualTo("Cannot mix entity-key and reference-id event groups")
     }
 

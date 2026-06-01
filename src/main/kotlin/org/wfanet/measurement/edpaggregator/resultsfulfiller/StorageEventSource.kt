@@ -129,7 +129,13 @@ class StorageEventSource(
   /** Cache for unique impression data sources to avoid duplicate API calls. */
   private var cachedImpressionDataSources: List<ImpressionDataSource>? = null
 
-  private var useEntityKeyStrategy = false
+  private val useEntityKeyStrategy: Boolean = run {
+    require(eventGroupDetailsList.isNotEmpty()) { "eventGroupDetailsList must not be empty" }
+    val allEntityKey = eventGroupDetailsList.all { hasEntityKey(it) }
+    val noneEntityKey = eventGroupDetailsList.none { hasEntityKey(it) }
+    require(allEntityKey || noneEntityKey) { "Cannot mix entity-key and reference-id event groups" }
+    allEntityKey
+  }
 
   /**
    * Generates batches of events by reading from storage in parallel.
@@ -190,17 +196,6 @@ class StorageEventSource(
   private suspend fun getUniqueImpressionDataSources(): List<ImpressionDataSource> {
     cachedImpressionDataSources?.let {
       return it
-    }
-
-    // Validate that all event group details use the same query strategy.
-    if (eventGroupDetailsList.isNotEmpty()) {
-      val hasEntityKeys = eventGroupDetailsList.map { hasEntityKey(it) }
-      val allEntityKey = hasEntityKeys.all { it }
-      val noneEntityKey = hasEntityKeys.none { it }
-      require(allEntityKey || noneEntityKey) {
-        "Cannot mix entity-key and reference-id event groups"
-      }
-      useEntityKeyStrategy = allEntityKey
     }
 
     val allSources =

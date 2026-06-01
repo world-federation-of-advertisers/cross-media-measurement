@@ -114,12 +114,15 @@ sealed class FilterSpec {
     }
 
     override fun matchBatch(identifier: EventGroupIdentifier): BatchMatchResult {
-      val refId =
-        (identifier as? EventGroupIdentifier.ByReferenceId)?.refId ?: return BatchMatchResult.Skip
-      return if (eventGroupReferenceIds.contains(refId)) {
-        BatchMatchResult.Matched(entityKeyFilter = null)
-      } else {
-        BatchMatchResult.Skip
+      when (identifier) {
+        is EventGroupIdentifier.ByEntityKeys -> return BatchMatchResult.Skip
+        is EventGroupIdentifier.ByReferenceId -> {
+          return if (eventGroupReferenceIds.contains(identifier.refId)) {
+            BatchMatchResult.Matched(entityKeyFilter = null)
+          } else {
+            BatchMatchResult.Skip
+          }
+        }
       }
     }
   }
