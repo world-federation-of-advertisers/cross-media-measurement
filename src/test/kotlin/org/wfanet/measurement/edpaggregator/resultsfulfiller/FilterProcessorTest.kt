@@ -906,4 +906,93 @@ class FilterProcessorTest {
       assertThat(result.events).isEmpty()
     }
   }
+
+  @Test
+  fun `processBatch MatchedAllEvents when batch keys are proper subset of filter keys`() {
+    runBlocking {
+      val filterSpec =
+        createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X"), makeEntityKey("ad", "Y")))
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+
+      val events =
+        listOf(
+          createTestLabeledEvent(1, entityKeys = listOf(makeEntityKey("ad", "X"))),
+          createTestLabeledEvent(2, entityKeys = listOf(makeEntityKey("ad", "X"))),
+        )
+
+      val result =
+        filterProcessor.processBatch(
+          createEventBatch(
+            events,
+            EventGroupIdentifier.ByEntityKeys(listOf(makeEntityKeyGroup("ad", "X"))),
+          )
+        )
+
+      assertThat(result.events.map { it.vid }).containsExactly(1L, 2L).inOrder()
+    }
+  }
+
+  @Test
+  fun `processBatch MatchedAllEvents when multiple batch keys all contained in filter`() {
+    runBlocking {
+      val filterSpec =
+        createTestFilterSpec(
+          entityKeys =
+            setOf(
+              makeEntityKey("ad", "X"),
+              makeEntityKey("ad", "Y"),
+              makeEntityKey("placement", "P"),
+            )
+        )
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+
+      val events =
+        listOf(
+          createTestLabeledEvent(1, entityKeys = listOf(makeEntityKey("ad", "X"))),
+          createTestLabeledEvent(2, entityKeys = listOf(makeEntityKey("ad", "Y"))),
+          createTestLabeledEvent(3, entityKeys = listOf(makeEntityKey("placement", "P"))),
+        )
+
+      val result =
+        filterProcessor.processBatch(
+          createEventBatch(
+            events,
+            EventGroupIdentifier.ByEntityKeys(
+              listOf(makeEntityKeyGroup("ad", "X", "Y"), makeEntityKeyGroup("placement", "P"))
+            ),
+          )
+        )
+
+      assertThat(result.events.map { it.vid }).containsExactly(1L, 2L, 3L).inOrder()
+    }
+  }
+
+  @Test
+  fun `processBatch MatchedAllEvents keeps all events without per-event filtering`() {
+    runBlocking {
+      val filterSpec =
+        createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X"), makeEntityKey("ad", "Y")))
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+
+      val events =
+        listOf(
+          createTestLabeledEvent(1, entityKeys = listOf(makeEntityKey("ad", "X"))),
+          createTestLabeledEvent(2, entityKeys = listOf(makeEntityKey("ad", "Y"))),
+          createTestLabeledEvent(
+            3,
+            entityKeys = listOf(makeEntityKey("ad", "X"), makeEntityKey("ad", "Y")),
+          ),
+        )
+
+      val result =
+        filterProcessor.processBatch(
+          createEventBatch(
+            events,
+            EventGroupIdentifier.ByEntityKeys(listOf(makeEntityKeyGroup("ad", "X", "Y"))),
+          )
+        )
+
+      assertThat(result.events.map { it.vid }).containsExactly(1L, 2L, 3L).inOrder()
+    }
+  }
 }

@@ -18,7 +18,6 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.type.Interval
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 
 /** Thrown when a [FilterSpec] is constructed with an empty `eventGroupReferenceIds` selector. */
@@ -162,6 +161,9 @@ sealed class FilterSpec {
       requireValidCollectionInterval(collectionInterval)
     }
 
+    private val filterKeyPairs: Set<Pair<String, String>> =
+      entityKeys.map { Pair(it.entityType, it.entityId) }.toSet()
+
     override fun matchBatch(identifier: EventGroupIdentifier): BatchMatchResult {
       when (identifier) {
         is EventGroupIdentifier.ByReferenceId ->
@@ -170,10 +172,14 @@ sealed class FilterSpec {
           )
         is EventGroupIdentifier.ByEntityKeys -> {
           if (identifier.entityKeys.isEmpty()) throw MissingBatchEntityKeysException()
-          if (!batchEntityKeysOverlap(identifier.entityKeys)) {
+          val batchKeyPairs: Set<Pair<String, String>> =
+            identifier.entityKeys
+              .flatMap { g -> g.entityIdsList.map { id -> Pair(g.entityType, id) } }
+              .toSet()
+          if (filterKeyPairs.none { it in batchKeyPairs }) {
             return BatchMatchResult.NoMatch
           }
-          return if (allBatchKeysContained(identifier.entityKeys)) {
+          return if (batchKeyPairs.all { it in filterKeyPairs }) {
             BatchMatchResult.MatchedAllEvents
           } else {
             BatchMatchResult.MatchedByEntityKeys(entityKeyFilter = entityKeys)
@@ -181,35 +187,5 @@ sealed class FilterSpec {
         }
       }
     }
-
-    /**
-     * Checks whether any [EntityKeyGroup] in [batchEntityKeys] contains an `(entity_type,
-     * entity_id)` pair that matches this spec's [entityKeys].
-     *
-     * Pre-flattens the batch's grouped entity keys into a `Set<EntityKeyPair>` once, then performs
-     * O(1) membership lookups for each filter element.
-     */
-    private fun batchEntityKeysOverlap(batchEntityKeys: List<EntityKeyGroup>): Boolean {
-      val batchKeyPairs: Set<EntityKeyPair> =
-        batchEntityKeys
-          .flatMap { g -> g.entityIdsList.map { id -> EntityKeyPair(g.entityType, id) } }
-          .toSet()
-      return entityKeys.any { fk -> EntityKeyPair(fk.entityType, fk.entityId) in batchKeyPairs }
-    }
-
-    /**
-     * Checks whether all entity keys in [batchEntityKeys] are contained within this spec's
-     * [entityKeys].
-     */
-    private fun allBatchKeysContained(batchEntityKeys: List<EntityKeyGroup>): Boolean {
-      val filterKeyPairs: Set<EntityKeyPair> =
-        entityKeys.map { fk -> EntityKeyPair(fk.entityType, fk.entityId) }.toSet()
-      return batchEntityKeys.all { g ->
-        g.entityIdsList.all { id -> EntityKeyPair(g.entityType, id) in filterKeyPairs }
-      }
-    }
-
-    /** Flattened (entity_type, entity_id) pair for O(1) batch entity-key lookups. */
-    private data class EntityKeyPair(val entityType: String, val entityId: String)
   }
 }
