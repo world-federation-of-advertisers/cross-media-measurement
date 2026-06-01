@@ -72,14 +72,11 @@ class DashboardIsolationTest {
         .trimIndent()
 
     val result = bigQuery.query(QueryJobConfiguration.of(sql))
-    val resourceIds =
-      result.iterateAll().map { it["DataProviderResourceId"].stringValue }
+    val resourceIds = result.iterateAll().map { it["DataProviderResourceId"].stringValue }
 
     assertThat(resourceIds).isNotEmpty()
     assertThat(resourceIds).containsExactly(EDP_RESOURCE_ID)
-    logger.info(
-      "requisition_overview: ${result.totalRows} rows, all for $EDP_RESOURCE_ID"
-    )
+    logger.info("requisition_overview: ${result.totalRows} rows, all for $EDP_RESOURCE_ID")
   }
 
   @Test
@@ -92,14 +89,11 @@ class DashboardIsolationTest {
         .trimIndent()
 
     val result = bigQuery.query(QueryJobConfiguration.of(sql))
-    val dataProviders =
-      result.iterateAll().map { it["CmmsDataProvider"].stringValue }
+    val dataProviders = result.iterateAll().map { it["CmmsDataProvider"].stringValue }
 
     assertThat(dataProviders).isNotEmpty()
     assertThat(dataProviders).containsExactly(EDP_RESOURCE_ID)
-    logger.info(
-      "mc_details_edp: ${result.totalRows} rows, all for $EDP_RESOURCE_ID"
-    )
+    logger.info("mc_details_edp: ${result.totalRows} rows, all for $EDP_RESOURCE_ID")
   }
 
   @Test
@@ -112,15 +106,12 @@ class DashboardIsolationTest {
         .trimIndent()
 
     val result = bigQuery.query(QueryJobConfiguration.of(sql))
-    val dataProviders =
-      result.iterateAll().map { it["CmmsDataProvider"].stringValue }
+    val dataProviders = result.iterateAll().map { it["CmmsDataProvider"].stringValue }
 
     if (result.totalRows > 0) {
       assertThat(dataProviders).containsExactly(EDP_RESOURCE_ID)
     }
-    logger.info(
-      "report_detail_edp: ${result.totalRows} rows, all for $EDP_RESOURCE_ID"
-    )
+    logger.info("report_detail_edp: ${result.totalRows} rows, all for $EDP_RESOURCE_ID")
   }
 
   @Test
