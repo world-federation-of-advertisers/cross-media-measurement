@@ -115,14 +115,20 @@ class FilterProcessor<T : Message>(
     val entityKeyFilter: Set<LabeledImpression.EntityKey>? =
       when (val spec = filterSpec) {
         is FilterSpec.ByEventGroupReferenceIds -> {
-          if (!spec.eventGroupReferenceIds.contains(batch.eventGroupReferenceId)) {
+          val identifier =
+            batch.eventGroupIdentifier as? EventGroupIdentifier.ByReferenceId
+              ?: return emptyBatchLike(batch)
+          if (!spec.eventGroupReferenceIds.contains(identifier.refId)) {
             return emptyBatchLike(batch)
           }
           null
         }
         is FilterSpec.ByEntityKeys -> {
-          if (batch.entityKeys.isEmpty()) throw MissingBatchEntityKeysException()
-          if (!batchEntityKeysOverlap(batch, spec.entityKeys)) {
+          val identifier =
+            batch.eventGroupIdentifier as? EventGroupIdentifier.ByEntityKeys
+              ?: throw MissingBatchEntityKeysException()
+          if (identifier.entityKeys.isEmpty()) throw MissingBatchEntityKeysException()
+          if (!batchEntityKeysOverlap(identifier.entityKeys, spec.entityKeys)) {
             return emptyBatchLike(batch)
           }
           spec.entityKeys
@@ -151,8 +157,7 @@ class FilterProcessor<T : Message>(
       filteredEvents,
       minTime = batch.minTime,
       maxTime = batch.maxTime,
-      eventGroupReferenceId = batch.eventGroupReferenceId,
-      entityKeys = batch.entityKeys,
+      eventGroupIdentifier = batch.eventGroupIdentifier,
     )
   }
 
@@ -167,8 +172,7 @@ class FilterProcessor<T : Message>(
       emptyList(),
       minTime = batch.minTime,
       maxTime = batch.maxTime,
-      eventGroupReferenceId = batch.eventGroupReferenceId,
-      entityKeys = batch.entityKeys,
+      eventGroupIdentifier = batch.eventGroupIdentifier,
     )
   }
 
@@ -216,11 +220,11 @@ class FilterProcessor<T : Message>(
    * Caller must ensure `batch.entityKeys` is non-empty before invoking.
    */
   private fun batchEntityKeysOverlap(
-    batch: EventBatch<T>,
+    batchEntityKeys: List<org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup>,
     filter: Set<LabeledImpression.EntityKey>,
   ): Boolean {
     val batchKeyPairs: Set<EntityKeyPair> =
-      batch.entityKeys
+      batchEntityKeys
         .flatMap { g -> g.entityIdsList.map { id -> EntityKeyPair(g.entityType, id) } }
         .toSet()
     return filter.any { fk -> EntityKeyPair(fk.entityType, fk.entityId) in batchKeyPairs }

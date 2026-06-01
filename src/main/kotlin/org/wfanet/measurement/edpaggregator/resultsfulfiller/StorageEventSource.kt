@@ -243,14 +243,20 @@ class StorageEventSource(
 
     logger.fine("Reading events from ${blobDetails.blobUri}")
 
+    val eventGroupIdentifier =
+      if (blobDetails.entityKeysList.isNotEmpty()) {
+        EventGroupIdentifier.ByEntityKeys(blobDetails.entityKeysList)
+      } else {
+        EventGroupIdentifier.ByReferenceId(blobDetails.eventGroupReferenceId)
+      }
+
     eventReader.readEvents().collect { events ->
       val eventBatch =
         EventBatch(
           events = events,
           minTime = events.minOf { it.timestamp },
           maxTime = events.maxOf { it.timestamp },
-          eventGroupReferenceId = blobDetails.eventGroupReferenceId,
-          entityKeys = blobDetails.entityKeysList,
+          eventGroupIdentifier = eventGroupIdentifier,
         )
       sendEventBatch(eventBatch)
       batchCount++

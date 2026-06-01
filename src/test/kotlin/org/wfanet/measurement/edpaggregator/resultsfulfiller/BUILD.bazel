@@ -200,6 +200,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.FilterProcessorTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_batch",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_group_identifier",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:filter_processor",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:filter_spec",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:labeled_event",
@@ -273,6 +274,7 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_batch",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_group_identifier",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:filter_processor",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:filter_spec",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:frequency_vector",
@@ -310,6 +312,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_batch",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_group_identifier",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_processing_orchestrator",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_reader",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_source",
@@ -351,6 +354,8 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ParallelBatchedPipelineTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_batch",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_group_identifier",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_reader",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:filter_spec",

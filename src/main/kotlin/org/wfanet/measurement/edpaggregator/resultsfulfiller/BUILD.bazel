@@ -105,11 +105,19 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "event_group_identifier",
+    srcs = ["EventGroupIdentifier.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
     name = "event_batch",
     srcs = ["EventBatch.kt"],
     deps = [
+        ":event_group_identifier",
         ":labeled_event",
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )
@@ -135,6 +143,7 @@ kt_jvm_library(
     srcs = ["StorageEventSource.kt"],
     deps = [
         ":event_batch",
+        ":event_group_identifier",
         ":event_reader",
         ":event_source",
         ":impression_data_source_provider",
@@ -180,6 +189,7 @@ kt_jvm_library(
     srcs = ["FilterProcessor.kt"],
     deps = [
         ":event_batch",
+        ":event_group_identifier",
         ":event_source",
         ":filter_spec",
         ":labeled_event",

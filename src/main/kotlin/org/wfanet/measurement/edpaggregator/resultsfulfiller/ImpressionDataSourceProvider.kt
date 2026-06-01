@@ -46,7 +46,6 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  */
 data class ImpressionDataSource(
   val modelLine: String,
-  val eventGroupReferenceId: String,
   val interval: Interval,
   val blobDetails: BlobDetails,
 )
@@ -89,7 +88,6 @@ class ImpressionDataSourceProvider(
             val blobDetails = readBlobDetails(metadata.blobUri)
             ImpressionDataSource(
               modelLine = modelLine,
-              eventGroupReferenceId = selector.refId,
               interval = metadata.interval,
               blobDetails = blobDetails,
             )
@@ -106,7 +104,6 @@ class ImpressionDataSourceProvider(
             val blobDetails = readBlobDetails(metadata.blobUri)
             ImpressionDataSource(
               modelLine = modelLine,
-              eventGroupReferenceId = metadata.eventGroupReferenceId,
               interval = metadata.interval,
               blobDetails = blobDetails,
             )

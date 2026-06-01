@@ -92,13 +92,13 @@ class FilterProcessorTest {
     val timestamps = events.map { it.timestamp }
     val minTime = timestamps.minOrNull() ?: Instant.now()
     val maxTime = timestamps.maxOrNull() ?: Instant.now()
-    return EventBatch(
-      events,
-      minTime,
-      maxTime,
-      eventGroupReferenceId = eventGroupReferenceId,
-      entityKeys = entityKeys,
-    )
+    val identifier =
+      if (entityKeys.isNotEmpty()) {
+        EventGroupIdentifier.ByEntityKeys(entityKeys)
+      } else {
+        EventGroupIdentifier.ByReferenceId(eventGroupReferenceId)
+      }
+    return EventBatch(events, minTime, maxTime, eventGroupIdentifier = identifier)
   }
 
   /** Helper function to create a default interval that covers a wide time range. */
@@ -648,6 +648,48 @@ class FilterProcessorTest {
       assertFailsWith<MissingBatchEntityKeysException> {
         filterProcessor.processBatch(createEventBatch(events))
       }
+    }
+  }
+
+  @Test
+  fun `processBatch throws MissingBatchEntityKeysException when ByEntityKeys filter receives ByReferenceId batch`() {
+    runBlocking {
+      val filterSpec = createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X")))
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+
+      val events = listOf(createTestLabeledEvent(1, entityKeys = listOf(makeEntityKey("ad", "X"))))
+      val batch =
+        EventBatch(
+          events,
+          minTime = events.minOf { it.timestamp },
+          maxTime = events.maxOf { it.timestamp },
+          eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("some-ref-id"),
+        )
+
+      assertFailsWith<MissingBatchEntityKeysException> { filterProcessor.processBatch(batch) }
+    }
+  }
+
+  @Test
+  fun `processBatch with entityKeys filter works when batch eventGroupReferenceId would be empty`() {
+    runBlocking {
+      val targetKey = makeEntityKey("ad", "X")
+      val filterSpec = createTestFilterSpec(entityKeys = setOf(targetKey))
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+
+      val events = listOf(createTestLabeledEvent(1, entityKeys = listOf(targetKey)))
+      val batch =
+        EventBatch(
+          events,
+          minTime = events.minOf { it.timestamp },
+          maxTime = events.maxOf { it.timestamp },
+          eventGroupIdentifier =
+            EventGroupIdentifier.ByEntityKeys(listOf(makeEntityKeyGroup("ad", "X"))),
+        )
+
+      val result = filterProcessor.processBatch(batch)
+
+      assertThat(result.events.map { it.vid }).containsExactly(1L)
     }
   }
 

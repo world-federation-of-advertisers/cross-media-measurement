@@ -249,7 +249,6 @@ class ImpressionDataSourceProviderTest {
 
     assertThat(sources).hasSize(1)
     assertThat(sources[0].blobDetails.blobUri).isEqualTo("file:///impressions/$date/$sharedRefId")
-    assertThat(sources[0].eventGroupReferenceId).isEqualTo(sharedRefId)
 
     val captor = argumentCaptor<ListImpressionMetadataRequest>()
     verify(impressionMetadataServiceMock).listImpressionMetadata(captor.capture())
@@ -342,7 +341,6 @@ class ImpressionDataSourceProviderTest {
       for ((i, source) in sources.withIndex()) {
         assertThat(source.blobDetails.blobUri)
           .isEqualTo("file:///impressions/${dates[i]}/${sharedRefIds[i]}")
-        assertThat(source.eventGroupReferenceId).isEqualTo(sharedRefIds[i])
       }
 
       val captor = argumentCaptor<ListImpressionMetadataRequest>()
