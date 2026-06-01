@@ -287,6 +287,9 @@ message ResultGroup {
       repeated ReportingUnitComponentSummary reporting_unit_component_summary =
           1 [(google.api.field_behavior) = IMMUTABLE];
     }
+    // Deprecated: use ResultGroup.metric_metadata.reporting_unit_summary for
+    // metadata shared across all results in the ResultGroup.
+    //
     // A summary of the ReportingUnit
     ReportingUnitSummary reporting_unit_summary = 1
         [(google.api.field_behavior) = IMMUTABLE];
@@ -445,4 +448,7 @@ message ResultGroup {
   // The set of results for the ResultGroup, one per impression qualification
   // filter that was applicable to the result group.
   repeated Result results = 2 [(google.api.field_behavior) = IMMUTABLE];
+
+  // Metadata shared by every Result in this ResultGroup.
+  MetricMetadata metric_metadata = 3 [(google.api.field_behavior) = IMMUTABLE];
 }

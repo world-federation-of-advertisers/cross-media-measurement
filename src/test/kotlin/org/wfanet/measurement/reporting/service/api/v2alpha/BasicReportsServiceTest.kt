@@ -9439,53 +9439,56 @@ class BasicReportsServiceTest {
 
           resultGroups += resultGroup {
             title = "title"
+            metricMetadata =
+              ResultGroupKt.metricMetadata {
+                reportingUnitSummary =
+                  ResultGroupKt.MetricMetadataKt.reportingUnitSummary {
+                    reportingUnitComponentSummary +=
+                      ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
+                        component = DataProviderKey(cmmsDataProviderId).toName()
+                        displayName = "display"
+                        eventGroupSummaries +=
+                          ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
+                            .eventGroupSummary {
+                              eventGroup =
+                                EventGroupKey(
+                                    cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+                                    cmmsEventGroupId = "12345",
+                                  )
+                                  .toName()
+                            }
+                        eventGroupSummaries +=
+                          ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
+                            .eventGroupSummary {
+                              eventGroup =
+                                EventGroupKey(
+                                    cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+                                    cmmsEventGroupId = "123456",
+                                  )
+                                  .toName()
+                            }
+                      }
+                    reportingUnitComponentSummary +=
+                      ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
+                        component = DataProviderKey(cmmsDataProviderId).toName()
+                        displayName = "display"
+                        eventGroupSummaries +=
+                          ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
+                            .eventGroupSummary {
+                              eventGroup =
+                                EventGroupKey(
+                                    cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+                                    cmmsEventGroupId = "12345",
+                                  )
+                                  .toName()
+                            }
+                      }
+                  }
+              }
             results +=
               ResultGroupKt.result {
                 metadata =
                   ResultGroupKt.metricMetadata {
-                    reportingUnitSummary =
-                      ResultGroupKt.MetricMetadataKt.reportingUnitSummary {
-                        reportingUnitComponentSummary +=
-                          ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
-                            component = DataProviderKey(cmmsDataProviderId).toName()
-                            displayName = "display"
-                            eventGroupSummaries +=
-                              ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
-                                .eventGroupSummary {
-                                  eventGroup =
-                                    EventGroupKey(
-                                        cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
-                                        cmmsEventGroupId = "12345",
-                                      )
-                                      .toName()
-                                }
-                            eventGroupSummaries +=
-                              ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
-                                .eventGroupSummary {
-                                  eventGroup =
-                                    EventGroupKey(
-                                        cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
-                                        cmmsEventGroupId = "123456",
-                                      )
-                                      .toName()
-                                }
-                          }
-                        reportingUnitComponentSummary +=
-                          ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
-                            component = DataProviderKey(cmmsDataProviderId).toName()
-                            displayName = "display"
-                            eventGroupSummaries +=
-                              ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
-                                .eventGroupSummary {
-                                  eventGroup =
-                                    EventGroupKey(
-                                        cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
-                                        cmmsEventGroupId = "12345",
-                                      )
-                                      .toName()
-                                }
-                          }
-                      }
                     nonCumulativeMetricStartTime = timestamp { seconds = 10 }
                     cumulativeMetricStartTime = timestamp { seconds = 12 }
                     metricEndTime = timestamp { seconds = 20 }
@@ -9683,24 +9686,6 @@ class BasicReportsServiceTest {
               ResultGroupKt.result {
                 metadata =
                   ResultGroupKt.metricMetadata {
-                    reportingUnitSummary =
-                      ResultGroupKt.MetricMetadataKt.reportingUnitSummary {
-                        reportingUnitComponentSummary +=
-                          ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
-                            component = DataProviderKey(cmmsDataProviderId).toName()
-                            displayName = "display"
-                            eventGroupSummaries +=
-                              ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
-                                .eventGroupSummary {
-                                  eventGroup =
-                                    EventGroupKey(
-                                        cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
-                                        cmmsEventGroupId = "12345",
-                                      )
-                                      .toName()
-                                }
-                          }
-                      }
                     nonCumulativeMetricStartTime = timestamp { seconds = 10 }
                     cumulativeMetricStartTime = timestamp { seconds = 12 }
                     metricEndTime = timestamp { seconds = 20 }
@@ -9839,28 +9824,31 @@ class BasicReportsServiceTest {
 
           resultGroups += resultGroup {
             title = "title2"
+            metricMetadata =
+              ResultGroupKt.metricMetadata {
+                reportingUnitSummary =
+                  ResultGroupKt.MetricMetadataKt.reportingUnitSummary {
+                    reportingUnitComponentSummary +=
+                      ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
+                        component = DataProviderKey(cmmsDataProviderId).toName()
+                        displayName = "display"
+                        eventGroupSummaries +=
+                          ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
+                            .eventGroupSummary {
+                              eventGroup =
+                                EventGroupKey(
+                                    cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+                                    cmmsEventGroupId = "12345",
+                                  )
+                                  .toName()
+                            }
+                      }
+                  }
+              }
             results +=
               ResultGroupKt.result {
                 metadata =
                   ResultGroupKt.metricMetadata {
-                    reportingUnitSummary =
-                      ResultGroupKt.MetricMetadataKt.reportingUnitSummary {
-                        reportingUnitComponentSummary +=
-                          ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
-                            component = DataProviderKey(cmmsDataProviderId).toName()
-                            displayName = "display"
-                            eventGroupSummaries +=
-                              ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
-                                .eventGroupSummary {
-                                  eventGroup =
-                                    EventGroupKey(
-                                        cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
-                                        cmmsEventGroupId = "12345",
-                                      )
-                                      .toName()
-                                }
-                          }
-                      }
                     nonCumulativeMetricStartTime = timestamp { seconds = 10 }
                     cumulativeMetricStartTime = timestamp { seconds = 12 }
                     metricEndTime = timestamp { seconds = 20 }

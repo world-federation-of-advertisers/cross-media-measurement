@@ -289,6 +289,22 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "BasicReportProtoConversionsTest",
+    srcs = ["BasicReportProtoConversionsTest.kt"],
+    test_class = "org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportProtoConversionsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:basic_report_proto_conversions",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:result_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:result_group_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
     name = "ImpressionQualificationFiltersServiceTest",
     srcs = ["ImpressionQualificationFiltersServiceTest.kt"],
     associates = [
