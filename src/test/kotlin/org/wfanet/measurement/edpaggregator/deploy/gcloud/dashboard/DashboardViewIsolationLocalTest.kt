@@ -22,78 +22,74 @@ import java.nio.file.Paths
 import org.junit.Test
 
 /**
- * Local test for dashboard view SQL isolation.
+ * Local test for dashboard SQL validation.
  *
  * Validates SQL template files pre-merge:
- * 1. Per-EDP SQL templates contain required WHERE clauses
- * 2. No forbidden columns appear in per-EDP view SQL
+ * 1. EDP table SQL excludes forbidden platform-only columns
+ * 2. Platform table SQL includes expected platform-only columns
+ * 3. All SQL files contain expected EXTERNAL_QUERY connections
  *
  * Runs in Bazel with no cloud resources needed.
  */
 class DashboardViewIsolationLocalTest {
 
   companion object {
-    private val FORBIDDEN_COLUMNS =
+    private val FORBIDDEN_EDP_COLUMNS =
       setOf(
-        "cross_publisher",
-        "edp_distribution",
-        "EdpCount",
-        "TotalMcs",
         "CoveragePercent",
-        "ReportingSetFilter",
-        "MetricCalcSpecDetails",
-        "SucceededMetrics",
-        "FailedMetrics",
-        "result_group_specs",
-        "data_provider_keys",
+        "TotalMcs",
+        "EdpCount",
       )
 
-    private val FORBIDDEN_PATTERNS =
+    private val FORBIDDEN_EDP_PATTERNS =
       listOf(
         Regex("(?i).*edp.?count.*"),
-        Regex("(?i).*cross.?publisher.*"),
-        Regex("(?i).*data.?provider.?key.*"),
         Regex("(?i).*total.?mcs.*"),
-        Regex("(?i).*edp.?distribution.*"),
+        Regex("(?i).*coverage.?percent.*"),
       )
 
-    private val SQL_FILES =
-      listOf("requisition_overview.sql", "mc_details.sql", "report_detail.sql")
+    private val EDP_SQL_FILES =
+      listOf(
+        "mc_details_edp.sql",
+        "report_detail_edp.sql",
+        "requisition_overview.sql",
+      )
+
+    private val PLATFORM_SQL_FILES =
+      listOf(
+        "mc_details.sql",
+        "report_detail.sql",
+      )
   }
 
   private fun readSqlFile(fileName: String): String {
     val runfilesDir = System.getenv("TEST_SRCDIR") ?: "."
     val workspace = System.getenv("TEST_WORKSPACE") ?: "__main__"
-    val path = Paths.get(runfilesDir, workspace, "src/main/terraform/gcloud/cmms/sql", fileName)
+    val path =
+      Paths.get(
+        runfilesDir,
+        workspace,
+        "src/main/terraform/gcloud/cmms/sql",
+        fileName,
+      )
     return Files.readString(path)
   }
 
   @Test
-  fun perEdpSqlTemplatesContainWhereClause() {
-    for (fileName in SQL_FILES) {
-      val sql = readSqlFile(fileName)
-
-      assertThat(sql).contains("data_provider_id")
-      assertThat(sql).contains("%{ if data_provider_id != \"\" }")
-      assertThat(sql).contains("%{ endif }")
-    }
-  }
-
-  @Test
-  fun perEdpSqlTemplatesHaveNoForbiddenColumns() {
+  fun edpSqlFilesHaveNoForbiddenColumns() {
     val violations = mutableListOf<String>()
 
-    for (fileName in SQL_FILES) {
+    for (fileName in EDP_SQL_FILES) {
       val sql = readSqlFile(fileName)
 
       val aliasPattern = Regex("""(?i)\bAS\s+(\w+)""")
       val aliases = aliasPattern.findAll(sql).map { it.groupValues[1] }.toList()
 
       for (alias in aliases) {
-        if (alias in FORBIDDEN_COLUMNS) {
-          violations.add("$fileName: SELECT contains forbidden column alias '$alias'")
+        if (alias in FORBIDDEN_EDP_COLUMNS) {
+          violations.add("$fileName: contains forbidden column alias '$alias'")
         }
-        for (pattern in FORBIDDEN_PATTERNS) {
+        for (pattern in FORBIDDEN_EDP_PATTERNS) {
           if (pattern.matches(alias)) {
             violations.add(
               "$fileName: alias '$alias' matches forbidden pattern '${pattern.pattern}'"
@@ -107,23 +103,31 @@ class DashboardViewIsolationLocalTest {
   }
 
   @Test
-  fun requisitionOverviewFiltersOnDataProviderResourceId() {
-    val sql = readSqlFile("requisition_overview.sql")
-    assertThat(sql).contains("r.DataProviderResourceId = '\${data_provider_id}'")
-  }
-
-  @Test
-  fun mcDetailsFiltersOnDataProviderId() {
+  fun platformMcDetailsIncludesPlatformColumns() {
     val sql = readSqlFile("mc_details.sql")
-    assertThat(sql).contains("externalIdToApiId")
-    assertThat(sql).contains("DataProviderId")
-    assertThat(sql).contains("\${data_provider_id}")
+    assertThat(sql).contains("TotalMcs")
+    assertThat(sql).contains("CoveragePercent")
   }
 
   @Test
-  fun reportDetailFiltersOnCmmsDataProviderId() {
+  fun platformReportDetailIncludesEdpCount() {
     val sql = readSqlFile("report_detail.sql")
-    assertThat(sql).contains("cmmsDataProviderId")
-    assertThat(sql).contains("\${data_provider_id}")
+    assertThat(sql).contains("EdpCount")
+  }
+
+  @Test
+  fun allSqlFilesUseExternalQuery() {
+    for (fileName in EDP_SQL_FILES + PLATFORM_SQL_FILES) {
+      val sql = readSqlFile(fileName)
+      assertThat(sql).contains("EXTERNAL_QUERY")
+    }
+  }
+
+  @Test
+  fun sqlFilesDoNotContainPerEdpWhereFilter() {
+    for (fileName in EDP_SQL_FILES + PLATFORM_SQL_FILES) {
+      val sql = readSqlFile(fileName)
+      assertThat(sql).doesNotContain("data_provider_id")
+    }
   }
 }

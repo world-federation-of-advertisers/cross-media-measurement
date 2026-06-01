@@ -12,54 +12,58 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- Platform version: includes EdpCount.
+
 SELECT
-  base.BasicReportId,
-  base.CmmsDataProvider,
-  COUNT(DISTINCT base.CmmsEventGroupId) AS EventGroupCount,
-  ARRAY_AGG(DISTINCT base.CmmsEventGroupId) AS EventGroupIds,
-  ARRAY_AGG(DISTINCT base.CampaignName IGNORE NULLS) AS CampaignNames,
-  ARRAY_AGG(DISTINCT base.BrandName IGNORE NULLS) AS BrandNames
+  *,
+  COUNT(DISTINCT CmmsDataProvider) OVER (PARTITION BY BasicReportId) AS EdpCount
 FROM (
   SELECT
-    br.BasicReportId,
-    JSON_VALUE(comp, '$.cmmsDataProviderId') AS CmmsDataProvider,
-    JSON_VALUE(eg, '$.cmmsEventGroupId') AS CmmsEventGroupId,
-    JSON_VALUE(
-      `${project_id}.dashboard_views.decode_EventGroupDetails`(keg.EventGroupDetails),
-      '$.metadata.ad_metadata.campaign_metadata.campaign_name'
-    ) AS CampaignName,
-    JSON_VALUE(
-      `${project_id}.dashboard_views.decode_EventGroupDetails`(keg.EventGroupDetails),
-      '$.metadata.ad_metadata.campaign_metadata.brand_name'
-    ) AS BrandName
+    base.BasicReportId,
+    base.CmmsDataProvider,
+    COUNT(DISTINCT base.CmmsEventGroupId) AS EventGroupCount,
+    ARRAY_AGG(DISTINCT base.CmmsEventGroupId) AS EventGroupIds,
+    ARRAY_AGG(DISTINCT base.CampaignName IGNORE NULLS) AS CampaignNames,
+    ARRAY_AGG(DISTINCT base.BrandName IGNORE NULLS) AS BrandNames
   FROM (
     SELECT
-      BasicReportId,
-      `${project_id}.dashboard_views.decode_BasicReportResultDetails`(BasicReportResultDetails) AS details
-    FROM EXTERNAL_QUERY(
-      'projects/${project_id}/locations/${region}/connections/reporting-conn',
-      '''SELECT
-        br.BasicReportId,
-        CAST(br.BasicReportResultDetails AS BYTES) AS BasicReportResultDetails
-      FROM BasicReports br''')
-  ) br,
-  UNNEST(JSON_QUERY_ARRAY(br.details, '$.resultGroups')) AS rg,
-  UNNEST(JSON_QUERY_ARRAY(rg, '$.results')) AS result,
-  UNNEST(JSON_QUERY_ARRAY(result, '$.metadata.reportingUnitSummary.reportingUnitComponentSummary')) AS comp,
-  UNNEST(JSON_QUERY_ARRAY(comp, '$.eventGroupSummaries')) AS eg
-  LEFT JOIN (
-    SELECT * FROM EXTERNAL_QUERY(
-      'projects/${project_id}/locations/${region}/connections/kingdom-conn',
-      '''SELECT
-        eg.ExternalEventGroupId,
-        eg.MeasurementConsumerId,
-        CAST(eg.EventGroupDetails AS BYTES) AS EventGroupDetails
-      FROM EventGroups eg''')
-  ) keg
-    ON JSON_VALUE(eg, '$.cmmsEventGroupId') = `${project_id}.dashboard_views.externalIdToApiId`(keg.ExternalEventGroupId)
-    AND JSON_VALUE(eg, '$.cmmsMeasurementConsumerId') = `${project_id}.dashboard_views.externalIdToApiId`(keg.MeasurementConsumerId)
-%{ if data_provider_id != "" }
-  WHERE JSON_VALUE(comp, '$.cmmsDataProviderId') = '${data_provider_id}'
-%{ endif }
-) base
-GROUP BY base.BasicReportId, base.CmmsDataProvider
+      br.BasicReportId,
+      JSON_VALUE(comp, '$.cmmsDataProviderId') AS CmmsDataProvider,
+      JSON_VALUE(eg, '$.cmmsEventGroupId') AS CmmsEventGroupId,
+      JSON_VALUE(
+        `${project_id}.dashboard.decode_EventGroupDetails`(keg.EventGroupDetails),
+        '$.metadata.ad_metadata.campaign_metadata.campaign_name'
+      ) AS CampaignName,
+      JSON_VALUE(
+        `${project_id}.dashboard.decode_EventGroupDetails`(keg.EventGroupDetails),
+        '$.metadata.ad_metadata.campaign_metadata.brand_name'
+      ) AS BrandName
+    FROM (
+      SELECT
+        BasicReportId,
+        `${project_id}.dashboard.decode_BasicReportResultDetails`(BasicReportResultDetails) AS details
+      FROM EXTERNAL_QUERY(
+        'projects/${project_id}/locations/${region}/connections/reporting-conn',
+        '''SELECT
+          br.BasicReportId,
+          CAST(br.BasicReportResultDetails AS BYTES) AS BasicReportResultDetails
+        FROM BasicReports br''')
+    ) br,
+    UNNEST(JSON_QUERY_ARRAY(br.details, '$.resultGroups')) AS rg,
+    UNNEST(JSON_QUERY_ARRAY(rg, '$.results')) AS result,
+    UNNEST(JSON_QUERY_ARRAY(result, '$.metadata.reportingUnitSummary.reportingUnitComponentSummary')) AS comp,
+    UNNEST(JSON_QUERY_ARRAY(comp, '$.eventGroupSummaries')) AS eg
+    LEFT JOIN (
+      SELECT * FROM EXTERNAL_QUERY(
+        'projects/${project_id}/locations/${region}/connections/kingdom-conn',
+        '''SELECT
+          eg.ExternalEventGroupId,
+          eg.MeasurementConsumerId,
+          CAST(eg.EventGroupDetails AS BYTES) AS EventGroupDetails
+        FROM EventGroups eg''')
+    ) keg
+      ON JSON_VALUE(eg, '$.cmmsEventGroupId') = `${project_id}.dashboard.externalIdToApiId`(keg.ExternalEventGroupId)
+      AND JSON_VALUE(eg, '$.cmmsMeasurementConsumerId') = `${project_id}.dashboard.externalIdToApiId`(keg.MeasurementConsumerId)
+  ) base
+  GROUP BY base.BasicReportId, base.CmmsDataProvider
+)

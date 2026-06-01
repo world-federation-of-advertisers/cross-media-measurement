@@ -63,7 +63,7 @@ LEFT JOIN (
     BasicReportId,
     ExternalReportId,
     CAST(State AS INT64) AS State,
-    `${project_id}.dashboard_views.decode_BasicReportDetails`(BasicReportDetails) AS details
+    `${project_id}.dashboard.decode_BasicReportDetails`(BasicReportDetails) AS details
   FROM EXTERNAL_QUERY(
     'projects/${project_id}/locations/${region}/connections/reporting-conn',
     '''SELECT
@@ -74,6 +74,3 @@ LEFT JOIN (
     FROM BasicReports br''')
 ) br
   ON REGEXP_EXTRACT(r.Report, r'reports/([^/]+)$') = br.ExternalReportId
-%{ if data_provider_id != "" }
-WHERE r.DataProviderResourceId = '${data_provider_id}'
-%{ endif }

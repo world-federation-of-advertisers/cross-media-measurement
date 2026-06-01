@@ -13,27 +13,20 @@
 # limitations under the License.
 
 # BigQuery Dashboard Resources for EDPA Reporting Dashboard
+# Architecture: Materialized tables with row access policies (Section 3.1)
 
-# --- Datasets ---
+# --- Dataset ---
 
-resource "google_bigquery_dataset" "dashboard_views" {
-  dataset_id = "dashboard_views"
+resource "google_bigquery_dataset" "dashboard" {
+  dataset_id = "dashboard"
   project    = data.google_client_config.default.project
   location   = data.google_client_config.default.region
 }
-
-resource "google_bigquery_dataset" "dashboard_views_edp" {
-  dataset_id = "dashboard_views_edp"
-  project    = data.google_client_config.default.project
-  location   = data.google_client_config.default.region
-}
-
-# Remove default projectReaders access from EDP dataset
 
 # --- UDFs ---
 
 resource "google_bigquery_routine" "external_id_to_api_id" {
-  dataset_id   = google_bigquery_dataset.dashboard_views.dataset_id
+  dataset_id   = google_bigquery_dataset.dashboard.dataset_id
   project      = data.google_client_config.default.project
   routine_id   = "externalIdToApiId"
   routine_type = "SCALAR_FUNCTION"
@@ -73,7 +66,7 @@ resource "google_bigquery_routine" "external_id_to_api_id" {
 }
 
 resource "google_bigquery_routine" "decode_event_group_details" {
-  dataset_id   = google_bigquery_dataset.dashboard_views.dataset_id
+  dataset_id   = google_bigquery_dataset.dashboard.dataset_id
   project      = data.google_client_config.default.project
   routine_id   = "decode_EventGroupDetails"
   routine_type = "SCALAR_FUNCTION"
@@ -112,7 +105,7 @@ resource "google_bigquery_routine" "decode_event_group_details" {
 }
 
 resource "google_bigquery_routine" "decode_basic_report_details" {
-  dataset_id   = google_bigquery_dataset.dashboard_views.dataset_id
+  dataset_id   = google_bigquery_dataset.dashboard.dataset_id
   project      = data.google_client_config.default.project
   routine_id   = "decode_BasicReportDetails"
   routine_type = "SCALAR_FUNCTION"
@@ -147,7 +140,7 @@ resource "google_bigquery_routine" "decode_basic_report_details" {
 }
 
 resource "google_bigquery_routine" "decode_basic_report_result_details" {
-  dataset_id   = google_bigquery_dataset.dashboard_views.dataset_id
+  dataset_id   = google_bigquery_dataset.dashboard.dataset_id
   project      = data.google_client_config.default.project
   routine_id   = "decode_BasicReportResultDetails"
   routine_type = "SCALAR_FUNCTION"
@@ -222,115 +215,99 @@ data "google_project" "project" {
   project_id = data.google_client_config.default.project
 }
 
-# --- Per-EDP Views (in isolated dataset) ---
+# --- Scheduled Queries (materialize Spanner data into BigQuery tables) ---
 
-resource "google_bigquery_table" "requisition_overview" {
-  for_each   = var.data_provider_resource_ids
-  dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
-  project    = data.google_client_config.default.project
-  table_id   = "requisition_overview_${each.key}"
-  deletion_protection = false
+resource "google_bigquery_data_transfer_config" "requisition_overview" {
+  display_name           = "Dashboard: requisition_overview"
+  data_source_id         = "scheduled_query"
+  schedule               = "every 1 hours"
+  destination_dataset_id = google_bigquery_dataset.dashboard.dataset_id
+  project                = data.google_client_config.default.project
+  location               = data.google_client_config.default.region
 
-  view {
-    query = templatefile("${path.module}/sql/requisition_overview.sql", {
-      project_id       = data.google_client_config.default.project
-      region           = data.google_client_config.default.region
-      data_provider_id = each.value
+  params = {
+    query                      = templatefile("${path.module}/sql/requisition_overview.sql", {
+      project_id = data.google_client_config.default.project
+      region     = data.google_client_config.default.region
     })
-    use_legacy_sql = false
+    destination_table_name_template = "requisition_overview"
+    write_disposition               = "WRITE_TRUNCATE"
   }
 }
 
-resource "google_bigquery_table" "mc_details" {
-  for_each   = var.data_provider_resource_ids
-  dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
-  project    = data.google_client_config.default.project
-  table_id   = "mc_details_${each.key}"
-  deletion_protection = false
+resource "google_bigquery_data_transfer_config" "mc_details" {
+  display_name           = "Dashboard: mc_details (platform)"
+  data_source_id         = "scheduled_query"
+  schedule               = "every 1 hours"
+  destination_dataset_id = google_bigquery_dataset.dashboard.dataset_id
+  project                = data.google_client_config.default.project
+  location               = data.google_client_config.default.region
 
-  view {
-    query = templatefile("${path.module}/sql/mc_details.sql", {
-      project_id       = data.google_client_config.default.project
-      region           = data.google_client_config.default.region
-      data_provider_id = each.value
+  params = {
+    query                      = templatefile("${path.module}/sql/mc_details.sql", {
+      project_id = data.google_client_config.default.project
+      region     = data.google_client_config.default.region
     })
-    use_legacy_sql = false
+    destination_table_name_template = "mc_details"
+    write_disposition               = "WRITE_TRUNCATE"
   }
 }
 
-# --- Platform Views (in main dataset, accessible via project-level access) ---
+resource "google_bigquery_data_transfer_config" "mc_details_edp" {
+  display_name           = "Dashboard: mc_details_edp"
+  data_source_id         = "scheduled_query"
+  schedule               = "every 1 hours"
+  destination_dataset_id = google_bigquery_dataset.dashboard.dataset_id
+  project                = data.google_client_config.default.project
+  location               = data.google_client_config.default.region
 
-resource "google_bigquery_table" "requisition_overview_platform" {
-  dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
-  project    = data.google_client_config.default.project
-  table_id   = "requisition_overview_platform"
-  description = "Platform view - all EDPs"
-
-  deletion_protection = false
-  view {
-    query = templatefile("${path.module}/sql/requisition_overview.sql", {
-      project_id       = data.google_client_config.default.project
-      region           = data.google_client_config.default.region
-      data_provider_id = ""
+  params = {
+    query                      = templatefile("${path.module}/sql/mc_details_edp.sql", {
+      project_id = data.google_client_config.default.project
+      region     = data.google_client_config.default.region
     })
-    use_legacy_sql = false
+    destination_table_name_template = "mc_details_edp"
+    write_disposition               = "WRITE_TRUNCATE"
   }
 }
 
-resource "google_bigquery_table" "mc_details_platform" {
-  dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
-  project    = data.google_client_config.default.project
-  table_id   = "mc_details_platform"
-  description = "Platform view - all EDPs"
+resource "google_bigquery_data_transfer_config" "report_detail" {
+  display_name           = "Dashboard: report_detail (platform)"
+  data_source_id         = "scheduled_query"
+  schedule               = "every 1 hours"
+  destination_dataset_id = google_bigquery_dataset.dashboard.dataset_id
+  project                = data.google_client_config.default.project
+  location               = data.google_client_config.default.region
 
-  deletion_protection = false
-  view {
-    query = templatefile("${path.module}/sql/mc_details.sql", {
-      project_id       = data.google_client_config.default.project
-      region           = data.google_client_config.default.region
-      data_provider_id = ""
+  params = {
+    query                      = templatefile("${path.module}/sql/report_detail.sql", {
+      project_id = data.google_client_config.default.project
+      region     = data.google_client_config.default.region
     })
-    use_legacy_sql = false
+    destination_table_name_template = "report_detail"
+    write_disposition               = "WRITE_TRUNCATE"
   }
 }
 
-# --- Report Detail Views ---
+resource "google_bigquery_data_transfer_config" "report_detail_edp" {
+  display_name           = "Dashboard: report_detail_edp"
+  data_source_id         = "scheduled_query"
+  schedule               = "every 1 hours"
+  destination_dataset_id = google_bigquery_dataset.dashboard.dataset_id
+  project                = data.google_client_config.default.project
+  location               = data.google_client_config.default.region
 
-resource "google_bigquery_table" "report_detail" {
-  for_each   = var.data_provider_resource_ids
-  dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
-  project    = data.google_client_config.default.project
-  table_id   = "report_detail_${each.key}"
-  deletion_protection = false
-
-  view {
-    query = templatefile("${path.module}/sql/report_detail.sql", {
-      project_id       = data.google_client_config.default.project
-      region           = data.google_client_config.default.region
-      data_provider_id = each.value
+  params = {
+    query                      = templatefile("${path.module}/sql/report_detail_edp.sql", {
+      project_id = data.google_client_config.default.project
+      region     = data.google_client_config.default.region
     })
-    use_legacy_sql = false
+    destination_table_name_template = "report_detail_edp"
+    write_disposition               = "WRITE_TRUNCATE"
   }
 }
 
-resource "google_bigquery_table" "report_detail_platform" {
-  dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
-  project    = data.google_client_config.default.project
-  table_id   = "report_detail_platform"
-  description = "Platform view - all EDPs"
-
-  deletion_protection = false
-  view {
-    query = templatefile("${path.module}/sql/report_detail.sql", {
-      project_id       = data.google_client_config.default.project
-      region           = data.google_client_config.default.region
-      data_provider_id = ""
-    })
-    use_legacy_sql = false
-  }
-}
-
-# --- Per-EDP Service Accounts and IAM ---
+# --- Per-EDP Service Accounts ---
 
 resource "google_service_account" "edp_dashboard" {
   for_each     = var.data_provider_resource_ids
@@ -339,30 +316,84 @@ resource "google_service_account" "edp_dashboard" {
   project      = data.google_client_config.default.project
 }
 
-# Per-view IAM: each EDP service account can only access their own views
+# --- Row Access Policies ---
+# Applied to tables that EDPs query. Each EDP SA sees only their own rows.
+# Platform operators see all rows.
+
+resource "google_bigquery_job" "row_policy_requisition_overview" {
+  for_each = var.data_provider_resource_ids
+  job_id   = "row_policy_requisition_overview_${each.key}_${formatdate("YYYYMMDDhhmmss", timestamp())}"
+  project  = data.google_client_config.default.project
+  location = data.google_client_config.default.region
+
+  query {
+    query = "CREATE OR REPLACE ROW ACCESS POLICY ${each.key}_filter ON `${data.google_client_config.default.project}.${google_bigquery_dataset.dashboard.dataset_id}.requisition_overview` GRANT TO ('serviceAccount:${google_service_account.edp_dashboard[each.key].email}') FILTER USING (DataProviderResourceId = '${each.value}')"
+    use_legacy_sql = false
+  }
+}
+
+resource "google_bigquery_job" "row_policy_requisition_overview_platform" {
+  job_id   = "row_policy_requisition_overview_platform_${formatdate("YYYYMMDDhhmmss", timestamp())}"
+  project  = data.google_client_config.default.project
+  location = data.google_client_config.default.region
+
+  query {
+    query = "CREATE OR REPLACE ROW ACCESS POLICY platform_full_access ON `${data.google_client_config.default.project}.${google_bigquery_dataset.dashboard.dataset_id}.requisition_overview` GRANT TO ('serviceAccount:${var.terraform_service_account}') FILTER USING (TRUE)"
+    use_legacy_sql = false
+  }
+}
+
+resource "google_bigquery_job" "row_policy_mc_details_edp" {
+  for_each = var.data_provider_resource_ids
+  job_id   = "row_policy_mc_details_edp_${each.key}_${formatdate("YYYYMMDDhhmmss", timestamp())}"
+  project  = data.google_client_config.default.project
+  location = data.google_client_config.default.region
+
+  query {
+    query = "CREATE OR REPLACE ROW ACCESS POLICY ${each.key}_filter ON `${data.google_client_config.default.project}.${google_bigquery_dataset.dashboard.dataset_id}.mc_details_edp` GRANT TO ('serviceAccount:${google_service_account.edp_dashboard[each.key].email}') FILTER USING (CmmsDataProvider = '${each.value}')"
+    use_legacy_sql = false
+  }
+}
+
+resource "google_bigquery_job" "row_policy_report_detail_edp" {
+  for_each = var.data_provider_resource_ids
+  job_id   = "row_policy_report_detail_edp_${each.key}_${formatdate("YYYYMMDDhhmmss", timestamp())}"
+  project  = data.google_client_config.default.project
+  location = data.google_client_config.default.region
+
+  query {
+    query = "CREATE OR REPLACE ROW ACCESS POLICY ${each.key}_filter ON `${data.google_client_config.default.project}.${google_bigquery_dataset.dashboard.dataset_id}.report_detail_edp` GRANT TO ('serviceAccount:${google_service_account.edp_dashboard[each.key].email}') FILTER USING (CmmsDataProvider = '${each.value}')"
+    use_legacy_sql = false
+  }
+}
+
+# --- Table-level IAM ---
+# EDP SAs get dataViewer on requisition_overview, mc_details_edp, report_detail_edp only.
+# Platform-only tables (mc_details, report_detail) have no EDP SA grants — they get 403.
+
 resource "google_bigquery_table_iam_member" "requisition_overview_viewer" {
   for_each   = var.data_provider_resource_ids
   project    = data.google_client_config.default.project
-  dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
-  table_id   = google_bigquery_table.requisition_overview[each.key].table_id
+  dataset_id = google_bigquery_dataset.dashboard.dataset_id
+  table_id   = "requisition_overview"
   role       = "roles/bigquery.dataViewer"
   member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }
 
-resource "google_bigquery_table_iam_member" "mc_details_viewer" {
+resource "google_bigquery_table_iam_member" "mc_details_edp_viewer" {
   for_each   = var.data_provider_resource_ids
   project    = data.google_client_config.default.project
-  dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
-  table_id   = google_bigquery_table.mc_details[each.key].table_id
+  dataset_id = google_bigquery_dataset.dashboard.dataset_id
+  table_id   = "mc_details_edp"
   role       = "roles/bigquery.dataViewer"
   member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }
 
-resource "google_bigquery_table_iam_member" "report_detail_viewer" {
+resource "google_bigquery_table_iam_member" "report_detail_edp_viewer" {
   for_each   = var.data_provider_resource_ids
   project    = data.google_client_config.default.project
-  dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
-  table_id   = google_bigquery_table.report_detail[each.key].table_id
+  dataset_id = google_bigquery_dataset.dashboard.dataset_id
+  table_id   = "report_detail_edp"
   role       = "roles/bigquery.dataViewer"
   member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }
@@ -382,61 +413,6 @@ resource "google_service_account_iam_member" "edp_sa_operator_token_creator" {
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "user:tinage@meta.com"
 }
-
-# Authorize dashboard_views_edp to access UDFs in dashboard_views
-resource "google_bigquery_dataset_access" "edp_authorized_routines" {
-  dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
-  project    = data.google_client_config.default.project
-  dataset {
-    dataset {
-      project_id = data.google_client_config.default.project
-      dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
-    }
-    target_types = ["VIEWS"]
-  }
-}
-
-# Authorize per-EDP views in dashboard_views dataset (for connection access)
-resource "google_bigquery_dataset_access" "edp_requisition_overview_authorized" {
-  for_each   = google_bigquery_table.requisition_overview
-  dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
-  project    = data.google_client_config.default.project
-  view {
-    project_id = data.google_client_config.default.project
-    dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
-    table_id   = each.value.table_id
-  }
-}
-
-resource "google_bigquery_dataset_access" "edp_mc_details_authorized" {
-  for_each   = google_bigquery_table.mc_details
-  dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
-  project    = data.google_client_config.default.project
-  view {
-    project_id = data.google_client_config.default.project
-    dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
-    table_id   = each.value.table_id
-  }
-}
-
-resource "google_bigquery_dataset_access" "edp_report_detail_authorized" {
-  for_each   = google_bigquery_table.report_detail
-  dataset_id = google_bigquery_dataset.dashboard_views.dataset_id
-  project    = data.google_client_config.default.project
-  view {
-    project_id = data.google_client_config.default.project
-    dataset_id = google_bigquery_dataset.dashboard_views_edp.dataset_id
-    table_id   = each.value.table_id
-  }
-}
-
-# REMOVED: bigquery.connectionUser grants for EDP SAs.
-# Authorized views execute EXTERNAL_QUERY via the connection service agent,
-# not the querying user. Granting connectionUser would allow bypassing
-# view-level filtering with arbitrary EXTERNAL_QUERY.
-
-# REMOVED: spanner.databaseReaderWithDataBoost grants for EDP SAs.
-# The BQ connection SA reads Spanner, not the end-user SAs.
 
 # --- GCS Bucket for UDF Libraries ---
 
