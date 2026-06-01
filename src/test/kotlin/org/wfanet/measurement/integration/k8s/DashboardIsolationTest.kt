@@ -45,8 +45,7 @@ class DashboardIsolationTest {
     private val EDP_NAME =
       System.getenv("EDP_NAME") ?: throw IllegalStateException("EDP_NAME not set")
     private val EDP_RESOURCE_ID =
-      System.getenv("EDP_RESOURCE_ID")
-        ?: throw IllegalStateException("EDP_RESOURCE_ID not set")
+      System.getenv("EDP_RESOURCE_ID") ?: throw IllegalStateException("EDP_RESOURCE_ID not set")
 
     private const val DATASET = "dashboard"
 
