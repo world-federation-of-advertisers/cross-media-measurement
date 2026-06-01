@@ -743,7 +743,7 @@ fun InternalResultGroup.toResultGroup(): ResultGroup {
     for (internalResult in source.resultsList) {
       results +=
         ResultGroupKt.result {
-          metadata = internalResult.metadata.toMetricMetadata(clearReportingUnitSummary = true)
+          metadata = internalResult.metadata.toMetricMetadata(omitReportingUnitSummary = true)
           metricSet = internalResult.metricSet.toMetricSet()
         }
     }
@@ -796,11 +796,11 @@ private fun InternalMetricMetadata.ReportingUnitSummary.toReportingUnitSummary()
 
 /** Converts the internal [InternalMetricMetadata] to the public [MetricMetadata]. */
 fun InternalMetricMetadata.toMetricMetadata(
-  clearReportingUnitSummary: Boolean = false
+  omitReportingUnitSummary: Boolean = false
 ): MetricMetadata {
   val source = this
   return ResultGroupKt.metricMetadata {
-    if (!clearReportingUnitSummary && source.hasReportingUnitSummary()) {
+    if (!omitReportingUnitSummary && source.hasReportingUnitSummary()) {
       reportingUnitSummary = source.reportingUnitSummary.toReportingUnitSummary()
     }
     nonCumulativeMetricStartTime = source.nonCumulativeMetricStartTime
