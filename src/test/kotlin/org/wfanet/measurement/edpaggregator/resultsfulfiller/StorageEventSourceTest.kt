@@ -346,7 +346,7 @@ class StorageEventSourceTest {
   }
 
   @Test
-  fun `generateEventBatches handles empty event group list`() {
+  fun `construction rejects empty event group list`() {
     val impressionService = createImpressionDataSourceProvider(tmp.root)
     val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
 
@@ -1274,7 +1274,7 @@ class StorageEventSourceTest {
   }
 
   @Test
-  fun `generateEventBatches throws when mixing entity-key and reference-id event groups`(): Unit =
+  fun `construction throws when mixing entity-key and reference-id event groups`(): Unit =
     runBlocking {
       val (kmsClient, _, _) = createKmsSetup()
 
