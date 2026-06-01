@@ -85,11 +85,11 @@ class VerifySyntheticData : Runnable {
     private set
 
   @Option(
-    names = ["--impression-metadata-base-path"],
+    names = ["--base-path"],
     description = ["Base path where impressions are stored."],
     required = true,
   )
-  lateinit var impressionMetadataBasePath: String
+  lateinit var basePath: String
     private set
 
   @Option(
@@ -321,7 +321,7 @@ class VerifySyntheticData : Runnable {
         kekUri = kekUri,
         storagePath = storagePath,
         outputBucket = outputBucket,
-        impressionMetadataBasePath = impressionMetadataBasePath,
+        basePath = basePath,
         eventMessageInstance = eventMessageInstance,
         expectedEventTypeUrl = eventMessageTypeUrl,
       )
@@ -379,11 +379,10 @@ class VerifySyntheticData : Runnable {
     }
 
     /**
-     * Walks the impression metadata directory tree, decrypts each impressions blob using
-     * [kmsClient], validates every [LabeledImpression] record, and returns aggregate counts.
+     * Walks the output directory tree, decrypts each impressions blob using [kmsClient], validates
+     * every [LabeledImpression] record, and returns aggregate counts.
      *
-     * The traversal handles multi-event-group output: each per-date directory may contain multiple
-     * `metadata.binpb` files (one per event group reference id), and each is processed
+     * The traversal finds all `metadata.binpb` files under [basePath] and processes each
      * independently.
      */
     private fun verifySyntheticData(
@@ -391,130 +390,126 @@ class VerifySyntheticData : Runnable {
       kekUri: String,
       storagePath: File,
       outputBucket: String,
-      impressionMetadataBasePath: String,
+      basePath: String,
       eventMessageInstance: Message,
       expectedEventTypeUrl: String,
     ): VerificationResult {
       val rootStorageClient = FileSystemStorageClient(storagePath)
-      val bucketDir = storagePath.resolve(outputBucket).resolve(impressionMetadataBasePath)
+      val scanDir = storagePath.resolve(outputBucket).resolve(basePath)
 
-      logger.info("Scanning for date shards in: $bucketDir")
-      check(bucketDir.exists()) { "Directory does not exist: $bucketDir" }
+      logger.info("Scanning for metadata.binpb files in: $scanDir")
+      check(scanDir.exists()) { "Directory does not exist: $scanDir" }
 
-      val dsDir = bucketDir.resolve("ds")
-      check(dsDir.exists()) { "No ds/ directory found under: $bucketDir" }
+      val metadataFiles =
+        scanDir
+          .walkTopDown()
+          .filter { it.name.startsWith("metadata") && it.name.endsWith(".binpb") }
+          .toList()
+          .sorted()
+      check(metadataFiles.isNotEmpty()) { "No metadata*.binpb files found under: $scanDir" }
 
-      val dateDirs = dsDir.listFiles()?.filter { it.isDirectory }?.sorted() ?: emptyList()
-      check(dateDirs.isNotEmpty()) { "No date shard directories found under: $dsDir" }
-
-      logger.info("Found ${dateDirs.size} date shards")
+      logger.info("Found ${metadataFiles.size} metadata.binpb files")
       var totalImpressions = 0
       var totalBlobsProcessed = 0
       var errors = 0
       val impressionsByEventGroupReferenceId = mutableMapOf<String, Int>()
 
-      for (dateDir in dateDirs) {
-        val date = dateDir.name
-        val metadataFiles = dateDir.walkTopDown().filter { it.name == "metadata.binpb" }.toList()
+      for (metadataFile in metadataFiles) {
+        val relativePath = metadataFile.relativeTo(scanDir).path
+        try {
+          logger.info("\n=== Processing: $relativePath ===")
 
-        for (metadataFile in metadataFiles) {
-          try {
-            logger.info("\n=== Processing date: $date ===")
+          val bucketRelativePath = metadataFile.relativeTo(storagePath.resolve(outputBucket)).path
+          logger.info("Reading metadata from: $bucketRelativePath")
 
-            val relativePath = metadataFile.relativeTo(storagePath.resolve(outputBucket)).path
-            logger.info("Reading metadata from: $relativePath")
+          val metadataBlob = runBlocking {
+            rootStorageClient.getBlob("$outputBucket/$bucketRelativePath")
+          }
+          check(metadataBlob != null) {
+            "Metadata blob not found: $outputBucket/$bucketRelativePath"
+          }
 
-            val metadataBlob = runBlocking {
-              rootStorageClient.getBlob("$outputBucket/$relativePath")
-            }
-            check(metadataBlob != null) { "Metadata blob not found: $outputBucket/$relativePath" }
-
-            val blobDetailsBytes = runBlocking { metadataBlob.read().toList() }
-            val blobDetails =
-              BlobDetails.parseFrom(
-                blobDetailsBytes.fold(ByteString.EMPTY) { acc, bs -> acc.concat(bs) }
-              )
-
-            logger.info("  Blob URI: ${blobDetails.blobUri}")
-            logger.info("  KEK URI: ${blobDetails.encryptedDek.kekUri}")
-            logger.info("  DEK type: ${blobDetails.encryptedDek.typeUrl}")
-            logger.info("  DEK format: ${blobDetails.encryptedDek.protobufFormat}")
-            logger.info("  Event group ref ID: ${blobDetails.eventGroupReferenceId}")
-            logger.info("  Model line: ${blobDetails.modelLine}")
-            logger.info(
-              "  Interval: ${blobDetails.interval.startTime} - ${blobDetails.interval.endTime}"
+          val blobDetailsBytes = runBlocking { metadataBlob.read().toList() }
+          val blobDetails =
+            BlobDetails.parseFrom(
+              blobDetailsBytes.fold(ByteString.EMPTY) { acc, bs -> acc.concat(bs) }
             )
 
-            val encryptedDek = blobDetails.encryptedDek
-            check(encryptedDek.kekUri == kekUri) {
-              "KEK URI mismatch: expected $kekUri, got ${encryptedDek.kekUri}"
-            }
+          logger.info("  Blob URI: ${blobDetails.blobUri}")
+          logger.info("  KEK URI: ${blobDetails.encryptedDek.kekUri}")
+          logger.info("  DEK type: ${blobDetails.encryptedDek.typeUrl}")
+          logger.info("  DEK format: ${blobDetails.encryptedDek.protobufFormat}")
+          logger.info("  Event group ref ID: ${blobDetails.eventGroupReferenceId}")
+          logger.info("  Model line: ${blobDetails.modelLine}")
+          logger.info(
+            "  Interval: ${blobDetails.interval.startTime} - ${blobDetails.interval.endTime}"
+          )
 
-            val impressionsBlobUri = blobDetails.blobUri
-            val selectedStorageClient = SelectedStorageClient(impressionsBlobUri, storagePath)
-            val decryptionClient =
-              selectedStorageClient.withEnvelopeEncryption(
-                kmsClient,
-                kekUri,
-                encryptedDek.ciphertext,
-              )
-
-            val impressionsBlobKey =
-              impressionsBlobUri.removePrefix("file:///").removePrefix("$outputBucket/")
-
-            logger.info("  Decrypting impressions from blob key: $impressionsBlobKey")
-
-            val mesosClient = MesosRecordIoStorageClient(decryptionClient)
-            val impressionsBlob = runBlocking { mesosClient.getBlob(impressionsBlobKey) }
-            check(impressionsBlob != null) { "Impressions blob not found: $impressionsBlobKey" }
-
-            val records = runBlocking { impressionsBlob.read().toList() }
-            logger.info("  Decrypted ${records.size} impression records")
-
-            for ((index, record) in records.withIndex()) {
-              val impression = LabeledImpression.parseFrom(record)
-              check(impression.vid > 0) { "Invalid VID: ${impression.vid}" }
-              check(impression.hasEvent()) { "Missing event in impression $index" }
-              check(impression.hasEventTime()) { "Missing event time in impression $index" }
-              for ((entityKeyIndex, entityKey) in impression.entityKeysList.withIndex()) {
-                check(entityKey.entityType.isNotEmpty()) {
-                  "EntityKey[$entityKeyIndex] on impression $index has empty entity_type"
-                }
-                check(entityKey.entityId.isNotEmpty()) {
-                  "EntityKey[$entityKeyIndex] on impression $index has empty entity_id"
-                }
-              }
-
-              check(impression.event.typeUrl == expectedEventTypeUrl) {
-                "Event type URL mismatch on impression $index: expected $expectedEventTypeUrl, " +
-                  "got ${impression.event.typeUrl}"
-              }
-              eventMessageInstance.newBuilderForType().mergeFrom(impression.event.value).build()
-
-              if (index < 3) {
-                val entityKeysSummary =
-                  impression.entityKeysList.joinToString(", ") { "${it.entityType}=${it.entityId}" }
-                logger.info(
-                  "  Record[$index]: vid=${impression.vid}, eventTime=${impression.eventTime}, " +
-                    "entityKeys=[$entityKeysSummary]"
-                )
-              }
-            }
-
-            totalImpressions += records.size
-            totalBlobsProcessed++
-            impressionsByEventGroupReferenceId.merge(
-              blobDetails.eventGroupReferenceId,
-              records.size,
-            ) { old, new ->
-              old + new
-            }
-            logger.info("  PASS: $date - ${records.size} impressions verified")
-          } catch (e: Exception) {
-            errors++
-            logger.severe("  FAIL: $date - ${e.message}")
-            e.printStackTrace()
+          val encryptedDek = blobDetails.encryptedDek
+          check(encryptedDek.kekUri == kekUri) {
+            "KEK URI mismatch: expected $kekUri, got ${encryptedDek.kekUri}"
           }
+
+          val impressionsBlobUri = blobDetails.blobUri
+          val selectedStorageClient = SelectedStorageClient(impressionsBlobUri, storagePath)
+          val decryptionClient =
+            selectedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, encryptedDek.ciphertext)
+
+          val impressionsBlobKey =
+            impressionsBlobUri.removePrefix("file:///").removePrefix("$outputBucket/")
+
+          logger.info("  Decrypting impressions from blob key: $impressionsBlobKey")
+
+          val mesosClient = MesosRecordIoStorageClient(decryptionClient)
+          val impressionsBlob = runBlocking { mesosClient.getBlob(impressionsBlobKey) }
+          check(impressionsBlob != null) { "Impressions blob not found: $impressionsBlobKey" }
+
+          val records = runBlocking { impressionsBlob.read().toList() }
+          logger.info("  Decrypted ${records.size} impression records")
+
+          for ((index, record) in records.withIndex()) {
+            val impression = LabeledImpression.parseFrom(record)
+            check(impression.vid > 0) { "Invalid VID: ${impression.vid}" }
+            check(impression.hasEvent()) { "Missing event in impression $index" }
+            check(impression.hasEventTime()) { "Missing event time in impression $index" }
+            for ((entityKeyIndex, entityKey) in impression.entityKeysList.withIndex()) {
+              check(entityKey.entityType.isNotEmpty()) {
+                "EntityKey[$entityKeyIndex] on impression $index has empty entity_type"
+              }
+              check(entityKey.entityId.isNotEmpty()) {
+                "EntityKey[$entityKeyIndex] on impression $index has empty entity_id"
+              }
+            }
+
+            check(impression.event.typeUrl == expectedEventTypeUrl) {
+              "Event type URL mismatch on impression $index: expected $expectedEventTypeUrl, " +
+                "got ${impression.event.typeUrl}"
+            }
+            eventMessageInstance.newBuilderForType().mergeFrom(impression.event.value).build()
+
+            if (index < 3) {
+              val entityKeysSummary =
+                impression.entityKeysList.joinToString(", ") { "${it.entityType}=${it.entityId}" }
+              logger.info(
+                "  Record[$index]: vid=${impression.vid}, eventTime=${impression.eventTime}, " +
+                  "entityKeys=[$entityKeysSummary]"
+              )
+            }
+          }
+
+          totalImpressions += records.size
+          totalBlobsProcessed++
+          impressionsByEventGroupReferenceId.merge(
+            blobDetails.eventGroupReferenceId,
+            records.size,
+          ) { old, new ->
+            old + new
+          }
+          logger.info("  PASS: $relativePath - ${records.size} impressions verified")
+        } catch (e: Exception) {
+          errors++
+          logger.severe("  FAIL: $relativePath - ${e.message}")
+          e.printStackTrace()
         }
       }
 

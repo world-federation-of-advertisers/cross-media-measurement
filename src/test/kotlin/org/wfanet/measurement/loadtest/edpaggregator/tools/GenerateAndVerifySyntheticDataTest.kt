@@ -22,6 +22,7 @@ import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.Message
+import com.google.protobuf.TextFormat
 import java.io.File
 import java.nio.file.Paths
 import kotlin.test.assertFailsWith
@@ -33,6 +34,10 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
+import org.measurement.integration.k8s.testing.ImpressionTestDataConfigKt.entityKeySpec
+import org.measurement.integration.k8s.testing.ImpressionTestDataConfigKt.syntheticEventGroup
+import org.measurement.integration.k8s.testing.impressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.Common as MarketCommon
@@ -60,34 +65,35 @@ class GenerateAndVerifySyntheticDataTest {
 
   @Rule @JvmField val tempFolder = TemporaryFolder()
 
+  private fun writeConfigFile(config: ImpressionTestDataConfig): File {
+    val configFile = tempFolder.newFile("test_config.textproto")
+    configFile.writeText(TextFormat.printer().printToString(config))
+    return configFile
+  }
+
   /** Runs `GenerateSyntheticData` against [tempFolder] with both [SPEC_A] and [SPEC_B]. */
   private fun runGenerate(): GenerateSyntheticData {
     val outputBucketDir = tempFolder.root.resolve(OUTPUT_BUCKET)
     outputBucketDir.mkdirs()
 
+    val configFile = writeConfigFile(DEFAULT_CONFIG)
     val generateCmd = GenerateSyntheticData()
     val exitCode =
       CommandLine(generateCmd)
         .execute(
+          "--edp-name=$EDP_NAME",
           "--kms-type=FAKE",
           "--kek-uri=$KEK_URI",
           "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+          "--edp-name=$EDP_NAME_2",
+          "--kms-type=FAKE",
+          "--kek-uri=$KEK_URI_2",
+          "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
           "--local-storage-path=${tempFolder.root.path}",
-          "--model-line=$MODEL_LINE",
           "--output-bucket=$OUTPUT_BUCKET",
           "--schema=file:///",
-          "--population-spec-resource-path=$POPULATION_SPEC",
-          "--impression-metadata-base-path=$IMPRESSION_METADATA_BASE_PATH",
-          "--event-group-reference-id=${SPEC_A.eventGroupReferenceId}",
-          "--data-spec-resource-path=${SPEC_A.dataSpecResourcePath}",
-          "--entity-key-type=${SPEC_A.entityKeyType}",
-          "--entity-key-id=${SPEC_A.entityKeyIds[0]}",
-          "--entity-key-type=${SPEC_A.entityKeyType}",
-          "--entity-key-id=${SPEC_A.entityKeyIds[1]}",
-          "--event-group-reference-id=${SPEC_B.eventGroupReferenceId}",
-          "--data-spec-resource-path=${SPEC_B.dataSpecResourcePath}",
-          "--entity-key-type=${SPEC_B.entityKeyType}",
-          "--entity-key-id=${SPEC_B.entityKeyIds[0]}",
+          "--model-line=$MODEL_LINE",
+          "--config-file=${configFile.path}",
         )
     check(exitCode == 0) { "GenerateSyntheticData exited with code $exitCode" }
     return generateCmd
@@ -100,29 +106,34 @@ class GenerateAndVerifySyntheticDataTest {
   fun `generate with multiple specs produces coalesced output for both event groups`() {
     runGenerate()
 
-    val dsDir =
-      tempFolder.root.resolve(OUTPUT_BUCKET).resolve(IMPRESSION_METADATA_BASE_PATH).resolve("ds")
-    assertThat(dsDir.exists()).isTrue()
+    val outputDir = tempFolder.root.resolve(OUTPUT_BUCKET).resolve(OUTPUT_BASE_PATH)
+    assertThat(outputDir.exists()).isTrue()
 
-    val dateDirs = dsDir.listFiles()!!.filter { it.isDirectory }.map { it.name }.sorted()
+    val dateDirs = outputDir.listFiles()!!.filter { it.isDirectory }.map { it.name }.sorted()
     assertThat(dateDirs).isEqualTo(EXPECTED_DATES)
 
-    // Each date must contain BOTH event group subdirectories, each with metadata + impressions.
-    val modelLineId = MODEL_LINE.substringAfterLast('/')
     for (date in EXPECTED_DATES) {
-      for (eventGroupReferenceId in
-        listOf(SPEC_A.eventGroupReferenceId, SPEC_B.eventGroupReferenceId)) {
-        val perEventGroupDir =
-          dsDir
-            .resolve(date)
-            .resolve("model-line/$modelLineId/event-group-reference-id/$eventGroupReferenceId")
-        assertThat(perEventGroupDir.resolve("metadata.binpb").exists()).isTrue()
-        assertThat(perEventGroupDir.resolve("impressions").exists()).isTrue()
-      }
+      val dateDir = outputDir.resolve(date)
+      assertThat(dateDir.resolve("metadata.binpb").exists()).isTrue()
+      assertThat(dateDir.resolve("impressions").exists()).isTrue()
+      assertThat(dateDir.resolve("metadata-b.binpb").exists()).isTrue()
+      assertThat(dateDir.resolve("impressions-b").exists()).isTrue()
     }
 
-    val metadataFileCount = dsDir.walkTopDown().count { it.name == "metadata.binpb" }
+    val metadataFileCount =
+      outputDir.walkTopDown().count { it.name.startsWith("metadata") && it.name.endsWith(".binpb") }
     assertThat(metadataFileCount).isEqualTo(EXPECTED_DATES.size * 2)
+
+    // Verify edpa_meta output directory.
+    val metaDir = tempFolder.root.resolve(OUTPUT_BUCKET).resolve(OUTPUT_BASE_PATH_2)
+    assertThat(metaDir.exists()).isTrue()
+    val metaDates = metaDir.listFiles()!!.filter { it.isDirectory }.map { it.name }.sorted()
+    assertThat(metaDates).isEqualTo(EXPECTED_DATES)
+    for (date in EXPECTED_DATES) {
+      val dateDir = metaDir.resolve(date)
+      assertThat(dateDir.resolve("metadata.binpb").exists()).isTrue()
+      assertThat(dateDir.resolve("impressions").exists()).isTrue()
+    }
   }
 
   @Test
@@ -138,7 +149,7 @@ class GenerateAndVerifySyntheticDataTest {
           "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
           "--local-storage-path=${tempFolder.root.path}",
           "--output-bucket=$OUTPUT_BUCKET",
-          "--impression-metadata-base-path=$IMPRESSION_METADATA_BASE_PATH",
+          "--base-path=$OUTPUT_BASE_PATH",
         )
     assertThat(exitCode).isEqualTo(0)
 
@@ -146,14 +157,31 @@ class GenerateAndVerifySyntheticDataTest {
     assertThat(result.errors).isEqualTo(0)
     assertThat(result.totalBlobsProcessed).isEqualTo(EXPECTED_DATES.size * 2)
     assertThat(result.totalImpressions)
-      .isEqualTo(SPEC_A.expectedImpressions + SPEC_B.expectedImpressions)
+      .isEqualTo(SPEC_A.expectedImpressions * 2 + SPEC_B.expectedImpressions)
     assertThat(result.impressionsByEventGroupReferenceId)
       .containsExactly(
         SPEC_A.eventGroupReferenceId,
-        SPEC_A.expectedImpressions,
+        SPEC_A.expectedImpressions * 2,
         SPEC_B.eventGroupReferenceId,
         SPEC_B.expectedImpressions,
       )
+
+    // Verify edpa_meta data with its own KMS key.
+    val verifyMeta = VerifySyntheticData()
+    val verifyMetaExit =
+      CommandLine(verifyMeta)
+        .execute(
+          "--kms-type=FAKE",
+          "--kek-uri=$KEK_URI_2",
+          "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+          "--local-storage-path=${tempFolder.root.path}",
+          "--output-bucket=$OUTPUT_BUCKET",
+          "--base-path=$OUTPUT_BASE_PATH_2",
+        )
+    assertThat(verifyMetaExit).isEqualTo(0)
+    val metaResult = verifyMeta.lastResult!!
+    assertThat(metaResult.errors).isEqualTo(0)
+    assertThat(metaResult.totalImpressions).isEqualTo(SPEC_A.expectedImpressions)
   }
 
   @Test
@@ -161,35 +189,47 @@ class GenerateAndVerifySyntheticDataTest {
     val outputBucketDir = tempFolder.root.resolve(OUTPUT_BUCKET)
     outputBucketDir.mkdirs()
 
+    val mixedConfig = impressionTestDataConfig {
+      populationSpecResourcePath = POPULATION_SPEC
+      eventGroups += syntheticEventGroup {
+        eventGroupReferenceId = "eg-mixed"
+        edpName = EDP_NAME
+        outputBasePath = OUTPUT_BASE_PATH
+        entityKeySpecs += entityKeySpec {
+          entityType = "creative"
+          entityId = "creative-A1"
+          dataSpecResourcePath = SPEC_A.dataSpecResourcePath
+        }
+        entityKeySpecs += entityKeySpec {
+          entityType = "creative"
+          entityId = "creative-B1"
+          dataSpecResourcePath = SPEC_B.dataSpecResourcePath
+        }
+      }
+    }
+    val configFile = writeConfigFile(mixedConfig)
     val generateCmd = GenerateSyntheticData()
     val exitCode =
       CommandLine(generateCmd)
         .execute(
+          "--edp-name=$EDP_NAME",
           "--kms-type=FAKE",
           "--kek-uri=$KEK_URI",
           "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+          "--edp-name=$EDP_NAME_2",
+          "--kms-type=FAKE",
+          "--kek-uri=$KEK_URI_2",
+          "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
           "--local-storage-path=${tempFolder.root.path}",
-          "--model-line=$MODEL_LINE",
           "--output-bucket=$OUTPUT_BUCKET",
           "--schema=file:///",
-          "--population-spec-resource-path=$POPULATION_SPEC",
-          "--impression-metadata-base-path=$IMPRESSION_METADATA_BASE_PATH",
-          // Single event group, two sub-specs.
-          "--event-group-reference-id=eg-mixed",
-          "--data-spec-resource-path=${SPEC_A.dataSpecResourcePath}",
-          "--entity-key-type=creative",
-          "--entity-key-id=creative-A1",
-          "--data-spec-resource-path=${SPEC_B.dataSpecResourcePath}",
-          "--entity-key-type=creative",
-          "--entity-key-id=creative-B1",
+          "--model-line=$MODEL_LINE",
+          "--config-file=${configFile.path}",
         )
     check(exitCode == 0) { "GenerateSyntheticData exited with code $exitCode" }
 
     val kmsClient = GenerateSyntheticData.buildFakeKmsClient(KEK_URI, fakeKekKeysetFile())
-    val modelLineId = MODEL_LINE.substringAfterLast('/')
-    val perEventGroupRelativeDir =
-      "$IMPRESSION_METADATA_BASE_PATH/ds/$INSPECT_DATE/" +
-        "model-line/$modelLineId/event-group-reference-id/eg-mixed"
+    val perEventGroupRelativeDir = "$OUTPUT_BASE_PATH/$INSPECT_DATE"
     val storageClient = FileSystemStorageClient(tempFolder.root)
 
     val blobDetails = runBlocking {
@@ -296,25 +336,35 @@ class GenerateAndVerifySyntheticDataTest {
     val outputBucketDir = tempFolder.root.resolve(OUTPUT_BUCKET)
     outputBucketDir.mkdirs()
 
+    val singleConfig = impressionTestDataConfig {
+      populationSpecResourcePath = POPULATION_SPEC
+      eventGroups += syntheticEventGroup {
+        eventGroupReferenceId = SPEC_A.eventGroupReferenceId
+        edpName = EDP_NAME
+        outputBasePath = OUTPUT_BASE_PATH
+        entityKeySpecs += entityKeySpec {
+          entityType = SPEC_A.entityKeyType
+          entityId = SPEC_A.entityKeyIds[0]
+          dataSpecResourcePath = SPEC_A.dataSpecResourcePath
+        }
+      }
+    }
+    val configFile = writeConfigFile(singleConfig)
     val generateCmd = GenerateSyntheticData()
     val exitCode =
       CommandLine(generateCmd)
         .execute(
+          "--edp-name=$EDP_NAME",
           "--kms-type=FAKE",
           "--kek-uri=$KEK_URI",
           "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
           "--local-storage-path=${tempFolder.root.path}",
-          "--model-line=$MODEL_LINE",
           "--output-bucket=$OUTPUT_BUCKET",
           "--schema=file:///",
-          "--population-spec-resource-path=$POPULATION_SPEC",
-          "--impression-metadata-base-path=$IMPRESSION_METADATA_BASE_PATH",
+          "--model-line=$MODEL_LINE",
+          "--config-file=${configFile.path}",
           // Explicitly supply the type URL flag (defaults to the same value).
           "--event-message-type-url=${GenerateSyntheticData.DEFAULT_EVENT_MESSAGE_TYPE_URL}",
-          "--event-group-reference-id=${SPEC_A.eventGroupReferenceId}",
-          "--data-spec-resource-path=${SPEC_A.dataSpecResourcePath}",
-          "--entity-key-type=${SPEC_A.entityKeyType}",
-          "--entity-key-id=${SPEC_A.entityKeyIds[0]}",
         )
     assertThat(exitCode).isEqualTo(0)
 
@@ -328,7 +378,7 @@ class GenerateAndVerifySyntheticDataTest {
           "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
           "--local-storage-path=${tempFolder.root.path}",
           "--output-bucket=$OUTPUT_BUCKET",
-          "--impression-metadata-base-path=$IMPRESSION_METADATA_BASE_PATH",
+          "--base-path=$OUTPUT_BASE_PATH",
           "--event-message-type-url=${GenerateSyntheticData.DEFAULT_EVENT_MESSAGE_TYPE_URL}",
         )
     assertThat(verifyExitCode).isEqualTo(0)
@@ -346,25 +396,35 @@ class GenerateAndVerifySyntheticDataTest {
       "MarketEvent descriptor set runfile not found at $descriptorSetFile"
     }
 
+    val marketConfig = impressionTestDataConfig {
+      populationSpecResourcePath = MARKET_POPULATION_SPEC
+      eventGroups += syntheticEventGroup {
+        eventGroupReferenceId = "eg-market"
+        edpName = EDP_NAME
+        outputBasePath = MARKET_OUTPUT_BASE_PATH
+        entityKeySpecs += entityKeySpec {
+          entityType = "creative"
+          entityId = "creative-market"
+          dataSpecResourcePath = MARKET_DATA_SPEC
+        }
+      }
+    }
+    val configFile = writeConfigFile(marketConfig)
     val generateCmd = GenerateSyntheticData()
     val generateExitCode =
       CommandLine(generateCmd)
         .execute(
+          "--edp-name=$EDP_NAME",
           "--kms-type=FAKE",
           "--kek-uri=$KEK_URI",
           "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
           "--local-storage-path=${tempFolder.root.path}",
-          "--model-line=$MODEL_LINE",
           "--output-bucket=$OUTPUT_BUCKET",
           "--schema=file:///",
-          "--population-spec-resource-path=$MARKET_POPULATION_SPEC",
-          "--impression-metadata-base-path=$IMPRESSION_METADATA_BASE_PATH",
+          "--model-line=$MODEL_LINE",
+          "--config-file=${configFile.path}",
           "--event-message-type-url=$MARKET_EVENT_TYPE_URL",
           "--event-message-descriptor-set=${descriptorSetFile.path}",
-          "--event-group-reference-id=eg-market",
-          "--data-spec-resource-path=$MARKET_DATA_SPEC",
-          "--entity-key-type=creative",
-          "--entity-key-id=creative-market",
         )
     assertThat(generateExitCode).isEqualTo(0)
 
@@ -380,7 +440,7 @@ class GenerateAndVerifySyntheticDataTest {
           "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
           "--local-storage-path=${tempFolder.root.path}",
           "--output-bucket=$OUTPUT_BUCKET",
-          "--impression-metadata-base-path=$IMPRESSION_METADATA_BASE_PATH",
+          "--base-path=$MARKET_OUTPUT_BASE_PATH",
           "--event-message-type-url=$MARKET_EVENT_TYPE_URL",
           "--event-message-descriptor-set=${descriptorSetFile.path}",
         )
@@ -395,10 +455,7 @@ class GenerateAndVerifySyntheticDataTest {
     // the bytes are valid wire form for the real MarketEvent message and carry the expected
     // attribute values.
     val kmsClient = GenerateSyntheticData.buildFakeKmsClient(KEK_URI, fakeKekKeysetFile())
-    val modelLineId = MODEL_LINE.substringAfterLast('/')
-    val perEventGroupRelativeDir =
-      "$IMPRESSION_METADATA_BASE_PATH/ds/2024-01-01/" +
-        "model-line/$modelLineId/event-group-reference-id/eg-market"
+    val perEventGroupRelativeDir = "$MARKET_OUTPUT_BASE_PATH/2024-01-01"
     val storageClient = FileSystemStorageClient(tempFolder.root)
     val blobDetails = runBlocking {
       BlobDetails.parseFrom(
@@ -431,7 +488,7 @@ class GenerateAndVerifySyntheticDataTest {
       .isNotEqualTo(MarketCommon.AgeGroup.AGE_GROUP_UNSPECIFIED)
 
     // Verify counts grouped by (Common.sex, Common.age_group) across all impressions.
-    val allImpressions: List<LabeledImpression> = decryptAllImpressions()
+    val allImpressions: List<LabeledImpression> = decryptAllImpressions(MARKET_OUTPUT_BASE_PATH)
     val parsedEvents: List<MarketEvent> =
       allImpressions.map { MarketEvent.parseFrom(it.event.value) }
 
@@ -467,29 +524,29 @@ class GenerateAndVerifySyntheticDataTest {
     // Expected counts derived from small_population_spec.textproto +
     // small_data_spec.textproto + small_data_spec_b.textproto:
     //
-    //   small_data_spec.textproto (event group eg-a, 8001 impressions):
-    //     VID 1..2000     -> sub-pop 1  (MALE,   18-34) freq 1+2 -> 1000+2000 = 3000
-    //     VID 20001..22000-> sub-pop 3  (MALE,   35-54) freq 1+2 -> 1000+2000 = 3000
-    //     VID 91001..92000-> sub-pop 11 (FEMALE, 55+)   freq 1   -> 1000
-    //     VID 98000..99000-> sub-pop 12 (FEMALE, 55+)   freq 1   -> 1001
+    //   small_data_spec.textproto (event group eg-a, 2 entity keys x 8001 = 16002):
+    //     VID 1..2000     -> sub-pop 1  (MALE,   18-34) freq 1+2 -> 3000 x2 = 6000
+    //     VID 20001..22000-> sub-pop 3  (MALE,   35-54) freq 1+2 -> 3000 x2 = 6000
+    //     VID 91001..92000-> sub-pop 11 (FEMALE, 55+)   freq 1   -> 1000 x2 = 2000
+    //     VID 98000..99000-> sub-pop 12 (FEMALE, 55+)   freq 1   -> 1001 x2 = 2002
     //
-    //   small_data_spec_b.textproto (event group eg-b, 500 impressions):
+    //   small_data_spec_b.textproto (event group eg-b, 1 entity key x 500):
     //     VID 50001..50200-> sub-pop 6  (MALE,   55+)   freq 1   -> 200
     //     VID 60001..60100-> sub-pop 7  (FEMALE, 18-34) freq 3   -> 300
     assertThat(countsByGenderAndAge)
       .containsExactly(
         Person.Gender.MALE to Person.AgeGroup.YEARS_18_TO_34,
-        3000,
+        3000 * 2,
         Person.Gender.MALE to Person.AgeGroup.YEARS_35_TO_54,
-        3000,
+        3000 * 2,
         Person.Gender.MALE to Person.AgeGroup.YEARS_55_PLUS,
         200,
         Person.Gender.FEMALE to Person.AgeGroup.YEARS_18_TO_34,
         300,
         Person.Gender.FEMALE to Person.AgeGroup.YEARS_55_PLUS,
-        1000 + 1001,
+        (1000 + 1001) * 2,
       )
-    assertThat(testEvents).hasSize(SPEC_A.expectedImpressions + SPEC_B.expectedImpressions)
+    assertThat(testEvents).hasSize(SPEC_A.expectedImpressions * 2 + SPEC_B.expectedImpressions)
   }
 
   @Test
@@ -510,7 +567,7 @@ class GenerateAndVerifySyntheticDataTest {
           "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
           "--local-storage-path=${tempFolder.root.path}",
           "--output-bucket=$OUTPUT_BUCKET",
-          "--impression-metadata-base-path=$IMPRESSION_METADATA_BASE_PATH",
+          "--base-path=$OUTPUT_BASE_PATH",
           // Impressions on disk were written with the TestEvent type URL but we deliberately ask
           // the verifier to expect MarketEvent. The resolver will succeed (the descriptor set
           // contains MarketEvent), so the failure must come from the per-impression type URL
@@ -533,16 +590,15 @@ class GenerateAndVerifySyntheticDataTest {
    * Decrypts every impressions blob produced by the most recent [runGenerate] (or equivalent)
    * invocation, returning all [LabeledImpression]s flattened across dates and event groups.
    */
-  private fun decryptAllImpressions(): List<LabeledImpression> {
+  private fun decryptAllImpressions(basePath: String = OUTPUT_BASE_PATH): List<LabeledImpression> {
     val kmsClient = GenerateSyntheticData.buildFakeKmsClient(KEK_URI, fakeKekKeysetFile())
     val rootStorage = FileSystemStorageClient(tempFolder.root)
-    val dsDir =
-      tempFolder.root.resolve(OUTPUT_BUCKET).resolve(IMPRESSION_METADATA_BASE_PATH).resolve("ds")
-    check(dsDir.exists()) { "Impressions output not found under $dsDir" }
+    val outputDir = tempFolder.root.resolve(OUTPUT_BUCKET).resolve(basePath)
+    check(outputDir.exists()) { "Impressions output not found under $outputDir" }
 
-    return dsDir
+    return outputDir
       .walkTopDown()
-      .filter { it.name == "metadata.binpb" }
+      .filter { it.name.startsWith("metadata") && it.name.endsWith(".binpb") }
       .flatMap { metadataFile ->
         val relativeMetadataPath =
           metadataFile.relativeTo(tempFolder.root.resolve(OUTPUT_BUCKET)).path
@@ -596,8 +652,8 @@ class GenerateAndVerifySyntheticDataTest {
     val dataSpecResourcePath: String,
     val entityKeyType: String,
     val entityKeyIds: List<String>,
-    /** Total impressions the data-spec textproto is expected to produce. */
     val expectedImpressions: Int,
+    val outputKey: String = "",
   )
 
   companion object {
@@ -613,8 +669,12 @@ class GenerateAndVerifySyntheticDataTest {
       "modelProviders/provider1/modelSuites/suite1/modelLines/some-model-line"
     private const val OUTPUT_BUCKET = "test-bucket"
     private const val POPULATION_SPEC = "small_population_spec.textproto"
-    private const val IMPRESSION_METADATA_BASE_PATH = "run1"
+    private const val OUTPUT_BASE_PATH = "edp/edp7"
     private const val INSPECT_DATE = "2021-03-15"
+    private const val EDP_NAME = "edp7"
+    private const val EDP_NAME_2 = "edpa_meta"
+    private const val KEK_URI_2 = FakeKmsClient.KEY_URI_PREFIX + "key2"
+    private const val OUTPUT_BASE_PATH_2 = "edp/edpa_meta"
 
     /** small_data_spec.textproto: 8001 impressions across 2021-03-15..2021-03-21. */
     private val SPEC_A =
@@ -634,7 +694,48 @@ class GenerateAndVerifySyntheticDataTest {
         entityKeyType = "creative",
         entityKeyIds = listOf("creative-B1"),
         expectedImpressions = 500,
+        outputKey = "b",
       )
+
+    private val DEFAULT_CONFIG = impressionTestDataConfig {
+      populationSpecResourcePath = POPULATION_SPEC
+      eventGroups += syntheticEventGroup {
+        eventGroupReferenceId = SPEC_A.eventGroupReferenceId
+        edpName = EDP_NAME
+        outputBasePath = OUTPUT_BASE_PATH
+        entityKeySpecs += entityKeySpec {
+          entityType = SPEC_A.entityKeyType
+          entityId = SPEC_A.entityKeyIds[0]
+          dataSpecResourcePath = SPEC_A.dataSpecResourcePath
+        }
+        entityKeySpecs += entityKeySpec {
+          entityType = SPEC_A.entityKeyType
+          entityId = SPEC_A.entityKeyIds[1]
+          dataSpecResourcePath = SPEC_A.dataSpecResourcePath
+        }
+      }
+      eventGroups += syntheticEventGroup {
+        eventGroupReferenceId = SPEC_B.eventGroupReferenceId
+        edpName = EDP_NAME
+        outputBasePath = OUTPUT_BASE_PATH
+        outputKey = SPEC_B.outputKey
+        entityKeySpecs += entityKeySpec {
+          entityType = SPEC_B.entityKeyType
+          entityId = SPEC_B.entityKeyIds[0]
+          dataSpecResourcePath = SPEC_B.dataSpecResourcePath
+        }
+      }
+      eventGroups += syntheticEventGroup {
+        eventGroupReferenceId = "eg-meta"
+        edpName = EDP_NAME_2
+        outputBasePath = OUTPUT_BASE_PATH_2
+        entityKeySpecs += entityKeySpec {
+          entityType = "creative"
+          entityId = "creative-meta-1"
+          dataSpecResourcePath = SPEC_A.dataSpecResourcePath
+        }
+      }
+    }
 
     /** Date range shared by both specs (March 15 through March 21 inclusive, end-exclusive 22). */
     private val EXPECTED_DATES =
@@ -660,6 +761,8 @@ class GenerateAndVerifySyntheticDataTest {
      * v2alpha PopulationSpec textproto under [TEST_DATA_PATH] sized to match [MARKET_DATA_SPEC];
      * references the MarketEvent `Common` attribute message.
      */
+    private const val MARKET_OUTPUT_BASE_PATH = "edp/edp-market"
+
     private const val MARKET_POPULATION_SPEC = "small_market_population_spec.textproto"
 
     /**
