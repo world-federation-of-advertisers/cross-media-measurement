@@ -31,7 +31,6 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
@@ -77,57 +76,33 @@ class ImpressionDataSourceProvider(
     selector: ImpressionQuerySelector,
     period: Interval,
   ): List<ImpressionDataSource> {
-    return when (selector) {
-      is ImpressionQuerySelector.ByEventGroupReferenceId -> {
-        logger.info("Listing impression Data Sources...")
-        val impressionMetadata: Flow<ImpressionMetadata> =
-          getImpressionsMetadata(modelLine, selector.refId, period)
-        impressionMetadata
-          .map { metadata ->
-            logger.info("Processing impression metadata: $metadata")
-            val blobDetails = readBlobDetails(metadata.blobUri)
-            ImpressionDataSource(
-              modelLine = modelLine,
-              interval = metadata.interval,
-              blobDetails = blobDetails,
-            )
-          }
-          .toList()
+    return getImpressionsMetadata(modelLine, selector, period)
+      .map { metadata ->
+        logger.info("Processing impression metadata: $metadata")
+        val blobDetails = readBlobDetails(metadata.blobUri)
+        ImpressionDataSource(
+          modelLine = modelLine,
+          interval = metadata.interval,
+          blobDetails = blobDetails,
+        )
       }
-      is ImpressionQuerySelector.ByEntityKey -> {
-        logger.info("Listing impression Data Sources by entity key...")
-        val impressionMetadata: Flow<ImpressionMetadata> =
-          getImpressionsMetadataByEntityKey(modelLine, selector.entityKey, period)
-        impressionMetadata
-          .map { metadata ->
-            logger.info("Processing impression metadata: $metadata")
-            val blobDetails = readBlobDetails(metadata.blobUri)
-            ImpressionDataSource(
-              modelLine = modelLine,
-              interval = metadata.interval,
-              blobDetails = blobDetails,
-            )
-          }
-          .toList()
-      }
-    }
+      .toList()
   }
 
   /**
-   * Resolve a path to a blob details protobuf record.
+   * Queries impression metadata using the given [selector] strategy.
    *
    * @param reportModelLine the model line
-   * @param egReferenceId referenced event group
+   * @param selector determines whether to query by entity key or event group reference ID.
    * @param period the time period to filter by
    */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private fun getImpressionsMetadata(
     reportModelLine: String,
-    egReferenceId: String,
+    selector: ImpressionQuerySelector,
     period: Interval,
   ): Flow<ImpressionMetadata> {
-
-    logger.info("Resolving path for impression metadata: $reportModelLine, $egReferenceId, $period")
+    logger.info("Resolving path for impression metadata: $reportModelLine, $selector, $period")
     return impressionMetadataStub
       .listResources { pageToken: String ->
         val response =
@@ -138,55 +113,19 @@ class ImpressionDataSourceProvider(
                 filter =
                   ListImpressionMetadataRequestKt.filter {
                     modelLine = reportModelLine
-                    eventGroupReferenceId = egReferenceId
+                    when (selector) {
+                      is ImpressionQuerySelector.ByEventGroupReferenceId ->
+                        eventGroupReferenceId = selector.refId
+                      is ImpressionQuerySelector.ByEntityKey ->
+                        this.entityKeys += selector.entityKey
+                    }
                     intervalOverlaps = period
                   }
                 this.pageToken = pageToken
               }
             )
           } catch (e: StatusException) {
-            throw Exception("Error listing EventGroups", e)
-          }
-        ResourceList(response.impressionMetadataList, response.nextPageToken)
-      }
-      .flattenConcat()
-  }
-
-  /**
-   * Queries impression metadata by entity key.
-   *
-   * @param reportModelLine the model line
-   * @param entityKey the entity key to query by
-   * @param period the time period to filter by
-   */
-  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  private fun getImpressionsMetadataByEntityKey(
-    reportModelLine: String,
-    entityKey: EntityKey,
-    period: Interval,
-  ): Flow<ImpressionMetadata> {
-
-    logger.info(
-      "Resolving path for impression metadata by entity key: $reportModelLine, $entityKey, $period"
-    )
-    return impressionMetadataStub
-      .listResources { pageToken: String ->
-        val response =
-          try {
-            impressionMetadataStub.listImpressionMetadata(
-              listImpressionMetadataRequest {
-                parent = dataProvider
-                filter =
-                  ListImpressionMetadataRequestKt.filter {
-                    modelLine = reportModelLine
-                    this.entityKeys += entityKey
-                    intervalOverlaps = period
-                  }
-                this.pageToken = pageToken
-              }
-            )
-          } catch (e: StatusException) {
-            throw Exception("Error listing ImpressionMetadata by entity key", e)
+            throw Exception("Error listing ImpressionMetadata", e)
           }
         ResourceList(response.impressionMetadataList, response.nextPageToken)
       }

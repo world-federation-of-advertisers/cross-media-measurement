@@ -48,12 +48,24 @@ class FilterProcessor<T : Message>(
       EventFilters.compileProgram(eventDescriptor, filterSpec.celExpression)
     }
 
+  /**
+   * Start time instant from the collection interval.
+   *
+   * Pre-computed to avoid repeated conversion from protobuf Timestamp to Java Instant during batch
+   * processing.
+   */
   private val startInstant: Instant =
     Instant.ofEpochSecond(
       filterSpec.collectionInterval.startTime.seconds,
       filterSpec.collectionInterval.startTime.nanos.toLong(),
     )
 
+  /**
+   * End time instant from the collection interval.
+   *
+   * Pre-computed to avoid repeated conversion from protobuf Timestamp to Java Instant during batch
+   * processing.
+   */
   private val endInstant: Instant =
     Instant.ofEpochSecond(
       filterSpec.collectionInterval.endTime.seconds,
@@ -87,6 +99,7 @@ class FilterProcessor<T : Message>(
         is BatchMatchResult.Matched -> result.entityKeyFilter
       }
 
+    // Fast batch-level time range check: skip entire batch if no overlap
     if (!batchTimeRangeOverlaps(batch)) {
       return emptyBatchLike(batch)
     }
@@ -112,6 +125,12 @@ class FilterProcessor<T : Message>(
     )
   }
 
+  /**
+   * Returns an empty `EventBatch` carrying the same metadata as [batch].
+   *
+   * Used to short-circuit a batch without dropping its identifying metadata so downstream
+   * accounting can still distinguish per-batch outputs.
+   */
   private fun emptyBatchLike(batch: EventBatch<T>): EventBatch<T> {
     return EventBatch(
       emptyList(),
@@ -121,15 +140,32 @@ class FilterProcessor<T : Message>(
     )
   }
 
+  /**
+   * Checks if the batch's time range overlaps with the filter's collection interval.
+   *
+   * This is a fast batch-level check to avoid processing events when the entire batch is outside
+   * the collection interval.
+   */
   private fun batchTimeRangeOverlaps(batch: EventBatch<T>): Boolean {
     return !batch.maxTime.isBefore(startInstant) && batch.minTime.isBefore(endInstant)
   }
 
+  /**
+   * Checks if an event's timestamp falls within the collection interval.
+   *
+   * Uses a half-open interval [start, end) where the start time is inclusive and the end time is
+   * exclusive.
+   */
   private fun isEventInTimeRange(event: LabeledEvent<T>): Boolean {
     val eventTime = event.timestamp
     return !eventTime.isBefore(startInstant) && eventTime.isBefore(endInstant)
   }
 
+  /**
+   * Checks whether [event]'s `entityKeys` intersect [filter].
+   *
+   * An event with empty `entityKeys` always fails this check (cannot match a non-empty filter).
+   */
   private fun eventMatchesEntityKeyFilter(
     event: LabeledEvent<T>,
     filter: Set<LabeledImpression.EntityKey>,

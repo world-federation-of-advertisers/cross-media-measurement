@@ -86,19 +86,12 @@ class FilterProcessorTest {
   /** Helper function to create an EventBatch with proper minTime and maxTime. */
   private fun createEventBatch(
     events: List<LabeledEvent<Message>>,
-    eventGroupReferenceId: String = "test-group",
-    entityKeys: List<EntityKeyGroup> = emptyList(),
+    eventGroupIdentifier: EventGroupIdentifier,
   ): EventBatch<Message> {
     val timestamps = events.map { it.timestamp }
     val minTime = timestamps.minOrNull() ?: Instant.now()
     val maxTime = timestamps.maxOrNull() ?: Instant.now()
-    val identifier =
-      if (entityKeys.isNotEmpty()) {
-        EventGroupIdentifier.ByEntityKeys(entityKeys)
-      } else {
-        EventGroupIdentifier.ByReferenceId(eventGroupReferenceId)
-      }
-    return EventBatch(events, minTime, maxTime, eventGroupIdentifier = identifier)
+    return EventBatch(events, minTime, maxTime, eventGroupIdentifier = eventGroupIdentifier)
   }
 
   /** Helper function to create a default interval that covers a wide time range. */
@@ -177,7 +170,7 @@ class FilterProcessorTest {
           ),
         )
 
-      val batch = createEventBatch(events)
+      val batch = createEventBatch(events, EventGroupIdentifier.ByReferenceId("test-group"))
       val result = filterProcessor.processBatch(batch)
 
       assertThat(result.events).hasSize(2)
@@ -210,7 +203,7 @@ class FilterProcessorTest {
           ),
         )
 
-      val batch = createEventBatch(events)
+      val batch = createEventBatch(events, EventGroupIdentifier.ByReferenceId("test-group"))
       val result = filterProcessor.processBatch(batch)
 
       assertThat(result.events).hasSize(3)
@@ -252,7 +245,7 @@ class FilterProcessorTest {
           ), // After range
         )
 
-      val batch = createEventBatch(events)
+      val batch = createEventBatch(events, EventGroupIdentifier.ByReferenceId("test-group"))
       val result = filterProcessor.processBatch(batch)
 
       // Only event 2 should match (within time range)
@@ -280,7 +273,7 @@ class FilterProcessorTest {
           createTestLabeledEvent(3, entityKeys = emptyList()),
         )
 
-      val batch = createEventBatch(events)
+      val batch = createEventBatch(events, EventGroupIdentifier.ByReferenceId("test-group"))
       val result = filterProcessor.processBatch(batch)
 
       // All events should pass since the batch's eventGroupReferenceId matches
@@ -339,7 +332,7 @@ class FilterProcessorTest {
           ),
         )
 
-      val batch = createEventBatch(events)
+      val batch = createEventBatch(events, EventGroupIdentifier.ByReferenceId("test-group"))
       val result = filterProcessor.processBatch(batch)
 
       // Events 1 and 3 should match (male, within time range); event 4 is outside time range
@@ -383,7 +376,7 @@ class FilterProcessorTest {
           ),
         )
 
-      val batch = createEventBatch(events)
+      val batch = createEventBatch(events, EventGroupIdentifier.ByReferenceId("test-group"))
       val result = filterProcessor.processBatch(batch)
 
       assertThat(result.events).hasSize(2)
@@ -426,7 +419,7 @@ class FilterProcessorTest {
           ),
         )
 
-      val batch = createEventBatch(events)
+      val batch = createEventBatch(events, EventGroupIdentifier.ByReferenceId("test-group"))
       val result = filterProcessor.processBatch(batch)
 
       // Should return empty batch since no time overlap
@@ -469,7 +462,7 @@ class FilterProcessorTest {
           ), // After interval
         )
 
-      val batch = createEventBatch(events)
+      val batch = createEventBatch(events, EventGroupIdentifier.ByReferenceId("test-group"))
       val result = filterProcessor.processBatch(batch)
 
       // Should process batch and filter individual events - only event 2 should match
@@ -513,7 +506,7 @@ class FilterProcessorTest {
           ),
         )
 
-      val batch = createEventBatch(events)
+      val batch = createEventBatch(events, EventGroupIdentifier.ByReferenceId("test-group"))
       val result = filterProcessor.processBatch(batch)
 
       // Should return empty batch since no time overlap
@@ -565,7 +558,7 @@ class FilterProcessorTest {
           ), // Exactly at end (exclusive)
         )
 
-      val batch = createEventBatch(events)
+      val batch = createEventBatch(events, EventGroupIdentifier.ByReferenceId("test-group"))
       val result = filterProcessor.processBatch(batch)
 
       // Events 2, 3, and 4 should match (start inclusive, end exclusive)
@@ -588,7 +581,10 @@ class FilterProcessorTest {
           createTestLabeledEvent(3, entityKeys = listOf(makeEntityKey("placement", "P"))),
         )
 
-      val result = filterProcessor.processBatch(createEventBatch(events))
+      val result =
+        filterProcessor.processBatch(
+          createEventBatch(events, EventGroupIdentifier.ByReferenceId("test-group"))
+        )
 
       assertThat(result.events.map { it.vid }).containsExactly(1L, 2L, 3L).inOrder()
     }
@@ -609,7 +605,10 @@ class FilterProcessorTest {
 
       val result =
         filterProcessor.processBatch(
-          createEventBatch(events, entityKeys = listOf(makeEntityKeyGroup("ad", "X", "Y")))
+          createEventBatch(
+            events,
+            EventGroupIdentifier.ByEntityKeys(listOf(makeEntityKeyGroup("ad", "X", "Y"))),
+          )
         )
 
       assertThat(result.events.map { it.vid }).containsExactly(1L, 2L).inOrder()
@@ -630,7 +629,10 @@ class FilterProcessorTest {
 
       val result =
         filterProcessor.processBatch(
-          createEventBatch(events, entityKeys = listOf(makeEntityKeyGroup("ad", "X")))
+          createEventBatch(
+            events,
+            EventGroupIdentifier.ByEntityKeys(listOf(makeEntityKeyGroup("ad", "X"))),
+          )
         )
 
       assertThat(result.events).isEmpty()
@@ -646,7 +648,9 @@ class FilterProcessorTest {
       val events = listOf(createTestLabeledEvent(1, entityKeys = emptyList()))
 
       assertFailsWith<MissingBatchEntityKeysException> {
-        filterProcessor.processBatch(createEventBatch(events))
+        filterProcessor.processBatch(
+          createEventBatch(events, EventGroupIdentifier.ByReferenceId("test-group"))
+        )
       }
     }
   }
@@ -667,6 +671,28 @@ class FilterProcessorTest {
         )
 
       assertFailsWith<MissingBatchEntityKeysException> { filterProcessor.processBatch(batch) }
+    }
+  }
+
+  @Test
+  fun `processBatch with ByEventGroupReferenceIds filter skips ByEntityKeys batch`() {
+    runBlocking {
+      val filterSpec = createTestFilterSpec(eventGroupReferenceIds = listOf("test-group"))
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+
+      val events = listOf(createTestLabeledEvent(1, entityKeys = listOf(makeEntityKey("ad", "X"))))
+      val batch =
+        EventBatch(
+          events,
+          minTime = events.minOf { it.timestamp },
+          maxTime = events.maxOf { it.timestamp },
+          eventGroupIdentifier =
+            EventGroupIdentifier.ByEntityKeys(listOf(makeEntityKeyGroup("ad", "X"))),
+        )
+
+      val result = filterProcessor.processBatch(batch)
+
+      assertThat(result.events).isEmpty()
     }
   }
 
@@ -728,7 +754,10 @@ class FilterProcessorTest {
 
       val result =
         filterProcessor.processBatch(
-          createEventBatch(events, entityKeys = listOf(makeEntityKeyGroup("ad", "X")))
+          createEventBatch(
+            events,
+            EventGroupIdentifier.ByEntityKeys(listOf(makeEntityKeyGroup("ad", "X"))),
+          )
         )
 
       assertThat(result.events.map { it.vid }).containsExactly(1L)
@@ -757,7 +786,10 @@ class FilterProcessorTest {
 
       val result =
         filterProcessor.processBatch(
-          createEventBatch(events, entityKeys = listOf(makeEntityKeyGroup("ad", "X", "Y")))
+          createEventBatch(
+            events,
+            EventGroupIdentifier.ByEntityKeys(listOf(makeEntityKeyGroup("ad", "X", "Y"))),
+          )
         )
 
       // Batch's event_group_reference_id "test-group" is NOT in the spec, but it is processed
@@ -846,7 +878,10 @@ class FilterProcessorTest {
         )
       val batchKeys = listOf(makeEntityKeyGroup("ad", "X", "Y"))
 
-      val result = filterProcessor.processBatch(createEventBatch(events, entityKeys = batchKeys))
+      val result =
+        filterProcessor.processBatch(
+          createEventBatch(events, EventGroupIdentifier.ByEntityKeys(batchKeys))
+        )
 
       assertThat(result.events.map { it.vid }).containsExactly(1L)
     }
@@ -863,7 +898,10 @@ class FilterProcessorTest {
       val events = listOf(createTestLabeledEvent(1, entityKeys = listOf(makeEntityKey("ad", "X"))))
       val batchKeys = listOf(makeEntityKeyGroup("placement", "P"))
 
-      val result = filterProcessor.processBatch(createEventBatch(events, entityKeys = batchKeys))
+      val result =
+        filterProcessor.processBatch(
+          createEventBatch(events, EventGroupIdentifier.ByEntityKeys(batchKeys))
+        )
 
       assertThat(result.events).isEmpty()
     }

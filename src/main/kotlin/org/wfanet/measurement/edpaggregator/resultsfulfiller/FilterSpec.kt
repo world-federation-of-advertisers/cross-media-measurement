@@ -154,6 +154,13 @@ sealed class FilterSpec {
       }
     }
 
+    /**
+     * Checks whether any [EntityKeyGroup] in [batchEntityKeys] contains an `(entity_type,
+     * entity_id)` pair that matches this spec's [entityKeys].
+     *
+     * Pre-flattens the batch's grouped entity keys into a `Set<EntityKeyPair>` once, then performs
+     * O(1) membership lookups for each filter element.
+     */
     private fun batchEntityKeysOverlap(batchEntityKeys: List<EntityKeyGroup>): Boolean {
       val batchKeyPairs: Set<EntityKeyPair> =
         batchEntityKeys
@@ -162,6 +169,7 @@ sealed class FilterSpec {
       return entityKeys.any { fk -> EntityKeyPair(fk.entityType, fk.entityId) in batchKeyPairs }
     }
 
+    /** Flattened (entity_type, entity_id) pair for O(1) batch entity-key lookups. */
     private data class EntityKeyPair(val entityType: String, val entityId: String)
   }
 }
