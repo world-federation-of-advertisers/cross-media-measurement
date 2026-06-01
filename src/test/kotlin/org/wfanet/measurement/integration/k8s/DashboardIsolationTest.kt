@@ -55,9 +55,7 @@ class DashboardIsolationTest {
     @BeforeClass
     fun setUp() {
       bigQuery = BigQueryOptions.getDefaultInstance().service
-      logger.info(
-        "Testing as EDP '$EDP_NAME' (resource ID: $EDP_RESOURCE_ID) in project $PROJECT"
-      )
+      logger.info("Testing as EDP '$EDP_NAME' (resource ID: $EDP_RESOURCE_ID) in project $PROJECT")
     }
   }
 
