@@ -2865,6 +2865,110 @@ class ResultsFulfillerTest {
       assertThat(request.filter.eventGroupReferenceId).isEmpty()
     }
 
+  @Test
+  fun `runWork queries by entity key when eventGroupReferenceId is empty`() = runBlocking {
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse {})
+
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some-prefix"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
+        }
+      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+
+    val impressionsMetadataService =
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = "dataProviders/123",
+        impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+      )
+
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        resultMinimumThresholds = null,
+        overrideImpressionMaxFrequencyPerUser = null,
+        supportedMultiPartyNoiseMechanisms = emptySet(),
+        trusTeeConfig =
+          TrusTeeConfig(
+            kmsClient = kmsClient,
+            workloadIdentityProvider = "test-wip",
+            impersonatedServiceAccount = "test-sa@example.com",
+            awsKmsParams = null,
+          ),
+        kekUriToKeyNameMap = emptyMap(),
+      )
+
+    val groupedReqs = groupedRequisitions {
+      modelLine = "some-model-line"
+      groupId = "entity-key-no-ref-id-group"
+      eventGroupMap += eventGroupMapEntry {
+        eventGroup = EVENT_GROUP_NAME
+        details = eventGroupDetails {
+          collectionIntervals += interval {
+            startTime = TIME_RANGE.start.toProtoTime()
+            endTime = TIME_RANGE.endExclusive.toProtoTime()
+          }
+          entityKey =
+            GroupedRequisitionsKt.EventGroupDetailsKt.entityKey {
+              entityType = "placement-id"
+              entityId = "placement-99"
+            }
+        }
+      }
+      requisitions += requisitionEntry { requisition = Any.pack(DIRECT_RNF_REQUISITION) }
+    }
+
+    val resultsFulfiller =
+      ResultsFulfiller(
+        dataProvider = EDP_NAME,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionMetadataStub = requisitionMetadataStub,
+        requisitionsStub = requisitionsStub,
+        groupedRequisitions = groupedReqs,
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+        impressionDataSourceProvider = impressionsMetadataService,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
+      )
+
+    resultsFulfiller.fulfillRequisitions()
+
+    val captor = argumentCaptor<ListImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock) { listImpressionMetadata(captor.capture()) }
+    val request = captor.firstValue
+    assertThat(request.filter.entityKeysList).hasSize(1)
+    assertThat(request.filter.entityKeysList[0].entityType).isEqualTo("placement-id")
+    assertThat(request.filter.entityKeysList[0].entityId).isEqualTo("placement-99")
+    assertThat(request.filter.eventGroupReferenceId).isEmpty()
+  }
+
   private suspend fun createData(
     kmsClient: KmsClient,
     kekUri: String,
