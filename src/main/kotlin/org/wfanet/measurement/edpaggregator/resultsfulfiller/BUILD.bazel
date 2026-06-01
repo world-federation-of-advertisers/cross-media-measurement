@@ -165,7 +165,9 @@ kt_jvm_library(
     name = "filter_spec",
     srcs = ["FilterSpec.kt"],
     deps = [
+        ":event_group_identifier",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
@@ -189,7 +191,6 @@ kt_jvm_library(
     srcs = ["FilterProcessor.kt"],
     deps = [
         ":event_batch",
-        ":event_group_identifier",
         ":event_source",
         ":filter_spec",
         ":labeled_event",

@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.type.Interval
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 
 /** Thrown when a [FilterSpec] is constructed with an empty `eventGroupReferenceIds` selector. */
@@ -33,6 +34,33 @@ class EmptyEntityKeysException : IllegalArgumentException("entityKeys must not b
  */
 class InvalidCollectionIntervalException :
   IllegalArgumentException("collectionInterval startTime must be before endTime")
+
+/**
+ * Thrown by [FilterSpec.ByEntityKeys.matchBatch] when the incoming [EventGroupIdentifier] is not
+ * [EventGroupIdentifier.ByEntityKeys].
+ */
+class MissingBatchEntityKeysException :
+  IllegalStateException(
+    "ByEntityKeys filter requires the batch to carry EventGroupIdentifier.ByEntityKeys"
+  )
+
+/**
+ * Result of [FilterSpec.matchBatch].
+ *
+ * @see FilterSpec.matchBatch
+ */
+sealed class BatchMatchResult {
+  /** The batch does not match this filter; skip it entirely. */
+  object Skip : BatchMatchResult()
+
+  /**
+   * The batch passed the batch-level selector check.
+   *
+   * @property entityKeyFilter When non-null, per-event entity-key filtering is required using this
+   *   set. Null means no per-event entity-key check is needed (reference-id path).
+   */
+  data class Matched(val entityKeyFilter: Set<LabeledImpression.EntityKey>?) : BatchMatchResult()
+}
 
 /**
  * Immutable specification for event filtering.
@@ -52,6 +80,16 @@ sealed class FilterSpec {
 
   /** The time interval for event collection. */
   abstract val collectionInterval: Interval
+
+  /**
+   * Checks whether [identifier] matches this filter's batch-level selector.
+   *
+   * @return [BatchMatchResult.Skip] if the batch should be skipped, [BatchMatchResult.Matched] if
+   *   it passed (with an optional per-event entity-key filter set).
+   * @throws MissingBatchEntityKeysException when this is [ByEntityKeys] and [identifier] is not
+   *   [EventGroupIdentifier.ByEntityKeys].
+   */
+  abstract fun matchBatch(identifier: EventGroupIdentifier): BatchMatchResult
 
   protected fun requireValidCollectionInterval(interval: Interval) {
     if (!interval.startTime.toInstant().isBefore(interval.endTime.toInstant())) {
@@ -74,6 +112,16 @@ sealed class FilterSpec {
       if (eventGroupReferenceIds.isEmpty()) throw EmptyEventGroupReferenceIdsException()
       requireValidCollectionInterval(collectionInterval)
     }
+
+    override fun matchBatch(identifier: EventGroupIdentifier): BatchMatchResult {
+      val refId =
+        (identifier as? EventGroupIdentifier.ByReferenceId)?.refId ?: return BatchMatchResult.Skip
+      return if (eventGroupReferenceIds.contains(refId)) {
+        BatchMatchResult.Matched(entityKeyFilter = null)
+      } else {
+        BatchMatchResult.Skip
+      }
+    }
   }
 
   /**
@@ -93,5 +141,27 @@ sealed class FilterSpec {
       if (entityKeys.isEmpty()) throw EmptyEntityKeysException()
       requireValidCollectionInterval(collectionInterval)
     }
+
+    override fun matchBatch(identifier: EventGroupIdentifier): BatchMatchResult {
+      val batchKeys =
+        (identifier as? EventGroupIdentifier.ByEntityKeys)?.entityKeys
+          ?: throw MissingBatchEntityKeysException()
+      if (batchKeys.isEmpty()) throw MissingBatchEntityKeysException()
+      return if (batchEntityKeysOverlap(batchKeys)) {
+        BatchMatchResult.Matched(entityKeyFilter = entityKeys)
+      } else {
+        BatchMatchResult.Skip
+      }
+    }
+
+    private fun batchEntityKeysOverlap(batchEntityKeys: List<EntityKeyGroup>): Boolean {
+      val batchKeyPairs: Set<EntityKeyPair> =
+        batchEntityKeys
+          .flatMap { g -> g.entityIdsList.map { id -> EntityKeyPair(g.entityType, id) } }
+          .toSet()
+      return entityKeys.any { fk -> EntityKeyPair(fk.entityType, fk.entityId) in batchKeyPairs }
+    }
+
+    private data class EntityKeyPair(val entityType: String, val entityId: String)
   }
 }
