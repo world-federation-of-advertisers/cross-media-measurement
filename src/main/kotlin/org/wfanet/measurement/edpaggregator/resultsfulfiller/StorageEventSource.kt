@@ -202,7 +202,7 @@ class StorageEventSource(
       eventGroupDetailsList.flatMap { details ->
         logger.info("EventGroup details: $details")
         val selector =
-          if (hasEntityKey(details)) {
+          if (useEntityKeyStrategy) {
             ImpressionQuerySelector.ByEntityKey(
               entityKey {
                 entityType = details.entityKey.entityType
