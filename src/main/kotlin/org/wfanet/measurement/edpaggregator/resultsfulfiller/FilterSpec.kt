@@ -45,6 +45,12 @@ class MissingBatchEntityKeysException :
   )
 
 /**
+ * Thrown by [FilterSpec.matchBatch] when the [EventGroupIdentifier] variant does not match the
+ * [FilterSpec] variant.
+ */
+class MismatchedBatchIdentifierException(message: String) : IllegalStateException(message)
+
+/**
  * Result of [FilterSpec.matchBatch].
  *
  * @see FilterSpec.matchBatch
@@ -119,7 +125,10 @@ sealed class FilterSpec {
 
     override fun matchBatch(identifier: EventGroupIdentifier): BatchMatchResult {
       when (identifier) {
-        is EventGroupIdentifier.ByEntityKeys -> return BatchMatchResult.Skip
+        is EventGroupIdentifier.ByEntityKeys ->
+          throw MismatchedBatchIdentifierException(
+            "ByEventGroupReferenceIds filter requires EventGroupIdentifier.ByReferenceId"
+          )
         is EventGroupIdentifier.ByReferenceId -> {
           return if (eventGroupReferenceIds.contains(identifier.refId)) {
             BatchMatchResult.MatchedByReferenceId
@@ -151,7 +160,10 @@ sealed class FilterSpec {
 
     override fun matchBatch(identifier: EventGroupIdentifier): BatchMatchResult {
       when (identifier) {
-        is EventGroupIdentifier.ByReferenceId -> throw MissingBatchEntityKeysException()
+        is EventGroupIdentifier.ByReferenceId ->
+          throw MismatchedBatchIdentifierException(
+            "ByEntityKeys filter requires EventGroupIdentifier.ByEntityKeys"
+          )
         is EventGroupIdentifier.ByEntityKeys -> {
           if (identifier.entityKeys.isEmpty()) throw MissingBatchEntityKeysException()
           return if (batchEntityKeysOverlap(identifier.entityKeys)) {

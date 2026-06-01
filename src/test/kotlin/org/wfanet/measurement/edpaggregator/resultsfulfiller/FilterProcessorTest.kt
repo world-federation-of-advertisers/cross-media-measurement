@@ -649,14 +649,14 @@ class FilterProcessorTest {
 
       assertFailsWith<MissingBatchEntityKeysException> {
         filterProcessor.processBatch(
-          createEventBatch(events, EventGroupIdentifier.ByReferenceId("test-group"))
+          createEventBatch(events, EventGroupIdentifier.ByEntityKeys(emptyList()))
         )
       }
     }
   }
 
   @Test
-  fun `processBatch throws MissingBatchEntityKeysException when ByEntityKeys filter receives ByReferenceId batch`() {
+  fun `processBatch throws MismatchedBatchIdentifierException when ByEntityKeys filter receives ByReferenceId batch`() {
     runBlocking {
       val filterSpec = createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X")))
       val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
@@ -670,12 +670,12 @@ class FilterProcessorTest {
           eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("some-ref-id"),
         )
 
-      assertFailsWith<MissingBatchEntityKeysException> { filterProcessor.processBatch(batch) }
+      assertFailsWith<MismatchedBatchIdentifierException> { filterProcessor.processBatch(batch) }
     }
   }
 
   @Test
-  fun `processBatch with ByEventGroupReferenceIds filter skips ByEntityKeys batch`() {
+  fun `processBatch with ByEventGroupReferenceIds filter throws on ByEntityKeys batch`() {
     runBlocking {
       val filterSpec = createTestFilterSpec(eventGroupReferenceIds = listOf("test-group"))
       val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
@@ -690,9 +690,7 @@ class FilterProcessorTest {
             EventGroupIdentifier.ByEntityKeys(listOf(makeEntityKeyGroup("ad", "X"))),
         )
 
-      val result = filterProcessor.processBatch(batch)
-
-      assertThat(result.events).isEmpty()
+      assertFailsWith<MismatchedBatchIdentifierException> { filterProcessor.processBatch(batch) }
     }
   }
 
