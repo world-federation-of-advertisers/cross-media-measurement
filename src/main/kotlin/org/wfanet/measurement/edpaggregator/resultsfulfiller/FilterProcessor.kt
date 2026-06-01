@@ -94,7 +94,7 @@ class FilterProcessor<T : Message>(
     }
 
     val matchResult = filterSpec.matchBatch(batch.eventGroupIdentifier)
-    if (matchResult is BatchMatchResult.Skip) {
+    if (matchResult is BatchMatchResult.NoMatch) {
       return emptyBatchLike(batch)
     }
 

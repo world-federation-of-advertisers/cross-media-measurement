@@ -56,8 +56,8 @@ class MismatchedBatchIdentifierException(message: String) : IllegalStateExceptio
  * @see FilterSpec.matchBatch
  */
 sealed class BatchMatchResult {
-  /** The batch does not match this filter; skip it entirely. */
-  object Skip : BatchMatchResult()
+  /** The batch does not match this filter. */
+  object NoMatch : BatchMatchResult()
 
   /**
    * All events in the batch match the filter; no per-event entity-key filtering needed.
@@ -98,7 +98,7 @@ sealed class FilterSpec {
   /**
    * Checks whether [identifier] matches this filter's batch-level selector.
    *
-   * @return [BatchMatchResult.Skip] if the batch should be skipped,
+   * @return [BatchMatchResult.NoMatch] if the batch should be skipped,
    *   [BatchMatchResult.MatchedAllEvents] or [BatchMatchResult.MatchedByEntityKeys] if it passed.
    * @throws MissingBatchEntityKeysException when this is [ByEntityKeys] and [identifier] is not
    *   [EventGroupIdentifier.ByEntityKeys].
@@ -137,7 +137,7 @@ sealed class FilterSpec {
           return if (eventGroupReferenceIds.contains(identifier.refId)) {
             BatchMatchResult.MatchedAllEvents
           } else {
-            BatchMatchResult.Skip
+            BatchMatchResult.NoMatch
           }
         }
       }
@@ -171,7 +171,7 @@ sealed class FilterSpec {
         is EventGroupIdentifier.ByEntityKeys -> {
           if (identifier.entityKeys.isEmpty()) throw MissingBatchEntityKeysException()
           if (!batchEntityKeysOverlap(identifier.entityKeys)) {
-            return BatchMatchResult.Skip
+            return BatchMatchResult.NoMatch
           }
           return if (allBatchKeysContained(identifier.entityKeys)) {
             BatchMatchResult.MatchedAllEvents
