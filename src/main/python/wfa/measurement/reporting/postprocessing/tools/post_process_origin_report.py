@@ -88,7 +88,8 @@ class ReportSummaryProcessor:
 
     Args:
       report_summary: The ReportSummary proto to process.
-      ami_mrc_exemption_list: List of EDPs exempted from AMI >= MRC constraint.
+      ami_mrc_exemption_list: This is a comma-separated list of DataProvider
+        resource names that are exempted from the AMI >= MRC constraints.
     """
     self._report_summary = report_summary
     self._ami_mrc_exemption_list = ami_mrc_exemption_list or []
