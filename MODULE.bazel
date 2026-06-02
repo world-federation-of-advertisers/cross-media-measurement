@@ -100,11 +100,6 @@ bazel_dep(
 
 # --- Bazel Central Registry modules. ---
 
-# TODO(bazelbuild/bazel-worker-api#10): Remove this once rules_kotlin stops using version 0.0.4
-bazel_dep(
-    name = "bazel_worker_java",
-    version = "0.0.5",
-)
 bazel_dep(
     name = "platforms",
     version = "1.0.0",
