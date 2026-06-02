@@ -370,24 +370,6 @@ resource "google_bigquery_row_access_policy" "requisition_overview_platform" {
   grantees         = ["serviceAccount:${var.terraform_service_account}", "user:tinage@meta.com"]
 }
 
-resource "google_bigquery_row_access_policy" "mc_details_edp_platform" {
-  project          = data.google_client_config.default.project
-  dataset_id       = google_bigquery_dataset.dashboard.dataset_id
-  table_id         = google_bigquery_table.mc_details_edp.table_id
-  policy_id        = "platform_full_access"
-  filter_predicate = "TRUE"
-  grantees         = ["serviceAccount:${var.terraform_service_account}", "user:tinage@meta.com"]
-}
-
-resource "google_bigquery_row_access_policy" "report_detail_edp_platform" {
-  project          = data.google_client_config.default.project
-  dataset_id       = google_bigquery_dataset.dashboard.dataset_id
-  table_id         = google_bigquery_table.report_detail_edp.table_id
-  policy_id        = "platform_full_access"
-  filter_predicate = "TRUE"
-  grantees         = ["serviceAccount:${var.terraform_service_account}", "user:tinage@meta.com"]
-}
-
 resource "google_bigquery_row_access_policy" "requisition_overview" {
   for_each         = var.data_provider_resource_ids
   project          = data.google_client_config.default.project
