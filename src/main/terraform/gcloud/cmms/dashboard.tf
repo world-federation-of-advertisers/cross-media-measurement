@@ -366,7 +366,7 @@ resource "google_bigquery_job" "row_policy_requisition_overview" {
   job_id     = "row_policy_req_${each.key}_${formatdate("YYYYMMDDhhmmss", timestamp())}"
   project    = data.google_client_config.default.project
   location   = data.google_client_config.default.region
-  depends_on = [google_bigquery_table.requisition_overview]
+  depends_on = [google_bigquery_table.requisition_overview, google_bigquery_dataset_iam_member.terraform_data_owner]
 
   query {
     query          = "CREATE OR REPLACE ROW ACCESS POLICY ${each.key}_filter ON `${data.google_client_config.default.project}.${google_bigquery_dataset.dashboard.dataset_id}.requisition_overview` GRANT TO ('serviceAccount:${google_service_account.edp_dashboard[each.key].email}') FILTER USING (DataProviderResourceId = '${each.value}')"
@@ -378,7 +378,7 @@ resource "google_bigquery_job" "row_policy_requisition_overview_platform" {
   job_id     = "row_policy_req_platform_${formatdate("YYYYMMDDhhmmss", timestamp())}"
   project    = data.google_client_config.default.project
   location   = data.google_client_config.default.region
-  depends_on = [google_bigquery_table.requisition_overview]
+  depends_on = [google_bigquery_table.requisition_overview, google_bigquery_dataset_iam_member.terraform_data_owner]
 
   query {
     query          = "CREATE OR REPLACE ROW ACCESS POLICY platform_full_access ON `${data.google_client_config.default.project}.${google_bigquery_dataset.dashboard.dataset_id}.requisition_overview` GRANT TO ('serviceAccount:${var.terraform_service_account}') FILTER USING (TRUE)"
@@ -391,7 +391,7 @@ resource "google_bigquery_job" "row_policy_mc_details_edp" {
   job_id     = "row_policy_mc_${each.key}_${formatdate("YYYYMMDDhhmmss", timestamp())}"
   project    = data.google_client_config.default.project
   location   = data.google_client_config.default.region
-  depends_on = [google_bigquery_table.mc_details_edp]
+  depends_on = [google_bigquery_table.mc_details_edp, google_bigquery_dataset_iam_member.terraform_data_owner]
 
   query {
     query          = "CREATE OR REPLACE ROW ACCESS POLICY ${each.key}_filter ON `${data.google_client_config.default.project}.${google_bigquery_dataset.dashboard.dataset_id}.mc_details_edp` GRANT TO ('serviceAccount:${google_service_account.edp_dashboard[each.key].email}') FILTER USING (CmmsDataProvider = '${each.value}')"
@@ -404,12 +404,20 @@ resource "google_bigquery_job" "row_policy_report_detail_edp" {
   job_id     = "row_policy_rd_${each.key}_${formatdate("YYYYMMDDhhmmss", timestamp())}"
   project    = data.google_client_config.default.project
   location   = data.google_client_config.default.region
-  depends_on = [google_bigquery_table.report_detail_edp]
+  depends_on = [google_bigquery_table.report_detail_edp, google_bigquery_dataset_iam_member.terraform_data_owner]
 
   query {
     query          = "CREATE OR REPLACE ROW ACCESS POLICY ${each.key}_filter ON `${data.google_client_config.default.project}.${google_bigquery_dataset.dashboard.dataset_id}.report_detail_edp` GRANT TO ('serviceAccount:${google_service_account.edp_dashboard[each.key].email}') FILTER USING (CmmsDataProvider = '${each.value}')"
     use_legacy_sql = false
   }
+}
+
+# Terraform SA needs dataOwner on the dashboard dataset to create row access policies
+resource "google_bigquery_dataset_iam_member" "terraform_data_owner" {
+  dataset_id = google_bigquery_dataset.dashboard.dataset_id
+  project    = data.google_client_config.default.project
+  role       = "roles/bigquery.dataOwner"
+  member     = "serviceAccount:${var.terraform_service_account}"
 }
 
 # --- Table-level IAM ---
