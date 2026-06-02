@@ -33,7 +33,6 @@ import java.io.File
 import java.nio.file.Paths
 import java.time.LocalDate
 import java.time.ZoneId
-import java.util.SortedMap
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
@@ -305,51 +304,25 @@ class GenerateSyntheticData : Runnable {
 
     runBlocking {
       for (specFlags in eventGroupSpecFlags) {
-        val coalescedShards: Sequence<EntityKeyedLabeledEventDateShard<Message>> =
-          if (specFlags.subSpecFlags.size == 1) {
-            // Fast path: single sub-spec, stream events directly without materializing.
-            val subSpec = specFlags.subSpecFlags[0]
+        val perSubSpecShards: List<Sequence<LabeledEventDateShard<Message>>> =
+          specFlags.subSpecFlags.map { subSpec ->
             val syntheticEventGroupSpec: SyntheticEventGroupSpec =
               parseTextProto(
                 TEST_DATA_RUNTIME_PATH.resolve(subSpec.dataSpecResourcePath).toFile(),
                 SyntheticEventGroupSpec.getDefaultInstance(),
               )
-            val events: Sequence<LabeledEventDateShard<Message>> =
-              SyntheticDataGeneration.generateEvents(
-                messageInstance = eventMessageInstance,
-                populationSpec = populationSpec,
-                syntheticEventGroupSpec = syntheticEventGroupSpec,
-                zoneId = ZoneId.of(zoneId),
-              )
-            val entityKeys: List<EntityKey> =
-              subSpec.entityKeyFlags.map { EntityKey(it.entityType, it.entityId) }
-            events.map { shard ->
-              EntityKeyedLabeledEventDateShard(
-                shard.localDate,
-                sequenceOf(EntityKeysWithLabeledEvents(entityKeys, shard.labeledEvents)),
-              )
-            }
-          } else {
-            val perSubSpecShards: List<Sequence<LabeledEventDateShard<Message>>> =
-              specFlags.subSpecFlags.map { subSpec ->
-                val syntheticEventGroupSpec: SyntheticEventGroupSpec =
-                  parseTextProto(
-                    TEST_DATA_RUNTIME_PATH.resolve(subSpec.dataSpecResourcePath).toFile(),
-                    SyntheticEventGroupSpec.getDefaultInstance(),
-                  )
-                SyntheticDataGeneration.generateEvents(
-                  messageInstance = eventMessageInstance,
-                  populationSpec = populationSpec,
-                  syntheticEventGroupSpec = syntheticEventGroupSpec,
-                  zoneId = ZoneId.of(zoneId),
-                )
-              }
-            val perSubSpecEntityKeys: List<List<EntityKey>> =
-              specFlags.subSpecFlags.map { subSpec ->
-                subSpec.entityKeyFlags.map { EntityKey(it.entityType, it.entityId) }
-              }
-            coalesceByDate(perSubSpecShards, perSubSpecEntityKeys)
+            SyntheticDataGeneration.generateEvents(
+              messageInstance = eventMessageInstance,
+              populationSpec = populationSpec,
+              syntheticEventGroupSpec = syntheticEventGroupSpec,
+              zoneId = ZoneId.of(zoneId),
+            )
           }
+        val perSubSpecEntityKeys: List<List<EntityKey>> =
+          specFlags.subSpecFlags.map { subSpec ->
+            subSpec.entityKeyFlags.map { EntityKey(it.entityType, it.entityId) }
+          }
+        val coalescedShards = coalesceByDate(perSubSpecShards, perSubSpecEntityKeys)
         val eventGroupPath =
           "model-line/$modelLineName/event-group-reference-id/${specFlags.eventGroupReferenceId}"
         val impressionWriter =
@@ -374,30 +347,41 @@ class GenerateSyntheticData : Runnable {
   }
 
   /**
-   * Coalesces per-sub-spec date shard sequences into a single per-event-group sequence. Each output
-   * shard contains one [EntityKeysWithLabeledEvents] group per sub-spec that emitted events for
-   * that date, so a single impressions blob can hold impressions with different entity keys.
+   * Coalesces per-sub-spec date shard sequences into a single per-event-group sequence using a
+   * streaming k-way merge. Each output shard contains one [EntityKeysWithLabeledEvents] group per
+   * sub-spec that emitted events for that date. Holds at most one shard per sub-spec in memory at
+   * a time, avoiding the O(total_events) materialization of the previous implementation.
    */
   private fun coalesceByDate(
     perSubSpecShards: List<Sequence<LabeledEventDateShard<Message>>>,
     perSubSpecEntityKeys: List<List<EntityKey>>,
-  ): Sequence<EntityKeyedLabeledEventDateShard<Message>> {
+  ): Sequence<EntityKeyedLabeledEventDateShard<Message>> = sequence {
     require(perSubSpecShards.size == perSubSpecEntityKeys.size)
-    // Materialize per-sub-spec, per-date groups so we can join across sub-specs by date.
-    val groupsByDate: SortedMap<LocalDate, MutableList<EntityKeysWithLabeledEvents<Message>>> =
-      sortedMapOf()
-    for ((index, shards) in perSubSpecShards.withIndex()) {
-      val entityKeys = perSubSpecEntityKeys[index]
-      for (shard in shards) {
-        val materializedEvents = shard.labeledEvents.toList()
-        if (materializedEvents.isEmpty()) continue
-        groupsByDate
-          .getOrPut(shard.localDate) { mutableListOf() }
-          .add(EntityKeysWithLabeledEvents(entityKeys, materializedEvents.asSequence()))
-      }
+
+    val iterators = perSubSpecShards.map { it.iterator() }
+    val buffers = arrayOfNulls<LabeledEventDateShard<Message>>(iterators.size)
+    for (i in iterators.indices) {
+      if (iterators[i].hasNext()) buffers[i] = iterators[i].next()
     }
-    return groupsByDate.asSequence().map { (date, groups) ->
-      EntityKeyedLabeledEventDateShard(date, groups.asSequence())
+
+    while (buffers.any { it != null }) {
+      val minDate = buffers.filterNotNull().minOf { it.localDate }
+
+      val groups = mutableListOf<EntityKeysWithLabeledEvents<Message>>()
+      for (i in buffers.indices) {
+        val shard = buffers[i] ?: continue
+        if (shard.localDate == minDate) {
+          groups.add(EntityKeysWithLabeledEvents(perSubSpecEntityKeys[i], shard.labeledEvents))
+        }
+      }
+
+      yield(EntityKeyedLabeledEventDateShard(minDate, groups.asSequence()))
+
+      for (i in buffers.indices) {
+        if (buffers[i]?.localDate == minDate) {
+          buffers[i] = if (iterators[i].hasNext()) iterators[i].next() else null
+        }
+      }
     }
   }
 
