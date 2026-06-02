@@ -305,26 +305,51 @@ class GenerateSyntheticData : Runnable {
 
     runBlocking {
       for (specFlags in eventGroupSpecFlags) {
-        val perSubSpecShards: List<Sequence<LabeledEventDateShard<Message>>> =
-          specFlags.subSpecFlags.map { subSpec ->
+        val coalescedShards: Sequence<EntityKeyedLabeledEventDateShard<Message>> =
+          if (specFlags.subSpecFlags.size == 1) {
+            // Fast path: single sub-spec, stream events directly without materializing.
+            val subSpec = specFlags.subSpecFlags[0]
             val syntheticEventGroupSpec: SyntheticEventGroupSpec =
               parseTextProto(
                 TEST_DATA_RUNTIME_PATH.resolve(subSpec.dataSpecResourcePath).toFile(),
                 SyntheticEventGroupSpec.getDefaultInstance(),
               )
-            SyntheticDataGeneration.generateEvents(
-              messageInstance = eventMessageInstance,
-              populationSpec = populationSpec,
-              syntheticEventGroupSpec = syntheticEventGroupSpec,
-              zoneId = ZoneId.of(zoneId),
-            )
+            val events: Sequence<LabeledEventDateShard<Message>> =
+              SyntheticDataGeneration.generateEvents(
+                messageInstance = eventMessageInstance,
+                populationSpec = populationSpec,
+                syntheticEventGroupSpec = syntheticEventGroupSpec,
+                zoneId = ZoneId.of(zoneId),
+              )
+            val entityKeys: List<EntityKey> =
+              subSpec.entityKeyFlags.map { EntityKey(it.entityType, it.entityId) }
+            events.map { shard ->
+              EntityKeyedLabeledEventDateShard(
+                shard.localDate,
+                sequenceOf(EntityKeysWithLabeledEvents(entityKeys, shard.labeledEvents)),
+              )
+            }
+          } else {
+            val perSubSpecShards: List<Sequence<LabeledEventDateShard<Message>>> =
+              specFlags.subSpecFlags.map { subSpec ->
+                val syntheticEventGroupSpec: SyntheticEventGroupSpec =
+                  parseTextProto(
+                    TEST_DATA_RUNTIME_PATH.resolve(subSpec.dataSpecResourcePath).toFile(),
+                    SyntheticEventGroupSpec.getDefaultInstance(),
+                  )
+                SyntheticDataGeneration.generateEvents(
+                  messageInstance = eventMessageInstance,
+                  populationSpec = populationSpec,
+                  syntheticEventGroupSpec = syntheticEventGroupSpec,
+                  zoneId = ZoneId.of(zoneId),
+                )
+              }
+            val perSubSpecEntityKeys: List<List<EntityKey>> =
+              specFlags.subSpecFlags.map { subSpec ->
+                subSpec.entityKeyFlags.map { EntityKey(it.entityType, it.entityId) }
+              }
+            coalesceByDate(perSubSpecShards, perSubSpecEntityKeys)
           }
-        val perSubSpecEntityKeys: List<List<EntityKey>> =
-          specFlags.subSpecFlags.map { subSpec ->
-            subSpec.entityKeyFlags.map { EntityKey(it.entityType, it.entityId) }
-          }
-        val coalescedShards: Sequence<EntityKeyedLabeledEventDateShard<Message>> =
-          coalesceByDate(perSubSpecShards, perSubSpecEntityKeys)
         val eventGroupPath =
           "model-line/$modelLineName/event-group-reference-id/${specFlags.eventGroupReferenceId}"
         val impressionWriter =
