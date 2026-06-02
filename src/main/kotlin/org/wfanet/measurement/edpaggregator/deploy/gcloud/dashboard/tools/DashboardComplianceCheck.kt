@@ -344,7 +344,7 @@ class DashboardComplianceCheck : Runnable {
         "cross_publisher",
         "edp_distribution",
         "data_provider_keys",
-        "result_group_specs"
+        "result_group_specs",
       )
     val forbiddenPatterns =
       listOf(
