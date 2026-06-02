@@ -360,51 +360,58 @@ resource "google_service_account" "edp_dashboard" {
 # --- Row Access Policies ---
 # Applied to tables that EDPs query. Each EDP SA sees only their own rows.
 # Platform operators see all rows.
+# Uses null_resource with local-exec because Terraform has no native row access policy resource.
 
-resource "google_bigquery_job" "row_policy_requisition_overview" {
+resource "null_resource" "row_policy_requisition_overview" {
   for_each = var.data_provider_resource_ids
-  job_id   = "row_policy_requisition_overview_${each.key}_${formatdate("YYYYMMDDhhmmss", timestamp())}"
-  project  = data.google_client_config.default.project
-  location = data.google_client_config.default.region
 
-  query {
-    query = "CREATE OR REPLACE ROW ACCESS POLICY ${each.key}_filter ON `${data.google_client_config.default.project}.${google_bigquery_dataset.dashboard.dataset_id}.requisition_overview` GRANT TO ('serviceAccount:${google_service_account.edp_dashboard[each.key].email}') FILTER USING (DataProviderResourceId = '${each.value}')"
-    use_legacy_sql = false
+  depends_on = [google_bigquery_table.requisition_overview]
+
+  triggers = {
+    edp_key     = each.key
+    resource_id = each.value
+  }
+
+  provisioner "local-exec" {
+    command = "bq query --use_legacy_sql=false \"CREATE OR REPLACE ROW ACCESS POLICY ${each.key}_filter ON \\`${data.google_client_config.default.project}.${google_bigquery_dataset.dashboard.dataset_id}.requisition_overview\\` GRANT TO ('serviceAccount:${google_service_account.edp_dashboard[each.key].email}') FILTER USING (DataProviderResourceId = '${each.value}')\""
   }
 }
 
-resource "google_bigquery_job" "row_policy_requisition_overview_platform" {
-  job_id   = "row_policy_requisition_overview_platform_${formatdate("YYYYMMDDhhmmss", timestamp())}"
-  project  = data.google_client_config.default.project
-  location = data.google_client_config.default.region
+resource "null_resource" "row_policy_requisition_overview_platform" {
+  depends_on = [google_bigquery_table.requisition_overview]
 
-  query {
-    query = "CREATE OR REPLACE ROW ACCESS POLICY platform_full_access ON `${data.google_client_config.default.project}.${google_bigquery_dataset.dashboard.dataset_id}.requisition_overview` GRANT TO ('serviceAccount:${var.terraform_service_account}') FILTER USING (TRUE)"
-    use_legacy_sql = false
+  provisioner "local-exec" {
+    command = "bq query --use_legacy_sql=false \"CREATE OR REPLACE ROW ACCESS POLICY platform_full_access ON \\`${data.google_client_config.default.project}.${google_bigquery_dataset.dashboard.dataset_id}.requisition_overview\\` GRANT TO ('serviceAccount:${var.terraform_service_account}') FILTER USING (TRUE)\""
   }
 }
 
-resource "google_bigquery_job" "row_policy_mc_details_edp" {
+resource "null_resource" "row_policy_mc_details_edp" {
   for_each = var.data_provider_resource_ids
-  job_id   = "row_policy_mc_details_edp_${each.key}_${formatdate("YYYYMMDDhhmmss", timestamp())}"
-  project  = data.google_client_config.default.project
-  location = data.google_client_config.default.region
 
-  query {
-    query = "CREATE OR REPLACE ROW ACCESS POLICY ${each.key}_filter ON `${data.google_client_config.default.project}.${google_bigquery_dataset.dashboard.dataset_id}.mc_details_edp` GRANT TO ('serviceAccount:${google_service_account.edp_dashboard[each.key].email}') FILTER USING (CmmsDataProvider = '${each.value}')"
-    use_legacy_sql = false
+  depends_on = [google_bigquery_table.mc_details_edp]
+
+  triggers = {
+    edp_key     = each.key
+    resource_id = each.value
+  }
+
+  provisioner "local-exec" {
+    command = "bq query --use_legacy_sql=false \"CREATE OR REPLACE ROW ACCESS POLICY ${each.key}_filter ON \\`${data.google_client_config.default.project}.${google_bigquery_dataset.dashboard.dataset_id}.mc_details_edp\\` GRANT TO ('serviceAccount:${google_service_account.edp_dashboard[each.key].email}') FILTER USING (CmmsDataProvider = '${each.value}')\""
   }
 }
 
-resource "google_bigquery_job" "row_policy_report_detail_edp" {
+resource "null_resource" "row_policy_report_detail_edp" {
   for_each = var.data_provider_resource_ids
-  job_id   = "row_policy_report_detail_edp_${each.key}_${formatdate("YYYYMMDDhhmmss", timestamp())}"
-  project  = data.google_client_config.default.project
-  location = data.google_client_config.default.region
 
-  query {
-    query = "CREATE OR REPLACE ROW ACCESS POLICY ${each.key}_filter ON `${data.google_client_config.default.project}.${google_bigquery_dataset.dashboard.dataset_id}.report_detail_edp` GRANT TO ('serviceAccount:${google_service_account.edp_dashboard[each.key].email}') FILTER USING (CmmsDataProvider = '${each.value}')"
-    use_legacy_sql = false
+  depends_on = [google_bigquery_table.report_detail_edp]
+
+  triggers = {
+    edp_key     = each.key
+    resource_id = each.value
+  }
+
+  provisioner "local-exec" {
+    command = "bq query --use_legacy_sql=false \"CREATE OR REPLACE ROW ACCESS POLICY ${each.key}_filter ON \\`${data.google_client_config.default.project}.${google_bigquery_dataset.dashboard.dataset_id}.report_detail_edp\\` GRANT TO ('serviceAccount:${google_service_account.edp_dashboard[each.key].email}') FILTER USING (CmmsDataProvider = '${each.value}')\""
   }
 }
 

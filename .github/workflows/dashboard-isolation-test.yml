@@ -45,6 +45,14 @@ jobs:
         edp:
           - name: meta
             resource_id: J3-pzhqS9Lo
+          - name: google
+            resource_id: EObljF_vGDI
+          - name: comscore
+            resource_id: d9hrk_MNong
+          - name: tiktok
+            resource_id: UDjWe1_vGAM
+          - name: amazon
+            resource_id: MTcvLV_vGPw
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 

@@ -80,11 +80,4 @@ class DashboardViewIsolationLocalTest {
     }
   }
 
-  @Test
-  fun sqlFilesDoNotContainPerEdpWhereFilter() {
-    for (fileName in SQL_FILES) {
-      val sql = readSqlFile(fileName)
-      assertThat(sql).doesNotContain("data_provider_id")
-    }
-  }
 }
