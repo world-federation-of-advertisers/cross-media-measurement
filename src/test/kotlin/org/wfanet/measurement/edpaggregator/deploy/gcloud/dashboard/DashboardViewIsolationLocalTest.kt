@@ -25,28 +25,16 @@ import org.junit.Test
  * Local test for dashboard SQL validation.
  *
  * Validates SQL template files pre-merge:
- * 1. EDP table SQL excludes forbidden platform-only columns
- * 2. Platform table SQL includes expected platform-only columns
+ * 1. SQL files with include_platform_columns conditionals have correct structure
+ * 2. Platform-only columns only appear inside conditional blocks
  * 3. All SQL files contain expected EXTERNAL_QUERY connections
- *
- * Runs in Bazel with no cloud resources needed.
  */
 class DashboardViewIsolationLocalTest {
 
   companion object {
-    private val FORBIDDEN_EDP_COLUMNS = setOf("CoveragePercent", "TotalMcs", "EdpCount")
+    private val PLATFORM_ONLY_COLUMNS = setOf("CoveragePercent", "TotalMcs", "EdpCount")
 
-    private val FORBIDDEN_EDP_PATTERNS =
-      listOf(
-        Regex("(?i).*edp.?count.*"),
-        Regex("(?i).*total.?mcs.*"),
-        Regex("(?i).*coverage.?percent.*"),
-      )
-
-    private val EDP_SQL_FILES =
-      listOf("mc_details_edp.sql", "report_detail_edp.sql", "requisition_overview.sql")
-
-    private val PLATFORM_SQL_FILES = listOf("mc_details.sql", "report_detail.sql")
+    private val SQL_FILES = listOf("mc_details.sql", "report_detail.sql", "requisition_overview.sql")
   }
 
   private fun readSqlFile(fileName: String): String {
@@ -57,48 +45,36 @@ class DashboardViewIsolationLocalTest {
   }
 
   @Test
-  fun edpSqlFilesHaveNoForbiddenColumns() {
-    val violations = mutableListOf<String>()
-
-    for (fileName in EDP_SQL_FILES) {
+  fun platformColumnsOnlyInsideConditionalBlocks() {
+    for (fileName in listOf("mc_details.sql", "report_detail.sql")) {
       val sql = readSqlFile(fileName)
+      assertThat(sql).contains("include_platform_columns")
 
-      val aliasPattern = Regex("""(?i)\bAS\s+(\w+)""")
-      val aliases = aliasPattern.findAll(sql).map { it.groupValues[1] }.toList()
+      val outsideConditional = sql.replace(
+        Regex("""(?s)%\{ if include_platform_columns \}.*?%\{ endif \}"""),
+        ""
+      ).replace(
+        Regex("""(?s)%\{ if include_platform_columns \}.*?%\{ else \}"""),
+        ""
+      )
 
-      for (alias in aliases) {
-        if (alias in FORBIDDEN_EDP_COLUMNS) {
-          violations.add("$fileName: contains forbidden column alias '$alias'")
-        }
-        for (pattern in FORBIDDEN_EDP_PATTERNS) {
-          if (pattern.matches(alias)) {
-            violations.add(
-              "$fileName: alias '$alias' matches forbidden pattern '${pattern.pattern}'"
-            )
-          }
-        }
+      for (col in PLATFORM_ONLY_COLUMNS) {
+        assertThat(outsideConditional).doesNotContain(col)
       }
     }
-
-    assertThat(violations).isEmpty()
   }
 
   @Test
-  fun platformMcDetailsIncludesPlatformColumns() {
-    val sql = readSqlFile("mc_details.sql")
-    assertThat(sql).contains("TotalMcs")
-    assertThat(sql).contains("CoveragePercent")
-  }
-
-  @Test
-  fun platformReportDetailIncludesEdpCount() {
-    val sql = readSqlFile("report_detail.sql")
-    assertThat(sql).contains("EdpCount")
+  fun requisitionOverviewHasNoPlatformOnlyColumns() {
+    val sql = readSqlFile("requisition_overview.sql")
+    for (col in PLATFORM_ONLY_COLUMNS) {
+      assertThat(sql).doesNotContain(col)
+    }
   }
 
   @Test
   fun allSqlFilesUseExternalQuery() {
-    for (fileName in EDP_SQL_FILES + PLATFORM_SQL_FILES) {
+    for (fileName in SQL_FILES) {
       val sql = readSqlFile(fileName)
       assertThat(sql).contains("EXTERNAL_QUERY")
     }
@@ -106,7 +82,7 @@ class DashboardViewIsolationLocalTest {
 
   @Test
   fun sqlFilesDoNotContainPerEdpWhereFilter() {
-    for (fileName in EDP_SQL_FILES + PLATFORM_SQL_FILES) {
+    for (fileName in SQL_FILES) {
       val sql = readSqlFile(fileName)
       assertThat(sql).doesNotContain("data_provider_id")
     }
