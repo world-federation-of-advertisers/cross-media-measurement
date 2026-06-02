@@ -19,6 +19,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
+import "google/type/interval.proto";
 import "wfa/measurement/edpaggregator/v1alpha/raw_impression_upload.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -79,6 +80,8 @@ message GetRawImpressionUploadRequest {
 }
 
 // Request message for the `ListRawImpressionUploads` method.
+// (-- api-linter: core::0132::request-field-types=disabled
+//     aip.dev/not-precedent: Using a customized message for the filter. --)
 message ListRawImpressionUploadsRequest {
   // The parent data provider resource name.
   // Format: `dataProviders/{data_provider}`
@@ -94,6 +97,24 @@ message ListRawImpressionUploadsRequest {
 
   // A page token, received from a previous call.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // Structured filter for narrowing results.
+  // All fields are combined with `AND` logic.
+  message Filter {
+    // Filter by pipeline state.
+    // (-- api-linter: core::0216::state-field-output-only=disabled
+    //     aip.dev/not-precedent: This is a filter input field, not a
+    //     resource state field. --)
+    RawImpressionUpload.State state = 1
+        [(google.api.field_behavior) = OPTIONAL];
+
+    // Filter by create time range.
+    google.type.Interval create_time_interval = 2
+        [(google.api.field_behavior) = OPTIONAL];
+  }
+
+  // Optional. A filter to apply to the results.
+  Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Response message for the `ListRawImpressionUploads` method.

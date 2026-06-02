@@ -191,10 +191,22 @@ kt_jvm_grpc_proto_library(
 )
 
 proto_library(
+    name = "raw_impression_upload_state_proto",
+    srcs = ["raw_impression_upload_state.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "raw_impression_upload_state_kt_jvm_proto",
+    deps = [":raw_impression_upload_state_proto"],
+)
+
+proto_library(
     name = "raw_impression_upload_proto",
     srcs = ["raw_impression_upload.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":raw_impression_upload_state_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -210,6 +222,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":raw_impression_upload_proto",
+        ":raw_impression_upload_state_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )

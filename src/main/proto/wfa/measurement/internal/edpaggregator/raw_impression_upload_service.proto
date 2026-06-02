@@ -18,6 +18,7 @@ package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_upload.proto";
+import "wfa/measurement/internal/edpaggregator/raw_impression_upload_state.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
@@ -40,17 +41,11 @@ service RawImpressionUploadService {
 
 // Request message for CreateRawImpressionUpload.
 message CreateRawImpressionUploadRequest {
-  // Resource ID of the DataProvider.
-  string data_provider_resource_id = 1;
-
-  // Resource ID for the new upload.
-  string raw_impression_upload_id = 2;
-
   // The RawImpressionUpload to create.
-  RawImpressionUpload raw_impression_upload = 3;
+  RawImpressionUpload raw_impression_upload = 1;
 
   // A request ID provided by the client to ensure idempotency.
-  string request_id = 4;
+  string request_id = 2;
 }
 
 // Request message for GetRawImpressionUpload.
@@ -76,6 +71,13 @@ message ListRawImpressionUploadsRequest {
 
   // Page token from a previous list call.
   ListRawImpressionUploadsPageToken page_token = 3;
+
+  // Filter for narrowing results.
+  message Filter {
+    // Filter by pipeline state.
+    RawImpressionUploadState state = 1;
+  }
+  Filter filter = 4;
 }
 
 // Response message for ListRawImpressionUploads.
