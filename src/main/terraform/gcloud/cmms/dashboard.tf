@@ -217,31 +217,6 @@ data "google_project" "project" {
 
 # --- Tables (created empty, populated by scheduled queries via WRITE_TRUNCATE) ---
 
-import {
-  to = google_bigquery_table.requisition_overview
-  id = "projects/halo-cmm-dev/datasets/dashboard/tables/requisition_overview"
-}
-
-import {
-  to = google_bigquery_table.mc_details
-  id = "projects/halo-cmm-dev/datasets/dashboard/tables/mc_details"
-}
-
-import {
-  to = google_bigquery_table.mc_details_edp
-  id = "projects/halo-cmm-dev/datasets/dashboard/tables/mc_details_edp"
-}
-
-import {
-  to = google_bigquery_table.report_detail
-  id = "projects/halo-cmm-dev/datasets/dashboard/tables/report_detail"
-}
-
-import {
-  to = google_bigquery_table.report_detail_edp
-  id = "projects/halo-cmm-dev/datasets/dashboard/tables/report_detail_edp"
-}
-
 resource "google_bigquery_table" "requisition_overview" {
   dataset_id          = google_bigquery_dataset.dashboard.dataset_id
   project             = data.google_client_config.default.project
