@@ -419,7 +419,6 @@ class DashboardComplianceCheck : Runnable {
   companion object {
     private val logger = Logger.getLogger(DashboardComplianceCheck::class.java.name)
 
-    @JvmStatic
-    fun main(args: Array<String>) = commandLineMain(DashboardComplianceCheck(), args)
+    @JvmStatic fun main(args: Array<String>) = commandLineMain(DashboardComplianceCheck(), args)
   }
 }
