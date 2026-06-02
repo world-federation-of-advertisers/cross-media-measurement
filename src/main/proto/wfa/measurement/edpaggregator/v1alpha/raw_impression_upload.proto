@@ -56,7 +56,7 @@ message RawImpressionUpload {
   // The current pipeline state of this upload.
   State state = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // GCS URI of the "done" blob that triggered this upload.
+  // Cloud Storage URI of the "done" blob that triggered this upload.
   string done_blob_uri = 3 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE

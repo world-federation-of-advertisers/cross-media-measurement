@@ -37,7 +37,7 @@ message RawImpressionUpload {
   // Denormalized pipeline state, rolled up from child model line states.
   RawImpressionUploadState state = 3;
 
-  // GCS URI of the "done" blob that triggered this upload.
+  // Cloud Storage URI of the "done" blob that triggered this upload.
   string done_blob_uri = 4;
 
   // The timestamp when this upload was created.
