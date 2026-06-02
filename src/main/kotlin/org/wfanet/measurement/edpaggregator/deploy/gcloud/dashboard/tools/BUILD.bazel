@@ -1,0 +1,18 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+kt_jvm_library(
+    name = "dashboard_compliance_check",
+    srcs = ["DashboardComplianceCheck.kt"],
+    deps = [
+        "@maven//:com_google_auth_google_auth_library_oauth2_http",
+        "@maven//:com_google_cloud_google_cloud_bigquery",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+java_binary(
+    name = "DashboardComplianceCheck",
+    main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.tools.DashboardComplianceCheck",
+    runtime_deps = [":dashboard_compliance_check"],
+)

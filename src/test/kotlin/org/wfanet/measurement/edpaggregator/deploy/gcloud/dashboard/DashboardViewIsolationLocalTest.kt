@@ -50,13 +50,10 @@ class DashboardViewIsolationLocalTest {
       val sql = readSqlFile(fileName)
       assertThat(sql).contains("include_platform_columns")
 
-      val outsideConditional = sql.replace(
-        Regex("""(?s)%\{ if include_platform_columns \}.*?%\{ endif \}"""),
-        ""
-      ).replace(
-        Regex("""(?s)%\{ if include_platform_columns \}.*?%\{ else \}"""),
-        ""
-      )
+      val outsideConditional =
+        sql
+          .replace(Regex("""(?s)%\{ if include_platform_columns \}.*?%\{ endif \}"""), "")
+          .replace(Regex("""(?s)%\{ if include_platform_columns \}.*?%\{ else \}"""), "")
 
       for (col in PLATFORM_ONLY_COLUMNS) {
         assertThat(outsideConditional).doesNotContain(col)
