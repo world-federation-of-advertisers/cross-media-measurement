@@ -114,6 +114,8 @@ abstract class InProcessEventGroupsTest(
       dataServicesProvider = { kingdomInternalServicesRule.value },
       REDIRECT_URI,
       verboseGrpcLogging = false,
+      hmssEnabled = false,
+      trusTeeEnabled = false,
     )
 
   private val reportingRule =

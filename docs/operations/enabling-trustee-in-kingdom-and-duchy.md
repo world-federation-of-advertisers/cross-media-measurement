@@ -182,6 +182,8 @@ The `trustee_protocol_config_config` is defined by the
 [`TrusTeeProtocolConfigConfig`](../../src/main/proto/wfa/measurement/internal/kingdom/protocol_config_config.proto)
 message. An example configuration file can be found
 [here](../../src/main/k8s/testing/secretfiles/trustee_protocol_config_config.textproto).
+For an example with small-cell suppression thresholds enabled, see
+[trustee_protocol_config_config_noise_thresholds_low.textproto](../../src/main/k8s/testing/secretfiles/trustee_protocol_config_config_noise_thresholds_low.textproto).
 
 ### 2. Enable Feature Flag
 

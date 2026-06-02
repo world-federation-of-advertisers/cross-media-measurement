@@ -28,7 +28,7 @@ import org.wfanet.measurement.api.v2alpha.deterministicCount
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.ImpressionComputations
-import org.wfanet.measurement.computation.KAnonymityParams
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.MeasurementResultBuilder
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
@@ -43,7 +43,7 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  * @param directNoiseMechanism The direct noise mechanism to use.
  * @param maxPopulation The max Population that can be returned.
  * @param maxFrequencyFromSpec The max frequency per user from the measurement spec.
- * @param kAnonymityParams Optional k-anonymity parameters.
+ * @param resultMinimumThresholds Optional small-cell suppression parameters.
  * @param impressionMaxFrequencyPerUser Override for max frequency per user. -1 means no cap.
  * @param totalUncappedImpressions Total impression count without frequency capping.
  */
@@ -55,7 +55,7 @@ class DirectImpressionResultBuilder(
   private val directNoiseMechanism: DirectNoiseMechanism,
   private val maxPopulation: Int?,
   private val maxFrequencyFromSpec: Int,
-  private val kAnonymityParams: KAnonymityParams?,
+  private val resultMinimumThresholds: ResultMinimumThresholds?,
   private val impressionMaxFrequencyPerUser: Int?,
   private val totalUncappedImpressions: Long,
 ) : MeasurementResultBuilder {
@@ -121,11 +121,11 @@ class DirectImpressionResultBuilder(
    * @return The uncapped impression count, or 0 if k-anonymity thresholds are not met.
    */
   private fun computeUncappedImpressionValue(): Long {
-    if (kAnonymityParams != null) {
+    if (resultMinimumThresholds != null) {
       val reachValue = frequencyData.count { it != 0 }
-      return if (totalUncappedImpressions < kAnonymityParams.minImpressions) {
+      return if (totalUncappedImpressions < resultMinimumThresholds.minImpressions) {
         0L
-      } else if (reachValue < kAnonymityParams.minUsers) {
+      } else if (reachValue < resultMinimumThresholds.minUsers) {
         0L
       } else {
         totalUncappedImpressions
@@ -149,7 +149,7 @@ class DirectImpressionResultBuilder(
       rawHistogram = histogram,
       dpParams = dpParams,
       vidSamplingIntervalWidth = samplingRate.toDouble(),
-      kAnonymityParams = kAnonymityParams,
+      resultMinimumThresholds = resultMinimumThresholds,
       maxFrequency = maxFrequency.toLong(),
     )
   }
