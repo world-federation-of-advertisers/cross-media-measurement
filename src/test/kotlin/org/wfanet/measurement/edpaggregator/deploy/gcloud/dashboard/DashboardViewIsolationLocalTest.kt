@@ -77,5 +77,4 @@ class DashboardViewIsolationLocalTest {
       assertThat(sql).contains("EXTERNAL_QUERY")
     }
   }
-
 }
