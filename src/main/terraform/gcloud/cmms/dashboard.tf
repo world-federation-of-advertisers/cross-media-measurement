@@ -367,7 +367,7 @@ resource "google_bigquery_row_access_policy" "requisition_overview_platform" {
   table_id         = google_bigquery_table.requisition_overview.table_id
   policy_id        = "platform_full_access"
   filter_predicate = "TRUE"
-  grantees         = ["serviceAccount:${var.terraform_service_account}", "user:tinage@meta.com"]
+  grantees         = concat(["serviceAccount:${var.terraform_service_account}"], var.dashboard_operators)
 }
 
 resource "google_bigquery_row_access_policy" "requisition_overview" {
@@ -449,10 +449,13 @@ resource "google_project_iam_member" "edp_bigquery_job_user" {
 
 # Operators can impersonate EDP SAs for manual isolation testing
 resource "google_service_account_iam_member" "edp_sa_operator_token_creator" {
-  for_each           = var.data_provider_resource_ids
-  service_account_id = google_service_account.edp_dashboard[each.key].name
+  for_each = {
+    for pair in setproduct(keys(var.data_provider_resource_ids), var.dashboard_operators) :
+    "${pair[0]}-${pair[1]}" => { edp = pair[0], operator = pair[1] }
+  }
+  service_account_id = google_service_account.edp_dashboard[each.value.edp].name
   role               = "roles/iam.serviceAccountTokenCreator"
-  member             = "user:tinage@meta.com"
+  member             = each.value.operator
 }
 
 # --- GCS Bucket for UDF Libraries ---

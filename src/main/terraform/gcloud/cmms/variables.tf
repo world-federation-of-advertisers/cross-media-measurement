@@ -367,3 +367,9 @@ variable "data_provider_resource_ids" {
   }
   description = "Map of EDP name to DataProviderResourceId"
 }
+
+variable "dashboard_operators" {
+  type        = list(string)
+  default     = ["user:tinage@meta.com"]
+  description = "Users/groups granted platform access to dashboard tables and EDP SA impersonation for testing"
+}
