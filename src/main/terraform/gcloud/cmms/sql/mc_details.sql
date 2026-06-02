@@ -12,8 +12,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- Platform version: includes TotalMcs and CoveragePercent.
-
 SELECT
   `${project_id}.dashboard.externalIdToApiId`(eg.MeasurementConsumerId) AS CmmsMeasurementConsumer,
   `${project_id}.dashboard.externalIdToApiId`(eg.DataProviderId) AS CmmsDataProvider,
@@ -27,12 +25,14 @@ SELECT
     `${project_id}.dashboard.decode_EventGroupDetails`(eg.EventGroupDetails),
     '$.metadata.ad_metadata.campaign_metadata.brand_name'
   ), '')) AS BrandNames,
-  ARRAY_AGG(IFNULL(ca.ClientAccountReferenceId, '')) AS AccountIds,
-  mc.TotalMcs,
-  SAFE_DIVIDE(
+  ARRAY_AGG(IFNULL(ca.ClientAccountReferenceId, '')) AS AccountIds
+%{ if include_platform_columns }
+  , mc.TotalMcs
+  , SAFE_DIVIDE(
     COUNT(DISTINCT eg.MeasurementConsumerId),
     mc.TotalMcs
   ) AS CoveragePercent
+%{ endif }
 FROM (
   SELECT * FROM EXTERNAL_QUERY(
     'projects/${project_id}/locations/${region}/connections/kingdom-conn',
@@ -54,6 +54,7 @@ LEFT JOIN (
 ) ca
   ON eg.MeasurementConsumerId = ca.MeasurementConsumerId
   AND eg.DataProviderId = ca.DataProviderId
+%{ if include_platform_columns }
 CROSS JOIN (
   SELECT COUNT(DISTINCT MeasurementConsumerId) AS TotalMcs
   FROM (
@@ -64,3 +65,6 @@ CROSS JOIN (
   )
 ) mc
 GROUP BY 1, 2, mc.TotalMcs
+%{ else }
+GROUP BY 1, 2
+%{ endif }

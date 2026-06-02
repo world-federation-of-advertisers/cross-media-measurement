@@ -282,8 +282,9 @@ resource "google_bigquery_data_transfer_config" "mc_details" {
 
   params = {
     query                      = templatefile("${path.module}/sql/mc_details.sql", {
-      project_id = data.google_client_config.default.project
-      region     = data.google_client_config.default.region
+      project_id               = data.google_client_config.default.project
+      region                   = data.google_client_config.default.region
+      include_platform_columns = true
     })
     destination_table_name_template = "mc_details"
     write_disposition               = "WRITE_TRUNCATE"
@@ -299,9 +300,10 @@ resource "google_bigquery_data_transfer_config" "mc_details_edp" {
   location               = data.google_client_config.default.region
 
   params = {
-    query                      = templatefile("${path.module}/sql/mc_details_edp.sql", {
-      project_id = data.google_client_config.default.project
-      region     = data.google_client_config.default.region
+    query                      = templatefile("${path.module}/sql/mc_details.sql", {
+      project_id               = data.google_client_config.default.project
+      region                   = data.google_client_config.default.region
+      include_platform_columns = false
     })
     destination_table_name_template = "mc_details_edp"
     write_disposition               = "WRITE_TRUNCATE"
@@ -318,8 +320,9 @@ resource "google_bigquery_data_transfer_config" "report_detail" {
 
   params = {
     query                      = templatefile("${path.module}/sql/report_detail.sql", {
-      project_id = data.google_client_config.default.project
-      region     = data.google_client_config.default.region
+      project_id               = data.google_client_config.default.project
+      region                   = data.google_client_config.default.region
+      include_platform_columns = true
     })
     destination_table_name_template = "report_detail"
     write_disposition               = "WRITE_TRUNCATE"
@@ -335,9 +338,10 @@ resource "google_bigquery_data_transfer_config" "report_detail_edp" {
   location               = data.google_client_config.default.region
 
   params = {
-    query                      = templatefile("${path.module}/sql/report_detail_edp.sql", {
-      project_id = data.google_client_config.default.project
-      region     = data.google_client_config.default.region
+    query                      = templatefile("${path.module}/sql/report_detail.sql", {
+      project_id               = data.google_client_config.default.project
+      region                   = data.google_client_config.default.region
+      include_platform_columns = false
     })
     destination_table_name_template = "report_detail_edp"
     write_disposition               = "WRITE_TRUNCATE"
