@@ -53,7 +53,7 @@ class DashboardComplianceCheck : Runnable {
       EdpConfig(
         "comscore",
         "d9hrk_MNong",
-        "edp-comscore-dashboard@$project.iam.gserviceaccount.com"
+        "edp-comscore-dashboard@$project.iam.gserviceaccount.com",
       ),
       EdpConfig("tiktok", "UDjWe1_vGAM", "edp-tiktok-dashboard@$project.iam.gserviceaccount.com"),
       EdpConfig("amazon", "MTcvLV_vGPw", "edp-amazon-dashboard@$project.iam.gserviceaccount.com"),
@@ -91,7 +91,7 @@ class DashboardComplianceCheck : Runnable {
       GoogleCredentials.getApplicationDefault()
         .createScoped(
           "https://www.googleapis.com/auth/bigquery",
-          "https://www.googleapis.com/auth/cloud-platform"
+          "https://www.googleapis.com/auth/cloud-platform",
         )
     creds
   }
@@ -113,7 +113,7 @@ class DashboardComplianceCheck : Runnable {
         null,
         listOf(
           "https://www.googleapis.com/auth/bigquery",
-          "https://www.googleapis.com/auth/cloud-platform"
+          "https://www.googleapis.com/auth/cloud-platform",
         ),
         300,
       )
