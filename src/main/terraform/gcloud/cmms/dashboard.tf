@@ -359,6 +359,34 @@ resource "google_service_account" "edp_dashboard" {
 
 # --- Row Access Policies ---
 # Applied to tables that EDPs query. Each EDP SA sees only their own rows.
+# Platform operators see all rows via platform_full_access policies.
+
+resource "google_bigquery_row_access_policy" "requisition_overview_platform" {
+  project          = data.google_client_config.default.project
+  dataset_id       = google_bigquery_dataset.dashboard.dataset_id
+  table_id         = google_bigquery_table.requisition_overview.table_id
+  policy_id        = "platform_full_access"
+  filter_predicate = "TRUE"
+  grantees         = ["serviceAccount:${var.terraform_service_account}", "user:tinage@meta.com"]
+}
+
+resource "google_bigquery_row_access_policy" "mc_details_edp_platform" {
+  project          = data.google_client_config.default.project
+  dataset_id       = google_bigquery_dataset.dashboard.dataset_id
+  table_id         = google_bigquery_table.mc_details_edp.table_id
+  policy_id        = "platform_full_access"
+  filter_predicate = "TRUE"
+  grantees         = ["serviceAccount:${var.terraform_service_account}", "user:tinage@meta.com"]
+}
+
+resource "google_bigquery_row_access_policy" "report_detail_edp_platform" {
+  project          = data.google_client_config.default.project
+  dataset_id       = google_bigquery_dataset.dashboard.dataset_id
+  table_id         = google_bigquery_table.report_detail_edp.table_id
+  policy_id        = "platform_full_access"
+  filter_predicate = "TRUE"
+  grantees         = ["serviceAccount:${var.terraform_service_account}", "user:tinage@meta.com"]
+}
 
 resource "google_bigquery_row_access_policy" "requisition_overview" {
   for_each         = var.data_provider_resource_ids
