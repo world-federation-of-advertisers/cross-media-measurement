@@ -174,12 +174,15 @@ sections of this when reviewing others’ code.
 
 #### Function Parameters
 
-*   Avoid default parameter values in general. Default values make call sites
-    harder to understand and can hide incorrect usage. Prefer requiring all
-    arguments explicitly.
-*   When default parameter values are necessary, place parameters with defaults
-    after all required parameters. This follows the Kotlin convention and
-    prevents positional argument errors when parameters are reordered.
+*   Use default parameter values judiciously, applying the same judgment you
+    would for method overloading (see Effective Java 3rd Edition, Item 52).
+    Default values are syntactic sugar for overloads and carry the same risks:
+    they can obscure which variant a call site invokes and make refactoring
+    error-prone.
+*   When default parameter values are used, place parameters with defaults
+    after all required parameters. A trailing lambda parameter should still be
+    last, even after parameters with defaults, to support trailing lambda
+    syntax.
 
 #### CLI Flags
 
