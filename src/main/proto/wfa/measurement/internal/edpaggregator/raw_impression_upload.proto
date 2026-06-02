@@ -32,7 +32,7 @@ message RawImpressionUpload {
   string data_provider_resource_id = 1;
 
   // Unique identifier for this upload.
-  string raw_impression_upload_id = 2;
+  string raw_impression_upload_resource_id = 2;
 
   // Denormalized pipeline state, rolled up from child model line states.
   RawImpressionUploadState state = 3;
