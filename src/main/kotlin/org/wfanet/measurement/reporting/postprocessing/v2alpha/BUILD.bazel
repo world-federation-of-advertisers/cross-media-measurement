@@ -6,18 +6,12 @@ package(default_visibility = ["//visibility:public"])
 
 MAVEN_COORDINATES = "org.wfanet.measurement.reporting:postprocessing-v2alpha:" + artifact_version()
 
-genrule(
-    name = "post_process_origin_report_resource",
-    srcs = ["//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_origin_report_pyzip"],
-    outs = ["post_process_origin_report.zip"],
-    cmd = "cp $< $@",
-)
-
 kt_jvm_library(
     name = "postprocessing",
     srcs = glob(["*.kt"]),
-    resource_strip_prefix = package_name(),
-    resources = [":post_process_origin_report_resource"],
+    resources = [
+        "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_origin_report_pyzip",
+    ],
     tags = ["maven_coordinates=" + MAVEN_COORDINATES],
     deps = [
         "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_post_processor_log_kt_jvm_proto",
