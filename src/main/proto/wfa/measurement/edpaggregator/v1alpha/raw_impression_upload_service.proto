@@ -39,6 +39,18 @@ service RawImpressionUploadService {
   // Lists RawImpressionUpload resources for a data provider.
   rpc ListRawImpressionUploads(ListRawImpressionUploadsRequest)
       returns (ListRawImpressionUploadsResponse) {}
+
+  // Marks a RawImpressionUpload as ACTIVE.
+  rpc MarkRawImpressionUploadActive(MarkRawImpressionUploadActiveRequest)
+      returns (RawImpressionUpload) {}
+
+  // Marks a RawImpressionUpload as COMPLETED.
+  rpc MarkRawImpressionUploadCompleted(MarkRawImpressionUploadCompletedRequest)
+      returns (RawImpressionUpload) {}
+
+  // Marks a RawImpressionUpload as FAILED.
+  rpc MarkRawImpressionUploadFailed(MarkRawImpressionUploadFailedRequest)
+      returns (RawImpressionUpload) {}
 }
 
 // Request message for the `CreateRawImpressionUpload` method.
@@ -125,4 +137,43 @@ message ListRawImpressionUploadsResponse {
   // A token to retrieve the next page of results.
   // If this field is omitted, there are no subsequent pages.
   string next_page_token = 2;
+}
+
+// Request message for the `MarkRawImpressionUploadActive` method.
+message MarkRawImpressionUploadActiveRequest {
+  // The resource name of the RawImpressionUpload.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+}
+
+// Request message for the `MarkRawImpressionUploadCompleted` method.
+message MarkRawImpressionUploadCompletedRequest {
+  // The resource name of the RawImpressionUpload.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+}
+
+// Request message for the `MarkRawImpressionUploadFailed` method.
+message MarkRawImpressionUploadFailedRequest {
+  // The resource name of the RawImpressionUpload.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
 }

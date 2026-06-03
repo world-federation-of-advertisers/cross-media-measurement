@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_upload.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_upload_state.proto";
 
@@ -37,6 +38,18 @@ service RawImpressionUploadService {
   // Lists RawImpressionUpload entries for a data provider.
   rpc ListRawImpressionUploads(ListRawImpressionUploadsRequest)
       returns (ListRawImpressionUploadsResponse);
+
+  // Marks a RawImpressionUpload as ACTIVE.
+  rpc MarkRawImpressionUploadActive(MarkRawImpressionUploadActiveRequest)
+      returns (RawImpressionUpload);
+
+  // Marks a RawImpressionUpload as COMPLETED.
+  rpc MarkRawImpressionUploadCompleted(MarkRawImpressionUploadCompletedRequest)
+      returns (RawImpressionUpload);
+
+  // Marks a RawImpressionUpload as FAILED.
+  rpc MarkRawImpressionUploadFailed(MarkRawImpressionUploadFailedRequest)
+      returns (RawImpressionUpload);
 }
 
 // Request message for CreateRawImpressionUpload.
@@ -76,6 +89,9 @@ message ListRawImpressionUploadsRequest {
   message Filter {
     // Filter by pipeline state.
     RawImpressionUploadState state = 1;
+
+    // Filter by create time range.
+    google.type.Interval create_time_interval = 2;
   }
   Filter filter = 4;
 }
@@ -99,4 +115,31 @@ message ListRawImpressionUploadsPageToken {
     string raw_impression_upload_resource_id = 2;
   }
   After after = 1;
+}
+
+// Request message for MarkRawImpressionUploadActive.
+message MarkRawImpressionUploadActiveRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // The unique identifier of the upload.
+  string raw_impression_upload_resource_id = 2;
+}
+
+// Request message for MarkRawImpressionUploadCompleted.
+message MarkRawImpressionUploadCompletedRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // The unique identifier of the upload.
+  string raw_impression_upload_resource_id = 2;
+}
+
+// Request message for MarkRawImpressionUploadFailed.
+message MarkRawImpressionUploadFailedRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // The unique identifier of the upload.
+  string raw_impression_upload_resource_id = 2;
 }

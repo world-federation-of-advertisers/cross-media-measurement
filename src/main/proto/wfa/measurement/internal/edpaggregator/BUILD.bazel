@@ -223,6 +223,7 @@ proto_library(
     deps = [
         ":raw_impression_upload_proto",
         ":raw_impression_upload_state_proto",
+        "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
