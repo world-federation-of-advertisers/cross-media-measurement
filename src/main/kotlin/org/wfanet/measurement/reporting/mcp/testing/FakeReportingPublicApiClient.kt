@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Cross-Media Measurement Authors
+ * Copyright 2026 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.reporting.mcp
+package org.wfanet.measurement.reporting.mcp.testing
 
 import io.grpc.inprocess.InProcessChannelBuilder
 import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
