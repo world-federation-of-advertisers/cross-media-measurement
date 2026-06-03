@@ -124,24 +124,10 @@ interface ReportProcessor {
   /** The default implementation of [ReportProcessor]. */
   companion object Default : ReportProcessor {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private const val PYTHON_LIBRARY_RESOURCE_SUFFIX =
-      "src/main/python/wfa/measurement/reporting/postprocessing/tools/post_process_origin_report.zip"
+    private const val PYTHON_LIBRARY_RESOURCE_NAME = "post_process_origin_report.zip"
     private val resourcePath: Path =
-      Default::class.java.classLoader.getJarResourcePath(PYTHON_LIBRARY_RESOURCE_SUFFIX)
-        ?: findResourceBySuffix(PYTHON_LIBRARY_RESOURCE_SUFFIX)
-        ?: error("$PYTHON_LIBRARY_RESOURCE_SUFFIX not found in JAR")
-
-    // The resource path prefix varies by Bazel configuration (e.g. k8-fastbuild, k8-opt),
-    // so we scan JAR entries by suffix rather than hardcoding the full path.
-    private fun findResourceBySuffix(suffix: String): Path? {
-      val protectionDomain = Default::class.java.protectionDomain ?: return null
-      val jarUri = protectionDomain.codeSource?.location?.toURI() ?: return null
-      val entry =
-        java.util.jar.JarFile(java.io.File(jarUri)).use { jarFile ->
-          jarFile.entries().asSequence().singleOrNull { it.name.endsWith(suffix) }
-        } ?: return null
-      return Default::class.java.classLoader.getJarResourcePath(entry.name)
-    }
+      Default::class.java.classLoader.getJarResourcePath(PYTHON_LIBRARY_RESOURCE_NAME)
+        ?: error("$PYTHON_LIBRARY_RESOURCE_NAME not found in JAR")
 
     private val tempFile = File.createTempFile(resourcePath.name, "").apply { deleteOnExit() }
 
