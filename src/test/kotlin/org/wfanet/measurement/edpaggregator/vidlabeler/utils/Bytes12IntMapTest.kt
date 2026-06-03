@@ -23,53 +23,53 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
-class FingerprintRankTableTest {
+class Bytes12IntMapTest {
 
   // -------- Constructor validation --------
 
   @Test
   fun `constructor rejects non-positive initialCapacity`() {
-    assertFailsRequire { FingerprintRankTable(initialCapacity = 0L) }
-    assertFailsRequire { FingerprintRankTable(initialCapacity = -1L) }
+    assertFailsRequire { Bytes12IntMap(initialCapacity = 0L) }
+    assertFailsRequire { Bytes12IntMap(initialCapacity = -1L) }
   }
 
   @Test
   fun `constructor rejects loadFactor out of range`() {
-    assertFailsRequire { FingerprintRankTable(loadFactor = 0f) }
-    assertFailsRequire { FingerprintRankTable(loadFactor = 1f) }
-    assertFailsRequire { FingerprintRankTable(loadFactor = -0.5f) }
-    assertFailsRequire { FingerprintRankTable(loadFactor = 1.5f) }
+    assertFailsRequire { Bytes12IntMap(loadFactor = 0f) }
+    assertFailsRequire { Bytes12IntMap(loadFactor = 1f) }
+    assertFailsRequire { Bytes12IntMap(loadFactor = -0.5f) }
+    assertFailsRequire { Bytes12IntMap(loadFactor = 1.5f) }
   }
 
   @Test
   fun `constructor rejects chunkShift out of range`() {
-    assertFailsRequire { FingerprintRankTable(maxChunkShift = 0) }
-    assertFailsRequire { FingerprintRankTable(maxChunkShift = -1) }
-    assertFailsRequire { FingerprintRankTable(maxChunkShift = 31) }
+    assertFailsRequire { Bytes12IntMap(maxChunkShift = 0) }
+    assertFailsRequire { Bytes12IntMap(maxChunkShift = -1) }
+    assertFailsRequire { Bytes12IntMap(maxChunkShift = 31) }
   }
 
   @Test
   fun `constructor floors capacity at MIN_CAPACITY`() {
-    val table = FingerprintRankTable(initialCapacity = 1L)
-    assertThat(table.capacity()).isAtLeast(FingerprintRankTable.MIN_CAPACITY)
+    val table = Bytes12IntMap(initialCapacity = 1L)
+    assertThat(table.capacity()).isAtLeast(Bytes12IntMap.MIN_CAPACITY)
   }
 
   @Test
   fun `constructor rounds capacity up to next power of two`() {
-    assertThat(FingerprintRankTable(initialCapacity = 17L).capacity()).isEqualTo(32L)
-    assertThat(FingerprintRankTable(initialCapacity = 17L, maxChunkShift = 4).capacity())
+    assertThat(Bytes12IntMap(initialCapacity = 17L).capacity()).isEqualTo(32L)
+    assertThat(Bytes12IntMap(initialCapacity = 17L, maxChunkShift = 4).capacity())
       .isEqualTo(32L)
-    assertThat(FingerprintRankTable(initialCapacity = 100L, maxChunkShift = 4).capacity())
+    assertThat(Bytes12IntMap(initialCapacity = 100L, maxChunkShift = 4).capacity())
       .isEqualTo(128L)
-    assertThat(FingerprintRankTable(initialCapacity = 16L, maxChunkShift = 4).capacity())
+    assertThat(Bytes12IntMap(initialCapacity = 16L, maxChunkShift = 4).capacity())
       .isEqualTo(16L)
-    assertThat(FingerprintRankTable(initialCapacity = 1024L, maxChunkShift = 4).numChunks())
+    assertThat(Bytes12IntMap(initialCapacity = 1024L, maxChunkShift = 4).numChunks())
       .isEqualTo(1024 / 16)
   }
 
   @Test
   fun `numChunks scales with capacity`() {
-    val table = FingerprintRankTable(initialCapacity = 256L, maxChunkShift = 4)
+    val table = Bytes12IntMap(initialCapacity = 256L, maxChunkShift = 4)
     assertThat(table.capacity()).isEqualTo(256L)
     assertThat(table.numChunks()).isEqualTo(256 / 16)
   }
@@ -78,14 +78,14 @@ class FingerprintRankTableTest {
 
   @Test
   fun `put returns NOT_PRESENT for a new key`() {
-    val table = FingerprintRankTable()
-    assertThat(table.put(1L, 2, 100)).isEqualTo(FingerprintRankTable.NOT_PRESENT)
+    val table = Bytes12IntMap()
+    assertThat(table.put(1L, 2, 100)).isEqualTo(Bytes12IntMap.NOT_PRESENT)
     assertThat(table.size).isEqualTo(1L)
   }
 
   @Test
   fun `put returns the previous value when updating`() {
-    val table = FingerprintRankTable()
+    val table = Bytes12IntMap()
     table.put(1L, 2, 100)
     assertThat(table.put(1L, 2, 200)).isEqualTo(100)
     assertThat(table.get(1L, 2)).isEqualTo(200)
@@ -94,13 +94,13 @@ class FingerprintRankTableTest {
 
   @Test
   fun `get returns NOT_PRESENT for a missing key`() {
-    val table = FingerprintRankTable()
-    assertThat(table.get(1L, 2)).isEqualTo(FingerprintRankTable.NOT_PRESENT)
+    val table = Bytes12IntMap()
+    assertThat(table.get(1L, 2)).isEqualTo(Bytes12IntMap.NOT_PRESENT)
   }
 
   @Test
   fun `containsKey distinguishes present from missing`() {
-    val table = FingerprintRankTable()
+    val table = Bytes12IntMap()
     assertThat(table.containsKey(1L, 2)).isFalse()
     table.put(1L, 2, 100)
     assertThat(table.containsKey(1L, 2)).isTrue()
@@ -109,24 +109,24 @@ class FingerprintRankTableTest {
 
   @Test
   fun `value zero is distinguished from absence`() {
-    val table = FingerprintRankTable()
+    val table = Bytes12IntMap()
     table.put(1L, 2, 0)
     assertThat(table.containsKey(1L, 2)).isTrue()
     assertThat(table.get(1L, 2)).isEqualTo(0)
-    assertThat(table.get(2L, 1)).isEqualTo(FingerprintRankTable.NOT_PRESENT)
+    assertThat(table.get(2L, 1)).isEqualTo(Bytes12IntMap.NOT_PRESENT)
   }
 
   // -------- remove --------
 
   @Test
   fun `remove returns NOT_PRESENT for a missing key`() {
-    val table = FingerprintRankTable()
-    assertThat(table.remove(1L, 2)).isEqualTo(FingerprintRankTable.NOT_PRESENT)
+    val table = Bytes12IntMap()
+    assertThat(table.remove(1L, 2)).isEqualTo(Bytes12IntMap.NOT_PRESENT)
   }
 
   @Test
   fun `remove returns the previous value and clears the entry`() {
-    val table = FingerprintRankTable()
+    val table = Bytes12IntMap()
     table.put(1L, 2, 100)
     assertThat(table.remove(1L, 2)).isEqualTo(100)
     assertThat(table.containsKey(1L, 2)).isFalse()
@@ -135,11 +135,11 @@ class FingerprintRankTableTest {
 
   @Test
   fun `repeated remove is idempotent`() {
-    val table = FingerprintRankTable()
+    val table = Bytes12IntMap()
     table.put(1L, 2, 100)
     assertThat(table.remove(1L, 2)).isEqualTo(100)
-    assertThat(table.remove(1L, 2)).isEqualTo(FingerprintRankTable.NOT_PRESENT)
-    assertThat(table.remove(1L, 2)).isEqualTo(FingerprintRankTable.NOT_PRESENT)
+    assertThat(table.remove(1L, 2)).isEqualTo(Bytes12IntMap.NOT_PRESENT)
+    assertThat(table.remove(1L, 2)).isEqualTo(Bytes12IntMap.NOT_PRESENT)
     assertThat(table.size).isEqualTo(0L)
   }
 
@@ -147,8 +147,8 @@ class FingerprintRankTableTest {
 
   @Test
   fun `zero key can be stored and retrieved`() {
-    val table = FingerprintRankTable()
-    assertThat(table.put(0L, 0, 42)).isEqualTo(FingerprintRankTable.NOT_PRESENT)
+    val table = Bytes12IntMap()
+    assertThat(table.put(0L, 0, 42)).isEqualTo(Bytes12IntMap.NOT_PRESENT)
     assertThat(table.containsKey(0L, 0)).isTrue()
     assertThat(table.get(0L, 0)).isEqualTo(42)
     assertThat(table.size).isEqualTo(1L)
@@ -156,7 +156,7 @@ class FingerprintRankTableTest {
 
   @Test
   fun `zero key update returns previous value`() {
-    val table = FingerprintRankTable()
+    val table = Bytes12IntMap()
     table.put(0L, 0, 42)
     assertThat(table.put(0L, 0, 99)).isEqualTo(42)
     assertThat(table.get(0L, 0)).isEqualTo(99)
@@ -165,17 +165,17 @@ class FingerprintRankTableTest {
 
   @Test
   fun `zero key remove returns previous value`() {
-    val table = FingerprintRankTable()
+    val table = Bytes12IntMap()
     table.put(0L, 0, 42)
     assertThat(table.remove(0L, 0)).isEqualTo(42)
     assertThat(table.containsKey(0L, 0)).isFalse()
-    assertThat(table.remove(0L, 0)).isEqualTo(FingerprintRankTable.NOT_PRESENT)
+    assertThat(table.remove(0L, 0)).isEqualTo(Bytes12IntMap.NOT_PRESENT)
     assertThat(table.size).isEqualTo(0L)
   }
 
   @Test
   fun `zero key coexists with non-zero keys`() {
-    val table = FingerprintRankTable()
+    val table = Bytes12IntMap()
     table.put(0L, 0, 1)
     table.put(1L, 2, 2)
     table.put(3L, 4, 3)
@@ -187,7 +187,7 @@ class FingerprintRankTableTest {
 
   @Test
   fun `keys that differ only in zero-ness are distinct`() {
-    val table = FingerprintRankTable()
+    val table = Bytes12IntMap()
     table.put(0L, 0, 1)
     table.put(0L, 1, 2)
     table.put(1L, 0, 3)
@@ -201,7 +201,7 @@ class FingerprintRankTableTest {
 
   @Test
   fun `clear empties the table including the zero key`() {
-    val table = FingerprintRankTable()
+    val table = Bytes12IntMap()
     table.put(1L, 2, 100)
     table.put(3L, 4, 200)
     table.put(0L, 0, 42)
@@ -216,7 +216,7 @@ class FingerprintRankTableTest {
 
   @Test
   fun `clear on empty table is a no-op`() {
-    val table = FingerprintRankTable()
+    val table = Bytes12IntMap()
     table.clear()
     assertThat(table.size).isEqualTo(0L)
     assertThat(table.isEmpty()).isTrue()
@@ -226,7 +226,7 @@ class FingerprintRankTableTest {
 
   @Test
   fun `forEach visits every entry exactly once`() {
-    val table = FingerprintRankTable()
+    val table = Bytes12IntMap()
     val expected =
       mapOf(
         (1L to 2) to 10,
@@ -244,7 +244,7 @@ class FingerprintRankTableTest {
 
   @Test
   fun `forEach on empty table does not invoke action`() {
-    val table = FingerprintRankTable()
+    val table = Bytes12IntMap()
     var calls = 0
     table.forEach { _, _, _ -> calls++ }
     assertThat(calls).isEqualTo(0)
@@ -254,7 +254,7 @@ class FingerprintRankTableTest {
 
   @Test
   fun `entries survive resize`() {
-    val table = FingerprintRankTable(initialCapacity = 32L, loadFactor = 0.5f, maxChunkShift = 4)
+    val table = Bytes12IntMap(initialCapacity = 32L, loadFactor = 0.5f, maxChunkShift = 4)
     val initialCap = table.capacity()
     val n = 5_000
     for (i in 0 until n) {
@@ -272,7 +272,7 @@ class FingerprintRankTableTest {
   @Test
   fun `multi-chunk layout supports many entries across chunks`() {
     val table =
-      FingerprintRankTable(initialCapacity = 64L, loadFactor = 0.95f, maxChunkShift = 4)
+      Bytes12IntMap(initialCapacity = 64L, loadFactor = 0.95f, maxChunkShift = 4)
     assertThat(table.numChunks()).isEqualTo(4)
     val initialCap = table.capacity()
     val n = 50
@@ -289,13 +289,13 @@ class FingerprintRankTableTest {
   @Test
   fun `cross-chunk probe wraps correctly on insert and lookup`() {
     val table =
-      FingerprintRankTable(initialCapacity = 64L, loadFactor = 0.95f, maxChunkShift = 4)
+      Bytes12IntMap(initialCapacity = 64L, loadFactor = 0.95f, maxChunkShift = 4)
     val mask = table.capacity() - 1L
     val target = 15L
     val keys = generateKeysHittingIndex(target = target, count = 6, mask = mask)
     for ((i, k) in keys.withIndex()) {
       assertThat(table.put(k.first, k.second, i + 1))
-        .isEqualTo(FingerprintRankTable.NOT_PRESENT)
+        .isEqualTo(Bytes12IntMap.NOT_PRESENT)
     }
     for ((i, k) in keys.withIndex()) {
       assertThat(table.get(k.first, k.second)).isEqualTo(i + 1)
@@ -305,7 +305,7 @@ class FingerprintRankTableTest {
   @Test
   fun `cross-chunk shiftKeys preserves lookups after removal`() {
     val table =
-      FingerprintRankTable(initialCapacity = 64L, loadFactor = 0.95f, maxChunkShift = 4)
+      Bytes12IntMap(initialCapacity = 64L, loadFactor = 0.95f, maxChunkShift = 4)
     val mask = table.capacity() - 1L
     val keys = generateKeysHittingIndex(target = 15L, count = 6, mask = mask)
     for ((i, k) in keys.withIndex()) {
@@ -315,7 +315,7 @@ class FingerprintRankTableTest {
     assertThat(table.remove(rmHi, rmLo)).isEqualTo(3)
     for ((i, k) in keys.withIndex()) {
       if (i == 2) {
-        assertThat(table.get(k.first, k.second)).isEqualTo(FingerprintRankTable.NOT_PRESENT)
+        assertThat(table.get(k.first, k.second)).isEqualTo(Bytes12IntMap.NOT_PRESENT)
       } else {
         assertThat(table.get(k.first, k.second)).isEqualTo(i + 1)
       }
@@ -325,7 +325,7 @@ class FingerprintRankTableTest {
   @Test
   fun `cross-chunk wrap from last slot to first slot works`() {
     val table =
-      FingerprintRankTable(initialCapacity = 64L, loadFactor = 0.95f, maxChunkShift = 4)
+      Bytes12IntMap(initialCapacity = 64L, loadFactor = 0.95f, maxChunkShift = 4)
     val mask = table.capacity() - 1L
     val lastIndex = (table.capacity() - 1L)
     val keys = generateKeysHittingIndex(target = lastIndex, count = 5, mask = mask)
@@ -339,7 +339,7 @@ class FingerprintRankTableTest {
     assertThat(table.remove(rmHi, rmLo)).isEqualTo(2)
     for ((i, k) in keys.withIndex()) {
       if (i == 1) {
-        assertThat(table.get(k.first, k.second)).isEqualTo(FingerprintRankTable.NOT_PRESENT)
+        assertThat(table.get(k.first, k.second)).isEqualTo(Bytes12IntMap.NOT_PRESENT)
       } else {
         assertThat(table.get(k.first, k.second)).isEqualTo(i + 1)
       }
@@ -351,7 +351,7 @@ class FingerprintRankTableTest {
   @Test
   fun `remove preserves lookups for keys with overlapping probe chains (single chunk)`() {
     val table =
-      FingerprintRankTable(initialCapacity = 16L, loadFactor = 0.95f, maxChunkShift = 4)
+      Bytes12IntMap(initialCapacity = 16L, loadFactor = 0.95f, maxChunkShift = 4)
     val mask = table.capacity() - 1L
     val collidingKeys = generateKeysHittingIndex(target = 7L, count = 8, mask = mask)
     for ((i, k) in collidingKeys.withIndex()) {
@@ -364,7 +364,7 @@ class FingerprintRankTableTest {
     assertThat(table.remove(rmHi, rmLo)).isEqualTo(4)
     for ((i, k) in collidingKeys.withIndex()) {
       if (i == 3) {
-        assertThat(table.get(k.first, k.second)).isEqualTo(FingerprintRankTable.NOT_PRESENT)
+        assertThat(table.get(k.first, k.second)).isEqualTo(Bytes12IntMap.NOT_PRESENT)
       } else {
         assertThat(table.get(k.first, k.second)).isEqualTo(i + 1)
       }
@@ -373,7 +373,7 @@ class FingerprintRankTableTest {
 
   @Test
   fun `delete-then-reinsert preserves correctness for many entries`() {
-    val table = FingerprintRankTable(initialCapacity = 64L, maxChunkShift = 4)
+    val table = Bytes12IntMap(initialCapacity = 64L, maxChunkShift = 4)
     val n = 5_000
     for (i in 0 until n) {
       table.put(i.toLong() * 7L, i, i * 10)
@@ -384,7 +384,7 @@ class FingerprintRankTableTest {
     assertThat(table.size).isEqualTo((n / 2).toLong())
     for (i in 0 until n step 2) {
       assertThat(table.put(i.toLong() * 7L, i, i * 100))
-        .isEqualTo(FingerprintRankTable.NOT_PRESENT)
+        .isEqualTo(Bytes12IntMap.NOT_PRESENT)
     }
     for (i in 0 until n) {
       val expected = if (i % 2 == 0) i * 100 else i * 10
@@ -394,7 +394,7 @@ class FingerprintRankTableTest {
 
   @Test
   fun `delete all entries then table is empty and reusable`() {
-    val table = FingerprintRankTable(initialCapacity = 64L, maxChunkShift = 4)
+    val table = Bytes12IntMap(initialCapacity = 64L, maxChunkShift = 4)
     val n = 1_000
     for (i in 0 until n) {
       table.put(i.toLong(), i, i)
@@ -414,17 +414,17 @@ class FingerprintRankTableTest {
 
   @Test
   fun `randomized operations match a reference HashMap (single-chunk default)`() {
-    val table = FingerprintRankTable(initialCapacity = 32L)
+    val table = Bytes12IntMap(initialCapacity = 32L)
     randomizedReferenceCheck(table)
   }
 
   @Test
   fun `randomized operations match a reference HashMap (multi-chunk small)`() {
-    val table = FingerprintRankTable(initialCapacity = 64L, maxChunkShift = 4)
+    val table = Bytes12IntMap(initialCapacity = 64L, maxChunkShift = 4)
     randomizedReferenceCheck(table)
   }
 
-  private fun randomizedReferenceCheck(table: FingerprintRankTable) {
+  private fun randomizedReferenceCheck(table: Bytes12IntMap) {
     val ref = HashMap<Pair<Long, Int>, Int>()
     val rng = Random(0xBEEFCAFEL)
     val iterations = 50_000
@@ -438,16 +438,16 @@ class FingerprintRankTableTest {
           val v = rng.nextInt(Int.MAX_VALUE)
           val prevTable = table.put(keyHi, keyLo, v)
           val prevRef = ref.put(key, v)
-          assertThat(prevTable).isEqualTo(prevRef ?: FingerprintRankTable.NOT_PRESENT)
+          assertThat(prevTable).isEqualTo(prevRef ?: Bytes12IntMap.NOT_PRESENT)
         }
         1 -> {
           assertThat(table.get(keyHi, keyLo))
-            .isEqualTo(ref[key] ?: FingerprintRankTable.NOT_PRESENT)
+            .isEqualTo(ref[key] ?: Bytes12IntMap.NOT_PRESENT)
         }
         2 -> {
           val prevTable = table.remove(keyHi, keyLo)
           val prevRef = ref.remove(key)
-          assertThat(prevTable).isEqualTo(prevRef ?: FingerprintRankTable.NOT_PRESENT)
+          assertThat(prevTable).isEqualTo(prevRef ?: Bytes12IntMap.NOT_PRESENT)
         }
       }
       assertThat(table.size).isEqualTo(ref.size.toLong())
@@ -461,9 +461,9 @@ class FingerprintRankTableTest {
 
   @Test
   fun `ByteArray API round-trips`() {
-    val table = FingerprintRankTable()
+    val table = Bytes12IntMap()
     val fp = ByteArray(12) { it.toByte() }
-    assertThat(table.put(fp, 42)).isEqualTo(FingerprintRankTable.NOT_PRESENT)
+    assertThat(table.put(fp, 42)).isEqualTo(Bytes12IntMap.NOT_PRESENT)
     assertThat(table.get(fp)).isEqualTo(42)
     assertThat(table.containsKey(fp)).isTrue()
     assertThat(table.remove(fp)).isEqualTo(42)
@@ -472,7 +472,7 @@ class FingerprintRankTableTest {
 
   @Test
   fun `ByteArray API rejects wrong size`() {
-    val table = FingerprintRankTable()
+    val table = Bytes12IntMap()
     val tooShort = ByteArray(8)
     val tooLong = ByteArray(16)
     val empty = ByteArray(0)
@@ -487,7 +487,7 @@ class FingerprintRankTableTest {
 
   @Test
   fun `ByteArray and primitive APIs agree`() {
-    val table = FingerprintRankTable()
+    val table = Bytes12IntMap()
     val fp =
       byteArrayOf(
         0x12,
