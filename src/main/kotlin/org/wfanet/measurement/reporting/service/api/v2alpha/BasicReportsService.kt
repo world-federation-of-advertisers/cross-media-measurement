@@ -594,13 +594,17 @@ class BasicReportsService(
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
-    if (internalListBasicReportsResponse.basicReportsList.isEmpty()) {
+    if (
+      internalListBasicReportsResponse.basicReportsList.isEmpty() &&
+        internalListBasicReportsResponse.unreachableList.isEmpty()
+    ) {
       return ListBasicReportsResponse.getDefaultInstance()
     }
 
     return listBasicReportsResponse {
       this.basicReports +=
         internalListBasicReportsResponse.basicReportsList.map { it.toBasicReport() }.toList()
+      unreachable += internalListBasicReportsResponse.unreachableList
       if (internalListBasicReportsResponse.hasNextPageToken()) {
         nextPageToken =
           internalListBasicReportsResponse.nextPageToken.toByteString().base64UrlEncode()
