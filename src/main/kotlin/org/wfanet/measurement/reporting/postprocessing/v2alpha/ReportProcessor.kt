@@ -128,7 +128,9 @@ interface ReportProcessor {
     private val resourcePath: Path =
       requireNotNull(
         Default::class.java.classLoader.getJarResourcePath(PYTHON_LIBRARY_RESOURCE_NAME)
-      ) { "$PYTHON_LIBRARY_RESOURCE_NAME not found in JAR" }
+      ) {
+        "$PYTHON_LIBRARY_RESOURCE_NAME not found in JAR"
+      }
 
     private val tempFile = File.createTempFile(resourcePath.name, "").apply { deleteOnExit() }
 
