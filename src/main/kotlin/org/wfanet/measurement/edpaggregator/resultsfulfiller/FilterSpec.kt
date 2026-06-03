@@ -97,8 +97,10 @@ sealed class FilterSpec {
    *
    * @return [BatchMatchResult.NoMatch] if the batch should be skipped,
    *   [BatchMatchResult.MatchedAllEvents] or [BatchMatchResult.MatchedByEntityKeys] if it passed.
-   * @throws MissingBatchEntityKeysException when this is [ByEntityKeys] and [identifier] is not
-   *   [EventGroupIdentifier.ByEntityKeys].
+   * @throws MismatchedBatchIdentifierException when [identifier]'s variant does not match this
+   *   [FilterSpec] variant.
+   * @throws MissingBatchEntityKeysException when this is [ByEntityKeys] and [identifier] is
+   *   [EventGroupIdentifier.ByEntityKeys] with an empty entity keys list.
    */
   abstract fun matchBatch(identifier: EventGroupIdentifier): BatchMatchResult
 
