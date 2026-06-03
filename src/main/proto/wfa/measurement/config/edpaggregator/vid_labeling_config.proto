@@ -70,9 +70,28 @@ message VidLabelingConfig {
   TransportLayerSecurityParams raw_impression_metadata_storage_connection = 7
       [(google.api.field_behavior) = REQUIRED];
 
-  // Maximum batch size in bytes for partitioning raw impression files.
-  // If unset, defaults to 10 GB (10000000000 bytes).
-  int64 max_batch_size_bytes = 8 [(google.api.field_behavior) = OPTIONAL];
+  // Deprecated: Replaced by `number_of_shards`.
+  int64 max_batch_size_bytes = 8 [
+    deprecated = true,
+    (google.api.field_behavior) = OPTIONAL
+  ];
+
+  // Number of static shards for dispatching work items.
+  int32 number_of_shards = 9 [(google.api.field_behavior) = REQUIRED];
+
+  // TLS connection params for the VID Repository ModelLines service.
+  TransportLayerSecurityParams model_lines_connection = 10
+      [(google.api.field_behavior) = REQUIRED];
+
+  // TLS connection params for the VID Repository ModelShards service.
+  TransportLayerSecurityParams model_shards_connection = 11
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Resource name of the model suite. Used as parent for ListModelLines.
+  string model_suite = 12 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelSuite"
+  ];
 }
 
 // Wrapper containing VID Labeling configurations for all EDPs.
