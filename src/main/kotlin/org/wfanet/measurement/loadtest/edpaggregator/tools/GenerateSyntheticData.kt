@@ -30,7 +30,6 @@ import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Message
 import com.google.protobuf.TypeRegistry
 import java.io.File
-import java.time.LocalDate
 import java.time.ZoneId
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.emptyFlow
@@ -336,8 +335,8 @@ class GenerateSyntheticData : Runnable {
   /**
    * Coalesces per-sub-spec date shard sequences into a single per-event-group sequence using a
    * streaming k-way merge. Each output shard contains one [EntityKeysWithLabeledEvents] group per
-   * sub-spec that emitted events for that date. Holds at most one shard per sub-spec in memory at
-   * a time, avoiding the O(total_events) materialization of the previous implementation.
+   * sub-spec that emitted events for that date. Holds at most one shard per sub-spec in memory at a
+   * time, avoiding the O(total_events) materialization of the previous implementation.
    */
   private fun coalesceByDate(
     perSubSpecShards: List<Sequence<LabeledEventDateShard<Message>>>,
