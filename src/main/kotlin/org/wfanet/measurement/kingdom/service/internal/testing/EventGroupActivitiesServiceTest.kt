@@ -56,6 +56,7 @@ import org.wfanet.measurement.internal.kingdom.deleteEventGroupActivityRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup
 import org.wfanet.measurement.internal.kingdom.eventGroupActivity
 import org.wfanet.measurement.internal.kingdom.eventGroupDetails
+import org.wfanet.measurement.internal.kingdom.listEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupActivityRequest
 
 private const val RANDOM_SEED = 1
@@ -1003,6 +1004,331 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     }
+
+  @Test
+  fun `listEventGroupActivities returns activities for event group`() = runBlocking {
+    val createRequest = batchUpdateEventGroupActivitiesRequest {
+      externalDataProviderId = dataProvider.externalDataProviderId
+      externalEventGroupId = eventGroup.externalEventGroupId
+      requests += updateEventGroupActivityRequest {
+        allowMissing = true
+        eventGroupActivity = eventGroupActivity {
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 12
+            day = 1
+          }
+        }
+      }
+      requests += updateEventGroupActivityRequest {
+        allowMissing = true
+        eventGroupActivity = eventGroupActivity {
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 12
+            day = 10
+          }
+        }
+      }
+    }
+
+    eventGroupActivitiesService.batchUpdateEventGroupActivities(createRequest)
+
+    val response =
+      eventGroupActivitiesService.listEventGroupActivities(
+        listEventGroupActivitiesRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+        }
+      )
+
+    assertThat(response.eventGroupActivitiesList).hasSize(2)
+    assertThat(response.eventGroupActivitiesList[0].date)
+      .isEqualTo(
+        date {
+          year = 2025
+          month = 12
+          day = 1
+        }
+      )
+    assertThat(response.eventGroupActivitiesList[1].date)
+      .isEqualTo(
+        date {
+          year = 2025
+          month = 12
+          day = 10
+        }
+      )
+  }
+
+  @Test
+  fun `listEventGroupActivities paginates with page_token`() = runBlocking {
+    val createRequest = batchUpdateEventGroupActivitiesRequest {
+      externalDataProviderId = dataProvider.externalDataProviderId
+      externalEventGroupId = eventGroup.externalEventGroupId
+      requests += updateEventGroupActivityRequest {
+        allowMissing = true
+        eventGroupActivity = eventGroupActivity {
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 12
+            day = 1
+          }
+        }
+      }
+      requests += updateEventGroupActivityRequest {
+        allowMissing = true
+        eventGroupActivity = eventGroupActivity {
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 12
+            day = 5
+          }
+        }
+      }
+      requests += updateEventGroupActivityRequest {
+        allowMissing = true
+        eventGroupActivity = eventGroupActivity {
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 12
+            day = 10
+          }
+        }
+      }
+    }
+
+    eventGroupActivitiesService.batchUpdateEventGroupActivities(createRequest)
+
+    val firstResponse =
+      eventGroupActivitiesService.listEventGroupActivities(
+        listEventGroupActivitiesRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+          pageSize = 1
+        }
+      )
+
+    assertThat(firstResponse.eventGroupActivitiesList).hasSize(1)
+    assertThat(firstResponse.hasNextPageToken()).isTrue()
+
+    val secondResponse =
+      eventGroupActivitiesService.listEventGroupActivities(
+        listEventGroupActivitiesRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+          pageToken = firstResponse.nextPageToken
+        }
+      )
+
+    assertThat(secondResponse.eventGroupActivitiesList).hasSize(2)
+    assertThat(secondResponse.eventGroupActivitiesList[0].date)
+      .isEqualTo(
+        date {
+          year = 2025
+          month = 12
+          day = 5
+        }
+      )
+    assertThat(secondResponse.eventGroupActivitiesList[1].date)
+      .isEqualTo(
+        date {
+          year = 2025
+          month = 12
+          day = 10
+        }
+      )
+  }
+
+  @Test
+  fun `listEventGroupActivities returns empty when no activities exist`() = runBlocking {
+    val response =
+      eventGroupActivitiesService.listEventGroupActivities(
+        listEventGroupActivitiesRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+        }
+      )
+
+    assertThat(response.eventGroupActivitiesList).isEmpty()
+    assertThat(response.hasNextPageToken()).isFalse()
+  }
+
+  @Test
+  fun `listEventGroupActivities throws INVALID_ARGUMENT when external_data_provider_id is missing`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.listEventGroupActivities(
+            listEventGroupActivitiesRequest {
+              externalEventGroupId = eventGroup.externalEventGroupId
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("external_data_provider_id")
+    }
+
+  @Test
+  fun `listEventGroupActivities throws INVALID_ARGUMENT when external_event_group_id is missing`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.listEventGroupActivities(
+            listEventGroupActivitiesRequest {
+              externalDataProviderId = dataProvider.externalDataProviderId
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("external_event_group_id")
+    }
+
+  @Test
+  fun `listEventGroupActivities respects page_size`() = runBlocking {
+    val createRequest = batchUpdateEventGroupActivitiesRequest {
+      externalDataProviderId = dataProvider.externalDataProviderId
+      externalEventGroupId = eventGroup.externalEventGroupId
+      requests += updateEventGroupActivityRequest {
+        allowMissing = true
+        eventGroupActivity = eventGroupActivity {
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 12
+            day = 1
+          }
+        }
+      }
+      requests += updateEventGroupActivityRequest {
+        allowMissing = true
+        eventGroupActivity = eventGroupActivity {
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 12
+            day = 5
+          }
+        }
+      }
+      requests += updateEventGroupActivityRequest {
+        allowMissing = true
+        eventGroupActivity = eventGroupActivity {
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 12
+            day = 10
+          }
+        }
+      }
+    }
+
+    eventGroupActivitiesService.batchUpdateEventGroupActivities(createRequest)
+
+    val response =
+      eventGroupActivitiesService.listEventGroupActivities(
+        listEventGroupActivitiesRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+          pageSize = 1
+        }
+      )
+
+    assertThat(response.eventGroupActivitiesList).hasSize(1)
+    assertThat(response.eventGroupActivitiesList[0].date)
+      .isEqualTo(
+        date {
+          year = 2025
+          month = 12
+          day = 1
+        }
+      )
+    assertThat(response.hasNextPageToken()).isTrue()
+  }
+
+  @Test
+  fun `listEventGroupActivities paginates with page_token and page_size`() = runBlocking {
+    val createRequest = batchUpdateEventGroupActivitiesRequest {
+      externalDataProviderId = dataProvider.externalDataProviderId
+      externalEventGroupId = eventGroup.externalEventGroupId
+      requests += updateEventGroupActivityRequest {
+        allowMissing = true
+        eventGroupActivity = eventGroupActivity {
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 12
+            day = 1
+          }
+        }
+      }
+      requests += updateEventGroupActivityRequest {
+        allowMissing = true
+        eventGroupActivity = eventGroupActivity {
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 12
+            day = 5
+          }
+        }
+      }
+      requests += updateEventGroupActivityRequest {
+        allowMissing = true
+        eventGroupActivity = eventGroupActivity {
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 12
+            day = 10
+          }
+        }
+      }
+    }
+
+    eventGroupActivitiesService.batchUpdateEventGroupActivities(createRequest)
+
+    val firstResponse =
+      eventGroupActivitiesService.listEventGroupActivities(
+        listEventGroupActivitiesRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+          pageSize = 1
+        }
+      )
+
+    assertThat(firstResponse.eventGroupActivitiesList).hasSize(1)
+    assertThat(firstResponse.hasNextPageToken()).isTrue()
+
+    val secondResponse =
+      eventGroupActivitiesService.listEventGroupActivities(
+        listEventGroupActivitiesRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+          pageSize = 1
+          pageToken = firstResponse.nextPageToken
+        }
+      )
+
+    assertThat(secondResponse.eventGroupActivitiesList).hasSize(1)
+    assertThat(secondResponse.eventGroupActivitiesList[0].date)
+      .isEqualTo(
+        date {
+          year = 2025
+          month = 12
+          day = 5
+        }
+      )
+    assertThat(secondResponse.hasNextPageToken()).isTrue()
+  }
 
   private suspend fun createEventGroup(dataProvider: DataProvider): EventGroup {
     val measurementConsumer =
