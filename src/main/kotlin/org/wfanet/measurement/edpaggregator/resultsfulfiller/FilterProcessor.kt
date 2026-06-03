@@ -86,7 +86,8 @@ class FilterProcessor<T : Message>(
    * @return An EventBatch containing events that match all configured filters. The batch may be
    *   empty if no events match the criteria.
    * @throws MissingBatchEntityKeysException when [filterSpec] is [FilterSpec.ByEntityKeys] and
-   *   [batch.eventGroupIdentifier] is not [EventGroupIdentifier.ByEntityKeys].
+   *   [batch.eventGroupIdentifier] is [EventGroupIdentifier.ByEntityKeys] with an empty entity keys
+   *   list.
    */
   fun processBatch(batch: EventBatch<T>): EventBatch<T> {
     if (batch.events.isEmpty()) {

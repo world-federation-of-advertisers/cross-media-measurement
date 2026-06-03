@@ -35,13 +35,11 @@ class InvalidCollectionIntervalException :
   IllegalArgumentException("collectionInterval startTime must be before endTime")
 
 /**
- * Thrown by [FilterSpec.ByEntityKeys.matchBatch] when the incoming [EventGroupIdentifier] is not
- * [EventGroupIdentifier.ByEntityKeys].
+ * Thrown by [FilterSpec.ByEntityKeys.matchBatch] when the batch carries
+ * [EventGroupIdentifier.ByEntityKeys] with an empty entity keys list.
  */
 class MissingBatchEntityKeysException :
-  IllegalStateException(
-    "ByEntityKeys filter requires the batch to carry EventGroupIdentifier.ByEntityKeys"
-  )
+  IllegalStateException("Batch EventGroupIdentifier.ByEntityKeys has an empty entity keys list")
 
 /**
  * Thrown by [FilterSpec.matchBatch] when the [EventGroupIdentifier] variant does not match the

@@ -995,4 +995,55 @@ class FilterProcessorTest {
       assertThat(result.events.map { it.vid }).containsExactly(1L, 2L, 3L).inOrder()
     }
   }
+
+  @Test
+  fun `matchBatch returns NoMatch for disjoint entity key sets`() {
+    val filterSpec =
+      FilterSpec.ByEntityKeys(
+        celExpression = "",
+        collectionInterval = createDefaultInterval(),
+        entityKeys = setOf(makeEntityKey("ad", "X")),
+      )
+
+    val result =
+      filterSpec.matchBatch(
+        EventGroupIdentifier.ByEntityKeys(listOf(makeEntityKeyGroup("placement", "P")))
+      )
+
+    assertThat(result).isEqualTo(BatchMatchResult.NoMatch)
+  }
+
+  @Test
+  fun `matchBatch returns MatchedAllEvents when batch keys are subset of filter keys`() {
+    val filterSpec =
+      FilterSpec.ByEntityKeys(
+        celExpression = "",
+        collectionInterval = createDefaultInterval(),
+        entityKeys = setOf(makeEntityKey("ad", "X"), makeEntityKey("ad", "Y")),
+      )
+
+    val result =
+      filterSpec.matchBatch(
+        EventGroupIdentifier.ByEntityKeys(listOf(makeEntityKeyGroup("ad", "X")))
+      )
+
+    assertThat(result).isEqualTo(BatchMatchResult.MatchedAllEvents)
+  }
+
+  @Test
+  fun `matchBatch returns MatchedByEntityKeys when batch keys partially overlap filter keys`() {
+    val filterSpec =
+      FilterSpec.ByEntityKeys(
+        celExpression = "",
+        collectionInterval = createDefaultInterval(),
+        entityKeys = setOf(makeEntityKey("ad", "X")),
+      )
+
+    val result =
+      filterSpec.matchBatch(
+        EventGroupIdentifier.ByEntityKeys(listOf(makeEntityKeyGroup("ad", "X", "Y")))
+      )
+
+    assertThat(result).isInstanceOf(BatchMatchResult.MatchedByEntityKeys::class.java)
+  }
 }
