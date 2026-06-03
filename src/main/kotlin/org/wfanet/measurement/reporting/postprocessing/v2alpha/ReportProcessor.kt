@@ -135,10 +135,11 @@ interface ReportProcessor {
       val protectionDomain = Default::class.java.protectionDomain ?: return null
       val jarUri = protectionDomain.codeSource?.location?.toURI() ?: return null
       val jarFile = java.util.jar.JarFile(java.io.File(jarUri))
-      val entry = jarFile.entries().asSequence().firstOrNull { it.name.endsWith(suffix) }
-        ?: return null
+      val entry =
+        jarFile.entries().asSequence().firstOrNull { it.name.endsWith(suffix) } ?: return null
       return Default::class.java.classLoader.getJarResourcePath(entry.name)
     }
+
     private val tempFile = File.createTempFile(resourcePath.name, "").apply { deleteOnExit() }
 
     init {
