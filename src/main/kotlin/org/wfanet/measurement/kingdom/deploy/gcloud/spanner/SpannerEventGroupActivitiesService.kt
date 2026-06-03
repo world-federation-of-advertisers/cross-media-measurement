@@ -19,6 +19,7 @@ import com.google.type.Date
 import io.grpc.Status
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.BatchDeleteEventGroupActivitiesRequest
@@ -26,13 +27,19 @@ import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupActivitiesRe
 import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupActivitiesResponse
 import org.wfanet.measurement.internal.kingdom.DeleteEventGroupActivityRequest
 import org.wfanet.measurement.internal.kingdom.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesPageTokenKt
+import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesRequest
+import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesResponse
 import org.wfanet.measurement.internal.kingdom.batchDeleteEventGroupActivitiesRequest
+import org.wfanet.measurement.internal.kingdom.listEventGroupActivitiesPageToken
+import org.wfanet.measurement.internal.kingdom.listEventGroupActivitiesResponse
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupActivityNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupActivityReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchDeleteEventGroupActivities
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchUpdateEventGroupActivities
 
@@ -207,5 +214,65 @@ class SpannerEventGroupActivitiesService(
     }
 
     return Empty.getDefaultInstance()
+  }
+
+  override suspend fun listEventGroupActivities(
+    request: ListEventGroupActivitiesRequest
+  ): ListEventGroupActivitiesResponse {
+    grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
+
+    if (request.externalDataProviderId == 0L) {
+      throw RequiredFieldNotSetException("external_data_provider_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.externalEventGroupId == 0L) {
+      throw RequiredFieldNotSetException("external_event_group_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val pageSize =
+      if (request.pageSize == 0) {
+        DEFAULT_PAGE_SIZE
+      } else {
+        request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
+      }
+
+    val after = if (request.hasPageToken()) request.pageToken.after else null
+
+    val resultList =
+      EventGroupActivityReader()
+        .readEventGroupActivities(
+          client.singleUse(),
+          request.externalDataProviderId,
+          request.externalEventGroupId,
+          pageSize + 1,
+          after,
+        )
+        .map { it.eventGroupActivity }
+
+    if (resultList.isEmpty()) {
+      return ListEventGroupActivitiesResponse.getDefaultInstance()
+    }
+
+    return listEventGroupActivitiesResponse {
+      for ((index, activity) in resultList.withIndex()) {
+        if (index == pageSize) {
+          nextPageToken = listEventGroupActivitiesPageToken {
+            this.after =
+              ListEventGroupActivitiesPageTokenKt.after {
+                date = this@listEventGroupActivitiesResponse.eventGroupActivities.last().date
+              }
+          }
+        } else {
+          this.eventGroupActivities += activity
+        }
+      }
+    }
+  }
+
+  companion object {
+    private const val MAX_PAGE_SIZE = 1000
+    private const val DEFAULT_PAGE_SIZE = 50
   }
 }
