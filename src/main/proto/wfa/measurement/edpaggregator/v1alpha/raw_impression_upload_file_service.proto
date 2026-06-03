@@ -188,7 +188,7 @@ message BatchDeleteRawImpressionUploadFilesRequest {
     }
   ];
 
-  // Individual delete requests. Maximum 100 per batch.
+  // Individual delete requests. Maximum 1000 per batch.
   repeated DeleteRawImpressionUploadFileRequest requests = 2
       [(google.api.field_behavior) = REQUIRED];
 }
