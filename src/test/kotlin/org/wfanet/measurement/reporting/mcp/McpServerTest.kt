@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Cross-Media Measurement Authors
+ * Copyright 2026 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,24 +20,22 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.reporting.mcp.testing.FakeReportingPublicApiClient
 
 @RunWith(JUnit4::class)
 class McpServerTest {
 
   @Test
   fun createMcpServerDoesNotThrow() {
-    val server =
-      HaloReportingMcpServer.createMcpServer(
-        FakeReportingPublicApiClient.create(),
-      ) { "test-token" }
+    val server = createMcpServer(FakeReportingPublicApiClient.create()) { "test-token" }
     assertThat(server).isNotNull()
   }
 
   @Test
   fun createMcpServerWithDifferentTokensProducesSeparateInstances() {
     val apiClient = FakeReportingPublicApiClient.create()
-    val server1 = HaloReportingMcpServer.createMcpServer(apiClient) { "token-1" }
-    val server2 = HaloReportingMcpServer.createMcpServer(apiClient) { "token-2" }
+    val server1 = createMcpServer(apiClient) { "token-1" }
+    val server2 = createMcpServer(apiClient) { "token-2" }
     assertThat(server1).isNotSameInstanceAs(server2)
   }
 }

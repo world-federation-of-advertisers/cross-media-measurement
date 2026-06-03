@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Cross-Media Measurement Authors
+ * Copyright 2026 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,13 +17,12 @@
 package org.wfanet.measurement.reporting.mcp.tools
 
 import io.modelcontextprotocol.kotlin.sdk.server.Server
-import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
-import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
+
 import org.wfanet.measurement.reporting.v2alpha.getImpressionQualificationFilterRequest
 import org.wfanet.measurement.reporting.v2alpha.listImpressionQualificationFiltersRequest
 
@@ -47,13 +46,15 @@ fun Server.registerIqfTools(
         required = listOf("name"),
       ),
   ) { request ->
-    val stubs = client.withBearerToken(getBearerToken())
-    val grpcRequest = getImpressionQualificationFilterRequest {
-      name = request.arguments!!.getString("name")
+    handleGrpcToolCall {
+      val stubs = client.withBearerToken(getBearerToken())
+      val grpcRequest = getImpressionQualificationFilterRequest {
+        name = request.arguments!!.getString("name")
+      }
+      PROTO_JSON_PRINTER.print(
+        stubs.impressionQualificationFilters.getImpressionQualificationFilter(grpcRequest)
+      )
     }
-    val result =
-      stubs.impressionQualificationFilters.getImpressionQualificationFilter(grpcRequest)
-    CallToolResult(content = listOf(TextContent(PROTO_JSON_PRINTER.print(result))))
   }
 
   addTool(
@@ -76,14 +77,16 @@ fun Server.registerIqfTools(
           },
       ),
   ) { request ->
-    val args = request.arguments
-    val stubs = client.withBearerToken(getBearerToken())
-    val grpcRequest = listImpressionQualificationFiltersRequest {
-      args?.getIntOrNull("page_size")?.let { pageSize = it }
-      args?.getStringOrNull("page_token")?.let { pageToken = it }
+    handleGrpcToolCall {
+      val args = request.arguments
+      val stubs = client.withBearerToken(getBearerToken())
+      val grpcRequest = listImpressionQualificationFiltersRequest {
+        args?.getIntOrNull("page_size")?.let { pageSize = it }
+        args?.getStringOrNull("page_token")?.let { pageToken = it }
+      }
+      PROTO_JSON_PRINTER.print(
+        stubs.impressionQualificationFilters.listImpressionQualificationFilters(grpcRequest)
+      )
     }
-    val result =
-      stubs.impressionQualificationFilters.listImpressionQualificationFilters(grpcRequest)
-    CallToolResult(content = listOf(TextContent(PROTO_JSON_PRINTER.print(result))))
   }
 }

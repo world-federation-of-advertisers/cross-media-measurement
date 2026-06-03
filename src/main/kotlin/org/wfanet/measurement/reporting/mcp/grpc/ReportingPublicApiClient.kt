@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Cross-Media Measurement Authors
+ * Copyright 2026 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,14 +25,20 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSet
 /**
  * Wrapper around gRPC stubs for the Reporting v2alpha public API.
  *
- * Each stub connects to the existing public API server over mTLS. Per-request bearer tokens are
- * attached via [BearerPassthroughCallCredentials].
+ * Per-request bearer tokens are attached via [BearerPassthroughCallCredentials].
  */
-class ReportingPublicApiClient(channel: Channel) {
-  val basicReports = BasicReportsCoroutineStub(channel)
-  val eventGroups = EventGroupsCoroutineStub(channel)
-  val reportingSets = ReportingSetsCoroutineStub(channel)
-  val impressionQualificationFilters = ImpressionQualificationFiltersCoroutineStub(channel)
+class ReportingPublicApiClient(
+  val basicReports: BasicReportsCoroutineStub,
+  val eventGroups: EventGroupsCoroutineStub,
+  val reportingSets: ReportingSetsCoroutineStub,
+  val impressionQualificationFilters: ImpressionQualificationFiltersCoroutineStub,
+) {
+  constructor(channel: Channel) : this(
+    basicReports = BasicReportsCoroutineStub(channel),
+    eventGroups = EventGroupsCoroutineStub(channel),
+    reportingSets = ReportingSetsCoroutineStub(channel),
+    impressionQualificationFilters = ImpressionQualificationFiltersCoroutineStub(channel),
+  )
 
   /** Returns stubs with the given bearer token attached as call credentials. */
   fun withBearerToken(bearerToken: String): AuthenticatedStubs {

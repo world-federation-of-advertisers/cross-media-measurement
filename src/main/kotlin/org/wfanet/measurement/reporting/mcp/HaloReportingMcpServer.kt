@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Cross-Media Measurement Authors
+ * Copyright 2026 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,12 +42,12 @@ import org.wfanet.measurement.reporting.mcp.tools.registerIqfTools
 import org.wfanet.measurement.reporting.mcp.tools.registerReportingSetTools
 import picocli.CommandLine
 
-object HaloReportingMcpServer {
-  private const val SERVER_NAME = "HaloReportingMcpServer"
-  private const val SERVER_VERSION = "0.1.0"
+private const val SERVER_NAME = "HaloReportingMcpServer"
+private const val SERVER_VERSION = "0.1.0"
 
+object ReportingMcpServerFromFlags {
   @CommandLine.Command(
-    name = "HaloReportingMcpServer",
+    name = SERVER_NAME,
     description = ["MCP server for the Halo Reporting v2alpha public API."],
     mixinStandardHelpOptions = true,
     showDefaultValues = true,
@@ -74,11 +74,16 @@ object HaloReportingMcpServer {
     val apiClient = ReportingPublicApiClient(reportingChannel)
 
     embeddedServer(CIO, port = mcpServerFlags.port) {
+        // DNS rebinding protection is disabled because this server is deployed behind a
+        // TLS-terminating proxy (e.g. Envoy, K8s Ingress) that handles host validation.
         mcpStreamableHttp(enableDnsRebindingProtection = false) {
           val bearerToken =
             BearerTokenExtractor.extract(call.request)
               ?: error("Missing or invalid Authorization: Bearer header")
 
+          // Server is created per MCP session. The bearer token from the session's
+          // initial request is captured in the closure and used for all subsequent
+          // tool calls within that session.
           createMcpServer(apiClient) { bearerToken }
         }
 
@@ -88,32 +93,32 @@ object HaloReportingMcpServer {
       }
       .start(wait = true)
   }
+}
 
-  fun createMcpServer(
-    apiClient: ReportingPublicApiClient,
-    getBearerToken: () -> String,
-  ): Server {
-    val server =
-      Server(
-        serverInfo = Implementation(name = SERVER_NAME, version = SERVER_VERSION),
-        options =
-          ServerOptions(
-            capabilities =
-              ServerCapabilities(
-                tools = ServerCapabilities.Tools(listChanged = false),
-                prompts = ServerCapabilities.Prompts(listChanged = false),
-              ),
-          ),
-      )
+fun createMcpServer(
+  apiClient: ReportingPublicApiClient,
+  getBearerToken: () -> String,
+): Server {
+  val server =
+    Server(
+      serverInfo = Implementation(name = SERVER_NAME, version = SERVER_VERSION),
+      options =
+        ServerOptions(
+          capabilities =
+            ServerCapabilities(
+              tools = ServerCapabilities.Tools(listChanged = false),
+              prompts = ServerCapabilities.Prompts(listChanged = false),
+            ),
+        ),
+    )
 
-    server.registerBasicReportTools(apiClient, getBearerToken)
-    server.registerEventGroupTools(apiClient, getBearerToken)
-    server.registerReportingSetTools(apiClient, getBearerToken)
-    server.registerIqfTools(apiClient, getBearerToken)
-    server.registerWorkflowPrompts()
+  server.registerBasicReportTools(apiClient, getBearerToken)
+  server.registerEventGroupTools(apiClient, getBearerToken)
+  server.registerReportingSetTools(apiClient, getBearerToken)
+  server.registerIqfTools(apiClient, getBearerToken)
+  server.registerWorkflowPrompts()
 
-    return server
-  }
+  return server
 }
 
 class McpServerFlags {
@@ -153,4 +158,4 @@ class McpServerFlags {
     private set
 }
 
-fun main(args: Array<String>) = commandLineMain(HaloReportingMcpServer::run, args)
+fun main(args: Array<String>) = commandLineMain(ReportingMcpServerFromFlags::run, args)
