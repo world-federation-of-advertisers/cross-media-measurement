@@ -326,3 +326,14 @@ kt_jvm_proto_library(
     name = "rank_index_map_kt_jvm_proto",
     deps = [":rank_index_map_proto"],
 )
+
+proto_library(
+    name = "subpool_fingerprints_proto",
+    srcs = ["subpool_fingerprints.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "subpool_fingerprints_kt_jvm_proto",
+    deps = [":subpool_fingerprints_proto"],
+)

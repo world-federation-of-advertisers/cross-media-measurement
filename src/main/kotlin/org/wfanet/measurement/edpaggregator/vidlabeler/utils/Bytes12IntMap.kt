@@ -17,9 +17,13 @@
 package org.wfanet.measurement.edpaggregator.vidlabeler.utils
 
 /**
- * Single-threaded, primitive open-addressing hash table mapping 12-byte
- * fingerprints to 32-bit rank values. Optimized for the memoized VID
- * pipeline's per-subpool rank index.
+ * Single-threaded, primitive open-addressing hash table mapping
+ * 12-byte keys to 32-bit `Int` values. Optimized for the memoized
+ * VID pipeline, where 12-byte keys are typically the leading bytes
+ * of a cryptographic fingerprint (e.g. SHA-256) and values carry
+ * domain-specific meaning such as a rank (Phase 1 ranker) or a
+ * presence sentinel when the table is used as a membership set
+ * (Phase 0 subpool buckets, Phase 1 subpool filter).
  *
  *
  * ## Storage layout (chunked)
@@ -27,7 +31,7 @@ package org.wfanet.measurement.edpaggregator.vidlabeler.utils
  * Three parallel arrays-of-primitive-arrays:
  *  * `keysHi: Array<LongArray>` — high 8 bytes of each key.
  *  * `keysLo: Array<IntArray>`  — low 4 bytes of each key.
- *  * `values: Array<IntArray>`  — the corresponding rank.
+ *  * `values: Array<IntArray>`  — the associated `Int` value.
  *
  * Each inner array is one *chunk* of `1 shl chunkShift` slots. The
  * total capacity is `numChunks × chunkSize`. Both `chunkSize` and
@@ -78,10 +82,12 @@ package org.wfanet.measurement.edpaggregator.vidlabeler.utils
  * ## Absent-key sentinel
  *
  * Lookup and removal methods return [NOT_PRESENT] (== `-1`) when the
- * requested key is not in the table. This is unambiguous because rank
- * values are non-negative, so callers do not need a separate
- * [containsKey] probe to distinguish "missing" from "present with rank
- * 0".
+ * requested key is not in the table. Callers that only ever store
+ * non-negative values (e.g. ranks, subpool IDs, or a fixed
+ * presence-sentinel such as `0`) can rely on this return value to
+ * distinguish "missing" from "present" without a separate
+ * [containsKey] probe. Callers that may store `-1` as a real value
+ * MUST disambiguate via [containsKey].
  *
  * ## Concurrency
  *
@@ -113,7 +119,7 @@ package org.wfanet.measurement.edpaggregator.vidlabeler.utils
  *   small total sizes (used by this class's own unit tests). Must
  *   be in `(0, MAX_CHUNK_SHIFT]`.
  */
-class FingerprintRankTable(
+class Bytes12IntMap(
   initialCapacity: Long = DEFAULT_INITIAL_CAPACITY,
   private val loadFactor: Float = DEFAULT_LOAD_FACTOR,
   private val maxChunkShift: Int = DEFAULT_CHUNK_SHIFT,
@@ -490,7 +496,7 @@ class FingerprintRankTable(
     if (size <= threshold) return
     val newCapacity = capacity * 2L
     check(newCapacity <= MAX_CAPACITY) {
-      "FingerprintRankTable would exceed MAX_CAPACITY ($MAX_CAPACITY); refusing to resize."
+      "Bytes12IntMap would exceed MAX_CAPACITY ($MAX_CAPACITY); refusing to resize."
     }
     resize(newCapacity)
   }
