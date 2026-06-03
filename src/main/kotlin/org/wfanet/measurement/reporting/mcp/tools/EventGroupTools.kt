@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Cross-Media Measurement Authors
+ * Copyright 2026 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,16 +17,14 @@
 package org.wfanet.measurement.reporting.mcp.tools
 
 import io.modelcontextprotocol.kotlin.sdk.server.Server
-import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
-import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
+
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequest
-
 
 fun Server.registerEventGroupTools(
   client: ReportingPublicApiClient,
@@ -76,29 +74,37 @@ fun Server.registerEventGroupTools(
         required = listOf("parent"),
       ),
   ) { request ->
-    val args = request.arguments!!
-    val stubs = client.withBearerToken(getBearerToken())
-    val builder = ListEventGroupsRequest.newBuilder()
-    builder.parent = args.getString("parent")
+    handleGrpcToolCall {
+      val args = request.arguments!!
+      val stubs = client.withBearerToken(getBearerToken())
+      val builder = ListEventGroupsRequest.newBuilder()
+      builder.parent = args.getString("parent")
 
-    args.getIntOrNull("page_size")?.let { builder.pageSize = it }
-    args.getStringOrNull("page_token")?.let { builder.pageToken = it }
+      args.getIntOrNull("page_size")?.let { builder.pageSize = it }
+      args.getStringOrNull("page_token")?.let { builder.pageToken = it }
 
-    args["structured_filter"]?.let { filter ->
-      val filterBuilder = ListEventGroupsRequest.Filter.newBuilder()
-      PROTO_JSON_PARSER.merge(filter.toString(), filterBuilder)
-      builder.structuredFilter = filterBuilder.build()
+      args["structured_filter"]?.let { filter ->
+        val filterBuilder = ListEventGroupsRequest.Filter.newBuilder()
+        PROTO_JSON_PARSER.merge(filter.toString(), filterBuilder)
+        builder.structuredFilter = filterBuilder.build()
+      }
+
+      args["order_by"]?.let { orderBy ->
+        val orderByBuilder = ListEventGroupsRequest.OrderBy.newBuilder()
+        PROTO_JSON_PARSER.merge(orderBy.toString(), orderByBuilder)
+        builder.orderBy = orderByBuilder.build()
+      }
+
+      args.getStringOrNull("view")?.let { viewName ->
+        builder.view =
+          try {
+            EventGroup.View.valueOf(viewName)
+          } catch (e: IllegalArgumentException) {
+            throw IllegalArgumentException("Invalid view: $viewName. Use BASIC or WITH_ACTIVITY_SUMMARY.")
+          }
+      }
+
+      PROTO_JSON_PRINTER.print(stubs.eventGroups.listEventGroups(builder.build()))
     }
-
-    args["order_by"]?.let { orderBy ->
-      val orderByBuilder = ListEventGroupsRequest.OrderBy.newBuilder()
-      PROTO_JSON_PARSER.merge(orderBy.toString(), orderByBuilder)
-      builder.orderBy = orderByBuilder.build()
-    }
-
-    args.getStringOrNull("view")?.let { builder.view = EventGroup.View.valueOf(it) }
-
-    val result = stubs.eventGroups.listEventGroups(builder.build())
-    CallToolResult(content = listOf(TextContent(PROTO_JSON_PRINTER.print(result))))
   }
 }

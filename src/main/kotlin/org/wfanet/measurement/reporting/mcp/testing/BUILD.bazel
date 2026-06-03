@@ -1,0 +1,15 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/test/kotlin/org/wfanet/measurement/reporting/mcp:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "fake_reporting_public_api_client",
+    testonly = True,
+    srcs = ["FakeReportingPublicApiClient.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
+        "@wfa_common_jvm//imports/java/io/grpc/inprocess",
+    ],
+)

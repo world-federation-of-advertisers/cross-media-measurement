@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Cross-Media Measurement Authors
+ * Copyright 2026 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,13 +17,12 @@
 package org.wfanet.measurement.reporting.mcp.tools
 
 import io.modelcontextprotocol.kotlin.sdk.server.Server
-import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
-import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
+
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportingSetRequest
@@ -60,20 +59,21 @@ fun Server.registerReportingSetTools(
         required = listOf("parent", "reporting_set_id", "reporting_set"),
       ),
   ) { request ->
-    val args = request.arguments!!
-    val stubs = client.withBearerToken(getBearerToken())
+    handleGrpcToolCall {
+      val args = request.arguments!!
+      val stubs = client.withBearerToken(getBearerToken())
 
-    val rsBuilder = ReportingSet.newBuilder()
-    PROTO_JSON_PARSER.merge(args.getValue("reporting_set").toString(), rsBuilder)
+      val rsBuilder = ReportingSet.newBuilder()
+      PROTO_JSON_PARSER.merge(args.getValue("reporting_set").toString(), rsBuilder)
 
-    val grpcRequest = createReportingSetRequest {
-      parent = args.getString("parent")
-      reportingSetId = args.getString("reporting_set_id")
-      reportingSet = rsBuilder.build()
+      val grpcRequest = createReportingSetRequest {
+        parent = args.getString("parent")
+        reportingSetId = args.getString("reporting_set_id")
+        reportingSet = rsBuilder.build()
+      }
+
+      PROTO_JSON_PRINTER.print(stubs.reportingSets.createReportingSet(grpcRequest))
     }
-
-    val result = stubs.reportingSets.createReportingSet(grpcRequest)
-    CallToolResult(content = listOf(TextContent(PROTO_JSON_PRINTER.print(result))))
   }
 
   addTool(
@@ -91,10 +91,11 @@ fun Server.registerReportingSetTools(
         required = listOf("name"),
       ),
   ) { request ->
-    val stubs = client.withBearerToken(getBearerToken())
-    val grpcRequest = getReportingSetRequest { name = request.arguments!!.getString("name") }
-    val result = stubs.reportingSets.getReportingSet(grpcRequest)
-    CallToolResult(content = listOf(TextContent(PROTO_JSON_PRINTER.print(result))))
+    handleGrpcToolCall {
+      val stubs = client.withBearerToken(getBearerToken())
+      val grpcRequest = getReportingSetRequest { name = request.arguments!!.getString("name") }
+      PROTO_JSON_PRINTER.print(stubs.reportingSets.getReportingSet(grpcRequest))
+    }
   }
 
   addTool(
@@ -120,15 +121,16 @@ fun Server.registerReportingSetTools(
         required = listOf("parent"),
       ),
   ) { request ->
-    val args = request.arguments!!
-    val stubs = client.withBearerToken(getBearerToken())
-    val grpcRequest = listReportingSetsRequest {
-      parent = args.getString("parent")
-      args.getIntOrNull("page_size")?.let { pageSize = it }
-      args.getStringOrNull("page_token")?.let { pageToken = it }
-    }
+    handleGrpcToolCall {
+      val args = request.arguments!!
+      val stubs = client.withBearerToken(getBearerToken())
+      val grpcRequest = listReportingSetsRequest {
+        parent = args.getString("parent")
+        args.getIntOrNull("page_size")?.let { pageSize = it }
+        args.getStringOrNull("page_token")?.let { pageToken = it }
+      }
 
-    val result = stubs.reportingSets.listReportingSets(grpcRequest)
-    CallToolResult(content = listOf(TextContent(PROTO_JSON_PRINTER.print(result))))
+      PROTO_JSON_PRINTER.print(stubs.reportingSets.listReportingSets(grpcRequest))
+    }
   }
 }

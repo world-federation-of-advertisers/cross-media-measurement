@@ -1,22 +1,12 @@
-load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library", "kt_jvm_test")
-
-kt_jvm_library(
-    name = "fake_reporting_public_api_client",
-    testonly = True,
-    srcs = ["FakeReportingPublicApiClient.kt"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
-        "@wfa_common_jvm//imports/java/io/grpc/inprocess",
-    ],
-)
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 kt_jvm_test(
     name = "McpServerTest",
     srcs = ["McpServerTest.kt"],
     test_class = "org.wfanet.measurement.reporting.mcp.McpServerTest",
     deps = [
-        ":fake_reporting_public_api_client",
         "//src/main/kotlin/org/wfanet/measurement/reporting/mcp:halo_reporting_mcp_server",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/testing:fake_reporting_public_api_client",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
     ],
