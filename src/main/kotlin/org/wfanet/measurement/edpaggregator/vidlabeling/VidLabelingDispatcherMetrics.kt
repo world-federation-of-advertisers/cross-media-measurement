@@ -35,11 +35,11 @@ class VidLabelingDispatcherMetrics(meter: Meter = Instrumentation.meter) {
       .setUnit("s")
       .build()
 
-  /** Counter for the number of VID labeling batches created. */
-  val batchesCreatedCounter: LongCounter =
+  /** Counter for the number of VID labeling work items created. */
+  val workItemsCreatedCounter: LongCounter =
     meter
-      .counterBuilder("edpa.vid_labeling_dispatcher.batches_created")
-      .setDescription("Number of VID labeling batches created")
+      .counterBuilder("edpa.vid_labeling_dispatcher.work_items_created")
+      .setDescription("Number of VID labeling work items created")
       .build()
 
   /** Counter for the number of raw impression files processed. */
@@ -47,12 +47,5 @@ class VidLabelingDispatcherMetrics(meter: Meter = Instrumentation.meter) {
     meter
       .counterBuilder("edpa.vid_labeling_dispatcher.files_processed")
       .setDescription("Number of raw impression files processed")
-      .build()
-
-  /** Counter for the number of files exceeding the batch max size. */
-  val oversizedFileAlertsCounter: LongCounter =
-    meter
-      .counterBuilder("edpa.vid_labeling_dispatcher.oversized_file_alerts")
-      .setDescription("Number of files exceeding the batch max size")
       .build()
 }
