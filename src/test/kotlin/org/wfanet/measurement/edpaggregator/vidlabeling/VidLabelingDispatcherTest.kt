@@ -17,8 +17,12 @@
 package org.wfanet.measurement.edpaggregator.vidlabeling
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneId
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
@@ -34,14 +38,15 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
+import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
+import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionMetadataBatchFilesResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchFileServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
-import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionMetadataBatch
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -53,35 +58,27 @@ import org.wfanet.measurement.storage.StorageClient
 class VidLabelingDispatcherTest {
 
   private val workItemsService: WorkItemsGrpcKt.WorkItemsCoroutineImplBase = mockService()
-  private val rawImpressionMetadataBatchService:
-    RawImpressionMetadataBatchServiceGrpcKt.RawImpressionMetadataBatchServiceCoroutineImplBase =
-    mockService()
-  private val rawImpressionMetadataBatchFileService:
-    RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineImplBase =
-    mockService()
+  private val modelLinesService: ModelLinesGrpcKt.ModelLinesCoroutineImplBase = mockService()
+  private val modelShardsService: ModelShardsGrpcKt.ModelShardsCoroutineImplBase = mockService()
   private val storageClient: StorageClient = mock()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(workItemsService)
-    addService(rawImpressionMetadataBatchService)
-    addService(rawImpressionMetadataBatchFileService)
+    addService(modelLinesService)
+    addService(modelShardsService)
   }
 
   private val workItemsStub by lazy {
     WorkItemsGrpcKt.WorkItemsCoroutineStub(grpcTestServerRule.channel)
   }
 
-  private val rawImpressionMetadataBatchStub by lazy {
-    RawImpressionMetadataBatchServiceGrpcKt.RawImpressionMetadataBatchServiceCoroutineStub(
-      grpcTestServerRule.channel
-    )
+  private val modelLinesStub by lazy {
+    ModelLinesGrpcKt.ModelLinesCoroutineStub(grpcTestServerRule.channel)
   }
 
-  private val rawImpressionMetadataBatchFileStub by lazy {
-    RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineStub(
-      grpcTestServerRule.channel
-    )
+  private val modelShardsStub by lazy {
+    ModelShardsGrpcKt.ModelShardsCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val vidLabelerParamsTemplate = vidLabelerParams {
@@ -98,38 +95,49 @@ class VidLabelingDispatcherTest {
       }
   }
 
+  private val fixedClock: Clock = Clock.fixed(FIXED_NOW, ZoneId.of("UTC"))
+
   private fun createDispatcher(
-    batchMaxSizeBytes: Long = BATCH_MAX_SIZE_BYTES
+    numberOfShards: Int = DEFAULT_NUMBER_OF_SHARDS,
+    overrideModelLines: List<String> = emptyList(),
+    modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig> = DEFAULT_MODEL_LINE_CONFIGS,
   ): VidLabelingDispatcher {
     return VidLabelingDispatcher(
       storageClient = storageClient,
       workItemsStub = workItemsStub,
-      rawImpressionMetadataBatchStub = rawImpressionMetadataBatchStub,
-      rawImpressionMetadataBatchFileStub = rawImpressionMetadataBatchFileStub,
+      modelLinesStub = modelLinesStub,
+      modelShardsStub = modelShardsStub,
       dataProviderName = DATA_PROVIDER_NAME,
       vidLabelerParamsTemplate = vidLabelerParamsTemplate,
       queueName = QUEUE_NAME,
-      batchMaxSizeBytes = batchMaxSizeBytes,
+      numberOfShards = numberOfShards,
+      modelSuiteName = MODEL_SUITE_NAME,
+      overrideModelLines = overrideModelLines,
+      modelLineConfigs = modelLineConfigs,
+      clock = fixedClock,
     )
   }
 
-  private suspend fun stubBatchCreation() {
-    whenever(rawImpressionMetadataBatchService.createRawImpressionMetadataBatch(any())).thenAnswer {
-      rawImpressionMetadataBatch {
-        name = "$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/${java.util.UUID.randomUUID()}"
-      }
-    }
-    whenever(
-        rawImpressionMetadataBatchFileService.batchCreateRawImpressionMetadataBatchFiles(any())
-      )
-      .thenReturn(BatchCreateRawImpressionMetadataBatchFilesResponse.getDefaultInstance())
-  }
-
-  private fun createMockBlob(key: String, size: Long): StorageClient.Blob {
+  private fun createMockBlob(key: String): StorageClient.Blob {
     val blob: StorageClient.Blob = mock()
     whenever(blob.blobKey).thenReturn(key)
-    whenever(blob.size).thenReturn(size)
     return blob
+  }
+
+  private suspend fun stubActiveModelLines(vararg modelLineNames: String) {
+    whenever(modelLinesService.listModelLines(any())).thenReturn(
+      listModelLinesResponse {
+        modelLines +=
+          modelLineNames.map { name ->
+            modelLine {
+              this.name = name
+              type = ModelLine.Type.PROD
+              activeStartTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() - 86400000)
+              activeEndTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() + 86400000)
+            }
+          }
+      }
+    )
   }
 
   @Test
@@ -140,120 +148,151 @@ class VidLabelingDispatcherTest {
     dispatcher.dispatch(DONE_BLOB_PATH)
 
     verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+    verifyBlocking(modelLinesService, never()) { listModelLines(any()) }
   }
 
   @Test
-  fun `dispatch with single file creates single work item`() = runBlocking {
-    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
-    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
-    stubBatchCreation()
+  fun `dispatch creates N work items per active model line`() = runBlocking {
+    val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2))
+    stubActiveModelLines(MODEL_LINE_1, MODEL_LINE_2)
     whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
+
+    val dispatcher = createDispatcher(numberOfShards = 3)
+    dispatcher.dispatch(DONE_BLOB_PATH)
+
+    val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService, times(6)) { createWorkItem(requestCaptor.capture()) }
+
+    val workItemIds = requestCaptor.allValues.map { it.workItemId }
+    assertThat(workItemIds).containsExactly(
+      "vid-labeling-ml1-shard-0",
+      "vid-labeling-ml1-shard-1",
+      "vid-labeling-ml1-shard-2",
+      "vid-labeling-ml2-shard-0",
+      "vid-labeling-ml2-shard-1",
+      "vid-labeling-ml2-shard-2",
+    )
+  }
+
+  @Test
+  fun `dispatch with override model lines skips ListModelLines API`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
+
+    val dispatcher =
+      createDispatcher(
+        numberOfShards = 2,
+        overrideModelLines = listOf(MODEL_LINE_1),
+      )
+    dispatcher.dispatch(DONE_BLOB_PATH)
+
+    verifyBlocking(modelLinesService, never()) { listModelLines(any()) }
+
+    val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService, times(2)) { createWorkItem(requestCaptor.capture()) }
+  }
+
+  @Test
+  fun `dispatch with no active model lines creates no work items`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    whenever(modelLinesService.listModelLines(any())).thenReturn(
+      listModelLinesResponse {}
+    )
 
     val dispatcher = createDispatcher()
     dispatcher.dispatch(DONE_BLOB_PATH)
 
-    verifyBlocking(rawImpressionMetadataBatchService, times(1)) {
-      createRawImpressionMetadataBatch(any())
-    }
-
-    val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
-    verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
-
-    val request = requestCaptor.firstValue
-    assertThat(request.workItemId).startsWith("vid-labeling-")
-    assertThat(request.workItem.queue).isEqualTo(QUEUE_NAME)
-
-    val workItemParams = request.workItem.workItemParams.unpack(WorkItemParams::class.java)
-    val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
-    assertThat(vidLabelerParams.dataProvider).isEqualTo(DATA_PROVIDER_NAME)
-    assertThat(vidLabelerParams.rawImpressionMetadataBatch)
-      .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
   }
 
   @Test
-  fun `dispatch with default batch max size creates single work item for all files`() =
-    runBlocking {
-      val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
-      val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet", 2000L)
-      val blob3 = createMockBlob("$FOLDER_PREFIX/file3.parquet", 3000L)
-      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2, blob3))
-      stubBatchCreation()
-      whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
-
-      val dispatcher = createDispatcher()
-      dispatcher.dispatch(DONE_BLOB_PATH)
-
-      verifyBlocking(rawImpressionMetadataBatchService, times(1)) {
-        createRawImpressionMetadataBatch(any())
+  fun `dispatch filters out non-PROD model lines`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    whenever(modelLinesService.listModelLines(any())).thenReturn(
+      listModelLinesResponse {
+        modelLines += modelLine {
+          name = MODEL_LINE_1
+          type = ModelLine.Type.PROD
+          activeStartTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() - 86400000)
+          activeEndTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() + 86400000)
+        }
+        modelLines += modelLine {
+          name = MODEL_LINE_2
+          type = ModelLine.Type.HOLDBACK
+          activeStartTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() - 86400000)
+          activeEndTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() + 86400000)
+        }
       }
-
-      val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
-      verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
-
-      val workItemParams =
-        requestCaptor.firstValue.workItem.workItemParams.unpack(WorkItemParams::class.java)
-      val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
-      assertThat(vidLabelerParams.rawImpressionMetadataBatch)
-        .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
-    }
-
-  @Test
-  fun `dispatch with batch max size partitions files into multiple work items`() = runBlocking {
-    val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet", 400L)
-    val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet", 400L)
-    val blob3 = createMockBlob("$FOLDER_PREFIX/file3.parquet", 400L)
-    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2, blob3))
-    stubBatchCreation()
+    )
     whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
-    // Batch max size of 900 bytes: BFD packs file1+file2 into one batch, file3 into another.
-    val dispatcher = createDispatcher(batchMaxSizeBytes = 900L)
+    val dispatcher = createDispatcher(numberOfShards = 1)
     dispatcher.dispatch(DONE_BLOB_PATH)
 
-    verifyBlocking(rawImpressionMetadataBatchService, times(2)) {
-      createRawImpressionMetadataBatch(any())
-    }
+    val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
+    assertThat(requestCaptor.firstValue.workItemId).contains("ml1")
+  }
+
+  @Test
+  fun `dispatch filters out model lines outside active window`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    whenever(modelLinesService.listModelLines(any())).thenReturn(
+      listModelLinesResponse {
+        modelLines += modelLine {
+          name = MODEL_LINE_1
+          type = ModelLine.Type.PROD
+          activeStartTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() - 86400000)
+          activeEndTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() + 86400000)
+        }
+        modelLines += modelLine {
+          name = MODEL_LINE_2
+          type = ModelLine.Type.PROD
+          activeStartTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() - 172800000)
+          activeEndTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() - 86400000)
+        }
+      }
+    )
+    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
+
+    val dispatcher = createDispatcher(numberOfShards = 1)
+    dispatcher.dispatch(DONE_BLOB_PATH)
 
     val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
-    verifyBlocking(workItemsService, times(2)) { createWorkItem(requestCaptor.capture()) }
-
-    val batch1Params =
-      requestCaptor.allValues[0]
-        .workItem
-        .workItemParams
-        .unpack(WorkItemParams::class.java)
-        .appParams
-        .unpack(VidLabelerParams::class.java)
-    val batch2Params =
-      requestCaptor.allValues[1]
-        .workItem
-        .workItemParams
-        .unpack(WorkItemParams::class.java)
-        .appParams
-        .unpack(VidLabelerParams::class.java)
-
-    assertThat(batch1Params.rawImpressionMetadataBatch)
-      .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
-    assertThat(batch2Params.rawImpressionMetadataBatch)
-      .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
-    assertThat(batch1Params.rawImpressionMetadataBatch)
-      .isNotEqualTo(batch2Params.rawImpressionMetadataBatch)
+    verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
+    assertThat(requestCaptor.firstValue.workItemId).contains("ml1")
   }
 
   @Test
   fun `dispatch excludes done marker from file list`() = runBlocking {
-    val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
-    val doneBlob = createMockBlob("$FOLDER_PREFIX/done", 0L)
-    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, doneBlob))
-    stubBatchCreation()
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    val doneBlob = createMockBlob("$FOLDER_PREFIX/done")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob, doneBlob))
+    stubActiveModelLines(MODEL_LINE_1)
     whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
-    val dispatcher = createDispatcher()
+    val dispatcher = createDispatcher(numberOfShards = 1)
     dispatcher.dispatch(DONE_BLOB_PATH)
 
-    verifyBlocking(rawImpressionMetadataBatchService, times(1)) {
-      createRawImpressionMetadataBatch(any())
-    }
+    val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
+  }
+
+  @Test
+  fun `dispatch sets correct model line config in work item params`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubActiveModelLines(MODEL_LINE_1)
+    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
+
+    val dispatcher = createDispatcher(numberOfShards = 1)
+    dispatcher.dispatch(DONE_BLOB_PATH)
 
     val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
     verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
@@ -261,164 +300,79 @@ class VidLabelingDispatcherTest {
     val workItemParams =
       requestCaptor.firstValue.workItem.workItemParams.unpack(WorkItemParams::class.java)
     val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
-    assertThat(vidLabelerParams.rawImpressionMetadataBatch)
-      .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
-  }
-
-  @Test
-  fun `dispatch uses server-assigned batch ID in work item ID`() = runBlocking {
-    val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
-    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1))
-    whenever(rawImpressionMetadataBatchService.createRawImpressionMetadataBatch(any()))
-      .thenReturn(
-        rawImpressionMetadataBatch {
-          name = "$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/server-assigned-id"
-        }
-      )
-    whenever(
-        rawImpressionMetadataBatchFileService.batchCreateRawImpressionMetadataBatchFiles(any())
-      )
-      .thenReturn(BatchCreateRawImpressionMetadataBatchFilesResponse.getDefaultInstance())
-    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
-
-    val dispatcher = createDispatcher()
-    dispatcher.dispatch(DONE_BLOB_PATH)
-
-    val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
-    verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
-    assertThat(requestCaptor.firstValue.workItemId)
-      .isEqualTo("vid-labeling-$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/server-assigned-id")
-  }
-
-  @Test
-  fun `dispatch packs files efficiently using best-fit decreasing`() = runBlocking {
-    val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet", 400L)
-    val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet", 400L)
-    val blob3 = createMockBlob("$FOLDER_PREFIX/file3.parquet", 600L)
-    val blob4 = createMockBlob("$FOLDER_PREFIX/file4.parquet", 600L)
-    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2, blob3, blob4))
-    stubBatchCreation()
-    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
-
-    // BFD with max 1000: sorts [600, 600, 400, 400], packs (600+400), (600+400).
-    val dispatcher = createDispatcher(batchMaxSizeBytes = 1000L)
-    dispatcher.dispatch(DONE_BLOB_PATH)
-
-    verifyBlocking(rawImpressionMetadataBatchService, times(2)) {
-      createRawImpressionMetadataBatch(any())
-    }
-
-    val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
-    verifyBlocking(workItemsService, times(2)) { createWorkItem(requestCaptor.capture()) }
-
-    val batch1Params =
-      requestCaptor.allValues[0]
-        .workItem
-        .workItemParams
-        .unpack(WorkItemParams::class.java)
-        .appParams
-        .unpack(VidLabelerParams::class.java)
-    val batch2Params =
-      requestCaptor.allValues[1]
-        .workItem
-        .workItemParams
-        .unpack(WorkItemParams::class.java)
-        .appParams
-        .unpack(VidLabelerParams::class.java)
-
-    // Each batch should have a unique resource name.
-    assertThat(batch1Params.rawImpressionMetadataBatch)
-      .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
-    assertThat(batch2Params.rawImpressionMetadataBatch)
-      .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
-    assertThat(batch1Params.rawImpressionMetadataBatch)
-      .isNotEqualTo(batch2Params.rawImpressionMetadataBatch)
-  }
-
-  @Test
-  fun `dispatch places oversized file in its own batch`() = runBlocking {
-    val normalBlob = createMockBlob("$FOLDER_PREFIX/normal.parquet", 400L)
-    val oversizedBlob = createMockBlob("$FOLDER_PREFIX/oversized.parquet", 1500L)
-    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(normalBlob, oversizedBlob))
-    stubBatchCreation()
-    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
-
-    val dispatcher = createDispatcher(batchMaxSizeBytes = 1000L)
-    dispatcher.dispatch(DONE_BLOB_PATH)
-
-    verifyBlocking(rawImpressionMetadataBatchService, times(2)) {
-      createRawImpressionMetadataBatch(any())
-    }
-
-    val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
-    verifyBlocking(workItemsService, times(2)) { createWorkItem(requestCaptor.capture()) }
-
-    // Oversized batches come first in the output.
-    val oversizedBatchParams =
-      requestCaptor.allValues[0]
-        .workItem
-        .workItemParams
-        .unpack(WorkItemParams::class.java)
-        .appParams
-        .unpack(VidLabelerParams::class.java)
-    val normalBatchParams =
-      requestCaptor.allValues[1]
-        .workItem
-        .workItemParams
-        .unpack(WorkItemParams::class.java)
-        .appParams
-        .unpack(VidLabelerParams::class.java)
-
-    // Each batch should have a unique resource name.
-    assertThat(oversizedBatchParams.rawImpressionMetadataBatch)
-      .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
-    assertThat(normalBatchParams.rawImpressionMetadataBatch)
-      .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
-    assertThat(oversizedBatchParams.rawImpressionMetadataBatch)
-      .isNotEqualTo(normalBatchParams.rawImpressionMetadataBatch)
+    assertThat(vidLabelerParams.dataProvider).isEqualTo(DATA_PROVIDER_NAME)
+    assertThat(vidLabelerParams.modelLineConfigsMap).containsKey(MODEL_LINE_1)
+    assertThat(vidLabelerParams.modelLineConfigsMap[MODEL_LINE_1]!!.labelerInputFieldMappingMap)
+      .containsEntry("age", "user_age")
+    assertThat(vidLabelerParams.overrideModelLinesList).containsExactly(MODEL_LINE_1)
   }
 
   @Test
   fun `dispatch propagates exception on work item creation failure`() = runBlocking {
-    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
-    stubBatchCreation()
+    stubActiveModelLines(MODEL_LINE_1)
     whenever(workItemsService.createWorkItem(any())).thenAnswer {
       throw StatusException(Status.UNAVAILABLE.withDescription("Service unavailable"))
     }
 
-    val dispatcher = createDispatcher()
+    val dispatcher = createDispatcher(numberOfShards = 1)
     val exception = assertFailsWith<Exception> { dispatcher.dispatch(DONE_BLOB_PATH) }
     assertThat(exception).hasMessageThat().contains("Error creating WorkItem")
     assertThat(exception).hasCauseThat().isInstanceOf(StatusException::class.java)
   }
 
   @Test
-  fun `dispatch with gs scheme constructs correct blob URIs`() = runBlocking {
-    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet", 1000L)
+  fun `dispatch propagates exception on ListModelLines failure`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
-    stubBatchCreation()
-    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
+    whenever(modelLinesService.listModelLines(any())).thenAnswer {
+      throw StatusException(Status.UNAVAILABLE.withDescription("VID Repo unavailable"))
+    }
 
     val dispatcher = createDispatcher()
+    val exception = assertFailsWith<Exception> { dispatcher.dispatch(DONE_BLOB_PATH) }
+    assertThat(exception).hasMessageThat().contains("Error listing model lines")
+    assertThat(exception).hasCauseThat().isInstanceOf(StatusException::class.java)
+  }
+
+  @Test
+  fun `dispatch with gs scheme constructs correct blob URIs`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubActiveModelLines(MODEL_LINE_1)
+    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
+
+    val dispatcher = createDispatcher(numberOfShards = 1)
     dispatcher.dispatch(GCS_DONE_BLOB_PATH)
 
-    val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
-    verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
-
-    val workItemParams =
-      requestCaptor.firstValue.workItem.workItemParams.unpack(WorkItemParams::class.java)
-    val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
-    assertThat(vidLabelerParams.rawImpressionMetadataBatch)
-      .startsWith("$DATA_PROVIDER_NAME/rawImpressionMetadataBatches/")
+    verifyBlocking(workItemsService, times(1)) { createWorkItem(any()) }
   }
 
   companion object {
     private const val DATA_PROVIDER_NAME = "dataProviders/edp123"
     private const val QUEUE_NAME = "queues/vid-labeler-queue"
-    private const val BATCH_MAX_SIZE_BYTES = 10_000_000_000L
+    private const val MODEL_SUITE_NAME = "modelProviders/mp1/modelSuites/ms1"
+    private const val MODEL_LINE_1 = "$MODEL_SUITE_NAME/modelLines/ml1"
+    private const val MODEL_LINE_2 = "$MODEL_SUITE_NAME/modelLines/ml2"
+    private const val DEFAULT_NUMBER_OF_SHARDS = 3
     private const val DONE_BLOB_PATH = "file:///test-bucket/edp1/2024-01-15/done"
     private const val GCS_DONE_BLOB_PATH = "gs://test-bucket/edp1/2024-01-15/done"
     private const val FOLDER_PREFIX = "edp1/2024-01-15"
+
+    private val FIXED_NOW: Instant = Instant.parse("2026-06-03T12:00:00Z")
+
+    private val DEFAULT_MODEL_LINE_CONFIGS: Map<String, VidLabelerParams.ModelLineConfig> =
+      mapOf(
+        MODEL_LINE_1 to
+          VidLabelerParamsKt.modelLineConfig {
+            labelerInputFieldMapping["age"] = "user_age"
+            labelerInputFieldMapping["gender"] = "user_gender"
+          },
+        MODEL_LINE_2 to
+          VidLabelerParamsKt.modelLineConfig {
+            labelerInputFieldMapping["age"] = "user_age"
+          },
+      )
   }
 }
