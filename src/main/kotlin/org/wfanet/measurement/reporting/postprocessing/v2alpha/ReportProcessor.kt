@@ -131,12 +131,15 @@ interface ReportProcessor {
         ?: findResourceBySuffix(PYTHON_LIBRARY_RESOURCE_SUFFIX)
         ?: error("$PYTHON_LIBRARY_RESOURCE_SUFFIX not found in JAR")
 
+    // The resource path prefix varies by Bazel configuration (e.g. k8-fastbuild, k8-opt),
+    // so we scan JAR entries by suffix rather than hardcoding the full path.
     private fun findResourceBySuffix(suffix: String): Path? {
       val protectionDomain = Default::class.java.protectionDomain ?: return null
       val jarUri = protectionDomain.codeSource?.location?.toURI() ?: return null
-      val jarFile = java.util.jar.JarFile(java.io.File(jarUri))
       val entry =
-        jarFile.entries().asSequence().firstOrNull { it.name.endsWith(suffix) } ?: return null
+        java.util.jar.JarFile(java.io.File(jarUri)).use { jarFile ->
+          jarFile.entries().asSequence().firstOrNull { it.name.endsWith(suffix) }
+        } ?: return null
       return Default::class.java.classLoader.getJarResourcePath(entry.name)
     }
 
