@@ -16,20 +16,22 @@
 
 package org.wfanet.measurement.edpaggregator.vidlabeling
 
+import com.google.protobuf.Timestamp
+import com.google.protobuf.util.Timestamps
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
+import java.time.Clock
 import java.util.logging.Logger
 import kotlin.time.TimeSource
+import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
+import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.listModelShardsRequest
 import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatch
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchFileServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionMetadataBatchFilesRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionMetadataBatchFileRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionMetadataBatchRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionMetadataBatchFile
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
@@ -42,55 +44,39 @@ import org.wfanet.measurement.storage.StorageClient
 /**
  * Dispatches VID labeling work items to the Secure Computation control plane.
  *
- * Processes "done" blob events by crawling directories for raw impression files, partitioning them
- * into batches, and creating WorkItems for TEE processing via the Secure Computation API.
+ * Processes "done" blob events by crawling directories for raw impression files, resolving active
+ * model lines via the VID Repository API, and creating one WorkItem per shard per model line for
+ * TEE processing.
  *
- * @param storageClient client for crawling raw impressions directory and reading file sizes.
+ * @param storageClient client for crawling raw impressions directory.
  * @param workItemsStub gRPC stub for creating WorkItems via Secure Computation API.
- * @param rawImpressionMetadataBatchStub gRPC stub for creating RawImpressionMetadataBatch
- *   resources.
- * @param rawImpressionMetadataBatchFileStub gRPC stub for creating RawImpressionMetadataBatchFile
- *   resources.
+ * @param modelLinesStub gRPC stub for the VID Repository ModelLines API.
+ * @param modelShardsStub gRPC stub for the VID Repository ModelShards API.
  * @param dataProviderName resource name of the DataProvider.
- * @param vidLabelerParamsTemplate template [VidLabelerParams] with static fields populated.
- *   Per-batch field [VidLabelerParams.getRawImpressionMetadataBatch] is set by the dispatcher for
- *   each batch.
- * @param queueName resource name of the Secure Computation queue for VID labeling work items.
- * @param batchMaxSizeBytes maximum batch size in bytes.
+ * @param vidLabelerParamsTemplate template [VidLabelerParams] with storage and connection fields.
+ * @param queueName resource name of the Secure Computation queue.
+ * @param numberOfShards static number of shards per model line.
+ * @param modelSuiteName resource name of the model suite for ListModelLines.
+ * @param overrideModelLines if non-empty, use these model lines instead of querying the API.
+ * @param modelLineConfigs field mapping configuration keyed by model line resource name.
+ * @param clock clock for determining active model line windows.
  * @param metrics OpenTelemetry metrics recorder.
  */
 class VidLabelingDispatcher(
   private val storageClient: StorageClient,
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
-  private val rawImpressionMetadataBatchStub:
-    RawImpressionMetadataBatchServiceGrpcKt.RawImpressionMetadataBatchServiceCoroutineStub,
-  private val rawImpressionMetadataBatchFileStub:
-    RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineStub,
+  private val modelLinesStub: ModelLinesGrpcKt.ModelLinesCoroutineStub,
+  private val modelShardsStub: ModelShardsGrpcKt.ModelShardsCoroutineStub,
   private val dataProviderName: String,
   private val vidLabelerParamsTemplate: VidLabelerParams,
   private val queueName: String,
-  private val batchMaxSizeBytes: Long,
+  private val numberOfShards: Int,
+  private val modelSuiteName: String,
+  private val overrideModelLines: List<String>,
+  private val modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig>,
+  private val clock: Clock = Clock.systemUTC(),
   private val metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
 ) {
-  /** Holds a blob key and its size for batching. */
-  private data class BlobInfo(val blobKey: String, val sizeBytes: Long)
-
-  /** A batch of blobs with tracked total size. */
-  private class Batch {
-    private val mutableBlobs = mutableListOf<BlobInfo>()
-
-    val blobs: List<BlobInfo>
-      get() = mutableBlobs
-
-    var sizeBytes: Long = 0L
-      private set
-
-    fun addBlob(blob: BlobInfo) {
-      mutableBlobs.add(blob)
-      sizeBytes += blob.sizeBytes
-    }
-  }
-
   /**
    * Dispatches VID labeling work for raw impression files in the directory containing the done
    * blob.
@@ -106,50 +92,58 @@ class VidLabelingDispatcher(
       val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
       val folderPrefix: String = doneBlobUri.key.substringBeforeLast("/")
 
-      // Crawl for raw impression files, excluding the done marker.
-      val blobInfos = mutableListOf<BlobInfo>()
+      val blobKeys = mutableListOf<String>()
       storageClient.listBlobs(folderPrefix).collect { blob ->
         if (!isDoneMarker(blob.blobKey)) {
-          blobInfos.add(BlobInfo(blob.blobKey, blob.size))
+          blobKeys.add(blob.blobKey)
         }
       }
 
-      if (blobInfos.isEmpty()) {
+      if (blobKeys.isEmpty()) {
         logger.info("No raw impression files found in $folderPrefix")
         recordDispatchDuration(startTime, DISPATCH_STATUS_SUCCESS)
         return
       }
 
       metrics.filesProcessedCounter.add(
-        blobInfos.size.toLong(),
+        blobKeys.size.toLong(),
         Attributes.of(DATA_PROVIDER_ATTR, dataProviderName),
       )
 
-      val batches: List<List<BlobInfo>> = partitionIntoBatches(blobInfos)
+      // TODO(world-federation-of-advertisers/cross-media-measurement#3899): Create
+      // RawImpressionUpload using RawImpressionUploadService from PR #3818.
 
-      for (batch in batches) {
-        val batchBlobUris: List<String> = batch.map { buildBlobUri(doneBlobUri, it.blobKey) }
+      val activeModelLines = resolveActiveModelLines()
 
-        val createdBatch = createBatch()
-        val batchResourceName: String = createdBatch.name
-        createBatchFiles(batchResourceName, batchBlobUris)
-
-        val params = vidLabelerParams {
-          dataProvider = vidLabelerParamsTemplate.dataProvider
-          vidLabeledImpressionsStorageParams =
-            vidLabelerParamsTemplate.vidLabeledImpressionsStorageParams
-          rawImpressionsStorageParams = vidLabelerParamsTemplate.rawImpressionsStorageParams
-          vidRepoConnection = vidLabelerParamsTemplate.vidRepoConnection
-          modelLineConfigs.putAll(vidLabelerParamsTemplate.modelLineConfigsMap)
-          overrideModelLines += vidLabelerParamsTemplate.overrideModelLinesList
-          rawImpressionMetadataBatch = batchResourceName
-        }
-
-        createWorkItem(batchResourceName, params)
+      if (activeModelLines.isEmpty()) {
+        logger.info("No active model lines found for $modelSuiteName")
+        recordDispatchDuration(startTime, DISPATCH_STATUS_SUCCESS)
+        return
       }
 
-      metrics.batchesCreatedCounter.add(
-        batches.size.toLong(),
+      // TODO(world-federation-of-advertisers/cross-media-measurement#3899): Check
+      // memoized_vid_assignment_enabled on ModelShard once the field is added.
+      // For now, all model lines are treated as non-memoized.
+
+      val blobUris = blobKeys.map { buildBlobUri(doneBlobUri, it) }
+
+      var totalWorkItems = 0
+      for (modelLineName in activeModelLines) {
+        for (shardIndex in 0 until numberOfShards) {
+          createWorkItem(modelLineName, shardIndex, blobUris)
+          totalWorkItems++
+        }
+      }
+
+      // TODO(world-federation-of-advertisers/cross-media-measurement#3899): Create
+      // RawImpressionUploadFile resources for each blob URI.
+      // TODO(world-federation-of-advertisers/cross-media-measurement#3899): Create
+      // RawImpressionUploadModelLine resources for each active model line.
+      // TODO(world-federation-of-advertisers/cross-media-measurement#3899): For memoized
+      // model lines, create PoolAssignmentJobs instead of WorkItems.
+
+      metrics.workItemsCreatedCounter.add(
+        totalWorkItems.toLong(),
         Attributes.of(DATA_PROVIDER_ATTR, dataProviderName),
       )
 
@@ -161,119 +155,87 @@ class VidLabelingDispatcher(
   }
 
   /**
-   * Partitions blob infos into batches using Best-Fit Decreasing bin-packing.
+   * Resolves active model lines from the VID Repository API.
    *
-   * Files that individually exceed [batchMaxSizeBytes] are placed in their own batch and an
-   * oversized file alert is emitted. Remaining files are sorted by size descending (with blob key
-   * as tiebreaker) and each file is placed into the batch with the smallest remaining capacity that
-   * can still fit it.
+   * If [overrideModelLines] is non-empty, returns those directly without calling the API.
+   * Otherwise, calls ListModelLines filtering for type=PROD with active time windows containing
+   * the current time, then filters to model lines present in [modelLineConfigs].
    *
-   * @param blobInfos list of blob infos to partition.
-   * @return list of batches, where each batch is a list of [BlobInfo].
+   * @return list of active model line resource names.
    */
-  private fun partitionIntoBatches(blobInfos: List<BlobInfo>): List<List<BlobInfo>> {
-    val oversizedBatches = mutableListOf<List<BlobInfo>>()
-    val fittingBlobs = mutableListOf<BlobInfo>()
-
-    for (blobInfo in blobInfos) {
-      if (blobInfo.sizeBytes > batchMaxSizeBytes) {
-        logger.warning(
-          "File ${blobInfo.blobKey} (${blobInfo.sizeBytes} bytes) exceeds batch max size " +
-            "($batchMaxSizeBytes bytes)"
-        )
-        metrics.oversizedFileAlertsCounter.add(
-          1,
-          Attributes.of(DATA_PROVIDER_ATTR, dataProviderName),
-        )
-        oversizedBatches.add(listOf(blobInfo))
-      } else {
-        fittingBlobs.add(blobInfo)
-      }
+  private suspend fun resolveActiveModelLines(): List<String> {
+    if (overrideModelLines.isNotEmpty()) {
+      logger.info("Using ${overrideModelLines.size} override model lines")
+      return overrideModelLines
     }
 
-    // Sort by size descending for Best-Fit Decreasing, with blob key as tiebreaker.
-    val sortedBlobs =
-      fittingBlobs.sortedWith(compareByDescending<BlobInfo> { it.sizeBytes }.thenBy { it.blobKey })
+    val now: Timestamp = Timestamps.fromMillis(clock.millis())
+    val activeModelLines = mutableListOf<String>()
+    var pageToken = ""
 
-    val batches = mutableListOf<Batch>()
-
-    for (blobInfo in sortedBlobs) {
-      // Find the batch with the smallest remaining capacity that can fit this file.
-      var bestFitIndex = -1
-      var bestFitRemaining = Long.MAX_VALUE
-
-      for (i in batches.indices) {
-        val remaining = batchMaxSizeBytes - batches[i].sizeBytes
-        if (blobInfo.sizeBytes <= remaining && remaining < bestFitRemaining) {
-          bestFitIndex = i
-          bestFitRemaining = remaining
+    do {
+      val request = listModelLinesRequest {
+        parent = modelSuiteName
+        if (pageToken.isNotEmpty()) {
+          this.pageToken = pageToken
         }
       }
 
-      if (bestFitIndex >= 0) {
-        batches[bestFitIndex].addBlob(blobInfo)
-      } else {
-        val batch = Batch()
-        batch.addBlob(blobInfo)
-        batches.add(batch)
-      }
-    }
-
-    return oversizedBatches + batches.map { it.blobs }
-  }
-
-  /**
-   * Creates a [RawImpressionMetadataBatch] via the gRPC API.
-   *
-   * @return the created [RawImpressionMetadataBatch] with server-assigned name.
-   */
-  private suspend fun createBatch(): RawImpressionMetadataBatch {
-    val request = createRawImpressionMetadataBatchRequest {
-      parent = dataProviderName
-      rawImpressionMetadataBatch = RawImpressionMetadataBatch.getDefaultInstance()
-    }
-    try {
-      return rawImpressionMetadataBatchStub.createRawImpressionMetadataBatch(request)
-    } catch (e: StatusException) {
-      throw Exception("Error creating RawImpressionMetadataBatch for $dataProviderName", e)
-    }
-  }
-
-  /**
-   * Creates [RawImpressionMetadataBatchFile] entries for each blob URI in the batch.
-   *
-   * @param batchResourceName the parent batch resource name.
-   * @param blobUris the blob URIs to register as files.
-   */
-  private suspend fun createBatchFiles(batchResourceName: String, blobUris: List<String>) {
-    val request = batchCreateRawImpressionMetadataBatchFilesRequest {
-      parent = batchResourceName
-      requests +=
-        blobUris.map { uri ->
-          createRawImpressionMetadataBatchFileRequest {
-            parent = batchResourceName
-            rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile { blobUri = uri }
-          }
+      val response =
+        try {
+          modelLinesStub.listModelLines(request)
+        } catch (e: StatusException) {
+          throw Exception("Error listing model lines for $modelSuiteName", e)
         }
-    }
-    try {
-      rawImpressionMetadataBatchFileStub.batchCreateRawImpressionMetadataBatchFiles(request)
-    } catch (e: StatusException) {
-      throw Exception(
-        "Error creating RawImpressionMetadataBatchFiles for batch $batchResourceName",
-        e,
-      )
-    }
+
+      for (modelLine in response.modelLinesList) {
+        if (modelLine.type != ModelLine.Type.PROD) continue
+        if (!isWithinActiveWindow(modelLine, now)) continue
+        if (modelLine.name !in modelLineConfigs) {
+          logger.fine("Skipping model line ${modelLine.name}: no config entry")
+          continue
+        }
+        activeModelLines.add(modelLine.name)
+      }
+
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+
+    logger.info("Resolved ${activeModelLines.size} active model lines")
+    return activeModelLines
   }
 
   /**
-   * Creates a WorkItem in the Secure Computation control plane.
+   * Creates a WorkItem in the Secure Computation control plane for a single model line shard.
    *
-   * @param batchResourceName resource name of the [RawImpressionMetadataBatch].
-   * @param params the [VidLabelerParams] for this batch.
+   * @param modelLineName resource name of the model line.
+   * @param shardIndex zero-based index of this shard.
+   * @param blobUris all blob URIs for this dispatch.
    */
-  private suspend fun createWorkItem(batchResourceName: String, params: VidLabelerParams) {
-    val workItemId = "vid-labeling-$batchResourceName"
+  private suspend fun createWorkItem(
+    modelLineName: String,
+    shardIndex: Int,
+    blobUris: List<String>,
+  ) {
+    val modelLineConfig =
+      requireNotNull(modelLineConfigs[modelLineName]) {
+        "No ModelLineConfig found for model line: $modelLineName"
+      }
+
+    val params = vidLabelerParams {
+      dataProvider = dataProviderName
+      vidLabeledImpressionsStorageParams =
+        vidLabelerParamsTemplate.vidLabeledImpressionsStorageParams
+      rawImpressionsStorageParams = vidLabelerParamsTemplate.rawImpressionsStorageParams
+      vidRepoConnection = vidLabelerParamsTemplate.vidRepoConnection
+      modelLineConfigs[modelLineName] = VidLabelerParamsKt.modelLineConfig {
+        labelerInputFieldMapping.putAll(modelLineConfig.labelerInputFieldMappingMap)
+        eventTemplateFieldMapping.putAll(modelLineConfig.eventTemplateFieldMappingMap)
+      }
+      overrideModelLines += listOf(modelLineName)
+    }
+
+    val workItemId = "vid-labeling-${modelLineName.substringAfterLast("/")}-shard-$shardIndex"
     val packedWorkItemParams = workItemParams { appParams = params.pack() }.pack()
 
     val request = createWorkItemRequest {
@@ -287,9 +249,9 @@ class VidLabelingDispatcher(
     try {
       workItemsStub.createWorkItem(request)
     } catch (e: StatusException) {
-      throw Exception("Error creating WorkItem $workItemId for batch $batchResourceName", e)
+      throw Exception("Error creating WorkItem $workItemId", e)
     }
-    logger.info("Created WorkItem $workItemId for batch ${params.rawImpressionMetadataBatch}")
+    logger.info("Created WorkItem $workItemId for model line $modelLineName shard $shardIndex")
   }
 
   private fun recordDispatchDuration(
@@ -326,5 +288,14 @@ class VidLabelingDispatcher(
       AttributeKey.stringKey("edpa.vid_labeling_dispatcher.dispatch_status")
     private const val DISPATCH_STATUS_SUCCESS = "success"
     private const val DISPATCH_STATUS_FAILED = "failed"
+
+    private fun isWithinActiveWindow(modelLine: ModelLine, now: Timestamp): Boolean {
+      if (!modelLine.hasActiveStartTime()) return false
+      if (Timestamps.compare(now, modelLine.activeStartTime) < 0) return false
+      if (modelLine.hasActiveEndTime() && Timestamps.compare(now, modelLine.activeEndTime) >= 0) {
+        return false
+      }
+      return true
+    }
   }
 }
