@@ -38,6 +38,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt as C
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ListClientAccountsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListClientAccountsResponse
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter as listEventGroupsFilter
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerClientAccountKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
@@ -61,6 +62,8 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
 import org.wfanet.measurement.edpaggregator.telemetry.withSpan
 
+class UnresolvedMeasurementConsumerException(message: String) : Exception(message)
+
 /**
  * Key used to uniquely identify an event group.
  *
@@ -72,6 +75,19 @@ import org.wfanet.measurement.edpaggregator.telemetry.withSpan
  * attributes, ensuring uniqueness across consumers.
  */
 data class EventGroupKey(val eventGroupReferenceId: String, val measurementConsumer: String)
+
+/**
+ * Composite key for matching event groups by their entity key.
+ *
+ * @property entityType the entity type (e.g. "campaign", "creative-id")
+ * @property entityId the entity ID within the data provider's system
+ * @property measurementConsumer resource name of the MeasurementConsumer
+ */
+data class EntityKeyId(
+  val entityType: String,
+  val entityId: String,
+  val measurementConsumer: String,
+)
 
 /*
  * Syncs event groups with the CMMS Public API.
@@ -90,6 +106,7 @@ class EventGroupSync(
   private val eventGroups: Flow<EventGroup>,
   private val throttler: Throttler,
   private val listEventGroupPageSize: Int,
+  private val entityKeyTypes: List<String>,
   private val tracer: Tracer = GlobalOpenTelemetry.getTracer("wfa.edpa"),
 ) {
   private val metrics = EventGroupSyncMetrics(Instrumentation.meter)
@@ -130,10 +147,25 @@ class EventGroupSync(
       ),
       errorMessage = "EventGroupSync failed",
     ) { _ ->
+      val fetchedEventGroups = fetchEventGroups().toList()
+
       val cmmsEventGroups: Map<EventGroupKey, CmmsEventGroup> =
-        fetchEventGroups().toList().associateBy { eventGroup ->
-          EventGroupKey(eventGroup.eventGroupReferenceId, eventGroup.measurementConsumer)
-        }
+        fetchedEventGroups
+          .filter { it.eventGroupReferenceId.isNotBlank() }
+          .associateBy { eventGroup ->
+            EventGroupKey(eventGroup.eventGroupReferenceId, eventGroup.measurementConsumer)
+          }
+
+      val cmmsEventGroupsByEntityKey: Map<EntityKeyId, CmmsEventGroup> =
+        fetchedEventGroups
+          .filter { it.hasEntityKey() && it.entityKey.entityId.isNotBlank() }
+          .associateBy { eventGroup ->
+            EntityKeyId(
+              eventGroup.entityKey.entityType,
+              eventGroup.entityKey.entityId,
+              eventGroup.measurementConsumer,
+            )
+          }
 
       val edpEventGroupsList = eventGroups.toList()
 
@@ -143,18 +175,29 @@ class EventGroupSync(
             validateDeletedEventGroup(eventGroup)
           } catch (e: Exception) {
             logger.log(Level.SEVERE, e) {
-              "Skipping deleted Event Group ${eventGroup.eventGroupReferenceId}: " +
-                "Validation failed"
+              "Skipping deleted Event Group ${eventGroup.eventGroupReferenceId}" +
+                (if (eventGroup.hasEntityKey())
+                  " (entityType=${eventGroup.entityKey.entityType}," +
+                    " entityId=${eventGroup.entityKey.entityId})"
+                else "") +
+                ": Validation failed"
             }
             metrics.invalidEventGroupFailure.add(1, metricAttributes())
             continue
           }
 
-          val key = EventGroupKey(eventGroup.eventGroupReferenceId, eventGroup.measurementConsumer)
-          val cmmsEventGroup = cmmsEventGroups[key]
-          if (cmmsEventGroup != null) {
-            deleteCmmsEventGroup(cmmsEventGroup)
-            metrics.syncDeleted.add(1, metricAttributes())
+          if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
+            val entityKeyId =
+              EntityKeyId(
+                eventGroup.entityKey.entityType,
+                eventGroup.entityKey.entityId,
+                eventGroup.measurementConsumer,
+              )
+            val cmmsEventGroup = cmmsEventGroupsByEntityKey[entityKeyId]
+            if (cmmsEventGroup != null) {
+              deleteCmmsEventGroup(cmmsEventGroup)
+              metrics.syncDeleted.add(1, metricAttributes())
+            }
           }
           continue
         }
@@ -163,19 +206,51 @@ class EventGroupSync(
           validateEventGroup(eventGroup)
         } catch (e: Exception) {
           logger.log(Level.SEVERE, e) {
-            "Skipping Event Group ${eventGroup.eventGroupReferenceId}: " + "Validation failed"
+            "Skipping Event Group ${eventGroup.eventGroupReferenceId}" +
+              (if (eventGroup.hasEntityKey())
+                " (entityType=${eventGroup.entityKey.entityType}," +
+                  " entityId=${eventGroup.entityKey.entityId})"
+              else "") +
+              ": Validation failed"
           }
           metrics.invalidEventGroupFailure.add(1, metricAttributes())
           continue
         }
 
         val measurementConsumerKeys: Set<MeasurementConsumerKey> =
-          resolveMeasurementConsumers(eventGroup)
+          try {
+            resolveMeasurementConsumers(eventGroup)
+          } catch (e: UnresolvedMeasurementConsumerException) {
+            logger.log(Level.SEVERE, e) {
+              "Skipping Event Group ${eventGroup.eventGroupReferenceId}" +
+                (if (eventGroup.hasEntityKey())
+                  " (entityType=${eventGroup.entityKey.entityType}," +
+                    " entityId=${eventGroup.entityKey.entityId})"
+                else "") +
+                ": No measurement consumer resolved"
+            }
+            metrics.syncFailure.add(1, metricAttributes())
+            continue
+          }
 
         for (measurementConsumerKey in measurementConsumerKeys) {
-          val eventGroupWithConsumer =
-            eventGroup.copy { measurementConsumer = measurementConsumerKey.toName() }
-          syncEventGroupItem(eventGroupWithConsumer, cmmsEventGroups)?.let { emit(it) }
+          try {
+            val eventGroupWithConsumer =
+              eventGroup.copy { measurementConsumer = measurementConsumerKey.toName() }
+            syncEventGroupItem(eventGroupWithConsumer, cmmsEventGroups, cmmsEventGroupsByEntityKey)
+              ?.let { emit(it) }
+          } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            logger.log(Level.SEVERE, e) {
+              "Skipping Event Group ${eventGroup.eventGroupReferenceId}" +
+                (if (eventGroup.hasEntityKey())
+                  " (entityType=${eventGroup.entityKey.entityType}," +
+                    " entityId=${eventGroup.entityKey.entityId})"
+                else "") +
+                ": Failed to process for measurement consumer"
+            }
+            metrics.syncFailure.add(1, metricAttributes())
+          }
         }
       }
     }
@@ -193,6 +268,7 @@ class EventGroupSync(
   private suspend fun syncEventGroupItem(
     eventGroup: EventGroup,
     syncedEventGroups: Map<EventGroupKey, CmmsEventGroup>,
+    syncedEventGroupsByEntityKey: Map<EntityKeyId, CmmsEventGroup>,
   ): MappedEventGroup? {
     val eventGroupRefId = eventGroup.eventGroupReferenceId
 
@@ -214,12 +290,11 @@ class EventGroupSync(
         // Record sync attempt
         metrics.syncAttempts.add(1, metricAttributes())
 
-        val eventGroupKey =
-          EventGroupKey(eventGroup.eventGroupReferenceId, eventGroup.measurementConsumer)
+        val existingEventGroup: CmmsEventGroup? =
+          findExistingEventGroup(eventGroup, syncedEventGroups, syncedEventGroupsByEntityKey)
 
         val syncedEventGroup: CmmsEventGroup =
-          if (eventGroupKey in syncedEventGroups) {
-            val existingEventGroup: CmmsEventGroup = syncedEventGroups.getValue(eventGroupKey)
+          if (existingEventGroup != null) {
             val updatedEventGroup: CmmsEventGroup = updateEventGroup(existingEventGroup, eventGroup)
             if (updatedEventGroup != existingEventGroup) {
               updateCmmsEventGroup(updatedEventGroup)
@@ -244,13 +319,29 @@ class EventGroupSync(
     } catch (e: Exception) {
       if (e is CancellationException) throw e
 
-      // Record sync failure
-      metrics.syncFailure.add(1, metricAttributes())
+      val errorType =
+        if (e is StatusException || e.cause is StatusException) {
+          val status = (e as? StatusException ?: e.cause as StatusException).status
+          status.code.name
+        } else {
+          e.javaClass.simpleName
+        }
+
+      metrics.syncFailure.add(
+        1,
+        Attributes.builder()
+          .putAll(metricAttributes())
+          .put(AttributeKey.stringKey("error_type"), errorType)
+          .put(AttributeKey.stringKey("event_group_reference_id"), eventGroup.eventGroupReferenceId)
+          .put(AttributeKey.stringKey("entity_type"), eventGroup.entityKey.entityType)
+          .put(AttributeKey.stringKey("entity_id"), eventGroup.entityKey.entityId)
+          .build(),
+      )
 
       logger.log(Level.SEVERE, e) {
-        "Unable to process Event Group ${eventGroup.eventGroupReferenceId}"
+        "Unable to process Event Group ${eventGroup.eventGroupReferenceId}: " +
+          "error_type=$errorType"
       }
-      // Note: sync attempt was already recorded, but no success/latency on failure
       null
     }
   }
@@ -280,11 +371,19 @@ class EventGroupSync(
 
     // Collect direct measurement consumer (EDP's mapping)
     if (eventGroup.measurementConsumer.isNotEmpty()) {
-      val key =
-        requireNotNull(MeasurementConsumerKey.fromName(eventGroup.measurementConsumer)) {
-          "Invalid measurementConsumer resource name: ${eventGroup.measurementConsumer}"
+      val key = MeasurementConsumerKey.fromName(eventGroup.measurementConsumer)
+      if (key != null && key.measurementConsumerId.isNotBlank()) {
+        measurementConsumerKeys.add(key)
+      } else {
+        logger.log(Level.WARNING) {
+          "Ignoring malformed measurement_consumer: ${eventGroup.measurementConsumer}" +
+            " for Event Group ${eventGroup.eventGroupReferenceId}" +
+            (if (eventGroup.hasEntityKey())
+              " (entityType=${eventGroup.entityKey.entityType}," +
+                " entityId=${eventGroup.entityKey.entityId})"
+            else "")
         }
-      measurementConsumerKeys.add(key)
+      }
     }
 
     // Also collect from client_account_reference_id lookup (operator's mapping)
@@ -333,7 +432,7 @@ class EventGroupSync(
 
     if (measurementConsumerKeys.isEmpty()) {
       metrics.unmappedEventGroups.add(1, metricAttributes())
-      logger.warning(
+      throw UnresolvedMeasurementConsumerException(
         "EventGroup ${eventGroup.eventGroupReferenceId} has neither measurementConsumer " +
           "nor clientAccountReferenceId, or both failed to resolve"
       )
@@ -406,6 +505,38 @@ class EventGroupSync(
     }
   }
 
+  /**
+   * Finds an existing CMMS event group matching the given event group, preferring entity key match
+   * over reference ID match.
+   */
+  private fun findExistingEventGroup(
+    eventGroup: EventGroup,
+    syncedEventGroups: Map<EventGroupKey, CmmsEventGroup>,
+    syncedEventGroupsByEntityKey: Map<EntityKeyId, CmmsEventGroup>,
+  ): CmmsEventGroup? {
+    if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
+      val entityKeyId =
+        EntityKeyId(
+          eventGroup.entityKey.entityType,
+          eventGroup.entityKey.entityId,
+          eventGroup.measurementConsumer,
+        )
+      syncedEventGroupsByEntityKey[entityKeyId]?.let {
+        return it
+      }
+    }
+
+    if (eventGroup.eventGroupReferenceId.isNotBlank()) {
+      val eventGroupKey =
+        EventGroupKey(eventGroup.eventGroupReferenceId, eventGroup.measurementConsumer)
+      syncedEventGroups[eventGroupKey]?.let {
+        return it
+      }
+    }
+
+    return null
+  }
+
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private fun fetchEventGroups(): Flow<CmmsEventGroup> {
     return eventGroupsStub
@@ -418,6 +549,9 @@ class EventGroupSync(
                   parent = edpName
                   this.pageToken = pageToken
                   pageSize = listEventGroupPageSize
+                  if (entityKeyTypes.isNotEmpty()) {
+                    filter = listEventGroupsFilter { entityTypeIn += entityKeyTypes }
+                  }
                 }
               )
             }
@@ -476,19 +610,28 @@ class EventGroupSync(
       check(eventGroup.mediaTypesList.size > 0) { "At least one media type must be set" }
       check(eventGroup.hasDataAvailabilityInterval()) { "Data availability must be set" }
       check(eventGroup.hasEventGroupMetadata()) { "Event Group Metadata must be set" }
-      check(eventGroup.eventGroupReferenceId.isNotBlank()) {
-        "Event Group Reference Id must be set"
+      check(
+        eventGroup.eventGroupReferenceId.isNotBlank() ||
+          (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank())
+      ) {
+        "Either Event Group Reference Id or Entity Key with entity ID must be set"
       }
-      val hasClientAccountRef = eventGroup.clientAccountReferenceId.isNotEmpty()
-      check(eventGroup.measurementConsumer.isNotBlank() || hasClientAccountRef) {
-        "Either Measurement Consumer or Client Account Reference ID must be set"
+      if (eventGroup.measurementConsumer.isNotBlank()) {
+        val mcKey = MeasurementConsumerKey.fromName(eventGroup.measurementConsumer)
+        check(mcKey != null && mcKey.measurementConsumerId.isNotBlank()) {
+          "Malformed measurement_consumer: ${eventGroup.measurementConsumer}"
+        }
+      } else {
+        check(eventGroup.clientAccountReferenceId.isNotEmpty()) {
+          "Either Measurement Consumer or Client Account Reference ID must be set"
+        }
       }
     }
 
     /** Validates minimum fields required to identify and delete an EventGroup. */
     fun validateDeletedEventGroup(eventGroup: EventGroup) {
-      check(eventGroup.eventGroupReferenceId.isNotBlank()) {
-        "Event Group Reference Id must be set"
+      check(eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
+        "Entity Key with entity ID must be set for deleted Event Groups"
       }
       check(eventGroup.measurementConsumer.isNotBlank()) {
         "Measurement Consumer must be set for deleted Event Groups"

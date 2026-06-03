@@ -172,6 +172,18 @@ sections of this when reviewing others’ code.
 *   Use trailing commas on multiline structures to reduce merge conflicts.
 *   Use a regular for-each loop when not chaining a set of operations.
 
+#### Function Parameters
+
+*   Use default parameter values judiciously, applying the same judgment you
+    would for method overloading (see Effective Java 3rd Edition, Item 52).
+    Default values are syntactic sugar for overloads and carry the same risks:
+    they can obscure which variant a call site invokes and make refactoring
+    error-prone.
+*   When default parameter values are used, place parameters with defaults
+    after all required parameters. A trailing lambda parameter should still be
+    last, even after parameters with defaults, to support trailing lambda
+    syntax.
+
 #### CLI Flags
 
 *   For Picocli flags, use `lateinit var` with the `defaultValue` annotation
