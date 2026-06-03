@@ -220,6 +220,6 @@ jobs:
     - name: Wait for rollout
       if: ${{ inputs.apply }}
       run: |
-        for deployment in $(kubectl get deployments -o name); do
+        for deployment in $(kubectl get deployments -l app.kubernetes.io/component=reporting -o name); do
           kubectl rollout status "$deployment" --timeout=5m
         done
