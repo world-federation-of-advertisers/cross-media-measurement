@@ -1,0 +1,73 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RawImpressionUploadModelLineProto";
+
+// Per-model-line pipeline state for a RawImpressionUpload.
+// One record per (upload, model line), pre-created by the dispatcher
+// once it resolves which model lines apply to this upload.
+message RawImpressionUploadModelLine {
+  option (google.api.resource) = {
+    type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
+    pattern: "dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/modelLines/{model_line}"
+    singular: "rawImpressionUploadModelLine"
+    plural: "rawImpressionUploadModelLines"
+  };
+
+  // Per-model-line pipeline state.
+  enum State {
+    // Default, unspecified state. Should not be used.
+    STATE_UNSPECIFIED = 0;
+    // The model line record has been created.
+    CREATED = 1;
+    // Pool assignment (Phase 0) is in progress.
+    POOL_ASSIGNING = 2;
+    // Ranking (Phase 1) is in progress.
+    RANKING = 3;
+    // VID labeling (Phase 2) is in progress.
+    LABELING = 4;
+    // All phases completed successfully.
+    COMPLETED = 5;
+    // Processing failed.
+    FAILED = 6;
+  }
+
+  // Resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // The pipeline state for this model line.
+  State state = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The timestamp when processing completed (success or failure).
+  google.protobuf.Timestamp completion_time = 3
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The timestamp when this record was created.
+  google.protobuf.Timestamp create_time = 4
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The timestamp when this record was last updated.
+  google.protobuf.Timestamp update_time = 5
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+}
