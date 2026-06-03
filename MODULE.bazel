@@ -24,7 +24,7 @@ PYTHON_VERSION = "3.11"
 # See https://github.com/bazelbuild/bazel/discussions/23075.
 bazel_dep(
     name = "rules_kotlin_jvm",
-    version = "0.12.0",
+    version = "0.13.0",
     repo_name = "wfa_rules_kotlin_jvm",
 )
 bazel_dep(
@@ -449,11 +449,4 @@ http_archive(
 single_version_override(
     module_name = "boringssl",
     version = BORINGSSL_VERSION,
-)
-
-# DO_NOT_SUBMIT(#3789): Replace with bazel_dep version bump once rules_kotlin_jvm v0.13.0 is released.
-git_override(
-    module_name = "rules_kotlin_jvm",
-    commit = "3696d7cc50cd197503addcad43c8d041f996531c",
-    remote = "https://github.com/world-federation-of-advertisers/rules_kotlin_jvm.git",
 )
