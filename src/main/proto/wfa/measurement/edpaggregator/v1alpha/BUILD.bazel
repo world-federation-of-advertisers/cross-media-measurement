@@ -315,3 +315,14 @@ kt_jvm_grpc_proto_library(
     name = "raw_impression_metadata_batch_file_service_kt_jvm_grpc_proto",
     deps = [":raw_impression_metadata_batch_file_service_proto"],
 )
+
+proto_library(
+    name = "rank_index_map_proto",
+    srcs = ["rank_index_map.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "rank_index_map_kt_jvm_proto",
+    deps = [":rank_index_map_proto"],
+)

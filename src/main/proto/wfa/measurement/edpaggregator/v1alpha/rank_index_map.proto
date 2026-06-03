@@ -1,0 +1,64 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// (-- api-linter: all=disabled
+//     aip.dev/not-precedent: Internal storage format, not an API resource.
+//     --)
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator;
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RankIndexMapProto";
+
+// Serialized on-disk form of a memoized VID rank-index map for a single
+// subpool.
+//
+// The map records `(fingerprint, rank)` assignments produced by the
+// ranker for one subpool. The same proto is used for both `DAY_ONLY` and
+// `SNAPSHOT` blobs (the distinction lives in the `RankIndexBlobs`
+// Spanner row, not in the proto itself).
+//
+// On-wire layout: parallel packed arrays of fingerprints and ranks.
+// `fingerprints[i]` is the fingerprint assigned to `ranks[i]`; both
+// repeated fields MUST have identical length.
+//
+// Wire-size per entry:
+//   * `fingerprints[i]`: 1-byte tag + 1-byte length prefix + N bytes
+//     (N = 12 in this design) = 14 bytes.
+//   * `ranks[i]`: 4 bytes (packed `fixed32`).
+//   * Total: ~18 bytes per entry plus a small per-blob header.
+//
+// In-memory representation: see
+// `org.wfanet.measurement.edpaggregator.vidlabeler.utils.FingerprintRankTable`.
+message RankIndexMap {
+  // Identifier of the subpool this map is scoped to.
+  int64 subpool_id = 1;
+
+  // The ranked sub-range size for this subpool as configured in the model.
+  // Each value in `ranks` MUST satisfy `0 <= rank < ranked_size`.
+  int64 ranked_size = 2;
+
+  // Per-entry fingerprints. Each element MUST be exactly 12 bytes (the
+  // leading 12 bytes of a uniformly-distributed hash such as SHA-256 of
+  // the upstream account identifier). Index `i` in this list corresponds
+  // to index `i` in `ranks`.
+  repeated bytes fingerprints = 3;
+
+  // Per-entry rank values, packed for minimal wire size. Index `i` in
+  // this list corresponds to index `i` in `fingerprints`.
+  repeated fixed32 ranks = 4 [packed = true];
+}
