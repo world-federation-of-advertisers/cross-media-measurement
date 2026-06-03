@@ -451,6 +451,7 @@ single_version_override(
     version = BORINGSSL_VERSION,
 )
 
+# DO_NOT_SUBMIT: Remove once common-jvm PR #384 is released.
 git_override(
     module_name = "common-jvm",
     remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
