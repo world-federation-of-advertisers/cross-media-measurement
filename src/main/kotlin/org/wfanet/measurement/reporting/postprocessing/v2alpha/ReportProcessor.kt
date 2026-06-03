@@ -138,7 +138,7 @@ interface ReportProcessor {
       val jarUri = protectionDomain.codeSource?.location?.toURI() ?: return null
       val entry =
         java.util.jar.JarFile(java.io.File(jarUri)).use { jarFile ->
-          jarFile.entries().asSequence().firstOrNull { it.name.endsWith(suffix) }
+          jarFile.entries().asSequence().singleOrNull { it.name.endsWith(suffix) }
         } ?: return null
       return Default::class.java.classLoader.getJarResourcePath(entry.name)
     }
