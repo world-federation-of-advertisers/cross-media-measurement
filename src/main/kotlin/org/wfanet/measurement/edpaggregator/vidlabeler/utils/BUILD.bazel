@@ -6,6 +6,6 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "fingerprint_rank_table",
-    srcs = ["FingerprintRankTable.kt"],
+    name = "bytes12_int_map",
+    srcs = ["Bytes12IntMap.kt"],
 )

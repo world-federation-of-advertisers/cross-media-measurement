@@ -32,18 +32,35 @@ option java_outer_classname = "RankIndexMapProto";
 // `SNAPSHOT` blobs (the distinction lives in the `RankIndexBlobs`
 // Spanner row, not in the proto itself).
 //
-// On-wire layout: parallel packed arrays of fingerprints and ranks.
-// `fingerprints[i]` is the fingerprint assigned to `ranks[i]`; both
-// repeated fields MUST have identical length.
+// On-wire layout: two parallel packed arrays. The fingerprint at byte
+// offset `i * 12` in `fingerprints` is paired with `ranks[i]`. Both
+// arrays MUST have the same logical length, i.e.
+// `fingerprints.size() == ranks_count * 12`.
 //
 // Wire-size per entry:
-//   * `fingerprints[i]`: 1-byte tag + 1-byte length prefix + N bytes
-//     (N = 12 in this design) = 14 bytes.
+//   * `fingerprints`: exactly 12 bytes (packed back-to-back, no
+//     per-entry tag or length-prefix overhead because all entries
+//     share a single `bytes` field).
 //   * `ranks[i]`: 4 bytes (packed `fixed32`).
-//   * Total: ~18 bytes per entry plus a small per-blob header.
+//   * Total: 16 bytes per entry plus a small per-blob header.
+//
+// Compared with a `repeated bytes` layout for fingerprints, this saves
+// 2 bytes per entry on the wire (1-byte tag + 1-byte length-prefix)
+// and avoids materializing one `ByteString` Java object per entry on
+// decode (~64 B of object overhead each), which is material at the
+// 1.5 B-entry scale of the India worst case.
+//
+// Pairing guarantee: the protobuf wire format preserves byte ordering
+// inside a single `bytes` field and element ordering inside a
+// `repeated` field across serialization and deserialization, so the
+// positional pairing between `fingerprints[i*12 .. i*12+12]` and
+// `ranks[i]` is stable as long as the message is read and written as
+// a unit (DO NOT call `mergeFrom` on two `RankIndexMap` messages —
+// proto merge concatenates `repeated` fields but replaces singular
+// `bytes`, which would break the pairing).
 //
 // In-memory representation: see
-// `org.wfanet.measurement.edpaggregator.vidlabeler.utils.FingerprintRankTable`.
+// `org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap`.
 message RankIndexMap {
   // Identifier of the subpool this map is scoped to.
   int64 subpool_id = 1;
@@ -52,13 +69,15 @@ message RankIndexMap {
   // Each value in `ranks` MUST satisfy `0 <= rank < ranked_size`.
   int64 ranked_size = 2;
 
-  // Per-entry fingerprints. Each element MUST be exactly 12 bytes (the
-  // leading 12 bytes of a uniformly-distributed hash such as SHA-256 of
-  // the upstream account identifier). Index `i` in this list corresponds
-  // to index `i` in `ranks`.
-  repeated bytes fingerprints = 3;
+  // Fingerprints packed back-to-back. Length MUST be a multiple of 12;
+  // each contiguous 12-byte run is one fingerprint (the leading 12
+  // bytes of a uniformly-distributed hash such as SHA-256 of the
+  // upstream account identifier). The fingerprint at byte offset
+  // `i * 12` is paired with `ranks[i]`.
+  bytes fingerprints = 3;
 
-  // Per-entry rank values, packed for minimal wire size. Index `i` in
-  // this list corresponds to index `i` in `fingerprints`.
+  // Per-entry rank values, packed for minimal wire size. `ranks[i]` is
+  // the rank of the fingerprint at byte offset `i * 12` in
+  // `fingerprints`. Length MUST equal `fingerprints.size() / 12`.
   repeated fixed32 ranks = 4 [packed = true];
 }
