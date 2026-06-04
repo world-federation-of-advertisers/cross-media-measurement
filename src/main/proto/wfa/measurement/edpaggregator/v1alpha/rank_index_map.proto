@@ -67,7 +67,10 @@ message RankIndexMap {
 
   // The ranked sub-range size for this subpool as configured in the model.
   // Each value in `ranks` MUST satisfy `0 <= rank < ranked_size`.
-  int64 ranked_size = 2;
+  // `int32` matches the in-memory Int rank representation and the
+  // `fixed32` element type of the `ranks` field; subpool sizes are
+  // bounded well below `Int.MAX_VALUE` (~1.5 B in the worst case).
+  int32 ranked_size = 2;
 
   // Fingerprints packed back-to-back. Length MUST be a multiple of 12;
   // each contiguous 12-byte run is one fingerprint (the leading 12
@@ -79,5 +82,13 @@ message RankIndexMap {
   // Per-entry rank values, packed for minimal wire size. `ranks[i]` is
   // the rank of the fingerprint at byte offset `i * 12` in
   // `fingerprints`. Length MUST equal `fingerprints.size() / 12`.
+  //
+  // The in-memory map representation
+  // (`org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap`)
+  // reserves `-1` (`0xFFFFFFFF` when reinterpreted as unsigned) as
+  // its [NOT_PRESENT] sentinel; that value MUST never appear in this
+  // field. Holds by construction because valid ranks are in
+  // `[0, ranked_size)` and `ranked_size` is bounded well below
+  // `Int.MAX_VALUE`.
   repeated fixed32 ranks = 4 [packed = true];
 }
