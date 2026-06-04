@@ -146,8 +146,8 @@ class ToolsIntegrationTest {
   @Test
   fun getBasicReportNotFoundReturnsError() = runBlocking {
     val stubs = apiClient.withBearerToken("test-token")
-    val result = handleToolCall {
-      PROTO_JSON_PRINTER.print(
+    val result = ToolSupport.handleToolCall {
+      ToolSupport.PROTO_JSON_PRINTER.print(
         stubs.basicReports.getBasicReport(
           GetBasicReportRequest.newBuilder()
             .setName("measurementConsumers/mc1/basicReports/nonexistent")
@@ -162,7 +162,7 @@ class ToolsIntegrationTest {
 
   @Test
   fun handleToolCallCatchesParseException() = runBlocking {
-    val result = handleToolCall {
+    val result = ToolSupport.handleToolCall {
       com.google.protobuf.util.Timestamps.parse("not-a-timestamp")
       "should not reach here"
     }
@@ -173,7 +173,7 @@ class ToolsIntegrationTest {
 
   @Test
   fun handleToolCallCatchesIllegalArgumentException() = runBlocking {
-    val result = handleToolCall {
+    val result = ToolSupport.handleToolCall {
       org.wfanet.measurement.reporting.v2alpha.EventGroup.View.valueOf("INVALID_VIEW")
       "should not reach here"
     }
@@ -185,8 +185,8 @@ class ToolsIntegrationTest {
   @Test
   fun createReportingSetWithInvalidArgumentReturnsError() = runBlocking {
     val stubs = apiClient.withBearerToken("test-token")
-    val result = handleToolCall {
-      PROTO_JSON_PRINTER.print(
+    val result = ToolSupport.handleToolCall {
+      ToolSupport.PROTO_JSON_PRINTER.print(
         stubs.reportingSets.createReportingSet(
           CreateReportingSetRequest.newBuilder()
             .setParent("")
@@ -203,11 +203,17 @@ class ToolsIntegrationTest {
   @Test
   fun listEventGroupsWithStructuredFilterMergesIntoProto() = runBlocking {
     val stubs = apiClient.withBearerToken("test-token")
-    val result = stubs.eventGroups.listEventGroups(
-      ListEventGroupsRequest.newBuilder()
-        .setParent("measurementConsumers/mc1")
+    val filter =
+      ListEventGroupsRequest.Filter.newBuilder()
+        .addCmmsDataProviderIn("dataProviders/dp1")
         .build()
-    )
+    val result =
+      stubs.eventGroups.listEventGroups(
+        ListEventGroupsRequest.newBuilder()
+          .setParent("measurementConsumers/mc1")
+          .setStructuredFilter(filter)
+          .build()
+      )
     assertThat(result).isNotNull()
   }
 

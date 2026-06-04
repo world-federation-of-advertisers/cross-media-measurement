@@ -48,12 +48,12 @@ fun Server.registerIqfTools(
       ),
     toolAnnotations = ToolAnnotations(readOnlyHint = true),
   ) { request ->
-    handleToolCall {
+    ToolSupport.handleToolCall {
       val stubs = client.withBearerToken(getBearerToken())
       val grpcRequest = getImpressionQualificationFilterRequest {
         name = request.arguments!!.getString("name")
       }
-      PROTO_JSON_PRINTER.print(
+      ToolSupport.PROTO_JSON_PRINTER.print(
         stubs.impressionQualificationFilters.getImpressionQualificationFilter(grpcRequest)
       )
     }
@@ -80,14 +80,14 @@ fun Server.registerIqfTools(
       ),
     toolAnnotations = ToolAnnotations(readOnlyHint = true),
   ) { request ->
-    handleToolCall {
+    ToolSupport.handleToolCall {
       val args = request.arguments
       val stubs = client.withBearerToken(getBearerToken())
       val grpcRequest = listImpressionQualificationFiltersRequest {
         args?.getIntOrNull("page_size")?.let { pageSize = it }
         args?.getStringOrNull("page_token")?.let { pageToken = it }
       }
-      PROTO_JSON_PRINTER.print(
+      ToolSupport.PROTO_JSON_PRINTER.print(
         stubs.impressionQualificationFilters.listImpressionQualificationFilters(grpcRequest)
       )
     }

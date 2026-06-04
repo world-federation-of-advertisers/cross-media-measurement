@@ -50,10 +50,10 @@ fun Server.registerEventGroupTools(
       ),
     toolAnnotations = ToolAnnotations(readOnlyHint = true),
   ) { request ->
-    handleToolCall {
+    ToolSupport.handleToolCall {
       val stubs = client.withBearerToken(getBearerToken())
       val grpcRequest = getEventGroupRequest { name = request.arguments!!.getString("name") }
-      PROTO_JSON_PRINTER.print(stubs.eventGroups.getEventGroup(grpcRequest))
+      ToolSupport.PROTO_JSON_PRINTER.print(stubs.eventGroups.getEventGroup(grpcRequest))
     }
   }
 
@@ -104,7 +104,7 @@ fun Server.registerEventGroupTools(
       ),
     toolAnnotations = ToolAnnotations(readOnlyHint = true),
   ) { request ->
-    handleToolCall {
+    ToolSupport.handleToolCall {
       val args = request.arguments!!
       val stubs = client.withBearerToken(getBearerToken())
       val builder = ListEventGroupsRequest.newBuilder()
@@ -115,13 +115,13 @@ fun Server.registerEventGroupTools(
 
       args["structured_filter"]?.let { filter ->
         val filterBuilder = ListEventGroupsRequest.Filter.newBuilder()
-        PROTO_JSON_PARSER.merge(filter.toString(), filterBuilder)
+        ToolSupport.PROTO_JSON_PARSER.merge(ToolSupport.encodeJsonElement(filter), filterBuilder)
         builder.structuredFilter = filterBuilder.build()
       }
 
       args["order_by"]?.let { orderBy ->
         val orderByBuilder = ListEventGroupsRequest.OrderBy.newBuilder()
-        PROTO_JSON_PARSER.merge(orderBy.toString(), orderByBuilder)
+        ToolSupport.PROTO_JSON_PARSER.merge(ToolSupport.encodeJsonElement(orderBy), orderByBuilder)
         builder.orderBy = orderByBuilder.build()
       }
 
@@ -134,7 +134,7 @@ fun Server.registerEventGroupTools(
           }
       }
 
-      PROTO_JSON_PRINTER.print(stubs.eventGroups.listEventGroups(builder.build()))
+      ToolSupport.PROTO_JSON_PRINTER.print(stubs.eventGroups.listEventGroups(builder.build()))
     }
   }
 }

@@ -20,36 +20,44 @@ import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
 import io.grpc.StatusException
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
+import io.modelcontextprotocol.kotlin.sdk.types.McpJson
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import java.text.ParseException
+import kotlinx.serialization.json.JsonElement
 
-val PROTO_JSON_PRINTER: JsonFormat.Printer = JsonFormat.printer()
+object ToolSupport {
+  val PROTO_JSON_PRINTER: JsonFormat.Printer = JsonFormat.printer()
 
-val PROTO_JSON_PARSER: JsonFormat.Parser = JsonFormat.parser()
+  val PROTO_JSON_PARSER: JsonFormat.Parser = JsonFormat.parser()
 
-/** Wraps a tool call with error handling for gRPC and input parsing exceptions. */
-suspend fun handleToolCall(block: suspend () -> String): CallToolResult {
-  return try {
-    CallToolResult(content = listOf(TextContent(block())))
-  } catch (e: StatusException) {
-    CallToolResult(
-      content = listOf(TextContent("gRPC error: ${e.status.code}: ${e.status.description}")),
-      isError = true,
-    )
-  } catch (e: InvalidProtocolBufferException) {
-    CallToolResult(
-      content = listOf(TextContent("Invalid proto JSON: ${e.message}")),
-      isError = true,
-    )
-  } catch (e: ParseException) {
-    CallToolResult(
-      content = listOf(TextContent("Invalid timestamp format: ${e.message}")),
-      isError = true,
-    )
-  } catch (e: IllegalArgumentException) {
-    CallToolResult(
-      content = listOf(TextContent("Invalid argument: ${e.message}")),
-      isError = true,
-    )
+  /** Encodes a [JsonElement] to a JSON string using [McpJson]. */
+  fun encodeJsonElement(element: JsonElement): String =
+    McpJson.encodeToString(JsonElement.serializer(), element)
+
+  /** Wraps a tool call with error handling for gRPC and input parsing exceptions. */
+  suspend fun handleToolCall(block: suspend () -> String): CallToolResult {
+    return try {
+      CallToolResult(content = listOf(TextContent(block())))
+    } catch (e: StatusException) {
+      CallToolResult(
+        content = listOf(TextContent("gRPC error: ${e.status.code}: ${e.status.description}")),
+        isError = true,
+      )
+    } catch (e: InvalidProtocolBufferException) {
+      CallToolResult(
+        content = listOf(TextContent("Invalid proto JSON: ${e.message}")),
+        isError = true,
+      )
+    } catch (e: ParseException) {
+      CallToolResult(
+        content = listOf(TextContent("Invalid timestamp format: ${e.message}")),
+        isError = true,
+      )
+    } catch (e: IllegalArgumentException) {
+      CallToolResult(
+        content = listOf(TextContent("Invalid argument: ${e.message}")),
+        isError = true,
+      )
+    }
   }
 }

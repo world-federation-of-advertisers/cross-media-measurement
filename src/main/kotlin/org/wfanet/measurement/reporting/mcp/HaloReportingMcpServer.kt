@@ -16,8 +16,12 @@
 
 package org.wfanet.measurement.reporting.mcp
 
+import io.grpc.CallOptions
 import io.grpc.Channel
-import io.grpc.Deadline
+import io.grpc.ClientCall
+import io.grpc.ClientInterceptor
+import io.grpc.ClientInterceptors
+import io.grpc.MethodDescriptor
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
@@ -97,15 +101,30 @@ object ReportingMcpServerFromFlags {
         )
         .withVerboseLogging(mcpServerFlags.debugVerboseGrpcClientLogging)
 
-    val deadline =
-      Deadline.after(mcpServerFlags.reportingServerApiDeadlineSeconds, TimeUnit.SECONDS)
+    val deadlineInterceptor =
+      object : ClientInterceptor {
+        override fun <ReqT, RespT> interceptCall(
+          method: MethodDescriptor<ReqT, RespT>,
+          callOptions: CallOptions,
+          next: Channel,
+        ): ClientCall<ReqT, RespT> =
+          next.newCall(
+            method,
+            callOptions.withDeadlineAfter(
+              mcpServerFlags.reportingServerApiDeadlineSeconds,
+              TimeUnit.SECONDS,
+            ),
+          )
+      }
+    val deadlineChannel =
+      ClientInterceptors.intercept(reportingChannel, deadlineInterceptor)
     val apiClient =
       ReportingPublicApiClient(
-        basicReports = BasicReportsCoroutineStub(reportingChannel).withDeadline(deadline),
-        eventGroups = EventGroupsCoroutineStub(reportingChannel).withDeadline(deadline),
-        reportingSets = ReportingSetsCoroutineStub(reportingChannel).withDeadline(deadline),
+        basicReports = BasicReportsCoroutineStub(deadlineChannel),
+        eventGroups = EventGroupsCoroutineStub(deadlineChannel),
+        reportingSets = ReportingSetsCoroutineStub(deadlineChannel),
         impressionQualificationFilters =
-          ImpressionQualificationFiltersCoroutineStub(reportingChannel).withDeadline(deadline),
+          ImpressionQualificationFiltersCoroutineStub(deadlineChannel),
       )
 
     val transports = ConcurrentMap<String, StreamableHttpServerTransport>()
@@ -113,6 +132,8 @@ object ReportingMcpServerFromFlags {
     embeddedServer(CIO, host = mcpServerFlags.host, port = mcpServerFlags.port) {
         install(CORS) {
           anyHost()
+          allowNonSimpleContentTypes = true
+          allowMethod(HttpMethod.Options)
           allowMethod(HttpMethod.Post)
           allowMethod(HttpMethod.Delete)
           allowHeader(HttpHeaders.ContentType)
@@ -206,6 +227,8 @@ object ReportingMcpServerFromFlags {
     }
 
     val server = createMcpServer(apiClient) { bearerToken }
+    // Intentionally redundant with setOnSessionClosed — belt-and-suspenders cleanup
+    // per SDK sample. ConcurrentMap.remove is idempotent.
     server.onClose { transport.sessionId?.let { transports.remove(it) } }
     server.createSession(transport)
 
@@ -257,7 +280,7 @@ class McpServerFlags {
       ],
     defaultValue = "8080",
   )
-  var port: Int = 0
+  var port: Int = 8080
     private set
 
   @CommandLine.Option(
@@ -265,7 +288,7 @@ class McpServerFlags {
     description = ["Deadline in seconds for downstream Reporting API gRPC calls."],
     defaultValue = "30",
   )
-  var reportingServerApiDeadlineSeconds: Long = 0
+  var reportingServerApiDeadlineSeconds: Long = 30
     private set
 
   @CommandLine.Option(

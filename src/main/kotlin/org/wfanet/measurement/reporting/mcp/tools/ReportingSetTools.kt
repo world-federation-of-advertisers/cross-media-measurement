@@ -66,12 +66,12 @@ fun Server.registerReportingSetTools(
       ),
     toolAnnotations = ToolAnnotations(readOnlyHint = false),
   ) { request ->
-    handleToolCall {
+    ToolSupport.handleToolCall {
       val args = request.arguments!!
       val stubs = client.withBearerToken(getBearerToken())
 
       val rsBuilder = ReportingSet.newBuilder()
-      PROTO_JSON_PARSER.merge(args.getValue("reporting_set").toString(), rsBuilder)
+      ToolSupport.PROTO_JSON_PARSER.merge(ToolSupport.encodeJsonElement(args.getValue("reporting_set")), rsBuilder)
 
       val grpcRequest = createReportingSetRequest {
         parent = args.getString("parent")
@@ -79,7 +79,7 @@ fun Server.registerReportingSetTools(
         reportingSet = rsBuilder.build()
       }
 
-      PROTO_JSON_PRINTER.print(stubs.reportingSets.createReportingSet(grpcRequest))
+      ToolSupport.PROTO_JSON_PRINTER.print(stubs.reportingSets.createReportingSet(grpcRequest))
     }
   }
 
@@ -99,10 +99,10 @@ fun Server.registerReportingSetTools(
       ),
     toolAnnotations = ToolAnnotations(readOnlyHint = true),
   ) { request ->
-    handleToolCall {
+    ToolSupport.handleToolCall {
       val stubs = client.withBearerToken(getBearerToken())
       val grpcRequest = getReportingSetRequest { name = request.arguments!!.getString("name") }
-      PROTO_JSON_PRINTER.print(stubs.reportingSets.getReportingSet(grpcRequest))
+      ToolSupport.PROTO_JSON_PRINTER.print(stubs.reportingSets.getReportingSet(grpcRequest))
     }
   }
 
@@ -130,7 +130,7 @@ fun Server.registerReportingSetTools(
       ),
     toolAnnotations = ToolAnnotations(readOnlyHint = true),
   ) { request ->
-    handleToolCall {
+    ToolSupport.handleToolCall {
       val args = request.arguments!!
       val stubs = client.withBearerToken(getBearerToken())
       val grpcRequest = listReportingSetsRequest {
@@ -139,7 +139,7 @@ fun Server.registerReportingSetTools(
         args.getStringOrNull("page_token")?.let { pageToken = it }
       }
 
-      PROTO_JSON_PRINTER.print(stubs.reportingSets.listReportingSets(grpcRequest))
+      ToolSupport.PROTO_JSON_PRINTER.print(stubs.reportingSets.listReportingSets(grpcRequest))
     }
   }
 }
