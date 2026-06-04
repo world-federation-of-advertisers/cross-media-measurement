@@ -117,6 +117,35 @@ class Bytes12IntMapTest {
     assertThat(table.get(2L, 1)).isEqualTo(Bytes12IntMap.NOT_PRESENT)
   }
 
+  @Test
+  fun `containsKey returns true even when stored value equals NOT_PRESENT`() {
+    // Regression guard: containsKey MUST probe the key arrays directly and
+    // not depend on the stored value. If a future change reverts the impl
+    // to `get(...) != NOT_PRESENT`, this test fails — because get() would
+    // return NOT_PRESENT both for absent keys AND for keys present with
+    // value -1, making containsKey unable to distinguish them.
+    val table = Bytes12IntMap()
+    val sentinel = Bytes12IntMap.NOT_PRESENT // -1
+
+    // Non-zero key with value == NOT_PRESENT: must report present.
+    table.put(1L, 2, sentinel)
+    assertThat(table.containsKey(1L, 2)).isTrue()
+    assertThat(table.get(1L, 2)).isEqualTo(sentinel)
+
+    // Zero key with value == NOT_PRESENT: exercises the out-of-band
+    // zero-key fast path on the containsKey side too.
+    table.put(0L, 0, sentinel)
+    assertThat(table.containsKey(0L, 0)).isTrue()
+    assertThat(table.get(0L, 0)).isEqualTo(sentinel)
+
+    // A truly absent key must still report missing.
+    assertThat(table.containsKey(99L, 99)).isFalse()
+
+    // After remove, the key must report missing again.
+    table.remove(1L, 2)
+    assertThat(table.containsKey(1L, 2)).isFalse()
+  }
+
   // -------- remove --------
 
   @Test
