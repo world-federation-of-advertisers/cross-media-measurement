@@ -16,17 +16,8 @@
 
 package org.wfanet.measurement.reporting.mcp.tools
 
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getString
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getIntOrNull
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getStringOrNull
 import io.modelcontextprotocol.kotlin.sdk.server.Server
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getString
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getIntOrNull
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getStringOrNull
 import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getString
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getIntOrNull
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getStringOrNull
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -60,7 +51,7 @@ fun Server.registerIqfTools(
     ToolSupport.handleToolCall {
       val stubs = client.withBearerToken(getBearerToken())
       val grpcRequest = getImpressionQualificationFilterRequest {
-        name = request.arguments!!.getString("name")
+        name = ToolSupport.getString(request.arguments!!, "name")
       }
       ToolSupport.PROTO_JSON_PRINTER.print(
         stubs.impressionQualificationFilters.getImpressionQualificationFilter(grpcRequest)
@@ -93,8 +84,10 @@ fun Server.registerIqfTools(
       val args = request.arguments
       val stubs = client.withBearerToken(getBearerToken())
       val grpcRequest = listImpressionQualificationFiltersRequest {
-        args?.getIntOrNull("page_size")?.let { pageSize = it }
-        args?.getStringOrNull("page_token")?.let { pageToken = it }
+        if (args != null) {
+          ToolSupport.getIntOrNull(args, "page_size")?.let { pageSize = it }
+          ToolSupport.getStringOrNull(args, "page_token")?.let { pageToken = it }
+        }
       }
       ToolSupport.PROTO_JSON_PRINTER.print(
         stubs.impressionQualificationFilters.listImpressionQualificationFilters(grpcRequest)

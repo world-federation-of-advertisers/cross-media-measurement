@@ -16,17 +16,8 @@
 
 package org.wfanet.measurement.reporting.mcp.tools
 
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getString
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getIntOrNull
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getStringOrNull
 import io.modelcontextprotocol.kotlin.sdk.server.Server
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getString
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getIntOrNull
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getStringOrNull
 import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getString
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getIntOrNull
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getStringOrNull
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -83,8 +74,8 @@ fun Server.registerReportingSetTools(
       ToolSupport.PROTO_JSON_PARSER.merge(ToolSupport.encodeJsonElement(args.getValue("reporting_set")), rsBuilder)
 
       val grpcRequest = createReportingSetRequest {
-        parent = args.getString("parent")
-        reportingSetId = args.getString("reporting_set_id")
+        parent = ToolSupport.getString(args, "parent")
+        reportingSetId = ToolSupport.getString(args, "reporting_set_id")
         reportingSet = rsBuilder.build()
       }
 
@@ -110,7 +101,7 @@ fun Server.registerReportingSetTools(
   ) { request ->
     ToolSupport.handleToolCall {
       val stubs = client.withBearerToken(getBearerToken())
-      val grpcRequest = getReportingSetRequest { name = request.arguments!!.getString("name") }
+      val grpcRequest = getReportingSetRequest { name = ToolSupport.getString(request.arguments!!, "name") }
       ToolSupport.PROTO_JSON_PRINTER.print(stubs.reportingSets.getReportingSet(grpcRequest))
     }
   }
@@ -143,9 +134,9 @@ fun Server.registerReportingSetTools(
       val args = request.arguments!!
       val stubs = client.withBearerToken(getBearerToken())
       val grpcRequest = listReportingSetsRequest {
-        parent = args.getString("parent")
-        args.getIntOrNull("page_size")?.let { pageSize = it }
-        args.getStringOrNull("page_token")?.let { pageToken = it }
+        parent = ToolSupport.getString(args, "parent")
+        ToolSupport.getIntOrNull(args, "page_size")?.let { pageSize = it }
+        ToolSupport.getStringOrNull(args, "page_token")?.let { pageToken = it }
       }
 
       ToolSupport.PROTO_JSON_PRINTER.print(stubs.reportingSets.listReportingSets(grpcRequest))

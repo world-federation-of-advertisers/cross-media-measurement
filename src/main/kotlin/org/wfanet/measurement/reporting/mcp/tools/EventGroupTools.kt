@@ -16,17 +16,8 @@
 
 package org.wfanet.measurement.reporting.mcp.tools
 
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getString
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getIntOrNull
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getStringOrNull
 import io.modelcontextprotocol.kotlin.sdk.server.Server
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getString
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getIntOrNull
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getStringOrNull
 import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getString
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getIntOrNull
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getStringOrNull
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -61,7 +52,7 @@ fun Server.registerEventGroupTools(
   ) { request ->
     ToolSupport.handleToolCall {
       val stubs = client.withBearerToken(getBearerToken())
-      val grpcRequest = getEventGroupRequest { name = request.arguments!!.getString("name") }
+      val grpcRequest = getEventGroupRequest { name = ToolSupport.getString(request.arguments!!, "name") }
       ToolSupport.PROTO_JSON_PRINTER.print(stubs.eventGroups.getEventGroup(grpcRequest))
     }
   }
@@ -117,10 +108,10 @@ fun Server.registerEventGroupTools(
       val args = request.arguments!!
       val stubs = client.withBearerToken(getBearerToken())
       val builder = ListEventGroupsRequest.newBuilder()
-      builder.parent = args.getString("parent")
+      builder.parent = ToolSupport.getString(args, "parent")
 
-      args.getIntOrNull("page_size")?.let { builder.pageSize = it }
-      args.getStringOrNull("page_token")?.let { builder.pageToken = it }
+      ToolSupport.getIntOrNull(args, "page_size")?.let { builder.pageSize = it }
+      ToolSupport.getStringOrNull(args, "page_token")?.let { builder.pageToken = it }
 
       args["structured_filter"]?.let { filter ->
         val filterBuilder = ListEventGroupsRequest.Filter.newBuilder()
@@ -134,7 +125,7 @@ fun Server.registerEventGroupTools(
         builder.orderBy = orderByBuilder.build()
       }
 
-      args.getStringOrNull("view")?.let { viewName ->
+      ToolSupport.getStringOrNull(args, "view")?.let { viewName ->
         builder.view =
           try {
             EventGroup.View.valueOf(viewName)

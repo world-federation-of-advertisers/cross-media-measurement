@@ -33,11 +33,12 @@ object ToolSupport {
 
   val PROTO_JSON_PARSER: JsonFormat.Parser = JsonFormat.parser()
 
-  fun JsonObject.getString(key: String): String = getValue(key).jsonPrimitive.content
+  fun getString(args: JsonObject, key: String): String = args.getValue(key).jsonPrimitive.content
 
-  fun JsonObject.getStringOrNull(key: String): String? = get(key)?.jsonPrimitive?.content
+  fun getStringOrNull(args: JsonObject, key: String): String? =
+    args[key]?.jsonPrimitive?.content
 
-  fun JsonObject.getIntOrNull(key: String): Int? = get(key)?.jsonPrimitive?.int
+  fun getIntOrNull(args: JsonObject, key: String): Int? = args[key]?.jsonPrimitive?.int
 
   /** Encodes a [JsonElement] to a JSON string using [McpJson]. */
   fun encodeJsonElement(element: JsonElement): String =

@@ -17,17 +17,8 @@
 package org.wfanet.measurement.reporting.mcp.tools
 
 import com.google.protobuf.util.Timestamps
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getString
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getIntOrNull
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getStringOrNull
 import io.modelcontextprotocol.kotlin.sdk.server.Server
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getString
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getIntOrNull
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getStringOrNull
 import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getString
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getIntOrNull
-import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getStringOrNull
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 
 import kotlinx.serialization.json.buildJsonObject
@@ -88,10 +79,10 @@ fun Server.registerBasicReportTools(
       ToolSupport.PROTO_JSON_PARSER.merge(ToolSupport.encodeJsonElement(args.getValue("basic_report")), basicReportBuilder)
 
       val grpcRequest = createBasicReportRequest {
-        parent = args.getString("parent")
-        basicReportId = args.getString("basic_report_id")
+        parent = ToolSupport.getString(args, "parent")
+        basicReportId = ToolSupport.getString(args, "basic_report_id")
         basicReport = basicReportBuilder.build()
-        args.getStringOrNull("request_id")?.let { requestId = it }
+        ToolSupport.getStringOrNull(args, "request_id")?.let { requestId = it }
       }
 
       ToolSupport.PROTO_JSON_PRINTER.print(stubs.basicReports.createBasicReport(grpcRequest))
@@ -118,7 +109,7 @@ fun Server.registerBasicReportTools(
   ) { request ->
     ToolSupport.handleToolCall {
       val stubs = client.withBearerToken(getBearerToken())
-      val grpcRequest = getBasicReportRequest { name = request.arguments!!.getString("name") }
+      val grpcRequest = getBasicReportRequest { name = ToolSupport.getString(request.arguments!!, "name") }
       ToolSupport.PROTO_JSON_PRINTER.print(stubs.basicReports.getBasicReport(grpcRequest))
     }
   }
@@ -157,10 +148,10 @@ fun Server.registerBasicReportTools(
       val args = request.arguments!!
       val stubs = client.withBearerToken(getBearerToken())
       val grpcRequest = listBasicReportsRequest {
-        parent = args.getString("parent")
-        args.getIntOrNull("page_size")?.let { pageSize = it }
-        args.getStringOrNull("page_token")?.let { pageToken = it }
-        args.getStringOrNull("create_time_after")?.let { timestamp ->
+        parent = ToolSupport.getString(args, "parent")
+        ToolSupport.getIntOrNull(args, "page_size")?.let { pageSize = it }
+        ToolSupport.getStringOrNull(args, "page_token")?.let { pageToken = it }
+        ToolSupport.getStringOrNull(args, "create_time_after")?.let { timestamp ->
           filter = ListBasicReportsRequestKt.filter {
             createTimeAfter = Timestamps.parse(timestamp)
           }

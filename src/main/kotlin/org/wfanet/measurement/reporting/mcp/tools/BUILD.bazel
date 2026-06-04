@@ -19,7 +19,6 @@ kt_jvm_library(
     name = "basic_report_tools",
     srcs = ["BasicReportTools.kt"],
     deps = [
-        
         ":tool_support",
         "//imports/java/io/modelcontextprotocol/kotlin/sdk:server",
         "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
@@ -33,7 +32,6 @@ kt_jvm_library(
     name = "event_group_tools",
     srcs = ["EventGroupTools.kt"],
     deps = [
-        
         ":tool_support",
         "//imports/java/io/modelcontextprotocol/kotlin/sdk:server",
         "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
@@ -46,7 +44,6 @@ kt_jvm_library(
     name = "reporting_set_tools",
     srcs = ["ReportingSetTools.kt"],
     deps = [
-        
         ":tool_support",
         "//imports/java/io/modelcontextprotocol/kotlin/sdk:server",
         "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
@@ -59,7 +56,6 @@ kt_jvm_library(
     name = "iqf_tools",
     srcs = ["IqfTools.kt"],
     deps = [
-        
         ":tool_support",
         "//imports/java/io/modelcontextprotocol/kotlin/sdk:server",
         "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
