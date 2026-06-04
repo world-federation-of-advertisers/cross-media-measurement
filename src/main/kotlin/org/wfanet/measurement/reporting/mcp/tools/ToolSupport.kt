@@ -24,11 +24,20 @@ import io.modelcontextprotocol.kotlin.sdk.types.McpJson
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import java.text.ParseException
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonPrimitive
 
 object ToolSupport {
   val PROTO_JSON_PRINTER: JsonFormat.Printer = JsonFormat.printer()
 
   val PROTO_JSON_PARSER: JsonFormat.Parser = JsonFormat.parser()
+
+  fun JsonObject.getString(key: String): String = getValue(key).jsonPrimitive.content
+
+  fun JsonObject.getStringOrNull(key: String): String? = get(key)?.jsonPrimitive?.content
+
+  fun JsonObject.getIntOrNull(key: String): Int? = get(key)?.jsonPrimitive?.int
 
   /** Encodes a [JsonElement] to a JSON string using [McpJson]. */
   fun encodeJsonElement(element: JsonElement): String =

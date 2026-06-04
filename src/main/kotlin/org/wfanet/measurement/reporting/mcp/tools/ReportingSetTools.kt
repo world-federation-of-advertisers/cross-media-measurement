@@ -16,8 +16,17 @@
 
 package org.wfanet.measurement.reporting.mcp.tools
 
+import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getString
+import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getIntOrNull
+import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getStringOrNull
 import io.modelcontextprotocol.kotlin.sdk.server.Server
+import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getString
+import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getIntOrNull
+import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getStringOrNull
 import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
+import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getString
+import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getIntOrNull
+import org.wfanet.measurement.reporting.mcp.tools.ToolSupport.getStringOrNull
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
