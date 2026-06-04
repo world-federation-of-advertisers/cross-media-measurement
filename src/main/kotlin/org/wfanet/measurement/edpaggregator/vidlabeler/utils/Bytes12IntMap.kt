@@ -81,13 +81,14 @@ package org.wfanet.measurement.edpaggregator.vidlabeler.utils
  *
  * ## Absent-key sentinel
  *
- * Lookup and removal methods return [NOT_PRESENT] (== `-1`) when the
+ * [get] and [remove] return [NOT_PRESENT] (== `-1`) when the
  * requested key is not in the table. Callers that only ever store
  * non-negative values (e.g. ranks, subpool IDs, or a fixed
  * presence-sentinel such as `0`) can rely on this return value to
  * distinguish "missing" from "present" without a separate
  * [containsKey] probe. Callers that may store `-1` as a real value
- * MUST disambiguate via [containsKey].
+ * MUST use [containsKey] for presence checks; [containsKey] probes
+ * the key arrays directly and is unambiguous for any stored value.
  *
  * ## Concurrency
  *
@@ -347,10 +348,34 @@ class Bytes12IntMap(
   /**
    * Returns `true` iff `(keyHi, keyLo)` is present in the table.
    *
-   * Delegates to [get] so the probe logic lives in exactly one place.
-   * The cost is one extra `chunkVal[slot]` read on a hit (~1 ns).
+   * Probes the key arrays directly and never reads the value slot, so
+   * the result is correct regardless of what `Int` value the caller
+   * stored. This is the only correct way to disambiguate "present
+   * with value [NOT_PRESENT]" from "absent".
    */
-  fun containsKey(keyHi: Long, keyLo: Int): Boolean = get(keyHi, keyLo) != NOT_PRESENT
+  fun containsKey(keyHi: Long, keyLo: Int): Boolean {
+    if (keyHi == 0L && keyLo == 0) return containsZeroKey
+    val shift = chunkShift
+    val sMask = slotMask
+    var pos = indexFor(keyHi, keyLo)
+    var currentChunk = (pos ushr shift).toInt()
+    var chunkHi = keysHi[currentChunk]
+    var chunkLo = keysLo[currentChunk]
+    while (true) {
+      val slot = pos.toInt() and sMask
+      val currHi = chunkHi[slot]
+      val currLo = chunkLo[slot]
+      if (isEmptySlot(currHi, currLo)) return false
+      if (currHi == keyHi && currLo == keyLo) return true
+      pos = nextPos(pos)
+      val newChunk = (pos ushr shift).toInt()
+      if (newChunk != currentChunk) {
+        currentChunk = newChunk
+        chunkHi = keysHi[currentChunk]
+        chunkLo = keysLo[currentChunk]
+      }
+    }
+  }
 
   /** Removes all entries. Capacity is preserved. */
   fun clear() {
@@ -571,9 +596,12 @@ class Bytes12IntMap(
 
   /**
    * Maps a 96-bit key to a logical Long slot index in `[0, capacity)`.
-   * Combines all 96 bits of the key by XOR-ing the 32-bit low half
-   * into both halves of the 64-bit high; reduces to range via
-   * `and mask`.
+   * Combines all 96 bits of the key via XOR folding (no avalanche
+   * mixing): the 32-bit low half is XORed into both halves of the
+   * 64-bit high, then reduced to range via `and mask`. This is
+   * adequate only for uniformly-distributed keys (see the class-level
+   * "Key assumptions" section); adversarial or clustered keys can
+   * still produce pathological probe chains.
    */
   private fun indexFor(keyHi: Long, keyLo: Int): Long {
     val loAsLong = keyLo.toLong() and 0xFFFFFFFFL

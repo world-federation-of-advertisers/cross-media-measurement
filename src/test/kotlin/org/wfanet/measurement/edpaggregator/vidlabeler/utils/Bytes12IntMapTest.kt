@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.vidlabeler.utils
 
 import com.google.common.truth.Truth.assertThat
 import kotlin.random.Random
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -29,23 +30,23 @@ class Bytes12IntMapTest {
 
   @Test
   fun `constructor rejects non-positive initialCapacity`() {
-    assertFailsRequire { Bytes12IntMap(initialCapacity = 0L) }
-    assertFailsRequire { Bytes12IntMap(initialCapacity = -1L) }
+    assertThrows(IllegalArgumentException::class.java) { Bytes12IntMap(initialCapacity = 0L) }
+    assertThrows(IllegalArgumentException::class.java) { Bytes12IntMap(initialCapacity = -1L) }
   }
 
   @Test
   fun `constructor rejects loadFactor out of range`() {
-    assertFailsRequire { Bytes12IntMap(loadFactor = 0f) }
-    assertFailsRequire { Bytes12IntMap(loadFactor = 1f) }
-    assertFailsRequire { Bytes12IntMap(loadFactor = -0.5f) }
-    assertFailsRequire { Bytes12IntMap(loadFactor = 1.5f) }
+    assertThrows(IllegalArgumentException::class.java) { Bytes12IntMap(loadFactor = 0f) }
+    assertThrows(IllegalArgumentException::class.java) { Bytes12IntMap(loadFactor = 1f) }
+    assertThrows(IllegalArgumentException::class.java) { Bytes12IntMap(loadFactor = -0.5f) }
+    assertThrows(IllegalArgumentException::class.java) { Bytes12IntMap(loadFactor = 1.5f) }
   }
 
   @Test
   fun `constructor rejects chunkShift out of range`() {
-    assertFailsRequire { Bytes12IntMap(maxChunkShift = 0) }
-    assertFailsRequire { Bytes12IntMap(maxChunkShift = -1) }
-    assertFailsRequire { Bytes12IntMap(maxChunkShift = 31) }
+    assertThrows(IllegalArgumentException::class.java) { Bytes12IntMap(maxChunkShift = 0) }
+    assertThrows(IllegalArgumentException::class.java) { Bytes12IntMap(maxChunkShift = -1) }
+    assertThrows(IllegalArgumentException::class.java) { Bytes12IntMap(maxChunkShift = 31) }
   }
 
   @Test
@@ -267,6 +268,30 @@ class Bytes12IntMapTest {
     }
   }
 
+  @Test
+  fun `single-chunk table survives transition to multi-chunk on resize`() {
+    // Start with exactly one chunk (initialCapacity == chunk size cap).
+    // Inserting past the load threshold must force numChunks to grow
+    // from 1 to >1, which activates the chunk-index decomposition in
+    // the probing hot path for re-inserted entries for the first time.
+    val table = Bytes12IntMap(initialCapacity = 16L, loadFactor = 0.5f, maxChunkShift = 4)
+    assertThat(table.numChunks()).isEqualTo(1)
+    val initialCap = table.capacity()
+
+    // Threshold at load factor 0.5 over capacity 16 is 8; insert past it.
+    val n = 20
+    for (i in 0 until n) {
+      table.put(i.toLong() * 17L + 1L, i * 31 + 1, i)
+    }
+
+    assertThat(table.size).isEqualTo(n.toLong())
+    assertThat(table.capacity()).isGreaterThan(initialCap)
+    assertThat(table.numChunks()).isGreaterThan(1)
+    for (i in 0 until n) {
+      assertThat(table.get(i.toLong() * 17L + 1L, i * 31 + 1)).isEqualTo(i)
+    }
+  }
+
   // -------- Multi-chunk + cross-chunk-boundary --------
 
   @Test
@@ -476,13 +501,13 @@ class Bytes12IntMapTest {
     val tooShort = ByteArray(8)
     val tooLong = ByteArray(16)
     val empty = ByteArray(0)
-    assertFailsRequire { table.put(tooShort, 1) }
-    assertFailsRequire { table.put(tooLong, 1) }
-    assertFailsRequire { table.put(empty, 1) }
-    assertFailsRequire { table.get(tooShort) }
-    assertFailsRequire { table.get(tooLong) }
-    assertFailsRequire { table.remove(tooShort) }
-    assertFailsRequire { table.containsKey(tooLong) }
+    assertThrows(IllegalArgumentException::class.java) { table.put(tooShort, 1) }
+    assertThrows(IllegalArgumentException::class.java) { table.put(tooLong, 1) }
+    assertThrows(IllegalArgumentException::class.java) { table.put(empty, 1) }
+    assertThrows(IllegalArgumentException::class.java) { table.get(tooShort) }
+    assertThrows(IllegalArgumentException::class.java) { table.get(tooLong) }
+    assertThrows(IllegalArgumentException::class.java) { table.remove(tooShort) }
+    assertThrows(IllegalArgumentException::class.java) { table.containsKey(tooLong) }
   }
 
   @Test
@@ -541,14 +566,4 @@ class Bytes12IntMapTest {
     return results
   }
 
-  private fun assertFailsRequire(block: () -> Any?) {
-    try {
-      block()
-      throw AssertionError("Expected IllegalArgumentException or IllegalStateException")
-    } catch (expected: IllegalArgumentException) {
-      // ok
-    } catch (expected: IllegalStateException) {
-      // ok
-    }
-  }
 }
