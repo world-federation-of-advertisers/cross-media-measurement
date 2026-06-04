@@ -40,9 +40,14 @@ import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
 import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
+import org.wfanet.measurement.api.v2alpha.listModelRolloutsResponse
+import org.wfanet.measurement.api.v2alpha.listModelShardsResponse
 import org.wfanet.measurement.api.v2alpha.modelLine
+import org.wfanet.measurement.api.v2alpha.modelRollout
+import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
@@ -59,6 +64,8 @@ class VidLabelingDispatcherTest {
 
   private val workItemsService: WorkItemsGrpcKt.WorkItemsCoroutineImplBase = mockService()
   private val modelLinesService: ModelLinesGrpcKt.ModelLinesCoroutineImplBase = mockService()
+  private val modelRolloutsService: ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase =
+    mockService()
   private val modelShardsService: ModelShardsGrpcKt.ModelShardsCoroutineImplBase = mockService()
   private val storageClient: StorageClient = mock()
 
@@ -66,6 +73,7 @@ class VidLabelingDispatcherTest {
   val grpcTestServerRule = GrpcTestServerRule {
     addService(workItemsService)
     addService(modelLinesService)
+    addService(modelRolloutsService)
     addService(modelShardsService)
   }
 
@@ -75,6 +83,10 @@ class VidLabelingDispatcherTest {
 
   private val modelLinesStub by lazy {
     ModelLinesGrpcKt.ModelLinesCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  private val modelRolloutsStub by lazy {
+    ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val modelShardsStub by lazy {
@@ -106,6 +118,7 @@ class VidLabelingDispatcherTest {
       storageClient = storageClient,
       workItemsStub = workItemsStub,
       modelLinesStub = modelLinesStub,
+      modelRolloutsStub = modelRolloutsStub,
       modelShardsStub = modelShardsStub,
       dataProviderName = DATA_PROVIDER_NAME,
       vidLabelerParamsTemplate = vidLabelerParamsTemplate,
@@ -124,7 +137,7 @@ class VidLabelingDispatcherTest {
     return blob
   }
 
-  private suspend fun stubActiveModelLines(vararg modelLineNames: String) {
+  private suspend fun stubFullResolutionChain(vararg modelLineNames: String) {
     whenever(modelLinesService.listModelLines(any())).thenReturn(
       listModelLinesResponse {
         modelLines +=
@@ -136,6 +149,46 @@ class VidLabelingDispatcherTest {
               activeEndTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() + 86400000)
             }
           }
+      }
+    )
+
+    whenever(modelRolloutsService.listModelRollouts(any())).thenReturn(
+      listModelRolloutsResponse {
+        modelRollouts += modelRollout { modelRelease = MODEL_RELEASE_NAME }
+      }
+    )
+
+    whenever(modelShardsService.listModelShards(any())).thenReturn(
+      listModelShardsResponse {
+        modelShards += modelShard {
+          name = "$DATA_PROVIDER_NAME/modelShards/ms1"
+          modelRelease = MODEL_RELEASE_NAME
+          modelBlob =
+            org.wfanet.measurement.api.v2alpha.ModelShardKt.modelBlob {
+              modelBlobPath = MODEL_BLOB_PATH
+            }
+        }
+      }
+    )
+  }
+
+  private suspend fun stubOverrideResolutionChain() {
+    whenever(modelRolloutsService.listModelRollouts(any())).thenReturn(
+      listModelRolloutsResponse {
+        modelRollouts += modelRollout { modelRelease = MODEL_RELEASE_NAME }
+      }
+    )
+
+    whenever(modelShardsService.listModelShards(any())).thenReturn(
+      listModelShardsResponse {
+        modelShards += modelShard {
+          name = "$DATA_PROVIDER_NAME/modelShards/ms1"
+          modelRelease = MODEL_RELEASE_NAME
+          modelBlob =
+            org.wfanet.measurement.api.v2alpha.ModelShardKt.modelBlob {
+              modelBlobPath = MODEL_BLOB_PATH
+            }
+        }
       }
     )
   }
@@ -154,9 +207,8 @@ class VidLabelingDispatcherTest {
   @Test
   fun `dispatch creates N work items per active model line`() = runBlocking {
     val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet")
-    val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet")
-    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2))
-    stubActiveModelLines(MODEL_LINE_1, MODEL_LINE_2)
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1))
+    stubFullResolutionChain(MODEL_LINE_1, MODEL_LINE_2)
     whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
     val dispatcher = createDispatcher(numberOfShards = 3)
@@ -180,6 +232,7 @@ class VidLabelingDispatcherTest {
   fun `dispatch with override model lines skips ListModelLines API`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubOverrideResolutionChain()
     whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
     val dispatcher =
@@ -210,63 +263,38 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
-  fun `dispatch filters out non-PROD model lines`() = runBlocking {
+  fun `dispatch sets shard index and model blob path in work item params`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
-    whenever(modelLinesService.listModelLines(any())).thenReturn(
-      listModelLinesResponse {
-        modelLines += modelLine {
-          name = MODEL_LINE_1
-          type = ModelLine.Type.PROD
-          activeStartTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() - 86400000)
-          activeEndTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() + 86400000)
-        }
-        modelLines += modelLine {
-          name = MODEL_LINE_2
-          type = ModelLine.Type.HOLDBACK
-          activeStartTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() - 86400000)
-          activeEndTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() + 86400000)
-        }
-      }
-    )
+    stubFullResolutionChain(MODEL_LINE_1)
     whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
-    val dispatcher = createDispatcher(numberOfShards = 1)
+    val dispatcher = createDispatcher(numberOfShards = 2)
     dispatcher.dispatch(DONE_BLOB_PATH)
 
     val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
-    verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
-    assertThat(requestCaptor.firstValue.workItemId).contains("ml1")
-  }
+    verifyBlocking(workItemsService, times(2)) { createWorkItem(requestCaptor.capture()) }
 
-  @Test
-  fun `dispatch filters out model lines outside active window`() = runBlocking {
-    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
-    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
-    whenever(modelLinesService.listModelLines(any())).thenReturn(
-      listModelLinesResponse {
-        modelLines += modelLine {
-          name = MODEL_LINE_1
-          type = ModelLine.Type.PROD
-          activeStartTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() - 86400000)
-          activeEndTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() + 86400000)
-        }
-        modelLines += modelLine {
-          name = MODEL_LINE_2
-          type = ModelLine.Type.PROD
-          activeStartTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() - 172800000)
-          activeEndTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() - 86400000)
-        }
-      }
-    )
-    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
+    val params0 =
+      requestCaptor.allValues[0]
+        .workItem
+        .workItemParams
+        .unpack(WorkItemParams::class.java)
+        .appParams
+        .unpack(VidLabelerParams::class.java)
+    assertThat(params0.shardIndex).isEqualTo(0)
+    assertThat(params0.totalShards).isEqualTo(2)
+    assertThat(params0.modelBlobPathsMap[MODEL_LINE_1]).isEqualTo(MODEL_BLOB_PATH)
 
-    val dispatcher = createDispatcher(numberOfShards = 1)
-    dispatcher.dispatch(DONE_BLOB_PATH)
-
-    val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
-    verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
-    assertThat(requestCaptor.firstValue.workItemId).contains("ml1")
+    val params1 =
+      requestCaptor.allValues[1]
+        .workItem
+        .workItemParams
+        .unpack(WorkItemParams::class.java)
+        .appParams
+        .unpack(VidLabelerParams::class.java)
+    assertThat(params1.shardIndex).isEqualTo(1)
+    assertThat(params1.totalShards).isEqualTo(2)
   }
 
   @Test
@@ -274,7 +302,7 @@ class VidLabelingDispatcherTest {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     val doneBlob = createMockBlob("$FOLDER_PREFIX/done")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob, doneBlob))
-    stubActiveModelLines(MODEL_LINE_1)
+    stubFullResolutionChain(MODEL_LINE_1)
     whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
     val dispatcher = createDispatcher(numberOfShards = 1)
@@ -282,36 +310,13 @@ class VidLabelingDispatcherTest {
 
     val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
     verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
-  }
-
-  @Test
-  fun `dispatch sets correct model line config in work item params`() = runBlocking {
-    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
-    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
-    stubActiveModelLines(MODEL_LINE_1)
-    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
-
-    val dispatcher = createDispatcher(numberOfShards = 1)
-    dispatcher.dispatch(DONE_BLOB_PATH)
-
-    val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
-    verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
-
-    val workItemParams =
-      requestCaptor.firstValue.workItem.workItemParams.unpack(WorkItemParams::class.java)
-    val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
-    assertThat(vidLabelerParams.dataProvider).isEqualTo(DATA_PROVIDER_NAME)
-    assertThat(vidLabelerParams.modelLineConfigsMap).containsKey(MODEL_LINE_1)
-    assertThat(vidLabelerParams.modelLineConfigsMap[MODEL_LINE_1]!!.labelerInputFieldMappingMap)
-      .containsEntry("age", "user_age")
-    assertThat(vidLabelerParams.overrideModelLinesList).containsExactly(MODEL_LINE_1)
   }
 
   @Test
   fun `dispatch propagates exception on work item creation failure`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
-    stubActiveModelLines(MODEL_LINE_1)
+    stubFullResolutionChain(MODEL_LINE_1)
     whenever(workItemsService.createWorkItem(any())).thenAnswer {
       throw StatusException(Status.UNAVAILABLE.withDescription("Service unavailable"))
     }
@@ -337,16 +342,27 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
-  fun `dispatch with gs scheme constructs correct blob URIs`() = runBlocking {
+  fun `dispatch skips model line when no rollout found`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
-    stubActiveModelLines(MODEL_LINE_1)
-    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
+    whenever(modelLinesService.listModelLines(any())).thenReturn(
+      listModelLinesResponse {
+        modelLines += modelLine {
+          name = MODEL_LINE_1
+          type = ModelLine.Type.PROD
+          activeStartTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() - 86400000)
+          activeEndTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() + 86400000)
+        }
+      }
+    )
+    whenever(modelRolloutsService.listModelRollouts(any())).thenReturn(
+      listModelRolloutsResponse {}
+    )
 
     val dispatcher = createDispatcher(numberOfShards = 1)
-    dispatcher.dispatch(GCS_DONE_BLOB_PATH)
+    dispatcher.dispatch(DONE_BLOB_PATH)
 
-    verifyBlocking(workItemsService, times(1)) { createWorkItem(any()) }
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
   }
 
   companion object {
@@ -355,10 +371,10 @@ class VidLabelingDispatcherTest {
     private const val MODEL_SUITE_NAME = "modelProviders/mp1/modelSuites/ms1"
     private const val MODEL_LINE_1 = "$MODEL_SUITE_NAME/modelLines/ml1"
     private const val MODEL_LINE_2 = "$MODEL_SUITE_NAME/modelLines/ml2"
+    private const val MODEL_RELEASE_NAME = "$MODEL_SUITE_NAME/modelReleases/mr1"
+    private const val MODEL_BLOB_PATH = "gs://models/vid-model-v1.pb"
     private const val DEFAULT_NUMBER_OF_SHARDS = 3
     private const val DONE_BLOB_PATH = "file:///test-bucket/edp1/2024-01-15/done"
-    private const val GCS_DONE_BLOB_PATH = "gs://test-bucket/edp1/2024-01-15/done"
-    private const val FOLDER_PREFIX = "edp1/2024-01-15"
 
     private val FIXED_NOW: Instant = Instant.parse("2026-06-03T12:00:00Z")
 

@@ -32,6 +32,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
@@ -78,13 +79,21 @@ private data class ChannelKey(
  * - `CONTROL_PLANE_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `MODEL_LINES_TARGET`: Required. Target endpoint for the VID Repository ModelLines service.
  * - `MODEL_LINES_CERT_HOST`: Optional. Overrides TLS authority for testing.
+ * - `MODEL_ROLLOUTS_TARGET`: Required. Target endpoint for the VID Repository ModelRollouts
+ *   service.
+ * - `MODEL_ROLLOUTS_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `MODEL_SHARDS_TARGET`: Required. Target endpoint for the VID Repository ModelShards service.
  * - `MODEL_SHARDS_CERT_HOST`: Optional. Overrides TLS authority for testing.
- * - `VID_LABELER_QUEUE_NAME`: Required. Resource name of the Secure Computation queue for VID
- *   labeling work items.
+ * - `VID_LABELER_QUEUE_NAME`: Required. Resource name of the Secure Computation queue.
  * - `CHANNEL_SHUTDOWN_DURATION_SECONDS`: Optional. gRPC channel shutdown timeout (default: 3s).
  * - `VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH`: Optional. Enables [FileSystemStorageClient] instead
  *   of GCS. Used only in testing.
+ *
+ * ## Request Headers
+ * - `X-DataWatcher-Path`: Required. Full storage URI of the "done" blob.
+ * - `X-Override-Model-Lines`: Optional. Comma-separated list of model line resource names to use
+ *   instead of querying the VID Repository API. Supports backfilling past data where the model line
+ *   may no longer be in the active window.
  */
 class VidLabelingDispatcherFunction : HttpFunction {
   init {
@@ -105,6 +114,12 @@ class VidLabelingDispatcherFunction : HttpFunction {
           IllegalArgumentException("Missing required header: $DATA_WATCHER_PATH_HEADER")
         }
 
+      val overrideModelLines: List<String> =
+        request
+          .getFirstHeader(OVERRIDE_MODEL_LINES_HEADER)
+          .map { header -> header.split(",").map { it.trim() }.filter { it.isNotEmpty() } }
+          .orElse(emptyList())
+
       val config: VidLabelingConfig =
         vidLabelingConfigsByDataProvider[dispatcherParams.dataProvider]
           ?: throw IllegalArgumentException(
@@ -118,34 +133,44 @@ class VidLabelingDispatcherFunction : HttpFunction {
       val storageClient: StorageClient = createStorageClient(doneBlobPath)
       val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
 
-      val controlPlaneChannel: ManagedChannel = getOrCreateChannel(
-        config.rawImpressionMetadataStorageConnection,
-        controlPlaneTarget,
-        controlPlaneCertHost,
-      )
       val workItemsStub =
         WorkItemsGrpcKt.WorkItemsCoroutineStub(
-          ClientInterceptors.intercept(controlPlaneChannel, grpcTelemetry.newClientInterceptor())
+          createInstrumentedChannel(
+            config.rawImpressionMetadataStorageConnection,
+            controlPlaneTarget,
+            controlPlaneCertHost,
+            grpcTelemetry,
+          )
         )
 
-      val modelLinesChannel: ManagedChannel = getOrCreateChannel(
-        config.modelLinesConnection,
-        modelLinesTarget,
-        modelLinesCertHost,
-      )
       val modelLinesStub =
         ModelLinesGrpcKt.ModelLinesCoroutineStub(
-          ClientInterceptors.intercept(modelLinesChannel, grpcTelemetry.newClientInterceptor())
+          createInstrumentedChannel(
+            config.modelLinesConnection,
+            modelLinesTarget,
+            modelLinesCertHost,
+            grpcTelemetry,
+          )
         )
 
-      val modelShardsChannel: ManagedChannel = getOrCreateChannel(
-        config.modelShardsConnection,
-        modelShardsTarget,
-        modelShardsCertHost,
-      )
+      val modelRolloutsStub =
+        ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub(
+          createInstrumentedChannel(
+            config.modelRolloutsConnection,
+            modelRolloutsTarget,
+            modelRolloutsCertHost,
+            grpcTelemetry,
+          )
+        )
+
       val modelShardsStub =
         ModelShardsGrpcKt.ModelShardsCoroutineStub(
-          ClientInterceptors.intercept(modelShardsChannel, grpcTelemetry.newClientInterceptor())
+          createInstrumentedChannel(
+            config.modelShardsConnection,
+            modelShardsTarget,
+            modelShardsCertHost,
+            grpcTelemetry,
+          )
         )
 
       val vidLabelerParamsTemplate: VidLabelerParams = buildVidLabelerParamsTemplate(config)
@@ -155,13 +180,14 @@ class VidLabelingDispatcherFunction : HttpFunction {
           storageClient = storageClient,
           workItemsStub = workItemsStub,
           modelLinesStub = modelLinesStub,
+          modelRolloutsStub = modelRolloutsStub,
           modelShardsStub = modelShardsStub,
           dataProviderName = config.dataProvider,
           vidLabelerParamsTemplate = vidLabelerParamsTemplate,
           queueName = vidLabelerQueueName,
           numberOfShards = config.numberOfShards,
           modelSuiteName = config.modelSuite,
-          overrideModelLines = config.overrideModelLinesList,
+          overrideModelLines = overrideModelLines,
           modelLineConfigs = convertModelLineConfigs(config.modelLineConfigsMap),
         )
 
@@ -177,12 +203,16 @@ class VidLabelingDispatcherFunction : HttpFunction {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
+    private const val OVERRIDE_MODEL_LINES_HEADER: String = "X-Override-Model-Lines"
     private const val GOOGLE_PROJECT_ID_ENV = "GOOGLE_PROJECT_ID"
 
     private val controlPlaneTarget: String = EnvVars.checkNotNullOrEmpty("CONTROL_PLANE_TARGET")
     private val controlPlaneCertHost: String? = System.getenv("CONTROL_PLANE_CERT_HOST")
     private val modelLinesTarget: String = EnvVars.checkNotNullOrEmpty("MODEL_LINES_TARGET")
     private val modelLinesCertHost: String? = System.getenv("MODEL_LINES_CERT_HOST")
+    private val modelRolloutsTarget: String =
+      EnvVars.checkNotNullOrEmpty("MODEL_ROLLOUTS_TARGET")
+    private val modelRolloutsCertHost: String? = System.getenv("MODEL_ROLLOUTS_CERT_HOST")
     private val modelShardsTarget: String = EnvVars.checkNotNullOrEmpty("MODEL_SHARDS_TARGET")
     private val modelShardsCertHost: String? = System.getenv("MODEL_SHARDS_CERT_HOST")
     private val vidLabelerQueueName: String = EnvVars.checkNotNullOrEmpty("VID_LABELER_QUEUE_NAME")
@@ -258,6 +288,16 @@ class VidLabelingDispatcherFunction : HttpFunction {
         logger.info("Creating new channel for $target")
         createPublicChannel(connectionParams, target, hostName)
       }
+    }
+
+    private fun createInstrumentedChannel(
+      connectionParams: ConfigTransportLayerSecurityParams,
+      target: String,
+      hostName: String?,
+      grpcTelemetry: GrpcTelemetry,
+    ): ManagedChannel {
+      val channel = getOrCreateChannel(connectionParams, target, hostName)
+      return ClientInterceptors.intercept(channel, grpcTelemetry.newClientInterceptor())
     }
 
     private fun buildVidLabelerParamsTemplate(config: VidLabelingConfig): VidLabelerParams {
