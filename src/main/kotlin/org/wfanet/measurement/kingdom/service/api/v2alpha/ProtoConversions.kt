@@ -876,6 +876,7 @@ fun InternalModelShard.toModelShard(): ModelShard {
         )
         .toName()
     modelBlob = modelBlob { modelBlobPath = source.modelBlobPath }
+    memoizedVidAssignmentEnabled = source.memoizedVidAssignmentEnabled
     createTime = source.createTime
   }
 }
@@ -893,6 +894,7 @@ fun ModelShard.toInternal(
     externalModelSuiteId = apiIdToExternalId(modelReleaseKey.modelSuiteId)
     externalModelReleaseId = apiIdToExternalId(modelReleaseKey.modelReleaseId)
     modelBlobPath = publicModelShard.modelBlob.modelBlobPath
+    memoizedVidAssignmentEnabled = publicModelShard.memoizedVidAssignmentEnabled
   }
 }
 

@@ -34,4 +34,6 @@ message ModelShard {
   string model_blob_path = 6;
 
   google.protobuf.Timestamp create_time = 7;
+
+  bool memoized_vid_assignment_enabled = 8;
 }
