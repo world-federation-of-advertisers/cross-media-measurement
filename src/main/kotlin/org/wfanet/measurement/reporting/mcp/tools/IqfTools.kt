@@ -17,6 +17,7 @@
 package org.wfanet.measurement.reporting.mcp.tools
 
 import io.modelcontextprotocol.kotlin.sdk.server.Server
+import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -45,8 +46,9 @@ fun Server.registerIqfTools(
           },
         required = listOf("name"),
       ),
+    toolAnnotations = ToolAnnotations(readOnlyHint = true),
   ) { request ->
-    handleGrpcToolCall {
+    handleToolCall {
       val stubs = client.withBearerToken(getBearerToken())
       val grpcRequest = getImpressionQualificationFilterRequest {
         name = request.arguments!!.getString("name")
@@ -76,8 +78,9 @@ fun Server.registerIqfTools(
             }
           },
       ),
+    toolAnnotations = ToolAnnotations(readOnlyHint = true),
   ) { request ->
-    handleGrpcToolCall {
+    handleToolCall {
       val args = request.arguments
       val stubs = client.withBearerToken(getBearerToken())
       val grpcRequest = listImpressionQualificationFiltersRequest {

@@ -17,19 +17,46 @@
 package org.wfanet.measurement.reporting.mcp.tools
 
 import io.modelcontextprotocol.kotlin.sdk.server.Server
+import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
-
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequest
+import org.wfanet.measurement.reporting.v2alpha.getEventGroupRequest
 
 fun Server.registerEventGroupTools(
   client: ReportingPublicApiClient,
   getBearerToken: () -> String,
 ) {
+  addTool(
+    name = "get_event_group",
+    description = "Get an EventGroup by resource name.",
+    inputSchema =
+      ToolSchema(
+        properties =
+          buildJsonObject {
+            putJsonObject("name") {
+              put("type", "string")
+              put(
+                "description",
+                "EventGroup resource name, e.g. measurementConsumers/{mc_id}/eventGroups/{eg_id}",
+              )
+            }
+          },
+        required = listOf("name"),
+      ),
+    toolAnnotations = ToolAnnotations(readOnlyHint = true),
+  ) { request ->
+    handleToolCall {
+      val stubs = client.withBearerToken(getBearerToken())
+      val grpcRequest = getEventGroupRequest { name = request.arguments!!.getString("name") }
+      PROTO_JSON_PRINTER.print(stubs.eventGroups.getEventGroup(grpcRequest))
+    }
+  }
+
   addTool(
     name = "list_event_groups",
     description =
@@ -73,8 +100,9 @@ fun Server.registerEventGroupTools(
           },
         required = listOf("parent"),
       ),
+    toolAnnotations = ToolAnnotations(readOnlyHint = true),
   ) { request ->
-    handleGrpcToolCall {
+    handleToolCall {
       val args = request.arguments!!
       val stubs = client.withBearerToken(getBearerToken())
       val builder = ListEventGroupsRequest.newBuilder()

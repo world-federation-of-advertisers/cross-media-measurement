@@ -18,10 +18,19 @@ package org.wfanet.measurement.reporting.mcp.testing
 
 import io.grpc.inprocess.InProcessChannelBuilder
 import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
+import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 
 object FakeReportingPublicApiClient {
   fun create(): ReportingPublicApiClient {
     val channel = InProcessChannelBuilder.forName("fake-reporting").directExecutor().build()
-    return ReportingPublicApiClient(channel)
+    return ReportingPublicApiClient(
+      basicReports = BasicReportsCoroutineStub(channel),
+      eventGroups = EventGroupsCoroutineStub(channel),
+      reportingSets = ReportingSetsCoroutineStub(channel),
+      impressionQualificationFilters = ImpressionQualificationFiltersCoroutineStub(channel),
+    )
   }
 }

@@ -35,11 +35,14 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.reporting.mcp.auth.BearerTokenExtractor
 import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
-import org.wfanet.measurement.reporting.mcp.prompts.registerWorkflowPrompts
 import org.wfanet.measurement.reporting.mcp.tools.registerBasicReportTools
 import org.wfanet.measurement.reporting.mcp.tools.registerEventGroupTools
 import org.wfanet.measurement.reporting.mcp.tools.registerIqfTools
 import org.wfanet.measurement.reporting.mcp.tools.registerReportingSetTools
+import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import picocli.CommandLine
 
 private const val SERVER_NAME = "HaloReportingMcpServer"
@@ -71,9 +74,18 @@ object ReportingMcpServerFromFlags {
         )
         .withVerboseLogging(mcpServerFlags.debugVerboseGrpcClientLogging)
 
-    val apiClient = ReportingPublicApiClient(reportingChannel)
+    val apiClient =
+      ReportingPublicApiClient(
+        basicReports = BasicReportsCoroutineStub(reportingChannel),
+        eventGroups = EventGroupsCoroutineStub(reportingChannel),
+        reportingSets = ReportingSetsCoroutineStub(reportingChannel),
+        impressionQualificationFilters =
+          ImpressionQualificationFiltersCoroutineStub(reportingChannel),
+      )
 
-    embeddedServer(CIO, port = mcpServerFlags.port) {
+    embeddedServer(CIO, host = mcpServerFlags.host, port = mcpServerFlags.port) {
+        // TODO(#3834): Add CORS configuration for browser-based MCP clients.
+
         // DNS rebinding protection is disabled because this server is deployed behind a
         // TLS-terminating proxy (e.g. Envoy, K8s Ingress) that handles host validation.
         mcpStreamableHttp(enableDnsRebindingProtection = false) {
@@ -107,7 +119,8 @@ fun createMcpServer(
           capabilities =
             ServerCapabilities(
               tools = ServerCapabilities.Tools(listChanged = false),
-              prompts = ServerCapabilities.Prompts(listChanged = false),
+              // TODO(#3834): Add logging capability.
+              // TODO(#3834): Add prompts capability in follow-up PR.
             ),
         ),
     )
@@ -116,12 +129,19 @@ fun createMcpServer(
   server.registerEventGroupTools(apiClient, getBearerToken)
   server.registerReportingSetTools(apiClient, getBearerToken)
   server.registerIqfTools(apiClient, getBearerToken)
-  server.registerWorkflowPrompts()
 
   return server
 }
 
 class McpServerFlags {
+  @CommandLine.Option(
+    names = ["--host"],
+    description = ["Network interface to bind to. Use 0.0.0.0 for container deployments."],
+    defaultValue = "127.0.0.1",
+  )
+  lateinit var host: String
+    private set
+
   @CommandLine.Option(
     names = ["--port"],
     description =
