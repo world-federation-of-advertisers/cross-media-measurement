@@ -27,8 +27,11 @@ import io.modelcontextprotocol.kotlin.sdk.testing.ChannelTransport
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -137,6 +140,37 @@ class McpServerTest {
     assertThat(text).contains("NOT_FOUND")
 
     client.close()
+  }
+
+  @Test
+  fun listEventGroupsWithStructuredFilterViaMcpClient() = runBlocking {
+    val apiClient = createFakeApiClientWithServices()
+    val mcpServer = createMcpServer(apiClient) { "test-token" }
+
+    val (clientTransport, serverTransport) = ChannelTransport.createLinkedPair()
+    val mcpClient =
+      Client(clientInfo = Implementation(name = "test-client", version = "1.0.0"))
+
+    mcpServer.createSession(serverTransport)
+    mcpClient.connect(clientTransport)
+
+    // Exercises the full path: MCP args → args["structured_filter"] →
+    // ToolSupport.encodeJsonElement → PROTO_JSON_PARSER.merge → gRPC call
+    val result =
+      mcpClient.callTool(
+        name = "list_event_groups",
+        arguments =
+          buildJsonObject {
+            put("parent", "measurementConsumers/mc1")
+            putJsonObject("structured_filter") {
+              putJsonArray("cmms_data_provider_in") { add("dataProviders/dp1") }
+            }
+          },
+      )
+
+    assertThat(result.isError).isNotEqualTo(true)
+
+    mcpClient.close()
   }
 
   private fun createFakeApiClientWithServices(): ReportingPublicApiClient {
