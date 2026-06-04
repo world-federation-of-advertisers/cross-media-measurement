@@ -36,6 +36,7 @@ import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.CreateBasicReportRequest
+import org.wfanet.measurement.reporting.v2alpha.CreateReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.GetBasicReportRequest
@@ -182,6 +183,35 @@ class ToolsIntegrationTest {
   }
 
   @Test
+  fun createReportingSetWithInvalidArgumentReturnsError() = runBlocking {
+    val stubs = apiClient.withBearerToken("test-token")
+    val result = handleToolCall {
+      PROTO_JSON_PRINTER.print(
+        stubs.reportingSets.createReportingSet(
+          CreateReportingSetRequest.newBuilder()
+            .setParent("")
+            .setReportingSetId("test-rs")
+            .build()
+        )
+      )
+    }
+    assertThat(result.isError).isTrue()
+    assertThat((result.content[0] as io.modelcontextprotocol.kotlin.sdk.types.TextContent).text)
+      .contains("INVALID_ARGUMENT")
+  }
+
+  @Test
+  fun listEventGroupsWithStructuredFilterMergesIntoProto() = runBlocking {
+    val stubs = apiClient.withBearerToken("test-token")
+    val result = stubs.eventGroups.listEventGroups(
+      ListEventGroupsRequest.newBuilder()
+        .setParent("measurementConsumers/mc1")
+        .build()
+    )
+    assertThat(result).isNotNull()
+  }
+
+  @Test
   fun listIqfWithNoArgumentsSucceeds() = runBlocking {
     val stubs = apiClient.withBearerToken("test-token")
     val result = stubs.impressionQualificationFilters.listImpressionQualificationFilters(
@@ -219,6 +249,19 @@ class ToolsIntegrationTest {
 
   private class FakeReportingSetsService :
     ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase() {
+    override suspend fun createReportingSet(
+      request: CreateReportingSetRequest,
+    ): ReportingSet {
+      if (request.parent.isEmpty()) {
+        throw StatusException(
+          Status.INVALID_ARGUMENT.withDescription("parent must not be empty")
+        )
+      }
+      return ReportingSet.newBuilder()
+        .setName("${request.parent}/reportingSets/${request.reportingSetId}")
+        .build()
+    }
+
     override suspend fun getReportingSet(request: GetReportingSetRequest): ReportingSet =
       ReportingSet.newBuilder().setName(request.name).build()
 
