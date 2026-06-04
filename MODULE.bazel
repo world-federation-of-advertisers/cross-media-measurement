@@ -287,6 +287,7 @@ maven.install(
         "io.modelcontextprotocol:kotlin-sdk-server-jvm:0.12.0",
         "io.modelcontextprotocol:kotlin-sdk-client-jvm:0.12.0",
         "io.modelcontextprotocol:kotlin-sdk-core-jvm:0.12.0",
+        "io.modelcontextprotocol:kotlin-sdk-testing-jvm:0.12.0",
 
         # Ktor HTTP server (required by MCP SDK)
         "io.ktor:ktor-server-auth-jvm:3.1.3",

@@ -14,3 +14,8 @@ alias(
     name = "core",
     actual = "@maven//:io_modelcontextprotocol_kotlin_sdk_core_jvm",
 )
+
+alias(
+    name = "testing",
+    actual = "@maven//:io_modelcontextprotocol_kotlin_sdk_testing_jvm",
+)
