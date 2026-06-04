@@ -123,6 +123,7 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
 
     val createdModelShard = modelShardsService.createModelShard(modelShard)
 
+    assertThat(createdModelShard.memoizedVidAssignmentEnabled).isFalse()
     assertThat(createdModelShard)
       .ignoringFields(ModelShard.CREATE_TIME_FIELD_NUMBER)
       .isEqualTo(
