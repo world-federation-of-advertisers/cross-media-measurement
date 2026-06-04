@@ -4,3 +4,8 @@ alias(
     name = "cio",
     actual = "@maven//:io_ktor_ktor_server_cio_jvm",
 )
+
+alias(
+    name = "cors",
+    actual = "@maven//:io_ktor_ktor_server_cors_jvm",
+)
