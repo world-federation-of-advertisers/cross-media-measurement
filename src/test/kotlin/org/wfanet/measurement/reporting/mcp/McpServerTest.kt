@@ -17,6 +17,7 @@
 package org.wfanet.measurement.reporting.mcp
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -26,9 +27,31 @@ import org.wfanet.measurement.reporting.mcp.testing.FakeReportingPublicApiClient
 class McpServerTest {
 
   @Test
-  fun createMcpServerDoesNotThrow() {
+  fun registersAllExpectedTools() {
     val server = createMcpServer(FakeReportingPublicApiClient.create()) { "test-token" }
-    assertThat(server).isNotNull()
+    assertThat(server.tools.keys)
+      .containsExactly(
+        "get_event_group",
+        "list_event_groups",
+        "create_basic_report",
+        "get_basic_report",
+        "list_basic_reports",
+        "create_reporting_set",
+        "get_reporting_set",
+        "list_reporting_sets",
+        "get_impression_qualification_filter",
+        "list_impression_qualification_filters",
+      )
+  }
+
+  @Test
+  fun allToolsHaveDescriptions() {
+    val server = createMcpServer(FakeReportingPublicApiClient.create()) { "test-token" }
+    for ((name, tool) in server.tools) {
+      assertWithMessage("tool '$name' should have a description")
+        .that(tool.tool.description)
+        .isNotEmpty()
+    }
   }
 
   @Test
