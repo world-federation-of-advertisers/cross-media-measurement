@@ -20,8 +20,8 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.Parser
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams.StorageParams
+import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams.StorageParams
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
@@ -33,22 +33,28 @@ import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
  * Phase-0 TEE application for the memoized VID assignment pipeline.
  *
  * The dispatcher publishes one [WorkItem] per fingerprint shard for each
- * (RawImpressionUpload, ModelLine) pair that has memoization enabled. Each
- * [SubpoolAssignerApp] instance processes the shard identified by [shardIndex]:
- * it reads the upload's raw impression files, filters to the impressions whose
- * fingerprint falls into its shard, drops impressions whose event timestamp
- * falls outside the model line's `[active_start_time, active_end_time)` window
- * (see `ModelLine.active_start_time` / `active_end_time` in the public API),
- * loads the compiled VID model from `ModelLineConfig.model_blob_path`, runs
- * the labeler in pool-emit mode to resolve a subpool per fingerprint, and
- * writes one [org.wfanet.measurement.edpaggregator.v1alpha.SubpoolFingerprints]
- * blob per subpool to the SubpoolMap storage.
+ * (`RawImpressionUpload`, `ModelLine`) pair that has memoization enabled.
+ * The shard, model line, and per-dispatch knobs travel inside the WorkItem's
+ * [SubpoolAssignerParams] payload. Each VM:
+ *  - reads the upload's raw impression files,
+ *  - drops impressions whose event timestamp falls outside the model line's
+ *    `[active_start_time, active_end_time)` window (mirrors
+ *    `ModelLine.active_start_time` / `active_end_time` in the public API),
+ *  - keeps only impressions whose SHA-256 fingerprint matches its shard
+ *    (`fingerprint.hash() % total_shards == shard_index`),
+ *  - loads the compiled VID model from
+ *    [SubpoolAssignerParams.modelBlobPath] and runs the labeler in pool-emit
+ *    mode to resolve a subpool per fingerprint,
+ *  - writes one
+ *    [org.wfanet.measurement.edpaggregator.v1alpha.SubpoolFingerprints] blob
+ *    per (shard, subpool) to the subpool-map storage.
  *
  * Per-shard pipeline state is reported back through the EDP Aggregator's
  * internal gRPC services: this app creates (or upserts) a
- * `RawImpressionUploadModelLine` row for the (RawImpressionUpload, ModelLine)
- * pair when it first runs, and updates its own `PoolAssignmentJob` row to
- * `POOL_ASSIGNMENT_SUCCEEDED` once the per-shard blobs are durable.
+ * `RawImpressionUploadModelLine` row for the (`RawImpressionUpload`,
+ * `ModelLine`) pair when it first runs, and updates its own
+ * `PoolAssignmentJob` row to `POOL_ASSIGNMENT_SUCCEEDED` once the per-shard
+ * blobs are durable.
  *
  * The last shard to complete is responsible for merging the per-shard
  * per-subpool blobs into one cumulative blob per subpool, bin-packing
@@ -63,13 +69,10 @@ import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
  * @param workItemsClient gRPC client stub for [WorkItemsGrpcKt.WorkItemsCoroutineStub].
  * @param workItemAttemptsClient gRPC client stub for
  *   [WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub].
- * @param shardIndex The fingerprint shard id this VM is responsible for. The
- *   total shard count `N` lives in the per-WorkItem [VidLabelerParams]; this
- *   VM keeps only impressions where `fingerprint.hash() % N == shardIndex`.
  * @param kmsClients Per-DataProvider KMS clients used to wrap/unwrap DEKs
- *   for raw-impression and SubpoolFingerprints blobs.
+ *   for raw-impression and `SubpoolFingerprints` blobs.
  * @param getSubpoolMapStorageConfig Lambda to obtain the [StorageConfig] for
- *   reading and writing the per-subpool fingerprint blobs.
+ *   reading and writing the per-(shard, subpool) `SubpoolFingerprints` blobs.
  * @param getRawImpressionsStorageConfig Lambda to obtain the [StorageConfig]
  *   for reading the raw-impression files uploaded by the EDP.
  */
@@ -79,8 +82,7 @@ class SubpoolAssignerApp(
   parser: Parser<WorkItem>,
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
-  private val shardIndex: Int,
-  private val kmsClients: MutableMap<String, KmsClient>,
+  private val kmsClients: Map<String, KmsClient>,
   private val getSubpoolMapStorageConfig: (StorageParams) -> StorageConfig,
   private val getRawImpressionsStorageConfig: (StorageParams) -> StorageConfig,
 ) :
@@ -94,26 +96,30 @@ class SubpoolAssignerApp(
 
   override suspend fun runWork(message: Any) {
     val workItemParams = message.unpack(WorkItemParams::class.java)
-    val vidLabelerParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
+    val subpoolAssignerParams =
+      workItemParams.appParams.unpack(SubpoolAssignerParams::class.java)
 
     // TODO(@Marco-Premier): Implement Phase-0 pipeline:
     //   1. Resolve storage configs via getRawImpressionsStorageConfig and
-    //      getSubpoolMapStorageConfig from vidLabelerParams storage params.
-    //   2. Resolve the per-DataProvider KmsClient from kmsClients.
-    //   3. For each entry in vidLabelerParams.modelLineConfigs, create (or
-    //      upsert) the RawImpressionUploadModelLine row via the EDP Aggregator
-    //      internal gRPC and load the model from
-    //      ModelLineConfig.modelBlobPath into the labeler.
-    //   4. Read raw-impression files for this upload from raw-impressions storage.
-    //   5. Decrypt within the TEE; drop impressions whose event timestamp falls
-    //      outside ModelLineConfig.[activeStartTime, activeEndTime).
+    //      getSubpoolMapStorageConfig from subpoolAssignerParams.
+    //   2. Resolve the per-DataProvider KmsClient from kmsClients keyed by
+    //      subpoolAssignerParams.dataProvider.
+    //   3. Create (or upsert) the RawImpressionUploadModelLine row via the
+    //      EDP Aggregator internal gRPC for
+    //      (rawImpressionUploadResourceId, modelLine), and load the compiled
+    //      VID model from subpoolAssignerParams.modelBlobPath into the labeler.
+    //   4. Read raw-impression files for this upload from raw-impressions
+    //      storage (URI is resolved from RawImpressionUpload.done_blob_uri via
+    //      the RawImpressionMetadata storage service).
+    //   5. Decrypt within the TEE; drop impressions whose event timestamp
+    //      falls outside [activeStartTime, activeEndTime).
     //   6. Compute SHA-256 fingerprints; keep only those where
-    //      fingerprint.hash() % N == shardIndex (N from VidLabelerParams).
+    //      `fingerprint.hash() % totalShards == shardIndex`.
     //   7. Run the labeler in pool-emit mode; bucket fingerprints by subpool.
-    //   8. Write per-shard per-subpool SubpoolFingerprints blobs (DEK-encrypted)
-    //      to the SubpoolMap storage.
-    //   9. Update this shard's PoolAssignmentJob row to POOL_ASSIGNMENT_SUCCEEDED
-    //      via the EDP Aggregator internal gRPC.
+    //   8. Write per-(shard, subpool) SubpoolFingerprints blobs (DEK-encrypted)
+    //      to the subpool-map storage.
+    //   9. Update this shard's PoolAssignmentJob row to
+    //      POOL_ASSIGNMENT_SUCCEEDED via the EDP Aggregator internal gRPC.
     //  10. Last-shard-out: merge per-shard blobs into one cumulative blob per
     //      subpool, bin-pack subpools into RankerJob rows, flip
     //      RawImpressionUploadModelLineState POOL_ASSIGNING -> RANKING, and
