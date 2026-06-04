@@ -18,24 +18,44 @@ package org.wfanet.measurement.reporting.mcp
 
 import io.grpc.Channel
 import io.grpc.Deadline
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
-import java.util.concurrent.TimeUnit
+import io.ktor.serialization.kotlinx.json.json
+import io.ktor.server.application.ApplicationCall
+import io.ktor.server.application.install
+import io.ktor.server.auth.Authentication
+import io.ktor.server.auth.UserIdPrincipal
+import io.ktor.server.auth.authenticate
+import io.ktor.server.auth.bearer
+import io.ktor.server.auth.principal
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
+import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.plugins.cors.routing.CORS
+import io.ktor.server.request.header
+import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
+import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
+import io.ktor.server.routing.post
+import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
+import io.ktor.server.sse.SSE
+import io.ktor.server.sse.sse
+import io.ktor.util.collections.ConcurrentMap
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.server.ServerOptions
-import io.modelcontextprotocol.kotlin.sdk.server.mcpStreamableHttp
+import io.modelcontextprotocol.kotlin.sdk.server.StreamableHttpServerTransport
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
+import io.modelcontextprotocol.kotlin.sdk.types.McpJson
 import io.modelcontextprotocol.kotlin.sdk.types.ServerCapabilities
+import java.util.concurrent.TimeUnit
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
-import org.wfanet.measurement.reporting.mcp.auth.BearerTokenExtractor
 import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
 import org.wfanet.measurement.reporting.mcp.tools.registerBasicReportTools
 import org.wfanet.measurement.reporting.mcp.tools.registerEventGroupTools
@@ -49,6 +69,7 @@ import picocli.CommandLine
 
 private const val SERVER_NAME = "HaloReportingMcpServer"
 private const val SERVER_VERSION = "0.1.0"
+private const val MCP_SESSION_ID_HEADER = "Mcp-Session-Id"
 
 object ReportingMcpServerFromFlags {
   @CommandLine.Command(
@@ -80,40 +101,115 @@ object ReportingMcpServerFromFlags {
       Deadline.after(mcpServerFlags.reportingServerApiDeadlineSeconds, TimeUnit.SECONDS)
     val apiClient =
       ReportingPublicApiClient(
-        basicReports =
-          BasicReportsCoroutineStub(reportingChannel).withDeadline(deadline),
-        eventGroups =
-          EventGroupsCoroutineStub(reportingChannel).withDeadline(deadline),
-        reportingSets =
-          ReportingSetsCoroutineStub(reportingChannel).withDeadline(deadline),
+        basicReports = BasicReportsCoroutineStub(reportingChannel).withDeadline(deadline),
+        eventGroups = EventGroupsCoroutineStub(reportingChannel).withDeadline(deadline),
+        reportingSets = ReportingSetsCoroutineStub(reportingChannel).withDeadline(deadline),
         impressionQualificationFilters =
           ImpressionQualificationFiltersCoroutineStub(reportingChannel).withDeadline(deadline),
       )
 
+    val transports = ConcurrentMap<String, StreamableHttpServerTransport>()
+
     embeddedServer(CIO, host = mcpServerFlags.host, port = mcpServerFlags.port) {
-        // TODO(#3834): Add CORS configuration for browser-based MCP clients.
+        install(CORS) {
+          anyHost()
+          allowMethod(HttpMethod.Post)
+          allowMethod(HttpMethod.Delete)
+          allowHeader(HttpHeaders.ContentType)
+          allowHeader(HttpHeaders.Authorization)
+          allowHeader(MCP_SESSION_ID_HEADER)
+          allowHeader("Mcp-Protocol-Version")
+          exposeHeader(MCP_SESSION_ID_HEADER)
+          exposeHeader("Mcp-Protocol-Version")
+        }
 
-        // DNS rebinding protection is disabled because this server is deployed behind a
-        // TLS-terminating proxy (e.g. Envoy, K8s Ingress) that handles host validation.
-        mcpStreamableHttp(enableDnsRebindingProtection = false) {
-          // The mcpStreamableHttp factory block is called once per MCP session (not per
-          // request). The bearer token from the session's initial request is captured
-          // in the closure and used for all subsequent tool calls within that session.
-          // error() is used here because the factory block is non-suspend and cannot
-          // call respond(). The SDK translates the exception into an HTTP error.
-          // TODO(#3834): Switch to manual transport pattern to return HTTP 401 directly.
-          val bearerToken =
-            BearerTokenExtractor.extract(call.request)
-              ?: error("Missing or invalid Authorization: Bearer header")
+        install(ContentNegotiation) { json(McpJson) }
+        install(SSE)
 
-          createMcpServer(apiClient) { bearerToken }
+        // Bearer auth extracts the token for passthrough to the Reporting API.
+        // The downstream API validates the token — we accept all non-empty tokens here.
+        install(Authentication) {
+          bearer("mcp-bearer") {
+            authenticate { credential ->
+              UserIdPrincipal(credential.token)
+            }
+          }
         }
 
         routing {
+          authenticate("mcp-bearer") {
+            route("/mcp") {
+              sse {
+                val transport = findTransport(call, transports) ?: return@sse
+                transport.handleRequest(this, call)
+              }
+
+              post {
+                val transport =
+                  getOrCreateTransport(call, transports, apiClient) ?: return@post
+                transport.handleRequest(null, call)
+              }
+
+              delete {
+                val transport = findTransport(call, transports) ?: return@delete
+                transport.handleRequest(null, call)
+              }
+            }
+          }
+
           get("/healthz") { call.respondText("OK", status = HttpStatusCode.OK) }
         }
       }
       .start(wait = true)
+  }
+
+  private suspend fun findTransport(
+    call: ApplicationCall,
+    transports: ConcurrentMap<String, StreamableHttpServerTransport>,
+  ): StreamableHttpServerTransport? {
+    val sessionId = call.request.header(MCP_SESSION_ID_HEADER)
+    if (sessionId == null) {
+      call.respond(HttpStatusCode.BadRequest, "Missing $MCP_SESSION_ID_HEADER header")
+      return null
+    }
+    val transport = transports[sessionId]
+    if (transport == null) {
+      call.respond(HttpStatusCode.NotFound, "Session not found")
+    }
+    return transport
+  }
+
+  private suspend fun getOrCreateTransport(
+    call: ApplicationCall,
+    transports: ConcurrentMap<String, StreamableHttpServerTransport>,
+    apiClient: ReportingPublicApiClient,
+  ): StreamableHttpServerTransport? {
+    val sessionId = call.request.header(MCP_SESSION_ID_HEADER)
+    if (sessionId != null) {
+      val transport = transports[sessionId]
+      if (transport == null) {
+        call.respond(HttpStatusCode.NotFound, "Session not found")
+      }
+      return transport
+    }
+
+    val bearerToken = call.principal<UserIdPrincipal>()?.name ?: return null
+    val configuration =
+      StreamableHttpServerTransport.Configuration(enableJsonResponse = true)
+    val transport = StreamableHttpServerTransport(configuration)
+
+    transport.setOnSessionInitialized { initializedSessionId ->
+      transports[initializedSessionId] = transport
+    }
+    transport.setOnSessionClosed { closedSessionId ->
+      transports.remove(closedSessionId)
+    }
+
+    val server = createMcpServer(apiClient) { bearerToken }
+    server.onClose { transport.sessionId?.let { transports.remove(it) } }
+    server.createSession(transport)
+
+    return transport
   }
 }
 
