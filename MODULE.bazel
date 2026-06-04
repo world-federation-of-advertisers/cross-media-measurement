@@ -52,6 +52,13 @@ bazel_dep(
     version = "0.93.0",
     repo_name = "wfa_measurement_proto",
 )
+
+# DO_NOT_SUBMIT: Remove once cross-media-measurement-api 0.94.0 lands in the WFA Bazel registry.
+git_override(
+    module_name = "cross-media-measurement-api",
+    remote = "https://github.com/world-federation-of-advertisers/cross-media-measurement-api.git",
+    commit = "074b9789f15565c473a4edd20ce088db3c8280ba",
+)
 bazel_dep(
     name = "consent-signaling-client",
     version = "0.23.0",
