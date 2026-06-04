@@ -265,7 +265,7 @@ interface ReportProcessor {
      * @param report The JSON [String] containing the report data to be processed.
      * @param projectId The GCS Project ID.
      * @param bucketName The GCS bucket name.
-     * amiMrcExemptedList A list of Event Data Provider (EDP) IDs for which the `ami >= mrc`
+     * @param amiMrcExemptedList A list of Event Data Provider (EDP) IDs for which the `ami >= mrc`
      *   constraint should be exempted.
      * @param verbose If true, enables verbose logging from the underlying report processor library.
      *   Default value is false.
