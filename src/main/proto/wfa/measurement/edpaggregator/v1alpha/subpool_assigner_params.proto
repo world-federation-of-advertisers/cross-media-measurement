@@ -1,0 +1,107 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "SubpoolAssignerParamsProto";
+
+// Parameters for the SubpoolAssigner Phase-0 TEE application, built by the
+// VID Labeling Dispatcher Cloud Function and passed to the Secure Computation
+// API as a google.protobuf.Any. One WorkItem (and therefore one
+// SubpoolAssignerParams) is published per (RawImpressionUpload, ModelLine,
+// shard) for model lines with memoized VID assignment enabled.
+message SubpoolAssignerParams {
+  // The CMMS resource name for the EDP.
+  string data_provider = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
+  ];
+
+  // GCS storage location used by the SubpoolAssigner.
+  message StorageParams {
+    // The Google Cloud Storage project ID for the storage instance.
+    string gcs_project_id = 1 [(google.api.field_behavior) = REQUIRED];
+
+    // The GCS blob URI prefix.
+    //
+    // Required for the subpool-map storage (a static, config-driven
+    // location that does not change at runtime). May be left empty for the
+    // raw-impressions storage, where the location is supplied by the API
+    // via `RawImpressionUpload.done_blob_uri`.
+    string blob_prefix = 2 [(google.api.field_behavior) = OPTIONAL];
+  }
+
+  // Storage from which raw impressions are read.
+  StorageParams raw_impression_storage_params = 2
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Storage to which per-(shard, subpool) SubpoolFingerprints blobs are
+  // written.
+  StorageParams subpool_map_storage_params = 3
+      [(google.api.field_behavior) = REQUIRED];
+
+  // TLS connection parameters used by the TEE app to talk to the
+  // RawImpressionMetadata storage service.
+  TransportLayerSecurityParams raw_impression_metadata_storage_connection = 4
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Fully qualified resource name of the `RawImpressionUpload` this WorkItem
+  // is processing.
+  string raw_impression_upload_resource_id = 5 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type =
+        "edpaggregator.halo-cmm.org/RawImpressionUpload"
+  ];
+
+  // The `ModelLine` this WorkItem labels for. Exactly one model line per
+  // WorkItem.
+  string model_line = 6 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
+  ];
+
+  // GCS blob path of the compiled VID model for this model line. Mirrors
+  // `ModelShard.model_blob_path` from the public API.
+  string model_blob_path = 7 [(google.api.field_behavior) = REQUIRED];
+
+  // Inclusive start of the model line's active window. Impressions whose
+  // event timestamp is before this point are dropped before labeling.
+  // Mirrors `ModelLine.active_start_time` from the public API.
+  google.protobuf.Timestamp active_start_time = 8
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Exclusive end of the model line's active window. Impressions whose
+  // event timestamp is at or after this point are dropped before labeling.
+  // Unset means no upper bound. Mirrors `ModelLine.active_end_time` from
+  // the public API.
+  google.protobuf.Timestamp active_end_time = 9
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // The fingerprint shard this WorkItem is responsible for. The VM keeps
+  // only impressions where `fingerprint.hash() % total_shards == shard_index`.
+  int32 shard_index = 10 [(google.api.field_behavior) = REQUIRED];
+
+  // Total number of fingerprint shards (`N`) across this dispatch. Used
+  // together with `shard_index` to select the impressions this VM owns.
+  int32 total_shards = 11 [(google.api.field_behavior) = REQUIRED];
+}
