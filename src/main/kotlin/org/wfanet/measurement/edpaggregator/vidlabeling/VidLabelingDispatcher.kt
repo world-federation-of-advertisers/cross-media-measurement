@@ -26,8 +26,10 @@ import java.util.logging.Logger
 import kotlin.time.TimeSource
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
 import org.wfanet.measurement.api.v2alpha.listModelShardsRequest
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
@@ -45,19 +47,21 @@ import org.wfanet.measurement.storage.StorageClient
  * Dispatches VID labeling work items to the Secure Computation control plane.
  *
  * Processes "done" blob events by crawling directories for raw impression files, resolving active
- * model lines via the VID Repository API, and creating one WorkItem per shard per model line for
- * TEE processing.
+ * model lines via the VID Repository API (ListModelLines -> ListModelRollouts -> ListModelShards),
+ * and creating one WorkItem per shard per model line for TEE processing.
  *
  * @param storageClient client for crawling raw impressions directory.
  * @param workItemsStub gRPC stub for creating WorkItems via Secure Computation API.
  * @param modelLinesStub gRPC stub for the VID Repository ModelLines API.
+ * @param modelRolloutsStub gRPC stub for the VID Repository ModelRollouts API.
  * @param modelShardsStub gRPC stub for the VID Repository ModelShards API.
- * @param dataProviderName resource name of the DataProvider.
+ * @param dataProviderName resource name of the `DataProvider`.
  * @param vidLabelerParamsTemplate template [VidLabelerParams] with storage and connection fields.
  * @param queueName resource name of the Secure Computation queue.
  * @param numberOfShards static number of shards per model line.
  * @param modelSuiteName resource name of the model suite for ListModelLines.
  * @param overrideModelLines if non-empty, use these model lines instead of querying the API.
+ *   Overrides bypass active window checks to support backfilling past data.
  * @param modelLineConfigs field mapping configuration keyed by model line resource name.
  * @param clock clock for determining active model line windows.
  * @param metrics OpenTelemetry metrics recorder.
@@ -66,6 +70,7 @@ class VidLabelingDispatcher(
   private val storageClient: StorageClient,
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   private val modelLinesStub: ModelLinesGrpcKt.ModelLinesCoroutineStub,
+  private val modelRolloutsStub: ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub,
   private val modelShardsStub: ModelShardsGrpcKt.ModelShardsCoroutineStub,
   private val dataProviderName: String,
   private val vidLabelerParamsTemplate: VidLabelerParams,
@@ -77,6 +82,18 @@ class VidLabelingDispatcher(
   private val clock: Clock = Clock.systemUTC(),
   private val metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
 ) {
+
+  /**
+   * Resolved model line info including the model blob path from the VID Repository.
+   *
+   * @param modelLineName resource name of the model line.
+   * @param modelBlobPath path to the compiled model blob.
+   */
+  private data class ResolvedModelLine(
+    val modelLineName: String,
+    val modelBlobPath: String,
+  )
+
   /**
    * Dispatches VID labeling work for raw impression files in the directory containing the done
    * blob.
@@ -113,24 +130,22 @@ class VidLabelingDispatcher(
       // TODO(world-federation-of-advertisers/cross-media-measurement#3899): Create
       // RawImpressionUpload using RawImpressionUploadService from PR #3818.
 
-      val activeModelLines = resolveActiveModelLines()
+      val resolvedModelLines = resolveModelLines()
 
-      if (activeModelLines.isEmpty()) {
-        logger.info("No active model lines found for $modelSuiteName")
+      if (resolvedModelLines.isEmpty()) {
+        logger.info("No active model lines resolved for $modelSuiteName")
         recordDispatchDuration(startTime, DISPATCH_STATUS_SUCCESS)
         return
       }
 
       // TODO(world-federation-of-advertisers/cross-media-measurement#3899): Check
-      // memoized_vid_assignment_enabled on ModelShard once the field is added.
+      // memoized_vid_assignment_enabled on ModelShard once API is updated to v0.94.0.
       // For now, all model lines are treated as non-memoized.
 
-      val blobUris = blobKeys.map { buildBlobUri(doneBlobUri, it) }
-
       var totalWorkItems = 0
-      for (modelLineName in activeModelLines) {
+      for (resolvedModelLine in resolvedModelLines) {
         for (shardIndex in 0 until numberOfShards) {
-          createWorkItem(modelLineName, shardIndex, blobUris)
+          createWorkItem(resolvedModelLine, shardIndex)
           totalWorkItems++
         }
       }
@@ -155,20 +170,49 @@ class VidLabelingDispatcher(
   }
 
   /**
-   * Resolves active model lines from the VID Repository API.
+   * Resolves active model lines with their model blob paths from the VID Repository API.
    *
-   * If [overrideModelLines] is non-empty, returns those directly without calling the API.
-   * Otherwise, calls ListModelLines filtering for type=PROD with active time windows containing
-   * the current time, then filters to model lines present in [modelLineConfigs].
+   * If [overrideModelLines] is non-empty, uses those directly without active window filtering.
+   * This supports backfilling past data where the model line may no longer be in the active window.
    *
-   * @return list of active model line resource names.
+   * Resolution chain: ListModelLines -> ListModelRollouts (to find active ModelRelease for each
+   * ModelLine) -> ListModelShards (for this DataProvider, filtered by ModelRelease) ->
+   * model_blob_path.
+   *
+   * @return list of resolved model lines with their blob paths.
    */
-  private suspend fun resolveActiveModelLines(): List<String> {
-    if (overrideModelLines.isNotEmpty()) {
-      logger.info("Using ${overrideModelLines.size} override model lines")
-      return overrideModelLines
+  private suspend fun resolveModelLines(): List<ResolvedModelLine> {
+    val activeModelLineNames: List<String> =
+      if (overrideModelLines.isNotEmpty()) {
+        // Override model lines bypass active window checks to support backfilling past data.
+        logger.info("Using ${overrideModelLines.size} override model lines")
+        overrideModelLines
+      } else {
+        resolveActiveModelLinesFromApi()
+      }
+
+    if (activeModelLineNames.isEmpty()) return emptyList()
+
+    val resolved = mutableListOf<ResolvedModelLine>()
+    for (modelLineName in activeModelLineNames) {
+      val modelBlobPath = resolveModelBlobPath(modelLineName)
+      if (modelBlobPath != null) {
+        resolved.add(ResolvedModelLine(modelLineName, modelBlobPath))
+      } else {
+        logger.warning("Could not resolve model blob path for $modelLineName, skipping")
+      }
     }
 
+    logger.info("Resolved ${resolved.size} model lines with blob paths")
+    return resolved
+  }
+
+  /**
+   * Lists active PROD model lines from the VID Repository API.
+   *
+   * @return list of active model line resource names that have entries in [modelLineConfigs].
+   */
+  private suspend fun resolveActiveModelLinesFromApi(): List<String> {
     val now: Timestamp = Timestamps.fromMillis(clock.millis())
     val activeModelLines = mutableListOf<String>()
     var pageToken = ""
@@ -201,22 +245,111 @@ class VidLabelingDispatcher(
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
 
-    logger.info("Resolved ${activeModelLines.size} active model lines")
+    logger.info("Found ${activeModelLines.size} active PROD model lines from API")
     return activeModelLines
+  }
+
+  /**
+   * Resolves the model blob path for a model line by traversing the ModelRollout -> ModelShard
+   * chain.
+   *
+   * @param modelLineName resource name of the model line.
+   * @return the model blob path, or null if no active rollout or shard is found.
+   */
+  private suspend fun resolveModelBlobPath(modelLineName: String): String? {
+    val modelReleaseName = resolveActiveModelRelease(modelLineName) ?: return null
+    return resolveModelBlobPathFromShards(modelReleaseName)
+  }
+
+  /**
+   * Finds the active `ModelRelease` for a model line via ListModelRollouts.
+   *
+   * @param modelLineName resource name of the model line.
+   * @return the model release resource name, or null if no rollout is found.
+   */
+  private suspend fun resolveActiveModelRelease(modelLineName: String): String? {
+    var pageToken = ""
+
+    do {
+      val request = listModelRolloutsRequest {
+        parent = modelLineName
+        if (pageToken.isNotEmpty()) {
+          this.pageToken = pageToken
+        }
+      }
+
+      val response =
+        try {
+          modelRolloutsStub.listModelRollouts(request)
+        } catch (e: StatusException) {
+          throw Exception("Error listing model rollouts for $modelLineName", e)
+        }
+
+      for (rollout in response.modelRolloutsList) {
+        if (rollout.modelRelease.isNotEmpty()) {
+          return rollout.modelRelease
+        }
+      }
+
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+
+    logger.warning("No model rollout found for model line $modelLineName")
+    return null
+  }
+
+  /**
+   * Resolves the model blob path from `ModelShard` resources for this `DataProvider` and
+   * `ModelRelease`.
+   *
+   * @param modelReleaseName resource name of the model release.
+   * @return the model blob path, or null if no matching shard is found.
+   */
+  private suspend fun resolveModelBlobPathFromShards(modelReleaseName: String): String? {
+    var pageToken = ""
+
+    do {
+      val request = listModelShardsRequest {
+        parent = dataProviderName
+        if (pageToken.isNotEmpty()) {
+          this.pageToken = pageToken
+        }
+      }
+
+      val response =
+        try {
+          modelShardsStub.listModelShards(request)
+        } catch (e: StatusException) {
+          throw Exception(
+            "Error listing model shards for $dataProviderName release $modelReleaseName",
+            e,
+          )
+        }
+
+      for (shard in response.modelShardsList) {
+        if (shard.modelRelease == modelReleaseName && shard.hasModelBlob()) {
+          return shard.modelBlob.modelBlobPath
+        }
+      }
+
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+
+    logger.warning("No model shard found for release $modelReleaseName on $dataProviderName")
+    return null
   }
 
   /**
    * Creates a WorkItem in the Secure Computation control plane for a single model line shard.
    *
-   * @param modelLineName resource name of the model line.
+   * @param resolvedModelLine the resolved model line with its blob path.
    * @param shardIndex zero-based index of this shard.
-   * @param blobUris all blob URIs for this dispatch.
    */
   private suspend fun createWorkItem(
-    modelLineName: String,
+    resolvedModelLine: ResolvedModelLine,
     shardIndex: Int,
-    blobUris: List<String>,
   ) {
+    val modelLineName = resolvedModelLine.modelLineName
     val modelLineConfig =
       requireNotNull(modelLineConfigs[modelLineName]) {
         "No ModelLineConfig found for model line: $modelLineName"
@@ -233,6 +366,9 @@ class VidLabelingDispatcher(
         eventTemplateFieldMapping.putAll(modelLineConfig.eventTemplateFieldMappingMap)
       }
       overrideModelLines += listOf(modelLineName)
+      this.shardIndex = shardIndex
+      totalShards = numberOfShards
+      modelBlobPaths[modelLineName] = resolvedModelLine.modelBlobPath
     }
 
     val workItemId = "vid-labeling-${modelLineName.substringAfterLast("/")}-shard-$shardIndex"
@@ -263,14 +399,6 @@ class VidLabelingDispatcher(
       duration,
       Attributes.of(DATA_PROVIDER_ATTR, dataProviderName, DISPATCH_STATUS_ATTR, status),
     )
-  }
-
-  private fun buildBlobUri(doneBlobUri: BlobUri, blobKey: String): String {
-    return when (doneBlobUri.scheme) {
-      "gs" -> "${doneBlobUri.scheme}://${doneBlobUri.bucket}/$blobKey"
-      "file" -> "${doneBlobUri.scheme}:///${doneBlobUri.bucket}/$blobKey"
-      else -> throw IllegalArgumentException("Unsupported scheme: ${doneBlobUri.scheme}")
-    }
   }
 
   private fun isDoneMarker(blobKey: String): Boolean {
