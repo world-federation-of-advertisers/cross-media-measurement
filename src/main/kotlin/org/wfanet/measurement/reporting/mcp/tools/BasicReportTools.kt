@@ -71,12 +71,12 @@ fun Server.registerBasicReportTools(
       ),
     toolAnnotations = ToolAnnotations(readOnlyHint = false),
   ) { request ->
-    handleToolCall {
+    ToolSupport.handleToolCall {
       val args = request.arguments!!
       val stubs = client.withBearerToken(getBearerToken())
 
       val basicReportBuilder = BasicReport.newBuilder()
-      PROTO_JSON_PARSER.merge(args.getValue("basic_report").toString(), basicReportBuilder)
+      ToolSupport.PROTO_JSON_PARSER.merge(ToolSupport.encodeJsonElement(args.getValue("basic_report")), basicReportBuilder)
 
       val grpcRequest = createBasicReportRequest {
         parent = args.getString("parent")
@@ -85,7 +85,7 @@ fun Server.registerBasicReportTools(
         args.getStringOrNull("request_id")?.let { requestId = it }
       }
 
-      PROTO_JSON_PRINTER.print(stubs.basicReports.createBasicReport(grpcRequest))
+      ToolSupport.PROTO_JSON_PRINTER.print(stubs.basicReports.createBasicReport(grpcRequest))
     }
   }
 
@@ -107,10 +107,10 @@ fun Server.registerBasicReportTools(
       ),
     toolAnnotations = ToolAnnotations(readOnlyHint = true),
   ) { request ->
-    handleToolCall {
+    ToolSupport.handleToolCall {
       val stubs = client.withBearerToken(getBearerToken())
       val grpcRequest = getBasicReportRequest { name = request.arguments!!.getString("name") }
-      PROTO_JSON_PRINTER.print(stubs.basicReports.getBasicReport(grpcRequest))
+      ToolSupport.PROTO_JSON_PRINTER.print(stubs.basicReports.getBasicReport(grpcRequest))
     }
   }
 
@@ -144,7 +144,7 @@ fun Server.registerBasicReportTools(
       ),
     toolAnnotations = ToolAnnotations(readOnlyHint = true),
   ) { request ->
-    handleToolCall {
+    ToolSupport.handleToolCall {
       val args = request.arguments!!
       val stubs = client.withBearerToken(getBearerToken())
       val grpcRequest = listBasicReportsRequest {
@@ -158,7 +158,7 @@ fun Server.registerBasicReportTools(
         }
       }
 
-      PROTO_JSON_PRINTER.print(stubs.basicReports.listBasicReports(grpcRequest))
+      ToolSupport.PROTO_JSON_PRINTER.print(stubs.basicReports.listBasicReports(grpcRequest))
     }
   }
 }
