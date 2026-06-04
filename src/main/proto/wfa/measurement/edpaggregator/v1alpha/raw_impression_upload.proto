@@ -53,7 +53,7 @@ message RawImpressionUpload {
   // Resource name.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
 
-  // The current pipeline state of this upload.
+  // Denormalized pipeline state, rolled up from child model line states.
   State state = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Cloud Storage URI of the "done" blob that triggered this upload.
@@ -69,4 +69,7 @@ message RawImpressionUpload {
   // The timestamp when this upload was last updated.
   google.protobuf.Timestamp update_time = 5
       [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Detail about the failure, set when state is FAILED.
+  string error_message = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

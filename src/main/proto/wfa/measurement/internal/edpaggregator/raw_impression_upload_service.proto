@@ -54,11 +54,14 @@ service RawImpressionUploadService {
 
 // Request message for CreateRawImpressionUpload.
 message CreateRawImpressionUploadRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
   // The RawImpressionUpload to create.
-  RawImpressionUpload raw_impression_upload = 1;
+  RawImpressionUpload raw_impression_upload = 2;
 
   // A request ID provided by the client to ensure idempotency.
-  string request_id = 2;
+  string request_id = 3;
 }
 
 // Request message for GetRawImpressionUpload.
@@ -90,7 +93,10 @@ message ListRawImpressionUploadsRequest {
     // Filter by pipeline state.
     RawImpressionUploadState state = 1;
 
-    // Filter by create time range.
+    // Filter for resources whose create_time falls within this
+    // interval. Start and end are both optional: omitting start
+    // returns resources created before end, omitting end returns
+    // resources created after start.
     google.type.Interval create_time_interval = 2;
   }
   Filter filter = 4;
@@ -142,4 +148,7 @@ message MarkRawImpressionUploadFailedRequest {
 
   // The unique identifier of the upload.
   string raw_impression_upload_resource_id = 2;
+
+  // Human-readable detail about the failure.
+  string error_message = 3;
 }
