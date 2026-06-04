@@ -59,11 +59,9 @@ message VidLabelingConfig {
   map<string, ModelLineConfig> model_line_configs = 5
       [(google.api.field_behavior) = REQUIRED];
 
-  // Optional; if provided, indicates what model lines to use.
-  repeated string override_model_lines = 6 [
-    (google.api.field_behavior) = OPTIONAL,
-    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
-  ];
+  // Deprecated: Override model lines are now passed via HTTP request header
+  // `X-Override-Model-Lines` instead of static config.
+  reserved 6;
 
   // Cloud Function TLS connection params for the RawImpressionMetadata
   // storage service.
@@ -85,6 +83,10 @@ message VidLabelingConfig {
 
   // TLS connection params for the VID Repository ModelShards service.
   TransportLayerSecurityParams model_shards_connection = 11
+      [(google.api.field_behavior) = REQUIRED];
+
+  // TLS connection params for the VID Repository ModelRollouts service.
+  TransportLayerSecurityParams model_rollouts_connection = 13
       [(google.api.field_behavior) = REQUIRED];
 
   // Resource name of the model suite. Used as parent for ListModelLines.
