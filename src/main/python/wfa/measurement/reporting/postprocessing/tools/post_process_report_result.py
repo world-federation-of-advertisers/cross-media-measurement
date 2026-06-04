@@ -117,7 +117,10 @@ class PostProcessReportResult:
         # TODO(@ple13): Write the status to the output log.
         all_updated_measurements: dict[str, float] = {}
         for report_summary in report_summaries:
-            result = ReportSummaryV2Processor(report_summary).process()
+            # TODO(@ple13): pull ami_mrc_exemption_list from BasicReport when
+            # this field is available.
+            result = ReportSummaryV2Processor(
+                report_summary, ami_mrc_exemption_list=[]).process()
             if result.status.status_code in [
                     ReportPostProcessorStatus.SOLUTION_FOUND_WITH_HIGHS,
                     ReportPostProcessorStatus.SOLUTION_FOUND_WITH_OSQP,

@@ -94,11 +94,38 @@ interface ReportProcessor {
    * Processes a serialized [Report] and outputs a serialized consistent one.
    *
    * @param report The serialized [Report] in JSON format.
+   * @param amiMrcExemptedList A list of Event Data Provider (EDP) IDs for which the `ami >= mrc`
+   *   constraint should be exempted.
    * @param verbose If true, enables verbose logging from the underlying report processor library.
    *   Default value is false.
    * @return The corrected serialized [Report] in JSON format.
    */
-  fun processReportJson(report: String, verbose: Boolean = false): String
+  fun processReportJson(
+    report: String,
+    amiMrcExemptedList: List<String>,
+    verbose: Boolean = false,
+  ): String
+
+  /**
+   * Processes a serialized [Report], outputs a consistent one, generates detailed logs of this
+   * processing, and returns both a string representation of the processing result and the generated
+   * log object.
+   *
+   * @param report The JSON [String] containing the report data to be processed.
+   * @param projectId The GCS Project ID.
+   * @param bucketName The GCS bucket name.
+   * @param verbose If true, enables verbose logging from the underlying report processor library.
+   *   Default value is false.
+   * @return A [ReportProcessingOutput] that contains the corrected serialized [Report] in JSON
+   *   format and a [ReportPostProcessorLog] object that encapsulates detailed logs, metrics, or
+   *   errors encountered during the processing of the report.
+   */
+  suspend fun processReportJsonAndLogResult(
+    report: String,
+    projectId: String,
+    bucketName: String,
+    verbose: Boolean = false,
+  ): ReportProcessingOutput
 
   /**
    * Processes a serialized [Report], outputs a consistent one, generates detailed logs of this
@@ -120,7 +147,7 @@ interface ReportProcessor {
     report: String,
     projectId: String,
     bucketName: String,
-    amiMrcExemptedList: List<String> = emptyList(),
+    amiMrcExemptedList: List<String>,
     verbose: Boolean = false,
   ): ReportProcessingOutput
 
@@ -182,10 +209,22 @@ interface ReportProcessor {
      * format.
      *
      * @param report standard JSON serialization of a Report message.
+     * @param amiMrcExemptedList A list of Event Data Provider (EDP) IDs for which the `ami >= mrc`
+     *   constraint should be exempted.
+     * @param verbose If true, enables verbose logging from the underlying report processor library.
+     *   Default value is false.
      * @return a corrected report, serialized as a standard JSON string.
      */
-    override fun processReportJson(report: String, verbose: Boolean): String {
-      return processReport(ReportConversion.getReportFromJsonString(report), verbose = verbose)
+    override fun processReportJson(
+      report: String,
+      amiMrcExemptedList: List<String>,
+      verbose: Boolean,
+    ): String {
+      return processReport(
+          ReportConversion.getReportFromJsonString(report),
+          amiMrcExemptedList,
+          verbose,
+        )
         .updatedReportJson
     }
 
@@ -197,6 +236,37 @@ interface ReportProcessor {
      * @param report The JSON [String] containing the report data to be processed.
      * @param projectId The GCS Project ID.
      * @param bucketName The GCS bucket name.
+     * @param verbose If true, enables verbose logging from the underlying report processor library.
+     *   Default value is false.
+     * @return A [ReportProcessingOutput] that contains the corrected serialized [Report] in JSON
+     *   format and a [ReportPostProcessorLog] object that encapsulates detailed logs, metrics, or
+     *   errors encountered during the processing of the report.
+     */
+    override suspend fun processReportJsonAndLogResult(
+      report: String,
+      projectId: String,
+      bucketName: String,
+      verbose: Boolean,
+    ): ReportProcessingOutput {
+      return processReportJsonAndLogResult(
+        report = report,
+        projectId = projectId,
+        bucketName = bucketName,
+        amiMrcExemptedList = emptyList(),
+        verbose = verbose,
+      )
+    }
+
+    /**
+     * Processes a serialized [Report], outputs a consistent one, generates detailed logs of this
+     * processing, and returns both a string representation of the processing result and the
+     * generated log object.
+     *
+     * @param report The JSON [String] containing the report data to be processed.
+     * @param projectId The GCS Project ID.
+     * @param bucketName The GCS bucket name.
+     * amiMrcExemptedList A list of Event Data Provider (EDP) IDs for which the `ami >= mrc`
+     *   constraint should be exempted.
      * @param verbose If true, enables verbose logging from the underlying report processor library.
      *   Default value is false.
      * @return A [ReportProcessingOutput] that contains the corrected serialized [Report] in JSON
@@ -229,6 +299,8 @@ interface ReportProcessor {
      * @param report The input [Report] object that needs to be processed.
      * @param projectId The GCS project ID.
      * @param bucketName The GCS bucket name.
+     * @param amiMrcExemptedList A list of Event Data Provider (EDP) IDs for which the `ami >= mrc`
+     *   constraint should be exempted.
      * @param verbose A boolean flag indicating whether to perform verbose logging.
      * @return A [ReportProcessingOutput] object which contains an updated [Report] and a
      *   [ReportPostProcessorLog] object.
@@ -237,7 +309,7 @@ interface ReportProcessor {
       report: Report,
       projectId: String,
       bucketName: String,
-      amiMrcExemptedList: List<String> = emptyList(),
+      amiMrcExemptedList: List<String>,
       verbose: Boolean = false,
     ): ReportProcessingOutput {
       require(projectId.isNotEmpty()) { "projectId cannot be empty." }
@@ -263,7 +335,7 @@ interface ReportProcessor {
      */
     private fun processReport(
       report: Report,
-      amiMrcExemptedList: List<String> = emptyList(),
+      amiMrcExemptedList: List<String>,
       verbose: Boolean = false,
     ): ReportProcessingOutput {
       val reportSummaries = report.toReportSummaries()
@@ -393,7 +465,7 @@ interface ReportProcessor {
      */
     private fun processReportSummary(
       reportSummary: ReportSummary,
-      amiMrcExemptedList: List<String> = emptyList(),
+      amiMrcExemptedList: List<String>,
       verbose: Boolean = false,
     ): ReportPostProcessorResult {
       logger.info { "Start processing report summary.." }

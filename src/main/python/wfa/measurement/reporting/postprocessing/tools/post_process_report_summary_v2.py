@@ -59,7 +59,7 @@ class ReportSummaryV2Processor:
     def __init__(
         self,
         report_summary: report_summary_v2_pb2.ReportSummaryV2,
-        ami_mrc_exemption_list: list[str] = None,
+        ami_mrc_exemption_list: list[str],
     ):
         """Initializes the processor with a ReportSummary v2 proto."""
         self._report_summary = report_summary

@@ -82,7 +82,7 @@ class ReportSummaryProcessor:
   def __init__(
       self,
       report_summary: report_summary_pb2.ReportSummary(),
-      ami_mrc_exemption_list: list[str] = None,
+      ami_mrc_exemption_list: list[str],
   ):
     """Initializes ReportSummaryProcessor with a ReportSummary.
 

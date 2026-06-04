@@ -318,7 +318,7 @@ class TestReport(unittest.TestCase):
                     15.0, 0.0, "mrc_whole_campaign_impression_edp1"
                 ),
                 frozenset({EDP_TWO}): Measurement(
-                    15.0, 1.0, "mrc_whole_campaign_impression_edp1"
+                    15.0, 1.0, "mrc_whole_campaign_impression_edp2"
                 ),
             }),
         weekly_non_cumulative_measurements={
@@ -390,7 +390,7 @@ class TestReport(unittest.TestCase):
     )
     self.assertEqual(
         subsets[name_to_index["ami_whole_campaign_impression_edp2"]],
-        [name_to_index["mrc_whole_campaign_impression_edp1"]],
+        [name_to_index["mrc_whole_campaign_impression_edp2"]],
     )
     self.assertEqual(
         subsets[name_to_index["ami_weekly_non_cumulative_reach_edp2_w0"]],

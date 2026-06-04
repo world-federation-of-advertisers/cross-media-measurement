@@ -234,6 +234,19 @@ class ReportProcessorTest {
   }
 
   @Test
+  fun `run report with ami mrc exemption succeeds with exemption without logging`() {
+    val reportFile =
+      TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_ami_mrc_exemption.json").toFile()
+    val reportAsJson = reportFile.readText()
+
+    val exemptionList = listOf("edp1")
+    val updatedReportAsJson =
+      ReportProcessor.processReportJson(reportAsJson, amiMrcExemptedList = exemptionList)
+    val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
+    assertThat(updatedReport.hasConsistentMeasurements(exemptionList)).isTrue()
+  }
+
+  @Test
   fun `run correct report with logging with custom policy successfully`() = runBlocking {
     val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_custom_policy.json").toFile()
     val reportAsJson = reportFile.readText()
@@ -450,7 +463,7 @@ class ReportProcessorTest {
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
     assertThat(report.hasConsistentMeasurements()).isFalse()
 
-    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
+    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson, emptyList())
     val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
     assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
   }
@@ -479,7 +492,7 @@ class ReportProcessorTest {
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
     assertThat(report.hasConsistentMeasurements()).isFalse()
 
-    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
+    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson, emptyList())
     val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
     assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
   }
@@ -493,7 +506,7 @@ class ReportProcessorTest {
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
     assertThat(report.hasConsistentMeasurements()).isFalse()
 
-    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
+    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson, emptyList())
     val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
     assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
   }
@@ -508,7 +521,7 @@ class ReportProcessorTest {
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
     assertThat(report.hasConsistentMeasurements()).isFalse()
 
-    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
+    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson, emptyList())
     val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
     assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
   }
@@ -521,7 +534,7 @@ class ReportProcessorTest {
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
     assertThat(report.hasConsistentMeasurements()).isFalse()
 
-    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
+    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson, emptyList())
     val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
     assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
   }
@@ -535,7 +548,7 @@ class ReportProcessorTest {
     val report = ReportConversion.getReportFromJsonString(reportAsJson)
     assertThat(report.hasConsistentMeasurements()).isFalse()
 
-    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
+    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson, emptyList())
     val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
     assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
   }
