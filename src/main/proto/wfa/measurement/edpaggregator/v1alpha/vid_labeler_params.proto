@@ -18,7 +18,6 @@ package wfa.measurement.edpaggregator.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
-import "google/protobuf/timestamp.proto";
 import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -64,23 +63,6 @@ message VidLabelerParams {
 
     // Mapping from event template field names to their corresponding values.
     map<string, string> event_template_field_mapping = 2;
-
-    // GCS blob path of the compiled VID model used by the labeler for this
-    // model line. Mirrors `ModelShard.model_blob_path` from the public API.
-    string model_blob_path = 3 [(google.api.field_behavior) = REQUIRED];
-
-    // Inclusive start of this model line's active window. Impressions with
-    // event timestamps before this point are dropped before labeling. Mirrors
-    // `ModelLine.active_start_time` from the public API.
-    google.protobuf.Timestamp active_start_time = 4
-        [(google.api.field_behavior) = REQUIRED];
-
-    // Exclusive end of this model line's active window. Impressions with
-    // event timestamps at or after this point are dropped before labeling.
-    // Unset means the model line is still active (no upper bound). Mirrors
-    // `ModelLine.active_end_time` from the public API.
-    google.protobuf.Timestamp active_end_time = 5
-        [(google.api.field_behavior) = OPTIONAL];
   }
 
   // Map from model line resource name to its configuration.
