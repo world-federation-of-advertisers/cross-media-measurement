@@ -17,6 +17,7 @@
 package org.wfanet.measurement.reporting.mcp.tools
 
 import io.modelcontextprotocol.kotlin.sdk.server.Server
+import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -58,8 +59,9 @@ fun Server.registerReportingSetTools(
           },
         required = listOf("parent", "reporting_set_id", "reporting_set"),
       ),
+    toolAnnotations = ToolAnnotations(readOnlyHint = false),
   ) { request ->
-    handleGrpcToolCall {
+    handleToolCall {
       val args = request.arguments!!
       val stubs = client.withBearerToken(getBearerToken())
 
@@ -90,8 +92,9 @@ fun Server.registerReportingSetTools(
           },
         required = listOf("name"),
       ),
+    toolAnnotations = ToolAnnotations(readOnlyHint = true),
   ) { request ->
-    handleGrpcToolCall {
+    handleToolCall {
       val stubs = client.withBearerToken(getBearerToken())
       val grpcRequest = getReportingSetRequest { name = request.arguments!!.getString("name") }
       PROTO_JSON_PRINTER.print(stubs.reportingSets.getReportingSet(grpcRequest))
@@ -120,8 +123,9 @@ fun Server.registerReportingSetTools(
           },
         required = listOf("parent"),
       ),
+    toolAnnotations = ToolAnnotations(readOnlyHint = true),
   ) { request ->
-    handleGrpcToolCall {
+    handleToolCall {
       val args = request.arguments!!
       val stubs = client.withBearerToken(getBearerToken())
       val grpcRequest = listReportingSetsRequest {

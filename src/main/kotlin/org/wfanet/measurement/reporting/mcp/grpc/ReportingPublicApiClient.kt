@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.reporting.mcp.grpc
 
-import io.grpc.Channel
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub
@@ -33,13 +32,6 @@ class ReportingPublicApiClient(
   val reportingSets: ReportingSetsCoroutineStub,
   val impressionQualificationFilters: ImpressionQualificationFiltersCoroutineStub,
 ) {
-  constructor(channel: Channel) : this(
-    basicReports = BasicReportsCoroutineStub(channel),
-    eventGroups = EventGroupsCoroutineStub(channel),
-    reportingSets = ReportingSetsCoroutineStub(channel),
-    impressionQualificationFilters = ImpressionQualificationFiltersCoroutineStub(channel),
-  )
-
   /** Returns stubs with the given bearer token attached as call credentials. */
   fun withBearerToken(bearerToken: String): AuthenticatedStubs {
     val credentials = BearerPassthroughCallCredentials(bearerToken)
