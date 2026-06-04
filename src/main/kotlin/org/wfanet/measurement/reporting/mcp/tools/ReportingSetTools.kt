@@ -54,7 +54,12 @@ fun Server.registerReportingSetTools(
             }
             putJsonObject("reporting_set") {
               put("type", "object")
-              put("description", "ReportingSet message in JSON")
+              put(
+                "description",
+                "ReportingSet message in JSON. Use primitive.cmms_event_groups for " +
+                  "direct event groups, or composite.expression for set operations. " +
+                  "Optional: display_name, campaign_group, filter, tags.",
+              )
             }
           },
         required = listOf("parent", "reporting_set_id", "reporting_set"),

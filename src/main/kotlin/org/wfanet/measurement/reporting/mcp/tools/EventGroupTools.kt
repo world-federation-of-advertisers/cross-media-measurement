@@ -83,7 +83,9 @@ fun Server.registerEventGroupTools(
               put("type", "object")
               put(
                 "description",
-                "Structured filter with cmms_data_provider_in, media_types_intersect, etc.",
+                "Structured filter. Fields: cmms_data_provider_in (list of DataProvider names), " +
+                  "media_types_intersect (VIDEO, DISPLAY, etc.), " +
+                  "data_availability_start_time_on_or_after/before, metadata_search_query.",
               )
             }
             putJsonObject("order_by") {
