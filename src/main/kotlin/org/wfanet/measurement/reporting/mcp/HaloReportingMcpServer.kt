@@ -17,7 +17,9 @@
 package org.wfanet.measurement.reporting.mcp
 
 import io.grpc.Channel
+import io.grpc.Deadline
 import io.ktor.http.HttpStatusCode
+import java.util.concurrent.TimeUnit
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.response.respondText
@@ -74,13 +76,18 @@ object ReportingMcpServerFromFlags {
         )
         .withVerboseLogging(mcpServerFlags.debugVerboseGrpcClientLogging)
 
+    val deadline =
+      Deadline.after(mcpServerFlags.reportingServerApiDeadlineSeconds, TimeUnit.SECONDS)
     val apiClient =
       ReportingPublicApiClient(
-        basicReports = BasicReportsCoroutineStub(reportingChannel),
-        eventGroups = EventGroupsCoroutineStub(reportingChannel),
-        reportingSets = ReportingSetsCoroutineStub(reportingChannel),
+        basicReports =
+          BasicReportsCoroutineStub(reportingChannel).withDeadline(deadline),
+        eventGroups =
+          EventGroupsCoroutineStub(reportingChannel).withDeadline(deadline),
+        reportingSets =
+          ReportingSetsCoroutineStub(reportingChannel).withDeadline(deadline),
         impressionQualificationFilters =
-          ImpressionQualificationFiltersCoroutineStub(reportingChannel),
+          ImpressionQualificationFiltersCoroutineStub(reportingChannel).withDeadline(deadline),
       )
 
     embeddedServer(CIO, host = mcpServerFlags.host, port = mcpServerFlags.port) {
@@ -89,13 +96,16 @@ object ReportingMcpServerFromFlags {
         // DNS rebinding protection is disabled because this server is deployed behind a
         // TLS-terminating proxy (e.g. Envoy, K8s Ingress) that handles host validation.
         mcpStreamableHttp(enableDnsRebindingProtection = false) {
+          // The mcpStreamableHttp factory block is called once per MCP session (not per
+          // request). The bearer token from the session's initial request is captured
+          // in the closure and used for all subsequent tool calls within that session.
+          // error() is used here because the factory block is non-suspend and cannot
+          // call respond(). The SDK translates the exception into an HTTP error.
+          // TODO(#3834): Switch to manual transport pattern to return HTTP 401 directly.
           val bearerToken =
             BearerTokenExtractor.extract(call.request)
               ?: error("Missing or invalid Authorization: Bearer header")
 
-          // Server is created per MCP session. The bearer token from the session's
-          // initial request is captured in the closure and used for all subsequent
-          // tool calls within that session.
           createMcpServer(apiClient) { bearerToken }
         }
 
@@ -119,7 +129,7 @@ fun createMcpServer(
           capabilities =
             ServerCapabilities(
               tools = ServerCapabilities.Tools(listChanged = false),
-              // TODO(#3834): Add logging capability.
+              logging = ServerCapabilities.Logging,
               // TODO(#3834): Add prompts capability in follow-up PR.
             ),
         ),
@@ -152,6 +162,14 @@ class McpServerFlags {
     defaultValue = "8080",
   )
   var port: Int = 0
+    private set
+
+  @CommandLine.Option(
+    names = ["--reporting-server-api-deadline"],
+    description = ["Deadline in seconds for downstream Reporting API gRPC calls."],
+    defaultValue = "30",
+  )
+  var reportingServerApiDeadlineSeconds: Long = 0
     private set
 
   @CommandLine.Option(

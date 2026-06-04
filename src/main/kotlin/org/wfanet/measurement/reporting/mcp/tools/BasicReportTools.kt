@@ -59,7 +59,12 @@ fun Server.registerBasicReportTools(
             }
             putJsonObject("basic_report") {
               put("type", "object")
-              put("description", "BasicReport message in JSON")
+              put(
+                "description",
+                "BasicReport message in JSON. Key fields: campaign_group (resource name), " +
+                  "reporting_interval (report_start, report_end), " +
+                  "impression_qualification_filters, result_group_specs.",
+              )
             }
           },
         required = listOf("parent", "basic_report_id", "basic_report"),
