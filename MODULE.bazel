@@ -39,7 +39,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.141.0",
+    version = "0.142.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -451,9 +451,3 @@ single_version_override(
     version = BORINGSSL_VERSION,
 )
 
-# DO_NOT_SUBMIT: Remove once common-jvm PR #384 is released.
-git_override(
-    module_name = "common-jvm",
-    remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
-    commit = "8fc50575dafecc362133a48e7f0d193c579a5cf9",
-)
