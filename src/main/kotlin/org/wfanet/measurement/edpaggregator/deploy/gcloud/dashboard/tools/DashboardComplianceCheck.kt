@@ -44,20 +44,29 @@ class DashboardComplianceCheck : Runnable {
   )
   private lateinit var dataset: String
 
+  @CommandLine.Option(
+    names = ["--edp"],
+    required = true,
+    description = ["EDP config as name:resourceId (repeatable)"],
+    split = ",",
+  )
+  private lateinit var edpFlags: List<String>
+
+  @CommandLine.Option(
+    names = ["--region"],
+    required = false,
+    description = ["BigQuery region"],
+    defaultValue = "us-central1",
+  )
+  private lateinit var region: String
+
   private data class EdpConfig(val name: String, val resourceId: String, val saEmail: String)
 
   private val edps by lazy {
-    listOf(
-      EdpConfig("meta", "J3-pzhqS9Lo", "edp-meta-dashboard@$project.iam.gserviceaccount.com"),
-      EdpConfig("google", "EObljF_vGDI", "edp-google-dashboard@$project.iam.gserviceaccount.com"),
-      EdpConfig(
-        "comscore",
-        "d9hrk_MNong",
-        "edp-comscore-dashboard@$project.iam.gserviceaccount.com",
-      ),
-      EdpConfig("tiktok", "UDjWe1_vGAM", "edp-tiktok-dashboard@$project.iam.gserviceaccount.com"),
-      EdpConfig("amazon", "MTcvLV_vGPw", "edp-amazon-dashboard@$project.iam.gserviceaccount.com"),
-    )
+    edpFlags.map { flag ->
+      val (name, resourceId) = flag.split(":", limit = 2)
+      EdpConfig(name, resourceId, "edp-$name-dashboard@$project.iam.gserviceaccount.com")
+    }
   }
 
   private var passed = 0
@@ -67,10 +76,12 @@ class DashboardComplianceCheck : Runnable {
     println("=== EDPA Dashboard Compliance Check ===")
     println("Project: $project")
     println("Dataset: $dataset")
+    println("EDPs: ${edps.map { it.name }}")
     println()
 
     checkDataIsolation()
     checkIamBoundary()
+    checkExternalQueryBypass()
     checkUdfOutputValidation()
     checkDriftDetection()
 
@@ -117,7 +128,6 @@ class DashboardComplianceCheck : Runnable {
         ),
         300,
       )
-    // Force token refresh to verify impersonation works before querying
     impersonatedCredentials.refreshIfExpired()
     logger.info("Successfully impersonated ${edp.saEmail}")
     return BigQueryOptions.newBuilder()
@@ -242,11 +252,40 @@ class DashboardComplianceCheck : Runnable {
     println()
   }
 
+  private fun checkExternalQueryBypass() {
+    println("[EXTERNAL_QUERY Bypass]")
+    val connections = listOf("edp-aggregator-conn", "kingdom-conn", "reporting-conn")
+    for (edp in edps) {
+      val bq = bigQueryAsEdp(edp)
+      for (conn in connections) {
+        try {
+          bq.query(
+            QueryJobConfiguration.of(
+              "SELECT * FROM EXTERNAL_QUERY('projects/$project/locations/$region/connections/$conn', '''SELECT 1''') LIMIT 1"
+            )
+          )
+          fail("${edp.name}: EXTERNAL_QUERY bypass via $conn should have been denied")
+        } catch (e: BigQueryException) {
+          if (e.code == 403) {
+            pass("${edp.name}: correctly denied EXTERNAL_QUERY via $conn (403)")
+          } else {
+            fail(
+              "${edp.name}: unexpected error for EXTERNAL_QUERY via $conn: ${e.code} ${e.message}"
+            )
+          }
+        }
+      }
+    }
+    println()
+  }
+
   private fun checkUdfOutputValidation() {
     println("[UDF Output Validation]")
     val bq = bigQueryDefault()
 
-    // Check decode_EventGroupDetails returns only allowlisted fields
+    // Smoke test: verify the UDF handles empty input without exposing forbidden fields.
+    // The primary enforcement for UDF output safety is the forbidden-column check in
+    // checkDriftDetection, which validates the deployed table schemas.
     try {
       val result =
         bq.query(
@@ -267,7 +306,7 @@ class DashboardComplianceCheck : Runnable {
         fail("decode_EventGroupDetails: output contains non-allowlisted fields: $output")
       }
     } catch (e: Exception) {
-      pass("decode_EventGroupDetails: empty input handled (expected for validation)")
+      pass("decode_EventGroupDetails: empty input handled (expected for smoke test)")
     }
     println()
   }
