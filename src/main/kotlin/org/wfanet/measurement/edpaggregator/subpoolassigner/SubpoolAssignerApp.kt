@@ -20,6 +20,7 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.Parser
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams.StorageParams
 import org.wfanet.measurement.queue.QueueSubscriber
@@ -69,6 +70,11 @@ import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
  * @param workItemsClient gRPC client stub for [WorkItemsGrpcKt.WorkItemsCoroutineStub].
  * @param workItemAttemptsClient gRPC client stub for
  *   [WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub].
+ * @param impressionMetadataStub gRPC client stub for the EDP Aggregator
+ *   internal `ImpressionMetadataService`. Placeholder for the internal
+ *   service stubs Phase-0 needs (`PoolAssignmentJob`,
+ *   `RawImpressionUploadModelLine` — not yet defined); the constructor
+ *   will grow as those services land.
  * @param kmsClients Per-DataProvider KMS clients used to wrap/unwrap DEKs
  *   for raw-impression and `SubpoolFingerprints` blobs.
  * @param getSubpoolMapStorageConfig Lambda to obtain the [StorageConfig] for
@@ -82,6 +88,7 @@ class SubpoolAssignerApp(
   parser: Parser<WorkItem>,
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
+  private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub,
   private val kmsClients: Map<String, KmsClient>,
   private val getSubpoolMapStorageConfig: (StorageParams) -> StorageConfig,
   private val getRawImpressionsStorageConfig: (StorageParams) -> StorageConfig,
@@ -124,5 +131,27 @@ class SubpoolAssignerApp(
     //      subpool, bin-pack subpools into RankerJob rows, flip
     //      RawImpressionUploadModelLineState POOL_ASSIGNING -> RANKING, and
     //      publish one WorkItem per RankerJob.
+    //
+    // TODO(@Marco-Premier): runWork must be idempotent on Pub/Sub
+    // redelivery. The Spanner commit (PoolAssignmentJob ->
+    // POOL_ASSIGNMENT_SUCCEEDED, last-shard-out RankerJob inserts,
+    // RawImpressionUploadModelLineState flip) and the message ack are not
+    // atomic, so a crash between them leads to redelivery with state
+    // already advanced. The implementation must:
+    //   - detect that this PoolAssignmentJob is already
+    //     POOL_ASSIGNMENT_SUCCEEDED and treat its own per-shard steps as
+    //     no-ops, re-running only the last-shard-out check (step 10)
+    //     before acking,
+    //   - tolerate partially-written per-(shard, subpool)
+    //     SubpoolFingerprints blobs and partially-inserted RankerJob rows
+    //     from a prior attempt (e.g. resume rather than duplicate),
+    //   - keep fingerprint partitioning deterministic across attempts so
+    //     a redelivered run produces the same per-subpool sets.
+    // Cover with tests that inject failures at: (a) after Spanner state
+    // flip but before ack, (b) mid-blob-write, (c) after first subpool
+    // blob write but before second, (d) after last-shard-out
+    // RawImpressionUploadModelLineState flip but before any Phase-1
+    // WorkItem publish, (e) between RankerJob row inserts. Each case
+    // must converge to the same final state on redelivery.
   }
 }
