@@ -455,5 +455,5 @@ single_version_override(
 git_override(
     module_name = "common-jvm",
     remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
-    commit = "a5fcd2f64009ab2f444208b4fa02e8b5c8cc8825",
+    commit = "8fc50575dafecc362133a48e7f0d193c579a5cf9",
 )
