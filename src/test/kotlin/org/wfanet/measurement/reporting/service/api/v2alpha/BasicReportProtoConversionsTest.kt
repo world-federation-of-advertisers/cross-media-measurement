@@ -93,26 +93,28 @@ class BasicReportProtoConversionsTest {
       resultDetails = basicReportResultDetails {
         resultGroups += internalResultGroup {
           title = "title"
-          results += InternalResultGroupKt.result {
-            metadata = InternalResultGroupKt.metricMetadata {
-              reportingUnitSummary =
-                InternalResultGroupKt.MetricMetadataKt.reportingUnitSummary {
-                  reportingUnitComponentSummary +=
-                    InternalResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
-                      cmmsDataProviderId = CMMS_DATA_PROVIDER_ID
-                      cmmsDataProviderDisplayName = "display"
-                      externalReportingSetId = COMPONENT_EXTERNAL_REPORTING_SET_ID
-                      eventGroupSummaries +=
-                        InternalResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
-                          .eventGroupSummary {
-                            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-                            cmmsEventGroupId = CMMS_EVENT_GROUP_ID
-                          }
+          results +=
+            InternalResultGroupKt.result {
+              metadata =
+                InternalResultGroupKt.metricMetadata {
+                  reportingUnitSummary =
+                    InternalResultGroupKt.MetricMetadataKt.reportingUnitSummary {
+                      reportingUnitComponentSummary +=
+                        InternalResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
+                          cmmsDataProviderId = CMMS_DATA_PROVIDER_ID
+                          cmmsDataProviderDisplayName = "display"
+                          externalReportingSetId = COMPONENT_EXTERNAL_REPORTING_SET_ID
+                          eventGroupSummaries +=
+                            InternalResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
+                              .eventGroupSummary {
+                                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                                cmmsEventGroupId = CMMS_EVENT_GROUP_ID
+                              }
+                        }
                     }
                 }
+              metricSet = InternalResultGroupKt.metricSet {}
             }
-            metricSet = InternalResultGroupKt.metricSet {}
-          }
         }
       }
     }

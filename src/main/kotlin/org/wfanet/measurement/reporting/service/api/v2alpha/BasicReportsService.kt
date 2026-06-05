@@ -243,13 +243,10 @@ class BasicReportsService(
     authorization.check(request.parent, requiredPermissionIds)
 
     val baseImpressionQualificationFilterKeys: List<ImpressionQualificationFilterKey> =
-      baseExternalImpressionQualificationFilterIds.map {
-        ImpressionQualificationFilterKey(it)
-      }
+      baseExternalImpressionQualificationFilterIds.map { ImpressionQualificationFilterKey(it) }
 
-    val baseImpressionQualificationFilterNames = baseImpressionQualificationFilterKeys.map {
-      it.toName()
-    }
+    val baseImpressionQualificationFilterNames =
+      baseImpressionQualificationFilterKeys.map { it.toName() }
 
     val impressionQualificationFilterKeyByName: Map<String, ImpressionQualificationFilterKey> =
       (baseImpressionQualificationFilterKeys + requestImpressionQualificationFilterKeys)
@@ -699,12 +696,13 @@ class BasicReportsService(
       }
 
     return internalListBasicReportsRequest {
-      filter = InternalListBasicReportsRequestKt.filter {
-        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-        if (source.filter.hasCreateTimeAfter()) {
-          createTimeAfter = source.filter.createTimeAfter
+      filter =
+        InternalListBasicReportsRequestKt.filter {
+          this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+          if (source.filter.hasCreateTimeAfter()) {
+            createTimeAfter = source.filter.createTimeAfter
+          }
         }
-      }
       this.pageSize = pageSize
       if (decodedPageToken != null) {
         pageToken = decodedPageToken
@@ -732,10 +730,11 @@ class BasicReportsService(
       internalReportingSetsStub
         .streamReportingSets(
           streamReportingSetsRequest {
-            filter = StreamReportingSetsRequestKt.filter {
-              cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
-              externalCampaignGroupId = campaignGroupKey.reportingSetId
-            }
+            filter =
+              StreamReportingSetsRequestKt.filter {
+                cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
+                externalCampaignGroupId = campaignGroupKey.reportingSetId
+              }
             limit = 1000
           }
         )
@@ -819,9 +818,10 @@ class BasicReportsService(
       .listMetricCalculationSpecs(
         listMetricCalculationSpecsRequest {
           cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
-          filter = ListMetricCalculationSpecsRequestKt.filter {
-            externalCampaignGroupId = campaignGroupKey.reportingSetId
-          }
+          filter =
+            ListMetricCalculationSpecsRequestKt.filter {
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
           limit = 1000
         }
       )
@@ -829,41 +829,42 @@ class BasicReportsService(
       .associate {
         it.copy {
           clearExternalMetricCalculationSpecId()
-          details = details.copy {
-            val realMetricSpecs = metricSpecs
-            metricSpecs.clear()
-            for (realMetricSpec in realMetricSpecs) {
-              @Suppress(
-                "WHEN_ENUM_CAN_BE_NULL_IN_JAVA"
-              ) // Protobuf oneof case enums cannot be null.
-              when (realMetricSpec.typeCase) {
-                MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
-                  metricSpecs += metricSpec {
-                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+          details =
+            details.copy {
+              val realMetricSpecs = metricSpecs
+              metricSpecs.clear()
+              for (realMetricSpec in realMetricSpecs) {
+                @Suppress(
+                  "WHEN_ENUM_CAN_BE_NULL_IN_JAVA"
+                ) // Protobuf oneof case enums cannot be null.
+                when (realMetricSpec.typeCase) {
+                  MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
+                    metricSpecs += metricSpec {
+                      reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                    }
                   }
-                }
 
-                MetricSpec.TypeCase.REACH -> {
-                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
-                }
-
-                MetricSpec.TypeCase.IMPRESSION_COUNT -> {
-                  metricSpecs += metricSpec {
-                    impressionCount = MetricSpecKt.impressionCountParams {}
+                  MetricSpec.TypeCase.REACH -> {
+                    metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                   }
-                }
 
-                MetricSpec.TypeCase.POPULATION_COUNT -> {
-                  metricSpecs += metricSpec {
-                    populationCount = MetricSpecKt.populationCountParams {}
+                  MetricSpec.TypeCase.IMPRESSION_COUNT -> {
+                    metricSpecs += metricSpec {
+                      impressionCount = MetricSpecKt.impressionCountParams {}
+                    }
                   }
-                }
 
-                MetricSpec.TypeCase.WATCH_DURATION,
-                MetricSpec.TypeCase.TYPE_NOT_SET -> {}
+                  MetricSpec.TypeCase.POPULATION_COUNT -> {
+                    metricSpecs += metricSpec {
+                      populationCount = MetricSpecKt.populationCountParams {}
+                    }
+                  }
+
+                  MetricSpec.TypeCase.WATCH_DURATION,
+                  MetricSpec.TypeCase.TYPE_NOT_SET -> {}
+                }
               }
             }
-          }
         } to
           MetricCalculationSpecKey(it.cmmsMeasurementConsumerId, it.externalMetricCalculationSpecId)
             .toName()
@@ -900,60 +901,63 @@ class BasicReportsService(
     return report {
       for (reportingSetMetricCalculationSpecDetailsEntry in
         reportingSetMetricCalculationSpecDetailsMap.entries) {
-        reportingMetricEntries += ReportKt.reportingMetricEntry {
-          // Reuse ReportingSet or create a new one if it doesn't exist
-          key =
-            // All required Primitive ReportingSets have already been created so the name exists
-            if (reportingSetMetricCalculationSpecDetailsEntry.key.hasPrimitive()) {
-              reportingSetMetricCalculationSpecDetailsEntry.key.name
-            } else {
-              existingReportingSetCompositesMap.getOrPut(
-                reportingSetMetricCalculationSpecDetailsEntry.key.composite
-              ) {
-                val createdReportingSet =
-                  createCompositeReportingSet(
-                    reportingSetMetricCalculationSpecDetailsEntry.key,
-                    campaignGroupKey.parentKey,
-                  )
+        reportingMetricEntries +=
+          ReportKt.reportingMetricEntry {
+            // Reuse ReportingSet or create a new one if it doesn't exist
+            key =
+              // All required Primitive ReportingSets have already been created so the name exists
+              if (reportingSetMetricCalculationSpecDetailsEntry.key.hasPrimitive()) {
+                reportingSetMetricCalculationSpecDetailsEntry.key.name
+              } else {
+                existingReportingSetCompositesMap.getOrPut(
+                  reportingSetMetricCalculationSpecDetailsEntry.key.composite
+                ) {
+                  val createdReportingSet =
+                    createCompositeReportingSet(
+                      reportingSetMetricCalculationSpecDetailsEntry.key,
+                      campaignGroupKey.parentKey,
+                    )
 
-                ReportingSetKey(
-                    createdReportingSet.cmmsMeasurementConsumerId,
-                    createdReportingSet.externalReportingSetId,
-                  )
-                  .toName()
-              }
-            }
-
-          value = ReportKt.reportingMetricCalculationSpec {
-            // Reuse MetricCalculationSpec or create a new one if it doesn't exist
-            for (metricCalculationSpecDetails in
-              reportingSetMetricCalculationSpecDetailsEntry.value) {
-              val metricCalculationSpec = metricCalculationSpec {
-                cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
-                externalCampaignGroupId = campaignGroupKey.reportingSetId
-                cmmsModelLine = modelLine
-                details = metricCalculationSpecDetails
-              }
-              metricCalculationSpecs +=
-                existingMetricCalculationSpecsMap.getOrPut(metricCalculationSpec) {
-                  val createdMetricCalculationSpec =
-                    createMetricCalculationSpec(metricCalculationSpec)
-
-                  MetricCalculationSpecKey(
-                      createdMetricCalculationSpec.cmmsMeasurementConsumerId,
-                      createdMetricCalculationSpec.externalMetricCalculationSpecId,
+                  ReportingSetKey(
+                      createdReportingSet.cmmsMeasurementConsumerId,
+                      createdReportingSet.externalReportingSetId,
                     )
                     .toName()
                 }
-            }
+              }
+
+            value =
+              ReportKt.reportingMetricCalculationSpec {
+                // Reuse MetricCalculationSpec or create a new one if it doesn't exist
+                for (metricCalculationSpecDetails in
+                  reportingSetMetricCalculationSpecDetailsEntry.value) {
+                  val metricCalculationSpec = metricCalculationSpec {
+                    cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
+                    externalCampaignGroupId = campaignGroupKey.reportingSetId
+                    cmmsModelLine = modelLine
+                    details = metricCalculationSpecDetails
+                  }
+                  metricCalculationSpecs +=
+                    existingMetricCalculationSpecsMap.getOrPut(metricCalculationSpec) {
+                      val createdMetricCalculationSpec =
+                        createMetricCalculationSpec(metricCalculationSpec)
+
+                      MetricCalculationSpecKey(
+                          createdMetricCalculationSpec.cmmsMeasurementConsumerId,
+                          createdMetricCalculationSpec.externalMetricCalculationSpecId,
+                        )
+                        .toName()
+                    }
+                }
+              }
           }
-        }
       }
 
-      reportingInterval = ReportKt.reportingInterval {
-        reportStart = effectiveReportStart
-        reportEnd = basicReport.reportingInterval.reportEnd
-      }
+      reportingInterval =
+        ReportKt.reportingInterval {
+          reportStart = effectiveReportStart
+          reportEnd = basicReport.reportingInterval.reportEnd
+        }
     }
   }
 
@@ -1002,15 +1006,16 @@ class BasicReportsService(
   ): MetricCalculationSpec {
     return internalMetricCalculationSpecsStub.createMetricCalculationSpec(
       createMetricCalculationSpecRequest {
-        this.metricCalculationSpec = metricCalculationSpec.copy {
-          details = details.copy {
-            val metricSpecsWithDefault = metricSpecs.map {
-              it.withDefaults(metricSpecConfig, secureRandom)
-            }
-            metricSpecs.clear()
-            metricSpecs += metricSpecsWithDefault
+        this.metricCalculationSpec =
+          metricCalculationSpec.copy {
+            details =
+              details.copy {
+                val metricSpecsWithDefault =
+                  metricSpecs.map { it.withDefaults(metricSpecConfig, secureRandom) }
+                metricSpecs.clear()
+                metricSpecs += metricSpecsWithDefault
+              }
           }
-        }
         externalMetricCalculationSpecId = "a${UUID.randomUUID()}"
       }
     )
@@ -1084,31 +1089,33 @@ class BasicReportsService(
       allowSamplingIntervalWrapping: Boolean,
     ): MetricSpec.ReachParams {
       return MetricSpecKt.reachParams {
-        multipleDataProviderParams = MetricSpecKt.samplingAndPrivacyParams {
-          privacyParams =
-            defaultDifferentialPrivacyParams(
-              defaultEpsilon =
-                metricSpecConfig.reachParams.multipleDataProviderParams.privacyParams.epsilon,
-              defaultDelta =
-                metricSpecConfig.reachParams.multipleDataProviderParams.privacyParams.delta,
-            )
-          vidSamplingInterval =
-            metricSpecConfig.reachParams.multipleDataProviderParams.vidSamplingInterval
-              .toVidSamplingInterval(secureRandom, allowSamplingIntervalWrapping)
-        }
+        multipleDataProviderParams =
+          MetricSpecKt.samplingAndPrivacyParams {
+            privacyParams =
+              defaultDifferentialPrivacyParams(
+                defaultEpsilon =
+                  metricSpecConfig.reachParams.multipleDataProviderParams.privacyParams.epsilon,
+                defaultDelta =
+                  metricSpecConfig.reachParams.multipleDataProviderParams.privacyParams.delta,
+              )
+            vidSamplingInterval =
+              metricSpecConfig.reachParams.multipleDataProviderParams.vidSamplingInterval
+                .toVidSamplingInterval(secureRandom, allowSamplingIntervalWrapping)
+          }
 
-        singleDataProviderParams = MetricSpecKt.samplingAndPrivacyParams {
-          privacyParams =
-            defaultDifferentialPrivacyParams(
-              defaultEpsilon =
-                metricSpecConfig.reachParams.singleDataProviderParams.privacyParams.epsilon,
-              defaultDelta =
-                metricSpecConfig.reachParams.singleDataProviderParams.privacyParams.delta,
-            )
-          vidSamplingInterval =
-            metricSpecConfig.reachParams.singleDataProviderParams.vidSamplingInterval
-              .toVidSamplingInterval(secureRandom)
-        }
+        singleDataProviderParams =
+          MetricSpecKt.samplingAndPrivacyParams {
+            privacyParams =
+              defaultDifferentialPrivacyParams(
+                defaultEpsilon =
+                  metricSpecConfig.reachParams.singleDataProviderParams.privacyParams.epsilon,
+                defaultDelta =
+                  metricSpecConfig.reachParams.singleDataProviderParams.privacyParams.delta,
+              )
+            vidSamplingInterval =
+              metricSpecConfig.reachParams.singleDataProviderParams.vidSamplingInterval
+                .toVidSamplingInterval(secureRandom)
+          }
       }
     }
 
@@ -1121,59 +1128,64 @@ class BasicReportsService(
       return MetricSpecKt.reachAndFrequencyParams {
         maximumFrequency = metricSpecConfig.reachAndFrequencyParams.maximumFrequency
 
-        multipleDataProviderParams = MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
-          reachPrivacyParams =
-            defaultDifferentialPrivacyParams(
-              defaultEpsilon =
-                metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
-                  .reachPrivacyParams
-                  .epsilon,
-              defaultDelta =
-                metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
-                  .reachPrivacyParams
-                  .delta,
-            )
-          frequencyPrivacyParams =
-            defaultDifferentialPrivacyParams(
-              defaultEpsilon =
-                metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
-                  .frequencyPrivacyParams
-                  .epsilon,
-              defaultDelta =
-                metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
-                  .frequencyPrivacyParams
-                  .delta,
-            )
-          vidSamplingInterval =
-            metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval
-              .toVidSamplingInterval(secureRandom, allowSamplingIntervalWrapping)
-        }
+        multipleDataProviderParams =
+          MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
+            reachPrivacyParams =
+              defaultDifferentialPrivacyParams(
+                defaultEpsilon =
+                  metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
+                    .reachPrivacyParams
+                    .epsilon,
+                defaultDelta =
+                  metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
+                    .reachPrivacyParams
+                    .delta,
+              )
+            frequencyPrivacyParams =
+              defaultDifferentialPrivacyParams(
+                defaultEpsilon =
+                  metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
+                    .frequencyPrivacyParams
+                    .epsilon,
+                defaultDelta =
+                  metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
+                    .frequencyPrivacyParams
+                    .delta,
+              )
+            vidSamplingInterval =
+              metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
+                .vidSamplingInterval
+                .toVidSamplingInterval(secureRandom, allowSamplingIntervalWrapping)
+          }
 
-        singleDataProviderParams = MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
-          reachPrivacyParams =
-            defaultDifferentialPrivacyParams(
-              defaultEpsilon =
-                metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams
-                  .epsilon,
-              defaultDelta =
-                metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams
-                  .delta,
-            )
-          frequencyPrivacyParams =
-            defaultDifferentialPrivacyParams(
-              defaultEpsilon =
-                metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams
-                  .frequencyPrivacyParams
-                  .epsilon,
-              defaultDelta =
-                metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams
-                  .frequencyPrivacyParams
-                  .delta,
-            )
-          vidSamplingInterval =
-            metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval
-              .toVidSamplingInterval(secureRandom)
-        }
+        singleDataProviderParams =
+          MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
+            reachPrivacyParams =
+              defaultDifferentialPrivacyParams(
+                defaultEpsilon =
+                  metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams
+                    .reachPrivacyParams
+                    .epsilon,
+                defaultDelta =
+                  metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams
+                    .reachPrivacyParams
+                    .delta,
+              )
+            frequencyPrivacyParams =
+              defaultDifferentialPrivacyParams(
+                defaultEpsilon =
+                  metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams
+                    .frequencyPrivacyParams
+                    .epsilon,
+                defaultDelta =
+                  metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams
+                    .frequencyPrivacyParams
+                    .delta,
+              )
+            vidSamplingInterval =
+              metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval
+                .toVidSamplingInterval(secureRandom)
+          }
       }
     }
 
@@ -1185,17 +1197,18 @@ class BasicReportsService(
       return MetricSpecKt.impressionCountParams {
         maximumFrequencyPerUser = metricSpecConfig.impressionCountParams.maximumFrequencyPerUser
 
-        params = MetricSpecKt.samplingAndPrivacyParams {
-          privacyParams =
-            defaultDifferentialPrivacyParams(
-              defaultEpsilon = metricSpecConfig.impressionCountParams.params.privacyParams.epsilon,
-              defaultDelta = metricSpecConfig.impressionCountParams.params.privacyParams.delta,
-            )
-          vidSamplingInterval =
-            metricSpecConfig.impressionCountParams.params.vidSamplingInterval.toVidSamplingInterval(
-              secureRandom
-            )
-        }
+        params =
+          MetricSpecKt.samplingAndPrivacyParams {
+            privacyParams =
+              defaultDifferentialPrivacyParams(
+                defaultEpsilon =
+                  metricSpecConfig.impressionCountParams.params.privacyParams.epsilon,
+                defaultDelta = metricSpecConfig.impressionCountParams.params.privacyParams.delta,
+              )
+            vidSamplingInterval =
+              metricSpecConfig.impressionCountParams.params.vidSamplingInterval
+                .toVidSamplingInterval(secureRandom)
+          }
       }
     }
 
