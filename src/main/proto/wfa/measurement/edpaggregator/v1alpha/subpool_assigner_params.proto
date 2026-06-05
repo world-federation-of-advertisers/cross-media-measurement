@@ -67,7 +67,7 @@ message SubpoolAssignerParams {
 
   // Fully qualified resource name of the `RawImpressionUpload` this WorkItem
   // is processing.
-  string raw_impression_upload_resource_id = 5 [
+  string raw_impression_upload = 5 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference).type =
         "edpaggregator.halo-cmm.org/RawImpressionUpload"
