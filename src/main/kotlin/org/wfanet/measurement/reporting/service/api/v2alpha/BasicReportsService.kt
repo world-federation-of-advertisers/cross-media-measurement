@@ -410,9 +410,7 @@ class BasicReportsService(
       }
     )
 
-    return createdInternalBasicReport.toBasicReport(
-      populateDeprecatedReportingUnitEventGroupSummaries
-    )
+    return createdInternalBasicReport.toBasicReport(includeDeprecatedEventGroupSummaries(null))
   }
 
   /**
@@ -552,7 +550,15 @@ class BasicReportsService(
         }
       }
 
-    return internalBasicReport.toBasicReport(populateDeprecatedReportingUnitEventGroupSummaries)
+    val includeDeprecated =
+      includeDeprecatedEventGroupSummaries(
+        if (request.hasIncludeDeprecatedEventGroupSummaries()) {
+          request.includeDeprecatedEventGroupSummaries
+        } else {
+          null
+        }
+      )
+    return internalBasicReport.toBasicReport(includeDeprecated)
   }
 
   override suspend fun listBasicReports(
@@ -604,10 +610,18 @@ class BasicReportsService(
       return ListBasicReportsResponse.getDefaultInstance()
     }
 
+    val includeDeprecated =
+      includeDeprecatedEventGroupSummaries(
+        if (request.hasIncludeDeprecatedEventGroupSummaries()) {
+          request.includeDeprecatedEventGroupSummaries
+        } else {
+          null
+        }
+      )
     return listBasicReportsResponse {
       this.basicReports +=
         internalListBasicReportsResponse.basicReportsList
-          .map { it.toBasicReport(populateDeprecatedReportingUnitEventGroupSummaries) }
+          .map { it.toBasicReport(includeDeprecated) }
           .toList()
       unreachable += internalListBasicReportsResponse.unreachableList
       if (internalListBasicReportsResponse.hasNextPageToken()) {
@@ -1037,6 +1051,18 @@ class BasicReportsService(
           filters += normalizedEventFilters.map { it.toEventFilter() }
         }
       }
+  }
+
+  /**
+   * Returns whether the deprecated `event_group_summaries` field of
+   * `ReportingUnitComponentSummary` should be emitted, combining the server configuration with the
+   * per-request preference.
+   *
+   * @param requestPreference the request's include preference, or `null` when unset (defaults to
+   *   `true`)
+   */
+  private fun includeDeprecatedEventGroupSummaries(requestPreference: Boolean?): Boolean {
+    return populateDeprecatedReportingUnitEventGroupSummaries && (requestPreference ?: true)
   }
 
   object Permission {

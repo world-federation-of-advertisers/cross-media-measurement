@@ -10028,6 +10028,50 @@ class BasicReportsServiceTest {
           createTime = internalBasicReport.createTime
         }
       )
+
+    // When the request opts out, the deprecated event_group_summaries field is omitted while the
+    // ReportingSet reference remains populated.
+    val responseWithoutDeprecated =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        service.getBasicReport(
+          getBasicReportRequest {
+            name = basicReportName
+            includeDeprecatedEventGroupSummaries = false
+          }
+        )
+      }
+    val componentSummaryWithoutDeprecated =
+      responseWithoutDeprecated.resultGroupsList
+        .first()
+        .resultsList
+        .first()
+        .metadata
+        .reportingUnitSummary
+        .reportingUnitComponentSummaryList
+        .first()
+    assertThat(componentSummaryWithoutDeprecated.eventGroupSummariesList).isEmpty()
+    assertThat(componentSummaryWithoutDeprecated.reportingSet).isNotEmpty()
+
+    // Explicitly requesting the deprecated field still includes it.
+    val responseWithDeprecated =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        service.getBasicReport(
+          getBasicReportRequest {
+            name = basicReportName
+            includeDeprecatedEventGroupSummaries = true
+          }
+        )
+      }
+    val componentSummaryWithDeprecated =
+      responseWithDeprecated.resultGroupsList
+        .first()
+        .resultsList
+        .first()
+        .metadata
+        .reportingUnitSummary
+        .reportingUnitComponentSummaryList
+        .first()
+    assertThat(componentSummaryWithDeprecated.eventGroupSummariesList).isNotEmpty()
   }
 
   @Test
