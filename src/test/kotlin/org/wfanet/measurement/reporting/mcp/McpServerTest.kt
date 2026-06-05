@@ -174,9 +174,7 @@ class McpServerTest {
       .directExecutor()
       .addService(
         object : BasicReportsGrpcKt.BasicReportsCoroutineImplBase() {
-          override suspend fun createBasicReport(
-            request: CreateBasicReportRequest,
-          ): BasicReport =
+          override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport =
             BasicReport.newBuilder()
               .setName("${request.parent}/basicReports/${request.basicReportId}")
               .build()
@@ -189,7 +187,7 @@ class McpServerTest {
           }
 
           override suspend fun listBasicReports(
-            request: ListBasicReportsRequest,
+            request: ListBasicReportsRequest
           ): ListBasicReportsResponse = ListBasicReportsResponse.getDefaultInstance()
         }
       )
@@ -199,7 +197,7 @@ class McpServerTest {
             EventGroup.newBuilder().setName(request.name).build()
 
           override suspend fun listEventGroups(
-            request: ListEventGroupsRequest,
+            request: ListEventGroupsRequest
           ): ListEventGroupsResponse = ListEventGroupsResponse.getDefaultInstance()
         }
       )
@@ -209,7 +207,7 @@ class McpServerTest {
             ReportingSet.newBuilder().setName(request.name).build()
 
           override suspend fun listReportingSets(
-            request: ListReportingSetsRequest,
+            request: ListReportingSetsRequest
           ): ListReportingSetsResponse = ListReportingSetsResponse.getDefaultInstance()
         }
       )
@@ -217,12 +215,12 @@ class McpServerTest {
         object :
           ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineImplBase() {
           override suspend fun getImpressionQualificationFilter(
-            request: GetImpressionQualificationFilterRequest,
+            request: GetImpressionQualificationFilterRequest
           ): ImpressionQualificationFilter =
             ImpressionQualificationFilter.newBuilder().setName(request.name).build()
 
           override suspend fun listImpressionQualificationFilters(
-            request: ListImpressionQualificationFiltersRequest,
+            request: ListImpressionQualificationFiltersRequest
           ): ListImpressionQualificationFiltersResponse =
             ListImpressionQualificationFiltersResponse.getDefaultInstance()
         }

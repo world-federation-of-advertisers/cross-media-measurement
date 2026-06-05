@@ -26,10 +26,7 @@ import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
 import org.wfanet.measurement.reporting.v2alpha.getImpressionQualificationFilterRequest
 import org.wfanet.measurement.reporting.v2alpha.listImpressionQualificationFiltersRequest
 
-fun Server.registerIqfTools(
-  client: ReportingPublicApiClient,
-  getBearerToken: () -> String,
-) {
+fun Server.registerIqfTools(client: ReportingPublicApiClient, getBearerToken: () -> String) {
   addTool(
     name = "get_impression_qualification_filter",
     description = "Get an ImpressionQualificationFilter by resource name.",
@@ -74,7 +71,7 @@ fun Server.registerIqfTools(
               put("type", "string")
               put("description", "Pagination token from a previous response")
             }
-          },
+          }
       ),
     toolAnnotations = ToolAnnotations(readOnlyHint = true),
   ) { request ->

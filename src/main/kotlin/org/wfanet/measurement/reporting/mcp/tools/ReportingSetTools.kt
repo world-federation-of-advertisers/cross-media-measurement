@@ -71,7 +71,7 @@ fun Server.registerReportingSetTools(
       val rsBuilder = ReportingSet.newBuilder()
       ToolSupport.PROTO_JSON_PARSER.merge(
         ToolSupport.encodeJsonElement(args.getValue("reporting_set")),
-        rsBuilder
+        rsBuilder,
       )
 
       val grpcRequest = createReportingSetRequest {

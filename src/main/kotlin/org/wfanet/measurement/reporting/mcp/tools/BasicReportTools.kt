@@ -76,7 +76,7 @@ fun Server.registerBasicReportTools(
       val basicReportBuilder = BasicReport.newBuilder()
       ToolSupport.PROTO_JSON_PARSER.merge(
         ToolSupport.encodeJsonElement(args.getValue("basic_report")),
-        basicReportBuilder
+        basicReportBuilder,
       )
 
       val grpcRequest = createBasicReportRequest {

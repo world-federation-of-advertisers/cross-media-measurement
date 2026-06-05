@@ -227,10 +227,7 @@ object ReportingMcpServerFromFlags {
   }
 }
 
-fun createMcpServer(
-  apiClient: ReportingPublicApiClient,
-  getBearerToken: () -> String,
-): Server {
+fun createMcpServer(apiClient: ReportingPublicApiClient, getBearerToken: () -> String): Server {
   val server =
     Server(
       serverInfo = Implementation(name = SERVER_NAME, version = SERVER_VERSION),
@@ -241,7 +238,7 @@ fun createMcpServer(
               tools = ServerCapabilities.Tools(listChanged = false),
               logging = ServerCapabilities.Logging,
               // TODO(#3834): Add prompts capability in follow-up PR.
-            ),
+            )
         ),
     )
 

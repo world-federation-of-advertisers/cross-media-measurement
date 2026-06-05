@@ -25,9 +25,7 @@ import java.util.concurrent.Executor
  *
  * The token is attached as-is to the `authorization` metadata key with a `Bearer ` prefix.
  */
-class BearerPassthroughCallCredentials(
-  private val bearerToken: String,
-) : CallCredentials() {
+class BearerPassthroughCallCredentials(private val bearerToken: String) : CallCredentials() {
   override fun applyRequestMetadata(
     requestInfo: RequestInfo,
     appExecutor: Executor,

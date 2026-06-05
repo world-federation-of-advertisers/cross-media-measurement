@@ -27,10 +27,7 @@ import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.getEventGroupRequest
 
-fun Server.registerEventGroupTools(
-  client: ReportingPublicApiClient,
-  getBearerToken: () -> String,
-) {
+fun Server.registerEventGroupTools(client: ReportingPublicApiClient, getBearerToken: () -> String) {
   addTool(
     name = "get_event_group",
     description = "Get an EventGroup by resource name.",

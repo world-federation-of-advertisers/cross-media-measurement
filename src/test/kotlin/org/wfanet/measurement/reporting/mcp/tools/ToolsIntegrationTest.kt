@@ -242,7 +242,7 @@ class ToolsIntegrationTest {
     }
 
     override suspend fun listBasicReports(
-      request: ListBasicReportsRequest,
+      request: ListBasicReportsRequest
     ): ListBasicReportsResponse = ListBasicReportsResponse.getDefaultInstance()
   }
 
@@ -250,15 +250,12 @@ class ToolsIntegrationTest {
     override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup =
       EventGroup.newBuilder().setName(request.name).build()
 
-    override suspend fun listEventGroups(
-      request: ListEventGroupsRequest,
-    ): ListEventGroupsResponse = ListEventGroupsResponse.getDefaultInstance()
+    override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse =
+      ListEventGroupsResponse.getDefaultInstance()
   }
 
   private class FakeReportingSetsService : ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase() {
-    override suspend fun createReportingSet(
-      request: CreateReportingSetRequest,
-    ): ReportingSet {
+    override suspend fun createReportingSet(request: CreateReportingSetRequest): ReportingSet {
       if (request.parent.isEmpty()) {
         throw StatusException(Status.INVALID_ARGUMENT.withDescription("parent must not be empty"))
       }
@@ -271,19 +268,19 @@ class ToolsIntegrationTest {
       ReportingSet.newBuilder().setName(request.name).build()
 
     override suspend fun listReportingSets(
-      request: ListReportingSetsRequest,
+      request: ListReportingSetsRequest
     ): ListReportingSetsResponse = ListReportingSetsResponse.getDefaultInstance()
   }
 
   private class FakeIqfService :
     ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineImplBase() {
     override suspend fun getImpressionQualificationFilter(
-      request: GetImpressionQualificationFilterRequest,
+      request: GetImpressionQualificationFilterRequest
     ): ImpressionQualificationFilter =
       ImpressionQualificationFilter.newBuilder().setName(request.name).build()
 
     override suspend fun listImpressionQualificationFilters(
-      request: ListImpressionQualificationFiltersRequest,
+      request: ListImpressionQualificationFiltersRequest
     ): ListImpressionQualificationFiltersResponse =
       ListImpressionQualificationFiltersResponse.getDefaultInstance()
   }
