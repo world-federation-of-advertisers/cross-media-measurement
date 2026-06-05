@@ -497,9 +497,17 @@ resource "google_bigquery_table" "report_detail_edp" {
 EOF
 }
 
+# Terraform SA needs serviceAccountUser on itself to create scheduled queries
+resource "google_service_account_iam_member" "terraform_sa_act_as_self" {
+  service_account_id = "projects/${data.google_client_config.default.project}/serviceAccounts/${var.terraform_service_account}"
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${var.terraform_service_account}"
+}
+
 # --- Scheduled Queries (materialize Spanner data into BigQuery tables) ---
 
 resource "google_bigquery_data_transfer_config" "requisition_overview" {
+  depends_on             = [google_service_account_iam_member.terraform_sa_act_as_self]
   display_name           = "Dashboard: requisition_overview"
   data_source_id         = "scheduled_query"
   schedule               = "every 1 hours"
@@ -519,6 +527,7 @@ resource "google_bigquery_data_transfer_config" "requisition_overview" {
 }
 
 resource "google_bigquery_data_transfer_config" "mc_details" {
+  depends_on             = [google_service_account_iam_member.terraform_sa_act_as_self]
   display_name           = "Dashboard: mc_details (platform)"
   data_source_id         = "scheduled_query"
   schedule               = "every 1 hours"
@@ -538,6 +547,7 @@ resource "google_bigquery_data_transfer_config" "mc_details" {
 }
 
 resource "google_bigquery_data_transfer_config" "mc_details_edp" {
+  depends_on             = [google_service_account_iam_member.terraform_sa_act_as_self]
   display_name           = "Dashboard: mc_details_edp"
   data_source_id         = "scheduled_query"
   schedule               = "every 1 hours"
@@ -557,6 +567,7 @@ resource "google_bigquery_data_transfer_config" "mc_details_edp" {
 }
 
 resource "google_bigquery_data_transfer_config" "report_detail" {
+  depends_on             = [google_service_account_iam_member.terraform_sa_act_as_self]
   display_name           = "Dashboard: report_detail (platform)"
   data_source_id         = "scheduled_query"
   schedule               = "every 1 hours"
@@ -576,6 +587,7 @@ resource "google_bigquery_data_transfer_config" "report_detail" {
 }
 
 resource "google_bigquery_data_transfer_config" "report_detail_edp" {
+  depends_on             = [google_service_account_iam_member.terraform_sa_act_as_self]
   display_name           = "Dashboard: report_detail_edp"
   data_source_id         = "scheduled_query"
   schedule               = "every 1 hours"
