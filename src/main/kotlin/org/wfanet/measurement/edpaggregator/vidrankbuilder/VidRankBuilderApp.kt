@@ -20,6 +20,7 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.Parser
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams.StorageParams
 import org.wfanet.measurement.queue.QueueSubscriber
@@ -70,6 +71,11 @@ import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
  * @param workItemsClient gRPC client stub for [WorkItemsGrpcKt.WorkItemsCoroutineStub].
  * @param workItemAttemptsClient gRPC client stub for
  *   [WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub].
+ * @param impressionMetadataStub gRPC client stub for the EDP Aggregator
+ *   internal `ImpressionMetadataService`. Placeholder for the internal
+ *   service stubs Phase-1 needs (`RankerJob`, `RankIndexBlob`,
+ *   `RawImpressionUploadModelLine` — not yet defined); the constructor will
+ *   grow as those services land.
  * @param kmsClients Per-DataProvider KMS clients used to wrap/unwrap DEKs
  *   for the rank-index blobs.
  * @param getRawImpressionStorageConfig Lambda to obtain the [StorageConfig]
@@ -88,6 +94,7 @@ class VidRankBuilderApp(
   parser: Parser<WorkItem>,
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
+  private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub,
   private val kmsClients: Map<String, KmsClient>,
   private val getRawImpressionStorageConfig: (StorageParams) -> StorageConfig,
   private val getSubpoolMapStorageConfig: (StorageParams) -> StorageConfig,
@@ -141,5 +148,23 @@ class VidRankBuilderApp(
     //      flip RawImpressionUploadModelLineState RANKING -> LABELING and
     //      publish one VidLabeler WorkItem per shard
     //      (vidRankBuilderParams.totalShards).
+    //
+    // TODO(@Marco-Premier): runWork must be idempotent on Pub/Sub
+    // redelivery. The Spanner commit (RankerJob -> RANKER_SUCCEEDED, new
+    // RankIndexBlob rows) and the message ack are not atomic, so a crash
+    // between them leads to redelivery with state already advanced. The
+    // implementation must:
+    //   - detect that this RankerJob is already RANKER_SUCCEEDED and treat
+    //     it as a no-op for the rank-allocation steps, re-running only the
+    //     last-RankerJob-out check (step 6) before acking,
+    //   - tolerate partially-written RankIndexBlob rows from a prior
+    //     attempt (e.g. resume rather than duplicate),
+    //   - keep the BitSet / Bytes12IntMap rebuild deterministic across
+    //     attempts so a redelivered run produces the same outcome.
+    // Cover with tests that inject failures at: (a) after Spanner state
+    // flip but before ack, (b) mid-blob-write, (c) after first subpool's
+    // RankIndexBlob row insert but before second subpool's, (d) after
+    // last-RankerJob-out Spanner flip but before Phase-2 WorkItem publish.
+    // Each case must converge to the same final state on redelivery.
   }
 }
