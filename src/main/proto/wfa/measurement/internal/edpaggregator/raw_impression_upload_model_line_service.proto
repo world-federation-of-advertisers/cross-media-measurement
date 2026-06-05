@@ -69,11 +69,17 @@ service RawImpressionUploadModelLineService {
 
 // Request message for CreateRawImpressionUploadModelLine.
 message CreateRawImpressionUploadModelLineRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
   // The RawImpressionUploadModelLine to create.
-  RawImpressionUploadModelLine raw_impression_upload_model_line = 1;
+  RawImpressionUploadModelLine raw_impression_upload_model_line = 3;
 
   // A request ID provided by the client to ensure idempotency.
-  string request_id = 2;
+  string request_id = 4;
 }
 
 // Request message for BatchCreateRawImpressionUploadModelLines.
