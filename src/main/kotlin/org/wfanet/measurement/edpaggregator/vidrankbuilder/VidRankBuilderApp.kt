@@ -137,7 +137,9 @@ class VidRankBuilderApp(
     //      e. Write the new day-only and cumulative rank-index blobs
     //         (DEK-encrypted) to vid_rank_map_storage_params.
     //      f. Insert the new RankIndexBlob rows via the EDP Aggregator
-    //         internal gRPC.
+    //         internal gRPC, stamping
+    //         vidRankBuilderParams.maxEventDate on the day-only row(s)
+    //         so the retention sweep can identify aged-out blobs.
     //   5. Flip this RankerJob row from RANKING to RANKER_SUCCEEDED via
     //      the EDP Aggregator internal gRPC, keyed by
     //      (vidRankBuilderParams.dataProvider,
@@ -147,7 +149,11 @@ class VidRankBuilderApp(
     //   6. Last-RankerJob-out for this (RawImpressionUpload, ModelLine):
     //      flip RawImpressionUploadModelLineState RANKING -> LABELING and
     //      publish one VidLabeler WorkItem per shard
-    //      (vidRankBuilderParams.totalShards).
+    //      (vidRankBuilderParams.totalShards). The VidLabelerParams payload
+    //      is constructed from the pass-through fields on this proto:
+    //      rawImpressionStorageParams, vidLabeledImpressionsStorageParams,
+    //      modelBlobPath, labelerInputFieldMapping, and
+    //      eventTemplateFieldMapping.
     //
     // TODO(@Marco-Premier): runWork must be idempotent on Pub/Sub
     // redelivery. The Spanner commit (RankerJob -> RANKER_SUCCEEDED, new
