@@ -77,8 +77,8 @@ message GetBasicReportRequest {
   //
   // Even when `true`, the field is only emitted while the server is configured
   // to do so during the EventGroup-to-ReportingSet migration; use the
-  // `reporting_set` reference instead. This field will be removed in CMMS
-  // release 0.5.42.
+  // `reporting_set` reference instead. This field will be removed in
+  // cross-media-measurement release 0.5.42.
   optional bool include_deprecated_event_group_summaries = 2
       [(google.api.field_behavior) = OPTIONAL];
 }
@@ -129,8 +129,8 @@ message ListBasicReportsRequest {
   //
   // Even when `true`, the field is only emitted while the server is configured
   // to do so during the EventGroup-to-ReportingSet migration; use the
-  // `reporting_set` reference instead. This field will be removed in CMMS
-  // release 0.5.42.
+  // `reporting_set` reference instead. This field will be removed in
+  // cross-media-measurement release 0.5.42.
   optional bool include_deprecated_event_group_summaries = 5
       [(google.api.field_behavior) = OPTIONAL];
 }

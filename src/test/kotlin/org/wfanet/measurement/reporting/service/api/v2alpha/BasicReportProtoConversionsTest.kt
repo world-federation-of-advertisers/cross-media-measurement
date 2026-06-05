@@ -62,13 +62,6 @@ class BasicReportProtoConversionsTest {
     assertThat(componentSummary.eventGroupSummariesList).isEmpty()
   }
 
-  @Test
-  fun `toBasicReport emits deprecated event_group_summaries by default`() {
-    val componentSummary = INTERNAL_BASIC_REPORT.toBasicReport().onlyComponentSummary()
-
-    assertThat(componentSummary.eventGroupSummariesList).isNotEmpty()
-  }
-
   private fun BasicReport.onlyComponentSummary(): ReportingUnitComponentSummary {
     return resultGroupsList
       .single()

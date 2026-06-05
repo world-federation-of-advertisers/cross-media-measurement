@@ -10072,6 +10072,43 @@ class BasicReportsServiceTest {
         .reportingUnitComponentSummaryList
         .first()
     assertThat(componentSummaryWithDeprecated.eventGroupSummariesList).isNotEmpty()
+
+    // When the server is configured to omit the deprecated field, it is omitted regardless of the
+    // request, while reporting_set remains populated.
+    val serviceWithDeprecatedDisabled =
+      BasicReportsService(
+        internalBasicReportsService,
+        internalImpressionQualificationFiltersService,
+        internalReportingSetsService,
+        internalMetricCalculationSpecsService,
+        reportsService,
+        modelLinesService,
+        TEST_EVENT_DESCRIPTOR,
+        METRIC_SPEC_CONFIG,
+        SecureRandom().asKotlinRandom(),
+        authorization,
+        MEASUREMENT_CONSUMER_CONFIGS,
+        defaultReportStartHour = null,
+        baseExternalImpressionQualificationFilterIds = emptyList(),
+        populateDeprecatedReportingUnitEventGroupSummaries = false,
+      )
+    val responseServerDisabled =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        serviceWithDeprecatedDisabled.getBasicReport(
+          getBasicReportRequest { name = basicReportName }
+        )
+      }
+    val componentSummaryServerDisabled =
+      responseServerDisabled.resultGroupsList
+        .first()
+        .resultsList
+        .first()
+        .metadata
+        .reportingUnitSummary
+        .reportingUnitComponentSummaryList
+        .first()
+    assertThat(componentSummaryServerDisabled.eventGroupSummariesList).isEmpty()
+    assertThat(componentSummaryServerDisabled.reportingSet).isNotEmpty()
   }
 
   @Test

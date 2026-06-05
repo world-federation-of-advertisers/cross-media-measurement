@@ -411,7 +411,7 @@ fun ResultGroupMetricSpec.toInternal(): InternalResultGroupMetricSpec {
  *   populated regardless of this value.
  */
 fun InternalBasicReport.toBasicReport(
-  populateDeprecatedReportingUnitEventGroupSummaries: Boolean = true
+  populateDeprecatedReportingUnitEventGroupSummaries: Boolean
 ): BasicReport {
   val source = this
   return basicReport {

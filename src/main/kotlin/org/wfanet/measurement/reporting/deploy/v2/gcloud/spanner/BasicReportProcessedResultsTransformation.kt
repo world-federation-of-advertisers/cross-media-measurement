@@ -151,9 +151,8 @@ object BasicReportProcessedResultsTransformation {
     }
   }
 
-  // Intentionally writes deprecated event_group_summaries alongside external_reporting_set_id
-  // during
-  // the EventGroup-to-ReportingSet migration.
+  // Intentionally writes the deprecated event_group_summaries alongside
+  // external_reporting_set_id during the EventGroup-to-ReportingSet migration.
   @Suppress("DEPRECATION")
   private fun buildReportingUnitSummary(
     basicReport: BasicReport,
