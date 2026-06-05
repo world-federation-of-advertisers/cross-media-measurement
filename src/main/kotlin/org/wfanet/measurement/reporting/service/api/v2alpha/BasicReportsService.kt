@@ -1054,9 +1054,8 @@ class BasicReportsService(
   }
 
   /**
-   * Returns whether the deprecated `event_group_summaries` field of
-   * `ReportingUnitComponentSummary` should be emitted, combining the server configuration with the
-   * per-request preference.
+   * Returns whether the deprecated `event_group_summaries` field of `ReportingUnitComponentSummary`
+   * should be emitted, combining the server configuration with the per-request preference.
    *
    * @param requestPreference the request's include preference, or `null` when unset (defaults to
    *   `true`)
