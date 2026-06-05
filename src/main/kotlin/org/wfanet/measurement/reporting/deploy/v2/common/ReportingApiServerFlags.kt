@@ -127,7 +127,7 @@ class ReportingApiServerFlags {
           "ResultGroup.MetricMetadata.ReportingUnitComponentSummary.event_group_summaries field " +
           "in BasicReport results during the EventGroup-to-ReportingSet migration. The " +
           "replacement reporting_set field is always populated regardless of this value. This " +
-          "flag will be removed once the deprecated field is dropped.",
+          "flag will be removed once the deprecated field is dropped."
       ],
     defaultValue = "true",
   )

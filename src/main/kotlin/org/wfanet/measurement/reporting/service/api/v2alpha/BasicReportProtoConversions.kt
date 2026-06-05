@@ -111,10 +111,9 @@ fun BasicReport.toInternal(
 
     details = internalBasicReportDetails {
       title = source.title
-      impressionQualificationFilters +=
-        reportingImpressionQualificationFilters.map {
-          it.toInternal(impressionQualificationFilterSpecsByName)
-        }
+      impressionQualificationFilters += reportingImpressionQualificationFilters.map {
+        it.toInternal(impressionQualificationFilterSpecsByName)
+      }
       effectiveImpressionQualificationFilters +=
         effectiveReportingImpressionQualificationFilters.map {
           it.toInternal(impressionQualificationFilterSpecsByName)
@@ -136,12 +135,11 @@ fun BasicReport.toInternal(
     this.createReportRequestId = createReportRequestId
     if (effectiveModelLine.isNotEmpty()) {
       val modelLineKey = ModelLineKey.fromName(effectiveModelLine)
-      this.modelLineKey =
-        InternalBasicReportKt.modelLineKey {
-          cmmsModelProviderId = modelLineKey!!.modelProviderId
-          cmmsModelSuiteId = modelLineKey.modelSuiteId
-          cmmsModelLineId = modelLineKey.modelLineId
-        }
+      this.modelLineKey = InternalBasicReportKt.modelLineKey {
+        cmmsModelProviderId = modelLineKey!!.modelProviderId
+        cmmsModelSuiteId = modelLineKey.modelSuiteId
+        cmmsModelLineId = modelLineKey.modelLineId
+      }
 
       modelLineSystemSpecified = source.modelLine.isEmpty()
     }
@@ -220,14 +218,13 @@ fun ReportingUnit.toInternal(): InternalReportingUnit {
   val source = this
   return internalReportingUnit {
     // Only BasicReports with DataProvider components will be converted to internal BasicReports
-    dataProviderKeys =
-      InternalReportingUnitKt.dataProviderKeys {
-        for (reportingUnitComponent in source.componentsList) {
-          dataProviderKeys += internalDataProviderKey {
-            cmmsDataProviderId = DataProviderKey.fromName(reportingUnitComponent)!!.dataProviderId
-          }
+    dataProviderKeys = InternalReportingUnitKt.dataProviderKeys {
+      for (reportingUnitComponent in source.componentsList) {
+        dataProviderKeys += internalDataProviderKey {
+          cmmsDataProviderId = DataProviderKey.fromName(reportingUnitComponent)!!.dataProviderId
         }
       }
+    }
   }
 }
 
@@ -253,25 +250,24 @@ fun EventFilter.toInternal(): InternalEventFilter {
     for (term in termsList) {
       terms += internalEventTemplateField {
         path = term.path
-        value =
-          InternalEventTemplateFieldKt.fieldValue {
-            @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-            when (term.value.selectorCase) {
-              EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> {
-                stringValue = term.value.stringValue
-              }
-              EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
-                enumValue = term.value.enumValue
-              }
-              EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> {
-                boolValue = term.value.boolValue
-              }
-              EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
-                floatValue = term.value.floatValue
-              }
-              EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> {}
+        value = InternalEventTemplateFieldKt.fieldValue {
+          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+          when (term.value.selectorCase) {
+            EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> {
+              stringValue = term.value.stringValue
             }
+            EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
+              enumValue = term.value.enumValue
+            }
+            EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> {
+              boolValue = term.value.boolValue
+            }
+            EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
+              floatValue = term.value.floatValue
+            }
+            EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> {}
           }
+        }
       }
     }
   }
@@ -282,10 +278,9 @@ fun DimensionSpec.toInternal(): InternalDimensionSpec {
   val source = this
   return internalDimensionSpec {
     if (source.hasGrouping()) {
-      grouping =
-        InternalDimensionSpecKt.grouping {
-          eventTemplateFields += source.grouping.eventTemplateFieldsList
-        }
+      grouping = InternalDimensionSpecKt.grouping {
+        eventTemplateFields += source.grouping.eventTemplateFieldsList
+      }
     }
     filters += source.filtersList.map { it.toInternal() }
   }
@@ -297,107 +292,96 @@ fun ResultGroupMetricSpec.toInternal(): InternalResultGroupMetricSpec {
   return internalResultGroupMetricSpec {
     populationSize = source.populationSize
     if (source.hasReportingUnit()) {
-      reportingUnit =
-        InternalResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
-          if (source.reportingUnit.hasNonCumulative()) {
-            nonCumulative =
-              InternalResultGroupMetricSpecKt.basicMetricSetSpec {
-                reach = source.reportingUnit.nonCumulative.reach
-                percentReach = source.reportingUnit.nonCumulative.percentReach
-                kPlusReach = source.reportingUnit.nonCumulative.kPlusReach
-                percentKPlusReach = source.reportingUnit.nonCumulative.percentKPlusReach
-                averageFrequency = source.reportingUnit.nonCumulative.averageFrequency
-                impressions = source.reportingUnit.nonCumulative.impressions
-                grps = source.reportingUnit.nonCumulative.grps
-              }
+      reportingUnit = InternalResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+        if (source.reportingUnit.hasNonCumulative()) {
+          nonCumulative = InternalResultGroupMetricSpecKt.basicMetricSetSpec {
+            reach = source.reportingUnit.nonCumulative.reach
+            percentReach = source.reportingUnit.nonCumulative.percentReach
+            kPlusReach = source.reportingUnit.nonCumulative.kPlusReach
+            percentKPlusReach = source.reportingUnit.nonCumulative.percentKPlusReach
+            averageFrequency = source.reportingUnit.nonCumulative.averageFrequency
+            impressions = source.reportingUnit.nonCumulative.impressions
+            grps = source.reportingUnit.nonCumulative.grps
           }
-          if (source.reportingUnit.hasCumulative()) {
-            cumulative =
-              InternalResultGroupMetricSpecKt.basicMetricSetSpec {
-                reach = source.reportingUnit.cumulative.reach
-                percentReach = source.reportingUnit.cumulative.percentReach
-                kPlusReach = source.reportingUnit.cumulative.kPlusReach
-                percentKPlusReach = source.reportingUnit.cumulative.percentKPlusReach
-                averageFrequency = source.reportingUnit.cumulative.averageFrequency
-                impressions = source.reportingUnit.cumulative.impressions
-                grps = source.reportingUnit.cumulative.grps
-              }
-          }
-          stackedIncrementalReach = source.reportingUnit.stackedIncrementalReach
         }
+        if (source.reportingUnit.hasCumulative()) {
+          cumulative = InternalResultGroupMetricSpecKt.basicMetricSetSpec {
+            reach = source.reportingUnit.cumulative.reach
+            percentReach = source.reportingUnit.cumulative.percentReach
+            kPlusReach = source.reportingUnit.cumulative.kPlusReach
+            percentKPlusReach = source.reportingUnit.cumulative.percentKPlusReach
+            averageFrequency = source.reportingUnit.cumulative.averageFrequency
+            impressions = source.reportingUnit.cumulative.impressions
+            grps = source.reportingUnit.cumulative.grps
+          }
+        }
+        stackedIncrementalReach = source.reportingUnit.stackedIncrementalReach
+      }
     }
 
     if (source.hasComponent()) {
-      component =
-        InternalResultGroupMetricSpecKt.componentMetricSetSpec {
-          if (source.component.hasNonCumulative()) {
-            nonCumulative =
-              InternalResultGroupMetricSpecKt.basicMetricSetSpec {
-                reach = source.component.nonCumulative.reach
-                percentReach = source.component.nonCumulative.percentReach
-                kPlusReach = source.component.nonCumulative.kPlusReach
-                percentKPlusReach = source.component.nonCumulative.percentKPlusReach
-                averageFrequency = source.component.nonCumulative.averageFrequency
-                impressions = source.component.nonCumulative.impressions
-                grps = source.component.nonCumulative.grps
-              }
-          }
-          if (source.component.hasCumulative()) {
-            cumulative =
-              InternalResultGroupMetricSpecKt.basicMetricSetSpec {
-                reach = source.component.cumulative.reach
-                percentReach = source.component.cumulative.percentReach
-                kPlusReach = source.component.cumulative.kPlusReach
-                percentKPlusReach = source.component.cumulative.percentKPlusReach
-                averageFrequency = source.component.cumulative.averageFrequency
-                impressions = source.component.cumulative.impressions
-                grps = source.component.cumulative.grps
-              }
-          }
-          if (source.component.hasNonCumulativeUnique()) {
-            nonCumulativeUnique =
-              InternalResultGroupMetricSpecKt.uniqueMetricSetSpec {
-                reach = source.component.nonCumulativeUnique.reach
-              }
-          }
-          if (source.component.hasCumulativeUnique()) {
-            cumulativeUnique =
-              InternalResultGroupMetricSpecKt.uniqueMetricSetSpec {
-                reach = source.component.cumulativeUnique.reach
-              }
+      component = InternalResultGroupMetricSpecKt.componentMetricSetSpec {
+        if (source.component.hasNonCumulative()) {
+          nonCumulative = InternalResultGroupMetricSpecKt.basicMetricSetSpec {
+            reach = source.component.nonCumulative.reach
+            percentReach = source.component.nonCumulative.percentReach
+            kPlusReach = source.component.nonCumulative.kPlusReach
+            percentKPlusReach = source.component.nonCumulative.percentKPlusReach
+            averageFrequency = source.component.nonCumulative.averageFrequency
+            impressions = source.component.nonCumulative.impressions
+            grps = source.component.nonCumulative.grps
           }
         }
+        if (source.component.hasCumulative()) {
+          cumulative = InternalResultGroupMetricSpecKt.basicMetricSetSpec {
+            reach = source.component.cumulative.reach
+            percentReach = source.component.cumulative.percentReach
+            kPlusReach = source.component.cumulative.kPlusReach
+            percentKPlusReach = source.component.cumulative.percentKPlusReach
+            averageFrequency = source.component.cumulative.averageFrequency
+            impressions = source.component.cumulative.impressions
+            grps = source.component.cumulative.grps
+          }
+        }
+        if (source.component.hasNonCumulativeUnique()) {
+          nonCumulativeUnique = InternalResultGroupMetricSpecKt.uniqueMetricSetSpec {
+            reach = source.component.nonCumulativeUnique.reach
+          }
+        }
+        if (source.component.hasCumulativeUnique()) {
+          cumulativeUnique = InternalResultGroupMetricSpecKt.uniqueMetricSetSpec {
+            reach = source.component.cumulativeUnique.reach
+          }
+        }
+      }
     }
 
     if (source.hasComponentIntersection()) {
-      componentIntersection =
-        InternalResultGroupMetricSpecKt.componentIntersectionMetricSetSpec {
-          contributorCount += source.componentIntersection.contributorCountList
-          if (source.componentIntersection.hasNonCumulative()) {
-            nonCumulative =
-              InternalResultGroupMetricSpecKt.basicMetricSetSpec {
-                reach = source.componentIntersection.nonCumulative.reach
-                percentReach = source.componentIntersection.nonCumulative.percentReach
-                kPlusReach = source.componentIntersection.nonCumulative.kPlusReach
-                percentKPlusReach = source.componentIntersection.nonCumulative.percentKPlusReach
-                averageFrequency = source.componentIntersection.nonCumulative.averageFrequency
-                impressions = source.componentIntersection.nonCumulative.impressions
-                grps = source.componentIntersection.nonCumulative.grps
-              }
-          }
-          if (source.componentIntersection.hasCumulative()) {
-            cumulative =
-              InternalResultGroupMetricSpecKt.basicMetricSetSpec {
-                reach = source.componentIntersection.cumulative.reach
-                percentReach = source.componentIntersection.cumulative.percentReach
-                kPlusReach = source.componentIntersection.cumulative.kPlusReach
-                percentKPlusReach = source.componentIntersection.cumulative.percentKPlusReach
-                averageFrequency = source.componentIntersection.cumulative.averageFrequency
-                impressions = source.componentIntersection.cumulative.impressions
-                grps = source.componentIntersection.cumulative.grps
-              }
+      componentIntersection = InternalResultGroupMetricSpecKt.componentIntersectionMetricSetSpec {
+        contributorCount += source.componentIntersection.contributorCountList
+        if (source.componentIntersection.hasNonCumulative()) {
+          nonCumulative = InternalResultGroupMetricSpecKt.basicMetricSetSpec {
+            reach = source.componentIntersection.nonCumulative.reach
+            percentReach = source.componentIntersection.nonCumulative.percentReach
+            kPlusReach = source.componentIntersection.nonCumulative.kPlusReach
+            percentKPlusReach = source.componentIntersection.nonCumulative.percentKPlusReach
+            averageFrequency = source.componentIntersection.nonCumulative.averageFrequency
+            impressions = source.componentIntersection.nonCumulative.impressions
+            grps = source.componentIntersection.nonCumulative.grps
           }
         }
+        if (source.componentIntersection.hasCumulative()) {
+          cumulative = InternalResultGroupMetricSpecKt.basicMetricSetSpec {
+            reach = source.componentIntersection.cumulative.reach
+            percentReach = source.componentIntersection.cumulative.percentReach
+            kPlusReach = source.componentIntersection.cumulative.kPlusReach
+            percentKPlusReach = source.componentIntersection.cumulative.percentKPlusReach
+            averageFrequency = source.componentIntersection.cumulative.averageFrequency
+            impressions = source.componentIntersection.cumulative.impressions
+            grps = source.componentIntersection.cumulative.grps
+          }
+        }
+      }
     }
   }
 }
@@ -528,8 +512,9 @@ fun InternalDimensionSpec.toDimensionSpec(): DimensionSpec {
   val source = this
   return dimensionSpec {
     if (source.hasGrouping()) {
-      grouping =
-        DimensionSpecKt.grouping { eventTemplateFields += source.grouping.eventTemplateFieldsList }
+      grouping = DimensionSpecKt.grouping {
+        eventTemplateFields += source.grouping.eventTemplateFieldsList
+      }
     }
     filters += source.filtersList.map { it.toEventFilter() }
   }
@@ -541,107 +526,96 @@ fun InternalResultGroupMetricSpec.toResultGroupMetricSpec(): ResultGroupMetricSp
   return resultGroupMetricSpec {
     populationSize = source.populationSize
     if (source.hasReportingUnit()) {
-      reportingUnit =
-        ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
-          if (source.reportingUnit.hasNonCumulative()) {
-            nonCumulative =
-              ResultGroupMetricSpecKt.basicMetricSetSpec {
-                reach = source.reportingUnit.nonCumulative.reach
-                percentReach = source.reportingUnit.nonCumulative.percentReach
-                kPlusReach = source.reportingUnit.nonCumulative.kPlusReach
-                percentKPlusReach = source.reportingUnit.nonCumulative.percentKPlusReach
-                averageFrequency = source.reportingUnit.nonCumulative.averageFrequency
-                impressions = source.reportingUnit.nonCumulative.impressions
-                grps = source.reportingUnit.nonCumulative.grps
-              }
+      reportingUnit = ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+        if (source.reportingUnit.hasNonCumulative()) {
+          nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
+            reach = source.reportingUnit.nonCumulative.reach
+            percentReach = source.reportingUnit.nonCumulative.percentReach
+            kPlusReach = source.reportingUnit.nonCumulative.kPlusReach
+            percentKPlusReach = source.reportingUnit.nonCumulative.percentKPlusReach
+            averageFrequency = source.reportingUnit.nonCumulative.averageFrequency
+            impressions = source.reportingUnit.nonCumulative.impressions
+            grps = source.reportingUnit.nonCumulative.grps
           }
-          if (source.reportingUnit.hasCumulative()) {
-            cumulative =
-              ResultGroupMetricSpecKt.basicMetricSetSpec {
-                reach = source.reportingUnit.cumulative.reach
-                percentReach = source.reportingUnit.cumulative.percentReach
-                kPlusReach = source.reportingUnit.cumulative.kPlusReach
-                percentKPlusReach = source.reportingUnit.cumulative.percentKPlusReach
-                averageFrequency = source.reportingUnit.cumulative.averageFrequency
-                impressions = source.reportingUnit.cumulative.impressions
-                grps = source.reportingUnit.cumulative.grps
-              }
-          }
-          stackedIncrementalReach = source.reportingUnit.stackedIncrementalReach
         }
+        if (source.reportingUnit.hasCumulative()) {
+          cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
+            reach = source.reportingUnit.cumulative.reach
+            percentReach = source.reportingUnit.cumulative.percentReach
+            kPlusReach = source.reportingUnit.cumulative.kPlusReach
+            percentKPlusReach = source.reportingUnit.cumulative.percentKPlusReach
+            averageFrequency = source.reportingUnit.cumulative.averageFrequency
+            impressions = source.reportingUnit.cumulative.impressions
+            grps = source.reportingUnit.cumulative.grps
+          }
+        }
+        stackedIncrementalReach = source.reportingUnit.stackedIncrementalReach
+      }
     }
 
     if (source.hasComponent()) {
-      component =
-        ResultGroupMetricSpecKt.componentMetricSetSpec {
-          if (source.component.hasNonCumulative()) {
-            nonCumulative =
-              ResultGroupMetricSpecKt.basicMetricSetSpec {
-                reach = source.component.nonCumulative.reach
-                percentReach = source.component.nonCumulative.percentReach
-                kPlusReach = source.component.nonCumulative.kPlusReach
-                percentKPlusReach = source.component.nonCumulative.percentKPlusReach
-                averageFrequency = source.component.nonCumulative.averageFrequency
-                impressions = source.component.nonCumulative.impressions
-                grps = source.component.nonCumulative.grps
-              }
-          }
-          if (source.component.hasCumulative()) {
-            cumulative =
-              ResultGroupMetricSpecKt.basicMetricSetSpec {
-                reach = source.component.cumulative.reach
-                percentReach = source.component.cumulative.percentReach
-                kPlusReach = source.component.cumulative.kPlusReach
-                percentKPlusReach = source.component.cumulative.percentKPlusReach
-                averageFrequency = source.component.cumulative.averageFrequency
-                impressions = source.component.cumulative.impressions
-                grps = source.component.cumulative.grps
-              }
-          }
-          if (source.component.hasNonCumulativeUnique()) {
-            nonCumulativeUnique =
-              ResultGroupMetricSpecKt.uniqueMetricSetSpec {
-                reach = source.component.nonCumulativeUnique.reach
-              }
-          }
-          if (source.component.hasCumulativeUnique()) {
-            cumulativeUnique =
-              ResultGroupMetricSpecKt.uniqueMetricSetSpec {
-                reach = source.component.cumulativeUnique.reach
-              }
+      component = ResultGroupMetricSpecKt.componentMetricSetSpec {
+        if (source.component.hasNonCumulative()) {
+          nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
+            reach = source.component.nonCumulative.reach
+            percentReach = source.component.nonCumulative.percentReach
+            kPlusReach = source.component.nonCumulative.kPlusReach
+            percentKPlusReach = source.component.nonCumulative.percentKPlusReach
+            averageFrequency = source.component.nonCumulative.averageFrequency
+            impressions = source.component.nonCumulative.impressions
+            grps = source.component.nonCumulative.grps
           }
         }
+        if (source.component.hasCumulative()) {
+          cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
+            reach = source.component.cumulative.reach
+            percentReach = source.component.cumulative.percentReach
+            kPlusReach = source.component.cumulative.kPlusReach
+            percentKPlusReach = source.component.cumulative.percentKPlusReach
+            averageFrequency = source.component.cumulative.averageFrequency
+            impressions = source.component.cumulative.impressions
+            grps = source.component.cumulative.grps
+          }
+        }
+        if (source.component.hasNonCumulativeUnique()) {
+          nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec {
+            reach = source.component.nonCumulativeUnique.reach
+          }
+        }
+        if (source.component.hasCumulativeUnique()) {
+          cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec {
+            reach = source.component.cumulativeUnique.reach
+          }
+        }
+      }
     }
 
     if (source.hasComponentIntersection()) {
-      componentIntersection =
-        ResultGroupMetricSpecKt.componentIntersectionMetricSetSpec {
-          contributorCount += source.componentIntersection.contributorCountList
-          if (source.componentIntersection.hasNonCumulative()) {
-            nonCumulative =
-              ResultGroupMetricSpecKt.basicMetricSetSpec {
-                reach = source.componentIntersection.nonCumulative.reach
-                percentReach = source.componentIntersection.nonCumulative.percentReach
-                kPlusReach = source.componentIntersection.nonCumulative.kPlusReach
-                percentKPlusReach = source.componentIntersection.nonCumulative.percentKPlusReach
-                averageFrequency = source.componentIntersection.nonCumulative.averageFrequency
-                impressions = source.componentIntersection.nonCumulative.impressions
-                grps = source.componentIntersection.nonCumulative.grps
-              }
-          }
-          if (source.componentIntersection.hasCumulative()) {
-            cumulative =
-              ResultGroupMetricSpecKt.basicMetricSetSpec {
-                reach = source.componentIntersection.cumulative.reach
-                percentReach = source.componentIntersection.cumulative.percentReach
-                kPlusReach = source.componentIntersection.cumulative.kPlusReach
-                percentKPlusReach = source.componentIntersection.cumulative.percentKPlusReach
-                averageFrequency = source.componentIntersection.cumulative.averageFrequency
-                impressions = source.componentIntersection.cumulative.impressions
-                grps = source.componentIntersection.cumulative.grps
-              }
+      componentIntersection = ResultGroupMetricSpecKt.componentIntersectionMetricSetSpec {
+        contributorCount += source.componentIntersection.contributorCountList
+        if (source.componentIntersection.hasNonCumulative()) {
+          nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
+            reach = source.componentIntersection.nonCumulative.reach
+            percentReach = source.componentIntersection.nonCumulative.percentReach
+            kPlusReach = source.componentIntersection.nonCumulative.kPlusReach
+            percentKPlusReach = source.componentIntersection.nonCumulative.percentKPlusReach
+            averageFrequency = source.componentIntersection.nonCumulative.averageFrequency
+            impressions = source.componentIntersection.nonCumulative.impressions
+            grps = source.componentIntersection.nonCumulative.grps
           }
         }
+        if (source.componentIntersection.hasCumulative()) {
+          cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
+            reach = source.componentIntersection.cumulative.reach
+            percentReach = source.componentIntersection.cumulative.percentReach
+            kPlusReach = source.componentIntersection.cumulative.kPlusReach
+            percentKPlusReach = source.componentIntersection.cumulative.percentKPlusReach
+            averageFrequency = source.componentIntersection.cumulative.averageFrequency
+            impressions = source.componentIntersection.cumulative.impressions
+            grps = source.componentIntersection.cumulative.grps
+          }
+        }
+      }
     }
   }
 }
@@ -710,25 +684,24 @@ fun InternalEventTemplateField.toEventTemplateField(): EventTemplateField {
   val source = this
   return eventTemplateField {
     path = source.path
-    value =
-      EventTemplateFieldKt.fieldValue {
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-        when (source.value.selectorCase) {
-          InternalEventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> {
-            stringValue = source.value.stringValue
-          }
-          InternalEventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
-            enumValue = source.value.enumValue
-          }
-          InternalEventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> {
-            boolValue = source.value.boolValue
-          }
-          InternalEventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
-            floatValue = source.value.floatValue
-          }
-          InternalEventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> {}
+    value = EventTemplateFieldKt.fieldValue {
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      when (source.value.selectorCase) {
+        InternalEventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> {
+          stringValue = source.value.stringValue
         }
+        InternalEventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
+          enumValue = source.value.enumValue
+        }
+        InternalEventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> {
+          boolValue = source.value.boolValue
+        }
+        InternalEventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
+          floatValue = source.value.floatValue
+        }
+        InternalEventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> {}
       }
+    }
   }
 }
 
@@ -748,15 +721,14 @@ fun InternalResultGroup.toResultGroup(
   return resultGroup {
     title = source.title
     for (internalResult in source.resultsList) {
-      results +=
-        ResultGroupKt.result {
-          metadata =
-            internalResult.metadata.toMetricMetadata(
-              cmmsMeasurementConsumerId,
-              populateDeprecatedReportingUnitEventGroupSummaries,
-            )
-          metricSet = internalResult.metricSet.toMetricSet()
-        }
+      results += ResultGroupKt.result {
+        metadata =
+          internalResult.metadata.toMetricMetadata(
+            cmmsMeasurementConsumerId,
+            populateDeprecatedReportingUnitEventGroupSummaries,
+          )
+        metricSet = internalResult.metricSet.toMetricSet()
+      }
     }
   }
 }

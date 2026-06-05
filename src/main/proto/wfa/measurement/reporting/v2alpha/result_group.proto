@@ -280,14 +280,12 @@ message ResultGroup {
       //
       // Deprecated in favor of `reporting_set`, which references a ReportingSet
       // whose membership enumerates the same EventGroups. This field is only
-      // emitted during the EventGroup-to-ReportingSet migration, when enabled by
-      // the server operator, and will be removed in a later CMMS release.
+      // emitted during the EventGroup-to-ReportingSet migration, when enabled
+      // by the server operator, and will be removed in CMMS release 0.5.42.
       // TODO(world-federation-of-advertisers/cross-media-measurement#3919):
       // Remove this field once consumers have migrated to `reporting_set`.
-      repeated EventGroupSummary event_group_summaries = 3 [
-        (google.api.field_behavior) = IMMUTABLE,
-        deprecated = true
-      ];
+      repeated EventGroupSummary event_group_summaries = 3
+          [(google.api.field_behavior) = IMMUTABLE, deprecated = true];
 
       // Resource name of the ReportingSet whose membership enumerates the
       // EventGroups entailed by this component; replaces

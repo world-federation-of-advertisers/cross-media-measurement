@@ -151,7 +151,8 @@ object BasicReportProcessedResultsTransformation {
     }
   }
 
-  // Intentionally writes deprecated event_group_summaries alongside external_reporting_set_id during
+  // Intentionally writes deprecated event_group_summaries alongside external_reporting_set_id
+  // during
   // the EventGroup-to-ReportingSet migration.
   @Suppress("DEPRECATION")
   private fun buildReportingUnitSummary(
@@ -346,89 +347,86 @@ object BasicReportProcessedResultsTransformation {
 
     return reportingWindowResultValuesMap.entries.map { reportingWindowResults ->
       ResultGroupKt.result {
-        metadata =
-          ResultGroupKt.metricMetadata {
-            this.reportingUnitSummary = reportingUnitSummary
+        metadata = ResultGroupKt.metricMetadata {
+          this.reportingUnitSummary = reportingUnitSummary
 
-            val nonCumulativeWindowStartDate =
-              reportingWindowResults.key.nonCumulativeWindowStartDate
-            if (nonCumulativeWindowStartDate != null) {
-              nonCumulativeMetricStartTime =
-                reportStart
-                  .copy {
-                    day = nonCumulativeWindowStartDate.day
-                    month = nonCumulativeWindowStartDate.month
-                    year = nonCumulativeWindowStartDate.year
-                  }
-                  .toTimestamp()
-            }
-
-            cumulativeMetricStartTime = reportStartTimestamp
-
-            metricEndTime =
+          val nonCumulativeWindowStartDate = reportingWindowResults.key.nonCumulativeWindowStartDate
+          if (nonCumulativeWindowStartDate != null) {
+            nonCumulativeMetricStartTime =
               reportStart
                 .copy {
-                  day = reportingWindowResults.key.windowEndDate.day
-                  month = reportingWindowResults.key.windowEndDate.month
-                  year = reportingWindowResults.key.windowEndDate.year
+                  day = nonCumulativeWindowStartDate.day
+                  month = nonCumulativeWindowStartDate.month
+                  year = nonCumulativeWindowStartDate.year
                 }
                 .toTimestamp()
-
-            metricFrequencySpec = resultGroupSpec.metricFrequency
-
-            dimensionSpecSummary =
-              ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
-                groupings +=
-                  reportingWindowResults.key.grouping.valueByPathMap.toSortedMap().map {
-                    eventTemplateField {
-                      path = it.key
-                      value = it.value
-                    }
-                  }
-                filters += resultGroupSpec.dimensionSpec.filtersList
-              }
-
-            filter =
-              if (reportingWindowResults.key.externalImpressionQualificationFilterId != null) {
-                reportingImpressionQualificationFilterByExternalId.getValue(
-                  reportingWindowResults.key.externalImpressionQualificationFilterId!!
-                )
-              } else {
-                customReportingImpressionQualificationFilter
-              }
           }
 
-        metricSet =
-          ResultGroupKt.metricSet {
-            if (resultGroupSpec.resultGroupMetricSpec.populationSize) {
-              populationSize = reportingWindowResults.value.populationSize
-            }
+          cumulativeMetricStartTime = reportStartTimestamp
 
-            if (resultGroupSpec.resultGroupMetricSpec.hasReportingUnit()) {
-              reportingUnit =
-                buildReportingUnitMetricSet(
-                  resultGroupSpec.resultGroupMetricSpec.reportingUnit,
-                  reportingUnitReportingSetId,
-                  incrementalReportingSetIds,
-                  reportingWindowResults.value.reportResultValuesByExternalReportingSetId,
-                )
-            }
-
-            if (resultGroupSpec.resultGroupMetricSpec.hasComponent()) {
-              for (dataProviderId in reportingUnitDataProviderIds) {
-                components +=
-                  ResultGroupKt.MetricSetKt.dataProviderComponentMetricSetMapEntry {
-                    key = dataProviderId
-                    value =
-                      buildComponentMetricSet(
-                        resultGroupSpec.resultGroupMetricSpec.component,
-                        componentReportingSetIdsByDataProviderId.getValue(dataProviderId),
-                        reportingWindowResults.value.reportResultValuesByExternalReportingSetId,
-                      )
-                  }
+          metricEndTime =
+            reportStart
+              .copy {
+                day = reportingWindowResults.key.windowEndDate.day
+                month = reportingWindowResults.key.windowEndDate.month
+                year = reportingWindowResults.key.windowEndDate.year
               }
+              .toTimestamp()
+
+          metricFrequencySpec = resultGroupSpec.metricFrequency
+
+          dimensionSpecSummary =
+            ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
+              groupings +=
+                reportingWindowResults.key.grouping.valueByPathMap.toSortedMap().map {
+                  eventTemplateField {
+                    path = it.key
+                    value = it.value
+                  }
+                }
+              filters += resultGroupSpec.dimensionSpec.filtersList
+            }
+
+          filter =
+            if (reportingWindowResults.key.externalImpressionQualificationFilterId != null) {
+              reportingImpressionQualificationFilterByExternalId.getValue(
+                reportingWindowResults.key.externalImpressionQualificationFilterId!!
+              )
+            } else {
+              customReportingImpressionQualificationFilter
+            }
+        }
+
+        metricSet = ResultGroupKt.metricSet {
+          if (resultGroupSpec.resultGroupMetricSpec.populationSize) {
+            populationSize = reportingWindowResults.value.populationSize
+          }
+
+          if (resultGroupSpec.resultGroupMetricSpec.hasReportingUnit()) {
+            reportingUnit =
+              buildReportingUnitMetricSet(
+                resultGroupSpec.resultGroupMetricSpec.reportingUnit,
+                reportingUnitReportingSetId,
+                incrementalReportingSetIds,
+                reportingWindowResults.value.reportResultValuesByExternalReportingSetId,
+              )
+          }
+
+          if (resultGroupSpec.resultGroupMetricSpec.hasComponent()) {
+            for (dataProviderId in reportingUnitDataProviderIds) {
+              components +=
+                ResultGroupKt.MetricSetKt.dataProviderComponentMetricSetMapEntry {
+                  key = dataProviderId
+                  value =
+                    buildComponentMetricSet(
+                      resultGroupSpec.resultGroupMetricSpec.component,
+                      componentReportingSetIdsByDataProviderId.getValue(dataProviderId),
+                      reportingWindowResults.value.reportResultValuesByExternalReportingSetId,
+                    )
+                }
             }
           }
+        }
       }
     }
   }
@@ -667,26 +665,24 @@ object BasicReportProcessedResultsTransformation {
   private fun buildUnionSetExpression(
     externalReportingSetIds: List<String>
   ): ReportingSet.SetExpression {
-    var setExpression =
-      ReportingSetKt.setExpression {
-        operation = ReportingSet.SetExpression.Operation.UNION
-        lhs =
-          ReportingSetKt.SetExpressionKt.operand {
-            externalReportingSetId = externalReportingSetIds.first()
-          }
-      }
+    var setExpression = ReportingSetKt.setExpression {
+      operation = ReportingSet.SetExpression.Operation.UNION
+      lhs =
+        ReportingSetKt.SetExpressionKt.operand {
+          externalReportingSetId = externalReportingSetIds.first()
+        }
+    }
 
     for (externalReportingSetId in
       externalReportingSetIds.subList(1, externalReportingSetIds.size)) {
-      setExpression =
-        ReportingSetKt.setExpression {
-          operation = ReportingSet.SetExpression.Operation.UNION
-          lhs =
-            ReportingSetKt.SetExpressionKt.operand {
-              this.externalReportingSetId = externalReportingSetId
-            }
-          rhs = ReportingSetKt.SetExpressionKt.operand { expression = setExpression }
-        }
+      setExpression = ReportingSetKt.setExpression {
+        operation = ReportingSet.SetExpression.Operation.UNION
+        lhs =
+          ReportingSetKt.SetExpressionKt.operand {
+            this.externalReportingSetId = externalReportingSetId
+          }
+        rhs = ReportingSetKt.SetExpressionKt.operand { expression = setExpression }
+      }
     }
 
     return setExpression
