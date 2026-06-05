@@ -208,6 +208,51 @@ class BaseTeeApplicationTest {
     job.cancelAndJoin()
   }
 
+  @Test
+  fun `nacks message when createWorkItemAttempt returns retriable error`() = runBlocking {
+    val workItemsStub = mock<WorkItemsCoroutineStub>()
+    val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
+
+    runBlocking {
+      whenever(
+          workItemAttemptsStub.createWorkItemAttempt(
+            any<CreateWorkItemAttemptRequest>(),
+            any<io.grpc.Metadata>(),
+          )
+        )
+        .thenAnswer {
+          throw StatusException(io.grpc.Status.UNAVAILABLE.withDescription("control plane down"))
+        }
+    }
+
+    val fakeSubscriber = FakeQueueSubscriber()
+    val app =
+      BaseTeeApplicationImpl(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = fakeSubscriber,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+      )
+
+    val job = launch { app.run() }
+
+    val testWork = createTestWork()
+    val workItem = createWorkItem(testWork)
+    val consumer = TestMessageConsumer()
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(body = workItem, consumer = consumer, ackId = "some-ack-id")
+    )
+
+    consumer.disposition.await()
+
+    assertThat(consumer.nackCount).isEqualTo(1)
+    assertThat(consumer.ackCount).isEqualTo(0)
+
+    assertThat(app.messageProcessed.isCompleted).isFalse()
+    job.cancelAndJoin()
+  }
+
   private class FakeQueueSubscriber : QueueSubscriber {
     private val ch = Channel<QueueSubscriber.QueueMessage<*>>(capacity = Channel.UNLIMITED)
 
