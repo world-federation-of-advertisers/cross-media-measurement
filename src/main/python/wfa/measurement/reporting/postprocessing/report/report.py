@@ -597,7 +597,7 @@ class Report:
       metric_reports: dict[str, MetricReport],
       metric_subsets_by_parent: dict[str, list[str]],
       cumulative_inconsistency_allowed_edp_combinations: set[str],
-      ami_mrc_exemption_list: list[str] = None,
+      ami_mrc_exemption_list: list[str] | None = None,
       population_size: float = 0.0,
   ):
     """
