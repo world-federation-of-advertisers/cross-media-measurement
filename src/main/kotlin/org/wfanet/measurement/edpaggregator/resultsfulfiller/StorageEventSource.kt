@@ -32,9 +32,17 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.launch
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 
 /** Result of processing a single EventReader. */
 data class EventReaderResult(val batchCount: Int, val eventCount: Int)
+
+/** A [StorageEventReader] paired with its resolved [EventGroupIdentifier] and blob URI. */
+data class ResolvedEventReader(
+  val reader: StorageEventReader,
+  val eventGroupIdentifier: EventGroupIdentifier,
+  val blobUri: String,
+)
 
 /**
  * Account identifier and location/region extracted from a KMS KEK URI.
@@ -121,6 +129,14 @@ class StorageEventSource(
   /** Cache for unique impression data sources to avoid duplicate API calls. */
   private var cachedImpressionDataSources: List<ImpressionDataSource>? = null
 
+  private val useEntityKeyStrategy: Boolean = run {
+    require(eventGroupDetailsList.isNotEmpty()) { "eventGroupDetailsList must not be empty" }
+    val allEntityKey = eventGroupDetailsList.all { hasEntityKey(it) }
+    val noneEntityKey = eventGroupDetailsList.none { hasEntityKey(it) }
+    require(allEntityKey || noneEntityKey) { "Cannot mix entity-key and reference-id event groups" }
+    allEntityKey
+  }
+
   /**
    * Generates batches of events by reading from storage in parallel.
    *
@@ -152,16 +168,16 @@ class StorageEventSource(
     logger.info("Starting storage-based event generation with batching")
 
     return channelFlow {
-      val eventReaders: List<StorageEventReader> = createEventReaders()
+      val eventReaders: List<ResolvedEventReader> = createEventReaders()
       ProgressTracker(eventReaders.size).use { progressTracker ->
         logger.info(
           "Processing ${eventReaders.size} EventReaders across ${eventGroupDetailsList.size} event groups"
         )
         // Launch one coroutine per EventReader
         coroutineScope {
-          eventReaders.forEach { eventReader ->
+          eventReaders.forEach { resolvedReader ->
             launch {
-              val result = processEventReader(eventReader) { eventBatch -> send(eventBatch) }
+              val result = processEventReader(resolvedReader) { eventBatch -> send(eventBatch) }
               progressTracker.updateProgress(result.eventCount, result.batchCount)
             }
           }
@@ -169,6 +185,11 @@ class StorageEventSource(
         }
       }
     }
+  }
+
+  /** Returns true if [details] has an entity key with a non-empty entity ID. */
+  private fun hasEntityKey(details: EventGroupDetails): Boolean {
+    return details.hasEntityKey() && details.entityKey.entityId.isNotEmpty()
   }
 
   /** Collects all impression data sources and deduplicates by blob URI. */
@@ -180,13 +201,20 @@ class StorageEventSource(
     val allSources =
       eventGroupDetailsList.flatMap { details ->
         logger.info("EventGroup details: $details")
+        val selector =
+          if (useEntityKeyStrategy) {
+            ImpressionQuerySelector.ByEntityKey(
+              entityKey {
+                entityType = details.entityKey.entityType
+                entityId = details.entityKey.entityId
+              }
+            )
+          } else {
+            ImpressionQuerySelector.ByEventGroupReferenceId(details.eventGroupReferenceId)
+          }
         details.collectionIntervalsList.flatMap { interval ->
           logger.info("EventGroup collection interval: $interval")
-          impressionDataSourceProvider.listImpressionDataSources(
-            modelLine,
-            details.eventGroupReferenceId,
-            interval,
-          )
+          impressionDataSourceProvider.listImpressionDataSources(modelLine, selector, interval)
         }
       }
     val result = allSources.distinctBy { it.blobDetails.blobUri }
@@ -194,47 +222,56 @@ class StorageEventSource(
     return result
   }
 
-  private suspend fun createEventReaders(): List<StorageEventReader> {
+  private suspend fun createEventReaders(): List<ResolvedEventReader> {
     logger.info("Creating event readers... ")
     val uniqueSources = getUniqueImpressionDataSources()
 
     return uniqueSources.map { source ->
-      StorageEventReader(
-        source.blobDetails,
-        kmsClient,
-        impressionsStorageConfig,
-        descriptor,
-        batchSize,
+      val eventGroupIdentifier =
+        if (useEntityKeyStrategy) {
+          EventGroupIdentifier.ByEntityKeys(source.blobDetails.entityKeysList)
+        } else {
+          EventGroupIdentifier.ByReferenceId(source.blobDetails.eventGroupReferenceId)
+        }
+      ResolvedEventReader(
+        reader =
+          StorageEventReader(
+            source.blobDetails,
+            kmsClient,
+            impressionsStorageConfig,
+            descriptor,
+            batchSize,
+          ),
+        eventGroupIdentifier = eventGroupIdentifier,
+        blobUri = source.blobDetails.blobUri,
       )
     }
   }
 
   /** Processes events from a single EventReader and returns batch and event counts. */
   private suspend fun processEventReader(
-    eventReader: StorageEventReader,
+    resolvedReader: ResolvedEventReader,
     sendEventBatch: suspend (EventBatch<Message>) -> Unit,
   ): EventReaderResult {
     var batchCount = 0
     var eventCount = 0
-    val blobDetails = eventReader.getBlobDetails()
 
-    logger.fine("Reading events from ${blobDetails.blobUri}")
+    logger.fine("Reading events from ${resolvedReader.blobUri}")
 
-    eventReader.readEvents().collect { events ->
+    resolvedReader.reader.readEvents().collect { events ->
       val eventBatch =
         EventBatch(
           events = events,
           minTime = events.minOf { it.timestamp },
           maxTime = events.maxOf { it.timestamp },
-          eventGroupReferenceId = blobDetails.eventGroupReferenceId,
-          entityKeys = blobDetails.entityKeysList,
+          eventGroupIdentifier = resolvedReader.eventGroupIdentifier,
         )
       sendEventBatch(eventBatch)
       batchCount++
       eventCount += events.size
     }
 
-    logger.fine("Read $eventCount events in $batchCount batches for ${blobDetails.blobUri}")
+    logger.fine("Read $eventCount events in $batchCount batches for ${resolvedReader.blobUri}")
     return EventReaderResult(batchCount, eventCount)
   }
 

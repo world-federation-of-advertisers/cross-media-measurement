@@ -154,11 +154,14 @@ interface ReportProcessor {
   /** The default implementation of [ReportProcessor]. */
   companion object Default : ReportProcessor {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private const val PYTHON_LIBRARY_RESOURCE_NAME =
-      "src/main/python/wfa/measurement/reporting/postprocessing/tools/post_process_origin_report.zip"
+    private const val PYTHON_LIBRARY_RESOURCE_NAME = "post_process_origin_report.zip"
     private val resourcePath: Path =
-      this::class.java.classLoader.getJarResourcePath(PYTHON_LIBRARY_RESOURCE_NAME)
-        ?: error("$PYTHON_LIBRARY_RESOURCE_NAME not found in JAR")
+      requireNotNull(
+        Default::class.java.classLoader.getJarResourcePath(PYTHON_LIBRARY_RESOURCE_NAME)
+      ) {
+        "$PYTHON_LIBRARY_RESOURCE_NAME not found in JAR"
+      }
+
     private val tempFile = File.createTempFile(resourcePath.name, "").apply { deleteOnExit() }
 
     init {
