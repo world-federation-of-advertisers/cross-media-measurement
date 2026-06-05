@@ -76,6 +76,23 @@ message CreateRawImpressionUploadModelLineRequest {
   string request_id = 2;
 }
 
+// Request message for BatchCreateRawImpressionUploadModelLines.
+message BatchCreateRawImpressionUploadModelLinesRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // Individual create requests. Maximum 50 per batch.
+  repeated CreateRawImpressionUploadModelLineRequest requests = 3;
+}
+
+// Response message for BatchCreateRawImpressionUploadModelLines.
+message BatchCreateRawImpressionUploadModelLinesResponse {
+  repeated RawImpressionUploadModelLine raw_impression_upload_model_lines = 1;
+}
+
 // Request message for GetRawImpressionUploadModelLine.
 message GetRawImpressionUploadModelLineRequest {
   // Resource ID of the DataProvider.
@@ -111,8 +128,14 @@ message ListRawImpressionUploadModelLinesRequest {
     // Filter by pipeline state.
     RawImpressionUploadModelLineState state = 1;
 
-    // Filter by create time range.
+    // Filter for resources whose create_time falls within this
+    // interval. Start and end are both optional: omitting start
+    // returns resources created before end, omitting end returns
+    // resources created after start.
     google.type.Interval create_time_interval = 2;
+
+    // Filter by CMMS model line resource name.
+    string cmms_model_line = 3;
   }
   Filter filter = 5;
 }
@@ -193,4 +216,7 @@ message MarkRawImpressionUploadModelLineFailedRequest {
 
   // The CMMS model line resource name.
   string cmms_model_line = 3;
+
+  // Human-readable detail about the failure.
+  string error_message = 4;
 }
