@@ -281,6 +281,9 @@ jobs:
         KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
         AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
         TRUSTED_IMAGE_SIGNING_FINGERPRINT: ${{ steps.get-public-key-fingerprint.outputs.fingerprint }}
+        DATA_PROVIDER_RESOURCE_IDS: ${{ vars.DATA_PROVIDER_RESOURCE_IDS }}
+        DASHBOARD_OPERATORS: ${{ vars.DASHBOARD_OPERATORS }}
+        DASHBOARD_DELETION_PROTECTION: ${{ vars.DASHBOARD_DELETION_PROTECTION }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform plan
@@ -342,6 +345,9 @@ jobs:
         -var="duchy_aggregator_cert_id=$AGGREGATOR_DUCHY_CERT_ID"
         -var="edp_simulator_names=$EDP_SIMULATOR_NAMES"
         -var="trusted_image_signing_fingerprint=$TRUSTED_IMAGE_SIGNING_FINGERPRINT"
+        -var='data_provider_resource_ids=$DATA_PROVIDER_RESOURCE_IDS'
+        -var='dashboard_operators=$DASHBOARD_OPERATORS'
+        -var="dashboard_deletion_protection=$DASHBOARD_DELETION_PROTECTION"
         -out=tfplan
 
     - name: terraform apply

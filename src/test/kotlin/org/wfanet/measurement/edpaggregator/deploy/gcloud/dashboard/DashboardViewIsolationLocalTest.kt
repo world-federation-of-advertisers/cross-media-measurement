@@ -21,14 +21,7 @@ import java.nio.file.Files
 import java.nio.file.Paths
 import org.junit.Test
 
-/**
- * Local test for dashboard SQL validation.
- *
- * Validates SQL template files pre-merge:
- * 1. SQL files with include_platform_columns conditionals have correct structure
- * 2. Platform-only columns only appear inside conditional blocks
- * 3. All SQL files contain expected EXTERNAL_QUERY connections
- */
+/** Validates dashboard SQL templates for correct EDP isolation structure. */
 class DashboardViewIsolationLocalTest {
 
   companion object {
@@ -45,19 +38,40 @@ class DashboardViewIsolationLocalTest {
     return Files.readString(path)
   }
 
+  private fun renderWithPlatformColumnsDisabled(template: String): String {
+    val result = StringBuilder()
+    var inIfBlock = false
+    var inElseBlock = false
+
+    for (line in template.lines()) {
+      val trimmed = line.trim()
+      when {
+        trimmed == "%{ if include_platform_columns }" -> inIfBlock = true
+        trimmed == "%{ else }" -> {
+          inIfBlock = false
+          inElseBlock = true
+        }
+        trimmed == "%{ endif }" -> {
+          inIfBlock = false
+          inElseBlock = false
+        }
+        inIfBlock -> {}
+        else -> result.appendLine(line)
+      }
+    }
+    return result.toString()
+  }
+
   @Test
   fun platformColumnsOnlyInsideConditionalBlocks() {
     for (fileName in listOf("mc_details.sql", "report_detail.sql")) {
       val sql = readSqlFile(fileName)
       assertThat(sql).contains("include_platform_columns")
 
-      val outsideConditional =
-        sql
-          .replace(Regex("""(?s)%\{ if include_platform_columns \}.*?%\{ endif \}"""), "")
-          .replace(Regex("""(?s)%\{ if include_platform_columns \}.*?%\{ else \}"""), "")
+      val rendered = renderWithPlatformColumnsDisabled(sql)
 
       for (col in PLATFORM_ONLY_COLUMNS) {
-        assertThat(outsideConditional).doesNotContain(col)
+        assertThat(rendered).doesNotContain(col)
       }
     }
   }

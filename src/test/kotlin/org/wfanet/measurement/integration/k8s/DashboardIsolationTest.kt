@@ -36,29 +36,6 @@ import org.junit.Test
  */
 class DashboardIsolationTest {
 
-  companion object {
-    private val logger = Logger.getLogger(DashboardIsolationTest::class.java.name)
-
-    private val PROJECT =
-      System.getenv("GOOGLE_CLOUD_PROJECT")
-        ?: throw IllegalStateException("GOOGLE_CLOUD_PROJECT not set")
-    private val EDP_NAME =
-      System.getenv("EDP_NAME") ?: throw IllegalStateException("EDP_NAME not set")
-    private val EDP_RESOURCE_ID =
-      System.getenv("EDP_RESOURCE_ID") ?: throw IllegalStateException("EDP_RESOURCE_ID not set")
-
-    private const val DATASET = "dashboard"
-
-    private lateinit var bigQuery: BigQuery
-
-    @JvmStatic
-    @BeforeClass
-    fun setUp() {
-      bigQuery = BigQueryOptions.getDefaultInstance().service
-      logger.info("Testing as EDP '$EDP_NAME' (resource ID: $EDP_RESOURCE_ID) in project $PROJECT")
-    }
-  }
-
   @Test
   fun requisitionOverviewReturnsOnlyOwnData() {
     val sql =
@@ -109,6 +86,24 @@ class DashboardIsolationTest {
       assertThat(dataProviders).containsExactly(EDP_RESOURCE_ID)
     }
     logger.info("report_detail_edp: ${result.totalRows} rows, all for $EDP_RESOURCE_ID")
+  }
+
+  @Test
+  fun externalQueryBypassIsDenied() {
+    val connections = listOf("edp-aggregator-conn", "kingdom-conn", "reporting-conn")
+    for (conn in connections) {
+      val sql =
+        "SELECT * FROM EXTERNAL_QUERY('projects/$PROJECT/locations/us-central1/connections/$conn', '''SELECT 1''') LIMIT 1"
+      try {
+        val result = bigQuery.query(QueryJobConfiguration.of(sql))
+        fail(
+          "EXTERNAL_QUERY via $conn should have been denied but returned ${result.totalRows} rows"
+        )
+      } catch (e: BigQueryException) {
+        assertThat(e.code).isEqualTo(403)
+        logger.info("EXTERNAL_QUERY via $conn correctly denied: ${e.message}")
+      }
+    }
   }
 
   @Test
@@ -163,6 +158,29 @@ class DashboardIsolationTest {
     } catch (e: BigQueryException) {
       logger.info("Platform report_detail correctly denied: ${e.message}")
       assertThat(e.code).isEqualTo(403)
+    }
+  }
+
+  companion object {
+    private val logger = Logger.getLogger(DashboardIsolationTest::class.java.name)
+
+    private val PROJECT =
+      System.getenv("GOOGLE_CLOUD_PROJECT")
+        ?: throw IllegalStateException("GOOGLE_CLOUD_PROJECT not set")
+    private val EDP_NAME =
+      System.getenv("EDP_NAME") ?: throw IllegalStateException("EDP_NAME not set")
+    private val EDP_RESOURCE_ID =
+      System.getenv("EDP_RESOURCE_ID") ?: throw IllegalStateException("EDP_RESOURCE_ID not set")
+
+    private const val DATASET = "dashboard"
+
+    private lateinit var bigQuery: BigQuery
+
+    @JvmStatic
+    @BeforeClass
+    fun setUp() {
+      bigQuery = BigQueryOptions.getDefaultInstance().service
+      logger.info("Testing as EDP '$EDP_NAME' (resource ID: $EDP_RESOURCE_ID) in project $PROJECT")
     }
   }
 }

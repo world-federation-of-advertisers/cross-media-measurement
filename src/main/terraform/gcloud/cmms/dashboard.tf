@@ -221,35 +221,35 @@ resource "google_bigquery_table" "requisition_overview" {
   dataset_id          = google_bigquery_dataset.dashboard.dataset_id
   project             = data.google_client_config.default.project
   table_id            = "requisition_overview"
-  deletion_protection = false
+  deletion_protection = var.dashboard_deletion_protection
 }
 
 resource "google_bigquery_table" "mc_details" {
   dataset_id          = google_bigquery_dataset.dashboard.dataset_id
   project             = data.google_client_config.default.project
   table_id            = "mc_details"
-  deletion_protection = false
+  deletion_protection = var.dashboard_deletion_protection
 }
 
 resource "google_bigquery_table" "mc_details_edp" {
   dataset_id          = google_bigquery_dataset.dashboard.dataset_id
   project             = data.google_client_config.default.project
   table_id            = "mc_details_edp"
-  deletion_protection = false
+  deletion_protection = var.dashboard_deletion_protection
 }
 
 resource "google_bigquery_table" "report_detail" {
   dataset_id          = google_bigquery_dataset.dashboard.dataset_id
   project             = data.google_client_config.default.project
   table_id            = "report_detail"
-  deletion_protection = false
+  deletion_protection = var.dashboard_deletion_protection
 }
 
 resource "google_bigquery_table" "report_detail_edp" {
   dataset_id          = google_bigquery_dataset.dashboard.dataset_id
   project             = data.google_client_config.default.project
   table_id            = "report_detail_edp"
-  deletion_protection = false
+  deletion_protection = var.dashboard_deletion_protection
 }
 
 # --- Scheduled Queries (materialize Spanner data into BigQuery tables) ---
@@ -261,6 +261,7 @@ resource "google_bigquery_data_transfer_config" "requisition_overview" {
   destination_dataset_id = google_bigquery_dataset.dashboard.dataset_id
   project                = data.google_client_config.default.project
   location               = data.google_client_config.default.region
+  service_account_name   = var.terraform_service_account
 
   params = {
     query                      = templatefile("${path.module}/sql/requisition_overview.sql", {
@@ -370,6 +371,24 @@ resource "google_bigquery_row_access_policy" "requisition_overview_platform" {
   grantees         = concat(["serviceAccount:${var.terraform_service_account}"], var.dashboard_operators)
 }
 
+resource "google_bigquery_row_access_policy" "mc_details_platform" {
+  project          = data.google_client_config.default.project
+  dataset_id       = google_bigquery_dataset.dashboard.dataset_id
+  table_id         = google_bigquery_table.mc_details.table_id
+  policy_id        = "platform_full_access"
+  filter_predicate = "TRUE"
+  grantees         = concat(["serviceAccount:${var.terraform_service_account}"], var.dashboard_operators)
+}
+
+resource "google_bigquery_row_access_policy" "report_detail_platform" {
+  project          = data.google_client_config.default.project
+  dataset_id       = google_bigquery_dataset.dashboard.dataset_id
+  table_id         = google_bigquery_table.report_detail.table_id
+  policy_id        = "platform_full_access"
+  filter_predicate = "TRUE"
+  grantees         = concat(["serviceAccount:${var.terraform_service_account}"], var.dashboard_operators)
+}
+
 resource "google_bigquery_row_access_policy" "requisition_overview" {
   for_each         = var.data_provider_resource_ids
   project          = data.google_client_config.default.project
@@ -408,9 +427,73 @@ resource "google_bigquery_dataset_iam_member" "terraform_data_owner" {
   member     = "serviceAccount:${var.terraform_service_account}"
 }
 
+# Terraform SA needs connectionUser on Spanner connections for scheduled queries
+resource "google_bigquery_connection_iam_member" "terraform_edp_aggregator_conn" {
+  project       = data.google_client_config.default.project
+  location      = data.google_client_config.default.region
+  connection_id = google_bigquery_connection.edp_aggregator.connection_id
+  role          = "roles/bigquery.connectionUser"
+  member        = "serviceAccount:${var.terraform_service_account}"
+}
+
+resource "google_bigquery_connection_iam_member" "terraform_kingdom_conn" {
+  project       = data.google_client_config.default.project
+  location      = data.google_client_config.default.region
+  connection_id = google_bigquery_connection.kingdom.connection_id
+  role          = "roles/bigquery.connectionUser"
+  member        = "serviceAccount:${var.terraform_service_account}"
+}
+
+resource "google_bigquery_connection_iam_member" "terraform_reporting_conn" {
+  project       = data.google_client_config.default.project
+  location      = data.google_client_config.default.region
+  connection_id = google_bigquery_connection.reporting.connection_id
+  role          = "roles/bigquery.connectionUser"
+  member        = "serviceAccount:${var.terraform_service_account}"
+}
+
+# Terraform SA needs dataEditor on dashboard dataset for scheduled query writes
+resource "google_bigquery_dataset_iam_member" "terraform_data_editor" {
+  dataset_id = google_bigquery_dataset.dashboard.dataset_id
+  project    = data.google_client_config.default.project
+  role       = "roles/bigquery.dataEditor"
+  member     = "serviceAccount:${var.terraform_service_account}"
+}
+
 # --- Table-level IAM ---
-# EDP SAs get dataViewer on requisition_overview, mc_details_edp, report_detail_edp only.
-# Platform-only tables (mc_details, report_detail) have no EDP SA grants — they get 403.
+
+# Operators get dataViewer on platform-only tables (mc_details, report_detail)
+# and the shared table (requisition_overview).
+resource "google_bigquery_table_iam_member" "requisition_overview_platform_viewer" {
+  for_each   = toset(var.dashboard_operators)
+  project    = data.google_client_config.default.project
+  dataset_id = google_bigquery_dataset.dashboard.dataset_id
+  table_id   = "requisition_overview"
+  role       = "roles/bigquery.dataViewer"
+  member     = each.value
+}
+
+resource "google_bigquery_table_iam_member" "mc_details_platform_viewer" {
+  for_each   = toset(var.dashboard_operators)
+  project    = data.google_client_config.default.project
+  dataset_id = google_bigquery_dataset.dashboard.dataset_id
+  table_id   = "mc_details"
+  role       = "roles/bigquery.dataViewer"
+  member     = each.value
+}
+
+resource "google_bigquery_table_iam_member" "report_detail_platform_viewer" {
+  for_each   = toset(var.dashboard_operators)
+  project    = data.google_client_config.default.project
+  dataset_id = google_bigquery_dataset.dashboard.dataset_id
+  table_id   = "report_detail"
+  role       = "roles/bigquery.dataViewer"
+  member     = each.value
+}
+
+# EDP SAs get dataViewer on shared tables only (requisition_overview, mc_details_edp,
+# report_detail_edp). EDP SAs have no access to platform-only tables (mc_details,
+# report_detail) — they get 403.
 
 resource "google_bigquery_table_iam_member" "requisition_overview_viewer" {
   for_each   = var.data_provider_resource_ids
