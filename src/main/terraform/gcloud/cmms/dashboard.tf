@@ -222,6 +222,86 @@ resource "google_bigquery_table" "requisition_overview" {
   project             = data.google_client_config.default.project
   table_id            = "requisition_overview"
   deletion_protection = var.dashboard_deletion_protection
+
+  schema = <<EOF
+[
+  {
+    "name": "DataProviderResourceId",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "Report",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "CmmsMeasurementConsumer",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "RequisitionState",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "CmmsCreateTime",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "FulfilledTime",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "FulfillmentDurationSeconds",
+    "type": "INT64",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ReportState",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ReportStartYear",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ReportStartMonth",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ReportStartDay",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ReportEndYear",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ReportEndMonth",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ReportEndDay",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ImpressionQualificationFilters",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  }
+]
+EOF
 }
 
 resource "google_bigquery_table" "mc_details" {
@@ -229,6 +309,56 @@ resource "google_bigquery_table" "mc_details" {
   project             = data.google_client_config.default.project
   table_id            = "mc_details"
   deletion_protection = var.dashboard_deletion_protection
+
+  schema = <<EOF
+[
+  {
+    "name": "CmmsMeasurementConsumer",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "CmmsDataProvider",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "EventGroupCount",
+    "type": "INT64",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "EventGroupIds",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
+    "name": "CampaignNames",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
+    "name": "BrandNames",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
+    "name": "AccountIds",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
+    "name": "TotalMcs",
+    "type": "INT64",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "CoveragePercent",
+    "type": "FLOAT64",
+    "mode": "NULLABLE"
+  }
+]
+EOF
 }
 
 resource "google_bigquery_table" "mc_details_edp" {
@@ -236,6 +366,46 @@ resource "google_bigquery_table" "mc_details_edp" {
   project             = data.google_client_config.default.project
   table_id            = "mc_details_edp"
   deletion_protection = var.dashboard_deletion_protection
+
+  schema = <<EOF
+[
+  {
+    "name": "CmmsMeasurementConsumer",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "CmmsDataProvider",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "EventGroupCount",
+    "type": "INT64",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "EventGroupIds",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
+    "name": "CampaignNames",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
+    "name": "BrandNames",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
+    "name": "AccountIds",
+    "type": "STRING",
+    "mode": "REPEATED"
+  }
+]
+EOF
 }
 
 resource "google_bigquery_table" "report_detail" {
@@ -243,6 +413,46 @@ resource "google_bigquery_table" "report_detail" {
   project             = data.google_client_config.default.project
   table_id            = "report_detail"
   deletion_protection = var.dashboard_deletion_protection
+
+  schema = <<EOF
+[
+  {
+    "name": "BasicReportId",
+    "type": "INT64",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "CmmsDataProvider",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "EventGroupCount",
+    "type": "INT64",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "EventGroupIds",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
+    "name": "CampaignNames",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
+    "name": "BrandNames",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
+    "name": "EdpCount",
+    "type": "INT64",
+    "mode": "NULLABLE"
+  }
+]
+EOF
 }
 
 resource "google_bigquery_table" "report_detail_edp" {
@@ -250,6 +460,41 @@ resource "google_bigquery_table" "report_detail_edp" {
   project             = data.google_client_config.default.project
   table_id            = "report_detail_edp"
   deletion_protection = var.dashboard_deletion_protection
+
+  schema = <<EOF
+[
+  {
+    "name": "BasicReportId",
+    "type": "INT64",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "CmmsDataProvider",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "EventGroupCount",
+    "type": "INT64",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "EventGroupIds",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
+    "name": "CampaignNames",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
+    "name": "BrandNames",
+    "type": "STRING",
+    "mode": "REPEATED"
+  }
+]
+EOF
 }
 
 # --- Scheduled Queries (materialize Spanner data into BigQuery tables) ---
