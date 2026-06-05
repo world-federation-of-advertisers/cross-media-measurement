@@ -8829,6 +8829,7 @@ class BasicReportsServiceTest {
                         InternalResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           this.cmmsDataProviderId = cmmsDataProviderId
                           cmmsDataProviderDisplayName = "display"
+                          externalReportingSetId = COMPONENT_EXTERNAL_REPORTING_SET_ID
                           eventGroupSummaries +=
                             InternalResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -8846,6 +8847,7 @@ class BasicReportsServiceTest {
                         InternalResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           this.cmmsDataProviderId = cmmsDataProviderId
                           cmmsDataProviderDisplayName = "display"
+                          externalReportingSetId = COMPONENT_EXTERNAL_REPORTING_SET_ID
                           eventGroupSummaries +=
                             InternalResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -9057,6 +9059,7 @@ class BasicReportsServiceTest {
                         InternalResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           this.cmmsDataProviderId = cmmsDataProviderId
                           cmmsDataProviderDisplayName = "display"
+                          externalReportingSetId = COMPONENT_EXTERNAL_REPORTING_SET_ID
                           eventGroupSummaries +=
                             InternalResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -9210,6 +9213,7 @@ class BasicReportsServiceTest {
                         InternalResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           this.cmmsDataProviderId = cmmsDataProviderId
                           cmmsDataProviderDisplayName = "display"
+                          externalReportingSetId = COMPONENT_EXTERNAL_REPORTING_SET_ID
                           eventGroupSummaries +=
                             InternalResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -9449,6 +9453,12 @@ class BasicReportsServiceTest {
                           ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                             component = DataProviderKey(cmmsDataProviderId).toName()
                             displayName = "display"
+                            reportingSet =
+                              ReportingSetKey(
+                                  cmmsMeasurementConsumerId,
+                                  COMPONENT_EXTERNAL_REPORTING_SET_ID,
+                                )
+                                .toName()
                             eventGroupSummaries +=
                               ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                                 .eventGroupSummary {
@@ -9474,6 +9484,12 @@ class BasicReportsServiceTest {
                           ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                             component = DataProviderKey(cmmsDataProviderId).toName()
                             displayName = "display"
+                            reportingSet =
+                              ReportingSetKey(
+                                  cmmsMeasurementConsumerId,
+                                  COMPONENT_EXTERNAL_REPORTING_SET_ID,
+                                )
+                                .toName()
                             eventGroupSummaries +=
                               ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                                 .eventGroupSummary {
@@ -9689,6 +9705,12 @@ class BasicReportsServiceTest {
                           ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                             component = DataProviderKey(cmmsDataProviderId).toName()
                             displayName = "display"
+                            reportingSet =
+                              ReportingSetKey(
+                                  cmmsMeasurementConsumerId,
+                                  COMPONENT_EXTERNAL_REPORTING_SET_ID,
+                                )
+                                .toName()
                             eventGroupSummaries +=
                               ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                                 .eventGroupSummary {
@@ -9849,6 +9871,12 @@ class BasicReportsServiceTest {
                           ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                             component = DataProviderKey(cmmsDataProviderId).toName()
                             displayName = "display"
+                            reportingSet =
+                              ReportingSetKey(
+                                  cmmsMeasurementConsumerId,
+                                  COMPONENT_EXTERNAL_REPORTING_SET_ID,
+                                )
+                                .toName()
                             eventGroupSummaries +=
                               ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                                 .eventGroupSummary {
@@ -11296,6 +11324,10 @@ class BasicReportsServiceTest {
       )
 
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "1234"
+
+    // ReportingSet whose membership enumerates the EventGroups entailed by a reporting unit
+    // component, referenced by ReportingUnitComponentSummary.
+    private const val COMPONENT_EXTERNAL_REPORTING_SET_ID = "component-reporting-set"
 
     private val CONFIG = measurementConsumerConfig {
       apiKey = "api_key_1234"

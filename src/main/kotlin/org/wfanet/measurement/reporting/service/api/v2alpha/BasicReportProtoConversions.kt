@@ -402,8 +402,17 @@ fun ResultGroupMetricSpec.toInternal(): InternalResultGroupMetricSpec {
   }
 }
 
-/** Converts the internal [InternalBasicReport] to the public [BasicReport]. */
-fun InternalBasicReport.toBasicReport(): BasicReport {
+/**
+ * Converts the internal [InternalBasicReport] to the public [BasicReport].
+ *
+ * @param populateDeprecatedReportingUnitEventGroupSummaries whether to also emit the deprecated
+ *   [ResultGroup.MetricMetadata.ReportingUnitComponentSummary.event_group_summaries] field during
+ *   the EventGroup-to-ReportingSet migration. The replacement `reporting_set` field is always
+ *   populated regardless of this value.
+ */
+fun InternalBasicReport.toBasicReport(
+  populateDeprecatedReportingUnitEventGroupSummaries: Boolean = true
+): BasicReport {
   val source = this
   return basicReport {
     name = BasicReportKey(source.cmmsMeasurementConsumerId, source.externalBasicReportId).toName()
@@ -438,7 +447,11 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
       resultGroupSpecs += internalResultGroupSpec.toResultGroupSpec()
     }
     for (internalResultGroup in source.resultDetails.resultGroupsList) {
-      resultGroups += internalResultGroup.toResultGroup()
+      resultGroups +=
+        internalResultGroup.toResultGroup(
+          source.cmmsMeasurementConsumerId,
+          populateDeprecatedReportingUnitEventGroupSummaries,
+        )
     }
     createTime = source.createTime
 
@@ -719,15 +732,29 @@ fun InternalEventTemplateField.toEventTemplateField(): EventTemplateField {
   }
 }
 
-/** Converts the internal [InternalResultGroup] to the public [ResultGroup]. */
-fun InternalResultGroup.toResultGroup(): ResultGroup {
+/**
+ * Converts the internal [InternalResultGroup] to the public [ResultGroup].
+ *
+ * @param cmmsMeasurementConsumerId ID of the `MeasurementConsumer` that owns the referenced
+ *   ReportingSets
+ * @param populateDeprecatedReportingUnitEventGroupSummaries whether to also emit the deprecated
+ *   `event_group_summaries` field
+ */
+fun InternalResultGroup.toResultGroup(
+  cmmsMeasurementConsumerId: String,
+  populateDeprecatedReportingUnitEventGroupSummaries: Boolean,
+): ResultGroup {
   val source = this
   return resultGroup {
     title = source.title
     for (internalResult in source.resultsList) {
       results +=
         ResultGroupKt.result {
-          metadata = internalResult.metadata.toMetricMetadata()
+          metadata =
+            internalResult.metadata.toMetricMetadata(
+              cmmsMeasurementConsumerId,
+              populateDeprecatedReportingUnitEventGroupSummaries,
+            )
           metricSet = internalResult.metricSet.toMetricSet()
         }
     }
@@ -751,8 +778,20 @@ fun InternalMetricFrequencySpec.toMetricFrequencySpec(): MetricFrequencySpec {
   }
 }
 
-/** Converts the internal [InternalMetricMetadata] to the public [MetricMetadata]. */
-fun InternalMetricMetadata.toMetricMetadata(): MetricMetadata {
+/**
+ * Converts the internal [InternalMetricMetadata] to the public [MetricMetadata].
+ *
+ * @param cmmsMeasurementConsumerId ID of the `MeasurementConsumer` that owns the referenced
+ *   ReportingSets
+ * @param populateDeprecatedReportingUnitEventGroupSummaries whether to also emit the deprecated
+ *   `event_group_summaries` field
+ */
+// Intentionally reads/writes the deprecated event_group_summaries field during the migration.
+@Suppress("DEPRECATION")
+fun InternalMetricMetadata.toMetricMetadata(
+  cmmsMeasurementConsumerId: String,
+  populateDeprecatedReportingUnitEventGroupSummaries: Boolean,
+): MetricMetadata {
   val source = this
   return ResultGroupKt.metricMetadata {
     reportingUnitSummary =
@@ -764,17 +803,26 @@ fun InternalMetricMetadata.toMetricMetadata(): MetricMetadata {
               component =
                 DataProviderKey(internalReportingUnitComponentSummary.cmmsDataProviderId).toName()
               displayName = internalReportingUnitComponentSummary.cmmsDataProviderDisplayName
-              for (internalEventGroupSummary in
-                internalReportingUnitComponentSummary.eventGroupSummariesList) {
-                eventGroupSummaries +=
-                  ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt.eventGroupSummary {
-                    eventGroup =
-                      MeasurementConsumerEventGroupKey(
-                          internalEventGroupSummary.cmmsMeasurementConsumerId,
-                          internalEventGroupSummary.cmmsEventGroupId,
-                        )
-                        .toName()
-                  }
+              reportingSet =
+                ReportingSetKey(
+                    cmmsMeasurementConsumerId,
+                    internalReportingUnitComponentSummary.externalReportingSetId,
+                  )
+                  .toName()
+              if (populateDeprecatedReportingUnitEventGroupSummaries) {
+                for (internalEventGroupSummary in
+                  internalReportingUnitComponentSummary.eventGroupSummariesList) {
+                  eventGroupSummaries +=
+                    ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
+                      .eventGroupSummary {
+                        eventGroup =
+                          MeasurementConsumerEventGroupKey(
+                              internalEventGroupSummary.cmmsMeasurementConsumerId,
+                              internalEventGroupSummary.cmmsEventGroupId,
+                            )
+                            .toName()
+                      }
+                }
               }
             }
         }

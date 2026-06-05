@@ -132,6 +132,7 @@ class BasicReportsService(
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
   private val defaultReportStartHour: ZonedHour? = null,
   private val baseExternalImpressionQualificationFilterIds: Iterable<String>,
+  private val populateDeprecatedReportingUnitEventGroupSummaries: Boolean = true,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   data class ZonedHour(val hour: Int, val zoneId: ZoneId)
@@ -409,7 +410,9 @@ class BasicReportsService(
       }
     )
 
-    return createdInternalBasicReport.toBasicReport()
+    return createdInternalBasicReport.toBasicReport(
+      populateDeprecatedReportingUnitEventGroupSummaries
+    )
   }
 
   /**
@@ -549,7 +552,7 @@ class BasicReportsService(
         }
       }
 
-    return internalBasicReport.toBasicReport()
+    return internalBasicReport.toBasicReport(populateDeprecatedReportingUnitEventGroupSummaries)
   }
 
   override suspend fun listBasicReports(
@@ -603,7 +606,9 @@ class BasicReportsService(
 
     return listBasicReportsResponse {
       this.basicReports +=
-        internalListBasicReportsResponse.basicReportsList.map { it.toBasicReport() }.toList()
+        internalListBasicReportsResponse.basicReportsList
+          .map { it.toBasicReport(populateDeprecatedReportingUnitEventGroupSummaries) }
+          .toList()
       unreachable += internalListBasicReportsResponse.unreachableList
       if (internalListBasicReportsResponse.hasNextPageToken()) {
         nextPageToken =
