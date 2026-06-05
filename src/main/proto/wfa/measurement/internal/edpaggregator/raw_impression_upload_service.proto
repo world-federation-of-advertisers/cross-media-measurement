@@ -38,18 +38,6 @@ service RawImpressionUploadService {
   // Lists RawImpressionUpload entries for a data provider.
   rpc ListRawImpressionUploads(ListRawImpressionUploadsRequest)
       returns (ListRawImpressionUploadsResponse);
-
-  // Marks a RawImpressionUpload as ACTIVE.
-  rpc MarkRawImpressionUploadActive(MarkRawImpressionUploadActiveRequest)
-      returns (RawImpressionUpload);
-
-  // Marks a RawImpressionUpload as COMPLETED.
-  rpc MarkRawImpressionUploadCompleted(MarkRawImpressionUploadCompletedRequest)
-      returns (RawImpressionUpload);
-
-  // Marks a RawImpressionUpload as FAILED.
-  rpc MarkRawImpressionUploadFailed(MarkRawImpressionUploadFailedRequest)
-      returns (RawImpressionUpload);
 }
 
 // Request message for CreateRawImpressionUpload.
@@ -121,34 +109,4 @@ message ListRawImpressionUploadsPageToken {
     string raw_impression_upload_resource_id = 2;
   }
   After after = 1;
-}
-
-// Request message for MarkRawImpressionUploadActive.
-message MarkRawImpressionUploadActiveRequest {
-  // Resource ID of the DataProvider.
-  string data_provider_resource_id = 1;
-
-  // The unique identifier of the upload.
-  string raw_impression_upload_resource_id = 2;
-}
-
-// Request message for MarkRawImpressionUploadCompleted.
-message MarkRawImpressionUploadCompletedRequest {
-  // Resource ID of the DataProvider.
-  string data_provider_resource_id = 1;
-
-  // The unique identifier of the upload.
-  string raw_impression_upload_resource_id = 2;
-}
-
-// Request message for MarkRawImpressionUploadFailed.
-message MarkRawImpressionUploadFailedRequest {
-  // Resource ID of the DataProvider.
-  string data_provider_resource_id = 1;
-
-  // The unique identifier of the upload.
-  string raw_impression_upload_resource_id = 2;
-
-  // Human-readable detail about the failure.
-  string error_message = 3;
 }
