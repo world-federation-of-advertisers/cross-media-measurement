@@ -94,11 +94,17 @@ interface ReportProcessor {
    * Processes a serialized [Report] and outputs a serialized consistent one.
    *
    * @param report The serialized [Report] in JSON format.
+   * @param amiMrcExemptedList A list of Event Data Provider (EDP) IDs for which the `ami >= mrc`
+   *   constraint should be exempted.
    * @param verbose If true, enables verbose logging from the underlying report processor library.
    *   Default value is false.
    * @return The corrected serialized [Report] in JSON format.
    */
-  fun processReportJson(report: String, verbose: Boolean = false): String
+  fun processReportJson(
+    report: String,
+    amiMrcExemptedList: List<String>,
+    verbose: Boolean = false,
+  ): String
 
   /**
    * Processes a serialized [Report], outputs a consistent one, generates detailed logs of this
@@ -118,6 +124,30 @@ interface ReportProcessor {
     report: String,
     projectId: String,
     bucketName: String,
+    verbose: Boolean = false,
+  ): ReportProcessingOutput
+
+  /**
+   * Processes a serialized [Report], outputs a consistent one, generates detailed logs of this
+   * processing, and returns both a string representation of the processing result and the generated
+   * log object.
+   *
+   * @param report The JSON [String] containing the report data to be processed.
+   * @param projectId The GCS Project ID.
+   * @param bucketName The GCS bucket name.
+   * @param amiMrcExemptedList A list of Event Data Provider (EDP) IDs for which the `ami >= mrc`
+   *   constraint should be exempted.
+   * @param verbose If true, enables verbose logging from the underlying report processor library.
+   *   Default value is false.
+   * @return A [ReportProcessingOutput] that contains the corrected serialized [Report] in JSON
+   *   format and a [ReportPostProcessorLog] object that encapsulates detailed logs, metrics, or
+   *   errors encountered during the processing of the report.
+   */
+  suspend fun processReportJsonAndLogResult(
+    report: String,
+    projectId: String,
+    bucketName: String,
+    amiMrcExemptedList: List<String>,
     verbose: Boolean = false,
   ): ReportProcessingOutput
 
@@ -182,10 +212,22 @@ interface ReportProcessor {
      * format.
      *
      * @param report standard JSON serialization of a Report message.
+     * @param amiMrcExemptedList A list of Event Data Provider (EDP) IDs for which the `ami >= mrc`
+     *   constraint should be exempted.
+     * @param verbose If true, enables verbose logging from the underlying report processor library.
+     *   Default value is false.
      * @return a corrected report, serialized as a standard JSON string.
      */
-    override fun processReportJson(report: String, verbose: Boolean): String {
-      return processReport(ReportConversion.getReportFromJsonString(report), verbose)
+    override fun processReportJson(
+      report: String,
+      amiMrcExemptedList: List<String>,
+      verbose: Boolean,
+    ): String {
+      return processReport(
+          ReportConversion.getReportFromJsonString(report),
+          amiMrcExemptedList,
+          verbose,
+        )
         .updatedReportJson
     }
 
@@ -209,6 +251,38 @@ interface ReportProcessor {
       bucketName: String,
       verbose: Boolean,
     ): ReportProcessingOutput {
+      return processReportJsonAndLogResult(
+        report = report,
+        projectId = projectId,
+        bucketName = bucketName,
+        amiMrcExemptedList = emptyList(),
+        verbose = verbose,
+      )
+    }
+
+    /**
+     * Processes a serialized [Report], outputs a consistent one, generates detailed logs of this
+     * processing, and returns both a string representation of the processing result and the
+     * generated log object.
+     *
+     * @param report The JSON [String] containing the report data to be processed.
+     * @param projectId The GCS Project ID.
+     * @param bucketName The GCS bucket name.
+     * @param amiMrcExemptedList A list of Event Data Provider (EDP) IDs for which the `ami >= mrc`
+     *   constraint should be exempted.
+     * @param verbose If true, enables verbose logging from the underlying report processor library.
+     *   Default value is false.
+     * @return A [ReportProcessingOutput] that contains the corrected serialized [Report] in JSON
+     *   format and a [ReportPostProcessorLog] object that encapsulates detailed logs, metrics, or
+     *   errors encountered during the processing of the report.
+     */
+    override suspend fun processReportJsonAndLogResult(
+      report: String,
+      projectId: String,
+      bucketName: String,
+      amiMrcExemptedList: List<String>,
+      verbose: Boolean,
+    ): ReportProcessingOutput {
       require(projectId.isNotEmpty()) { "projectId cannot be empty." }
       require(bucketName.isNotEmpty()) { "bucketName cannot be empty." }
 
@@ -216,6 +290,7 @@ interface ReportProcessor {
         ReportConversion.getReportFromJsonString(report),
         projectId,
         bucketName,
+        amiMrcExemptedList,
         verbose,
       )
     }
@@ -227,6 +302,8 @@ interface ReportProcessor {
      * @param report The input [Report] object that needs to be processed.
      * @param projectId The GCS project ID.
      * @param bucketName The GCS bucket name.
+     * @param amiMrcExemptedList A list of Event Data Provider (EDP) IDs for which the `ami >= mrc`
+     *   constraint should be exempted.
      * @param verbose A boolean flag indicating whether to perform verbose logging.
      * @return A [ReportProcessingOutput] object which contains an updated [Report] and a
      *   [ReportPostProcessorLog] object.
@@ -235,12 +312,14 @@ interface ReportProcessor {
       report: Report,
       projectId: String,
       bucketName: String,
+      amiMrcExemptedList: List<String>,
       verbose: Boolean = false,
     ): ReportProcessingOutput {
       require(projectId.isNotEmpty()) { "projectId cannot be empty." }
       require(bucketName.isNotEmpty()) { "bucketName cannot be empty." }
 
-      val reportProcessingOutput: ReportProcessingOutput = processReport(report, verbose)
+      val reportProcessingOutput: ReportProcessingOutput =
+        processReport(report, amiMrcExemptedList, verbose)
 
       val storageClient: StorageClient = getStorageClient(projectId, bucketName)
       val blobKey: String = getBlobKey(report)
@@ -257,7 +336,11 @@ interface ReportProcessor {
      * @return A [ReportProcessingOutput] object which contains an updated [Report] and a
      *   [ReportPostProcessorLog] object.
      */
-    private fun processReport(report: Report, verbose: Boolean = false): ReportProcessingOutput {
+    private fun processReport(
+      report: Report,
+      amiMrcExemptedList: List<String>,
+      verbose: Boolean = false,
+    ): ReportProcessingOutput {
       val reportSummaries = report.toReportSummaries()
       val correctedMeasurementsMap = mutableMapOf<String, Double>()
       val resultMap = mutableMapOf<String, ReportPostProcessorResult>()
@@ -266,7 +349,7 @@ interface ReportProcessor {
       for (reportSummary in reportSummaries) {
         val result: ReportPostProcessorResult =
           try {
-            processReportSummary(reportSummary, verbose)
+            processReportSummary(reportSummary, amiMrcExemptedList, verbose)
           } catch (e: Exception) {
             val errorMessage =
               "Report processing for the demographic groups " +
@@ -385,6 +468,7 @@ interface ReportProcessor {
      */
     private fun processReportSummary(
       reportSummary: ReportSummary,
+      amiMrcExemptedList: List<String>,
       verbose: Boolean = false,
     ): ReportPostProcessorResult {
       logger.info { "Start processing report summary.." }
@@ -417,6 +501,9 @@ interface ReportProcessor {
         }
         add("--input_file=${tempInputFile.absolutePath}")
         add("--output_file=${tempOutputFile.absolutePath}")
+        if (amiMrcExemptedList.isNotEmpty()) {
+          add("--ami_mrc_exemption_list=${amiMrcExemptedList.joinToString(separator = ",")}")
+        }
       }
       val process = ProcessBuilder(command).start()
 
