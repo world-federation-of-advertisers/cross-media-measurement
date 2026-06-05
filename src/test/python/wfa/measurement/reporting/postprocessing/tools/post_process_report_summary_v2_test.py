@@ -75,7 +75,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             report_summary_v2_pb2.ReportSummaryV2(),
         )
 
-        result = ReportSummaryV2Processor(report_summary).process()
+        result = ReportSummaryV2Processor(report_summary, []).process()
 
         self.assertEqual(
             result.status.status_code,
@@ -90,7 +90,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
         report_summary = get_report_summary_v2(
             'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_v2.textproto'
         )
-        reportSummaryProcessor = ReportSummaryV2Processor(report_summary)
+        reportSummaryProcessor = ReportSummaryV2Processor(report_summary, [])
 
         reportSummaryProcessor._process_union_results()
 
@@ -629,7 +629,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
         report_summary = get_report_summary_v2(
             'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_v2.textproto'
         )
-        reportSummaryProcessor = ReportSummaryV2Processor(report_summary)
+        reportSummaryProcessor = ReportSummaryV2Processor(report_summary, [])
 
         edp1 = frozenset({'EDP_ONE'})
         edp2 = frozenset({'EDP_TWO'})
@@ -1547,7 +1547,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             "src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_v2.textproto"
         )
         report_post_processor_result = ReportSummaryV2Processor(
-            report_summary_v2).process()
+            report_summary_v2, []).process()
 
         self.assertEqual(
             report_post_processor_result.pre_correction_report_summary_v2,
