@@ -30,7 +30,7 @@ option java_outer_classname = "RawImpressionUploadModelLineProto";
 message RawImpressionUploadModelLine {
   option (google.api.resource) = {
     type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
-    pattern: "dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/modelLines/{model_line}"
+    pattern: "dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/rawImpressionUploadModelLines/{raw_impression_upload_model_line}"
     singular: "rawImpressionUploadModelLine"
     plural: "rawImpressionUploadModelLines"
   };
@@ -49,7 +49,8 @@ message RawImpressionUploadModelLine {
     LABELING = 4;
     // All phases completed successfully.
     COMPLETED = 5;
-    // Processing failed.
+    // Processing failed. Not terminal — operator can retry after
+    // fixing the root cause.
     FAILED = 6;
   }
 
@@ -59,15 +60,25 @@ message RawImpressionUploadModelLine {
   // The pipeline state for this model line.
   State state = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
 
+  // The CMMS model line resource name that this record tracks.
+  string cmms_model_line = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+  ];
+
   // The timestamp when processing completed (success or failure).
-  google.protobuf.Timestamp completion_time = 3
+  google.protobuf.Timestamp completion_time = 4
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The timestamp when this record was created.
-  google.protobuf.Timestamp create_time = 4
+  google.protobuf.Timestamp create_time = 5
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The timestamp when this record was last updated.
-  google.protobuf.Timestamp update_time = 5
+  google.protobuf.Timestamp update_time = 6
       [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Detail about the failure, set when state is FAILED.
+  string error_message = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

@@ -49,4 +49,7 @@ message RawImpressionUploadModelLine {
 
   // The timestamp when this record was last updated.
   google.protobuf.Timestamp update_time = 7;
+
+  // Detail about the failure, set when state is FAILED.
+  string error_message = 8;
 }
