@@ -96,8 +96,7 @@ class McpServerTest {
     val server = createMcpServer(apiClient) { "test-token" }
 
     val (clientTransport, serverTransport) = ChannelTransport.createLinkedPair()
-    val client =
-      Client(clientInfo = Implementation(name = "test-client", version = "0.1"))
+    val client = Client(clientInfo = Implementation(name = "test-client", version = "0.1"))
 
     server.createSession(serverTransport)
     client.connect(clientTransport)
@@ -121,8 +120,7 @@ class McpServerTest {
     val server = createMcpServer(apiClient) { "test-token" }
 
     val (clientTransport, serverTransport) = ChannelTransport.createLinkedPair()
-    val client =
-      Client(clientInfo = Implementation(name = "test-client", version = "0.1"))
+    val client = Client(clientInfo = Implementation(name = "test-client", version = "0.1"))
 
     server.createSession(serverTransport)
     client.connect(clientTransport)
@@ -130,9 +128,7 @@ class McpServerTest {
     val result =
       client.callTool(
         "get_basic_report",
-        buildJsonObject {
-          put("name", "measurementConsumers/mc1/basicReports/nonexistent")
-        },
+        buildJsonObject { put("name", "measurementConsumers/mc1/basicReports/nonexistent") },
       )
 
     assertThat(result.isError).isTrue()
@@ -148,8 +144,7 @@ class McpServerTest {
     val mcpServer = createMcpServer(apiClient) { "test-token" }
 
     val (clientTransport, serverTransport) = ChannelTransport.createLinkedPair()
-    val mcpClient =
-      Client(clientInfo = Implementation(name = "test-client", version = "1.0.0"))
+    val mcpClient = Client(clientInfo = Implementation(name = "test-client", version = "1.0.0"))
 
     mcpServer.createSession(serverTransport)
     mcpClient.connect(clientTransport)
@@ -220,8 +215,7 @@ class McpServerTest {
       )
       .addService(
         object :
-          ImpressionQualificationFiltersGrpcKt
-          .ImpressionQualificationFiltersCoroutineImplBase() {
+          ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineImplBase() {
           override suspend fun getImpressionQualificationFilter(
             request: GetImpressionQualificationFilterRequest,
           ): ImpressionQualificationFilter =

@@ -31,7 +31,6 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.reporting.mcp.grpc.BearerPassthroughCallCredentials
 import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt
@@ -99,9 +98,7 @@ class ToolsIntegrationTest {
         eventGroups = EventGroupsGrpcKt.EventGroupsCoroutineStub(channel),
         reportingSets = ReportingSetsGrpcKt.ReportingSetsCoroutineStub(channel),
         impressionQualificationFilters =
-          ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub(
-            channel
-          ),
+          ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub(channel),
       )
     capturedAuthHeader = null
   }
@@ -114,20 +111,22 @@ class ToolsIntegrationTest {
   @Test
   fun listEventGroupsReturnsProtoJson() = runBlocking {
     val stubs = apiClient.withBearerToken("test-token")
-    val result = stubs.eventGroups.listEventGroups(
-      ListEventGroupsRequest.newBuilder().setParent("measurementConsumers/mc1").build()
-    )
+    val result =
+      stubs.eventGroups.listEventGroups(
+        ListEventGroupsRequest.newBuilder().setParent("measurementConsumers/mc1").build()
+      )
     assertThat(result).isNotNull()
   }
 
   @Test
   fun getBasicReportReturnsReport() = runBlocking {
     val stubs = apiClient.withBearerToken("test-token")
-    val result = stubs.basicReports.getBasicReport(
-      GetBasicReportRequest.newBuilder()
-        .setName("measurementConsumers/mc1/basicReports/br1")
-        .build()
-    )
+    val result =
+      stubs.basicReports.getBasicReport(
+        GetBasicReportRequest.newBuilder()
+          .setName("measurementConsumers/mc1/basicReports/br1")
+          .build()
+      )
     assertThat(result.name).isEqualTo("measurementConsumers/mc1/basicReports/br1")
   }
 
@@ -146,15 +145,16 @@ class ToolsIntegrationTest {
   @Test
   fun getBasicReportNotFoundReturnsError() = runBlocking {
     val stubs = apiClient.withBearerToken("test-token")
-    val result = ToolSupport.handleToolCall {
-      ToolSupport.PROTO_JSON_PRINTER.print(
-        stubs.basicReports.getBasicReport(
-          GetBasicReportRequest.newBuilder()
-            .setName("measurementConsumers/mc1/basicReports/nonexistent")
-            .build()
+    val result =
+      ToolSupport.handleToolCall {
+        ToolSupport.PROTO_JSON_PRINTER.print(
+          stubs.basicReports.getBasicReport(
+            GetBasicReportRequest.newBuilder()
+              .setName("measurementConsumers/mc1/basicReports/nonexistent")
+              .build()
+          )
         )
-      )
-    }
+      }
     assertThat(result.isError).isTrue()
     assertThat((result.content[0] as io.modelcontextprotocol.kotlin.sdk.types.TextContent).text)
       .contains("NOT_FOUND")
@@ -162,10 +162,11 @@ class ToolsIntegrationTest {
 
   @Test
   fun handleToolCallCatchesParseException() = runBlocking {
-    val result = ToolSupport.handleToolCall {
-      com.google.protobuf.util.Timestamps.parse("not-a-timestamp")
-      "should not reach here"
-    }
+    val result =
+      ToolSupport.handleToolCall {
+        com.google.protobuf.util.Timestamps.parse("not-a-timestamp")
+        "should not reach here"
+      }
     assertThat(result.isError).isTrue()
     assertThat((result.content[0] as io.modelcontextprotocol.kotlin.sdk.types.TextContent).text)
       .contains("timestamp")
@@ -173,10 +174,11 @@ class ToolsIntegrationTest {
 
   @Test
   fun handleToolCallCatchesIllegalArgumentException() = runBlocking {
-    val result = ToolSupport.handleToolCall {
-      org.wfanet.measurement.reporting.v2alpha.EventGroup.View.valueOf("INVALID_VIEW")
-      "should not reach here"
-    }
+    val result =
+      ToolSupport.handleToolCall {
+        org.wfanet.measurement.reporting.v2alpha.EventGroup.View.valueOf("INVALID_VIEW")
+        "should not reach here"
+      }
     assertThat(result.isError).isTrue()
     assertThat((result.content[0] as io.modelcontextprotocol.kotlin.sdk.types.TextContent).text)
       .contains("Invalid argument")
@@ -185,16 +187,17 @@ class ToolsIntegrationTest {
   @Test
   fun createReportingSetWithInvalidArgumentReturnsError() = runBlocking {
     val stubs = apiClient.withBearerToken("test-token")
-    val result = ToolSupport.handleToolCall {
-      ToolSupport.PROTO_JSON_PRINTER.print(
-        stubs.reportingSets.createReportingSet(
-          CreateReportingSetRequest.newBuilder()
-            .setParent("")
-            .setReportingSetId("test-rs")
-            .build()
+    val result =
+      ToolSupport.handleToolCall {
+        ToolSupport.PROTO_JSON_PRINTER.print(
+          stubs.reportingSets.createReportingSet(
+            CreateReportingSetRequest.newBuilder()
+              .setParent("")
+              .setReportingSetId("test-rs")
+              .build()
+          )
         )
-      )
-    }
+      }
     assertThat(result.isError).isTrue()
     assertThat((result.content[0] as io.modelcontextprotocol.kotlin.sdk.types.TextContent).text)
       .contains("INVALID_ARGUMENT")
@@ -204,9 +207,7 @@ class ToolsIntegrationTest {
   fun listEventGroupsWithStructuredFilterMergesIntoProto() = runBlocking {
     val stubs = apiClient.withBearerToken("test-token")
     val filter =
-      ListEventGroupsRequest.Filter.newBuilder()
-        .addCmmsDataProviderIn("dataProviders/dp1")
-        .build()
+      ListEventGroupsRequest.Filter.newBuilder().addCmmsDataProviderIn("dataProviders/dp1").build()
     val result =
       stubs.eventGroups.listEventGroups(
         ListEventGroupsRequest.newBuilder()
@@ -220,9 +221,10 @@ class ToolsIntegrationTest {
   @Test
   fun listIqfWithNoArgumentsSucceeds() = runBlocking {
     val stubs = apiClient.withBearerToken("test-token")
-    val result = stubs.impressionQualificationFilters.listImpressionQualificationFilters(
-      ListImpressionQualificationFiltersRequest.getDefaultInstance()
-    )
+    val result =
+      stubs.impressionQualificationFilters.listImpressionQualificationFilters(
+        ListImpressionQualificationFiltersRequest.getDefaultInstance()
+      )
     assertThat(result).isNotNull()
   }
 
@@ -253,15 +255,12 @@ class ToolsIntegrationTest {
     ): ListEventGroupsResponse = ListEventGroupsResponse.getDefaultInstance()
   }
 
-  private class FakeReportingSetsService :
-    ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase() {
+  private class FakeReportingSetsService : ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase() {
     override suspend fun createReportingSet(
       request: CreateReportingSetRequest,
     ): ReportingSet {
       if (request.parent.isEmpty()) {
-        throw StatusException(
-          Status.INVALID_ARGUMENT.withDescription("parent must not be empty")
-        )
+        throw StatusException(Status.INVALID_ARGUMENT.withDescription("parent must not be empty"))
       }
       return ReportingSet.newBuilder()
         .setName("${request.parent}/reportingSets/${request.reportingSetId}")

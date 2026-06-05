@@ -116,8 +116,7 @@ object ReportingMcpServerFromFlags {
             ),
           )
       }
-    val deadlineChannel =
-      ClientInterceptors.intercept(reportingChannel, deadlineInterceptor)
+    val deadlineChannel = ClientInterceptors.intercept(reportingChannel, deadlineInterceptor)
     val apiClient =
       ReportingPublicApiClient(
         basicReports = BasicReportsCoroutineStub(deadlineChannel),
@@ -150,11 +149,7 @@ object ReportingMcpServerFromFlags {
         // Bearer auth extracts the token for passthrough to the Reporting API.
         // The downstream API validates the token — we accept all non-empty tokens here.
         install(Authentication) {
-          bearer("mcp-bearer") {
-            authenticate { credential ->
-              UserIdPrincipal(credential.token)
-            }
-          }
+          bearer("mcp-bearer") { authenticate { credential -> UserIdPrincipal(credential.token) } }
         }
 
         routing {
@@ -166,8 +161,7 @@ object ReportingMcpServerFromFlags {
               }
 
               post {
-                val transport =
-                  getOrCreateTransport(call, transports, apiClient) ?: return@post
+                val transport = getOrCreateTransport(call, transports, apiClient) ?: return@post
                 transport.handleRequest(null, call)
               }
 
@@ -215,16 +209,13 @@ object ReportingMcpServerFromFlags {
     }
 
     val bearerToken = call.principal<UserIdPrincipal>()?.name ?: return null
-    val configuration =
-      StreamableHttpServerTransport.Configuration(enableJsonResponse = true)
+    val configuration = StreamableHttpServerTransport.Configuration(enableJsonResponse = true)
     val transport = StreamableHttpServerTransport(configuration)
 
     transport.setOnSessionInitialized { initializedSessionId ->
       transports[initializedSessionId] = transport
     }
-    transport.setOnSessionClosed { closedSessionId ->
-      transports.remove(closedSessionId)
-    }
+    transport.setOnSessionClosed { closedSessionId -> transports.remove(closedSessionId) }
 
     val server = createMcpServer(apiClient) { bearerToken }
     // Intentionally redundant with setOnSessionClosed — belt-and-suspenders cleanup

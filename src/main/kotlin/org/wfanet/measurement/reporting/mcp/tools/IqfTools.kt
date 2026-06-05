@@ -23,10 +23,8 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
-
 import org.wfanet.measurement.reporting.v2alpha.getImpressionQualificationFilterRequest
 import org.wfanet.measurement.reporting.v2alpha.listImpressionQualificationFiltersRequest
-
 
 fun Server.registerIqfTools(
   client: ReportingPublicApiClient,

@@ -23,12 +23,10 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
-
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportingSetsRequest
-
 
 fun Server.registerReportingSetTools(
   client: ReportingPublicApiClient,
@@ -71,7 +69,10 @@ fun Server.registerReportingSetTools(
       val stubs = client.withBearerToken(getBearerToken())
 
       val rsBuilder = ReportingSet.newBuilder()
-      ToolSupport.PROTO_JSON_PARSER.merge(ToolSupport.encodeJsonElement(args.getValue("reporting_set")), rsBuilder)
+      ToolSupport.PROTO_JSON_PARSER.merge(
+        ToolSupport.encodeJsonElement(args.getValue("reporting_set")),
+        rsBuilder
+      )
 
       val grpcRequest = createReportingSetRequest {
         parent = ToolSupport.getString(args, "parent")
@@ -101,7 +102,9 @@ fun Server.registerReportingSetTools(
   ) { request ->
     ToolSupport.handleToolCall {
       val stubs = client.withBearerToken(getBearerToken())
-      val grpcRequest = getReportingSetRequest { name = ToolSupport.getString(request.arguments!!, "name") }
+      val grpcRequest = getReportingSetRequest {
+        name = ToolSupport.getString(request.arguments!!, "name")
+      }
       ToolSupport.PROTO_JSON_PRINTER.print(stubs.reportingSets.getReportingSet(grpcRequest))
     }
   }

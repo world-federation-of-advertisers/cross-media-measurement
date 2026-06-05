@@ -20,7 +20,6 @@ import com.google.protobuf.util.Timestamps
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
-
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
@@ -30,7 +29,6 @@ import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.createBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listBasicReportsRequest
-
 
 fun Server.registerBasicReportTools(
   client: ReportingPublicApiClient,
@@ -76,7 +74,10 @@ fun Server.registerBasicReportTools(
       val stubs = client.withBearerToken(getBearerToken())
 
       val basicReportBuilder = BasicReport.newBuilder()
-      ToolSupport.PROTO_JSON_PARSER.merge(ToolSupport.encodeJsonElement(args.getValue("basic_report")), basicReportBuilder)
+      ToolSupport.PROTO_JSON_PARSER.merge(
+        ToolSupport.encodeJsonElement(args.getValue("basic_report")),
+        basicReportBuilder
+      )
 
       val grpcRequest = createBasicReportRequest {
         parent = ToolSupport.getString(args, "parent")
@@ -109,7 +110,9 @@ fun Server.registerBasicReportTools(
   ) { request ->
     ToolSupport.handleToolCall {
       val stubs = client.withBearerToken(getBearerToken())
-      val grpcRequest = getBasicReportRequest { name = ToolSupport.getString(request.arguments!!, "name") }
+      val grpcRequest = getBasicReportRequest {
+        name = ToolSupport.getString(request.arguments!!, "name")
+      }
       ToolSupport.PROTO_JSON_PRINTER.print(stubs.basicReports.getBasicReport(grpcRequest))
     }
   }
@@ -152,9 +155,8 @@ fun Server.registerBasicReportTools(
         ToolSupport.getIntOrNull(args, "page_size")?.let { pageSize = it }
         ToolSupport.getStringOrNull(args, "page_token")?.let { pageToken = it }
         ToolSupport.getStringOrNull(args, "create_time_after")?.let { timestamp ->
-          filter = ListBasicReportsRequestKt.filter {
-            createTimeAfter = Timestamps.parse(timestamp)
-          }
+          filter =
+            ListBasicReportsRequestKt.filter { createTimeAfter = Timestamps.parse(timestamp) }
         }
       }
 

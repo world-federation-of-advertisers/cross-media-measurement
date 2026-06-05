@@ -68,8 +68,7 @@ class BearerPassthroughCallCredentialsTest {
         .start()
 
     try {
-      val channel =
-        InProcessChannelBuilder.forName(serverName).directExecutor().build()
+      val channel = InProcessChannelBuilder.forName(serverName).directExecutor().build()
       val credentials = BearerPassthroughCallCredentials("my-secret-token")
       val stub =
         EventGroupsGrpcKt.EventGroupsCoroutineStub(channel).withCallCredentials(credentials)

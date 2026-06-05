@@ -52,7 +52,9 @@ fun Server.registerEventGroupTools(
   ) { request ->
     ToolSupport.handleToolCall {
       val stubs = client.withBearerToken(getBearerToken())
-      val grpcRequest = getEventGroupRequest { name = ToolSupport.getString(request.arguments!!, "name") }
+      val grpcRequest = getEventGroupRequest {
+        name = ToolSupport.getString(request.arguments!!, "name")
+      }
       ToolSupport.PROTO_JSON_PRINTER.print(stubs.eventGroups.getEventGroup(grpcRequest))
     }
   }
@@ -130,7 +132,9 @@ fun Server.registerEventGroupTools(
           try {
             EventGroup.View.valueOf(viewName)
           } catch (e: IllegalArgumentException) {
-            throw IllegalArgumentException("Invalid view: $viewName. Use BASIC or WITH_ACTIVITY_SUMMARY.")
+            throw IllegalArgumentException(
+              "Invalid view: $viewName. Use BASIC or WITH_ACTIVITY_SUMMARY."
+            )
           }
       }
 

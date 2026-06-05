@@ -35,8 +35,7 @@ object ToolSupport {
 
   fun getString(args: JsonObject, key: String): String = args.getValue(key).jsonPrimitive.content
 
-  fun getStringOrNull(args: JsonObject, key: String): String? =
-    args[key]?.jsonPrimitive?.content
+  fun getStringOrNull(args: JsonObject, key: String): String? = args[key]?.jsonPrimitive?.content
 
   fun getIntOrNull(args: JsonObject, key: String): Int? = args[key]?.jsonPrimitive?.int
 
