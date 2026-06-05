@@ -276,9 +276,7 @@ jobs:
         KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
         AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
         TRUSTED_IMAGE_SIGNING_FINGERPRINT: ${{ steps.get-public-key-fingerprint.outputs.fingerprint }}
-        TF_VAR_data_provider_resource_ids: '${{ vars.DATA_PROVIDER_RESOURCE_IDS }}'
-        TF_VAR_dashboard_operators: '${{ vars.DASHBOARD_OPERATORS }}'
-        TF_VAR_dashboard_deletion_protection: ${{ vars.DASHBOARD_DELETION_PROTECTION }}
+        TF_VAR_dashboard_deletion_protection: ${{ vars.DASHBOARD_DELETION_PROTECTION || true }}
         DATA_PROVIDER_RESOURCE_IDS: ${{ vars.DATA_PROVIDER_RESOURCE_IDS }}
         DASHBOARD_OPERATORS: ${{ vars.DASHBOARD_OPERATORS }}
         DASHBOARD_DELETION_PROTECTION: ${{ vars.DASHBOARD_DELETION_PROTECTION }}
