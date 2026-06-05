@@ -238,6 +238,17 @@ jobs:
         FINGERPRINT="ECDSA_P256_SHA256:${KEY_ID}"
         echo "fingerprint=${FINGERPRINT}" >> "$GITHUB_OUTPUT"
 
+    - name: Write dashboard tfvars
+      working-directory: ${{ env.GCLOUD_MODULE_PATH }}
+      env:
+        DATA_PROVIDER_RESOURCE_IDS: ${{ vars.DATA_PROVIDER_RESOURCE_IDS }}
+        DASHBOARD_OPERATORS: ${{ vars.DASHBOARD_OPERATORS }}
+      run: |
+        cat > dashboard.auto.tfvars << EOF
+        data_provider_resource_ids = ${DATA_PROVIDER_RESOURCE_IDS}
+        dashboard_operators        = ${DASHBOARD_OPERATORS}
+        EOF
+
     - name: terraform plan
       env:
         KEY_RING: ${{ vars.KEY_RING }}
