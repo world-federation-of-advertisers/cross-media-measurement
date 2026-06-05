@@ -357,21 +357,15 @@ variable "data_availability_monitor_uber_jar_path" {
 }
 
 variable "data_provider_resource_ids" {
-  type = map(string)
-  default = {
-    meta     = "J3-pzhqS9Lo"
-    google   = "EObljF_vGDI"
-    comscore = "d9hrk_MNong"
-    tiktok   = "UDjWe1_vGAM"
-    amazon   = "MTcvLV_vGPw"
-  }
-  description = "Map of EDP name to DataProviderResourceId. Override per environment via .tfvars."
+  type        = map(string)
+  nullable    = false
+  description = "Map of EDP name to DataProviderResourceId"
 }
 
 variable "dashboard_operators" {
   type        = list(string)
-  default     = []
-  description = "Users/groups granted platform access to dashboard tables and EDP SA impersonation for testing. Override per environment via .tfvars."
+  nullable    = false
+  description = "Users/groups granted platform access to dashboard tables and EDP SA impersonation for testing"
 }
 
 variable "dashboard_deletion_protection" {
