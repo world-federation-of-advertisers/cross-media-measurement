@@ -423,3 +423,37 @@ kt_jvm_proto_library(
     name = "subpool_fingerprints_kt_jvm_proto",
     deps = [":subpool_fingerprints_proto"],
 )
+
+proto_library(
+    name = "pool_assignment_job_proto",
+    srcs = ["pool_assignment_job.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "pool_assignment_job_kt_jvm_proto",
+    deps = [":pool_assignment_job_proto"],
+)
+
+proto_library(
+    name = "pool_assignment_job_service_proto",
+    srcs = ["pool_assignment_job_service.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        ":pool_assignment_job_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:field_info_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "pool_assignment_job_service_kt_jvm_grpc_proto",
+    deps = [":pool_assignment_job_service_proto"],
+)
