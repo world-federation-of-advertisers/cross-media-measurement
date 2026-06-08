@@ -22,7 +22,6 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.edpaggregator.BaseTeeAppRunner
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.runBlockingWithTelemetry
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams.StorageParams
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -60,9 +59,6 @@ class SubpoolAssignerAppRunner : BaseTeeAppRunner() {
     val workItemAttemptsClient =
       WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(secureComputationPublicChannel)
 
-    val metadataStoragePublicChannel = buildMetadataStoragePublicChannel()
-    val impressionMetadataStub = ImpressionMetadataServiceCoroutineStub(metadataStoragePublicChannel)
-
     val subpoolAssignerApp =
       SubpoolAssignerApp(
         subscriptionId = subscriptionId,
@@ -70,7 +66,6 @@ class SubpoolAssignerAppRunner : BaseTeeAppRunner() {
         parser = parser,
         workItemsClient = workItemsClient,
         workItemAttemptsClient = workItemAttemptsClient,
-        impressionMetadataStub = impressionMetadataStub,
         kmsClients = kmsClientsMap,
         getSubpoolMapStorageConfig = getStorageConfig,
         getRawImpressionsStorageConfig = getStorageConfig,
