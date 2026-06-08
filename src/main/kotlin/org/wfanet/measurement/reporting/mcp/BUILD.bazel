@@ -8,13 +8,15 @@ kt_jvm_library(
     visibility = [
         "//src/test/kotlin/org/wfanet/measurement/reporting/mcp:__subpackages__",
     ],
-    deps = [
-        "//imports/java/io/ktor/server:auth",
-        "//imports/java/io/ktor/server:cio",
+    runtime_deps = [
+        # Installed at runtime by the MCP SDK's mcpStatelessStreamableHttp helper.
         "//imports/java/io/ktor/server:content-negotiation",
-        "//imports/java/io/ktor/server:cors",
         "//imports/java/io/ktor/server:serialization-json",
         "//imports/java/io/ktor/server:sse",
+    ],
+    deps = [
+        "//imports/java/io/ktor/server:cio",
+        "//imports/java/io/ktor/server:cors",
         "//imports/java/io/modelcontextprotocol/kotlin/sdk:server",
         "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
         "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/tools:basic_report_tools",
