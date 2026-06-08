@@ -28,11 +28,10 @@ import org.wfanet.measurement.aws.kms.AwsKmsClientFactory
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.tink.AwsWebIdentityCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
-import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
+import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.gcloud.kms.GCloudToAwsKmsClientFactory
-import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import picocli.CommandLine
@@ -452,15 +451,19 @@ class VerifySyntheticData : Runnable {
 
           val impressionsBlobUri = blobDetails.blobUri
           val selectedStorageClient = SelectedStorageClient(impressionsBlobUri, storagePath)
-          val decryptionClient =
-            selectedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, encryptedDek.ciphertext)
+          val mesosClient =
+            EncryptedStorage.buildEncryptedMesosStorageClient(
+              selectedStorageClient,
+              kmsClient,
+              kekUri,
+              encryptedDek,
+            )
 
           val impressionsBlobKey =
             impressionsBlobUri.removePrefix("file:///").removePrefix("$outputBucket/")
 
           logger.info("  Decrypting impressions from blob key: $impressionsBlobKey")
 
-          val mesosClient = MesosRecordIoStorageClient(decryptionClient)
           val impressionsBlob = runBlocking { mesosClient.getBlob(impressionsBlobKey) }
           check(impressionsBlob != null) { "Impressions blob not found: $impressionsBlobKey" }
 
