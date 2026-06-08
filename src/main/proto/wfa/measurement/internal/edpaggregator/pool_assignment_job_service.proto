@@ -46,7 +46,7 @@ service PoolAssignmentJobService {
 
   // Marks a `PoolAssignmentJob` as `SUCCEEDED`.
   rpc MarkPoolAssignmentJobSucceeded(MarkPoolAssignmentJobSucceededRequest)
-      returns (PoolAssignmentJob);
+      returns (MarkPoolAssignmentJobSucceededResponse);
 
   // Marks a `PoolAssignmentJob` as `FAILED`.
   rpc MarkPoolAssignmentJobFailed(MarkPoolAssignmentJobFailedRequest)
@@ -87,11 +87,8 @@ message GetPoolAssignmentJobRequest {
   // Resource ID of the parent upload.
   string raw_impression_upload_resource_id = 2;
 
-  // The CMMS model line resource name.
-  string cmms_model_line = 3;
-
-  // The shard ID.
-  int64 shard_id = 4;
+  // Resource ID of this job.
+  string pool_assignment_job_resource_id = 3;
 }
 
 // Request message for ListPoolAssignmentJobs.
@@ -141,9 +138,7 @@ message ListPoolAssignmentJobsResponse {
 message ListPoolAssignmentJobsPageToken {
   message After {
     google.protobuf.Timestamp create_time = 1;
-    string raw_impression_upload_resource_id = 2;
-    string cmms_model_line = 3;
-    int64 shard_id = 4;
+    string pool_assignment_job_resource_id = 2;
   }
   After after = 1;
 }
@@ -156,11 +151,26 @@ message MarkPoolAssignmentJobSucceededRequest {
   // Resource ID of the parent upload.
   string raw_impression_upload_resource_id = 2;
 
-  // The CMMS model line resource name.
-  string cmms_model_line = 3;
+  // Resource ID of this job.
+  string pool_assignment_job_resource_id = 3;
 
-  // The shard ID.
-  int64 shard_id = 4;
+  // Entity tag for optimistic concurrency control.
+  string etag = 4;
+}
+
+// Response message for MarkPoolAssignmentJobSucceeded.
+message MarkPoolAssignmentJobSucceededResponse {
+  // The updated PoolAssignmentJob.
+  PoolAssignmentJob pool_assignment_job = 1;
+
+  // Whether this was the last shard to complete for the
+  // (upload, model line).
+  bool is_last_shard = 2;
+
+  // The subpool IDs discovered during Phase 0. Only populated
+  // when is_last_shard is true. Used to create RankerJob rows
+  // and trigger Phase 1.
+  repeated int32 subpool_ids = 3;
 }
 
 // Request message for MarkPoolAssignmentJobFailed.
@@ -171,11 +181,11 @@ message MarkPoolAssignmentJobFailedRequest {
   // Resource ID of the parent upload.
   string raw_impression_upload_resource_id = 2;
 
-  // The CMMS model line resource name.
-  string cmms_model_line = 3;
+  // Resource ID of this job.
+  string pool_assignment_job_resource_id = 3;
 
-  // The shard ID.
-  int64 shard_id = 4;
+  // Entity tag for optimistic concurrency control.
+  string etag = 4;
 
   // Human-readable detail about the failure.
   string error_message = 5;
