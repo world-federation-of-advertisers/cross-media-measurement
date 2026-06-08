@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
 import "wfa/measurement/internal/edpaggregator/ranker_job.proto";
 import "wfa/measurement/internal/edpaggregator/ranker_state.proto";
 
@@ -40,8 +41,13 @@ service RankerJobService {
   rpc ListRankerJobs(ListRankerJobsRequest)
       returns (ListRankerJobsResponse);
 
-  // Deletes a `RankerJob`.
-  rpc DeleteRankerJob(DeleteRankerJobRequest) returns (RankerJob);
+  // Marks a `RankerJob` as `SUCCEEDED`.
+  rpc MarkRankerJobSucceeded(MarkRankerJobSucceededRequest)
+      returns (MarkRankerJobSucceededResponse);
+
+  // Marks a `RankerJob` as `FAILED`.
+  rpc MarkRankerJobFailed(MarkRankerJobFailedRequest)
+      returns (RankerJob);
 }
 
 // Request message for `CreateRankerJob`.
@@ -61,7 +67,7 @@ message BatchCreateRankerJobsRequest {
   // Resource ID of the parent `RawImpressionUpload`.
   string raw_impression_upload_resource_id = 2;
 
-  // Individual create requests. Maximum 100 per batch.
+  // Individual create requests. Maximum 50 per batch.
   repeated CreateRankerJobRequest requests = 3;
 }
 
@@ -105,8 +111,14 @@ message ListRankerJobsRequest {
     // Filter by ranker job state.
     RankerState state = 1;
 
+    // Filter for resources whose create_time falls within this
+    // interval. Start and end are both optional: omitting start
+    // returns resources created before end, omitting end returns
+    // resources created after start.
+    google.type.Interval create_time_interval = 2;
+
     // Filter by CMMS model line resource name.
-    string cmms_model_line = 2;
+    string cmms_model_line = 3;
   }
   Filter filter = 5;
 }
@@ -129,8 +141,8 @@ message ListRankerJobsPageToken {
   After after = 1;
 }
 
-// Request message for `DeleteRankerJob`.
-message DeleteRankerJobRequest {
+// Request message for `MarkRankerJobSucceeded`.
+message MarkRankerJobSucceededRequest {
   // Resource ID of the `DataProvider`.
   string data_provider_resource_id = 1;
 
@@ -139,4 +151,37 @@ message DeleteRankerJobRequest {
 
   // Resource ID of the ranker job.
   string ranker_job_id = 3;
+
+  // Opaque token for optimistic concurrency control. Must match the
+  // current `etag` value of the `RankerJob`.
+  string etag = 4;
+}
+
+// Response message for `MarkRankerJobSucceeded`.
+message MarkRankerJobSucceededResponse {
+  // The updated `RankerJob`.
+  RankerJob ranker_job = 1;
+
+  // Whether this was the last `RankerJob` for the (upload, model line) to
+  // reach SUCCEEDED, indicating Phase-2 (VID labeling) should be triggered.
+  bool is_last_job = 2;
+}
+
+// Request message for `MarkRankerJobFailed`.
+message MarkRankerJobFailedRequest {
+  // Resource ID of the `DataProvider`.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent `RawImpressionUpload`.
+  string raw_impression_upload_resource_id = 2;
+
+  // Resource ID of the ranker job.
+  string ranker_job_id = 3;
+
+  // Opaque token for optimistic concurrency control. Must match the
+  // current `etag` value of the `RankerJob`.
+  string etag = 4;
+
+  // Human-readable detail about the failure.
+  string error_message = 5;
 }

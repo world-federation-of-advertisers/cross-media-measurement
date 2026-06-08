@@ -19,6 +19,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
+import "google/type/interval.proto";
 import "wfa/measurement/edpaggregator/v1alpha/ranker_job.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -41,8 +42,13 @@ service RankerJobService {
   rpc ListRankerJobs(ListRankerJobsRequest)
       returns (ListRankerJobsResponse) {}
 
-  // Deletes a `RankerJob`.
-  rpc DeleteRankerJob(DeleteRankerJobRequest) returns (RankerJob) {}
+  // Marks a `RankerJob` as `SUCCEEDED`.
+  rpc MarkRankerJobSucceeded(MarkRankerJobSucceededRequest)
+      returns (RankerJob) {}
+
+  // Marks a `RankerJob` as `FAILED`.
+  rpc MarkRankerJobFailed(MarkRankerJobFailedRequest)
+      returns (RankerJob) {}
 }
 
 // Request message for the `CreateRankerJob` method.
@@ -82,7 +88,7 @@ message BatchCreateRankerJobsRequest {
     }
   ];
 
-  // Individual create requests. Maximum 100 per batch.
+  // Individual create requests. Maximum 50 per batch.
   repeated CreateRankerJobRequest requests = 2
       [(google.api.field_behavior) = REQUIRED];
 }
@@ -137,8 +143,18 @@ message ListRankerJobsRequest {
     //     resource state field. --)
     RankerJob.State state = 1 [(google.api.field_behavior) = OPTIONAL];
 
+    // Filter for resources whose create_time falls within this
+    // interval. Start and end are both optional: omitting start
+    // returns resources created before end, omitting end returns
+    // resources created after start.
+    google.type.Interval create_time_interval = 2
+        [(google.api.field_behavior) = OPTIONAL];
+
     // Filter by CMMS model line resource name.
-    string cmms_model_line = 2 [(google.api.field_behavior) = OPTIONAL];
+    string cmms_model_line = 3 [
+      (google.api.field_behavior) = OPTIONAL,
+      (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+    ];
   }
 
   // Optional. A filter to apply to the results.
@@ -153,9 +169,9 @@ message ListRankerJobsResponse {
   string next_page_token = 2;
 }
 
-// Request message for the `DeleteRankerJob` method.
-message DeleteRankerJobRequest {
-  // The resource name of the ranker job to delete.
+// Request message for the `MarkRankerJobSucceeded` method.
+message MarkRankerJobSucceededRequest {
+  // The resource name of the ranker job.
   // Format:
   // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/rankerJobs/{ranker_job}`
   string name = 1 [
@@ -164,4 +180,20 @@ message DeleteRankerJobRequest {
       type: "edpaggregator.halo-cmm.org/RankerJob"
     }
   ];
+}
+
+// Request message for the `MarkRankerJobFailed` method.
+message MarkRankerJobFailedRequest {
+  // The resource name of the ranker job.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/rankerJobs/{ranker_job}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RankerJob"
+    }
+  ];
+
+  // Human-readable detail about the failure.
+  string error_message = 2 [(google.api.field_behavior) = OPTIONAL];
 }

@@ -53,4 +53,10 @@ message RankerJob {
 
   // The timestamp when this job was last updated.
   google.protobuf.Timestamp update_time = 9;
+
+  // Detail about the failure, set when state is FAILED.
+  string error_message = 10;
+
+  // Opaque token for optimistic concurrency control.
+  string etag = 11;
 }

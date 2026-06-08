@@ -43,7 +43,8 @@ message RankerJob {
     CREATED = 1;
     // The ranker job completed successfully.
     SUCCEEDED = 2;
-    // The ranker job failed.
+    // The ranker job failed. Not terminal — operator can retry after
+    // fixing the root cause.
     FAILED = 3;
   }
 
@@ -53,7 +54,8 @@ message RankerJob {
   // The CMMS model line resource name that this ranker job is associated with.
   string cmms_model_line = 2 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
   ];
 
   // Subpool IDs batched into this ranker job.
@@ -76,4 +78,10 @@ message RankerJob {
   // The timestamp when this job was last updated.
   google.protobuf.Timestamp update_time = 7
       [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Detail about the failure, set when state is `FAILED`.
+  string error_message = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Opaque token for optimistic concurrency control.
+  string etag = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
