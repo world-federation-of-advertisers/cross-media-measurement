@@ -216,6 +216,33 @@ class ModelShardsServiceTest {
   }
 
   @Test
+  fun `createModelShard propagates memoizedVidAssignmentEnabled`() {
+    val publicModelShard = MODEL_SHARD.copy { memoizedVidAssignmentEnabled = true }
+    val request = createModelShardRequest {
+      parent = DATA_PROVIDER_NAME
+      modelShard = publicModelShard
+    }
+    val internalReturn = INTERNAL_MODEL_SHARD.copy { memoizedVidAssignmentEnabled = true }
+    internalModelShardsMock.stub {
+      onBlocking { createModelShard(any()) }.thenReturn(internalReturn)
+    }
+
+    val result =
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+        runBlocking { service.createModelShard(request) }
+      }
+
+    verifyProtoArgument(internalModelShardsMock, ModelShardsCoroutineImplBase::createModelShard)
+      .isEqualTo(
+        internalReturn.copy {
+          clearCreateTime()
+          clearExternalModelShardId()
+        }
+      )
+    assertThat(result.memoizedVidAssignmentEnabled).isTrue()
+  }
+
+  @Test
   fun `createModelShard throws UNAUTHENTICATED when no principal is found`() {
     val request = createModelShardRequest {
       parent = DATA_PROVIDER_NAME
