@@ -99,6 +99,7 @@ message BatchCreateRawImpressionUploadFilesRequest {
 
 // Response message for the `BatchCreateRawImpressionUploadFiles` method.
 message BatchCreateRawImpressionUploadFilesResponse {
+  // The created files.
   repeated RawImpressionUploadFile raw_impression_upload_files = 1;
 }
 
@@ -157,6 +158,7 @@ message ListRawImpressionUploadFilesRequest {
 
 // Response message for the `ListRawImpressionUploadFiles` method.
 message ListRawImpressionUploadFilesResponse {
+  // The list of files matching the request.
   repeated RawImpressionUploadFile raw_impression_upload_files = 1;
 
   // A token to retrieve the next page of results.
@@ -195,5 +197,6 @@ message BatchDeleteRawImpressionUploadFilesRequest {
 
 // Response message for the `BatchDeleteRawImpressionUploadFiles` method.
 message BatchDeleteRawImpressionUploadFilesResponse {
+  // The deleted files.
   repeated RawImpressionUploadFile raw_impression_upload_files = 1;
 }
