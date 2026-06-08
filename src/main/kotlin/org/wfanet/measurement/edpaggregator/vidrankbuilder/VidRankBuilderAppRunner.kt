@@ -22,7 +22,6 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.edpaggregator.BaseTeeAppRunner
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.runBlockingWithTelemetry
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams.StorageParams
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -60,10 +59,6 @@ class VidRankBuilderAppRunner : BaseTeeAppRunner() {
     val workItemAttemptsClient =
       WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(secureComputationPublicChannel)
 
-    val metadataStoragePublicChannel = buildMetadataStoragePublicChannel()
-    val impressionMetadataStub =
-      ImpressionMetadataServiceCoroutineStub(metadataStoragePublicChannel)
-
     val vidRankBuilderApp =
       VidRankBuilderApp(
         subscriptionId = subscriptionId,
@@ -71,7 +66,6 @@ class VidRankBuilderAppRunner : BaseTeeAppRunner() {
         parser = parser,
         workItemsClient = workItemsClient,
         workItemAttemptsClient = workItemAttemptsClient,
-        impressionMetadataStub = impressionMetadataStub,
         kmsClients = kmsClientsMap,
         getRawImpressionStorageConfig = getStorageConfig,
         getSubpoolMapStorageConfig = getStorageConfig,
