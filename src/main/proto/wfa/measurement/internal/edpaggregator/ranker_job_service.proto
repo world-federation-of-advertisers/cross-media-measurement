@@ -29,6 +29,10 @@ service RankerJobService {
   // Creates a new `RankerJob`.
   rpc CreateRankerJob(CreateRankerJobRequest) returns (RankerJob);
 
+  // Creates multiple `RankerJob` resources in a single request.
+  rpc BatchCreateRankerJobs(BatchCreateRankerJobsRequest)
+      returns (BatchCreateRankerJobsResponse);
+
   // Retrieves a specific `RankerJob`.
   rpc GetRankerJob(GetRankerJobRequest) returns (RankerJob);
 
@@ -49,6 +53,23 @@ message CreateRankerJobRequest {
   string request_id = 2;
 }
 
+// Request message for `BatchCreateRankerJobs`.
+message BatchCreateRankerJobsRequest {
+  // Resource ID of the `DataProvider`.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent `RawImpressionUpload`.
+  string raw_impression_upload_resource_id = 2;
+
+  // Individual create requests. Maximum 100 per batch.
+  repeated CreateRankerJobRequest requests = 3;
+}
+
+// Response message for `BatchCreateRankerJobs`.
+message BatchCreateRankerJobsResponse {
+  repeated RankerJob ranker_jobs = 1;
+}
+
 // Request message for `GetRankerJob`.
 message GetRankerJobRequest {
   // Resource ID of the `DataProvider`.
@@ -57,11 +78,8 @@ message GetRankerJobRequest {
   // Resource ID of the parent `RawImpressionUpload`.
   string raw_impression_upload_resource_id = 2;
 
-  // The CMMS model line resource name.
-  string cmms_model_line = 3;
-
   // Resource ID of the ranker job.
-  int64 ranker_job_id = 4;
+  string ranker_job_id = 3;
 }
 
 // Request message for `ListRankerJobs`.
@@ -86,6 +104,9 @@ message ListRankerJobsRequest {
   message Filter {
     // Filter by ranker job state.
     RankerState state = 1;
+
+    // Filter by CMMS model line resource name.
+    string cmms_model_line = 2;
   }
   Filter filter = 5;
 }
@@ -103,8 +124,7 @@ message ListRankerJobsPageToken {
   message After {
     google.protobuf.Timestamp create_time = 1;
     string raw_impression_upload_resource_id = 2;
-    string cmms_model_line = 3;
-    int64 ranker_job_id = 4;
+    string ranker_job_id = 3;
   }
   After after = 1;
 }
@@ -117,9 +137,6 @@ message DeleteRankerJobRequest {
   // Resource ID of the parent `RawImpressionUpload`.
   string raw_impression_upload_resource_id = 2;
 
-  // The CMMS model line resource name.
-  string cmms_model_line = 3;
-
   // Resource ID of the ranker job.
-  int64 ranker_job_id = 4;
+  string ranker_job_id = 3;
 }

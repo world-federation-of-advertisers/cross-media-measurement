@@ -57,7 +57,7 @@ message RankerJob {
   ];
 
   // Subpool IDs batched into this ranker job.
-  repeated int64 subpool_ids = 3 [
+  repeated int32 subpool_ids = 3 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];

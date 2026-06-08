@@ -24,7 +24,7 @@ option java_multiple_files = true;
 option java_outer_classname = "RankerJobProto";
 
 // Internal representation of a ranker job for Phase-1 ranking.
-// One row per (upload, model line, ranker job), pre-created by Phase-0.
+// One row per (upload, ranker job), pre-created by Phase-0.
 // The "last subpool out" of an (upload, model line) triggers Phase-2.
 message RankerJob {
   // Resource ID of the `DataProvider` that owns this job.
@@ -33,14 +33,14 @@ message RankerJob {
   // Resource ID of the parent `RawImpressionUpload`.
   string raw_impression_upload_resource_id = 2;
 
-  // The CMMS model line resource name.
-  string cmms_model_line = 3;
+  // Resource ID of this ranker job.
+  string ranker_job_id = 3;
 
-  // Resource ID of this ranker job, assigned by Phase-0.
-  int64 ranker_job_id = 4;
+  // The CMMS model line resource name.
+  string cmms_model_line = 4;
 
   // Subpool IDs batched into this ranker job.
-  repeated int64 subpool_ids = 5;
+  repeated int32 subpool_ids = 5;
 
   // The state of this ranker job.
   RankerState state = 6;
