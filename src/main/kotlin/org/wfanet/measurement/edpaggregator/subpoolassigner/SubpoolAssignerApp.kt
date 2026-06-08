@@ -20,7 +20,6 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.Parser
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams.StorageParams
 import org.wfanet.measurement.queue.QueueSubscriber
@@ -70,11 +69,6 @@ import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
  * @param workItemsClient gRPC client stub for [WorkItemsGrpcKt.WorkItemsCoroutineStub].
  * @param workItemAttemptsClient gRPC client stub for
  *   [WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub].
- * @param impressionMetadataStub gRPC client stub for the EDP Aggregator
- *   internal `ImpressionMetadataService`. Placeholder for the internal
- *   service stubs Phase-0 needs (`PoolAssignmentJob`,
- *   `RawImpressionUploadModelLine` — not yet defined); the constructor
- *   will grow as those services land.
  * @param kmsClients Per-DataProvider KMS clients used to wrap/unwrap DEKs
  *   for raw-impression and `SubpoolFingerprints` blobs.
  * @param getSubpoolMapStorageConfig Lambda to obtain the [StorageConfig] for
@@ -88,7 +82,13 @@ class SubpoolAssignerApp(
   parser: Parser<WorkItem>,
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
-  private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub,
+  // TODO(@Marco-Premier): wire EDP Aggregator internal gRPC service stubs
+  //   needed by Phase-0 as they become available:
+  //   - RawImpressionUpload
+  //   - RawImpressionUploadFile
+  //   - RawImpressionUploadModelLine
+  //   - PoolAssignmentJob
+  //   - RankerJob
   private val kmsClients: Map<String, KmsClient>,
   private val getSubpoolMapStorageConfig: (StorageParams) -> StorageConfig,
   private val getRawImpressionsStorageConfig: (StorageParams) -> StorageConfig,
