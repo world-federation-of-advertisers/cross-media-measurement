@@ -45,9 +45,11 @@ service PoolAssignmentJobService {
   rpc ListPoolAssignmentJobs(ListPoolAssignmentJobsRequest)
       returns (ListPoolAssignmentJobsResponse) {}
 
-  // Marks a `PoolAssignmentJob` as `SUCCEEDED`.
+  // Marks a `PoolAssignmentJob` as `SUCCEEDED`. Atomically
+  // checks if this is the last shard for the (upload, model
+  // line) and returns the signal to the caller.
   rpc MarkPoolAssignmentJobSucceeded(MarkPoolAssignmentJobSucceededRequest)
-      returns (PoolAssignmentJob) {}
+      returns (MarkPoolAssignmentJobSucceededResponse) {}
 
   // Marks a `PoolAssignmentJob` as `FAILED`.
   rpc MarkPoolAssignmentJobFailed(MarkPoolAssignmentJobFailedRequest)
@@ -188,6 +190,25 @@ message MarkPoolAssignmentJobSucceededRequest {
       type: "edpaggregator.halo-cmm.org/PoolAssignmentJob"
     }
   ];
+
+  // The etag of the PoolAssignmentJob for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Response message for the
+// `MarkPoolAssignmentJobSucceeded` method.
+message MarkPoolAssignmentJobSucceededResponse {
+  // The updated PoolAssignmentJob.
+  PoolAssignmentJob pool_assignment_job = 1;
+
+  // Whether this was the last shard to complete for the
+  // (upload, model line).
+  bool is_last_shard = 2;
+
+  // The subpool IDs discovered during Phase 0. Only populated
+  // when is_last_shard is true. Used to create RankerJob rows
+  // and trigger Phase 1.
+  repeated int32 subpool_ids = 3;
 }
 
 // Request message for the
@@ -203,6 +224,9 @@ message MarkPoolAssignmentJobFailedRequest {
     }
   ];
 
+  // The etag of the PoolAssignmentJob for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
   // Human-readable detail about the failure.
-  string error_message = 2 [(google.api.field_behavior) = OPTIONAL];
+  string error_message = 3 [(google.api.field_behavior) = OPTIONAL];
 }

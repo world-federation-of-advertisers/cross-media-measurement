@@ -63,8 +63,8 @@ message PoolAssignmentJob {
     (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
   ];
 
-  // The shard ID assigned to this job.
-  int64 shard_id = 4 [
+  // The shard index assigned to this job.
+  int32 shard_index = 4 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
@@ -83,4 +83,7 @@ message PoolAssignmentJob {
 
   // Detail about the failure, set when state is FAILED.
   string error_message = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
