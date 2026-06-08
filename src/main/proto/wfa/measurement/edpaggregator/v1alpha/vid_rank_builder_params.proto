@@ -125,12 +125,17 @@ message VidRankBuilderParams {
   // VidLabeler WorkItem.
   map<string, string> event_template_field_mapping = 11;
 
-  // ID of the `RankerJob` row this WorkItem fulfils, assigned by Phase-0
-  // during bin-packing. Together with [data_provider],
-  // [raw_impression_upload] and [model_line] it forms the
-  // `(DataProviderResourceId, RawImpressionUploadId, CmmsModelLine,
-  // RankerJobId)` primary key the TEE uses to update its own row.
-  int64 ranker_job_id = 12 [(google.api.field_behavior) = REQUIRED];
+  // Resource name of the `RankerJob` row this WorkItem fulfils, assigned by
+  // Phase-0 during bin-packing. The Phase-1 TEE marks it `SUCCEEDED` (or
+  // `FAILED`) when ranking completes.
+  //
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/rankerJobs/{ranker_job}`
+  string ranker_job = 12 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type =
+        "edpaggregator.halo-cmm.org/RankerJob"
+  ];
 
   // GCS blob URIs of the per-subpool `SubpoolFingerprints` blobs produced
   // by Phase-0 that this ranker is responsible for. The map keys are the
