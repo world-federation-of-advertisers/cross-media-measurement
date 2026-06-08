@@ -20,7 +20,6 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.Parser
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams.StorageParams
 import org.wfanet.measurement.queue.QueueSubscriber
@@ -71,11 +70,6 @@ import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
  * @param workItemsClient gRPC client stub for [WorkItemsGrpcKt.WorkItemsCoroutineStub].
  * @param workItemAttemptsClient gRPC client stub for
  *   [WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub].
- * @param impressionMetadataStub gRPC client stub for the EDP Aggregator
- *   internal `ImpressionMetadataService`. Placeholder for the internal
- *   service stubs Phase-1 needs (`RankerJob`, `RankIndexBlob`,
- *   `RawImpressionUploadModelLine` — not yet defined); the constructor will
- *   grow as those services land.
  * @param kmsClients Per-DataProvider KMS clients used to wrap/unwrap DEKs
  *   for the rank-index blobs.
  * @param getRawImpressionStorageConfig Lambda to obtain the [StorageConfig]
@@ -94,7 +88,12 @@ class VidRankBuilderApp(
   parser: Parser<WorkItem>,
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
-  private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub,
+  // TODO(@Marco-Premier): wire EDP Aggregator internal gRPC service stubs
+  //   needed by Phase-1 as they become available:
+  //   - RawImpressionUpload
+  //   - RawImpressionUploadModelLine
+  //   - RankerJob
+  //   - RankIndexBlob
   private val kmsClients: Map<String, KmsClient>,
   private val getRawImpressionStorageConfig: (StorageParams) -> StorageConfig,
   private val getSubpoolMapStorageConfig: (StorageParams) -> StorageConfig,
