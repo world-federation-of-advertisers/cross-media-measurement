@@ -77,8 +77,7 @@ class ParallelBatchedPipelineTest {
           events = events,
           minTime = minTime,
           maxTime = maxTime,
-          eventGroupReferenceId = "test-group",
-          entityKeys = emptyList(),
+          eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("test-group"),
         )
       }
     }
@@ -478,8 +477,7 @@ class ParallelBatchedPipelineTest {
                 events = listOf(e),
                 minTime = now,
                 maxTime = now.plusSeconds(1),
-                eventGroupReferenceId = "reference-id-1",
-                entityKeys = emptyList(),
+                eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("reference-id-1"),
               )
             )
           }
@@ -623,8 +621,7 @@ class ParallelBatchedPipelineTest {
                 events = listOf(e),
                 minTime = now,
                 maxTime = now.plusSeconds(1),
-                eventGroupReferenceId = "reference-id-1",
-                entityKeys = emptyList(),
+                eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("reference-id-1"),
               )
             )
           }
@@ -695,8 +692,7 @@ class ParallelBatchedPipelineTest {
                 events = listOf(e),
                 minTime = now,
                 maxTime = now.plusSeconds(1),
-                eventGroupReferenceId = "reference-id-1",
-                entityKeys = emptyList(),
+                eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("reference-id-1"),
               )
             )
             kotlinx.coroutines.yield() // Allow cancellation

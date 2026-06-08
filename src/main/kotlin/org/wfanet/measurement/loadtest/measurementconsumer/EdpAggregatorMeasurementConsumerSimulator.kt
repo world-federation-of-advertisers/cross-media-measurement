@@ -178,9 +178,9 @@ class EdpAggregatorMeasurementConsumerSimulator(
     percentage: Double,
   ): RequisitionInfo {
     val requisitionSpec = requisitionSpec {
-      for (eventGroup in eventGroups) {
-        events =
-          RequisitionSpecKt.events {
+      events =
+        RequisitionSpecKt.events {
+          for (eventGroup in eventGroups) {
             this.eventGroups +=
               RequisitionSpecKt.eventGroupEntry {
                 key = eventGroup.name
@@ -206,7 +206,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
                   }
               }
           }
-      }
+        }
       measurementPublicKey = measurementConsumer.publicKey.message
       this.nonce = nonce
     }
