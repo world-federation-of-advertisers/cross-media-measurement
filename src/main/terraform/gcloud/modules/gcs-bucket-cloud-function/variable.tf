@@ -82,3 +82,15 @@ variable "trigger_event_type" {
     error_message = "trigger_event_type must be either 'finalized' or 'deleted'."
   }
 }
+
+variable "max_delivery_attempts" {
+  description = "Maximum number of delivery attempts before a message is sent to the dead letter topic."
+  type        = number
+  default     = 10
+}
+
+variable "message_retention_duration" {
+  description = "How long unacknowledged messages are retained in the Eventarc subscription."
+  type        = string
+  default     = "604800s" # 7 days
+}
