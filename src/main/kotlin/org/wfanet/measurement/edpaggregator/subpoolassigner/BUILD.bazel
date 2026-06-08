@@ -28,7 +28,6 @@ kt_jvm_library(
         ":subpool_assigner_app",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:base_tee_app_runner",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:subpool_assigner_params_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_attempts_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
