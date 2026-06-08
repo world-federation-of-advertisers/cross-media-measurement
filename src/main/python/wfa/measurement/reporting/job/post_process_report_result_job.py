@@ -78,6 +78,7 @@ class PostProcessReportResultJob:
             add_processed_result_values_request = self._post_processor.process(
                 basic_report.cmms_measurement_consumer_id,
                 basic_report.external_report_result_id,
+                list(basic_report.ami_mrc_exempted_edps),
             )
             if add_processed_result_values_request:
                 logging.info(

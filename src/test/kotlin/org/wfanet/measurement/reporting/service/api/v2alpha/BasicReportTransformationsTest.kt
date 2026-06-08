@@ -45,6 +45,15 @@ import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.reportingUnit
 import org.wfanet.measurement.reporting.v2alpha.resultGroupMetricSpec
 import org.wfanet.measurement.reporting.v2alpha.resultGroupSpec
+import com.google.type.dateTime
+import com.google.type.date
+import org.wfanet.measurement.internal.reporting.v2.BasicReport as InternalBasicReport
+import org.wfanet.measurement.internal.reporting.v2.basicReport as internalBasicReport
+import org.wfanet.measurement.internal.reporting.v2.basicReportDetails as internalBasicReportDetails
+import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
+import org.wfanet.measurement.reporting.v2alpha.BasicReport
+import org.wfanet.measurement.reporting.v2alpha.basicReport
+import org.wfanet.measurement.reporting.v2alpha.reportingInterval
 
 @RunWith(JUnit4::class)
 class BasicReportTransformationsTest {
@@ -3073,6 +3082,70 @@ class BasicReportTransformationsTest {
           metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
         }
       )
+  }
+
+  @Test
+  fun `toInternal propagates amiMrcExemptedEdps`() {
+    val publicReport = basicReport {
+      title = "title"
+      campaignGroup = CAMPAIGN_GROUP_NAME
+      reportingInterval = reportingInterval {
+        reportStart = dateTime {
+          year = 2025
+          month = 7
+          day = 3
+        }
+        reportEnd = date {
+          year = 2026
+          month = 1
+          day = 5
+        }
+      }
+      amiMrcExemptedEdps += listOf("edp1", "edp2")
+    }
+
+    val internalReport = publicReport.toInternal(
+      cmmsMeasurementConsumerId = "mc-1",
+      basicReportId = "report-1",
+      campaignGroupId = "cg-1",
+      createReportRequestId = "req-1",
+      reportingImpressionQualificationFilters = emptyList(),
+      effectiveReportingImpressionQualificationFilters = emptyList(),
+      impressionQualificationFilterSpecsByName = emptyMap(),
+      effectiveModelLine = "",
+      effectiveReportStart = publicReport.reportingInterval.reportStart,
+    )
+
+    assertThat(internalReport.amiMrcExemptedEdpsList).containsExactly("edp1", "edp2")
+  }
+
+  @Test
+  fun `toBasicReport propagates amiMrcExemptedEdps`() {
+    val internalReport = internalBasicReport {
+      cmmsMeasurementConsumerId = "mc-1"
+      externalBasicReportId = "report-1"
+      externalCampaignGroupId = "cg-1"
+      details = internalBasicReportDetails {
+        title = "title"
+        reportingInterval = internalReportingInterval {
+          reportStart = dateTime {
+            year = 2025
+            month = 7
+            day = 3
+          }
+          reportEnd = date {
+            year = 2026
+            month = 1
+            day = 5
+          }
+        }
+      }
+      amiMrcExemptedEdps += listOf("edp1", "edp2")
+    }
+
+    val publicReport = internalReport.toBasicReport()
+
+    assertThat(publicReport.amiMrcExemptedEdpsList).containsExactly("edp1", "edp2")
   }
 
   companion object {

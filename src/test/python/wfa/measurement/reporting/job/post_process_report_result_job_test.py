@@ -100,14 +100,37 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.assertEqual(
             self.mock_basic_reports_stub.ListBasicReports.call_count, 2)
         self.assertEqual(self.mock_post_processor.process.call_count, 2)
-        self.mock_post_processor.process.assert_any_call("mc_id_1", 101)
-        self.mock_post_processor.process.assert_any_call("mc_id_2", 102)
+        self.mock_post_processor.process.assert_any_call("mc_id_1", 101, [])
+        self.mock_post_processor.process.assert_any_call("mc_id_2", 102, [])
 
         self.assertEqual(
             self.mock_report_results_stub.AddProcessedResultValues.call_count,
             2)
         self.mock_report_results_stub.AddProcessedResultValues.assert_called_with(
             mock_request)
+
+    def test_execute_with_exemption(self):
+        # Sets up mock objects.
+        mock_report = BasicReport(
+            cmms_measurement_consumer_id="mc_id_1",
+            external_report_result_id=101,
+            ami_mrc_exempted_edps=["edp1", "edp2"],
+        )
+        self.mock_basic_reports_stub.ListBasicReports.return_value = (
+            basic_reports_service_pb2.ListBasicReportsResponse(
+                basic_reports=[mock_report]))
+
+        mock_request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+        self.mock_post_processor.process.return_value = mock_request
+
+        # Executes the job.
+        result = self.job.execute()
+
+        # Verifies the expected behavior.
+        self.assertTrue(result)
+        self.mock_post_processor.process.assert_called_once_with(
+            "mc_id_1", 101, ["edp1", "edp2"])
 
     def test_execute_no_unprocessed_reports(self):
         # Sets up mock objects.

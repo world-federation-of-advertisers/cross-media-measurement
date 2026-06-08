@@ -75,6 +75,7 @@ class PostProcessReportResult:
         self,
         cmms_measurement_consumer_id: str,
         external_report_result_id: int,
+        ami_mrc_exempted_edps: list[str] | None = None,
     ) -> Optional[AddProcessedResultValuesRequest]:
         """Executes the post-processing workflow.
 
@@ -86,6 +87,8 @@ class PostProcessReportResult:
         Args:
             cmms_measurement_consumer_id: The Measurement Consumer ID.
             external_report_result_id: The external ID of the report result.
+            ami_mrc_exempted_edps: The list of EDPs for which AMI vs MRC
+                consistency check is disabled.
 
         Returns:
             An AddProcessedResultValuesRequest message or None if there is no
@@ -117,10 +120,9 @@ class PostProcessReportResult:
         # TODO(@ple13): Write the status to the output log.
         all_updated_measurements: dict[str, float] = {}
         for report_summary in report_summaries:
-            # TODO(@ple13): pull ami_mrc_exemption_list from BasicReport when
-            # this field is available.
             result = ReportSummaryV2Processor(
-                report_summary, ami_mrc_exemption_list=[]).process()
+                report_summary,
+                ami_mrc_exempted_edps=ami_mrc_exempted_edps).process()
             if result.status.status_code in [
                     ReportPostProcessorStatus.SOLUTION_FOUND_WITH_HIGHS,
                     ReportPostProcessorStatus.SOLUTION_FOUND_WITH_OSQP,

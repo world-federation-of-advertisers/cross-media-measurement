@@ -59,11 +59,11 @@ class ReportSummaryV2Processor:
     def __init__(
         self,
         report_summary: report_summary_v2_pb2.ReportSummaryV2,
-        ami_mrc_exemption_list: list[str],
+        ami_mrc_exempted_edps: list[str],
     ):
         """Initializes the processor with a ReportSummary v2 proto."""
         self._report_summary = report_summary
-        self._ami_mrc_exemption_list = ami_mrc_exemption_list or []
+        self._ami_mrc_exempted_edps = ami_mrc_exempted_edps or []
         self._weekly_cumulative_reaches: dict[ImpressionFilter,
                                               dict[EdpCombination,
                                                    list[Measurement]]] = {}
@@ -110,7 +110,7 @@ class ReportSummaryV2Processor:
             if "ami" in all_impression_filters and children_metrics
             else {},
             cumulative_inconsistency_allowed_edp_combinations={},
-            ami_mrc_exemption_list=self._ami_mrc_exemption_list,
+            ami_mrc_exempted_edps=self._ami_mrc_exempted_edps,
         )
 
     def _process_union_results(self):

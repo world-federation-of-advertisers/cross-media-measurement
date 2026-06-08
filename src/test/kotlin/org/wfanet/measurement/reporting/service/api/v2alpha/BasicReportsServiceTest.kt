@@ -336,6 +336,7 @@ class BasicReportsServiceTest {
     val basicReport = basicReport {
       title = "title"
       this.campaignGroup = campaignGroupKey.toName()
+      amiMrcExemptedEdps += "edp1"
       reportingInterval = reportingInterval {
         reportStart = dateTime {
           year = 2025

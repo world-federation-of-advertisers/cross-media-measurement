@@ -15,6 +15,7 @@
 import unittest
 from unittest.mock import MagicMock
 from unittest.mock import patch
+from unittest.mock import ANY
 
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result import (
     PostProcessReportResult, )
@@ -208,7 +209,8 @@ class PostProcessReportResultTest(unittest.TestCase):
             self.mock_report_results_stub, self.mock_reporting_sets_stub)
 
         add_processed_result_value_request = report_result_processor.process(
-            self.cmms_measurement_consumer_id, self.external_report_result_id)
+            self.cmms_measurement_consumer_id, self.external_report_result_id,
+            [])
 
         # Verifies the gRPC stubs were called correctly.
         self.mock_report_results_stub.ListReportingSetResults.assert_called_once_with(
@@ -370,6 +372,37 @@ class PostProcessReportResultTest(unittest.TestCase):
         for actual, expected in zip(non_cumulative_2.percent_k_plus_reach,
                                     expected_percent_k_plus_reach_2):
             self.assertAlmostEqual(actual, expected)
+
+    @patch('src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result.ReportSummaryV2Processor')
+    def test_post_process_report_result_with_exempted_edps_passed_to_processor(self, mock_processor_class):
+        # Configures the mock stubs to return the data from the textproto files.
+        self.mock_report_results_stub.ListReportingSetResults.return_value = (
+            self.mock_list_reporing_set_results_response)
+        self.mock_reporting_sets_stub.BatchGetReportingSets.return_value = (
+            self.mock_batch_get_reporting_set_response)
+
+        # Mock the processor instance and its process() return value.
+        mock_processor_instance = MagicMock()
+        mock_processor_class.return_value = mock_processor_instance
+
+        mock_result = MagicMock()
+        mock_result.status.status_code = report_post_processor_result_pb2.ReportPostProcessorStatus.SOLUTION_FOUND_WITH_HIGHS
+        mock_result.updated_measurements = {}
+        mock_processor_instance.process.return_value = mock_result
+
+        report_result_processor = PostProcessReportResult(
+            self.mock_report_results_stub, self.mock_reporting_sets_stub)
+
+        exempted_edps = ['edp1']
+        report_result_processor.process(
+            self.cmms_measurement_consumer_id, self.external_report_result_id,
+            exempted_edps)
+
+        # Verify that ReportSummaryV2Processor was instantiated with the exempted edps
+        mock_processor_class.assert_called_with(
+            ANY,
+            ami_mrc_exempted_edps=exempted_edps
+        )
 
 
 if __name__ == "__main__":

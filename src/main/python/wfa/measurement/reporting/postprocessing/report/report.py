@@ -597,7 +597,7 @@ class Report:
       metric_reports: dict[str, MetricReport],
       metric_subsets_by_parent: dict[str, list[str]],
       cumulative_inconsistency_allowed_edp_combinations: set[str],
-      ami_mrc_exemption_list: list[str] | None = None,
+      ami_mrc_exempted_edps: list[str] | None = None,
       population_size: float = 0.0,
   ):
     """
@@ -613,7 +613,7 @@ class Report:
     self._cumulative_inconsistency_allowed_edp_combinations = (
         cumulative_inconsistency_allowed_edp_combinations
     )
-    self._ami_mrc_exemption_list = ami_mrc_exemption_list or []
+    self._ami_mrc_exempted_edps = ami_mrc_exempted_edps or []
     self._population_size = population_size
 
     # All metrics in the set relationships must have a corresponding report.
@@ -830,7 +830,7 @@ class Report:
           },
           metric_subsets_by_parent=self._metric_subsets_by_parent,
           cumulative_inconsistency_allowed_edp_combinations=self._cumulative_inconsistency_allowed_edp_combinations,
-          ami_mrc_exemption_list=self._ami_mrc_exemption_list,
+          ami_mrc_exempted_edps=self._ami_mrc_exempted_edps,
           population_size=self._population_size
       )
     else:
@@ -2143,7 +2143,7 @@ class Report:
     return (
         parent_metric == "ami"
         and child_metric == "mrc"
-        and edp in self._ami_mrc_exemption_list
+        and edp in self._ami_mrc_exempted_edps
     )
 
   def _get_zero_variance_edps(self) -> list[EdpCombination]:

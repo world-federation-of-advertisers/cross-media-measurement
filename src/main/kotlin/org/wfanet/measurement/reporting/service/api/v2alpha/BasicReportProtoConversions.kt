@@ -145,6 +145,7 @@ fun BasicReport.toInternal(
 
       modelLineSystemSpecified = source.modelLine.isEmpty()
     }
+    amiMrcExemptedEdps += source.amiMrcExemptedEdpsList
   }
 }
 
@@ -469,6 +470,7 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
         modelLine = modelLineName
       }
     }
+    amiMrcExemptedEdps += source.amiMrcExemptedEdpsList
   }
 }
 

@@ -130,4 +130,8 @@ message BasicReport {
     (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" },
     (google.api.field_behavior) = OUTPUT_ONLY
   ];
+
+  // The list of data provider resource names for which AMI vs MRC consistency
+  // check is disabled.
+  repeated string ami_mrc_exempted_edps = 14;
 }

@@ -206,6 +206,7 @@ fun AsyncDatabaseClient.TransactionContext.insertBasicReport(
       set("CmmsModelLineId").to(basicReport.modelLineKey.cmmsModelLineId)
     }
     set("ModelLineSystemSpecified").to(basicReport.modelLineSystemSpecified)
+    set("AmiMrcExemptedEdps").toStringArray(basicReport.amiMrcExemptedEdpsList)
   }
 }
 
@@ -335,6 +336,7 @@ private fun buildBasicReport(row: Struct): BasicReport {
     if (!row.isNull("ExternalReportResultId")) {
       externalReportResultId = row.getLong("ExternalReportResultId")
     }
+    amiMrcExemptedEdps += row.getStringList("AmiMrcExemptedEdps")
   }
 }
 
@@ -359,6 +361,7 @@ private object BasicReportsInternal {
       ModelLineSystemSpecified,
       ExternalReportResultId,
       ReportResultId,
+      AmiMrcExemptedEdps,
     FROM
       MeasurementConsumers
       JOIN BasicReports USING (MeasurementConsumerId)
