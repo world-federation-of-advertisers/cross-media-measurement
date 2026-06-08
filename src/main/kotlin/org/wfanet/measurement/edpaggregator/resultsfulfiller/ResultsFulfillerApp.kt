@@ -82,7 +82,7 @@ class ResultsFulfillerApp(
   private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
   private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub,
   private val requisitionStubFactory: RequisitionStubFactory,
-  private val kmsClients: MutableMap<String, KmsClient>,
+  private val kmsClients: Map<String, KmsClient>,
   private val trusTeeConfigs: Map<String, TrusTeeConfig>,
   private val getImpressionsMetadataStorageConfig: (StorageParams) -> StorageConfig,
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig,
