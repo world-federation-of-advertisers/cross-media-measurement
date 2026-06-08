@@ -20,6 +20,7 @@ import io.grpc.Status
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.BatchDeleteEventGroupActivitiesRequest
@@ -39,6 +40,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNot
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupActivityReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchDeleteEventGroupActivities
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchUpdateEventGroupActivities
@@ -226,9 +228,16 @@ class SpannerEventGroupActivitiesService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    if (request.externalEventGroupId == 0L) {
-      throw RequiredFieldNotSetException("external_event_group_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    // Validate DataProvider exists.
+    val dataProviderResult =
+      DataProviderReader()
+        .readByExternalDataProviderId(
+          client.singleUse(),
+          ExternalId(request.externalDataProviderId),
+        )
+    if (dataProviderResult == null) {
+      throw DataProviderNotFoundException(ExternalId(request.externalDataProviderId))
+        .asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
     }
 
     val pageSize =
@@ -240,12 +249,19 @@ class SpannerEventGroupActivitiesService(
 
     val after = if (request.hasPageToken()) request.pageToken.after else null
 
+    val externalEventGroupIds =
+      if (request.hasFilter()) {
+        request.filter.externalEventGroupIdsList
+      } else {
+        emptyList()
+      }
+
     val resultList =
       EventGroupActivityReader()
         .readEventGroupActivities(
           client.singleUse(),
           request.externalDataProviderId,
-          request.externalEventGroupId,
+          externalEventGroupIds,
           pageSize + 1,
           after,
         )
@@ -258,10 +274,12 @@ class SpannerEventGroupActivitiesService(
     return listEventGroupActivitiesResponse {
       for ((index, activity) in resultList.withIndex()) {
         if (index == pageSize) {
+          val lastActivity = this@listEventGroupActivitiesResponse.eventGroupActivities.last()
           nextPageToken = listEventGroupActivitiesPageToken {
             this.after =
               ListEventGroupActivitiesPageTokenKt.after {
-                date = this@listEventGroupActivitiesResponse.eventGroupActivities.last().date
+                date = lastActivity.date
+                externalEventGroupId = lastActivity.externalEventGroupId
               }
           }
         } else {
