@@ -22,6 +22,7 @@ import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import java.time.Clock
+import java.util.UUID
 import java.util.logging.Logger
 import kotlin.time.TimeSource
 import org.wfanet.measurement.api.v2alpha.ModelLine
@@ -32,6 +33,9 @@ import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
 import org.wfanet.measurement.api.v2alpha.listModelShardsRequest
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
@@ -52,6 +56,7 @@ import org.wfanet.measurement.storage.StorageClient
  *
  * @param storageClient client for crawling raw impressions directory.
  * @param workItemsStub gRPC stub for creating WorkItems via Secure Computation API.
+ * @param rawImpressionUploadStub gRPC stub for the `RawImpressionUploadService`.
  * @param modelLinesStub gRPC stub for the VID Repository ModelLines API.
  * @param modelRolloutsStub gRPC stub for the VID Repository ModelRollouts API.
  * @param modelShardsStub gRPC stub for the VID Repository ModelShards API.
@@ -69,6 +74,8 @@ import org.wfanet.measurement.storage.StorageClient
 class VidLabelingDispatcher(
   private val storageClient: StorageClient,
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
+  private val rawImpressionUploadStub:
+    RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub,
   private val modelLinesStub: ModelLinesGrpcKt.ModelLinesCoroutineStub,
   private val modelRolloutsStub: ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub,
   private val modelShardsStub: ModelShardsGrpcKt.ModelShardsCoroutineStub,
@@ -127,8 +134,8 @@ class VidLabelingDispatcher(
         Attributes.of(DATA_PROVIDER_ATTR, dataProviderName),
       )
 
-      // TODO(world-federation-of-advertisers/cross-media-measurement#3899): Create
-      // RawImpressionUpload using RawImpressionUploadService from PR #3818.
+      val rawImpressionUpload = createRawImpressionUpload(doneBlobPath)
+      val dispatchId = rawImpressionUpload.name.substringAfterLast("/")
 
       val resolvedModelLines = resolveModelLines()
 
@@ -139,13 +146,13 @@ class VidLabelingDispatcher(
       }
 
       // TODO(world-federation-of-advertisers/cross-media-measurement#3899): Check
-      // memoized_vid_assignment_enabled on ModelShard once API is updated to v0.94.0.
-      // For now, all model lines are treated as non-memoized.
+      // memoized_vid_assignment_enabled on ModelShard (available in API v0.94.0).
+      // For memoized model lines, create PoolAssignmentJobs instead of WorkItems.
 
       var totalWorkItems = 0
       for (resolvedModelLine in resolvedModelLines) {
         for (shardIndex in 0 until numberOfShards) {
-          createWorkItem(resolvedModelLine, shardIndex)
+          createWorkItem(resolvedModelLine, shardIndex, dispatchId)
           totalWorkItems++
         }
       }
@@ -236,7 +243,7 @@ class VidLabelingDispatcher(
         if (modelLine.type != ModelLine.Type.PROD) continue
         if (!isWithinActiveWindow(modelLine, now)) continue
         if (modelLine.name !in modelLineConfigs) {
-          logger.fine("Skipping model line ${modelLine.name}: no config entry")
+          logger.warning("Skipping model line ${modelLine.name}: no config entry")
           continue
         }
         activeModelLines.add(modelLine.name)
@@ -340,14 +347,40 @@ class VidLabelingDispatcher(
   }
 
   /**
+   * Creates a `RawImpressionUpload` resource to track this dispatch.
+   *
+   * @param doneBlobPath the full storage URI of the "done" blob.
+   * @return the created `RawImpressionUpload`.
+   */
+  private suspend fun createRawImpressionUpload(
+    doneBlobPath: String
+  ): org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload {
+    val requestId = UUID.nameUUIDFromBytes(doneBlobPath.toByteArray()).toString()
+    val request = createRawImpressionUploadRequest {
+      parent = dataProviderName
+      rawImpressionUpload = rawImpressionUpload { doneBlobUri = doneBlobPath }
+      this.requestId = requestId
+    }
+
+    try {
+      return rawImpressionUploadStub.createRawImpressionUpload(request)
+    } catch (e: StatusException) {
+      throw Exception("Error creating RawImpressionUpload for $doneBlobPath", e)
+    }
+  }
+
+  /**
    * Creates a WorkItem in the Secure Computation control plane for a single model line shard.
    *
    * @param resolvedModelLine the resolved model line with its blob path.
    * @param shardIndex zero-based index of this shard.
+   * @param dispatchId unique identifier for this dispatch, used to prevent WorkItem ID collisions
+   *   across multiple uploads by the same `DataProvider`.
    */
   private suspend fun createWorkItem(
     resolvedModelLine: ResolvedModelLine,
     shardIndex: Int,
+    dispatchId: String,
   ) {
     val modelLineName = resolvedModelLine.modelLineName
     val modelLineConfig =
@@ -371,7 +404,8 @@ class VidLabelingDispatcher(
       modelBlobPaths[modelLineName] = resolvedModelLine.modelBlobPath
     }
 
-    val workItemId = "vid-labeling-${modelLineName.substringAfterLast("/")}-shard-$shardIndex"
+    val workItemId =
+      "vid-labeling-$dispatchId-${modelLineName.substringAfterLast("/")}-shard-$shardIndex"
     val packedWorkItemParams = workItemParams { appParams = params.pack() }.pack()
 
     val request = createWorkItemRequest {

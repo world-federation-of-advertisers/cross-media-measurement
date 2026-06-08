@@ -91,5 +91,6 @@ message VidLabelerParams {
   // Map from model line resource name to its model blob path. Resolved by the
   // dispatcher from ModelShard so the TEE app does not need to interact with
   // the VID Repository API.
-  map<string, string> model_blob_paths = 10;
+  map<string, string> model_blob_paths = 10
+      [(google.api.field_behavior) = REQUIRED];
 }
