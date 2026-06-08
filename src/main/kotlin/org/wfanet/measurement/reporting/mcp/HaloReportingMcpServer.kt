@@ -26,7 +26,6 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
-import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.install
 import io.ktor.server.auth.Authentication
 import io.ktor.server.auth.UserIdPrincipal
@@ -37,17 +36,11 @@ import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.cors.routing.CORS
-import io.ktor.server.request.header
-import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
-import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
-import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import io.ktor.server.sse.SSE
-import io.ktor.server.sse.sse
-import io.ktor.util.collections.ConcurrentMap
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.server.ServerOptions
 import io.modelcontextprotocol.kotlin.sdk.server.StreamableHttpServerTransport
@@ -73,7 +66,6 @@ import picocli.CommandLine
 
 private const val SERVER_NAME = "HaloReportingMcpServer"
 private const val SERVER_VERSION = "0.1.0"
-private const val MCP_SESSION_ID_HEADER = "Mcp-Session-Id"
 
 object ReportingMcpServerFromFlags {
   @CommandLine.Command(
@@ -126,20 +118,15 @@ object ReportingMcpServerFromFlags {
           ImpressionQualificationFiltersCoroutineStub(deadlineChannel),
       )
 
-    val transports = ConcurrentMap<String, StreamableHttpServerTransport>()
-
     embeddedServer(CIO, host = mcpServerFlags.host, port = mcpServerFlags.port) {
         install(CORS) {
           anyHost()
           allowNonSimpleContentTypes = true
           allowMethod(HttpMethod.Options)
           allowMethod(HttpMethod.Post)
-          allowMethod(HttpMethod.Delete)
           allowHeader(HttpHeaders.ContentType)
           allowHeader(HttpHeaders.Authorization)
-          allowHeader(MCP_SESSION_ID_HEADER)
           allowHeader("Mcp-Protocol-Version")
-          exposeHeader(MCP_SESSION_ID_HEADER)
           exposeHeader("Mcp-Protocol-Version")
         }
 
@@ -154,21 +141,20 @@ object ReportingMcpServerFromFlags {
 
         routing {
           authenticate("mcp-bearer") {
-            route("/mcp") {
-              sse {
-                val transport = findTransport(call, transports) ?: return@sse
-                transport.handleRequest(this, call)
-              }
-
-              post {
-                val transport = getOrCreateTransport(call, transports, apiClient) ?: return@post
-                transport.handleRequest(null, call)
-              }
-
-              delete {
-                val transport = findTransport(call, transports) ?: return@delete
-                transport.handleRequest(null, call)
-              }
+            // Stateless Streamable HTTP: each request gets a fresh transport and
+            // server, so any replica can serve any request and pod restarts lose
+            // nothing. Mirrors the SDK's mcpStatelessStreamableHttp endpoint (no
+            // session id, no SSE stream). The bearer token is read per request.
+            post("/mcp") {
+              val bearerToken = call.principal<UserIdPrincipal>()?.name ?: return@post
+              val transport =
+                StreamableHttpServerTransport(
+                    StreamableHttpServerTransport.Configuration(enableJsonResponse = true)
+                  )
+                  .also { it.setSessionIdGenerator(null) }
+              val server = createMcpServer(apiClient) { bearerToken }
+              server.createSession(transport)
+              transport.handleRequest(null, call)
             }
           }
 
@@ -176,54 +162,6 @@ object ReportingMcpServerFromFlags {
         }
       }
       .start(wait = true)
-  }
-
-  private suspend fun findTransport(
-    call: ApplicationCall,
-    transports: ConcurrentMap<String, StreamableHttpServerTransport>,
-  ): StreamableHttpServerTransport? {
-    val sessionId = call.request.header(MCP_SESSION_ID_HEADER)
-    if (sessionId == null) {
-      call.respond(HttpStatusCode.BadRequest, "Missing $MCP_SESSION_ID_HEADER header")
-      return null
-    }
-    val transport = transports[sessionId]
-    if (transport == null) {
-      call.respond(HttpStatusCode.NotFound, "Session not found")
-    }
-    return transport
-  }
-
-  private suspend fun getOrCreateTransport(
-    call: ApplicationCall,
-    transports: ConcurrentMap<String, StreamableHttpServerTransport>,
-    apiClient: ReportingPublicApiClient,
-  ): StreamableHttpServerTransport? {
-    val sessionId = call.request.header(MCP_SESSION_ID_HEADER)
-    if (sessionId != null) {
-      val transport = transports[sessionId]
-      if (transport == null) {
-        call.respond(HttpStatusCode.NotFound, "Session not found")
-      }
-      return transport
-    }
-
-    val bearerToken = call.principal<UserIdPrincipal>()?.name ?: return null
-    val configuration = StreamableHttpServerTransport.Configuration(enableJsonResponse = true)
-    val transport = StreamableHttpServerTransport(configuration)
-
-    transport.setOnSessionInitialized { initializedSessionId ->
-      transports[initializedSessionId] = transport
-    }
-    transport.setOnSessionClosed { closedSessionId -> transports.remove(closedSessionId) }
-
-    val server = createMcpServer(apiClient) { bearerToken }
-    // Intentionally redundant with setOnSessionClosed — belt-and-suspenders cleanup
-    // per SDK sample. ConcurrentMap.remove is idempotent.
-    server.onClose { transport.sessionId?.let { transports.remove(it) } }
-    server.createSession(transport)
-
-    return transport
   }
 }
 
@@ -235,8 +173,9 @@ fun createMcpServer(apiClient: ReportingPublicApiClient, getBearerToken: () -> S
         ServerOptions(
           capabilities =
             ServerCapabilities(
-              tools = ServerCapabilities.Tools(listChanged = false),
-              logging = ServerCapabilities.Logging,
+              // Stateless mode: no server-to-client push (logging/notifications), so
+              // only the tools capability is advertised.
+              tools = ServerCapabilities.Tools(listChanged = false)
               // TODO(#3834): Add prompts capability in follow-up PR.
             )
         ),
