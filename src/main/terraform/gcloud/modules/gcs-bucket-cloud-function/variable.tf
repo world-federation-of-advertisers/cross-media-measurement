@@ -94,3 +94,9 @@ variable "message_retention_duration" {
   type        = string
   default     = "604800s" # 7 days
 }
+
+variable "alert_notification_channels" {
+  description = "List of Cloud Monitoring notification channel IDs for DLQ alerts. If empty, the alert fires but no notification is sent."
+  type        = list(string)
+  default     = []
+}

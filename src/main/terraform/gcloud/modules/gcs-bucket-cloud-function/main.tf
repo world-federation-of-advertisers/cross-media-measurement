@@ -204,3 +204,31 @@ resource "terraform_data" "attach_dead_letter_policy" {
     EOT
   }
 }
+
+# Alert when messages land in the dead letter queue.
+resource "google_monitoring_alert_policy" "dlq_alert" {
+  display_name = "${var.function_name} DLQ messages"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Undelivered DLQ messages"
+
+    condition_threshold {
+      filter          = "resource.type = \"pubsub_subscription\" AND resource.labels.subscription_id = \"${google_pubsub_subscription.dead_letter_subscription.name}\" AND metric.type = \"pubsub.googleapis.com/subscription/num_undelivered_messages\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+      duration        = "0s"
+
+      aggregations {
+        alignment_period   = "60s"
+        per_series_aligner = "ALIGN_MAX"
+      }
+    }
+  }
+
+  notification_channels = var.alert_notification_channels
+
+  documentation {
+    content = "Messages are landing in the dead letter queue for ${var.function_name}. This means GCS event notifications failed delivery to the Cloud Function after ${var.max_delivery_attempts} attempts. Inspect the DLQ subscription (${var.function_name}-dlq-sub) and replay the messages."
+  }
+}
