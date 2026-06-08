@@ -261,5 +261,5 @@ message MarkRawImpressionUploadModelLineFailedRequest {
   ];
 
   // Human-readable detail about the failure.
-  string error_message = 2;
+  string error_message = 2 [(google.api.field_behavior) = OPTIONAL];
 }
