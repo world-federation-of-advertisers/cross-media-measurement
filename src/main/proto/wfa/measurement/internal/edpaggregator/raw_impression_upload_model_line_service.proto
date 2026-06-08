@@ -32,6 +32,11 @@ service RawImpressionUploadModelLineService {
       CreateRawImpressionUploadModelLineRequest)
       returns (RawImpressionUploadModelLine);
 
+  // Creates multiple `RawImpressionUploadModelLine` resources.
+  rpc BatchCreateRawImpressionUploadModelLines(
+      BatchCreateRawImpressionUploadModelLinesRequest)
+      returns (BatchCreateRawImpressionUploadModelLinesResponse);
+
   // Retrieves a specific `RawImpressionUploadModelLine`.
   rpc GetRawImpressionUploadModelLine(GetRawImpressionUploadModelLineRequest)
       returns (RawImpressionUploadModelLine);

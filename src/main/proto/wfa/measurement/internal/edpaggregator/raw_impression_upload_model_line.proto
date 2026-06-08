@@ -33,9 +33,7 @@ message RawImpressionUploadModelLine {
   // Resource ID of the parent upload.
   string raw_impression_upload_resource_id = 2;
 
-  // The CMMS model line resource name.
-  // This serves as the resource ID for this record, mapping to the
-  // `{model_line}` segment in the public resource pattern.
+  // The CMMS model line resource name this record tracks.
   string cmms_model_line = 3;
 
   // The pipeline state for this model line.
