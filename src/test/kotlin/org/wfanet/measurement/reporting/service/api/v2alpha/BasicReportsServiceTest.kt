@@ -299,6 +299,7 @@ class BasicReportsServiceTest {
         MEASUREMENT_CONSUMER_CONFIGS,
         defaultReportStartHour = null,
         baseExternalImpressionQualificationFilterIds = emptyList(),
+        amiMrcExemptedEdps = listOf("edp1"),
       )
   }
 
@@ -336,7 +337,6 @@ class BasicReportsServiceTest {
     val basicReport = basicReport {
       title = "title"
       this.campaignGroup = campaignGroupKey.toName()
-      amiMrcExemptedEdps += "edp1"
       reportingInterval = reportingInterval {
         reportStart = dateTime {
           year = 2025
@@ -696,6 +696,7 @@ class BasicReportsServiceTest {
 
     assertThat(internalBasicReport.externalReportId).isEqualTo(createReportRequest.reportId)
     assertThat(internalBasicReport.createReportRequestId).isEqualTo(createReportRequest.requestId)
+    assertThat(internalBasicReport.amiMrcExemptedEdpsList).containsExactly("edp1")
   }
 
   @Test
@@ -770,6 +771,7 @@ class BasicReportsServiceTest {
           defaultReportStartHour =
             BasicReportsService.ZonedHour(hour = 5, zoneId = ZoneId.of("America/Los_Angeles")),
           baseExternalImpressionQualificationFilterIds = emptyList(),
+          amiMrcExemptedEdps = emptyList(),
         )
 
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -840,6 +842,7 @@ class BasicReportsServiceTest {
         defaultReportStartHour =
           BasicReportsService.ZonedHour(hour = 5, zoneId = ZoneId.of("America/Los_Angeles")),
         baseExternalImpressionQualificationFilterIds = emptyList(),
+        amiMrcExemptedEdps = emptyList(),
       )
 
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -921,6 +924,7 @@ class BasicReportsServiceTest {
           defaultReportStartHour =
             BasicReportsService.ZonedHour(hour = 5, zoneId = ZoneOffset.ofTotalSeconds(14400)),
           baseExternalImpressionQualificationFilterIds = emptyList(),
+          amiMrcExemptedEdps = emptyList(),
         )
 
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -3002,6 +3006,7 @@ class BasicReportsServiceTest {
         defaultReportStartHour = null,
         baseExternalImpressionQualificationFilterIds =
           listOf(INTERNAL_AMI_IQF.externalImpressionQualificationFilterId),
+        amiMrcExemptedEdps = emptyList(),
       )
 
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -3119,6 +3124,7 @@ class BasicReportsServiceTest {
         defaultReportStartHour = null,
         baseExternalImpressionQualificationFilterIds =
           listOf(INTERNAL_AMI_IQF.externalImpressionQualificationFilterId),
+        amiMrcExemptedEdps = emptyList(),
       )
 
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -3249,6 +3255,7 @@ class BasicReportsServiceTest {
               INTERNAL_AMI_IQF.externalImpressionQualificationFilterId,
               INTERNAL_MRC_IQF.externalImpressionQualificationFilterId,
             ),
+          amiMrcExemptedEdps = emptyList(),
         )
 
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -4788,6 +4795,7 @@ class BasicReportsServiceTest {
           defaultReportStartHour =
             BasicReportsService.ZonedHour(hour = 5, zoneId = ZoneId.of("America/Los_Angeles")),
           baseExternalImpressionQualificationFilterIds = emptyList(),
+          amiMrcExemptedEdps = emptyList(),
         )
 
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -4863,6 +4871,7 @@ class BasicReportsServiceTest {
           defaultReportStartHour =
             BasicReportsService.ZonedHour(hour = 5, zoneId = ZoneId.of("America/Los_Angeles")),
           baseExternalImpressionQualificationFilterIds = emptyList(),
+          amiMrcExemptedEdps = emptyList(),
         )
 
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -4937,6 +4946,7 @@ class BasicReportsServiceTest {
         defaultReportStartHour =
           BasicReportsService.ZonedHour(hour = 5, zoneId = ZoneId.of("America/Los_Angeles")),
         baseExternalImpressionQualificationFilterIds = emptyList(),
+        amiMrcExemptedEdps = emptyList(),
       )
 
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)

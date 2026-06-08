@@ -98,6 +98,17 @@ class ReportingApiServerFlags {
   var baseImpressionQualificationFilters: List<String> = emptyList()
     private set
 
+  @CommandLine.Option(
+    names = ["--ami-mrc-exempted-edps"],
+    description =
+      [
+        "Event Data Provider (EDP) resource name for which the ami >= mrc constraint is exempted."
+      ],
+    required = false,
+  )
+  var amiMrcExemptedEdps: List<String> = emptyList()
+    private set
+
   // TODO(world-federation-of-advertisers/cross-media-measurement#2220): Remove this flag when LLv2
   // is deprecated.
   @set:CommandLine.Option(

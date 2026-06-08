@@ -3099,7 +3099,6 @@ class BasicReportTransformationsTest {
           day = 5
         }
       }
-      amiMrcExemptedEdps += listOf("edp1", "edp2")
     }
 
     val internalReport =
@@ -3113,38 +3112,10 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsByName = emptyMap(),
         effectiveModelLine = "",
         effectiveReportStart = publicReport.reportingInterval.reportStart,
+        amiMrcExemptedEdps = listOf("edp1", "edp2"),
       )
 
     assertThat(internalReport.amiMrcExemptedEdpsList).containsExactly("edp1", "edp2")
-  }
-
-  @Test
-  fun `toBasicReport propagates amiMrcExemptedEdps`() {
-    val internalReport = internalBasicReport {
-      cmmsMeasurementConsumerId = "mc-1"
-      externalBasicReportId = "report-1"
-      externalCampaignGroupId = "cg-1"
-      details = internalBasicReportDetails {
-        title = "title"
-        reportingInterval = internalReportingInterval {
-          reportStart = dateTime {
-            year = 2025
-            month = 7
-            day = 3
-          }
-          reportEnd = date {
-            year = 2026
-            month = 1
-            day = 5
-          }
-        }
-      }
-      amiMrcExemptedEdps += listOf("edp1", "edp2")
-    }
-
-    val publicReport = internalReport.toBasicReport()
-
-    assertThat(publicReport.amiMrcExemptedEdpsList).containsExactly("edp1", "edp2")
   }
 
   companion object {
