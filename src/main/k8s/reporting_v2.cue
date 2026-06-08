@@ -60,6 +60,16 @@ package k8s
 		targetOption:          "--reporting-public-api-target"
 		certificateHostOption: "--reporting-public-api-cert-host"
 	}
+	// The MCP server uses different target flag names than the other Reporting
+	// clients.
+	// TODO(world-federation-of-advertisers/cross-media-measurement#3938): Align the
+	// MCP server's flag names with `_reportingApiTarget`.
+	_mcpReportingApiTarget: #GrpcTarget & {
+		serviceName:           "reporting-v2alpha-public-api-server"
+		certificateHost:       "localhost"
+		targetOption:          "--reporting-server-api-target"
+		certificateHostOption: "--reporting-server-api-cert-host"
+	}
 
 	_imageSuffixes: [_=string]: string
 	_imageSuffixes: {
@@ -71,6 +81,7 @@ package k8s
 		"basic-reports-reports":               string | *"reporting/v2/basic-reports-reports"
 		"report-result-post-processor":        string | *"reporting/v2/report-result-post-processor"
 		"reporting-grpc-gateway":              string | *"reporting/grpc-gateway"
+		"reporting-mcp-server":                string | *"reporting/mcp/server"
 		"update-access-schema":                string | *"access/update-schema"
 		"access-internal-api-server":          string | *"access/internal-api"
 		"access-public-api-server":            string | *"access/public-api"
@@ -131,6 +142,17 @@ package k8s
 					appProtocol: "https"
 				}]
 			}
+		}
+		// Internal-only (ClusterIP) for the initial deployment. External exposure
+		// following the `reporting-grpc-gateway` pattern (LoadBalancer + in-server
+		// TLS termination) is tracked in
+		// TODO(world-federation-of-advertisers/cross-media-measurement#3938).
+		"reporting-mcp-server": {
+			spec: ports: [{
+				port:        8080
+				targetPort:  8080
+				appProtocol: "http"
+			}]
 		}
 	}
 
@@ -236,6 +258,27 @@ package k8s
 
 			spec: template: spec: {
 				_dependencies: _ | *[_reportingApiTarget.serviceName]
+			}
+		}
+
+		"reporting-mcp-server": {
+			_container: {
+				args: [
+					"--host=0.0.0.0",
+					"--port=8080",
+					"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
+					_debugVerboseGrpcClientLoggingFlag,
+				] + _tlsArgs + _mcpReportingApiTarget.args
+				ports: [{
+					containerPort: 8080
+				}]
+				// TODO(world-federation-of-advertisers/cross-media-measurement#3938):
+				// Add an HTTP readiness probe once the MCP server exposes a health
+				// endpoint (the `#Probe` schema has no tcpSocket option).
+			}
+
+			spec: template: spec: {
+				_dependencies: _ | *[_mcpReportingApiTarget.serviceName]
 			}
 		}
 
@@ -391,6 +434,17 @@ package k8s
 				https: {
 					ports: [{
 						port: 8443
+					}]
+				}
+			}
+		}
+		"reporting-mcp-server": {
+			// Calls the Reporting public API; accepts in-cluster MCP traffic on 8080.
+			_destinationMatchLabels: ["reporting-v2alpha-public-api-server-app"]
+			_ingresses: {
+				http: {
+					ports: [{
+						port: 8080
 					}]
 				}
 			}
