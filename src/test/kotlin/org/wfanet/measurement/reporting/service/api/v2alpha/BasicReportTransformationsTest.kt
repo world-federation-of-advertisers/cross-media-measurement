@@ -30,10 +30,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
-import org.wfanet.measurement.internal.reporting.v2.basicReport as internalBasicReport
-import org.wfanet.measurement.internal.reporting.v2.basicReportDetails as internalBasicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
-import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpecKt
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
 import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFilterSpec
