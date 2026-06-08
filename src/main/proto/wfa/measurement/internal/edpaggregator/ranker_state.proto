@@ -20,14 +20,15 @@ option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
 option java_outer_classname = "RankerStateProto";
 
-// State of a `RankerJob`.
+// Processing state for a `RankerJob`.
 enum RankerState {
   // Default, unspecified state. Should not be used.
   RANKER_STATE_UNSPECIFIED = 0;
-  // The ranker job has been created but not yet started.
-  RANKER_CREATED = 1;
-  // The ranker job completed successfully.
-  RANKER_SUCCEEDED = 2;
-  // The ranker job failed.
-  RANKER_FAILED = 3;
+  // The job has been created and is awaiting processing.
+  RANKER_STATE_CREATED = 1;
+  // The job completed successfully.
+  RANKER_STATE_SUCCEEDED = 2;
+  // The job failed. Not terminal — operator can retry after
+  // fixing the root cause.
+  RANKER_STATE_FAILED = 3;
 }
