@@ -1,4 +1,4 @@
-// Copyright 2025 The Cross-Media Measurement Authors
+// Copyright 2026 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -92,22 +92,27 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
   suspend fun readEventGroupActivities(
     readContext: AsyncDatabaseClient.ReadContext,
     externalDataProviderId: Long,
-    externalEventGroupId: Long,
+    externalEventGroupIds: List<Long>,
     limit: Int,
     after: ListEventGroupActivitiesPageToken.After? = null,
   ): List<Result> {
     return fillStatementBuilder {
         val conjuncts = mutableListOf<String>()
         conjuncts.add("DataProviders.ExternalDataProviderId = @externalDataProviderId")
-        conjuncts.add("EventGroups.ExternalEventGroupId = @externalEventGroupId")
         bind("externalDataProviderId").to(externalDataProviderId)
-        bind("externalEventGroupId").to(externalEventGroupId)
+        if (externalEventGroupIds.isNotEmpty()) {
+          conjuncts.add("EventGroups.ExternalEventGroupId IN UNNEST(@externalEventGroupIds)")
+          bind("externalEventGroupIds").toInt64Array(externalEventGroupIds)
+        }
         if (after != null) {
-          conjuncts.add("ActivityDate > @afterDate")
+          conjuncts.add(
+            "((ActivityDate > @afterDate) OR (ActivityDate = @afterDate AND EventGroups.ExternalEventGroupId > @afterEventGroupId))"
+          )
           bind("afterDate").to(after.date.toCloudDate())
+          bind("afterEventGroupId").to(after.externalEventGroupId)
         }
         appendClause("WHERE " + conjuncts.joinToString(" AND "))
-        appendClause("ORDER BY ActivityDate ASC")
+        appendClause("ORDER BY ActivityDate ASC, EventGroups.ExternalEventGroupId ASC")
         appendClause("LIMIT $limit")
       }
       .execute(readContext)
