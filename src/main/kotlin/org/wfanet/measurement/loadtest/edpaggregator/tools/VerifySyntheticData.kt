@@ -37,7 +37,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.gcloud.kms.GCloudToAwsKmsClientFactory
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
@@ -72,56 +71,56 @@ class VerifySyntheticData : Runnable {
   )
   private var fakeKekKeysetFile: File? = null
 
-  class LocalStorageMode {
-    @Option(
-      names = ["--local-storage-path"],
-      description = ["Root path for local storage."],
-      required = true,
-    )
-    lateinit var storagePath: File
-      private set
-
-    @Option(
-      names = ["--output-bucket"],
-      description = ["The bucket name used during generation."],
-      required = true,
-    )
-    lateinit var outputBucket: String
-      private set
-
-    @Option(
-      names = ["--base-path"],
-      description = ["Base path where impressions are stored."],
-      required = true,
-    )
-    lateinit var basePath: String
-      private set
-  }
-
-  class GcsUriMode {
-    @Option(
-      names = ["--metadata-uri"],
-      description =
-        [
-          "GCS URI of a metadata JSON file (e.g. gs://bucket/path/metadata_campaign_ID.json). " +
-            "Reads the metadata directly from GCS, parses the JSON, and verifies the " +
-            "corresponding impression blob. May be specified multiple times."
-        ],
-      required = true,
-    )
-    lateinit var metadataUris: List<String>
-      private set
-  }
-
-  @CommandLine.ArgGroup(exclusive = true, multiplicity = "1")
-  lateinit var verificationMode: VerificationMode
+  @Option(
+    names = ["--schema"],
+    description =
+      [
+        "Storage URI scheme (e.g. gs://, file:///). " +
+          "Used with --output-bucket and --base-path to scan for metadata files."
+      ],
+    required = false,
+    defaultValue = "file:///",
+  )
+  lateinit var schema: String
     private set
 
-  class VerificationMode {
-    @CommandLine.ArgGroup(exclusive = false) var localStorageMode: LocalStorageMode? = null
+  @Option(
+    names = ["--output-bucket"],
+    description = ["The bucket name used during generation."],
+    required = false,
+    defaultValue = "",
+  )
+  var outputBucket: String = ""
+    private set
 
-    @CommandLine.ArgGroup(exclusive = false) var gcsUriMode: GcsUriMode? = null
-  }
+  @Option(
+    names = ["--base-path"],
+    description = ["Base path where impressions are stored."],
+    required = false,
+    defaultValue = "",
+  )
+  var basePath: String = ""
+    private set
+
+  @Option(
+    names = ["--local-storage-path"],
+    description = ["Root path for local storage. Required when --schema is file:///."],
+    required = false,
+  )
+  private var storagePath: File? = null
+
+  @Option(
+    names = ["--metadata-uri"],
+    description =
+      [
+        "URI of a metadata file to verify. Supports both binary protobuf (.binpb) and " +
+          "JSON metadata formats. May be specified multiple times. " +
+          "Mutually exclusive with --output-bucket/--base-path."
+      ],
+    required = false,
+  )
+  var metadataUris: List<String> = emptyList()
+    private set
 
   @Option(
     names = ["--event-message-type-url"],
@@ -340,26 +339,41 @@ class VerifySyntheticData : Runnable {
         }
       }
 
-    val result =
-      if (verificationMode.gcsUriMode != null) {
-        verifyFromUris(kmsClient, kekUri, verificationMode.gcsUriMode!!.metadataUris)
+    val resolvedMetadataUris: List<String> =
+      if (metadataUris.isNotEmpty()) {
+        require(outputBucket.isEmpty() && basePath.isEmpty()) {
+          "--metadata-uri is mutually exclusive with --output-bucket/--base-path"
+        }
+        metadataUris
       } else {
-        val localMode = verificationMode.localStorageMode!!
-        val eventMessageInstance: Message =
-          GenerateSyntheticData.resolveEventMessageInstance(
-            eventMessageTypeUrl,
-            eventMessageDescriptorSetFiles,
-          )
-        verifySyntheticData(
-          kmsClient = kmsClient,
-          kekUri = kekUri,
-          storagePath = localMode.storagePath,
-          outputBucket = localMode.outputBucket,
-          basePath = localMode.basePath,
-          eventMessageInstance = eventMessageInstance,
-          expectedEventTypeUrl = eventMessageTypeUrl,
-        )
+        require(outputBucket.isNotEmpty() && basePath.isNotEmpty()) {
+          "Either --metadata-uri or --output-bucket/--base-path must be provided"
+        }
+        scanForMetadata(schema, outputBucket, basePath, storagePath)
       }
+
+    val eventMessageInstance: Message? =
+      if (
+        eventMessageTypeUrl != GenerateSyntheticData.DEFAULT_EVENT_MESSAGE_TYPE_URL ||
+          eventMessageDescriptorSetFiles.isNotEmpty()
+      ) {
+        GenerateSyntheticData.resolveEventMessageInstance(
+          eventMessageTypeUrl,
+          eventMessageDescriptorSetFiles,
+        )
+      } else {
+        null
+      }
+
+    val result =
+      verifyMetadata(
+        kmsClient = kmsClient,
+        kekUri = kekUri,
+        metadataUris = resolvedMetadataUris,
+        storagePath = storagePath,
+        eventMessageInstance = eventMessageInstance,
+        expectedEventTypeUrl = eventMessageTypeUrl,
+      )
     lastResult = result
 
     logger.info("\n========== VERIFICATION SUMMARY ==========")
@@ -414,15 +428,66 @@ class VerifySyntheticData : Runnable {
     }
 
     /**
-     * Verifies impression blobs by reading JSON metadata directly from GCS URIs.
+     * Scans for metadata files under the given storage prefix.
      *
-     * Parses each metadata JSON to extract the [EncryptedDek] and blob URI, then decrypts the
-     * corresponding impression blob and counts records.
+     * Constructs the base URI as [schema][outputBucket]/[basePath] and lists all blobs whose keys
+     * start with "metadata". Returns fully qualified URIs.
      */
-    private fun verifyFromUris(
+    private fun scanForMetadata(
+      schema: String,
+      outputBucket: String,
+      basePath: String,
+      storagePath: File?,
+    ): List<String> {
+      if (schema == "file:///") {
+        requireNotNull(storagePath) { "--local-storage-path is required when --schema is file:///" }
+        val scanDir = storagePath.resolve(outputBucket).resolve(basePath)
+        logger.info("Scanning for metadata files in: $scanDir")
+        check(scanDir.exists()) { "Directory does not exist: $scanDir" }
+
+        val metadataFiles =
+          scanDir.walkTopDown().filter { it.name.startsWith("metadata") }.toList().sorted()
+        check(metadataFiles.isNotEmpty()) { "No metadata files found under: $scanDir" }
+        logger.info("Found ${metadataFiles.size} metadata files")
+
+        return metadataFiles.map { file ->
+          val relativePath = file.relativeTo(storagePath).path
+          "file:///$relativePath"
+        }
+      }
+
+      val prefix = "$basePath/"
+      val baseUri = "$schema$outputBucket"
+      val blobUri = SelectedStorageClient.parseBlobUri("$baseUri/$prefix")
+      val storageClient = SelectedStorageClient(blobUri)
+
+      logger.info("Scanning for metadata files under: $baseUri/$prefix")
+      val uris = runBlocking {
+        storageClient
+          .listBlobs(prefix)
+          .toList()
+          .filter { it.blobKey.substringAfterLast("/").startsWith("metadata") }
+          .map { "$baseUri/${it.blobKey}" }
+          .sorted()
+      }
+      check(uris.isNotEmpty()) { "No metadata files found under: $baseUri/$prefix" }
+      logger.info("Found ${uris.size} metadata files")
+      return uris
+    }
+
+    /**
+     * Verifies impression blobs by reading metadata from the given URIs.
+     *
+     * Supports both binary protobuf and JSON metadata formats, detected by file extension (`.json`
+     * for JSON, anything else for binary protobuf).
+     */
+    private fun verifyMetadata(
       kmsClient: KmsClient,
       kekUri: String,
       metadataUris: List<String>,
+      storagePath: File?,
+      eventMessageInstance: Message?,
+      expectedEventTypeUrl: String,
     ): VerificationResult {
       var totalImpressions = 0
       var totalBlobsProcessed = 0
@@ -434,7 +499,7 @@ class VerifySyntheticData : Runnable {
           logger.info("\n=== Processing: $metadataUri ===")
 
           val metadataBlobUri = SelectedStorageClient.parseBlobUri(metadataUri)
-          val metadataStorageClient = SelectedStorageClient(metadataBlobUri)
+          val metadataStorageClient = SelectedStorageClient(metadataBlobUri, storagePath)
 
           val metadataBytes = runBlocking {
             val blob =
@@ -443,12 +508,20 @@ class VerifySyntheticData : Runnable {
             blob.read().flatten()
           }
 
-          val jsonText = metadataBytes.toStringUtf8()
-          val encryptedDek = parseJsonEncryptedDek(jsonText)
+          val isJson = metadataUri.endsWith(".json")
+          val blobDetails: BlobDetails
+          val encryptedDek: EncryptedDek
 
-          val blobDetailsBuilder = BlobDetails.newBuilder()
-          JsonFormat.parser().ignoringUnknownFields().merge(jsonText, blobDetailsBuilder)
-          val blobDetails = blobDetailsBuilder.build()
+          if (isJson) {
+            val jsonText = metadataBytes.toStringUtf8()
+            encryptedDek = parseJsonEncryptedDek(jsonText)
+            val builder = BlobDetails.newBuilder()
+            JsonFormat.parser().ignoringUnknownFields().merge(jsonText, builder)
+            blobDetails = builder.build()
+          } else {
+            blobDetails = BlobDetails.parseFrom(metadataBytes)
+            encryptedDek = blobDetails.encryptedDek
+          }
 
           logger.info("  Blob URI: ${blobDetails.blobUri}")
           logger.info("  KEK URI: ${encryptedDek.kekUri}")
@@ -462,7 +535,7 @@ class VerifySyntheticData : Runnable {
           }
 
           val impressionsBlobUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
-          val impressionsStorageClient = SelectedStorageClient(impressionsBlobUri)
+          val impressionsStorageClient = SelectedStorageClient(impressionsBlobUri, storagePath)
           val mesosClient =
             EncryptedStorage.buildEncryptedMesosStorageClient(
               impressionsStorageClient,
@@ -485,6 +558,16 @@ class VerifySyntheticData : Runnable {
           for ((index, record) in records.withIndex()) {
             val impression = LabeledImpression.parseFrom(record)
             check(impression.vid > 0) { "Invalid VID: ${impression.vid}" }
+            check(impression.hasEvent()) { "Missing event in impression $index" }
+            check(impression.hasEventTime()) { "Missing event time in impression $index" }
+
+            if (eventMessageInstance != null) {
+              check(impression.event.typeUrl == expectedEventTypeUrl) {
+                "Event type URL mismatch on impression $index: " +
+                  "expected $expectedEventTypeUrl, got ${impression.event.typeUrl}"
+              }
+              eventMessageInstance.newBuilderForType().mergeFrom(impression.event.value).build()
+            }
 
             if (index < 3) {
               val entityKeysSummary =
@@ -556,153 +639,6 @@ class VerifySyntheticData : Runnable {
         protobufFormat = format
         ciphertext = ByteString.copyFrom(ciphertextBytes)
       }
-    }
-
-    /**
-     * Walks the output directory tree, decrypts each impressions blob using [kmsClient], validates
-     * every [LabeledImpression] record, and returns aggregate counts.
-     *
-     * The traversal finds all `metadata.binpb` files under [basePath] and processes each
-     * independently.
-     */
-    private fun verifySyntheticData(
-      kmsClient: KmsClient,
-      kekUri: String,
-      storagePath: File,
-      outputBucket: String,
-      basePath: String,
-      eventMessageInstance: Message,
-      expectedEventTypeUrl: String,
-    ): VerificationResult {
-      val rootStorageClient = FileSystemStorageClient(storagePath)
-      val scanDir = storagePath.resolve(outputBucket).resolve(basePath)
-
-      logger.info("Scanning for metadata.binpb files in: $scanDir")
-      check(scanDir.exists()) { "Directory does not exist: $scanDir" }
-
-      val metadataFiles =
-        scanDir
-          .walkTopDown()
-          .filter { it.name.startsWith("metadata") && it.name.endsWith(".binpb") }
-          .toList()
-          .sorted()
-      check(metadataFiles.isNotEmpty()) { "No metadata*.binpb files found under: $scanDir" }
-
-      logger.info("Found ${metadataFiles.size} metadata.binpb files")
-      var totalImpressions = 0
-      var totalBlobsProcessed = 0
-      var errors = 0
-      val impressionsByEventGroupReferenceId = mutableMapOf<String, Int>()
-
-      for (metadataFile in metadataFiles) {
-        val relativePath = metadataFile.relativeTo(scanDir).path
-        try {
-          logger.info("\n=== Processing: $relativePath ===")
-
-          val bucketRelativePath = metadataFile.relativeTo(storagePath.resolve(outputBucket)).path
-          logger.info("Reading metadata from: $bucketRelativePath")
-
-          val metadataBlob = runBlocking {
-            rootStorageClient.getBlob("$outputBucket/$bucketRelativePath")
-          }
-          check(metadataBlob != null) {
-            "Metadata blob not found: $outputBucket/$bucketRelativePath"
-          }
-
-          val blobDetailsBytes = runBlocking { metadataBlob.read().toList() }
-          val blobDetails =
-            BlobDetails.parseFrom(
-              blobDetailsBytes.fold(ByteString.EMPTY) { acc, bs -> acc.concat(bs) }
-            )
-
-          logger.info("  Blob URI: ${blobDetails.blobUri}")
-          logger.info("  KEK URI: ${blobDetails.encryptedDek.kekUri}")
-          logger.info("  DEK type: ${blobDetails.encryptedDek.typeUrl}")
-          logger.info("  DEK format: ${blobDetails.encryptedDek.protobufFormat}")
-          logger.info("  Event group ref ID: ${blobDetails.eventGroupReferenceId}")
-          logger.info("  Model line: ${blobDetails.modelLine}")
-          logger.info(
-            "  Interval: ${blobDetails.interval.startTime} - ${blobDetails.interval.endTime}"
-          )
-
-          val encryptedDek = blobDetails.encryptedDek
-          check(encryptedDek.kekUri == kekUri) {
-            "KEK URI mismatch: expected $kekUri, got ${encryptedDek.kekUri}"
-          }
-
-          val impressionsBlobUri = blobDetails.blobUri
-          val selectedStorageClient = SelectedStorageClient(impressionsBlobUri, storagePath)
-          val mesosClient =
-            EncryptedStorage.buildEncryptedMesosStorageClient(
-              selectedStorageClient,
-              kmsClient,
-              kekUri,
-              encryptedDek,
-            )
-
-          val impressionsBlobKey =
-            impressionsBlobUri.removePrefix("file:///").removePrefix("$outputBucket/")
-
-          logger.info("  Decrypting impressions from blob key: $impressionsBlobKey")
-
-          val impressionsBlob = runBlocking { mesosClient.getBlob(impressionsBlobKey) }
-          check(impressionsBlob != null) { "Impressions blob not found: $impressionsBlobKey" }
-
-          val records = runBlocking { impressionsBlob.read().toList() }
-          logger.info("  Decrypted ${records.size} impression records")
-
-          for ((index, record) in records.withIndex()) {
-            val impression = LabeledImpression.parseFrom(record)
-            check(impression.vid > 0) { "Invalid VID: ${impression.vid}" }
-            check(impression.hasEvent()) { "Missing event in impression $index" }
-            check(impression.hasEventTime()) { "Missing event time in impression $index" }
-            for ((entityKeyIndex, entityKey) in impression.entityKeysList.withIndex()) {
-              check(entityKey.entityType.isNotEmpty()) {
-                "EntityKey[$entityKeyIndex] on impression $index has empty entity_type"
-              }
-              check(entityKey.entityId.isNotEmpty()) {
-                "EntityKey[$entityKeyIndex] on impression $index has empty entity_id"
-              }
-            }
-
-            check(impression.event.typeUrl == expectedEventTypeUrl) {
-              "Event type URL mismatch on impression $index: expected $expectedEventTypeUrl, " +
-                "got ${impression.event.typeUrl}"
-            }
-            eventMessageInstance.newBuilderForType().mergeFrom(impression.event.value).build()
-
-            if (index < 3) {
-              val entityKeysSummary =
-                impression.entityKeysList.joinToString(", ") { "${it.entityType}=${it.entityId}" }
-              logger.info(
-                "  Record[$index]: vid=${impression.vid}, eventTime=${impression.eventTime}, " +
-                  "entityKeys=[$entityKeysSummary]"
-              )
-            }
-          }
-
-          totalImpressions += records.size
-          totalBlobsProcessed++
-          impressionsByEventGroupReferenceId.merge(
-            blobDetails.eventGroupReferenceId,
-            records.size,
-          ) { old, new ->
-            old + new
-          }
-          logger.info("  PASS: $relativePath - ${records.size} impressions verified")
-        } catch (e: Exception) {
-          errors++
-          logger.severe("  FAIL: $relativePath - ${e.message}")
-          e.printStackTrace()
-        }
-      }
-
-      return VerificationResult(
-        totalImpressions = totalImpressions,
-        totalBlobsProcessed = totalBlobsProcessed,
-        errors = errors,
-        impressionsByEventGroupReferenceId = impressionsByEventGroupReferenceId.toMap(),
-      )
     }
   }
 }
