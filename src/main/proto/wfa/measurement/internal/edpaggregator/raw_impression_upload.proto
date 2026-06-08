@@ -1,0 +1,48 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/edpaggregator/raw_impression_upload_state.proto";
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "RawImpressionUploadProto";
+
+// Internal representation of a RawImpressionUpload.
+//
+// One row per DataProvider impression-upload event. All downstream pipeline
+// state cascades from here.
+message RawImpressionUpload {
+  // Resource ID of the DataProvider that owns this upload.
+  string data_provider_resource_id = 1;
+
+  // Unique identifier for this upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // Denormalized pipeline state, rolled up from child model line states.
+  RawImpressionUploadState state = 3;
+
+  // Cloud Storage URI of the "done" blob that triggered this upload.
+  string done_blob_uri = 4;
+
+  // The timestamp when this upload was created.
+  google.protobuf.Timestamp create_time = 5;
+
+  // The timestamp when this upload was last updated.
+  google.protobuf.Timestamp update_time = 6;
+}
