@@ -20,6 +20,7 @@ import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
+import com.google.protobuf.util.JsonFormat
 import java.io.File
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.toList
@@ -28,9 +29,12 @@ import org.wfanet.measurement.aws.kms.AwsKmsClientFactory
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.tink.AwsWebIdentityCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.gcloud.kms.GCloudToAwsKmsClientFactory
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -71,24 +75,40 @@ class VerifySyntheticData : Runnable {
   @Option(
     names = ["--local-storage-path"],
     description = ["Root path for local storage."],
-    required = true,
+    required = false,
   )
-  private lateinit var storagePath: File
+  private var storagePath: File? = null
 
   @Option(
     names = ["--output-bucket"],
     description = ["The bucket name used during generation."],
-    required = true,
+    required = false,
+    defaultValue = "",
   )
-  lateinit var outputBucket: String
+  var outputBucket: String = ""
     private set
 
   @Option(
     names = ["--base-path"],
     description = ["Base path where impressions are stored."],
-    required = true,
+    required = false,
+    defaultValue = "",
   )
-  lateinit var basePath: String
+  var basePath: String = ""
+    private set
+
+  @Option(
+    names = ["--metadata-uri"],
+    description =
+      [
+        "GCS URI of a metadata JSON file (e.g. gs://bucket/path/metadata_campaign_ID.json). " +
+          "When set, reads the metadata directly from GCS, parses the JSON, and verifies the " +
+          "corresponding impression blob. May be specified multiple times. " +
+          "Mutually exclusive with --local-storage-path, --output-bucket, and --base-path."
+      ],
+    required = false,
+  )
+  var metadataUris: List<String> = emptyList()
     private set
 
   @Option(
@@ -308,22 +328,32 @@ class VerifySyntheticData : Runnable {
         }
       }
 
-    val eventMessageInstance: Message =
-      GenerateSyntheticData.resolveEventMessageInstance(
-        eventMessageTypeUrl,
-        eventMessageDescriptorSetFiles,
-      )
-
     val result =
-      verifySyntheticData(
-        kmsClient = kmsClient,
-        kekUri = kekUri,
-        storagePath = storagePath,
-        outputBucket = outputBucket,
-        basePath = basePath,
-        eventMessageInstance = eventMessageInstance,
-        expectedEventTypeUrl = eventMessageTypeUrl,
-      )
+      if (metadataUris.isNotEmpty()) {
+        verifyFromUris(kmsClient, kekUri, metadataUris)
+      } else {
+        val eventMessageInstance: Message =
+          GenerateSyntheticData.resolveEventMessageInstance(
+            eventMessageTypeUrl,
+            eventMessageDescriptorSetFiles,
+          )
+        requireNotNull(storagePath) {
+          "--local-storage-path is required when --metadata-uri is not set"
+        }
+        require(outputBucket.isNotEmpty()) {
+          "--output-bucket is required when --metadata-uri is not set"
+        }
+        require(basePath.isNotEmpty()) { "--base-path is required when --metadata-uri is not set" }
+        verifySyntheticData(
+          kmsClient = kmsClient,
+          kekUri = kekUri,
+          storagePath = storagePath!!,
+          outputBucket = outputBucket,
+          basePath = basePath,
+          eventMessageInstance = eventMessageInstance,
+          expectedEventTypeUrl = eventMessageTypeUrl,
+        )
+      }
     lastResult = result
 
     logger.info("\n========== VERIFICATION SUMMARY ==========")
@@ -375,6 +405,151 @@ class VerifySyntheticData : Runnable {
     init {
       AeadConfig.register()
       StreamingAeadConfig.register()
+    }
+
+    /**
+     * Verifies impression blobs by reading JSON metadata directly from GCS URIs.
+     *
+     * Parses each metadata JSON to extract the [EncryptedDek] and blob URI, then decrypts the
+     * corresponding impression blob and counts records.
+     */
+    private fun verifyFromUris(
+      kmsClient: KmsClient,
+      kekUri: String,
+      metadataUris: List<String>,
+    ): VerificationResult {
+      var totalImpressions = 0
+      var totalBlobsProcessed = 0
+      var errors = 0
+      val impressionsByEventGroupReferenceId = mutableMapOf<String, Int>()
+
+      for (metadataUri in metadataUris) {
+        try {
+          logger.info("\n=== Processing: $metadataUri ===")
+
+          val metadataBlobUri = SelectedStorageClient.parseBlobUri(metadataUri)
+          val metadataStorageClient = SelectedStorageClient(metadataBlobUri)
+
+          val metadataBytes = runBlocking {
+            val blob =
+              metadataStorageClient.getBlob(metadataBlobUri.key)
+                ?: throw IllegalStateException("Metadata not found: ${metadataBlobUri.key}")
+            blob.read().flatten()
+          }
+
+          val jsonText = metadataBytes.toStringUtf8()
+          val encryptedDek = parseJsonEncryptedDek(jsonText)
+
+          val blobDetailsBuilder = BlobDetails.newBuilder()
+          JsonFormat.parser().ignoringUnknownFields().merge(jsonText, blobDetailsBuilder)
+          val blobDetails = blobDetailsBuilder.build()
+
+          logger.info("  Blob URI: ${blobDetails.blobUri}")
+          logger.info("  KEK URI: ${encryptedDek.kekUri}")
+          logger.info("  DEK type: ${encryptedDek.typeUrl}")
+          logger.info("  DEK format: ${encryptedDek.protobufFormat}")
+          logger.info("  Event group ref ID: ${blobDetails.eventGroupReferenceId}")
+          logger.info("  Model line: ${blobDetails.modelLine}")
+
+          check(encryptedDek.kekUri == kekUri) {
+            "KEK URI mismatch: expected $kekUri, got ${encryptedDek.kekUri}"
+          }
+
+          val impressionsBlobUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
+          val impressionsStorageClient = SelectedStorageClient(impressionsBlobUri)
+          val mesosClient =
+            EncryptedStorage.buildEncryptedMesosStorageClient(
+              impressionsStorageClient,
+              kmsClient,
+              kekUri,
+              encryptedDek,
+            )
+
+          val blobKey = impressionsBlobUri.key
+          logger.info("  Decrypting from blob key: $blobKey")
+
+          val records = runBlocking {
+            val blob =
+              mesosClient.getBlob(blobKey)
+                ?: throw IllegalStateException("Impression blob not found: $blobKey")
+            blob.read().toList()
+          }
+          logger.info("  Decrypted ${records.size} impression records")
+
+          for ((index, record) in records.withIndex()) {
+            val impression = LabeledImpression.parseFrom(record)
+            check(impression.vid > 0) { "Invalid VID: ${impression.vid}" }
+
+            if (index < 3) {
+              val entityKeysSummary =
+                impression.entityKeysList.joinToString(", ") { "${it.entityType}=${it.entityId}" }
+              logger.info(
+                "  Record[$index]: vid=${impression.vid}, " +
+                  "eventTime=${impression.eventTime}, entityKeys=[$entityKeysSummary]"
+              )
+            }
+          }
+
+          totalImpressions += records.size
+          totalBlobsProcessed++
+          impressionsByEventGroupReferenceId.merge(
+            blobDetails.eventGroupReferenceId,
+            records.size,
+          ) { old, new ->
+            old + new
+          }
+          logger.info("  PASS: $metadataUri - ${records.size} impressions verified")
+        } catch (e: Exception) {
+          errors++
+          logger.severe("  FAIL: $metadataUri - ${e.message}")
+          e.printStackTrace()
+        }
+      }
+
+      return VerificationResult(
+        totalImpressions = totalImpressions,
+        totalBlobsProcessed = totalBlobsProcessed,
+        errors = errors,
+        impressionsByEventGroupReferenceId = impressionsByEventGroupReferenceId.toMap(),
+      )
+    }
+
+    /**
+     * Parses the [EncryptedDek] from a JSON metadata string.
+     *
+     * The ciphertext field uses base64url encoding which protobuf [JsonFormat] cannot parse
+     * directly (it expects standard base64), so we extract and decode it manually.
+     */
+    private fun parseJsonEncryptedDek(jsonText: String): EncryptedDek {
+      val kekUriMatch =
+        Regex(""""kekUri"\s*:\s*"([^"]+)"""").find(jsonText)
+          ?: throw IllegalArgumentException("Missing kekUri in metadata JSON")
+      val typeUrlMatch =
+        Regex(""""typeUrl"\s*:\s*"([^"]+)"""").find(jsonText)
+          ?: throw IllegalArgumentException("Missing typeUrl in metadata JSON")
+      val formatMatch =
+        Regex(""""protobufFormat"\s*:\s*"([^"]+)"""").find(jsonText)
+          ?: throw IllegalArgumentException("Missing protobufFormat in metadata JSON")
+      val ciphertextMatch =
+        Regex(""""ciphertext"\s*:\s*"([^"]+)"""").find(jsonText)
+          ?: throw IllegalArgumentException("Missing ciphertext in metadata JSON")
+
+      val format =
+        when (formatMatch.groupValues[1]) {
+          "JSON" -> EncryptedDek.ProtobufFormat.JSON
+          "BINARY" -> EncryptedDek.ProtobufFormat.BINARY
+          else ->
+            throw IllegalArgumentException("Unknown protobufFormat: ${formatMatch.groupValues[1]}")
+        }
+
+      val ciphertextBytes = java.util.Base64.getUrlDecoder().decode(ciphertextMatch.groupValues[1])
+
+      return encryptedDek {
+        this.kekUri = kekUriMatch.groupValues[1]
+        this.typeUrl = typeUrlMatch.groupValues[1]
+        protobufFormat = format
+        ciphertext = ByteString.copyFrom(ciphertextBytes)
+      }
     }
 
     /**
