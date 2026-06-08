@@ -35,14 +35,14 @@ message PoolAssignmentJob {
   // Resource ID of the parent upload.
   string raw_impression_upload_resource_id = 2;
 
-  // The CMMS model line resource name.
-  string cmms_model_line = 3;
-
   // Resource ID of this job.
-  string pool_assignment_job_resource_id = 4;
+  string pool_assignment_job_resource_id = 3;
 
-  // The shard ID assigned to this job.
-  int64 shard_id = 5;
+  // The CMMS model line resource name.
+  string cmms_model_line = 4;
+
+  // The shard index assigned to this job.
+  int32 shard_index = 5;
 
   // The processing state of this job.
   PoolAssignmentState state = 6;
@@ -58,4 +58,7 @@ message PoolAssignmentJob {
 
   // Detail about the failure, set when state is FAILED.
   string error_message = 10;
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 11;
 }
