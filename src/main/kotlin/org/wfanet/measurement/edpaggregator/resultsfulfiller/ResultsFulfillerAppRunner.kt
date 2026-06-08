@@ -22,16 +22,13 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
-import io.grpc.ClientInterceptors
 import java.io.File
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.EnvelopeEncryptionKt.awsKmsParams
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResultsFulfillerConfigAsByteArray
-import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig
 import org.wfanet.measurement.edpaggregator.BaseTeeAppRunner
@@ -51,23 +48,6 @@ import picocli.CommandLine
 @CommandLine.Command(name = "results_fulfiller_app_runner")
 class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
   private val metrics by lazy { ResultsFulfillerMetrics.create() }
-
-  @CommandLine.Option(
-    names = ["--metadata-storage-cert-collection-secret-id"],
-    description = ["Secret ID of Metadata Storage Trusted root Cert collection file."],
-    required = true,
-  )
-  lateinit var metadataStorageCertCollectionSecretId: String
-    private set
-
-  @CommandLine.Option(
-    names = ["--metadata-storage-cert-collection-file-path"],
-    description =
-      ["Local path where the --metadata-storage-cert-collection-secret-id secret is stored."],
-    required = true,
-  )
-  lateinit var metadataStorageCertCollectionFilePath: String
-    private set
 
   @CommandLine.Option(
     names = ["--trusted-cert-collection-secret-id"],
@@ -149,13 +129,6 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
   private lateinit var kingdomPublicApiTarget: String
 
   @CommandLine.Option(
-    names = ["--metadata-storage-public-api-target"],
-    description = ["gRPC target of the Metadata Storage public API server"],
-    required = true,
-  )
-  private lateinit var metadataStoragePublicApiTarget: String
-
-  @CommandLine.Option(
     names = ["--kingdom-public-api-cert-host"],
     description =
       [
@@ -165,17 +138,6 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
     required = false,
   )
   private var kingdomPublicApiCertHost: String? = null
-
-  @CommandLine.Option(
-    names = ["--metadata-storage-public-api-cert-host"],
-    description =
-      [
-        "Expected hostname (DNS-ID) in the Metadata Storage public API server's TLS certificate.",
-        "This overrides derivation of the TLS DNS-ID from --edpa-aggregator-public-api-target.",
-      ],
-    required = false,
-  )
-  private var metadataStoragePublicApiCertHost: String? = null
 
   @CommandLine.Option(
     names = ["--pipeline-batch-size"],
@@ -230,22 +192,7 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
     val workItemAttemptsClient =
       WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(secureComputationPublicChannel)
 
-    // Build the mutual-TLS channel to the EDP Aggregator metadata storage API.
-    val metadataStorageClientCerts =
-      SigningCerts.fromPemFiles(
-        certificateFile = File(edpaCertFilePath),
-        privateKeyFile = File(edpaPrivateKeyFilePath),
-        trustedCertCollectionFile = File(metadataStorageCertCollectionFilePath),
-      )
-    val metadataStoragePublicChannel =
-      ClientInterceptors.intercept(
-        buildMutualTlsChannel(
-          metadataStoragePublicApiTarget,
-          metadataStorageClientCerts,
-          metadataStoragePublicApiCertHost,
-        ),
-        grpcTelemetry.newClientInterceptor(),
-      )
+    val metadataStoragePublicChannel = buildMetadataStoragePublicChannel()
 
     val requisitionMetadataClient =
       RequisitionMetadataServiceCoroutineStub(metadataStoragePublicChannel)
@@ -331,7 +278,6 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
   }
 
   private fun saveExtraEdpaCerts() {
-    saveSecretToFile(metadataStorageCertCollectionSecretId, metadataStorageCertCollectionFilePath)
     saveSecretToFile(trustedCertCollectionSecretId, trustedCertCollectionFilePath)
   }
 
