@@ -133,6 +133,41 @@ abstract class BaseTeeAppRunner : Runnable {
   protected var secureComputationPublicApiCertHost: String? = null
 
   @CommandLine.Option(
+    names = ["--metadata-storage-cert-collection-secret-id"],
+    description = ["Secret ID of Metadata Storage Trusted root Cert collection file."],
+    required = true,
+  )
+  lateinit var metadataStorageCertCollectionSecretId: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--metadata-storage-cert-collection-file-path"],
+    description =
+      ["Local path where the --metadata-storage-cert-collection-secret-id secret is stored."],
+    required = true,
+  )
+  lateinit var metadataStorageCertCollectionFilePath: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--metadata-storage-public-api-target"],
+    description = ["gRPC target of the Metadata Storage public API server"],
+    required = true,
+  )
+  protected lateinit var metadataStoragePublicApiTarget: String
+
+  @CommandLine.Option(
+    names = ["--metadata-storage-public-api-cert-host"],
+    description =
+      [
+        "Expected hostname (DNS-ID) in the Metadata Storage public API server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from --edpa-aggregator-public-api-target.",
+      ],
+    required = false,
+  )
+  protected var metadataStoragePublicApiCertHost: String? = null
+
+  @CommandLine.Option(
     names = ["--subscription-id"],
     description = ["Subscription ID for the queue."],
     required = true,
@@ -155,14 +190,18 @@ abstract class BaseTeeAppRunner : Runnable {
     get() = sharedEdpsConfig
 
   /**
-   * Pulls EDPA mTLS cert, key, and the Secure Computation trusted root cert
-   * collection from Secret Manager and writes them to their configured local
-   * paths.
+   * Pulls EDPA mTLS cert and key, plus the Secure Computation and Metadata
+   * Storage trusted root cert collections, from Secret Manager and writes them
+   * to their configured local paths.
    */
   protected fun saveCommonEdpaCerts() {
     saveSecretToFile(edpaCertSecretId, edpaCertFilePath)
     saveSecretToFile(edpaPrivateKeySecretId, edpaPrivateKeyFilePath)
-    saveSecretToFile(secureComputationCertCollectionSecretId, secureComputationCertCollectionFilePath)
+    saveSecretToFile(
+      secureComputationCertCollectionSecretId,
+      secureComputationCertCollectionFilePath,
+    )
+    saveSecretToFile(metadataStorageCertCollectionSecretId, metadataStorageCertCollectionFilePath)
   }
 
   /**
@@ -255,19 +294,37 @@ abstract class BaseTeeAppRunner : Runnable {
    * Builds the mutual-TLS gRPC [Channel] to the Secure Computation public API,
    * wrapped with the gRPC OpenTelemetry interceptor.
    */
-  protected fun buildSecureComputationPublicChannel(): Channel {
-    val secureComputationClientCerts =
+  protected fun buildSecureComputationPublicChannel(): Channel =
+    buildEdpaMutualTlsChannel(
+      target = secureComputationPublicApiTarget,
+      trustedCertCollectionFilePath = secureComputationCertCollectionFilePath,
+      certHost = secureComputationPublicApiCertHost,
+    )
+
+  /**
+   * Builds the mutual-TLS gRPC [Channel] to the EDP Aggregator Metadata Storage
+   * public API, wrapped with the gRPC OpenTelemetry interceptor.
+   */
+  protected fun buildMetadataStoragePublicChannel(): Channel =
+    buildEdpaMutualTlsChannel(
+      target = metadataStoragePublicApiTarget,
+      trustedCertCollectionFilePath = metadataStorageCertCollectionFilePath,
+      certHost = metadataStoragePublicApiCertHost,
+    )
+
+  private fun buildEdpaMutualTlsChannel(
+    target: String,
+    trustedCertCollectionFilePath: String,
+    certHost: String?,
+  ): Channel {
+    val clientCerts =
       SigningCerts.fromPemFiles(
         certificateFile = File(edpaCertFilePath),
         privateKeyFile = File(edpaPrivateKeyFilePath),
-        trustedCertCollectionFile = File(secureComputationCertCollectionFilePath),
+        trustedCertCollectionFile = File(trustedCertCollectionFilePath),
       )
     return ClientInterceptors.intercept(
-      buildMutualTlsChannel(
-        secureComputationPublicApiTarget,
-        secureComputationClientCerts,
-        secureComputationPublicApiCertHost,
-      ),
+      buildMutualTlsChannel(target, clientCerts, certHost),
       grpcTelemetry.newClientInterceptor(),
     )
   }
