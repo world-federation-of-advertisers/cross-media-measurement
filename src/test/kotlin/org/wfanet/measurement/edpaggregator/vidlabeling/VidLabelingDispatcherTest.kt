@@ -42,6 +42,8 @@ import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsResponse
 import org.wfanet.measurement.api.v2alpha.listModelShardsResponse
@@ -67,6 +69,8 @@ class VidLabelingDispatcherTest {
   private val modelRolloutsService: ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase =
     mockService()
   private val modelShardsService: ModelShardsGrpcKt.ModelShardsCoroutineImplBase = mockService()
+  private val rawImpressionUploadService:
+    RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase = mockService()
   private val storageClient: StorageClient = mock()
 
   @get:Rule
@@ -75,6 +79,7 @@ class VidLabelingDispatcherTest {
     addService(modelLinesService)
     addService(modelRolloutsService)
     addService(modelShardsService)
+    addService(rawImpressionUploadService)
   }
 
   private val workItemsStub by lazy {
@@ -91,6 +96,12 @@ class VidLabelingDispatcherTest {
 
   private val modelShardsStub by lazy {
     ModelShardsGrpcKt.ModelShardsCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  private val rawImpressionUploadStub by lazy {
+    RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(
+      grpcTestServerRule.channel
+    )
   }
 
   private val vidLabelerParamsTemplate = vidLabelerParams {
@@ -117,6 +128,7 @@ class VidLabelingDispatcherTest {
     return VidLabelingDispatcher(
       storageClient = storageClient,
       workItemsStub = workItemsStub,
+      rawImpressionUploadStub = rawImpressionUploadStub,
       modelLinesStub = modelLinesStub,
       modelRolloutsStub = modelRolloutsStub,
       modelShardsStub = modelShardsStub,
@@ -135,6 +147,15 @@ class VidLabelingDispatcherTest {
     val blob: StorageClient.Blob = mock()
     whenever(blob.blobKey).thenReturn(key)
     return blob
+  }
+
+  private fun stubRawImpressionUploadCreation() {
+    whenever(rawImpressionUploadService.createRawImpressionUpload(any())).thenReturn(
+      RawImpressionUpload.newBuilder()
+        .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID")
+        .setDoneBlobUri(DONE_BLOB_PATH)
+        .build()
+    )
   }
 
   private suspend fun stubFullResolutionChain(vararg modelLineNames: String) {
@@ -208,6 +229,7 @@ class VidLabelingDispatcherTest {
   fun `dispatch creates N work items per active model line`() = runBlocking {
     val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1))
+    stubRawImpressionUploadCreation()
     stubFullResolutionChain(MODEL_LINE_1, MODEL_LINE_2)
     whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
@@ -219,12 +241,12 @@ class VidLabelingDispatcherTest {
 
     val workItemIds = requestCaptor.allValues.map { it.workItemId }
     assertThat(workItemIds).containsExactly(
-      "vid-labeling-ml1-shard-0",
-      "vid-labeling-ml1-shard-1",
-      "vid-labeling-ml1-shard-2",
-      "vid-labeling-ml2-shard-0",
-      "vid-labeling-ml2-shard-1",
-      "vid-labeling-ml2-shard-2",
+      "vid-labeling-$RAW_IMPRESSION_UPLOAD_ID-ml1-shard-0",
+      "vid-labeling-$RAW_IMPRESSION_UPLOAD_ID-ml1-shard-1",
+      "vid-labeling-$RAW_IMPRESSION_UPLOAD_ID-ml1-shard-2",
+      "vid-labeling-$RAW_IMPRESSION_UPLOAD_ID-ml2-shard-0",
+      "vid-labeling-$RAW_IMPRESSION_UPLOAD_ID-ml2-shard-1",
+      "vid-labeling-$RAW_IMPRESSION_UPLOAD_ID-ml2-shard-2",
     )
   }
 
@@ -232,6 +254,7 @@ class VidLabelingDispatcherTest {
   fun `dispatch with override model lines skips ListModelLines API`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
     stubOverrideResolutionChain()
     whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
@@ -252,6 +275,7 @@ class VidLabelingDispatcherTest {
   fun `dispatch with no active model lines creates no work items`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
     whenever(modelLinesService.listModelLines(any())).thenReturn(
       listModelLinesResponse {}
     )
@@ -266,6 +290,7 @@ class VidLabelingDispatcherTest {
   fun `dispatch sets shard index and model blob path in work item params`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
     stubFullResolutionChain(MODEL_LINE_1)
     whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
@@ -302,6 +327,7 @@ class VidLabelingDispatcherTest {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     val doneBlob = createMockBlob("$FOLDER_PREFIX/done")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob, doneBlob))
+    stubRawImpressionUploadCreation()
     stubFullResolutionChain(MODEL_LINE_1)
     whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
@@ -316,6 +342,7 @@ class VidLabelingDispatcherTest {
   fun `dispatch propagates exception on work item creation failure`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
     stubFullResolutionChain(MODEL_LINE_1)
     whenever(workItemsService.createWorkItem(any())).thenAnswer {
       throw StatusException(Status.UNAVAILABLE.withDescription("Service unavailable"))
@@ -331,6 +358,7 @@ class VidLabelingDispatcherTest {
   fun `dispatch propagates exception on ListModelLines failure`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
     whenever(modelLinesService.listModelLines(any())).thenAnswer {
       throw StatusException(Status.UNAVAILABLE.withDescription("VID Repo unavailable"))
     }
@@ -345,6 +373,7 @@ class VidLabelingDispatcherTest {
   fun `dispatch skips model line when no rollout found`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
     whenever(modelLinesService.listModelLines(any())).thenReturn(
       listModelLinesResponse {
         modelLines += modelLine {
@@ -374,7 +403,9 @@ class VidLabelingDispatcherTest {
     private const val MODEL_RELEASE_NAME = "$MODEL_SUITE_NAME/modelReleases/mr1"
     private const val MODEL_BLOB_PATH = "gs://models/vid-model-v1.pb"
     private const val DEFAULT_NUMBER_OF_SHARDS = 3
-    private const val DONE_BLOB_PATH = "file:///test-bucket/edp1/2024-01-15/done"
+    private const val FOLDER_PREFIX = "/test-bucket/edp1/2024-01-15"
+    private const val DONE_BLOB_PATH = "file://$FOLDER_PREFIX/done"
+    private const val RAW_IMPRESSION_UPLOAD_ID = "upload-abc123"
 
     private val FIXED_NOW: Instant = Instant.parse("2026-06-03T12:00:00Z")
 
