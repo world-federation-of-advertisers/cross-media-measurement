@@ -270,7 +270,7 @@ class ReportSummaryProcessor:
         if not all(
             result.HasField('reach') for result in entry.measurement_results):
           raise ValueError(
-              f"Cumulative measurements must be reach measurements. Results: {entry.measurement_results}")
+              "Cumulative measurements must be reach measurements.")
         measurements = [
             Measurement(result.reach.value, result.reach.standard_deviation,
                         result.metric)

@@ -19,6 +19,8 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.type.DayOfWeek
+import com.google.type.date
+import com.google.type.dateTime
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,7 +30,10 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.basicReport as internalBasicReport
+import org.wfanet.measurement.internal.reporting.v2.basicReportDetails as internalBasicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
+import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpecKt
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
 import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFilterSpec
@@ -36,24 +41,17 @@ import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
+import org.wfanet.measurement.reporting.v2alpha.basicReport
 import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.eventFilter
 import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.metricFrequencySpec
+import org.wfanet.measurement.reporting.v2alpha.reportingInterval
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.reportingUnit
 import org.wfanet.measurement.reporting.v2alpha.resultGroupMetricSpec
 import org.wfanet.measurement.reporting.v2alpha.resultGroupSpec
-import com.google.type.dateTime
-import com.google.type.date
-import org.wfanet.measurement.internal.reporting.v2.BasicReport as InternalBasicReport
-import org.wfanet.measurement.internal.reporting.v2.basicReport as internalBasicReport
-import org.wfanet.measurement.internal.reporting.v2.basicReportDetails as internalBasicReportDetails
-import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
-import org.wfanet.measurement.reporting.v2alpha.BasicReport
-import org.wfanet.measurement.reporting.v2alpha.basicReport
-import org.wfanet.measurement.reporting.v2alpha.reportingInterval
 
 @RunWith(JUnit4::class)
 class BasicReportTransformationsTest {
@@ -3104,17 +3102,18 @@ class BasicReportTransformationsTest {
       amiMrcExemptedEdps += listOf("edp1", "edp2")
     }
 
-    val internalReport = publicReport.toInternal(
-      cmmsMeasurementConsumerId = "mc-1",
-      basicReportId = "report-1",
-      campaignGroupId = "cg-1",
-      createReportRequestId = "req-1",
-      reportingImpressionQualificationFilters = emptyList(),
-      effectiveReportingImpressionQualificationFilters = emptyList(),
-      impressionQualificationFilterSpecsByName = emptyMap(),
-      effectiveModelLine = "",
-      effectiveReportStart = publicReport.reportingInterval.reportStart,
-    )
+    val internalReport =
+      publicReport.toInternal(
+        cmmsMeasurementConsumerId = "mc-1",
+        basicReportId = "report-1",
+        campaignGroupId = "cg-1",
+        createReportRequestId = "req-1",
+        reportingImpressionQualificationFilters = emptyList(),
+        effectiveReportingImpressionQualificationFilters = emptyList(),
+        impressionQualificationFilterSpecsByName = emptyMap(),
+        effectiveModelLine = "",
+        effectiveReportStart = publicReport.reportingInterval.reportStart,
+      )
 
     assertThat(internalReport.amiMrcExemptedEdpsList).containsExactly("edp1", "edp2")
   }
