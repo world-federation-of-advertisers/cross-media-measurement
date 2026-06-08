@@ -152,4 +152,17 @@ message SubpoolAssignerParams {
   // for VidRankBuilder Phase-1 / VidLabeler Phase-2 WorkItem construction
   // by the last-shard-out.
   map<string, string> event_template_field_mapping = 15;
+
+  // Resource name of the `PoolAssignmentJob` row that tracks this
+  // (RawImpressionUpload, ModelLine, shard) WorkItem. Pre-created by the
+  // VID Labeling Dispatcher before the WorkItem is published; the TEE marks
+  // it `SUCCEEDED` (or `FAILED`) when processing completes.
+  //
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/poolAssignmentJobs/{pool_assignment_job}`
+  string pool_assignment_job = 16 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type =
+        "edpaggregator.halo-cmm.org/PoolAssignmentJob"
+  ];
 }
