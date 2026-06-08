@@ -72,44 +72,56 @@ class VerifySyntheticData : Runnable {
   )
   private var fakeKekKeysetFile: File? = null
 
-  @Option(
-    names = ["--local-storage-path"],
-    description = ["Root path for local storage."],
-    required = false,
-  )
-  private var storagePath: File? = null
+  class LocalStorageMode {
+    @Option(
+      names = ["--local-storage-path"],
+      description = ["Root path for local storage."],
+      required = true,
+    )
+    lateinit var storagePath: File
+      private set
 
-  @Option(
-    names = ["--output-bucket"],
-    description = ["The bucket name used during generation."],
-    required = false,
-    defaultValue = "",
-  )
-  var outputBucket: String = ""
+    @Option(
+      names = ["--output-bucket"],
+      description = ["The bucket name used during generation."],
+      required = true,
+    )
+    lateinit var outputBucket: String
+      private set
+
+    @Option(
+      names = ["--base-path"],
+      description = ["Base path where impressions are stored."],
+      required = true,
+    )
+    lateinit var basePath: String
+      private set
+  }
+
+  class GcsUriMode {
+    @Option(
+      names = ["--metadata-uri"],
+      description =
+        [
+          "GCS URI of a metadata JSON file (e.g. gs://bucket/path/metadata_campaign_ID.json). " +
+            "Reads the metadata directly from GCS, parses the JSON, and verifies the " +
+            "corresponding impression blob. May be specified multiple times."
+        ],
+      required = true,
+    )
+    lateinit var metadataUris: List<String>
+      private set
+  }
+
+  @CommandLine.ArgGroup(exclusive = true, multiplicity = "1")
+  lateinit var verificationMode: VerificationMode
     private set
 
-  @Option(
-    names = ["--base-path"],
-    description = ["Base path where impressions are stored."],
-    required = false,
-    defaultValue = "",
-  )
-  var basePath: String = ""
-    private set
+  class VerificationMode {
+    @CommandLine.ArgGroup(exclusive = false) var localStorageMode: LocalStorageMode? = null
 
-  @Option(
-    names = ["--metadata-uri"],
-    description =
-      [
-        "GCS URI of a metadata JSON file (e.g. gs://bucket/path/metadata_campaign_ID.json). " +
-          "When set, reads the metadata directly from GCS, parses the JSON, and verifies the " +
-          "corresponding impression blob. May be specified multiple times. " +
-          "Mutually exclusive with --local-storage-path, --output-bucket, and --base-path."
-      ],
-    required = false,
-  )
-  var metadataUris: List<String> = emptyList()
-    private set
+    @CommandLine.ArgGroup(exclusive = false) var gcsUriMode: GcsUriMode? = null
+  }
 
   @Option(
     names = ["--event-message-type-url"],
@@ -329,27 +341,21 @@ class VerifySyntheticData : Runnable {
       }
 
     val result =
-      if (metadataUris.isNotEmpty()) {
-        verifyFromUris(kmsClient, kekUri, metadataUris)
+      if (verificationMode.gcsUriMode != null) {
+        verifyFromUris(kmsClient, kekUri, verificationMode.gcsUriMode!!.metadataUris)
       } else {
+        val localMode = verificationMode.localStorageMode!!
         val eventMessageInstance: Message =
           GenerateSyntheticData.resolveEventMessageInstance(
             eventMessageTypeUrl,
             eventMessageDescriptorSetFiles,
           )
-        requireNotNull(storagePath) {
-          "--local-storage-path is required when --metadata-uri is not set"
-        }
-        require(outputBucket.isNotEmpty()) {
-          "--output-bucket is required when --metadata-uri is not set"
-        }
-        require(basePath.isNotEmpty()) { "--base-path is required when --metadata-uri is not set" }
         verifySyntheticData(
           kmsClient = kmsClient,
           kekUri = kekUri,
-          storagePath = storagePath!!,
-          outputBucket = outputBucket,
-          basePath = basePath,
+          storagePath = localMode.storagePath,
+          outputBucket = localMode.outputBucket,
+          basePath = localMode.basePath,
           eventMessageInstance = eventMessageInstance,
           expectedEventTypeUrl = eventMessageTypeUrl,
         )
