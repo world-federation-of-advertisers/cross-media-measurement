@@ -18,7 +18,6 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
-import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import com.google.protobuf.util.JsonFormat
 import java.io.File
@@ -34,7 +33,6 @@ import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.gcloud.kms.GCloudToAwsKmsClientFactory
 import org.wfanet.measurement.storage.SelectedStorageClient
 import picocli.CommandLine
@@ -513,11 +511,11 @@ class VerifySyntheticData : Runnable {
           val encryptedDek: EncryptedDek
 
           if (isJson) {
-            val jsonText = metadataBytes.toStringUtf8()
-            encryptedDek = parseJsonEncryptedDek(jsonText)
+            val fixedJson = fixBase64UrlCiphertext(metadataBytes.toStringUtf8())
             val builder = BlobDetails.newBuilder()
-            JsonFormat.parser().ignoringUnknownFields().merge(jsonText, builder)
+            JsonFormat.parser().ignoringUnknownFields().merge(fixedJson, builder)
             blobDetails = builder.build()
+            encryptedDek = blobDetails.encryptedDek
           } else {
             blobDetails = BlobDetails.parseFrom(metadataBytes)
             encryptedDek = blobDetails.encryptedDek
@@ -604,42 +602,14 @@ class VerifySyntheticData : Runnable {
     }
 
     /**
-     * Parses the [EncryptedDek] from a JSON metadata string.
-     *
-     * The ciphertext field uses base64url encoding which protobuf [JsonFormat] cannot parse
-     * directly (it expects standard base64), so we extract and decode it manually.
+     * Converts base64url-encoded ciphertext in a JSON metadata string to standard base64 so that
+     * protobuf [JsonFormat] can parse the `bytes` field correctly.
      */
-    private fun parseJsonEncryptedDek(jsonText: String): EncryptedDek {
-      val kekUriMatch =
-        Regex(""""kekUri"\s*:\s*"([^"]+)"""").find(jsonText)
-          ?: throw IllegalArgumentException("Missing kekUri in metadata JSON")
-      val typeUrlMatch =
-        Regex(""""typeUrl"\s*:\s*"([^"]+)"""").find(jsonText)
-          ?: throw IllegalArgumentException("Missing typeUrl in metadata JSON")
-      val formatMatch =
-        Regex(""""protobufFormat"\s*:\s*"([^"]+)"""").find(jsonText)
-          ?: throw IllegalArgumentException("Missing protobufFormat in metadata JSON")
-      val ciphertextMatch =
-        Regex(""""ciphertext"\s*:\s*"([^"]+)"""").find(jsonText)
-          ?: throw IllegalArgumentException("Missing ciphertext in metadata JSON")
-
-      val format =
-        when (formatMatch.groupValues[1]) {
-          "JSON" -> EncryptedDek.ProtobufFormat.JSON
-          "BINARY" -> EncryptedDek.ProtobufFormat.BINARY
-          else ->
-            throw IllegalArgumentException("Unknown protobufFormat: ${formatMatch.groupValues[1]}")
-        }
-
-      val ciphertextBytes = java.util.Base64.getUrlDecoder().decode(ciphertextMatch.groupValues[1])
-
-      return encryptedDek {
-        this.kekUri = kekUriMatch.groupValues[1]
-        this.typeUrl = typeUrlMatch.groupValues[1]
-        protobufFormat = format
-        ciphertext = ByteString.copyFrom(ciphertextBytes)
+    private fun fixBase64UrlCiphertext(json: String): String =
+      json.replace(Regex("""("ciphertext"\s*:\s*")([^"]+)(")""")) {
+        val std = it.groupValues[2].replace('-', '+').replace('_', '/')
+        "${it.groupValues[1]}$std${it.groupValues[3]}"
       }
-    }
   }
 }
 
