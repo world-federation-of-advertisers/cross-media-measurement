@@ -45,6 +45,7 @@ import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
@@ -84,6 +85,8 @@ private data class ChannelKey(
  * - `MODEL_ROLLOUTS_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `MODEL_SHARDS_TARGET`: Required. Target endpoint for the VID Repository ModelShards service.
  * - `MODEL_SHARDS_CERT_HOST`: Optional. Overrides TLS authority for testing.
+ * - `RAW_IMPRESSION_UPLOAD_TARGET`: Required. Target endpoint for the `RawImpressionUploadService`.
+ * - `RAW_IMPRESSION_UPLOAD_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `VID_LABELER_QUEUE_NAME`: Required. Resource name of the Secure Computation queue.
  * - `CHANNEL_SHUTDOWN_DURATION_SECONDS`: Optional. gRPC channel shutdown timeout (default: 3s).
  * - `VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH`: Optional. Enables [FileSystemStorageClient] instead
@@ -173,12 +176,23 @@ class VidLabelingDispatcherFunction : HttpFunction {
           )
         )
 
+      val rawImpressionUploadStub =
+        RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(
+          createInstrumentedChannel(
+            config.rawImpressionMetadataStorageConnection,
+            rawImpressionUploadTarget,
+            rawImpressionUploadCertHost,
+            grpcTelemetry,
+          )
+        )
+
       val vidLabelerParamsTemplate: VidLabelerParams = buildVidLabelerParamsTemplate(config)
 
       val dispatcher =
         VidLabelingDispatcher(
           storageClient = storageClient,
           workItemsStub = workItemsStub,
+          rawImpressionUploadStub = rawImpressionUploadStub,
           modelLinesStub = modelLinesStub,
           modelRolloutsStub = modelRolloutsStub,
           modelShardsStub = modelShardsStub,
@@ -215,6 +229,10 @@ class VidLabelingDispatcherFunction : HttpFunction {
     private val modelRolloutsCertHost: String? = System.getenv("MODEL_ROLLOUTS_CERT_HOST")
     private val modelShardsTarget: String = EnvVars.checkNotNullOrEmpty("MODEL_SHARDS_TARGET")
     private val modelShardsCertHost: String? = System.getenv("MODEL_SHARDS_CERT_HOST")
+    private val rawImpressionUploadTarget: String =
+      EnvVars.checkNotNullOrEmpty("RAW_IMPRESSION_UPLOAD_TARGET")
+    private val rawImpressionUploadCertHost: String? =
+      System.getenv("RAW_IMPRESSION_UPLOAD_CERT_HOST")
     private val vidLabelerQueueName: String = EnvVars.checkNotNullOrEmpty("VID_LABELER_QUEUE_NAME")
     private val channelShutdownDuration =
       Duration.ofSeconds(
