@@ -378,6 +378,7 @@ proto_library(
     deps = [
         ":event_group_activity_proto",
         "@com_google_googleapis//google/type:date_proto",
+        "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:empty_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],

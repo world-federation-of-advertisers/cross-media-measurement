@@ -1,4 +1,4 @@
-// Copyright 2025 The Cross-Media Measurement Authors
+// Copyright 2026 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,6 +47,7 @@ import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.EventGroupMet
 import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.EventGroupMetadataKt.adMetadata
 import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.eventGroupMetadata
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MediaType
 import org.wfanet.measurement.internal.kingdom.batchDeleteEventGroupActivitiesRequest
@@ -1040,7 +1041,10 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          externalEventGroupId = eventGroup.externalEventGroupId
+          filter =
+            ListEventGroupActivitiesRequest.Filter.newBuilder()
+              .addExternalEventGroupIds(eventGroup.externalEventGroupId)
+              .build()
         }
       )
 
@@ -1109,7 +1113,10 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          externalEventGroupId = eventGroup.externalEventGroupId
+          filter =
+            ListEventGroupActivitiesRequest.Filter.newBuilder()
+              .addExternalEventGroupIds(eventGroup.externalEventGroupId)
+              .build()
           pageSize = 1
         }
       )
@@ -1121,7 +1128,10 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          externalEventGroupId = eventGroup.externalEventGroupId
+          filter =
+            ListEventGroupActivitiesRequest.Filter.newBuilder()
+              .addExternalEventGroupIds(eventGroup.externalEventGroupId)
+              .build()
           pageToken = firstResponse.nextPageToken
         }
       )
@@ -1143,6 +1153,8 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
           day = 10
         }
       )
+    assertThat(secondResponse.eventGroupActivitiesList.map { it.date })
+      .containsNoneIn(firstResponse.eventGroupActivitiesList.map { it.date })
   }
 
   @Test
@@ -1151,7 +1163,10 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          externalEventGroupId = eventGroup.externalEventGroupId
+          filter =
+            ListEventGroupActivitiesRequest.Filter.newBuilder()
+              .addExternalEventGroupIds(eventGroup.externalEventGroupId)
+              .build()
         }
       )
 
@@ -1164,31 +1179,11 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          eventGroupActivitiesService.listEventGroupActivities(
-            listEventGroupActivitiesRequest {
-              externalEventGroupId = eventGroup.externalEventGroupId
-            }
-          )
+          eventGroupActivitiesService.listEventGroupActivities(listEventGroupActivitiesRequest {})
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception).hasMessageThat().contains("external_data_provider_id")
-    }
-
-  @Test
-  fun `listEventGroupActivities throws INVALID_ARGUMENT when external_event_group_id is missing`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          eventGroupActivitiesService.listEventGroupActivities(
-            listEventGroupActivitiesRequest {
-              externalDataProviderId = dataProvider.externalDataProviderId
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception).hasMessageThat().contains("external_event_group_id")
     }
 
   @Test
@@ -1237,7 +1232,10 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          externalEventGroupId = eventGroup.externalEventGroupId
+          filter =
+            ListEventGroupActivitiesRequest.Filter.newBuilder()
+              .addExternalEventGroupIds(eventGroup.externalEventGroupId)
+              .build()
           pageSize = 1
         }
       )
@@ -1300,7 +1298,10 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          externalEventGroupId = eventGroup.externalEventGroupId
+          filter =
+            ListEventGroupActivitiesRequest.Filter.newBuilder()
+              .addExternalEventGroupIds(eventGroup.externalEventGroupId)
+              .build()
           pageSize = 1
         }
       )
@@ -1312,7 +1313,10 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          externalEventGroupId = eventGroup.externalEventGroupId
+          filter =
+            ListEventGroupActivitiesRequest.Filter.newBuilder()
+              .addExternalEventGroupIds(eventGroup.externalEventGroupId)
+              .build()
           pageSize = 1
           pageToken = firstResponse.nextPageToken
         }
@@ -1328,6 +1332,56 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
         }
       )
     assertThat(secondResponse.hasNextPageToken()).isTrue()
+    assertThat(secondResponse.eventGroupActivitiesList.map { it.date })
+      .containsNoneIn(firstResponse.eventGroupActivitiesList.map { it.date })
+  }
+
+  @Test
+  fun `listEventGroupActivities coerces page_size above MAX_PAGE_SIZE`() = runBlocking {
+    val createRequest = batchUpdateEventGroupActivitiesRequest {
+      externalDataProviderId = dataProvider.externalDataProviderId
+      externalEventGroupId = eventGroup.externalEventGroupId
+      requests += updateEventGroupActivityRequest {
+        allowMissing = true
+        eventGroupActivity = eventGroupActivity {
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 12
+            day = 1
+          }
+        }
+      }
+    }
+
+    eventGroupActivitiesService.batchUpdateEventGroupActivities(createRequest)
+
+    val response =
+      eventGroupActivitiesService.listEventGroupActivities(
+        listEventGroupActivitiesRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          filter =
+            ListEventGroupActivitiesRequest.Filter.newBuilder()
+              .addExternalEventGroupIds(eventGroup.externalEventGroupId)
+              .build()
+          pageSize = 5000
+        }
+      )
+
+    assertThat(response.eventGroupActivitiesList).hasSize(1)
+  }
+
+  @Test
+  fun `listEventGroupActivities throws NOT_FOUND for non existent DataProvider`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupActivitiesService.listEventGroupActivities(
+          listEventGroupActivitiesRequest { externalDataProviderId = 999999L }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("DataProvider not found")
   }
 
   private suspend fun createEventGroup(dataProvider: DataProvider): EventGroup {
