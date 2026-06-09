@@ -19,16 +19,15 @@ import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.type.Date
-import com.google.type.Interval
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
-import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
+import org.wfanet.measurement.internal.kingdom.DateInterval
 import org.wfanet.measurement.internal.kingdom.EventGroupActivity
 import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesPageToken
 import org.wfanet.measurement.internal.kingdom.eventGroupActivity
@@ -97,7 +96,7 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
     externalEventGroupIds: List<Long>,
     limit: Int,
     after: ListEventGroupActivitiesPageToken.After? = null,
-    dateInterval: Interval? = null,
+    dateInterval: DateInterval? = null,
   ): List<Result> {
     return fillStatementBuilder {
         val conjuncts = mutableListOf<String>()
@@ -108,13 +107,13 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
           bind("externalEventGroupIds").toInt64Array(externalEventGroupIds)
         }
         if (dateInterval != null) {
-          if (dateInterval.hasStartTime()) {
-            conjuncts.add("ActivityDate >= CAST(@startTime AS DATE)")
-            bind("startTime").to(dateInterval.startTime.toGcloudTimestamp())
+          if (dateInterval.hasStartDate()) {
+            conjuncts.add("ActivityDate >= @startDate")
+            bind("startDate").to(dateInterval.startDate.toCloudDate())
           }
-          if (dateInterval.hasEndTime()) {
-            conjuncts.add("ActivityDate < CAST(@endTime AS DATE)")
-            bind("endTime").to(dateInterval.endTime.toGcloudTimestamp())
+          if (dateInterval.hasEndDate()) {
+            conjuncts.add("ActivityDate < @endDate")
+            bind("endDate").to(dateInterval.endDate.toCloudDate())
           }
         }
         if (after != null) {
