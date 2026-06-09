@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
 import "google/type/date.proto";
 import "wfa/measurement/internal/edpaggregator/blob_type.proto";
 import "wfa/measurement/internal/edpaggregator/rank_index_blob.proto";
@@ -117,8 +118,9 @@ message ListRankIndexBlobsRequest {
     // Filter by CMMS model line resource name.
     string cmms_model_line = 2;
 
-    // Filter by subpool ID.
-    int32 subpool_id = 3;
+    // Filter by subpool ID. Uses wrapper type because 0 is
+    // a valid subpool ID.
+    google.protobuf.Int32Value subpool_id = 3;
 
     // Filter for blobs with max_event_date on or before
     // this value. Used for retention policy queries.
@@ -158,4 +160,22 @@ message DeleteRankIndexBlobRequest {
 
   // Resource ID of this blob.
   string rank_index_blob_resource_id = 3;
+}
+
+// Request message for BatchDeleteRankIndexBlobs.
+message BatchDeleteRankIndexBlobsRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // Individual delete requests.
+  repeated DeleteRankIndexBlobRequest requests = 3;
+}
+
+// Response message for BatchDeleteRankIndexBlobs.
+message BatchDeleteRankIndexBlobsResponse {
+  // The deleted rank index blobs.
+  repeated RankIndexBlob rank_index_blobs = 1;
 }
