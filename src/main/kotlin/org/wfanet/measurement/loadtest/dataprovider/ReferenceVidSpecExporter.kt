@@ -1,3 +1,19 @@
+/*
+ * Copyright 2026 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.TextFormat
@@ -33,30 +49,46 @@ object ReferenceVidSpecExporter {
     spec: ReferenceVidEventGroupSpec,
     maxVidRangeSpecs: Int = 500,
   ): SyntheticEventGroupSpec {
-    val distinctVids = labeledResults.map { it.vid }.distinct().sorted()
+    val vidCounts = labeledResults.groupingBy { it.vid }.eachCount()
 
     val dateSpecs =
       spec.dateSpecsList.map { refDateSpec ->
-        val frequency = refDateSpec.frequency
+        val specFrequency = refDateSpec.frequency
 
-        val vidRangeSpecs =
-          mergeAdjacentVids(distinctVids).map { range ->
-            VidRangeSpec.newBuilder()
-              .apply {
-                vidRange =
-                  VidRange.newBuilder()
-                    .setStart(range.first)
-                    .setEndExclusive(range.last + 1)
-                    .build()
-                putAllNonPopulationFieldValues(spec.nonPopulationFieldValuesMap)
-              }
-              .build()
+        val vidsByEffectiveFrequency =
+          vidCounts.entries.groupBy({ it.value * specFrequency }, { it.key }).mapValues { (_, vids)
+            ->
+            vids.sorted()
           }
 
-        val totalVidRangeSpecs = vidRangeSpecs.size
+        val frequencySpecs =
+          vidsByEffectiveFrequency.entries
+            .sortedBy { it.key }
+            .map { (freq, vids) ->
+              val vidRangeSpecs =
+                mergeAdjacentVids(vids).map { range ->
+                  VidRangeSpec.newBuilder()
+                    .apply {
+                      vidRange =
+                        VidRange.newBuilder()
+                          .setStart(range.first)
+                          .setEndExclusive(range.last + 1)
+                          .build()
+                      putAllNonPopulationFieldValues(spec.nonPopulationFieldValuesMap)
+                    }
+                    .build()
+                }
+              FrequencySpec.newBuilder()
+                .setFrequency(freq.toLong())
+                .addAllVidRangeSpecs(vidRangeSpecs)
+                .build()
+            }
+
+        val totalVidRangeSpecs = frequencySpecs.sumOf { it.vidRangeSpecsCount }
         if (totalVidRangeSpecs > maxVidRangeSpecs) {
           logger.warning(
-            "Exported spec has $totalVidRangeSpecs VidRangeSpecs (threshold: $maxVidRangeSpecs). " +
+            "Exported spec has $totalVidRangeSpecs VidRangeSpecs " +
+              "(threshold: $maxVidRangeSpecs). " +
               "Consider using direct generation (Option A) instead."
           )
         }
@@ -68,12 +100,7 @@ object ReferenceVidSpecExporter {
                 .setStart(refDateSpec.dateRange.start)
                 .setEndExclusive(refDateSpec.dateRange.endExclusive)
                 .build()
-            addFrequencySpecs(
-              FrequencySpec.newBuilder()
-                .setFrequency(frequency)
-                .addAllVidRangeSpecs(vidRangeSpecs)
-                .build()
-            )
+            addAllFrequencySpecs(frequencySpecs)
           }
           .build()
       }
@@ -81,13 +108,6 @@ object ReferenceVidSpecExporter {
     return SyntheticEventGroupSpec.newBuilder().addAllDateSpecs(dateSpecs).build()
   }
 
-  /**
-   * Exports a [PopulationSpec] from labeler results by grouping VIDs by subpopulation index and
-   * merging adjacent VIDs into ranges.
-   *
-   * @param labeledResults output from [ReferenceVidDataGeneration]
-   * @param sourcePopulationSpec the original PopulationSpec (for attributes)
-   */
   fun exportPopulationSpec(
     labeledResults: List<ReferenceVidDataGeneration.LabeledVidResult>,
     sourcePopulationSpec: PopulationSpec,
@@ -121,16 +141,11 @@ object ReferenceVidSpecExporter {
       .build()
   }
 
-  /** Writes a spec as textproto to the given file. */
   fun writeTextProto(file: File, message: com.google.protobuf.Message) {
     file.writeText(TextFormat.printer().printToString(message))
     logger.info("Wrote ${file.path}")
   }
 
-  /**
-   * Merges a sorted list of VIDs into contiguous ranges. E.g. [1,2,3,5,6,8] -> [[1,3], [5,6],
-   * [8,8]]
-   */
   private fun mergeAdjacentVids(sortedVids: List<Long>): List<LongRange> {
     if (sortedVids.isEmpty()) return emptyList()
 
