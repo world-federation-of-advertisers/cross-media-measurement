@@ -26,7 +26,9 @@ option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "RawImpressionUploadModelLineServiceProto";
 
-// Service for managing `RawImpressionUploadModelLine` resources.
+// Service for managing `RawImpressionUploadModelLine` resources,
+// which track per-model-line processing state for a raw
+// impression upload.
 service RawImpressionUploadModelLineService {
   // Creates a new `RawImpressionUploadModelLine`.
   rpc CreateRawImpressionUploadModelLine(
@@ -122,6 +124,7 @@ message BatchCreateRawImpressionUploadModelLinesRequest {
 // Response message for the
 // `BatchCreateRawImpressionUploadModelLines` method.
 message BatchCreateRawImpressionUploadModelLinesResponse {
+  // The created model line records.
   repeated RawImpressionUploadModelLine raw_impression_upload_model_lines = 1;
 }
 
@@ -195,6 +198,7 @@ message ListRawImpressionUploadModelLinesRequest {
 // Response message for the
 // `ListRawImpressionUploadModelLines` method.
 message ListRawImpressionUploadModelLinesResponse {
+  // The list of model line records matching the request.
   repeated RawImpressionUploadModelLine raw_impression_upload_model_lines = 1;
 
   // A token to retrieve the next page of results.
@@ -261,5 +265,5 @@ message MarkRawImpressionUploadModelLineFailedRequest {
   ];
 
   // Human-readable detail about the failure.
-  string error_message = 2;
+  string error_message = 2 [(google.api.field_behavior) = OPTIONAL];
 }
