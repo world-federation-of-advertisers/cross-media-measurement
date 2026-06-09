@@ -28,101 +28,43 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.MarketEvent
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.virtualpeople.common.CompiledNode
 import org.wfanet.virtualpeople.core.labeler.Labeler
 
 @RunWith(JUnit4::class)
-class ReferenceVidDataGenerationTest {
+class GenerateVidDataIntegrationTest {
 
   @Test
-  fun `generateEvents produces labeled VIDs`() {
-    val shards: List<ReferenceVidDataGeneration.LabeledVidDateShard> =
-      ReferenceVidDataGeneration.generateEvents(
-          buildLabeler(),
-          loadPopulationSpec(),
-          loadDataSpec(),
-        )
-        .toList()
-
-    assertThat(shards).isNotEmpty()
-    val allVids: List<ReferenceVidDataGeneration.LabeledVid> =
-      shards.flatMap { it.labeledVids.toList() }
-    assertThat(allVids).isNotEmpty()
-    allVids.forEach { assertThat(it.vid).isGreaterThan(0) }
-  }
-
-  @Test
-  fun `generateEvents distributes events across dates`() {
-    val shards: List<ReferenceVidDataGeneration.LabeledVidDateShard> =
-      ReferenceVidDataGeneration.generateEvents(
-          buildLabeler(),
-          loadPopulationSpec(),
-          loadDataSpec(),
-        )
-        .toList()
-
-    val dates = shards.map { it.localDate }.distinct()
-    assertThat(dates).hasSize(3)
-  }
-
-  @Test
-  fun `generateEvents produces expected total event count`() {
-    val shards: List<ReferenceVidDataGeneration.LabeledVidDateShard> =
-      ReferenceVidDataGeneration.generateEvents(
-          buildLabeler(),
-          loadPopulationSpec(),
-          loadDataSpec(),
-        )
-        .toList()
-
-    val totalEvents = shards.sumOf { it.labeledVids.toList().size }
-    assertThat(totalEvents).isEqualTo(600)
-  }
-
-  @Test
-  fun `correction matrix causes some demographic reassignment`() {
+  fun `exported SyntheticEventGroupSpec produces identical VIDs`() {
+    val labeler: Labeler = buildLabeler()
     val populationSpec: PopulationSpec = loadPopulationSpec()
-    val shards: List<ReferenceVidDataGeneration.LabeledVidDateShard> =
-      ReferenceVidDataGeneration.generateEvents(buildLabeler(), populationSpec, loadDataSpec())
+    val spec: ReferenceVidEventGroupSpec = loadDataSpec()
+
+    // Generate labeled VIDs via the labeler path. Materialize once since
+    // LabeledVidDateShard.labeledVids is a Sequence.
+    val allLabeledVids: List<ReferenceVidDataGeneration.LabeledVid> =
+      ReferenceVidDataGeneration.generateEvents(labeler, populationSpec, spec)
+        .flatMap { it.labeledVids.toList() }
         .toList()
+    val refVids: Set<Long> = allLabeledVids.map { it.vid }.toSet()
+    val converted: ReferenceVidSpecConverter.ConvertedSpecs =
+      ReferenceVidSpecConverter.convert(allLabeledVids, spec, populationSpec)
 
-    val allVids: List<ReferenceVidDataGeneration.LabeledVid> =
-      shards.flatMap { it.labeledVids.toList() }
-
-    // Map subPopulationIndex back to demographics via the PopulationSpec.
-    // Input spec: 100 ref VIDs M16-34, 100 F35-54, 100 M55+, freq 2 = 200 events each.
-    // Count events per subpopulation index.
-    val countsPerSubPop: Map<Int, Int> = allVids.groupingBy { it.subPopulationIndex }.eachCount()
-
-    // With correction matrix, events should spread across more than 3 subpopulations.
-    assertThat(countsPerSubPop.keys.size).isGreaterThan(3)
-
-    // No single subpopulation should have all 200 events from one input bucket.
-    for ((_, count) in countsPerSubPop) {
-      assertThat(count).isLessThan(200)
-    }
-  }
-
-  @Test
-  fun `all VIDs fall within PopulationSpec ranges`() {
-    val populationSpec: PopulationSpec = loadPopulationSpec()
-    val shards: List<ReferenceVidDataGeneration.LabeledVidDateShard> =
-      ReferenceVidDataGeneration.generateEvents(buildLabeler(), populationSpec, loadDataSpec())
+    // Generate via the standard synthetic path with the converted specs.
+    val syntheticShards: List<LabeledEventDateShard<MarketEvent>> =
+      SyntheticDataGeneration.generateEvents(
+          MarketEvent.getDefaultInstance(),
+          converted.populationSpec,
+          converted.syntheticEventGroupSpec,
+        )
         .toList()
+    val syntheticVids: Set<Long> =
+      syntheticShards.flatMap { it.labeledEvents.toList() }.map { it.vid }.toSet()
 
-    val allVids: List<ReferenceVidDataGeneration.LabeledVid> =
-      shards.flatMap { it.labeledVids.toList() }
-    val allVidRanges: List<LongRange> =
-      populationSpec.subpopulationsList.flatMap { sub ->
-        sub.vidRangesList.map { it.startVid..it.endVidInclusive }
-      }
-
-    allVids.forEach { labeledVid ->
-      val inRange = allVidRanges.any { labeledVid.vid in it }
-      assertThat(inRange).isTrue()
-    }
+    assertThat(syntheticVids).isEqualTo(refVids)
   }
 
   private fun buildLabeler(): Labeler {

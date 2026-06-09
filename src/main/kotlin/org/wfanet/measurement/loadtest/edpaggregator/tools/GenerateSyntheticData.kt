@@ -50,9 +50,10 @@ import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
+import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.ReferenceVidDataGeneration
-import org.wfanet.measurement.loadtest.dataprovider.ReferenceVidSpecExporter
+import org.wfanet.measurement.loadtest.dataprovider.ReferenceVidSpecConverter
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -305,14 +306,50 @@ class GenerateSyntheticData : Runnable {
                 ReferenceVidEventGroupSpec.getDefaultInstance(),
               )
             val labeler = buildLabeler(spec.vidModelResourcePath)
-            listOf(
+            val templateFieldsByTypeUrl:
+              Map<String, com.google.protobuf.Descriptors.FieldDescriptor> =
+              buildMap {
+                for (field in eventMessageInstance.descriptorForType.fields) {
+                  if (field.type == com.google.protobuf.Descriptors.FieldDescriptor.Type.MESSAGE) {
+                    put(
+                      org.wfanet.measurement.common.ProtoReflection.getTypeUrl(field.messageType),
+                      field,
+                    )
+                  }
+                }
+              }
+            val subPopPrototypes: Map<Int, Message> =
+              populationSpec.subpopulationsList.withIndex().associate { (index, subPop) ->
+                val builder = eventMessageInstance.newBuilderForType()
+                for (attribute in subPop.attributesList) {
+                  val templateField =
+                    templateFieldsByTypeUrl[attribute.typeUrl]
+                      ?: throw IllegalArgumentException(
+                        "Unknown attribute type: ${attribute.typeUrl}"
+                      )
+                  builder.getFieldBuilder(templateField).mergeFrom(attribute.value)
+                }
+                index to builder.build()
+              }
+            val vidShards =
               ReferenceVidDataGeneration.generateEvents(
                 labeler = labeler,
-                messageInstance = eventMessageInstance,
                 populationSpec = populationSpec,
                 spec = refVidSpec,
                 zoneId = ZoneId.of(zoneId),
               )
+            listOf(
+              vidShards.map { shard ->
+                LabeledEventDateShard(
+                  shard.localDate,
+                  shard.labeledVids.map { labeledVid ->
+                    val message =
+                      subPopPrototypes[labeledVid.subPopulationIndex]
+                        ?: error("No prototype for subpopulation ${labeledVid.subPopulationIndex}")
+                    LabeledEvent(labeledVid.timestamp, labeledVid.vid, message)
+                  },
+                )
+              }
             )
           } else {
             spec.subSpecs.map { subSpec ->
@@ -361,18 +398,22 @@ class GenerateSyntheticData : Runnable {
               ReferenceVidEventGroupSpec.getDefaultInstance(),
             )
           val labeler = buildLabeler(spec.vidModelResourcePath)
-          val labeledResults = ReferenceVidDataGeneration.labelAllInputs(labeler, refVidSpec)
-          val validatedResults =
-            ReferenceVidDataGeneration.validateAgainstPopulationSpec(labeledResults, populationSpec)
-          val exportedSpec =
-            ReferenceVidSpecExporter.exportSyntheticSpec(validatedResults, refVidSpec)
-          val exportedPopSpec =
-            ReferenceVidSpecExporter.exportPopulationSpec(validatedResults, populationSpec)
+          val exportVidShards =
+            ReferenceVidDataGeneration.generateEvents(
+              labeler = labeler,
+              populationSpec = populationSpec,
+              spec = refVidSpec,
+              zoneId = ZoneId.of(zoneId),
+            )
+          val allLabeledVids: List<ReferenceVidDataGeneration.LabeledVid> =
+            exportVidShards.flatMap { it.labeledVids.toList() }.toList()
+          val converted =
+            ReferenceVidSpecConverter.convert(allLabeledVids, refVidSpec, populationSpec)
           val specFile = exportSyntheticSpecPath!!
-          ReferenceVidSpecExporter.writeTextProto(specFile, exportedSpec)
+          ReferenceVidSpecConverter.writeTextProto(specFile, converted.syntheticEventGroupSpec)
           val popFile =
             File(specFile.parent, specFile.nameWithoutExtension + "_population.textproto")
-          ReferenceVidSpecExporter.writeTextProto(popFile, exportedPopSpec)
+          ReferenceVidSpecConverter.writeTextProto(popFile, converted.populationSpec)
         }
       }
 

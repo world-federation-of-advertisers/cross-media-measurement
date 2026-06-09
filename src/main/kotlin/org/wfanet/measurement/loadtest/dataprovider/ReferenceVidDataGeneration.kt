@@ -17,9 +17,8 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.hash.Hashing
-import com.google.protobuf.Descriptors.FieldDescriptor
-import com.google.protobuf.Message
 import java.nio.ByteOrder
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -27,10 +26,8 @@ import java.time.temporal.ChronoUnit
 import java.util.logging.Logger
 import kotlin.math.abs
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpec
 import org.wfanet.measurement.common.LocalDateProgression
-import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.rangeTo
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.common.toLocalDate
@@ -48,35 +45,40 @@ object ReferenceVidDataGeneration {
   private val FINGERPRINT_FUNCTION = Hashing.farmHashFingerprint64()
   private const val SECONDS_PER_DAY = 86400
 
+  /** A VID with a timestamp and subpopulation index, produced by the labeler. */
+  data class LabeledVid(val timestamp: Instant, val vid: Long, val subPopulationIndex: Int)
+
+  /** A date shard of labeled VIDs. */
+  data class LabeledVidDateShard(val localDate: LocalDate, val labeledVids: Sequence<LabeledVid>)
+
+  /** Result of labeling a single reference VID. */
+  data class LabeledVidResult(
+    val referenceVid: Long,
+    val vid: Long,
+    val outputGender: Gender,
+    val outputMinAge: Int,
+    val outputMaxAge: Int,
+    val subPopulationIndex: Int,
+  )
+
   /**
-   * Generates events by running input IDs through a VID [labeler] model.
+   * Generates labeled VIDs by running reference VIDs through a VID [labeler] model.
    *
-   * Each input ID is converted to a string and passed through the labeler with the demographic
-   * profile from the spec. The labeler assigns VIDs via hash-based routing and a demographic
-   * correction matrix.
+   * Each reference VID from the spec is converted to a string and passed through the labeler with
+   * the demographic profile from the spec. The labeler assigns VIDs via hash-based routing and a
+   * demographic correction matrix.
    *
-   * The output is the same type as [SyntheticDataGeneration.generateEvents], so it feeds directly
-   * into [ImpressionsWriter] and the rest of the pipeline.
-   *
-   * @param labeler the VID labeler built from a CompiledNode model
-   * @param messageInstance event message prototype with template fields
-   * @param populationSpec population spec for validation — output VIDs must fall within its ranges
-   * @param spec the reference VID event group spec defining input IDs and demographics
-   * @param zoneId timezone for date shards
+   * The caller is responsible for wrapping the output in event messages (e.g. MarketEvent) using
+   * the PopulationSpec attributes.
    */
-  fun <T : Message> generateEvents(
+  fun generateEvents(
     labeler: Labeler,
-    messageInstance: T,
     populationSpec: PopulationSpec,
     spec: ReferenceVidEventGroupSpec,
     zoneId: ZoneId = ZoneOffset.UTC,
-  ): Sequence<LabeledEventDateShard<T>> {
+  ): Sequence<LabeledVidDateShard> {
     val rawLabeledVids = labelAllInputs(labeler, spec)
     val labeledVids = validateAgainstPopulationSpec(rawLabeledVids, populationSpec)
-
-    val templateFieldsByTypeUrl = buildTemplateFieldsByTypeUrl(messageInstance)
-    val subPopulationPrototypes: Map<Int, T> =
-      buildSubPopulationPrototypes(messageInstance, populationSpec, templateFieldsByTypeUrl)
 
     return sequence {
       for (dateSpec in spec.dateSpecsList) {
@@ -85,45 +87,35 @@ object ReferenceVidDataGeneration {
           ChronoUnit.DAYS.between(dateProgression.start, dateProgression.endInclusive) + 1
 
         for (date in dateProgression) {
-          val events: Sequence<LabeledEvent<T>> =
-            generateDayEvents(
+          val vids: Sequence<LabeledVid> =
+            generateDayVids(
               labeledVids,
-              subPopulationPrototypes,
-              spec.nonPopulationFieldValuesMap,
               dateProgression,
               date,
               dateSpec.frequency.toInt(),
               numDays.toInt(),
               zoneId,
             )
-          yield(LabeledEventDateShard(date, events))
+          yield(LabeledVidDateShard(date, vids))
         }
       }
     }
   }
 
-  /** Result of labeling a single input ID. */
-  data class LabeledVidResult(
-    val inputId: Long,
-    val vid: Long,
-    val outputGender: Gender,
-    val outputMinAge: Int,
-    val outputMaxAge: Int,
-    val subPopulationIndex: Int,
-  )
-
-  /** Runs all input IDs through the labeler and collects results. */
-  fun labelAllInputs(labeler: Labeler, spec: ReferenceVidEventGroupSpec): List<LabeledVidResult> {
+  private fun labelAllInputs(
+    labeler: Labeler,
+    spec: ReferenceVidEventGroupSpec,
+  ): List<LabeledVidResult> {
     val results = mutableListOf<LabeledVidResult>()
 
     for (demoDist in spec.demographicDistributionsList) {
       val gender = Gender.forNumber(demoDist.gender) ?: error("Invalid gender: ${demoDist.gender}")
 
-      for (id in demoDist.idRange.start until demoDist.idRange.endExclusive) {
+      for (referenceVid in demoDist.idRange.start until demoDist.idRange.endExclusive) {
         val input =
           LabelerInput.newBuilder()
             .apply {
-              eventId = EventId.newBuilder().setId(id.toString()).build()
+              eventId = EventId.newBuilder().setId(referenceVid.toString()).build()
               timestampUsec = 0L
               profileInfo =
                 ProfileInfo.newBuilder()
@@ -131,7 +123,7 @@ object ReferenceVidDataGeneration {
                     proprietaryIdSpace1UserInfo =
                       UserInfo.newBuilder()
                         .apply {
-                          userId = id.toString()
+                          userId = referenceVid.toString()
                           demo =
                             DemoInfo.newBuilder()
                               .apply {
@@ -156,13 +148,17 @@ object ReferenceVidDataGeneration {
             .build()
 
         val output = labeler.label(input)
-        check(output.peopleCount > 0) { "Labeler returned no people for input ID $id" }
+        check(output.peopleCount > 0) {
+          "Labeler returned no people for reference VID $referenceVid"
+        }
         val person = output.getPeople(0)
-        check(person.virtualPersonId > 0) { "Labeler returned VID 0 for input ID $id" }
+        check(person.virtualPersonId > 0) {
+          "Labeler returned VID 0 for reference VID $referenceVid"
+        }
 
         results.add(
           LabeledVidResult(
-            inputId = id,
+            referenceVid = referenceVid,
             vid = person.virtualPersonId.toLong(),
             outputGender = person.label.demo.gender,
             outputMinAge = person.label.demo.age.minAge,
@@ -174,7 +170,8 @@ object ReferenceVidDataGeneration {
     }
 
     logger.info(
-      "Labeled ${results.size} inputs, ${results.map { it.vid }.distinct().size} unique VIDs"
+      "Labeled ${results.size} reference VIDs, " +
+        "${results.map { it.vid }.distinct().size} unique VIDs"
     )
     return results
   }
@@ -183,74 +180,37 @@ object ReferenceVidDataGeneration {
    * Validates that every labeled VID falls within a [PopulationSpec] subpopulation range and sets
    * the [LabeledVidResult.subPopulationIndex] accordingly.
    */
-  fun validateAgainstPopulationSpec(
+  private fun validateAgainstPopulationSpec(
     results: List<LabeledVidResult>,
     populationSpec: PopulationSpec,
   ): List<LabeledVidResult> {
     return results.map { result ->
-      val (subPopIndex, subPop) =
+      val (subPopIndex, _) =
         populationSpec.subpopulationsList.withIndex().firstOrNull { (_, sub) ->
           sub.vidRangesList.any { range ->
             result.vid >= range.startVid && result.vid <= range.endVidInclusive
           }
         }
           ?: error(
-            "VID ${result.vid} (from input ${result.inputId}) not in any PopulationSpec range"
+            "VID ${result.vid} (from reference VID ${result.referenceVid}) " +
+              "not in any PopulationSpec range"
           )
 
       result.copy(subPopulationIndex = subPopIndex)
     }
   }
 
-  private fun <T : Message> buildTemplateFieldsByTypeUrl(
-    messageInstance: T
-  ): Map<String, FieldDescriptor> = buildMap {
-    for (field in messageInstance.descriptorForType.fields) {
-      if (field.type != FieldDescriptor.Type.MESSAGE) continue
-      val typeUrl = ProtoReflection.getTypeUrl(field.messageType)
-      put(typeUrl, field)
-    }
-  }
-
-  private fun <T : Message> buildSubPopulationPrototypes(
-    messageInstance: T,
-    populationSpec: PopulationSpec,
-    templateFieldsByTypeUrl: Map<String, FieldDescriptor>,
-  ): Map<Int, T> = buildMap {
-    for ((index, subPop) in populationSpec.subpopulationsList.withIndex()) {
-      val builder = messageInstance.newBuilderForType()
-      for (attribute in subPop.attributesList) {
-        val templateField =
-          templateFieldsByTypeUrl[attribute.typeUrl]
-            ?: throw IllegalArgumentException(
-              "Attribute type_url ${attribute.typeUrl} not in ${messageInstance.descriptorForType.fullName}"
-            )
-        builder.getFieldBuilder(templateField).mergeFrom(attribute.value)
-      }
-      @Suppress("UNCHECKED_CAST") put(index, builder.build() as T)
-    }
-  }
-
-  private fun <T : Message> generateDayEvents(
+  private fun generateDayVids(
     labeledVids: List<LabeledVidResult>,
-    subPopulationPrototypes: Map<Int, T>,
-    nonPopulationFieldValues: Map<String, FieldValue>,
     dateProgression: LocalDateProgression,
     date: LocalDate,
     frequency: Int,
     numDays: Int,
     zoneId: ZoneId,
-  ): Sequence<LabeledEvent<T>> = sequence {
+  ): Sequence<LabeledVid> = sequence {
     val dayNumber = ChronoUnit.DAYS.between(dateProgression.start, date)
 
     for (result in labeledVids) {
-      val prototype = subPopulationPrototypes[result.subPopulationIndex] ?: continue
-      val builder = prototype.toBuilder()
-      for ((path, fieldValue) in nonPopulationFieldValues) {
-        setField(builder, path.split('.'), fieldValue)
-      }
-      @Suppress("UNCHECKED_CAST") val message = builder.build() as T
-
       for (i in 1..frequency) {
         val dayToLog =
           (FINGERPRINT_FUNCTION.hashLong(result.vid * i).asLong() % numDays + numDays) % numDays
@@ -262,36 +222,10 @@ object ReferenceVidDataGeneration {
           val hashValue =
             abs(Hashing.farmHashFingerprint64().hashBytes(hashInput.toByteArray()).asLong())
           val impressionTime = date.atStartOfDay(zoneId).plusSeconds(hashValue % SECONDS_PER_DAY)
-          yield(LabeledEvent(impressionTime.toInstant(), result.vid, message))
+          yield(LabeledVid(impressionTime.toInstant(), result.vid, result.subPopulationIndex))
         }
       }
     }
-  }
-
-  private fun setField(builder: Message.Builder, fieldPath: List<String>, fieldValue: FieldValue) {
-    val field =
-      builder.descriptorForType.findFieldByName(fieldPath.first())
-        ?: throw IllegalArgumentException("Unknown field: ${fieldPath.first()}")
-
-    if (fieldPath.size == 1) {
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-      val value: Any =
-        when (fieldValue.valueCase) {
-          FieldValue.ValueCase.STRING_VALUE -> fieldValue.stringValue
-          FieldValue.ValueCase.BOOL_VALUE -> fieldValue.boolValue
-          FieldValue.ValueCase.ENUM_VALUE -> field.enumType.findValueByNumber(fieldValue.enumValue)
-          FieldValue.ValueCase.DOUBLE_VALUE -> fieldValue.doubleValue
-          FieldValue.ValueCase.FLOAT_VALUE -> fieldValue.floatValue
-          FieldValue.ValueCase.INT32_VALUE -> fieldValue.int32Value
-          FieldValue.ValueCase.INT64_VALUE -> fieldValue.int64Value
-          FieldValue.ValueCase.DURATION_VALUE -> fieldValue.durationValue
-          FieldValue.ValueCase.TIMESTAMP_VALUE -> fieldValue.timestampValue
-          FieldValue.ValueCase.VALUE_NOT_SET -> throw IllegalArgumentException()
-        }
-      builder.setField(field, value)
-      return
-    }
-    setField(builder.getFieldBuilder(field), fieldPath.drop(1), fieldValue)
   }
 
   private fun ReferenceVidEventGroupSpec.DateSpec.DateRange.toProgression(): LocalDateProgression {
