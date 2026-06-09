@@ -180,8 +180,8 @@ object ReferenceVidDataGeneration {
   }
 
   /**
-   * Validates that every labeled VID falls within a [PopulationSpec] subpopulation range and that
-   * the labeler-assigned demographics match the subpopulation's attributes.
+   * Validates that every labeled VID falls within a [PopulationSpec] subpopulation range and sets
+   * the [LabeledVidResult.subPopulationIndex] accordingly.
    */
   fun validateAgainstPopulationSpec(
     results: List<LabeledVidResult>,
@@ -269,7 +269,9 @@ object ReferenceVidDataGeneration {
   }
 
   private fun setField(builder: Message.Builder, fieldPath: List<String>, fieldValue: FieldValue) {
-    val field = builder.descriptorForType.findFieldByName(fieldPath.first()) ?: return
+    val field =
+      builder.descriptorForType.findFieldByName(fieldPath.first())
+        ?: throw IllegalArgumentException("Unknown field: ${fieldPath.first()}")
 
     if (fieldPath.size == 1) {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")

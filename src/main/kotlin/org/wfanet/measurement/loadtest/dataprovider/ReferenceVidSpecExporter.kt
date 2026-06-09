@@ -30,8 +30,6 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.VidRange
 object ReferenceVidSpecExporter {
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-  data class LabeledVidEvent(val vid: Long, val subPopulationIndex: Int)
-
   /**
    * Exports labeler results as a [SyntheticEventGroupSpec] that produces equivalent events when
    * used with [SyntheticDataGeneration].

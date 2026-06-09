@@ -304,28 +304,7 @@ class GenerateSyntheticData : Runnable {
                 ImpressionTestDataConfigs.resolveSpecPath(spec.referenceVidSpecResourcePath),
                 ReferenceVidEventGroupSpec.getDefaultInstance(),
               )
-            val modelPath = java.nio.file.Paths.get(spec.vidModelResourcePath)
-            val modelFile =
-              if (modelPath.isAbsolute) {
-                modelPath.toFile()
-              } else {
-                org.wfanet.measurement.common
-                  .getRuntimePath(
-                    java.nio.file.Paths.get(
-                      "wfa_measurement_system",
-                      "src",
-                      "main",
-                      "resources",
-                      "testing",
-                      "labeler",
-                      spec.vidModelResourcePath,
-                    )
-                  )!!
-                  .toFile()
-              }
-            val modelNode: CompiledNode =
-              parseTextProto(modelFile, CompiledNode.getDefaultInstance())
-            val labeler = Labeler.build(modelNode)
+            val labeler = buildLabeler(spec.vidModelResourcePath)
             listOf(
               ReferenceVidDataGeneration.generateEvents(
                 labeler = labeler,
@@ -381,26 +360,7 @@ class GenerateSyntheticData : Runnable {
               ImpressionTestDataConfigs.resolveSpecPath(spec.referenceVidSpecResourcePath),
               ReferenceVidEventGroupSpec.getDefaultInstance(),
             )
-          val modelPath = java.nio.file.Paths.get(spec.vidModelResourcePath)
-          val modelFile =
-            if (modelPath.isAbsolute) {
-              modelPath.toFile()
-            } else {
-              org.wfanet.measurement.common
-                .getRuntimePath(
-                  java.nio.file.Paths.get(
-                    "wfa_measurement_system",
-                    "src",
-                    "main",
-                    "resources",
-                    "testing",
-                    "labeler",
-                    spec.vidModelResourcePath,
-                  )
-                )!!
-                .toFile()
-            }
-          val labeler = Labeler.build(parseTextProto(modelFile, CompiledNode.getDefaultInstance()))
+          val labeler = buildLabeler(spec.vidModelResourcePath)
           val labeledResults = ReferenceVidDataGeneration.labelAllInputs(labeler, refVidSpec)
           val validatedResults =
             ReferenceVidDataGeneration.validateAgainstPopulationSpec(labeledResults, populationSpec)
@@ -615,6 +575,30 @@ class GenerateSyntheticData : Runnable {
             "GCP_TO_AWS is not yet supported in GenerateSyntheticData. Use VerifySyntheticData."
           )
       }
+    }
+
+    /** Resolves and loads a VID labeler model from a resource path. */
+    private fun buildLabeler(vidModelResourcePath: String): Labeler {
+      val modelPath = java.nio.file.Paths.get(vidModelResourcePath)
+      val modelFile =
+        if (modelPath.isAbsolute) {
+          modelPath.toFile()
+        } else {
+          org.wfanet.measurement.common
+            .getRuntimePath(
+              java.nio.file.Paths.get(
+                "wfa_measurement_system",
+                "src",
+                "main",
+                "resources",
+                "testing",
+                "labeler",
+                vidModelResourcePath,
+              )
+            )!!
+            .toFile()
+        }
+      return Labeler.build(parseTextProto(modelFile, CompiledNode.getDefaultInstance()))
     }
 
     fun buildSpecsFromConfig(
