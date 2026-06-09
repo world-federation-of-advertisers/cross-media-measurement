@@ -103,11 +103,28 @@ class ReferenceVidDataGenerationTest {
         .toList()
 
     val allEvents = shards.flatMap { it.labeledEvents.toList() }
-    val vidsInM1634Pool = allEvents.count { it.vid in 10000..10099 }
-    val vidsInOtherPools = allEvents.count { it.vid !in 10000..10099 }
 
-    assertThat(vidsInM1634Pool).isGreaterThan(0)
-    assertThat(vidsInOtherPools).isGreaterThan(0)
+    val outputDemoCounts =
+      allEvents
+        .map {
+          (it.message as MarketEvent).common.sex to (it.message as MarketEvent).common.ageGroup
+        }
+        .groupingBy { it }
+        .eachCount()
+
+    // Input spec: 100 IDs M16-34, 100 IDs F35-54, 100 IDs M55+, each freq 2 = 200 events each.
+    // If there were no correction matrix, output would have exactly 3 demo buckets with 200 each.
+    // The correction matrix reassigns some events to other buckets, so:
+    // 1. More than 3 output demo buckets exist (cross-gender/cross-age leakage)
+    assertThat(outputDemoCounts.keys.size).isGreaterThan(3)
+
+    // 2. No input bucket retains all 200 events
+    val m1634 = Common.Sex.MALE to Common.AgeGroup.YEARS_16_TO_34
+    val f3554 = Common.Sex.FEMALE to Common.AgeGroup.YEARS_35_TO_54
+    val m55 = Common.Sex.MALE to Common.AgeGroup.YEARS_55_PLUS
+    for (demo in listOf(m1634, f3554, m55)) {
+      assertThat(outputDemoCounts.getOrDefault(demo, 0)).isLessThan(200)
+    }
   }
 
   @Test
