@@ -19,6 +19,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
+import "google/protobuf/wrappers.proto";
 import "google/type/date.proto";
 import "wfa/measurement/edpaggregator/v1alpha/rank_index_blob.proto";
 
@@ -150,8 +151,10 @@ message ListRankIndexBlobsRequest {
       (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
     ];
 
-    // Filter by subpool ID.
-    int32 subpool_id = 3 [(google.api.field_behavior) = OPTIONAL];
+    // Filter by subpool ID. Uses wrapper type because 0 is
+    // a valid subpool ID.
+    google.protobuf.Int32Value subpool_id = 3
+        [(google.api.field_behavior) = OPTIONAL];
 
     // Filter for blobs with max_event_date on or before
     // this value. Used for retention policy queries.
@@ -186,4 +189,27 @@ message DeleteRankIndexBlobRequest {
       type: "edpaggregator.halo-cmm.org/RankIndexBlob"
     }
   ];
+}
+
+// Request message for the `BatchDeleteRankIndexBlobs` method.
+message BatchDeleteRankIndexBlobsRequest {
+  // The parent upload resource name.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RankIndexBlob"
+    }
+  ];
+
+  // Individual delete requests. Maximum 1000 per batch.
+  repeated DeleteRankIndexBlobRequest requests = 2
+      [(google.api.field_behavior) = REQUIRED];
+}
+
+// Response message for the `BatchDeleteRankIndexBlobs` method.
+message BatchDeleteRankIndexBlobsResponse {
+  // The deleted rank index blobs.
+  repeated RankIndexBlob rank_index_blobs = 1;
 }

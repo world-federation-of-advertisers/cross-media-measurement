@@ -78,26 +78,33 @@ message RankIndexBlob {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
+  // SHA-256 checksum of the plaintext blob payload. Used to
+  // detect corruption after decryption.
+  bytes blob_checksum = 6 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
   // The encrypted data encryption key (DEK) used to encrypt
   // the blob, itself encrypted via the DataProvider's KMS.
-  bytes encrypted_dek = 6 [
+  bytes encrypted_dek = 7 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
 
   // The newest event date among the impressions in this blob.
   // Only set for DAY_ONLY blobs; unset for SNAPSHOT blobs.
-  google.type.Date max_event_date = 7 [
+  google.type.Date max_event_date = 8 [
     (google.api.field_behavior) = OPTIONAL,
     (google.api.field_behavior) = IMMUTABLE
   ];
 
   // The timestamp when this record was created.
-  google.protobuf.Timestamp create_time = 8
+  google.protobuf.Timestamp create_time = 9
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The timestamp when this blob was soft-deleted.
   // Only populated if the blob has been deleted.
-  google.protobuf.Timestamp delete_time = 9
+  google.protobuf.Timestamp delete_time = 10
       [(google.api.field_behavior) = OUTPUT_ONLY];
 }
