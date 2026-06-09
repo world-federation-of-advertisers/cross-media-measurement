@@ -119,7 +119,8 @@ message VidRankBuilderParams {
 
   // Mapping from event template field names to their corresponding raw
   // impression field names. Mirrors the per-(EDP, model line) mapping
-  // configured in `VidLabelingConfig.ModelLineConfig.event_template_field_mapping`.
+  // configured in
+  // `VidLabelingConfig.ModelLineConfig.event_template_field_mapping`.
   //
   // Not consumed by the Phase-1 ranker. Pass-through for the Phase-2
   // VidLabeler WorkItem.
@@ -156,6 +157,5 @@ message VidRankBuilderParams {
   // ranker stamps this on the new day-only `RankIndexBlob` rows it
   // inserts so the retention sweep can identify aged-out blobs via
   // `MaxEventDate < today - RETENTION_DAYS`.
-  google.type.Date max_event_date = 15
-      [(google.api.field_behavior) = REQUIRED];
+  google.type.Date max_event_date = 15 [(google.api.field_behavior) = REQUIRED];
 }

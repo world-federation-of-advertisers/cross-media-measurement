@@ -32,37 +32,32 @@ import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
 /**
  * Phase-1 TEE application for the memoized VID assignment pipeline.
  *
- * One ranker VM per `RankerJob`. A `RankerJob` may cover one or more
- * subpools: the SubpoolAssigner's last-shard-out bin-packs subpools into
- * `RankerJob`s based on their fingerprint counts so that very small
- * subpools share a VM instead of each spinning up their own, while a single
- * very large subpool gets its own `RankerJob`. Within a subpool there is
- * no intra-subpool sharding — the entire subpool is owned by exactly one
- * `RankerJob`, and therefore one [VidRankBuilderApp] invocation. One
- * WorkItem is published per `RankerJob` row. The WorkItem's
- * [VidRankBuilderParams] carries the `(RawImpressionUpload, ModelLine,
- * RankerJobId)` triple plus the (subpool, Phase-0 blob URI) set this VM
- * ranks, supplied via [VidRankBuilderParams.subpool_map_blob_uris].
+ * One ranker VM per `RankerJob`. A `RankerJob` may cover one or more subpools: the
+ * SubpoolAssigner's last-shard-out bin-packs subpools into `RankerJob`s based on their fingerprint
+ * counts so that very small subpools share a VM instead of each spinning up their own, while a
+ * single very large subpool gets its own `RankerJob`. Within a subpool there is no intra-subpool
+ * sharding — the entire subpool is owned by exactly one `RankerJob`, and therefore one
+ * [VidRankBuilderApp] invocation. One WorkItem is published per `RankerJob` row. The WorkItem's
+ * [VidRankBuilderParams] carries the `(RawImpressionUpload, ModelLine, RankerJobId)` triple plus
+ * the (subpool, Phase-0 blob URI) set this VM ranks, supplied via
+ * [VidRankBuilderParams.subpool_map_blob_uris].
  *
  * Each VM:
- *  - loads the prior cumulative rank-index blob for each of its subpools
- *    from `vid_rank_map_storage_params` and rebuilds the in-heap
- *    `Bytes12IntMap` (12-byte fingerprint -> rank) and rank `BitSet`,
- *  - reads its subpools' `SubpoolFingerprints` blobs from
- *    `subpool_map_storage_params`,
- *  - prunes aged-out rank-index blobs per the retention policy and frees
- *    their ranks,
- *  - allocates ranks to new fingerprints, capping at `ranked_size` (overflow
- *    fingerprints fall back to the unranked path at Phase-2),
- *  - writes the new day-only and updated cumulative rank-index blobs
- *    (DEK-encrypted) back to `vid_rank_map_storage_params`,
- *  - flips its `RankerJob` row from `RANKING` to `RANKER_SUCCEEDED` via the
- *    EDP Aggregator internal gRPC.
+ * - loads the prior cumulative rank-index blob for each of its subpools from
+ *   `vid_rank_map_storage_params` and rebuilds the in-heap `Bytes12IntMap` (12-byte fingerprint ->
+ *   rank) and rank `BitSet`,
+ * - reads its subpools' `SubpoolFingerprints` blobs from `subpool_map_storage_params`,
+ * - prunes aged-out rank-index blobs per the retention policy and frees their ranks,
+ * - allocates ranks to new fingerprints, capping at `ranked_size` (overflow fingerprints fall back
+ *   to the unranked path at Phase-2),
+ * - writes the new day-only and updated cumulative rank-index blobs (DEK-encrypted) back to
+ *   `vid_rank_map_storage_params`,
+ * - flips its `RankerJob` row from `RANKING` to `RANKER_SUCCEEDED` via the EDP Aggregator internal
+ *   gRPC.
  *
- * The last `RankerJob` to complete for a `(RawImpressionUpload, ModelLine)`
- * is responsible for flipping `RawImpressionUploadModelLineState` from
- * `RANKING` to `LABELING` and publishing one VidLabeler WorkItem per shard
- * (`total_shards` controls the fan-out).
+ * The last `RankerJob` to complete for a `(RawImpressionUpload, ModelLine)` is responsible for
+ * flipping `RawImpressionUploadModelLineState` from `RANKING` to `LABELING` and publishing one
+ * VidLabeler WorkItem per shard (`total_shards` controls the fan-out).
  *
  * @param subscriptionId The subscription ID for the queue subscriber.
  * @param queueSubscriber The [QueueSubscriber] instance for receiving work items.
@@ -70,17 +65,14 @@ import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
  * @param workItemsClient gRPC client stub for [WorkItemsGrpcKt.WorkItemsCoroutineStub].
  * @param workItemAttemptsClient gRPC client stub for
  *   [WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub].
- * @param kmsClients Per-DataProvider KMS clients used to wrap/unwrap DEKs
- *   for the rank-index blobs.
- * @param getRawImpressionStorageConfig Lambda to obtain the [StorageConfig]
- *   for reading raw-impression files (only consulted if Phase-1 ever needs
- *   to touch raw impressions; not used by the canonical Phase-1 design).
- * @param getSubpoolMapStorageConfig Lambda to obtain the [StorageConfig]
- *   for reading the per-(shard, subpool) `SubpoolFingerprints` blobs
- *   produced by the SubpoolAssigner.
- * @param getVidRankMapStorageConfig Lambda to obtain the [StorageConfig]
- *   for reading prior cumulative rank-index blobs and writing the new
- *   day-only + cumulative blobs.
+ * @param kmsClients Per-DataProvider KMS clients used to wrap/unwrap DEKs for the rank-index blobs.
+ * @param getRawImpressionStorageConfig Lambda to obtain the [StorageConfig] for reading
+ *   raw-impression files (only consulted if Phase-1 ever needs to touch raw impressions; not used
+ *   by the canonical Phase-1 design).
+ * @param getSubpoolMapStorageConfig Lambda to obtain the [StorageConfig] for reading the
+ *   per-(shard, subpool) `SubpoolFingerprints` blobs produced by the SubpoolAssigner.
+ * @param getVidRankMapStorageConfig Lambda to obtain the [StorageConfig] for reading prior
+ *   cumulative rank-index blobs and writing the new day-only + cumulative blobs.
  */
 class VidRankBuilderApp(
   subscriptionId: String,
@@ -109,8 +101,7 @@ class VidRankBuilderApp(
 
   override suspend fun runWork(message: Any) {
     val workItemParams = message.unpack(WorkItemParams::class.java)
-    val vidRankBuilderParams =
-      workItemParams.appParams.unpack(VidRankBuilderParams::class.java)
+    val vidRankBuilderParams = workItemParams.appParams.unpack(VidRankBuilderParams::class.java)
 
     // TODO(@Marco-Premier): Implement Phase-1 pipeline:
     //   1. Resolve storage configs via getSubpoolMapStorageConfig and
