@@ -243,10 +243,18 @@ jobs:
       env:
         DATA_PROVIDER_RESOURCE_IDS: ${{ vars.DATA_PROVIDER_RESOURCE_IDS }}
         DASHBOARD_OPERATORS: ${{ vars.DASHBOARD_OPERATORS }}
+        SPANNER_PROJECT: ${{ vars.GOOGLE_CLOUD_PROJECT }}
+        SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
       run: |
         cat > dashboard.auto.tfvars << EOF
-        data_provider_resource_ids = ${DATA_PROVIDER_RESOURCE_IDS}
-        dashboard_operators        = ${DASHBOARD_OPERATORS}
+        data_provider_resource_ids      = ${DATA_PROVIDER_RESOURCE_IDS}
+        dashboard_operators             = ${DASHBOARD_OPERATORS}
+        edp_aggregator_spanner_project  = "${SPANNER_PROJECT}"
+        edp_aggregator_spanner_instance = "${SPANNER_INSTANCE}"
+        kingdom_spanner_project         = "${SPANNER_PROJECT}"
+        kingdom_spanner_instance        = "${SPANNER_INSTANCE}"
+        reporting_spanner_project       = "${SPANNER_PROJECT}"
+        reporting_spanner_instance      = "${SPANNER_INSTANCE}"
         EOF
 
     - name: terraform plan

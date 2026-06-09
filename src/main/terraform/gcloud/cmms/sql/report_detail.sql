@@ -15,38 +15,32 @@
 %{ if include_platform_columns }
 SELECT
   *,
-  COUNT(DISTINCT CmmsDataProvider) OVER (PARTITION BY BasicReportId) AS EdpCount
+  COUNT(DISTINCT CmmsDataProvider) OVER (PARTITION BY ExternalReportId) AS EdpCount
 FROM (
 %{ endif }
 SELECT
-  base.BasicReportId,
+  base.ExternalReportId,
   base.CmmsDataProvider,
   COUNT(DISTINCT base.CmmsEventGroupId) AS EventGroupCount,
-  ARRAY_AGG(DISTINCT base.CmmsEventGroupId) AS EventGroupIds,
+  ARRAY_AGG(DISTINCT base.CmmsEventGroupId) AS CmmsEventGroupIds,
   ARRAY_AGG(DISTINCT base.CampaignName IGNORE NULLS) AS CampaignNames,
   ARRAY_AGG(DISTINCT base.BrandName IGNORE NULLS) AS BrandNames
 FROM (
   SELECT
-    br.BasicReportId,
+    br.ExternalReportId,
     JSON_VALUE(comp, '$.cmmsDataProviderId') AS CmmsDataProvider,
     JSON_VALUE(eg, '$.cmmsEventGroupId') AS CmmsEventGroupId,
-    JSON_VALUE(
-      `${project_id}.dashboard.decode_EventGroupDetails`(keg.EventGroupDetails),
-      '$.metadata.ad_metadata.campaign_metadata.campaign_name'
-    ) AS CampaignName,
-    JSON_VALUE(
-      `${project_id}.dashboard.decode_EventGroupDetails`(keg.EventGroupDetails),
-      '$.metadata.ad_metadata.campaign_metadata.brand_name'
-    ) AS BrandName
+    keg.CampaignName,
+    keg.BrandName
   FROM (
     SELECT
-      BasicReportId,
-      `${project_id}.dashboard.decode_BasicReportResultDetails`(BasicReportResultDetails) AS details
+      ExternalReportId,
+      details
     FROM EXTERNAL_QUERY(
       'projects/${project_id}/locations/${region}/connections/reporting-conn',
       '''SELECT
-        br.BasicReportId,
-        CAST(br.BasicReportResultDetails AS BYTES) AS BasicReportResultDetails
+        br.ExternalReportId,
+        CAST(TO_JSON(br.BasicReportResultDetails) AS STRING) AS details
       FROM BasicReports br''')
   ) br,
   UNNEST(JSON_QUERY_ARRAY(br.details, '$.resultGroups')) AS rg,
@@ -59,13 +53,14 @@ FROM (
       '''SELECT
         eg.ExternalEventGroupId,
         eg.MeasurementConsumerId,
-        CAST(eg.EventGroupDetails AS BYTES) AS EventGroupDetails
+        TO_JSON(eg.EventGroupDetails).metadata.adMetadata.campaignMetadata.campaignName AS CampaignName,
+        TO_JSON(eg.EventGroupDetails).metadata.adMetadata.campaignMetadata.brandName AS BrandName
       FROM EventGroups eg''')
   ) keg
     ON JSON_VALUE(eg, '$.cmmsEventGroupId') = `${project_id}.dashboard.externalIdToApiId`(keg.ExternalEventGroupId)
     AND JSON_VALUE(eg, '$.cmmsMeasurementConsumerId') = `${project_id}.dashboard.externalIdToApiId`(keg.MeasurementConsumerId)
 ) base
-GROUP BY base.BasicReportId, base.CmmsDataProvider
+GROUP BY base.ExternalReportId, base.CmmsDataProvider
 %{ if include_platform_columns }
 )
 %{ endif }

@@ -91,4 +91,44 @@ class DashboardViewIsolationLocalTest {
       assertThat(sql).contains("EXTERNAL_QUERY")
     }
   }
+
+  @Test
+  fun externalIdToApiIdAlgorithm() {
+    // The UDF converts int64 to base64url-encoded big-endian bytes (no padding).
+    // Validate the algorithm with known-good pairs.
+    fun externalIdToApiId(id: Long): String {
+      val bytes = ByteArray(8)
+      var v = id
+      for (i in 7 downTo 0) {
+        bytes[i] = (v and 0xFF).toByte()
+        v = v shr 8
+      }
+      val lookup = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+      val result = StringBuilder()
+      var i = 0
+      while (i < bytes.size) {
+        val c1 = bytes[i].toInt() and 0xFF
+        val c2 = if (i + 1 < bytes.size) bytes[i + 1].toInt() and 0xFF else 0
+        val c3 = if (i + 2 < bytes.size) bytes[i + 2].toInt() and 0xFF else 0
+        result.append(lookup[c1 shr 2])
+        result.append(lookup[((c1 and 3) shl 4) or (c2 shr 4)])
+        if (i + 1 < bytes.size) result.append(lookup[((c2 and 15) shl 2) or (c3 shr 6)])
+        if (i + 2 < bytes.size) result.append(lookup[c3 and 63])
+        i += 3
+      }
+      return result.toString()
+    }
+
+    // Test with synthetic known values
+    assertThat(externalIdToApiId(0)).isEqualTo("AAAAAAAAAAA")
+    assertThat(externalIdToApiId(1)).isEqualTo("AAAAAAAAAAE")
+    // Test with real DataProvider ExternalId from Kingdom Spanner (halo-cmm-dev)
+    assertThat(externalIdToApiId(2846180192195638458L)).isEqualTo("J3-pzhqS9Lo")
+    // Verify output is URL-safe (no +, /, or = characters)
+    val result = externalIdToApiId(123456789L)
+    assertThat(result).isNotEmpty()
+    assertThat(result).doesNotContain("+")
+    assertThat(result).doesNotContain("/")
+    assertThat(result).doesNotContain("=")
+  }
 }

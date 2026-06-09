@@ -16,16 +16,16 @@ SELECT
   `${project_id}.dashboard.externalIdToApiId`(eg.MeasurementConsumerId) AS CmmsMeasurementConsumer,
   `${project_id}.dashboard.externalIdToApiId`(eg.DataProviderId) AS CmmsDataProvider,
   COUNT(*) AS EventGroupCount,
-  ARRAY_AGG(IFNULL(eg.ProvidedEventGroupId, '')) AS EventGroupIds,
-  ARRAY_AGG(IFNULL(JSON_VALUE(
-    `${project_id}.dashboard.decode_EventGroupDetails`(eg.EventGroupDetails),
-    '$.metadata.ad_metadata.campaign_metadata.campaign_name'
-  ), '')) AS CampaignNames,
-  ARRAY_AGG(IFNULL(JSON_VALUE(
-    `${project_id}.dashboard.decode_EventGroupDetails`(eg.EventGroupDetails),
-    '$.metadata.ad_metadata.campaign_metadata.brand_name'
-  ), '')) AS BrandNames,
-  ARRAY_AGG(IFNULL(ca.ClientAccountReferenceId, '')) AS AccountIds
+  ARRAY_AGG(IFNULL(eg.ProvidedEventGroupId, '')) AS ProvidedEventGroupIds,
+  ARRAY_AGG(IFNULL(eg.EntityType, '')) AS EntityTypes,
+  ARRAY_AGG(IFNULL(eg.EntityId, '')) AS EntityIds,
+  ARRAY_AGG(IFNULL(eg.CampaignName, '')) AS CampaignNames,
+  ARRAY_AGG(IFNULL(eg.BrandName, '')) AS BrandNames,
+  ARRAY_AGG(IFNULL(eg.EventTemplates, '')) AS EventTemplates,
+  ARRAY_AGG(IFNULL(mt.MediaTypes, '')) AS MediaTypes,
+  ARRAY_AGG(IFNULL(ca.ClientAccountReferenceId, '')) AS AccountIds,
+  MIN(eg.DataAvailabilityStartTime) AS DataAvailabilityStartTime,
+  MAX(eg.DataAvailabilityEndTime) AS DataAvailabilityEndTime
 %{ if include_platform_columns }
   , mc.TotalMcs
   , SAFE_DIVIDE(
@@ -38,11 +38,37 @@ FROM (
     'projects/${project_id}/locations/${region}/connections/kingdom-conn',
     '''SELECT
       eg.DataProviderId,
+      eg.EventGroupId,
       eg.MeasurementConsumerId,
       eg.ProvidedEventGroupId,
-      CAST(eg.EventGroupDetails AS BYTES) AS EventGroupDetails
+      eg.EntityType,
+      eg.EntityId,
+      eg.DataAvailabilityStartTime,
+      eg.DataAvailabilityEndTime,
+      TO_JSON(eg.EventGroupDetails).metadata.adMetadata.campaignMetadata.campaignName AS CampaignName,
+      TO_JSON(eg.EventGroupDetails).metadata.adMetadata.campaignMetadata.brandName AS BrandName,
+      CAST(TO_JSON(eg.EventGroupDetails).eventTemplates AS STRING) AS EventTemplates
     FROM EventGroups eg''')
 ) eg
+LEFT JOIN (
+  SELECT * FROM EXTERNAL_QUERY(
+    'projects/${project_id}/locations/${region}/connections/kingdom-conn',
+    '''SELECT
+      mt.DataProviderId,
+      mt.EventGroupId,
+      STRING_AGG(
+        CASE mt.MediaType
+          WHEN 1 THEN 'VIDEO'
+          WHEN 2 THEN 'DISPLAY'
+          WHEN 3 THEN 'OTHER'
+          ELSE CAST(mt.MediaType AS STRING)
+        END
+      ) AS MediaTypes
+    FROM EventGroupMediaTypes mt
+    GROUP BY mt.DataProviderId, mt.EventGroupId''')
+) mt
+  ON eg.DataProviderId = mt.DataProviderId
+  AND eg.EventGroupId = mt.EventGroupId
 LEFT JOIN (
   SELECT * FROM EXTERNAL_QUERY(
     'projects/${project_id}/locations/${region}/connections/kingdom-conn',
