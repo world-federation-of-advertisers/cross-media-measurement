@@ -37,7 +37,7 @@ class TestOriginReport(unittest.TestCase):
   def test_report_summary_is_parsed_correctly(self):
     report_summary = get_report_summary(
         'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary.json')
-    reportSummaryProcessor = ReportSummaryProcessor(report_summary)
+    reportSummaryProcessor = ReportSummaryProcessor(report_summary, [])
 
     reportSummaryProcessor._process_primitive_measurements()
     reportSummaryProcessor._process_difference_measurements()
@@ -353,7 +353,7 @@ class TestOriginReport(unittest.TestCase):
     report_summary = get_report_summary(
         'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary.json')
     noise_correction_result: ReportPostProcessorResult = ReportSummaryProcessor(
-        report_summary).process()
+        report_summary, []).process()
 
     primitive_edp_combinations = ['edp1', 'edp2', 'edp1_edp2']
     composite_edp_combinations = ['edp1_minus_edp2', 'edp2_minus_edp1']
@@ -662,7 +662,7 @@ class TestOriginReport(unittest.TestCase):
     report_summary = get_report_summary(
         'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_without_whole_campaign_reach.json')
     noise_correction_result: ReportPostProcessorResult = ReportSummaryProcessor(
-        report_summary).process()
+        report_summary, []).process()
 
     primitive_edp_combinations = ['edp1', 'edp2', 'edp1_edp2']
     composite_edp_combinations = ['edp1_minus_edp2', 'edp2_minus_edp1']
@@ -943,7 +943,7 @@ class TestOriginReport(unittest.TestCase):
     report_summary = get_report_summary(
         'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_without_cumulative_reaches.json')
     noise_correction_result: ReportPostProcessorResult = ReportSummaryProcessor(
-        report_summary).process()
+        report_summary, []).process()
 
     primitive_edp_combinations = ['edp1', 'edp2', 'edp1_edp2']
     composite_edp_combinations = ['edp1_minus_edp2', 'edp2_minus_edp1']
@@ -1113,7 +1113,7 @@ class TestOriginReport(unittest.TestCase):
         'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_with_unreferenced_unique_reaches.json'
     )
     noise_correction_result: ReportPostProcessorResult = ReportSummaryProcessor(
-        report_summary).process()
+        report_summary, []).process()
 
     corrected_measurements_map = noise_correction_result.updated_measurements
     self.assertEqual(noise_correction_result.status.status_code,
