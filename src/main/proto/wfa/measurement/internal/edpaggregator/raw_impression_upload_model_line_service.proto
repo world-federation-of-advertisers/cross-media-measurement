@@ -25,7 +25,9 @@ option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
 option java_outer_classname = "RawImpressionUploadModelLineServiceProto";
 
-// Service for managing RawImpressionUploadModelLine resources.
+// Service for managing `RawImpressionUploadModelLine` resources,
+// which track per-model-line processing state for a raw
+// impression upload.
 service RawImpressionUploadModelLineService {
   // Creates a new `RawImpressionUploadModelLine`.
   rpc CreateRawImpressionUploadModelLine(
