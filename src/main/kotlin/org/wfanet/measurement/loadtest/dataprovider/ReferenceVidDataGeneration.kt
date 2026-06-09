@@ -16,29 +16,25 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpec
 
 object ReferenceVidDataGeneration {
 
-  data class ReferenceVidRecord(
-    val referenceVid: Long,
-    val gender: Int,
-    val minAge: Int,
-    val maxAge: Int,
-    val nonPopulationFieldValues: Map<String, FieldValue>,
-  )
-
-  fun generate(spec: ReferenceVidEventGroupSpec): List<ReferenceVidRecord> {
-    return spec.demographicDistributionsList.flatMap { demoDist ->
-      (demoDist.idRange.start until demoDist.idRange.endExclusive).map { referenceVid ->
-        ReferenceVidRecord(
-          referenceVid = referenceVid,
-          gender = demoDist.gender,
-          minAge = demoDist.minAge,
-          maxAge = demoDist.maxAge,
-          nonPopulationFieldValues = spec.nonPopulationFieldValuesMap,
-        )
+  fun generate(spec: ReferenceVidEventGroupSpec): Sequence<ReferenceVidRecord> = sequence {
+    for (dateSpec in spec.dateSpecsList) {
+      for (demoDist in dateSpec.demographicDistributionsList) {
+        for (referenceVid in demoDist.idRange.start until demoDist.idRange.endExclusive) {
+          yield(
+            ReferenceVidRecord(
+              referenceVid = referenceVid,
+              gender = demoDist.gender,
+              minAge = demoDist.minAge,
+              maxAge = demoDist.maxAge,
+              frequency = demoDist.frequency,
+              nonPopulationFieldValues = spec.nonPopulationFieldValuesMap,
+            )
+          )
+        }
       }
     }
   }

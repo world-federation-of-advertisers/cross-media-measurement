@@ -65,8 +65,7 @@ object ReferenceVidSpecConverter {
     sourcePopulationSpec: PopulationSpec,
     maxVidRangeSpecs: Int = DEFAULT_MAX_VID_RANGE_SPECS,
   ): ConvertedSpecs {
-    val records: List<ReferenceVidDataGeneration.ReferenceVidRecord> =
-      ReferenceVidDataGeneration.generate(spec)
+    val records: List<ReferenceVidRecord> = ReferenceVidDataGeneration.generate(spec).toList()
 
     val labeledVids: List<LabeledReferenceVid> =
       records.map { record ->
@@ -108,7 +107,11 @@ object ReferenceVidSpecConverter {
           "VID $vid (from reference VID ${record.referenceVid}) not in any PopulationSpec range"
         }
 
-        LabeledReferenceVid(vid = vid, subPopulationIndex = subPopIndex)
+        LabeledReferenceVid(
+          vid = vid,
+          subPopulationIndex = subPopIndex,
+          frequency = record.frequency,
+        )
       }
 
     logger.info(
@@ -122,22 +125,25 @@ object ReferenceVidSpecConverter {
     )
   }
 
-  private data class LabeledReferenceVid(val vid: Long, val subPopulationIndex: Int)
+  private data class LabeledReferenceVid(
+    val vid: Long,
+    val subPopulationIndex: Int,
+    val frequency: Long,
+  )
 
   private fun convertSyntheticSpec(
     labeledVids: List<LabeledReferenceVid>,
     spec: ReferenceVidEventGroupSpec,
     maxVidRangeSpecs: Int,
   ): SyntheticEventGroupSpec {
-    val vidCounts: Map<Long, Int> = labeledVids.groupingBy { it.vid }.eachCount()
+    val vidFrequencies: Map<Long, Long> =
+      labeledVids.groupBy { it.vid }.mapValues { (_, vids) -> vids.sumOf { it.frequency } }
 
     val result = syntheticEventGroupSpec {
       for (refDateSpec in spec.dateSpecsList) {
-        val specFrequency = refDateSpec.frequency
 
         val vidsByEffectiveFrequency: Map<Long, List<Long>> =
-          vidCounts.entries.groupBy({ it.value * specFrequency }, { it.key }).mapValues { (_, vids)
-            ->
+          vidFrequencies.entries.groupBy({ it.value }, { it.key }).mapValues { (_, vids) ->
             vids.sorted()
           }
 

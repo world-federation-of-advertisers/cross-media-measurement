@@ -2,36 +2,8 @@
 # proto-message: ReferenceVidEventGroupSpec
 
 # Small test spec: 300 reference VIDs across 3 demographic buckets.
-# Date range: 2024-01-01..2024-01-03 (3 days), frequency 2.
-# Total events: 300 reference VIDs * frequency 2 = 600 events across 3 days.
-
-demographic_distributions {
-  id_range {
-    start: 0
-    end_exclusive: 100
-  }
-  gender: 1
-  min_age: 16
-  max_age: 34
-}
-demographic_distributions {
-  id_range {
-    start: 100
-    end_exclusive: 200
-  }
-  gender: 2
-  min_age: 35
-  max_age: 54
-}
-demographic_distributions {
-  id_range {
-    start: 200
-    end_exclusive: 300
-  }
-  gender: 1
-  min_age: 55
-  max_age: 99
-}
+# Date range: 2024-01-01..2024-01-03 (3 days).
+# Total events: (100 * freq 2) + (100 * freq 1) + (100 * freq 3) = 600 events.
 
 date_specs {
   date_range {
@@ -46,7 +18,36 @@ date_specs {
       day: 4
     }
   }
-  frequency: 2
+  demographic_distributions {
+    id_range {
+      start: 0
+      end_exclusive: 100
+    }
+    gender: 1
+    min_age: 16
+    max_age: 34
+    frequency: 2
+  }
+  demographic_distributions {
+    id_range {
+      start: 100
+      end_exclusive: 200
+    }
+    gender: 2
+    min_age: 35
+    max_age: 54
+    frequency: 1
+  }
+  demographic_distributions {
+    id_range {
+      start: 200
+      end_exclusive: 300
+    }
+    gender: 1
+    min_age: 55
+    max_age: 99
+    frequency: 3
+  }
 }
 
 non_population_field_values {

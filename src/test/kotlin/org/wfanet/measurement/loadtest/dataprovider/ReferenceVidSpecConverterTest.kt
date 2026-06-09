@@ -134,15 +134,6 @@ class ReferenceVidSpecConverterTest {
   @Test
   fun `convert produces expected SyntheticEventGroupSpec for known inputs`() {
     val smallSpec = referenceVidEventGroupSpec {
-      demographicDistributions += demographicDistribution {
-        idRange = idRange {
-          start = 0
-          endExclusive = 5
-        }
-        gender = 1
-        minAge = 16
-        maxAge = 34
-      }
       dateSpecs += dateSpec {
         this.dateRange = dateRange {
           start = date {
@@ -156,7 +147,16 @@ class ReferenceVidSpecConverterTest {
             day = 2
           }
         }
-        frequency = 1
+        demographicDistributions += demographicDistribution {
+          idRange = idRange {
+            start = 0
+            endExclusive = 5
+          }
+          gender = 1
+          minAge = 16
+          maxAge = 34
+          frequency = 1
+        }
       }
     }
 

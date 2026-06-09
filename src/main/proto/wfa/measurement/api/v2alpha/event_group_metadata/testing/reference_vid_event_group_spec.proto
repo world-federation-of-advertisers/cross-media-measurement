@@ -36,7 +36,7 @@ message ReferenceVidEventGroupSpec {
     int64 end_exclusive = 2;
   }
 
-  // Assigns demographics to a sub-range of reference VIDs.
+  // Assigns demographics and frequency to a range of reference VIDs.
   //
   // Each reference VID in the range is converted to a string (`id.toString()`) and used
   // as `event_id.id` for the labeler. Demographics are set on the labeler
@@ -49,9 +49,13 @@ message ReferenceVidEventGroupSpec {
 
     int32 min_age = 3;
     int32 max_age = 4;
+
+    // Total frequency for each reference VID in this distribution over the
+    // containing date range.
+    int64 frequency = 5;
   }
 
-  // Date range and frequency for event generation.
+  // Date range and demographic distributions for event generation.
   message DateSpec {
     message DateRange {
       google.type.Date start = 1;
@@ -60,18 +64,15 @@ message ReferenceVidEventGroupSpec {
 
     DateRange date_range = 1;
 
-    // Total frequency for each reference VID over this date range.
-    int64 frequency = 2;
+    // Demographic distributions with per-distribution frequency.
+    repeated DemographicDistribution demographic_distributions = 2;
   }
 
-  // Input ID ranges with their demographic assignments.
-  repeated DemographicDistribution demographic_distributions = 1;
-
-  // Date ranges and frequencies.
-  repeated DateSpec date_specs = 2;
+  // Date ranges with their demographic distributions.
+  repeated DateSpec date_specs = 1;
 
   // Non-population field values applied to all generated events (e.g.
   // viewability flags). Same key format as
   // `SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec.non_population_field_values`.
-  map<string, FieldValue> non_population_field_values = 3;
+  map<string, FieldValue> non_population_field_values = 2;
 }
