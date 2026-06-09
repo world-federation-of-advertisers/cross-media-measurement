@@ -19,7 +19,6 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
-import "google/protobuf/wrappers.proto";
 import "google/type/date.proto";
 import "wfa/measurement/edpaggregator/v1alpha/rank_index_blob.proto";
 
@@ -46,6 +45,10 @@ service RankIndexBlobService {
 
   // Soft-deletes a `RankIndexBlob`.
   rpc DeleteRankIndexBlob(DeleteRankIndexBlobRequest) returns (RankIndexBlob) {}
+
+  // Soft-deletes multiple `RankIndexBlob` resources.
+  rpc BatchDeleteRankIndexBlobs(BatchDeleteRankIndexBlobsRequest)
+      returns (BatchDeleteRankIndexBlobsResponse) {}
 }
 
 // Request message for the `CreateRankIndexBlob` method.
@@ -151,10 +154,8 @@ message ListRankIndexBlobsRequest {
       (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
     ];
 
-    // Filter by subpool ID. Uses wrapper type because 0 is
-    // a valid subpool ID.
-    google.protobuf.Int32Value subpool_id = 3
-        [(google.api.field_behavior) = OPTIONAL];
+    // Filter by subpool ID.
+    optional int32 subpool_id = 3 [(google.api.field_behavior) = OPTIONAL];
 
     // Filter for blobs with max_event_date on or before
     // this value. Used for retention policy queries.
