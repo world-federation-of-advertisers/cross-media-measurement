@@ -34,7 +34,81 @@ permissions:
   contents: read
 
 jobs:
+  trigger-scheduled-queries:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+
+      - name: Trigger all dashboard scheduled queries
+        env:
+          PROJECT: ${{ vars.GOOGLE_CLOUD_PROJECT }}
+          REGION: ${{ vars.BIGQUERY_REGION }}
+        run: |
+          set -euo pipefail
+          RUN_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          echo "Listing dashboard transfer configs..."
+          CONFIGS=$(gcloud transfer configs list \
+            --project="$PROJECT" \
+            --transfer-location="$REGION" \
+            --filter="displayName:Dashboard" \
+            --format="value(name)")
+
+          if [ -z "$CONFIGS" ]; then
+            echo "No dashboard transfer configs found"
+            exit 1
+          fi
+
+          echo "Triggering manual runs..."
+          for config in $CONFIGS; do
+            echo "  Triggering: $config"
+            gcloud transfer runs create \
+              --project="$PROJECT" \
+              --config="$config" \
+              --run-time="$RUN_TIME"
+          done
+
+          echo "Waiting for runs to complete..."
+          MAX_WAIT=300
+          ELAPSED=0
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            ALL_DONE=true
+            for config in $CONFIGS; do
+              STATUS=$(gcloud transfer runs list \
+                --project="$PROJECT" \
+                --config="$config" \
+                --limit=1 \
+                --format="value(state)")
+              if [ "$STATUS" != "SUCCEEDED" ] && [ "$STATUS" != "FAILED" ]; then
+                ALL_DONE=false
+                break
+              fi
+              if [ "$STATUS" = "FAILED" ]; then
+                echo "Transfer run failed for $config"
+                exit 1
+              fi
+            done
+            if [ "$ALL_DONE" = true ]; then
+              echo "All scheduled queries completed successfully"
+              exit 0
+            fi
+            sleep 10
+            ELAPSED=$((ELAPSED + 10))
+            echo "  Waiting... ($ELAPSED/${MAX_WAIT}s)"
+          done
+          echo "Timed out waiting for scheduled queries"
+          exit 1
+
   run-tests:
+    needs: [trigger-scheduled-queries]
     runs-on: ubuntu-22.04
     permissions:
       contents: read

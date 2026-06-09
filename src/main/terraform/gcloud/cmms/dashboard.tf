@@ -65,114 +65,6 @@ resource "google_bigquery_routine" "external_id_to_api_id" {
   JS
 }
 
-resource "google_bigquery_routine" "decode_event_group_details" {
-  dataset_id   = google_bigquery_dataset.dashboard.dataset_id
-  project      = data.google_client_config.default.project
-  routine_id   = "decode_EventGroupDetails"
-  routine_type = "SCALAR_FUNCTION"
-  language     = "JAVASCRIPT"
-
-  arguments {
-    name      = "b"
-    data_type = jsonencode({ "typeKind" : "BYTES" })
-  }
-
-  return_type = jsonencode({ "typeKind" : "STRING" })
-
-  imported_libraries = [
-    "gs://${google_storage_bucket.dashboard_udfs.name}/lib/protobuf.global.min.js",
-    "gs://${google_storage_bucket.dashboard_udfs.name}/descriptors/kingdom_descriptor.js",
-  ]
-
-  definition_body = <<-JS
-    // SECURITY: Allowlisted output only. Do not return full decoded proto.
-    // Adding new fields requires security review for cross-EDP data leakage.
-    const root = protobuf.Root.fromJSON(DESCRIPTOR_kingdom);
-    const T = root.lookupType('wfa.measurement.internal.kingdom.EventGroupDetails');
-    const m = T.decode(new Uint8Array(b));
-    const decoded = T.toObject(m, {longs: Number, enums: String, defaults: true});
-    return JSON.stringify({
-      metadata: {
-        adMetadata: {
-          campaignMetadata: {
-            brandName: (decoded.metadata && decoded.metadata.adMetadata && decoded.metadata.adMetadata.campaignMetadata) ? decoded.metadata.adMetadata.campaignMetadata.brandName : null,
-            campaignName: (decoded.metadata && decoded.metadata.adMetadata && decoded.metadata.adMetadata.campaignMetadata) ? decoded.metadata.adMetadata.campaignMetadata.campaignName : null
-          }
-        }
-      }
-    });
-  JS
-}
-
-resource "google_bigquery_routine" "decode_basic_report_details" {
-  dataset_id   = google_bigquery_dataset.dashboard.dataset_id
-  project      = data.google_client_config.default.project
-  routine_id   = "decode_BasicReportDetails"
-  routine_type = "SCALAR_FUNCTION"
-  language     = "JAVASCRIPT"
-
-  arguments {
-    name      = "b"
-    data_type = jsonencode({ "typeKind" : "BYTES" })
-  }
-
-  return_type = jsonencode({ "typeKind" : "STRING" })
-
-  imported_libraries = [
-    "gs://${google_storage_bucket.dashboard_udfs.name}/lib/protobuf.global.min.js",
-    "gs://${google_storage_bucket.dashboard_udfs.name}/descriptors/reporting_descriptor.js",
-  ]
-
-  definition_body = <<-JS
-    // SECURITY: Allowlisted output only. Do not return full decoded proto.
-    // EXCLUDED: result_group_specs (contains data_provider_keys listing all EDPs).
-    // Adding new fields requires security review for cross-EDP data leakage.
-    const root = protobuf.Root.fromJSON(DESCRIPTOR_reporting);
-    const T = root.lookupType('wfa.measurement.internal.reporting.v2.BasicReportDetails');
-    const m = T.decode(new Uint8Array(b));
-    const decoded = T.toObject(m, {longs: Number, enums: String, defaults: true});
-    return JSON.stringify({
-      title: decoded.title || null,
-      reportingInterval: decoded.reportingInterval || null,
-      impressionQualificationFilters: decoded.impressionQualificationFilters || null
-    });
-  JS
-}
-
-resource "google_bigquery_routine" "decode_basic_report_result_details" {
-  dataset_id   = google_bigquery_dataset.dashboard.dataset_id
-  project      = data.google_client_config.default.project
-  routine_id   = "decode_BasicReportResultDetails"
-  routine_type = "SCALAR_FUNCTION"
-  language     = "JAVASCRIPT"
-
-  arguments {
-    name      = "b"
-    data_type = jsonencode({ "typeKind" : "BYTES" })
-  }
-
-  return_type = jsonencode({ "typeKind" : "STRING" })
-
-  imported_libraries = [
-    "gs://${google_storage_bucket.dashboard_udfs.name}/lib/protobuf.global.min.js",
-    "gs://${google_storage_bucket.dashboard_udfs.name}/descriptors/reporting_descriptor.js",
-  ]
-
-  definition_body = <<-JS
-    // SECURITY: Allowlisted output only. Do not return full decoded proto.
-    // EXCLUDED: Any future top-level aggregate fields that span across EDPs.
-    // The view filters per-EDP at the component level via cmmsDataProviderId.
-    // Adding new fields requires security review for cross-EDP data leakage.
-    const root = protobuf.Root.fromJSON(DESCRIPTOR_reporting);
-    const T = root.lookupType('wfa.measurement.internal.reporting.v2.BasicReportResultDetails');
-    const m = T.decode(new Uint8Array(b));
-    const decoded = T.toObject(m, {longs: Number, enums: String, defaults: true});
-    return JSON.stringify({
-      resultGroups: decoded.resultGroups || []
-    });
-  JS
-}
-
 # --- BigQuery Connections (Spanner with Data Boost) ---
 
 resource "google_bigquery_connection" "edp_aggregator" {
@@ -181,7 +73,7 @@ resource "google_bigquery_connection" "edp_aggregator" {
   location      = data.google_client_config.default.region
 
   cloud_spanner {
-    database        = "projects/${data.google_client_config.default.project}/instances/${google_spanner_instance.spanner_instance.name}/databases/edp-aggregator"
+    database        = "projects/${var.edp_aggregator_spanner_project}/instances/${var.edp_aggregator_spanner_instance}/databases/edp-aggregator"
     use_data_boost  = true
     use_parallelism = true
   }
@@ -193,7 +85,7 @@ resource "google_bigquery_connection" "kingdom" {
   location      = data.google_client_config.default.region
 
   cloud_spanner {
-    database        = "projects/${data.google_client_config.default.project}/instances/${google_spanner_instance.spanner_instance.name}/databases/kingdom"
+    database        = "projects/${var.kingdom_spanner_project}/instances/${var.kingdom_spanner_instance}/databases/kingdom"
     use_data_boost  = true
     use_parallelism = true
   }
@@ -205,7 +97,7 @@ resource "google_bigquery_connection" "reporting" {
   location      = data.google_client_config.default.region
 
   cloud_spanner {
-    database        = "projects/${data.google_client_config.default.project}/instances/${google_spanner_instance.spanner_instance.name}/databases/reporting"
+    database        = "projects/${var.reporting_spanner_project}/instances/${var.reporting_spanner_instance}/databases/reporting"
     use_data_boost  = true
     use_parallelism = true
   }
@@ -246,6 +138,11 @@ resource "google_bigquery_table" "requisition_overview" {
     "mode": "NULLABLE"
   },
   {
+    "name": "RefusalMessage",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
     "name": "CmmsCreateTime",
     "type": "TIMESTAMP",
     "mode": "NULLABLE"
@@ -266,39 +163,33 @@ resource "google_bigquery_table" "requisition_overview" {
     "mode": "NULLABLE"
   },
   {
-    "name": "ReportStartYear",
-    "type": "STRING",
+    "name": "ReportStartDate",
+    "type": "DATE",
     "mode": "NULLABLE"
   },
   {
-    "name": "ReportStartMonth",
-    "type": "STRING",
-    "mode": "NULLABLE"
-  },
-  {
-    "name": "ReportStartDay",
-    "type": "STRING",
-    "mode": "NULLABLE"
-  },
-  {
-    "name": "ReportEndYear",
-    "type": "STRING",
-    "mode": "NULLABLE"
-  },
-  {
-    "name": "ReportEndMonth",
-    "type": "STRING",
-    "mode": "NULLABLE"
-  },
-  {
-    "name": "ReportEndDay",
-    "type": "STRING",
+    "name": "ReportEndDate",
+    "type": "DATE",
     "mode": "NULLABLE"
   },
   {
     "name": "ImpressionQualificationFilters",
     "type": "STRING",
     "mode": "NULLABLE"
+  },
+  {
+    "name": "ReportTitle",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ResultGroupSpecs",
+    "type": "RECORD",
+    "mode": "REPEATED",
+    "fields": [
+      {"name": "title", "type": "STRING", "mode": "NULLABLE"},
+      {"name": "metricFrequency", "type": "STRING", "mode": "NULLABLE"}
+    ]
   }
 ]
 EOF
@@ -328,7 +219,17 @@ resource "google_bigquery_table" "mc_details" {
     "mode": "NULLABLE"
   },
   {
-    "name": "EventGroupIds",
+    "name": "ProvidedEventGroupIds",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
+    "name": "EntityTypes",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
+    "name": "EntityIds",
     "type": "STRING",
     "mode": "REPEATED"
   },
@@ -343,9 +244,29 @@ resource "google_bigquery_table" "mc_details" {
     "mode": "REPEATED"
   },
   {
+    "name": "EventTemplates",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
+    "name": "MediaTypes",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
     "name": "AccountIds",
     "type": "STRING",
     "mode": "REPEATED"
+  },
+  {
+    "name": "DataAvailabilityStartTime",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "DataAvailabilityEndTime",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
   },
   {
     "name": "TotalMcs",
@@ -385,7 +306,17 @@ resource "google_bigquery_table" "mc_details_edp" {
     "mode": "NULLABLE"
   },
   {
-    "name": "EventGroupIds",
+    "name": "ProvidedEventGroupIds",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
+    "name": "EntityTypes",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
+    "name": "EntityIds",
     "type": "STRING",
     "mode": "REPEATED"
   },
@@ -400,9 +331,29 @@ resource "google_bigquery_table" "mc_details_edp" {
     "mode": "REPEATED"
   },
   {
+    "name": "EventTemplates",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
+    "name": "MediaTypes",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
     "name": "AccountIds",
     "type": "STRING",
     "mode": "REPEATED"
+  },
+  {
+    "name": "DataAvailabilityStartTime",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "DataAvailabilityEndTime",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
   }
 ]
 EOF
@@ -417,8 +368,8 @@ resource "google_bigquery_table" "report_detail" {
   schema = <<EOF
 [
   {
-    "name": "BasicReportId",
-    "type": "INT64",
+    "name": "ExternalReportId",
+    "type": "STRING",
     "mode": "NULLABLE"
   },
   {
@@ -432,7 +383,7 @@ resource "google_bigquery_table" "report_detail" {
     "mode": "NULLABLE"
   },
   {
-    "name": "EventGroupIds",
+    "name": "CmmsEventGroupIds",
     "type": "STRING",
     "mode": "REPEATED"
   },
@@ -464,8 +415,8 @@ resource "google_bigquery_table" "report_detail_edp" {
   schema = <<EOF
 [
   {
-    "name": "BasicReportId",
-    "type": "INT64",
+    "name": "ExternalReportId",
+    "type": "STRING",
     "mode": "NULLABLE"
   },
   {
@@ -479,7 +430,7 @@ resource "google_bigquery_table" "report_detail_edp" {
     "mode": "NULLABLE"
   },
   {
-    "name": "EventGroupIds",
+    "name": "CmmsEventGroupIds",
     "type": "STRING",
     "mode": "REPEATED"
   },
@@ -530,6 +481,7 @@ resource "google_bigquery_data_transfer_config" "mc_details" {
   depends_on             = [google_service_account_iam_member.terraform_sa_act_as_self]
   display_name           = "Dashboard: mc_details (platform)"
   data_source_id         = "scheduled_query"
+  service_account_name   = var.terraform_service_account
   schedule               = "every 1 hours"
   destination_dataset_id = google_bigquery_dataset.dashboard.dataset_id
   project                = data.google_client_config.default.project
@@ -550,6 +502,7 @@ resource "google_bigquery_data_transfer_config" "mc_details_edp" {
   depends_on             = [google_service_account_iam_member.terraform_sa_act_as_self]
   display_name           = "Dashboard: mc_details_edp"
   data_source_id         = "scheduled_query"
+  service_account_name   = var.terraform_service_account
   schedule               = "every 1 hours"
   destination_dataset_id = google_bigquery_dataset.dashboard.dataset_id
   project                = data.google_client_config.default.project
@@ -570,6 +523,7 @@ resource "google_bigquery_data_transfer_config" "report_detail" {
   depends_on             = [google_service_account_iam_member.terraform_sa_act_as_self]
   display_name           = "Dashboard: report_detail (platform)"
   data_source_id         = "scheduled_query"
+  service_account_name   = var.terraform_service_account
   schedule               = "every 1 hours"
   destination_dataset_id = google_bigquery_dataset.dashboard.dataset_id
   project                = data.google_client_config.default.project
@@ -590,6 +544,7 @@ resource "google_bigquery_data_transfer_config" "report_detail_edp" {
   depends_on             = [google_service_account_iam_member.terraform_sa_act_as_self]
   display_name           = "Dashboard: report_detail_edp"
   data_source_id         = "scheduled_query"
+  service_account_name   = var.terraform_service_account
   schedule               = "every 1 hours"
   destination_dataset_id = google_bigquery_dataset.dashboard.dataset_id
   project                = data.google_client_config.default.project
@@ -709,6 +664,31 @@ resource "google_bigquery_connection_iam_member" "terraform_reporting_conn" {
   member        = "serviceAccount:${var.terraform_service_account}"
 }
 
+
+# Connection SAs need databaseReaderWithDataBoost on target Spanner databases
+resource "google_spanner_database_iam_member" "edp_aggregator_conn_reader" {
+  project  = var.edp_aggregator_spanner_project
+  instance = var.edp_aggregator_spanner_instance
+  database = "edp-aggregator"
+  role     = "roles/spanner.databaseReaderWithDataBoost"
+  member   = "serviceAccount:${google_bigquery_connection.edp_aggregator.cloud_spanner[0].service_account_id}"
+}
+
+resource "google_spanner_database_iam_member" "kingdom_conn_reader" {
+  project  = var.kingdom_spanner_project
+  instance = var.kingdom_spanner_instance
+  database = "kingdom"
+  role     = "roles/spanner.databaseReaderWithDataBoost"
+  member   = "serviceAccount:${google_bigquery_connection.kingdom.cloud_spanner[0].service_account_id}"
+}
+
+resource "google_spanner_database_iam_member" "reporting_conn_reader" {
+  project  = var.reporting_spanner_project
+  instance = var.reporting_spanner_instance
+  database = "reporting"
+  role     = "roles/spanner.databaseReaderWithDataBoost"
+  member   = "serviceAccount:${google_bigquery_connection.reporting.cloud_spanner[0].service_account_id}"
+}
 # Terraform SA needs dataEditor on dashboard dataset for scheduled query writes
 resource "google_bigquery_dataset_iam_member" "terraform_data_editor" {
   dataset_id = google_bigquery_dataset.dashboard.dataset_id
@@ -798,38 +778,3 @@ resource "google_service_account_iam_member" "edp_sa_operator_token_creator" {
   member             = each.value.operator
 }
 
-# --- GCS Bucket for UDF Libraries ---
-
-resource "google_storage_bucket" "dashboard_udfs" {
-  name     = "${data.google_client_config.default.project}-dashboard-udfs"
-  project  = data.google_client_config.default.project
-  location = data.google_client_config.default.region
-
-  uniform_bucket_level_access = true
-}
-
-resource "google_storage_bucket_object" "protobuf_lib" {
-  name   = "lib/protobuf.global.min.js"
-  bucket = google_storage_bucket.dashboard_udfs.name
-  source = "${path.module}/udf_libs/protobuf.global.min.js"
-}
-
-resource "google_storage_bucket_object" "kingdom_descriptor" {
-  name   = "descriptors/kingdom_descriptor.js"
-  bucket = google_storage_bucket.dashboard_udfs.name
-  source = "${path.module}/udf_libs/kingdom_descriptor.js"
-}
-
-resource "google_storage_bucket_object" "reporting_descriptor" {
-  name   = "descriptors/reporting_descriptor.js"
-  bucket = google_storage_bucket.dashboard_udfs.name
-  source = "${path.module}/udf_libs/reporting_descriptor.js"
-}
-
-# EDP service accounts need read access to UDF library files
-resource "google_storage_bucket_iam_member" "edp_udf_reader" {
-  for_each = var.data_provider_resource_ids
-  bucket   = google_storage_bucket.dashboard_udfs.name
-  role     = "roles/storage.objectViewer"
-  member   = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
-}

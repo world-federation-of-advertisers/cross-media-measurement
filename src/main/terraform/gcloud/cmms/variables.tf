@@ -373,3 +373,39 @@ variable "dashboard_deletion_protection" {
   default     = true
   description = "Enable deletion protection on dashboard BigQuery tables. Set to false for dev."
 }
+
+variable "edp_aggregator_spanner_project" {
+  type        = string
+  nullable    = false
+  description = "GCP project containing the EDP Aggregator Spanner instance"
+}
+
+variable "edp_aggregator_spanner_instance" {
+  type        = string
+  nullable    = false
+  description = "EDP Aggregator Spanner instance name"
+}
+
+variable "kingdom_spanner_project" {
+  type        = string
+  nullable    = false
+  description = "GCP project containing the Kingdom Spanner instance"
+}
+
+variable "kingdom_spanner_instance" {
+  type        = string
+  nullable    = false
+  description = "Kingdom Spanner instance name"
+}
+
+variable "reporting_spanner_project" {
+  type        = string
+  nullable    = false
+  description = "GCP project containing the Reporting Spanner instance"
+}
+
+variable "reporting_spanner_instance" {
+  type        = string
+  nullable    = false
+  description = "Reporting Spanner instance name"
+}
