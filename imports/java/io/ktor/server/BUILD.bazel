@@ -6,11 +6,6 @@ alias(
 )
 
 alias(
-    name = "auth",
-    actual = "@maven//:io_ktor_ktor_server_auth_jvm",
-)
-
-alias(
     name = "content-negotiation",
     actual = "@maven//:io_ktor_ktor_server_content_negotiation_jvm",
 )
