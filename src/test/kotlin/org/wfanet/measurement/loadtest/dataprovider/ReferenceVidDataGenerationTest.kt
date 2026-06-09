@@ -17,11 +17,18 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Truth.assertThat
+import com.google.type.date
 import java.nio.file.Paths
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpecKt.DateSpecKt.dateRange
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpecKt.dateSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpecKt.demographicDistribution
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpecKt.idRange
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.fieldValue
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.referenceVidEventGroupSpec
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 
@@ -85,7 +92,7 @@ class ReferenceVidDataGenerationTest {
   }
 
   @Test
-  fun `generate preserves non-population field values`() {
+  fun `generate preserves non-population field values per distribution`() {
     val records: List<ReferenceVidRecord> =
       ReferenceVidDataGeneration.generate(loadDataSpec()).toList()
 
@@ -101,6 +108,138 @@ class ReferenceVidDataGenerationTest {
 
     val referenceVids: List<Long> = records.map { it.referenceVid }
     assertThat(referenceVids).isEqualTo((0L until 300L).toList())
+  }
+
+  @Test
+  fun `generate returns empty sequence for empty spec`() {
+    val emptySpec: ReferenceVidEventGroupSpec = referenceVidEventGroupSpec {}
+
+    val records: List<ReferenceVidRecord> = ReferenceVidDataGeneration.generate(emptySpec).toList()
+
+    assertThat(records).isEmpty()
+  }
+
+  @Test
+  fun `generate emits records for multiple date specs`() {
+    val spec: ReferenceVidEventGroupSpec = referenceVidEventGroupSpec {
+      dateSpecs += dateSpec {
+        this.dateRange = dateRange {
+          start = date {
+            year = 2024
+            month = 1
+            day = 1
+          }
+          endExclusive = date {
+            year = 2024
+            month = 1
+            day = 2
+          }
+        }
+        demographicDistributions += demographicDistribution {
+          idRange = idRange {
+            start = 0
+            endExclusive = 5
+          }
+          gender = 1
+          minAge = 16
+          maxAge = 34
+          frequency = 1
+        }
+      }
+      dateSpecs += dateSpec {
+        this.dateRange = dateRange {
+          start = date {
+            year = 2024
+            month = 2
+            day = 1
+          }
+          endExclusive = date {
+            year = 2024
+            month = 2
+            day = 2
+          }
+        }
+        demographicDistributions += demographicDistribution {
+          idRange = idRange {
+            start = 10
+            endExclusive = 13
+          }
+          gender = 2
+          minAge = 55
+          maxAge = 99
+          frequency = 3
+        }
+      }
+    }
+
+    val records: List<ReferenceVidRecord> = ReferenceVidDataGeneration.generate(spec).toList()
+
+    assertThat(records).hasSize(8)
+    assertThat(records.filter { it.referenceVid in 0L until 5L }).hasSize(5)
+    assertThat(records.filter { it.referenceVid in 10L until 13L }).hasSize(3)
+    assertThat(records.filter { it.frequency == 3L }).hasSize(3)
+  }
+
+  @Test
+  fun `generate assigns different non-population field values per distribution`() {
+    val spec: ReferenceVidEventGroupSpec = referenceVidEventGroupSpec {
+      dateSpecs += dateSpec {
+        this.dateRange = dateRange {
+          start = date {
+            year = 2024
+            month = 1
+            day = 1
+          }
+          endExclusive = date {
+            year = 2024
+            month = 1
+            day = 2
+          }
+        }
+        demographicDistributions += demographicDistribution {
+          idRange = idRange {
+            start = 0
+            endExclusive = 3
+          }
+          gender = 1
+          minAge = 16
+          maxAge = 34
+          frequency = 1
+          nonPopulationFieldValues.put(
+            "video.completed_50_percent_plus",
+            fieldValue { boolValue = true },
+          )
+        }
+        demographicDistributions += demographicDistribution {
+          idRange = idRange {
+            start = 3
+            endExclusive = 6
+          }
+          gender = 2
+          minAge = 55
+          maxAge = 99
+          frequency = 1
+          nonPopulationFieldValues.put(
+            "display.viewable_100_percent",
+            fieldValue { boolValue = true },
+          )
+        }
+      }
+    }
+
+    val records: List<ReferenceVidRecord> = ReferenceVidDataGeneration.generate(spec).toList()
+
+    val videoRecords: List<ReferenceVidRecord> = records.filter { it.referenceVid in 0L until 3L }
+    videoRecords.forEach {
+      assertThat(it.nonPopulationFieldValues).containsKey("video.completed_50_percent_plus")
+      assertThat(it.nonPopulationFieldValues).doesNotContainKey("display.viewable_100_percent")
+    }
+
+    val displayRecords: List<ReferenceVidRecord> = records.filter { it.referenceVid in 3L until 6L }
+    displayRecords.forEach {
+      assertThat(it.nonPopulationFieldValues).containsKey("display.viewable_100_percent")
+      assertThat(it.nonPopulationFieldValues).doesNotContainKey("video.completed_50_percent_plus")
+    }
   }
 
   private fun loadDataSpec(): ReferenceVidEventGroupSpec {

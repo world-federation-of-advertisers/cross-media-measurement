@@ -20,6 +20,7 @@ import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange as popVidRange
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpecKt.DateSpecKt.dateRange
@@ -111,6 +112,7 @@ object ReferenceVidSpecConverter {
           vid = vid,
           subPopulationIndex = subPopIndex,
           frequency = record.frequency,
+          nonPopulationFieldValues = record.nonPopulationFieldValues,
         )
       }
 
@@ -129,6 +131,7 @@ object ReferenceVidSpecConverter {
     val vid: Long,
     val subPopulationIndex: Int,
     val frequency: Long,
+    val nonPopulationFieldValues: Map<String, FieldValue>,
   )
 
   private fun convertSyntheticSpec(
@@ -150,6 +153,9 @@ object ReferenceVidSpecConverter {
         "$maxVidRangeSpecs. Use direct generation instead of converting."
     }
 
+    val vidFieldValues: Map<Long, Map<String, FieldValue>> =
+      labeledVids.associate { it.vid to it.nonPopulationFieldValues }
+
     val result = syntheticEventGroupSpec {
       for (refDateSpec in spec.dateSpecsList) {
 
@@ -167,7 +173,7 @@ object ReferenceVidSpecConverter {
                     start = range.first
                     endExclusive = range.last + 1
                   }
-                  nonPopulationFieldValues.putAll(spec.nonPopulationFieldValuesMap)
+                  vidFieldValues[range.first]?.let { nonPopulationFieldValues.putAll(it) }
                 }
               }
             }

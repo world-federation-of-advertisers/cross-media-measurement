@@ -31,7 +31,7 @@ object ReferenceVidDataGeneration {
               minAge = demoDist.minAge,
               maxAge = demoDist.maxAge,
               frequency = demoDist.frequency,
-              nonPopulationFieldValues = spec.nonPopulationFieldValuesMap,
+              nonPopulationFieldValues = demoDist.nonPopulationFieldValuesMap,
             )
           )
         }

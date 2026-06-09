@@ -220,8 +220,10 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:reference_vid_data_generation",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:reference_vid_event_group_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:date_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
@@ -230,6 +232,8 @@ kt_jvm_test(
     name = "ReferenceVidSpecConverterTest",
     srcs = ["ReferenceVidSpecConverterTest.kt"],
     data = [
+        "expected_converted_population_spec.textproto",
+        "expected_converted_synthetic_spec.textproto",
         "//src/main/proto/wfa/measurement/loadtest/dataprovider:specs",
         "//src/main/resources/testing/labeler:reference_test_model",
     ],

@@ -27,6 +27,12 @@ date_specs {
     min_age: 16
     max_age: 34
     frequency: 2
+    non_population_field_values {
+      key: "video.completed_50_percent_plus"
+      value {
+        bool_value: true
+      }
+    }
   }
   demographic_distributions {
     id_range {
@@ -37,6 +43,12 @@ date_specs {
     min_age: 35
     max_age: 54
     frequency: 1
+    non_population_field_values {
+      key: "video.completed_50_percent_plus"
+      value {
+        bool_value: true
+      }
+    }
   }
   demographic_distributions {
     id_range {
@@ -47,12 +59,11 @@ date_specs {
     min_age: 55
     max_age: 99
     frequency: 3
-  }
-}
-
-non_population_field_values {
-  key: "video.completed_50_percent_plus"
-  value {
-    bool_value: true
+    non_population_field_values {
+      key: "video.completed_50_percent_plus"
+      value {
+        bool_value: true
+      }
+    }
   }
 }

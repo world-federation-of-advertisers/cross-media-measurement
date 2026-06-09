@@ -55,6 +55,11 @@ message ReferenceVidEventGroupSpec {
     // Total frequency for each reference VID in this distribution over the
     // containing date range.
     int64 frequency = 5;
+
+    // Non-population field values for events in this distribution (e.g.
+    // viewability flags). Same key format as
+    // .
+    map<string, FieldValue> non_population_field_values = 6;
   }
 
   // Date range and demographic distributions for event generation.
