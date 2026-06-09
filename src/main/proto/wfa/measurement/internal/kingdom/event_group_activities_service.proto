@@ -19,7 +19,7 @@ package wfa.measurement.internal.kingdom;
 import "wfa/measurement/internal/kingdom/event_group_activity.proto";
 import "google/protobuf/empty.proto";
 import "google/type/date.proto";
-import "google/type/interval.proto";
+import "wfa/measurement/internal/kingdom/date_interval.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -93,7 +93,7 @@ message ListEventGroupActivitiesRequest {
 
   message Filter {
     // Filter by activity date range.
-    google.type.Interval date_interval = 1;
+    DateInterval date_interval = 1;
     // Filter to specific event groups. If empty, returns activities
     // across all event groups for the data provider.
     repeated fixed64 external_event_group_ids = 2;
