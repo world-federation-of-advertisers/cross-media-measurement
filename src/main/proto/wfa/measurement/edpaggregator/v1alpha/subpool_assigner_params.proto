@@ -102,8 +102,8 @@ message SubpoolAssignerParams {
     (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
   ];
 
-  // Cloud Storage blob path of the compiled VID model for this model line. Mirrors
-  // `ModelShard.model_blob_path` from the public API.
+  // Cloud Storage blob path of the compiled VID model for this model line.
+  // Mirrors `ModelShard.model_blob_path` from the public API.
   //
   // Used by the Phase-0 SubpoolAssigner to load the labeler in pool-emit
   // mode. Also carried as pass-through so the last-shard-out can populate
