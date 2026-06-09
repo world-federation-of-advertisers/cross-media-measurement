@@ -6,7 +6,6 @@ kt_jvm_test(
     data = [
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/market/v1:market_event_descriptor_set",
         "//src/main/proto/wfa/measurement/loadtest/dataprovider:specs",
-        "//src/main/resources/testing/labeler:reference_test_model",
     ],
     test_class = "org.wfanet.measurement.loadtest.edpaggregator.tools.GenerateAndVerifySyntheticDataTest",
     deps = [

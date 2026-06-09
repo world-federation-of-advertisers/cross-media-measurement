@@ -37,7 +37,6 @@ import kotlinx.coroutines.runBlocking
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.aws.kms.AwsKmsClientFactory
@@ -50,15 +49,10 @@ import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
-import org.wfanet.measurement.loadtest.dataprovider.ReferenceVidDataGeneration
-import org.wfanet.measurement.loadtest.dataprovider.ReferenceVidSpecConverter
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.virtualpeople.common.CompiledNode
-import org.wfanet.virtualpeople.core.labeler.Labeler
 import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
@@ -239,18 +233,6 @@ class GenerateSyntheticData : Runnable {
     private set
 
   @Option(
-    names = ["--export-synthetic-spec"],
-    description =
-      [
-        "Optional path to write an exported SyntheticEventGroupSpec textproto " +
-          "equivalent to the reference VID labeler output. Only applicable when " +
-          "using --reference-vid-spec-resource-path."
-      ],
-    required = false,
-  )
-  private var exportSyntheticSpecPath: File? = null
-
-  @Option(
     names = ["--model-line"],
     description = ["Full ModelLine resource name."],
     required = true,
@@ -299,72 +281,18 @@ class GenerateSyntheticData : Runnable {
         val kmsClient: KmsClient = buildKmsClient(edpKmsConfig)
 
         val perSubSpecShards: List<Sequence<LabeledEventDateShard<Message>>> =
-          if (spec.referenceVidSpecResourcePath.isNotEmpty()) {
-            val refVidSpec: ReferenceVidEventGroupSpec =
+          spec.subSpecs.map { subSpec ->
+            val syntheticEventGroupSpec: SyntheticEventGroupSpec =
               parseTextProto(
-                ImpressionTestDataConfigs.resolveSpecPath(spec.referenceVidSpecResourcePath),
-                ReferenceVidEventGroupSpec.getDefaultInstance(),
+                ImpressionTestDataConfigs.resolveSpecPath(subSpec.dataSpecResourcePath),
+                SyntheticEventGroupSpec.getDefaultInstance(),
               )
-            val labeler = buildLabeler(spec.vidModelResourcePath)
-            val templateFieldsByTypeUrl:
-              Map<String, com.google.protobuf.Descriptors.FieldDescriptor> =
-              buildMap {
-                for (field in eventMessageInstance.descriptorForType.fields) {
-                  if (field.type == com.google.protobuf.Descriptors.FieldDescriptor.Type.MESSAGE) {
-                    put(
-                      org.wfanet.measurement.common.ProtoReflection.getTypeUrl(field.messageType),
-                      field,
-                    )
-                  }
-                }
-              }
-            val subPopPrototypes: Map<Int, Message> =
-              populationSpec.subpopulationsList.withIndex().associate { (index, subPop) ->
-                val builder = eventMessageInstance.newBuilderForType()
-                for (attribute in subPop.attributesList) {
-                  val templateField =
-                    templateFieldsByTypeUrl[attribute.typeUrl]
-                      ?: throw IllegalArgumentException(
-                        "Unknown attribute type: ${attribute.typeUrl}"
-                      )
-                  builder.getFieldBuilder(templateField).mergeFrom(attribute.value)
-                }
-                index to builder.build()
-              }
-            val vidShards =
-              ReferenceVidDataGeneration.generateEvents(
-                labeler = labeler,
-                populationSpec = populationSpec,
-                spec = refVidSpec,
-                zoneId = ZoneId.of(zoneId),
-              )
-            listOf(
-              vidShards.map { shard ->
-                LabeledEventDateShard(
-                  shard.localDate,
-                  shard.labeledVids.map { labeledVid ->
-                    val message =
-                      subPopPrototypes[labeledVid.subPopulationIndex]
-                        ?: error("No prototype for subpopulation ${labeledVid.subPopulationIndex}")
-                    LabeledEvent(labeledVid.timestamp, labeledVid.vid, message)
-                  },
-                )
-              }
+            SyntheticDataGeneration.generateEvents(
+              messageInstance = eventMessageInstance,
+              populationSpec = populationSpec,
+              syntheticEventGroupSpec = syntheticEventGroupSpec,
+              zoneId = ZoneId.of(zoneId),
             )
-          } else {
-            spec.subSpecs.map { subSpec ->
-              val syntheticEventGroupSpec: SyntheticEventGroupSpec =
-                parseTextProto(
-                  ImpressionTestDataConfigs.resolveSpecPath(subSpec.dataSpecResourcePath),
-                  SyntheticEventGroupSpec.getDefaultInstance(),
-                )
-              SyntheticDataGeneration.generateEvents(
-                messageInstance = eventMessageInstance,
-                populationSpec = populationSpec,
-                syntheticEventGroupSpec = syntheticEventGroupSpec,
-                zoneId = ZoneId.of(zoneId),
-              )
-            }
           }
         val coalescedShards: Sequence<EntityKeyedLabeledEventDateShard<Message>> =
           coalesceByDate(perSubSpecShards, spec.subSpecs.map { listOf(it.entityKey) })
@@ -390,21 +318,6 @@ class GenerateSyntheticData : Runnable {
           modelLine,
           flatOutputBasePath = spec.outputBasePath,
         )
-
-        if (spec.referenceVidSpecResourcePath.isNotEmpty() && exportSyntheticSpecPath != null) {
-          val refVidSpec: ReferenceVidEventGroupSpec =
-            parseTextProto(
-              ImpressionTestDataConfigs.resolveSpecPath(spec.referenceVidSpecResourcePath),
-              ReferenceVidEventGroupSpec.getDefaultInstance(),
-            )
-          val labeler = buildLabeler(spec.vidModelResourcePath)
-          val converted = ReferenceVidSpecConverter.convert(labeler, refVidSpec, populationSpec)
-          val specFile = exportSyntheticSpecPath!!
-          ReferenceVidSpecConverter.writeTextProto(specFile, converted.syntheticEventGroupSpec)
-          val popFile =
-            File(specFile.parent, specFile.nameWithoutExtension + "_population.textproto")
-          ReferenceVidSpecConverter.writeTextProto(popFile, converted.populationSpec)
-        }
       }
 
       if (createDoneBlobs) {
@@ -608,30 +521,6 @@ class GenerateSyntheticData : Runnable {
       }
     }
 
-    /** Resolves and loads a VID labeler model from a resource path. */
-    private fun buildLabeler(vidModelResourcePath: String): Labeler {
-      val modelPath = java.nio.file.Paths.get(vidModelResourcePath)
-      val modelFile =
-        if (modelPath.isAbsolute) {
-          modelPath.toFile()
-        } else {
-          org.wfanet.measurement.common
-            .getRuntimePath(
-              java.nio.file.Paths.get(
-                "wfa_measurement_system",
-                "src",
-                "main",
-                "resources",
-                "testing",
-                "labeler",
-                vidModelResourcePath,
-              )
-            )!!
-            .toFile()
-        }
-      return Labeler.build(parseTextProto(modelFile, CompiledNode.getDefaultInstance()))
-    }
-
     fun buildSpecsFromConfig(
       config: ImpressionTestDataConfig,
       edpNames: Set<String>,
@@ -639,25 +528,7 @@ class GenerateSyntheticData : Runnable {
       val edpEventGroups = config.eventGroupsList.filter { it.edpName in edpNames }
       require(edpEventGroups.isNotEmpty()) { "No event groups found for EDPs $edpNames in config" }
       return edpEventGroups.flatMap { eg ->
-        if (eg.referenceVidSpecResourcePath.isNotEmpty()) {
-          listOf(
-            ResolvedEventGroupSpec(
-              eventGroupReferenceId = eg.eventGroupReferenceId,
-              outputKey = eg.outputKey,
-              outputBasePath = eg.outputBasePath,
-              edpName = eg.edpName,
-              subSpecs =
-                listOf(
-                  ResolvedEntityKeySpec(
-                    dataSpecResourcePath = "",
-                    entityKey = EntityKey("campaign", eg.eventGroupReferenceId),
-                  )
-                ),
-              referenceVidSpecResourcePath = eg.referenceVidSpecResourcePath,
-              vidModelResourcePath = eg.vidModelResourcePath,
-            )
-          )
-        } else if (eg.entityKeySpecsList.isEmpty()) {
+        if (eg.entityKeySpecsList.isEmpty()) {
           listOf(
             ResolvedEventGroupSpec(
               eventGroupReferenceId = eg.eventGroupReferenceId,
@@ -701,8 +572,6 @@ data class ResolvedEventGroupSpec(
   val outputBasePath: String,
   val edpName: String,
   val subSpecs: List<ResolvedEntityKeySpec>,
-  val referenceVidSpecResourcePath: String = "",
-  val vidModelResourcePath: String = "",
 )
 
 data class ResolvedEntityKeySpec(val dataSpecResourcePath: String, val entityKey: EntityKey)

@@ -68,21 +68,6 @@ message ImpressionTestDataConfig {
     // registration (e.g. placement, objective). Used only by test-side code
     // (EdpAggregatorCorrectnessTest); not consumed by GenerateSyntheticData.
     google.protobuf.Struct entity_metadata = 5;
-
-    // Path to a ReferenceVidEventGroupSpec textproto. Either an absolute
-    // filesystem path or a path relative to the loadtest dataprovider
-    // directory.
-    //
-    // Mutually exclusive with data_spec_resource_path and entity_key_specs.
-    // When set, vid_model_resource_path must also be set.
-    string reference_vid_spec_resource_path = 8;
-
-    // Path to a CompiledNode textproto for the VID labeler model. Either an
-    // absolute filesystem path or a path relative to the testing labeler
-    // resources directory.
-    //
-    // Required when reference_vid_spec_resource_path is set.
-    string vid_model_resource_path = 9;
   }
 
   // A sub-spec within an entity-key event group, mapping an entity key to a

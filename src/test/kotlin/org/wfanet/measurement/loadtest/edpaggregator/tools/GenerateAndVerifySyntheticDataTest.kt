@@ -656,66 +656,6 @@ class GenerateAndVerifySyntheticDataTest {
     val outputKey: String = "",
   )
 
-  @Test
-  fun `generate and verify with reference VID labeler model`() {
-    val outputBucketDir = tempFolder.root.resolve(OUTPUT_BUCKET)
-    outputBucketDir.mkdirs()
-
-    val descriptorSetFile = MARKET_EVENT_DESCRIPTOR_SET_RUNTIME_PATH.toFile()
-    check(descriptorSetFile.exists()) {
-      "MarketEvent descriptor set runfile not found at $descriptorSetFile"
-    }
-
-    val refVidConfig = impressionTestDataConfig {
-      populationSpecResourcePath = REFERENCE_VID_POPULATION_SPEC
-      eventGroups += syntheticEventGroup {
-        eventGroupReferenceId = "eg-refvid"
-        edpName = EDP_NAME
-        outputBasePath = REFERENCE_VID_OUTPUT_BASE_PATH
-        referenceVidSpecResourcePath = REFERENCE_VID_DATA_SPEC
-        vidModelResourcePath = REFERENCE_VID_MODEL
-      }
-    }
-    val configFile = writeConfigFile(refVidConfig)
-    val generateCmd = GenerateSyntheticData()
-    val generateExitCode =
-      CommandLine(generateCmd)
-        .execute(
-          "--edp-name=$EDP_NAME",
-          "--kms-type=FAKE",
-          "--kek-uri=$KEK_URI",
-          "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
-          "--local-storage-path=${tempFolder.root.path}",
-          "--output-bucket=$OUTPUT_BUCKET",
-          "--schema=file:///",
-          "--model-line=$MODEL_LINE",
-          "--config-file=${configFile.path}",
-          "--event-message-type-url=$MARKET_EVENT_TYPE_URL",
-          "--event-message-descriptor-set=${descriptorSetFile.path}",
-        )
-    assertThat(generateExitCode).isEqualTo(0)
-
-    val verifyCmd = VerifySyntheticData()
-    val verifyExitCode =
-      CommandLine(verifyCmd)
-        .execute(
-          "--kms-type=FAKE",
-          "--kek-uri=$KEK_URI",
-          "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
-          "--local-storage-path=${tempFolder.root.path}",
-          "--output-bucket=$OUTPUT_BUCKET",
-          "--base-path=$REFERENCE_VID_OUTPUT_BASE_PATH",
-          "--event-message-type-url=$MARKET_EVENT_TYPE_URL",
-          "--event-message-descriptor-set=${descriptorSetFile.path}",
-        )
-    assertThat(verifyExitCode).isEqualTo(0)
-    val result = verifyCmd.lastResult!!
-    assertThat(result.errors).isEqualTo(0)
-    assertThat(result.totalImpressions).isEqualTo(REFERENCE_VID_EXPECTED_IMPRESSIONS)
-    assertThat(result.impressionsByEventGroupReferenceId)
-      .containsExactly("eg-refvid", REFERENCE_VID_EXPECTED_IMPRESSIONS)
-  }
-
   companion object {
     @BeforeClass
     @JvmStatic
@@ -836,12 +776,6 @@ class GenerateAndVerifySyntheticDataTest {
      * * 3) = 550.
      */
     private const val MARKET_EVENT_EXPECTED_IMPRESSIONS = 550
-
-    private const val REFERENCE_VID_OUTPUT_BASE_PATH = "edp/edp-refvid"
-    private const val REFERENCE_VID_POPULATION_SPEC = "reference_vid_population_spec.textproto"
-    private const val REFERENCE_VID_DATA_SPEC = "reference_vid_data_spec.textproto"
-    private const val REFERENCE_VID_MODEL = "reference_test_model.textproto"
-    private const val REFERENCE_VID_EXPECTED_IMPRESSIONS = 600
 
     /**
      * Runtime path of the [proto_descriptor_set]-generated FileDescriptorSet for the test-only
