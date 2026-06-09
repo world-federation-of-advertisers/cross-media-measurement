@@ -42,12 +42,12 @@ message VidRankBuilderParams {
   wfa.measurement.securecomputation.impressions.EncryptedDek
       encrypted_subpool_maps_dek = 2 [(google.api.field_behavior) = REQUIRED];
 
-  // GCS storage location used by the VidRankBuilder.
+  // Cloud Storage location used by the VidRankBuilder.
   message StorageParams {
     // The Google Cloud Storage project ID for the storage instance.
     string gcs_project_id = 1 [(google.api.field_behavior) = REQUIRED];
 
-    // The GCS blob URI prefix.
+    // The Cloud Storage blob URI prefix.
     //
     // Required for the subpool-map and vid-rank-map storage (static,
     // config-driven locations that do not change at runtime). May be left
@@ -99,8 +99,8 @@ message VidRankBuilderParams {
     (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
   ];
 
-  // GCS blob path of the compiled VID model for this model line. Mirrors
-  // `ModelShard.model_blob_path` from the public API.
+  // Cloud Storage blob path of the compiled VID model for this model line.
+  // Mirrors `ModelShard.model_blob_path` from the public API.
   //
   // Not consumed by the Phase-1 ranker (Phase-1 does not call the labeler;
   // Phase-0 has already resolved the subpool for every fingerprint).
@@ -138,11 +138,12 @@ message VidRankBuilderParams {
         "edpaggregator.halo-cmm.org/RankerJob"
   ];
 
-  // GCS blob URIs of the per-subpool `SubpoolFingerprints` blobs produced
-  // by Phase-0 that this ranker is responsible for. The map keys are the
-  // subpool IDs this `RankerJob` ranks (the bin-packed set carried as
-  // `SubpoolIds ARRAY<INT64>` on the `RankerJob` row); the values are the
-  // GCS blob URIs the TEE reads from `subpool_map_storage_params`.
+  // Cloud Storage blob URIs of the per-subpool `SubpoolFingerprints`
+  // blobs produced by Phase-0 that this ranker is responsible for. The
+  // map keys are the subpool IDs this `RankerJob` ranks (the bin-packed
+  // set carried as `SubpoolIds ARRAY<INT64>` on the `RankerJob` row); the
+  // values are the Cloud Storage blob URIs the TEE reads from
+  // `subpool_map_storage_params`.
   map<int64, string> subpool_map_blob_uris = 13
       [(google.api.field_behavior) = REQUIRED];
 
