@@ -10,8 +10,8 @@ kt_jvm_library(
     ],
     runtime_deps = [
         # Installed at runtime by the MCP SDK's mcpStatelessStreamableHttp helper.
+        "//imports/java/io/ktor/serialization/kotlinx/json",
         "//imports/java/io/ktor/server:content-negotiation",
-        "//imports/java/io/ktor/server:serialization-json",
         "//imports/java/io/ktor/server:sse",
     ],
     deps = [

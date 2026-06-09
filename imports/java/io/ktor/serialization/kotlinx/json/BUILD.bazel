@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "json",
+    actual = "@maven//:io_ktor_ktor_serialization_kotlinx_json_jvm",
+)
