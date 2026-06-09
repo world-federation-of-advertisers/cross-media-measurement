@@ -50,17 +50,21 @@ message RankIndexBlob {
   // Cloud Storage URI of the rank index blob.
   string blob_uri = 7;
 
+  // SHA-256 checksum of the plaintext blob payload. Used to
+  // detect corruption after decryption.
+  bytes blob_checksum = 8;
+
   // The encrypted data encryption key (DEK) used to encrypt
   // the blob, itself encrypted via the DataProvider's KMS.
-  bytes encrypted_dek = 8;
+  bytes encrypted_dek = 9;
 
   // The newest event date among the impressions in this blob.
   // NULL for SNAPSHOT blobs, set for DAY_ONLY blobs.
-  google.type.Date max_event_date = 9;
+  google.type.Date max_event_date = 10;
 
   // The timestamp when this record was created.
-  google.protobuf.Timestamp create_time = 10;
+  google.protobuf.Timestamp create_time = 11;
 
   // The timestamp when this blob was soft-deleted.
-  google.protobuf.Timestamp delete_time = 11;
+  google.protobuf.Timestamp delete_time = 12;
 }

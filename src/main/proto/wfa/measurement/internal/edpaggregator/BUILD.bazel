@@ -341,6 +341,7 @@ proto_library(
         ":rank_index_blob_proto",
         "@com_google_googleapis//google/type:date_proto",
         "@com_google_protobuf//:timestamp_proto",
+        "@com_google_protobuf//:wrappers_proto",
     ],
 )
 
