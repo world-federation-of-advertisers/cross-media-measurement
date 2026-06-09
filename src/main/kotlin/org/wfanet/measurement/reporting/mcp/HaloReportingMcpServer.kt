@@ -126,7 +126,13 @@ object ReportingMcpServerFromFlags {
         // lose nothing. The helper installs ContentNegotiation(McpJson) and SSE
         // itself. The bearer token is read per request and forwarded to the Reporting
         // public API, which validates it.
-        mcpStatelessStreamableHttp {
+        //
+        // DNS rebinding protection is enabled only when --allowed-host is set (e.g. the
+        // in-cluster service hostnames); otherwise the Host header is not checked.
+        mcpStatelessStreamableHttp(
+          enableDnsRebindingProtection = mcpServerFlags.allowedHosts.isNotEmpty(),
+          allowedHosts = mcpServerFlags.allowedHosts.ifEmpty { null },
+        ) {
           val bearerToken =
             call.request.headers[HttpHeaders.Authorization]
               ?.takeIf { it.startsWith(BEARER_PREFIX, ignoreCase = true) }
@@ -208,6 +214,17 @@ class McpServerFlags {
     description = ["TLS DNS-ID override for the Reporting API certificate."],
   )
   var reportingPublicApiCertHost: String? = null
+    private set
+
+  @CommandLine.Option(
+    names = ["--allowed-host"],
+    description =
+      [
+        "Host permitted by DNS rebinding protection (may be repeated). When unset, " +
+          "the protection is disabled and the Host header is not checked."
+      ],
+  )
+  var allowedHosts: List<String> = emptyList()
     private set
 
   @CommandLine.Option(
