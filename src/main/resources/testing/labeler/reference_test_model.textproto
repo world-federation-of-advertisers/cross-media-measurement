@@ -1,15 +1,15 @@
 # proto-file: wfa/virtual_people/common/model.proto
 # proto-message: CompiledNode
 
-# Reference test model for ReferenceVidDataGeneration.
+# Simplified VID labeler model for testing.
 #
-# A simplified VID labeler model for testing. Routes on
-# proprietary_id_space_1_user_info (single generic ID space), with
-# 2 genders x 3 age groups = 6 demographic buckets matching
-# MarketEvent Common demographics (Sex x AgeGroup).
+# Routes on proprietary_id_space_1_user_info (single generic ID space),
+# with 2 genders x 3 age groups = 6 demographic buckets. Applies a
+# non-trivial 6x6 correction matrix with cross-age and cross-gender
+# leakage.
 #
-# Pool sizes are intentionally small (~100 VIDs each, 600 total)
-# to support export to SyntheticEventGroupSpec.
+# Pool sizes are intentionally small (~100 VIDs each, 600 total) to
+# keep test output compact and inspectable.
 #
 # Demographic buckets (matching Common.Sex x Common.AgeGroup):
 #   MALE   16-34  -> pool offset 10000, size 100
