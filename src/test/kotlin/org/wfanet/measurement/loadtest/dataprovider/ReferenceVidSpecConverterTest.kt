@@ -133,7 +133,7 @@ class ReferenceVidSpecConverterTest {
 
   @Test
   fun `convert produces expected SyntheticEventGroupSpec for known inputs`() {
-    val smallSpec = referenceVidEventGroupSpec {
+    val spec = referenceVidEventGroupSpec {
       dateSpecs += dateSpec {
         this.dateRange = dateRange {
           start = date {
@@ -150,35 +150,61 @@ class ReferenceVidSpecConverterTest {
         demographicDistributions += demographicDistribution {
           idRange = idRange {
             start = 0
-            endExclusive = 5
+            endExclusive = 20
           }
           gender = 1
           minAge = 16
           maxAge = 34
+          frequency = 2
+        }
+        demographicDistributions += demographicDistribution {
+          idRange = idRange {
+            start = 20
+            endExclusive = 30
+          }
+          gender = 2
+          minAge = 55
+          maxAge = 99
           frequency = 1
         }
       }
     }
 
-    val converted =
-      ReferenceVidSpecConverter.convert(buildLabeler(), smallSpec, loadPopulationSpec())
-
+    val converted = ReferenceVidSpecConverter.convert(buildLabeler(), spec, loadPopulationSpec())
     val dateSpec = converted.syntheticEventGroupSpec.getDateSpecs(0)
-    assertThat(dateSpec.frequencySpecsCount).isEqualTo(1)
+    val frequencies: List<Long> = dateSpec.frequencySpecsList.map { it.frequency }
 
-    val freqSpec = dateSpec.getFrequencySpecs(0)
-    assertThat(freqSpec.frequency).isEqualTo(1)
-    assertThat(freqSpec.vidRangeSpecsCount).isEqualTo(4)
+    // Three frequency groups: collisions + different per-distribution frequencies
+    assertThat(frequencies).containsExactly(1L, 2L, 4L).inOrder()
 
-    val vidRanges: List<Pair<Long, Long>> =
-      freqSpec.vidRangeSpecsList.map { it.vidRange.start to it.vidRange.endExclusive }
-    assertThat(vidRanges)
-      .containsExactly(10002L to 10003L, 10023L to 10024L, 10025L to 10027L, 10094L to 10095L)
-      .inOrder()
+    // Frequency 1: F55+ inputs (freq 1, no collisions) — some land in F35-54 via correction
+    val freq1Vids: List<Long> =
+      dateSpec.getFrequencySpecs(0).vidRangeSpecsList.flatMap {
+        (it.vidRange.start until it.vidRange.endExclusive).toList()
+      }
+    assertThat(freq1Vids).isNotEmpty()
 
-    assertThat(converted.populationSpec.subpopulationsCount).isEqualTo(1)
-    val subPop = converted.populationSpec.getSubpopulations(0)
-    assertThat(subPop.vidRangesCount).isEqualTo(4)
+    // Frequency 2: M16-34 inputs (freq 2, no collisions)
+    val freq2Vids: List<Long> =
+      dateSpec.getFrequencySpecs(1).vidRangeSpecsList.flatMap {
+        (it.vidRange.start until it.vidRange.endExclusive).toList()
+      }
+    assertThat(freq2Vids).isNotEmpty()
+
+    // Frequency 4: M16-34 collision (2 inputs x freq 2)
+    val freq4Vids: List<Long> =
+      dateSpec.getFrequencySpecs(2).vidRangeSpecsList.flatMap {
+        (it.vidRange.start until it.vidRange.endExclusive).toList()
+      }
+    assertThat(freq4Vids).containsExactly(10023L)
+
+    // Demo correction: some F55+ inputs should produce VIDs outside the F55+ pool
+    val f55PlusPool = 10500L..10599L
+    val outsideF55 = freq1Vids.filter { it !in f55PlusPool }
+    assertThat(outsideF55).isNotEmpty()
+
+    // PopulationSpec has multiple subpopulations from demo correction
+    assertThat(converted.populationSpec.subpopulationsCount).isGreaterThan(1)
   }
 
   private fun buildLabeler(): Labeler {

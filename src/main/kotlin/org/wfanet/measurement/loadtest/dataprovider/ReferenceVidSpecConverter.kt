@@ -139,20 +139,26 @@ object ReferenceVidSpecConverter {
     val vidFrequencies: Map<Long, Long> =
       labeledVids.groupBy { it.vid }.mapValues { (_, vids) -> vids.sumOf { it.frequency } }
 
+    val vidsByEffFreq: Map<Long, List<Long>> =
+      vidFrequencies.entries.groupBy({ it.value }, { it.key }).mapValues { (_, vids) ->
+        vids.sorted()
+      }
+
+    val totalVidRangeSpecs: Int = vidsByEffFreq.values.sumOf { mergeAdjacentVids(it).size }
+    require(totalVidRangeSpecs <= maxVidRangeSpecs) {
+      "Converted spec would have $totalVidRangeSpecs VidRangeSpecs, exceeding threshold of " +
+        "$maxVidRangeSpecs. Use direct generation instead of converting."
+    }
+
     val result = syntheticEventGroupSpec {
       for (refDateSpec in spec.dateSpecsList) {
-
-        val vidsByEffectiveFrequency: Map<Long, List<Long>> =
-          vidFrequencies.entries.groupBy({ it.value }, { it.key }).mapValues { (_, vids) ->
-            vids.sorted()
-          }
 
         dateSpecs += dateSpec {
           this.dateRange = dateRange {
             start = refDateSpec.dateRange.start
             endExclusive = refDateSpec.dateRange.endExclusive
           }
-          for ((freq, vids) in vidsByEffectiveFrequency.entries.sortedBy { it.key }) {
+          for ((freq, vids) in vidsByEffFreq.entries.sortedBy { it.key }) {
             frequencySpecs += frequencySpec {
               frequency = freq
               for (range in mergeAdjacentVids(vids)) {
@@ -168,13 +174,6 @@ object ReferenceVidSpecConverter {
           }
         }
       }
-    }
-
-    val totalVidRangeSpecs: Int =
-      result.dateSpecsList.sumOf { ds -> ds.frequencySpecsList.sumOf { it.vidRangeSpecsCount } }
-    require(totalVidRangeSpecs <= maxVidRangeSpecs) {
-      "Converted spec has $totalVidRangeSpecs VidRangeSpecs, exceeding threshold of " +
-        "$maxVidRangeSpecs. Use direct generation instead of converting."
     }
 
     logger.info("Converted to SyntheticEventGroupSpec with $totalVidRangeSpecs VidRangeSpecs")
