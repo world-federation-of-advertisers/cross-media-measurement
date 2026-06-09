@@ -55,39 +55,70 @@ object EncryptedStorage {
     )
   }
 
-  /** Builds a envelope encryption storage client wrapped by Mesos Record IO Storage Client. */
+  /**
+   * Wraps [storageClient] with envelope-encryption decryption using the
+   * caller-supplied [encryptedDek]. The DEK is unwrapped via the [kmsClient]
+   * (resolving the KEK at [kekUri]) and the returned [StorageClient]
+   * decrypts blob bytes on read.
+   *
+   * Dispatches the unwrap based on `(encryptedDek.typeUrl,
+   * encryptedDek.protobufFormat)` — currently supports two formats used
+   * across the EDP-Aggregator pipeline:
+   *  - `type.googleapis.com/google.crypto.tink.Keyset` + `BINARY` — standard
+   *    Tink-encrypted keyset (default `parseEncryptedKeyset`).
+   *  - `type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EncryptionKey`
+   *    + `JSON` — the v1alpha `EncryptionKey` proto in JSON, parsed via
+   *    [parseJsonEncryptedKey].
+   *
+   * Throws [IllegalArgumentException] for any other combination so format
+   * mistakes fail loudly instead of silently.
+   *
+   * This is the single source of truth for the DEK format dispatch — call
+   * it from any code path that needs to read EDP-Aggregator encrypted blobs.
+   */
+  fun buildDecryptingStorageClient(
+    storageClient: StorageClient,
+    kmsClient: KmsClient,
+    kekUri: String,
+    encryptedDek: EncryptedDek,
+  ): StorageClient =
+    when (encryptedDek.typeUrl to encryptedDek.protobufFormat) {
+      TYPE_URL_TINK_KEYSET to ProtobufFormat.BINARY ->
+        storageClient.withEnvelopeEncryption(
+          kmsClient = kmsClient,
+          kekUri = kekUri,
+          encryptedDek = encryptedDek.ciphertext,
+        )
+      TYPE_URL_ENCRYPTION_KEY to ProtobufFormat.JSON ->
+        storageClient.withEnvelopeEncryption(
+          kmsClient = kmsClient,
+          kekUri = kekUri,
+          encryptedDek = encryptedDek.ciphertext,
+          parseEncryptedKeyset = ::parseJsonEncryptedKey,
+        )
+      else ->
+        throw IllegalArgumentException(
+          "Unsupported type_url=${encryptedDek.typeUrl} with format=${encryptedDek.protobufFormat}"
+        )
+    }
+
+  /**
+   * Builds an envelope-encryption storage client wrapped by
+   * [MesosRecordIoStorageClient] — convenience for callers that need
+   * record-oriented reads on top of Mesos RecordIO blobs (e.g. the
+   * `ResultsFulfiller` labeled-impression pipeline).
+   *
+   * Delegates DEK format handling to [buildDecryptingStorageClient].
+   */
   fun buildEncryptedMesosStorageClient(
     storageClient: StorageClient,
     kmsClient: KmsClient,
     kekUri: String,
     encryptedDek: EncryptedDek,
-  ): MesosRecordIoStorageClient {
-
-    val aeadStorageClient =
-      when (encryptedDek.typeUrl to encryptedDek.protobufFormat) {
-        TYPE_URL_TINK_KEYSET to ProtobufFormat.BINARY -> {
-          storageClient.withEnvelopeEncryption(
-            kmsClient = kmsClient,
-            kekUri = kekUri,
-            encryptedDek = encryptedDek.ciphertext,
-          )
-        }
-        TYPE_URL_ENCRYPTION_KEY to ProtobufFormat.JSON -> {
-          storageClient.withEnvelopeEncryption(
-            kmsClient = kmsClient,
-            kekUri = kekUri,
-            encryptedDek = encryptedDek.ciphertext,
-            parseEncryptedKeyset = ::parseJsonEncryptedKey,
-          )
-        }
-        else ->
-          throw IllegalArgumentException(
-            "Unsupported type_url=${encryptedDek.typeUrl} with format=${encryptedDek.protobufFormat}"
-          )
-      }
-
-    return MesosRecordIoStorageClient(aeadStorageClient)
-  }
+  ): MesosRecordIoStorageClient =
+    MesosRecordIoStorageClient(
+      buildDecryptingStorageClient(storageClient, kmsClient, kekUri, encryptedDek)
+    )
 
   /** Writes a data encryption key to storage. */
   suspend fun writeDek(
