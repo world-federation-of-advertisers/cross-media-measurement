@@ -37,6 +37,7 @@ import kotlinx.coroutines.runBlocking
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.aws.kms.AwsKmsClientFactory
@@ -50,9 +51,13 @@ import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
+import org.wfanet.measurement.loadtest.dataprovider.ReferenceVidDataGeneration
+import org.wfanet.measurement.loadtest.dataprovider.ReferenceVidSpecExporter
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
 import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.virtualpeople.common.CompiledNode
+import org.wfanet.virtualpeople.core.labeler.Labeler
 import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
@@ -233,6 +238,18 @@ class GenerateSyntheticData : Runnable {
     private set
 
   @Option(
+    names = ["--export-synthetic-spec"],
+    description =
+      [
+        "Optional path to write an exported SyntheticEventGroupSpec textproto " +
+          "equivalent to the reference VID labeler output. Only applicable when " +
+          "using --reference-vid-spec-resource-path."
+      ],
+    required = false,
+  )
+  private var exportSyntheticSpecPath: File? = null
+
+  @Option(
     names = ["--model-line"],
     description = ["Full ModelLine resource name."],
     required = true,
@@ -281,18 +298,57 @@ class GenerateSyntheticData : Runnable {
         val kmsClient: KmsClient = buildKmsClient(edpKmsConfig)
 
         val perSubSpecShards: List<Sequence<LabeledEventDateShard<Message>>> =
-          spec.subSpecs.map { subSpec ->
-            val syntheticEventGroupSpec: SyntheticEventGroupSpec =
+          if (spec.referenceVidSpecResourcePath.isNotEmpty()) {
+            val refVidSpec: ReferenceVidEventGroupSpec =
               parseTextProto(
-                ImpressionTestDataConfigs.resolveSpecPath(subSpec.dataSpecResourcePath),
-                SyntheticEventGroupSpec.getDefaultInstance(),
+                ImpressionTestDataConfigs.resolveSpecPath(spec.referenceVidSpecResourcePath),
+                ReferenceVidEventGroupSpec.getDefaultInstance(),
               )
-            SyntheticDataGeneration.generateEvents(
-              messageInstance = eventMessageInstance,
-              populationSpec = populationSpec,
-              syntheticEventGroupSpec = syntheticEventGroupSpec,
-              zoneId = ZoneId.of(zoneId),
+            val modelPath = java.nio.file.Paths.get(spec.vidModelResourcePath)
+            val modelFile =
+              if (modelPath.isAbsolute) {
+                modelPath.toFile()
+              } else {
+                org.wfanet.measurement.common
+                  .getRuntimePath(
+                    java.nio.file.Paths.get(
+                      "wfa_measurement_system",
+                      "src",
+                      "main",
+                      "resources",
+                      "testing",
+                      "labeler",
+                      spec.vidModelResourcePath,
+                    )
+                  )!!
+                  .toFile()
+              }
+            val modelNode: CompiledNode =
+              parseTextProto(modelFile, CompiledNode.getDefaultInstance())
+            val labeler = Labeler.build(modelNode)
+            listOf(
+              ReferenceVidDataGeneration.generateEvents(
+                labeler = labeler,
+                messageInstance = eventMessageInstance,
+                populationSpec = populationSpec,
+                spec = refVidSpec,
+                zoneId = ZoneId.of(zoneId),
+              )
             )
+          } else {
+            spec.subSpecs.map { subSpec ->
+              val syntheticEventGroupSpec: SyntheticEventGroupSpec =
+                parseTextProto(
+                  ImpressionTestDataConfigs.resolveSpecPath(subSpec.dataSpecResourcePath),
+                  SyntheticEventGroupSpec.getDefaultInstance(),
+                )
+              SyntheticDataGeneration.generateEvents(
+                messageInstance = eventMessageInstance,
+                populationSpec = populationSpec,
+                syntheticEventGroupSpec = syntheticEventGroupSpec,
+                zoneId = ZoneId.of(zoneId),
+              )
+            }
           }
         val coalescedShards: Sequence<EntityKeyedLabeledEventDateShard<Message>> =
           coalesceByDate(perSubSpecShards, spec.subSpecs.map { listOf(it.entityKey) })
@@ -318,6 +374,46 @@ class GenerateSyntheticData : Runnable {
           modelLine,
           flatOutputBasePath = spec.outputBasePath,
         )
+
+        if (spec.referenceVidSpecResourcePath.isNotEmpty() && exportSyntheticSpecPath != null) {
+          val refVidSpec: ReferenceVidEventGroupSpec =
+            parseTextProto(
+              ImpressionTestDataConfigs.resolveSpecPath(spec.referenceVidSpecResourcePath),
+              ReferenceVidEventGroupSpec.getDefaultInstance(),
+            )
+          val modelPath = java.nio.file.Paths.get(spec.vidModelResourcePath)
+          val modelFile =
+            if (modelPath.isAbsolute) {
+              modelPath.toFile()
+            } else {
+              org.wfanet.measurement.common
+                .getRuntimePath(
+                  java.nio.file.Paths.get(
+                    "wfa_measurement_system",
+                    "src",
+                    "main",
+                    "resources",
+                    "testing",
+                    "labeler",
+                    spec.vidModelResourcePath,
+                  )
+                )!!
+                .toFile()
+            }
+          val labeler = Labeler.build(parseTextProto(modelFile, CompiledNode.getDefaultInstance()))
+          val labeledResults = ReferenceVidDataGeneration.labelAllInputs(labeler, refVidSpec)
+          val validatedResults =
+            ReferenceVidDataGeneration.validateAgainstPopulationSpec(labeledResults, populationSpec)
+          val exportedSpec =
+            ReferenceVidSpecExporter.exportSyntheticSpec(validatedResults, refVidSpec)
+          val exportedPopSpec =
+            ReferenceVidSpecExporter.exportPopulationSpec(validatedResults, populationSpec)
+          val specFile = exportSyntheticSpecPath!!
+          ReferenceVidSpecExporter.writeTextProto(specFile, exportedSpec)
+          val popFile =
+            File(specFile.parent, specFile.nameWithoutExtension + "_population.textproto")
+          ReferenceVidSpecExporter.writeTextProto(popFile, exportedPopSpec)
+        }
       }
 
       if (createDoneBlobs) {
@@ -528,7 +624,25 @@ class GenerateSyntheticData : Runnable {
       val edpEventGroups = config.eventGroupsList.filter { it.edpName in edpNames }
       require(edpEventGroups.isNotEmpty()) { "No event groups found for EDPs $edpNames in config" }
       return edpEventGroups.flatMap { eg ->
-        if (eg.entityKeySpecsList.isEmpty()) {
+        if (eg.referenceVidSpecResourcePath.isNotEmpty()) {
+          listOf(
+            ResolvedEventGroupSpec(
+              eventGroupReferenceId = eg.eventGroupReferenceId,
+              outputKey = eg.outputKey,
+              outputBasePath = eg.outputBasePath,
+              edpName = eg.edpName,
+              subSpecs =
+                listOf(
+                  ResolvedEntityKeySpec(
+                    dataSpecResourcePath = "",
+                    entityKey = EntityKey("campaign", eg.eventGroupReferenceId),
+                  )
+                ),
+              referenceVidSpecResourcePath = eg.referenceVidSpecResourcePath,
+              vidModelResourcePath = eg.vidModelResourcePath,
+            )
+          )
+        } else if (eg.entityKeySpecsList.isEmpty()) {
           listOf(
             ResolvedEventGroupSpec(
               eventGroupReferenceId = eg.eventGroupReferenceId,
@@ -572,6 +686,8 @@ data class ResolvedEventGroupSpec(
   val outputBasePath: String,
   val edpName: String,
   val subSpecs: List<ResolvedEntityKeySpec>,
+  val referenceVidSpecResourcePath: String = "",
+  val vidModelResourcePath: String = "",
 )
 
 data class ResolvedEntityKeySpec(val dataSpecResourcePath: String, val entityKey: EntityKey)

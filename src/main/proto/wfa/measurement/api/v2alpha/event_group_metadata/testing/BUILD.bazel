@@ -57,3 +57,18 @@ kt_jvm_proto_library(
     name = "simulator_synthetic_data_spec_kt_jvm_proto",
     deps = [":simulator_synthetic_data_spec_proto"],
 )
+
+proto_library(
+    name = "reference_vid_event_group_spec_proto",
+    srcs = ["reference_vid_event_group_spec.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":simulator_synthetic_data_spec_proto",
+        "@com_google_googleapis//google/type:date_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "reference_vid_event_group_spec_kt_jvm_proto",
+    deps = [":reference_vid_event_group_spec_proto"],
+)

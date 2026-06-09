@@ -1,0 +1,77 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha.event_group_metadata.testing;
+
+import "google/type/date.proto";
+import "wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha.event_group_metadata.testing";
+option java_multiple_files = true;
+
+// Specification for generating synthetic events by running input IDs through a
+// VID labeler model.
+//
+// Instead of specifying VID ranges directly (as in `SyntheticEventGroupSpec`),
+// this spec defines input ID ranges with demographic distributions. Each ID is
+// converted to a string and passed through a VID labeler model, which assigns
+// VIDs via hash-based routing and a demographic correction matrix.
+message ReferenceVidEventGroupSpec {
+  // A range of input IDs (inclusive start, exclusive end).
+  message IdRange {
+    int64 start = 1;
+    int64 end_exclusive = 2;
+  }
+
+  // Assigns demographics to a sub-range of input IDs.
+  //
+  // Each ID in the range is converted to a string (`id.toString()`) and used
+  // as `event_id.id` for the labeler. Demographics are set on the labeler
+  // input's `proprietary_id_space_1_user_info.demo.demo_bucket`.
+  message DemographicDistribution {
+    IdRange id_range = 1;
+
+    // Gender enum value (wfa_virtual_people.Gender: 1=MALE, 2=FEMALE).
+    int32 gender = 2;
+
+    int32 min_age = 3;
+    int32 max_age = 4;
+  }
+
+  // Date range and frequency for event generation.
+  message DateSpec {
+    message DateRange {
+      google.type.Date start = 1;
+      google.type.Date end_exclusive = 2;
+    }
+
+    DateRange date_range = 1;
+
+    // Total frequency for each input ID over this date range.
+    int64 frequency = 2;
+  }
+
+  // Input ID ranges with their demographic assignments.
+  repeated DemographicDistribution demographic_distributions = 1;
+
+  // Date ranges and frequencies.
+  repeated DateSpec date_specs = 2;
+
+  // Non-population field values applied to all generated events (e.g.
+  // viewability flags). Same key format as
+  // `SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec.non_population_field_values`.
+  map<string, FieldValue> non_population_field_values = 3;
+}

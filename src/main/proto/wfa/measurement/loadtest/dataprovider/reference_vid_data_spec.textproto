@@ -1,0 +1,57 @@
+# proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/reference_vid_event_group_spec.proto
+# proto-message: ReferenceVidEventGroupSpec
+
+# Small test spec: 300 input IDs across 3 demographic buckets.
+# Date range: 2024-01-01..2024-01-03 (3 days), frequency 2.
+# Total events: 300 input IDs * frequency 2 = 600 events across 3 days.
+
+demographic_distributions {
+  id_range {
+    start: 0
+    end_exclusive: 100
+  }
+  gender: 1
+  min_age: 16
+  max_age: 34
+}
+demographic_distributions {
+  id_range {
+    start: 100
+    end_exclusive: 200
+  }
+  gender: 2
+  min_age: 35
+  max_age: 54
+}
+demographic_distributions {
+  id_range {
+    start: 200
+    end_exclusive: 300
+  }
+  gender: 1
+  min_age: 55
+  max_age: 99
+}
+
+date_specs {
+  date_range {
+    start {
+      year: 2024
+      month: 1
+      day: 1
+    }
+    end_exclusive {
+      year: 2024
+      month: 1
+      day: 4
+    }
+  }
+  frequency: 2
+}
+
+non_population_field_values {
+  key: "video.completed_50_percent_plus"
+  value {
+    bool_value: true
+  }
+}
