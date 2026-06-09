@@ -47,7 +47,7 @@ message RawImpressionUploadModelLine {
     RANKING = 3;
     // VID labeling (Phase 2) is in progress.
     LABELING = 4;
-    // All phases completed successfully.
+    // All phases completed successfully. Terminal state.
     COMPLETED = 5;
     // Processing failed. Not terminal — operator can retry after
     // fixing the root cause.
@@ -67,7 +67,8 @@ message RawImpressionUploadModelLine {
     (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
   ];
 
-  // The timestamp when processing completed (success or failure).
+  // The timestamp when processing completed. Only set when
+  // state is COMPLETED or FAILED. Cleared on retry.
   google.protobuf.Timestamp completion_time = 4
       [(google.api.field_behavior) = OUTPUT_ONLY];
 

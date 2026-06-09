@@ -39,7 +39,8 @@ message RawImpressionUploadModelLine {
   // The pipeline state for this model line.
   RawImpressionUploadModelLineState state = 4;
 
-  // The timestamp when processing completed (success or failure).
+  // The timestamp when processing completed. Only set when
+  // state is COMPLETED or FAILED. Cleared on retry.
   google.protobuf.Timestamp completion_time = 5;
 
   // The timestamp when this record was created.
