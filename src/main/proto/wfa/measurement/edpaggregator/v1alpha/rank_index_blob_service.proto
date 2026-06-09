@@ -155,6 +155,9 @@ message ListRankIndexBlobsRequest {
 
     // Filter for blobs with max_event_date on or before this
     // date. Used for retention policy queries.
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: Using verb suffix per newer
+    //     API conventions. --)
     google.type.Date max_event_date_before = 4
         [(google.api.field_behavior) = OPTIONAL];
   }
