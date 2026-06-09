@@ -37,12 +37,12 @@ message SubpoolAssignerParams {
     (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
   ];
 
-  // GCS storage location used by the SubpoolAssigner.
+  // Cloud Storage location used by the SubpoolAssigner.
   message StorageParams {
     // The Google Cloud Storage project ID for the storage instance.
     string gcs_project_id = 1 [(google.api.field_behavior) = REQUIRED];
 
-    // The GCS blob URI prefix.
+    // The Cloud Storage blob URI prefix.
     //
     // Required for the subpool-map storage (a static, config-driven
     // location that does not change at runtime). May be left empty for the
@@ -102,7 +102,7 @@ message SubpoolAssignerParams {
     (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
   ];
 
-  // GCS blob path of the compiled VID model for this model line. Mirrors
+  // Cloud Storage blob path of the compiled VID model for this model line. Mirrors
   // `ModelShard.model_blob_path` from the public API.
   //
   // Used by the Phase-0 SubpoolAssigner to load the labeler in pool-emit
