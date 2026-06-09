@@ -103,6 +103,7 @@ message BatchCreatePoolAssignmentJobsRequest {
 // Response message for the
 // `BatchCreatePoolAssignmentJobs` method.
 message BatchCreatePoolAssignmentJobsResponse {
+  // The created pool assignment jobs.
   repeated PoolAssignmentJob pool_assignment_jobs = 1;
 }
 
@@ -172,6 +173,7 @@ message ListPoolAssignmentJobsRequest {
 
 // Response message for the `ListPoolAssignmentJobs` method.
 message ListPoolAssignmentJobsResponse {
+  // The list of pool assignment jobs matching the request.
   repeated PoolAssignmentJob pool_assignment_jobs = 1;
 
   // A token to retrieve the next page of results.
