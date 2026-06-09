@@ -18,7 +18,6 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Empty
-import com.google.protobuf.timestamp
 import com.google.type.Date
 import com.google.type.date
 import com.google.type.interval
@@ -54,6 +53,7 @@ import org.wfanet.measurement.internal.kingdom.MediaType
 import org.wfanet.measurement.internal.kingdom.batchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.dateInterval
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupActivityRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup
 import org.wfanet.measurement.internal.kingdom.eventGroupActivity
@@ -1553,12 +1553,16 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
             ListEventGroupActivitiesRequest.Filter.newBuilder()
               .addExternalEventGroupIds(eventGroup.externalEventGroupId)
               .setDateInterval(
-                interval {
-                  startTime = timestamp {
-                    seconds = 1764565200 // 2025-12-01T00:00:00Z
+                dateInterval {
+                  startDate = date {
+                    year = 2025
+                    month = 12
+                    day = 1
                   }
-                  endTime = timestamp {
-                    seconds = 1767243600 // 2026-01-01T00:00:00Z
+                  endDate = date {
+                    year = 2026
+                    month = 1
+                    day = 1
                   }
                 }
               )
