@@ -32,36 +32,29 @@ import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
 /**
  * Phase-0 TEE application for the memoized VID assignment pipeline.
  *
- * The dispatcher publishes one [WorkItem] per fingerprint shard for each
- * (`RawImpressionUpload`, `ModelLine`) pair that has memoization enabled.
- * The shard, model line, and per-dispatch knobs travel inside the WorkItem's
- * [SubpoolAssignerParams] payload. Each VM:
- *  - reads the upload's raw impression files,
- *  - drops impressions whose event timestamp falls outside the model line's
- *    `[active_start_time, active_end_time)` window (mirrors
- *    `ModelLine.active_start_time` / `active_end_time` in the public API),
- *  - keeps only impressions whose SHA-256 fingerprint matches its shard
- *    (`fingerprint.hash() % total_shards == shard_index`),
- *  - loads the compiled VID model from
- *    [SubpoolAssignerParams.modelBlobPath] and runs the labeler in pool-emit
- *    mode to resolve a subpool per fingerprint,
- *  - writes one
- *    [org.wfanet.measurement.edpaggregator.v1alpha.SubpoolFingerprints] blob
- *    per (shard, subpool) to the subpool-map storage.
+ * The dispatcher publishes one [WorkItem] per fingerprint shard for each (`RawImpressionUpload`,
+ * `ModelLine`) pair that has memoization enabled. The shard, model line, and per-dispatch knobs
+ * travel inside the WorkItem's [SubpoolAssignerParams] payload. Each VM:
+ * - reads the upload's raw impression files,
+ * - drops impressions whose event timestamp falls outside the model line's `[active_start_time,
+ *   active_end_time)` window (mirrors `ModelLine.active_start_time` / `active_end_time` in the
+ *   public API),
+ * - keeps only impressions whose SHA-256 fingerprint matches its shard (`fingerprint.hash() %
+ *   total_shards == shard_index`),
+ * - loads the compiled VID model from [SubpoolAssignerParams.modelBlobPath] and runs the labeler in
+ *   pool-emit mode to resolve a subpool per fingerprint,
+ * - writes one [org.wfanet.measurement.edpaggregator.v1alpha.SubpoolFingerprints] blob per (shard,
+ *   subpool) to the subpool-map storage.
  *
- * Per-shard pipeline state is reported back through the EDP Aggregator's
- * internal gRPC services: this app creates (or upserts) a
- * `RawImpressionUploadModelLine` row for the (`RawImpressionUpload`,
- * `ModelLine`) pair when it first runs, and updates its own
- * `PoolAssignmentJob` row to `POOL_ASSIGNMENT_SUCCEEDED` once the per-shard
- * blobs are durable.
+ * Per-shard pipeline state is reported back through the EDP Aggregator's internal gRPC services:
+ * this app creates (or upserts) a `RawImpressionUploadModelLine` row for the
+ * (`RawImpressionUpload`, `ModelLine`) pair when it first runs, and updates its own
+ * `PoolAssignmentJob` row to `POOL_ASSIGNMENT_SUCCEEDED` once the per-shard blobs are durable.
  *
- * The last shard to complete is responsible for merging the per-shard
- * per-subpool blobs into one cumulative blob per subpool, bin-packing
- * subpools into `RankerJob` rows, flipping
- * `RawImpressionUploadModelLineState` from `POOL_ASSIGNING` to `RANKING`,
- * and triggering Phase-1 (rank allocation) with one `WorkItem` per
- * `RankerJob`.
+ * The last shard to complete is responsible for merging the per-shard per-subpool blobs into one
+ * cumulative blob per subpool, bin-packing subpools into `RankerJob` rows, flipping
+ * `RawImpressionUploadModelLineState` from `POOL_ASSIGNING` to `RANKING`, and triggering Phase-1
+ * (rank allocation) with one `WorkItem` per `RankerJob`.
  *
  * @param subscriptionId The subscription ID for the queue subscriber.
  * @param queueSubscriber The [QueueSubscriber] instance for receiving work items.
@@ -69,12 +62,12 @@ import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
  * @param workItemsClient gRPC client stub for [WorkItemsGrpcKt.WorkItemsCoroutineStub].
  * @param workItemAttemptsClient gRPC client stub for
  *   [WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub].
- * @param kmsClients Per-DataProvider KMS clients used to wrap/unwrap DEKs
- *   for raw-impression and `SubpoolFingerprints` blobs.
- * @param getSubpoolMapStorageConfig Lambda to obtain the [StorageConfig] for
- *   reading and writing the per-(shard, subpool) `SubpoolFingerprints` blobs.
- * @param getRawImpressionsStorageConfig Lambda to obtain the [StorageConfig]
- *   for reading the raw-impression files uploaded by the EDP.
+ * @param kmsClients Per-DataProvider KMS clients used to wrap/unwrap DEKs for raw-impression and
+ *   `SubpoolFingerprints` blobs.
+ * @param getSubpoolMapStorageConfig Lambda to obtain the [StorageConfig] for reading and writing
+ *   the per-(shard, subpool) `SubpoolFingerprints` blobs.
+ * @param getRawImpressionsStorageConfig Lambda to obtain the [StorageConfig] for reading the
+ *   raw-impression files uploaded by the EDP.
  */
 class SubpoolAssignerApp(
   subscriptionId: String,
@@ -103,8 +96,7 @@ class SubpoolAssignerApp(
 
   override suspend fun runWork(message: Any) {
     val workItemParams = message.unpack(WorkItemParams::class.java)
-    val subpoolAssignerParams =
-      workItemParams.appParams.unpack(SubpoolAssignerParams::class.java)
+    val subpoolAssignerParams = workItemParams.appParams.unpack(SubpoolAssignerParams::class.java)
 
     // TODO(@Marco-Premier): Implement Phase-0 pipeline:
     //   1. Resolve storage configs via getRawImpressionsStorageConfig and
