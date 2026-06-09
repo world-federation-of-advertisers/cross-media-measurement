@@ -32,12 +32,10 @@ import picocli.CommandLine
 /**
  * CLI entry point for the [VidRankBuilderApp] Phase-1 TEE container.
  *
- * Pulls EDPA mTLS material from Secret Manager, builds per-`DataProvider`
- * [KmsClient]s from the EDPA-level `event-data-provider-configs.textproto`
- * via Workload Identity Federation, opens a mutual-TLS channel to the
- * Secure Computation control plane for `WorkItem` / `WorkItemAttempt` writes,
- * subscribes to the Phase-1 Pub/Sub topic, and hands everything to
- * [VidRankBuilderApp.run].
+ * Pulls EDPA mTLS material from Secret Manager, builds per-`DataProvider` [KmsClient]s from the
+ * EDPA-level `event-data-provider-configs.textproto` via Workload Identity Federation, opens a
+ * mutual-TLS channel to the Secure Computation control plane for `WorkItem` / `WorkItemAttempt`
+ * writes, subscribes to the Phase-1 Pub/Sub topic, and hands everything to [VidRankBuilderApp.run].
  */
 @CommandLine.Command(name = "vid_rank_builder_app_runner")
 class VidRankBuilderAppRunner : BaseTeeAppRunner() {
