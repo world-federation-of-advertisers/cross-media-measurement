@@ -58,12 +58,9 @@ class Bytes12IntMapTest {
   @Test
   fun `constructor rounds capacity up to next power of two`() {
     assertThat(Bytes12IntMap(initialCapacity = 17L).capacity()).isEqualTo(32L)
-    assertThat(Bytes12IntMap(initialCapacity = 17L, maxChunkShift = 4).capacity())
-      .isEqualTo(32L)
-    assertThat(Bytes12IntMap(initialCapacity = 100L, maxChunkShift = 4).capacity())
-      .isEqualTo(128L)
-    assertThat(Bytes12IntMap(initialCapacity = 16L, maxChunkShift = 4).capacity())
-      .isEqualTo(16L)
+    assertThat(Bytes12IntMap(initialCapacity = 17L, maxChunkShift = 4).capacity()).isEqualTo(32L)
+    assertThat(Bytes12IntMap(initialCapacity = 100L, maxChunkShift = 4).capacity()).isEqualTo(128L)
+    assertThat(Bytes12IntMap(initialCapacity = 16L, maxChunkShift = 4).capacity()).isEqualTo(16L)
     assertThat(Bytes12IntMap(initialCapacity = 1024L, maxChunkShift = 4).numChunks())
       .isEqualTo(1024 / 16)
   }
@@ -257,13 +254,7 @@ class Bytes12IntMapTest {
   @Test
   fun `forEach visits every entry exactly once`() {
     val table = Bytes12IntMap()
-    val expected =
-      mapOf(
-        (1L to 2) to 10,
-        (3L to 4) to 20,
-        (5L to 6) to 30,
-        (0L to 0) to 40,
-      )
+    val expected = mapOf((1L to 2) to 10, (3L to 4) to 20, (5L to 6) to 30, (0L to 0) to 40)
     for ((k, v) in expected) {
       table.put(k.first, k.second, v)
     }
@@ -325,8 +316,7 @@ class Bytes12IntMapTest {
 
   @Test
   fun `multi-chunk layout supports many entries across chunks`() {
-    val table =
-      Bytes12IntMap(initialCapacity = 64L, loadFactor = 0.95f, maxChunkShift = 4)
+    val table = Bytes12IntMap(initialCapacity = 64L, loadFactor = 0.95f, maxChunkShift = 4)
     assertThat(table.numChunks()).isEqualTo(4)
     val initialCap = table.capacity()
     val n = 50
@@ -342,14 +332,12 @@ class Bytes12IntMapTest {
 
   @Test
   fun `cross-chunk probe wraps correctly on insert and lookup`() {
-    val table =
-      Bytes12IntMap(initialCapacity = 64L, loadFactor = 0.95f, maxChunkShift = 4)
+    val table = Bytes12IntMap(initialCapacity = 64L, loadFactor = 0.95f, maxChunkShift = 4)
     val mask = table.capacity() - 1L
     val target = 15L
     val keys = generateKeysHittingIndex(target = target, count = 6, mask = mask)
     for ((i, k) in keys.withIndex()) {
-      assertThat(table.put(k.first, k.second, i + 1))
-        .isEqualTo(Bytes12IntMap.NOT_PRESENT)
+      assertThat(table.put(k.first, k.second, i + 1)).isEqualTo(Bytes12IntMap.NOT_PRESENT)
     }
     for ((i, k) in keys.withIndex()) {
       assertThat(table.get(k.first, k.second)).isEqualTo(i + 1)
@@ -358,8 +346,7 @@ class Bytes12IntMapTest {
 
   @Test
   fun `cross-chunk shiftKeys preserves lookups after removal`() {
-    val table =
-      Bytes12IntMap(initialCapacity = 64L, loadFactor = 0.95f, maxChunkShift = 4)
+    val table = Bytes12IntMap(initialCapacity = 64L, loadFactor = 0.95f, maxChunkShift = 4)
     val mask = table.capacity() - 1L
     val keys = generateKeysHittingIndex(target = 15L, count = 6, mask = mask)
     for ((i, k) in keys.withIndex()) {
@@ -378,8 +365,7 @@ class Bytes12IntMapTest {
 
   @Test
   fun `cross-chunk wrap from last slot to first slot works`() {
-    val table =
-      Bytes12IntMap(initialCapacity = 64L, loadFactor = 0.95f, maxChunkShift = 4)
+    val table = Bytes12IntMap(initialCapacity = 64L, loadFactor = 0.95f, maxChunkShift = 4)
     val mask = table.capacity() - 1L
     val lastIndex = (table.capacity() - 1L)
     val keys = generateKeysHittingIndex(target = lastIndex, count = 5, mask = mask)
@@ -404,8 +390,7 @@ class Bytes12IntMapTest {
 
   @Test
   fun `remove preserves lookups for keys with overlapping probe chains (single chunk)`() {
-    val table =
-      Bytes12IntMap(initialCapacity = 16L, loadFactor = 0.95f, maxChunkShift = 4)
+    val table = Bytes12IntMap(initialCapacity = 16L, loadFactor = 0.95f, maxChunkShift = 4)
     val mask = table.capacity() - 1L
     val collidingKeys = generateKeysHittingIndex(target = 7L, count = 8, mask = mask)
     for ((i, k) in collidingKeys.withIndex()) {
@@ -437,8 +422,7 @@ class Bytes12IntMapTest {
     }
     assertThat(table.size).isEqualTo((n / 2).toLong())
     for (i in 0 until n step 2) {
-      assertThat(table.put(i.toLong() * 7L, i, i * 100))
-        .isEqualTo(Bytes12IntMap.NOT_PRESENT)
+      assertThat(table.put(i.toLong() * 7L, i, i * 100)).isEqualTo(Bytes12IntMap.NOT_PRESENT)
     }
     for (i in 0 until n) {
       val expected = if (i % 2 == 0) i * 100 else i * 10
@@ -495,8 +479,7 @@ class Bytes12IntMapTest {
           assertThat(prevTable).isEqualTo(prevRef ?: Bytes12IntMap.NOT_PRESENT)
         }
         1 -> {
-          assertThat(table.get(keyHi, keyLo))
-            .isEqualTo(ref[key] ?: Bytes12IntMap.NOT_PRESENT)
+          assertThat(table.get(keyHi, keyLo)).isEqualTo(ref[key] ?: Bytes12IntMap.NOT_PRESENT)
         }
         2 -> {
           val prevTable = table.remove(keyHi, keyLo)
@@ -568,10 +551,9 @@ class Bytes12IntMapTest {
   // -------- Helpers --------
 
   /**
-   * Generates [count] distinct `(hi, lo)` pairs whose `indexFor`
-   * reduction (`(keyHi xor (keyLo shl 32) xor keyLo) and mask`) equals
-   * [target]. Used to force collisions on a specific bucket index for
-   * probing and backward-shift deletion tests.
+   * Generates [count] distinct `(hi, lo)` pairs whose `indexFor` reduction (`(keyHi xor (keyLo
+   * shl 32) xor keyLo) and mask`) equals [target]. Used to force collisions on a specific bucket
+   * index for probing and backward-shift deletion tests.
    */
   private fun generateKeysHittingIndex(
     target: Long,
@@ -594,5 +576,4 @@ class Bytes12IntMapTest {
     }
     return results
   }
-
 }

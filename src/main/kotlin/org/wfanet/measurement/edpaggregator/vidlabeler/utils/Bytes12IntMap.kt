@@ -17,108 +17,85 @@
 package org.wfanet.measurement.edpaggregator.vidlabeler.utils
 
 /**
- * Single-threaded, primitive open-addressing hash table mapping
- * 12-byte keys to 32-bit `Int` values. Optimized for the memoized
- * VID pipeline, where 12-byte keys are typically the leading bytes
- * of a cryptographic fingerprint (e.g. SHA-256) and values carry
- * domain-specific meaning such as a rank (Phase 1 ranker) or a
- * presence sentinel when the table is used as a membership set
+ * Single-threaded, primitive open-addressing hash table mapping 12-byte keys to 32-bit `Int`
+ * values. Optimized for the memoized VID pipeline, where 12-byte keys are typically the leading
+ * bytes of a cryptographic fingerprint (e.g. SHA-256) and values carry domain-specific meaning such
+ * as a rank (Phase 1 ranker) or a presence sentinel when the table is used as a membership set
  * (Phase 0 subpool buckets, Phase 1 subpool filter).
- *
  *
  * ## Storage layout (chunked)
  *
  * Three parallel arrays-of-primitive-arrays:
- *  * `keysHi: Array<LongArray>` — high 8 bytes of each key.
- *  * `keysLo: Array<IntArray>`  — low 4 bytes of each key.
- *  * `values: Array<IntArray>`  — the associated `Int` value.
+ * * `keysHi: Array<LongArray>` — high 8 bytes of each key.
+ * * `keysLo: Array<IntArray>` — low 4 bytes of each key.
+ * * `values: Array<IntArray>` — the associated `Int` value.
  *
- * Each inner array is one *chunk* of `1 shl chunkShift` slots. The
- * total capacity is `numChunks × chunkSize`. Both `chunkSize` and
- * `numChunks` are powers of two so that the total capacity is itself a
- * power of two and `index = hash and (capacity - 1)` is a single
- * bitwise AND on `Long`s.
+ * Each inner array is one *chunk* of `1 shl chunkShift` slots. The total capacity is `numChunks ×
+ * chunkSize`. Both `chunkSize` and `numChunks` are powers of two so that the total capacity is
+ * itself a power of two and `index = hash and (capacity - 1)` is a single bitwise AND on `Long`s.
  *
- * The two-level layout lets the table grow past the JVM's
- * `Int.MAX_VALUE` single-array limit while preserving the bitmask hot
- * path: a logical `Long` index `i` decomposes to
- * `(chunkIdx, slotIdx) = (i ushr chunkShift, i.toInt() and slotMask)`,
- * which are pure bitwise operations.
+ * The two-level layout lets the table grow past the JVM's `Int.MAX_VALUE` single-array limit while
+ * preserving the bitmask hot path: a logical `Long` index `i` decomposes to `(chunkIdx, slotIdx) =
+ * (i ushr chunkShift, i.toInt() and slotMask)`, which are pure bitwise operations.
  *
- * Collisions are resolved with linear probing on the logical index. On
- * [remove] the freed slot is filled by backward-shifting subsequent
- * occupied slots; the algorithm crosses chunk boundaries transparently
- * because the logical index wraps at `capacity` rather than at any
- * chunk edge.
+ * Collisions are resolved with linear probing on the logical index. On [remove] the freed slot is
+ * filled by backward-shifting subsequent occupied slots; the algorithm crosses chunk boundaries
+ * transparently because the logical index wraps at `capacity` rather than at any chunk edge.
  *
  * ## Memory cost
  *
- * Approximately `16 B` per slot (8 + 4 + 4 across the three parallel
- * arrays). At the default `0.75` load factor that is roughly `21 B`
- * per stored entry. Examples:
- *  * 360 M entries → ~7 GiB
- *  * 1.5 B entries → ~31 GiB
- *  * 2 B entries → ~42 GiB
+ * Approximately `16 B` per slot (8 + 4 + 4 across the three parallel arrays). At the default `0.75`
+ * load factor that is roughly `21 B` per stored entry. Examples:
+ * * 360 M entries → ~7 GiB
+ * * 1.5 B entries → ~31 GiB
+ * * 2 B entries → ~42 GiB
  *
- * Chunked allocation also bounds the *peak* transient memory during
- * [resize]: new chunks are allocated incrementally rather than as a
- * single large primitive array.
+ * Chunked allocation also bounds the *peak* transient memory during [resize]: new chunks are
+ * allocated incrementally rather than as a single large primitive array.
  *
  * ## Capacity ceiling
  *
- * Per chunk: up to `2^30` slots (the largest power of two below the
- * JVM array length limit). Total capacity: up to `2^30 × 2^30 = 2^60`
- * slots, far beyond any realistic use. In practice the table is
- * bounded only by heap memory.
+ * Per chunk: up to `2^30` slots (the largest power of two below the JVM array length limit). Total
+ * capacity: up to `2^30 × 2^30 = 2^60` slots, far beyond any realistic use. In practice the table
+ * is bounded only by heap memory.
  *
  * ## Key assumptions
  *
- * Keys are assumed to be drawn from a uniform distribution (e.g. the
- * leading bytes of a cryptographic hash such as SHA-256). The table
- * applies only a cheap mixing step before reducing to a table index;
- * adversarial or highly-clustered keys can produce pathological probe
- * chains.
+ * Keys are assumed to be drawn from a uniform distribution (e.g. the leading bytes of a
+ * cryptographic hash such as SHA-256). The table applies only a cheap mixing step before reducing
+ * to a table index; adversarial or highly-clustered keys can produce pathological probe chains.
  *
  * ## Absent-key sentinel
  *
- * [get] and [remove] return [NOT_PRESENT] (== `-1`) when the
- * requested key is not in the table. Callers that only ever store
- * non-negative values (e.g. ranks, subpool IDs, or a fixed
- * presence-sentinel such as `0`) can rely on this return value to
- * distinguish "missing" from "present" without a separate
- * [containsKey] probe. Callers that may store `-1` as a real value
- * MUST use [containsKey] for presence checks; [containsKey] probes
- * the key arrays directly and is unambiguous for any stored value.
+ * [get] and [remove] return [NOT_PRESENT] (== `-1`) when the requested key is not in the table.
+ * Callers that only ever store non-negative values (e.g. ranks, subpool IDs, or a fixed
+ * presence-sentinel such as `0`) can rely on this return value to distinguish "missing" from
+ * "present" without a separate [containsKey] probe. Callers that may store `-1` as a real value
+ * MUST use [containsKey] for presence checks; [containsKey] probes the key arrays directly and is
+ * unambiguous for any stored value.
  *
  * ## Concurrency
  *
- * **Not thread-safe.** Concurrent mutation, or mutation concurrent
- * with read, can corrupt the internal arrays via resize races or
- * probe-sequence races, matching the contract of `fastutil`'s
- * `Long2IntOpenHashMap`. Callers that need concurrent access must
- * serialize externally.
+ * **Not thread-safe.** Concurrent mutation, or mutation concurrent with read, can corrupt the
+ * internal arrays via resize races or probe-sequence races, matching the contract of `fastutil`'s
+ * `Long2IntOpenHashMap`. Callers that need concurrent access must serialize externally.
  *
  * ## Iteration during mutation
  *
- * Iteration via [forEach] reads the parallel arrays directly with no
- * snapshot or copy. Iteration concurrent with mutation produces
- * undefined behavior.
+ * Iteration via [forEach] reads the parallel arrays directly with no snapshot or copy. Iteration
+ * concurrent with mutation produces undefined behavior.
  *
- * @param initialCapacity initial number of slots. Rounded up to the
- *   next power of two and floored at [MIN_CAPACITY].
- * @param loadFactor maximum fill ratio before a resize is triggered.
- *   Must be in `(0, 1)`. Lower values trade memory for shorter probe
- *   chains.
- * @param maxChunkShift `log2` of the MAXIMUM per-chunk slot count.
- *   Defaults to [DEFAULT_CHUNK_SHIFT] (i.e. `2^30` slots per chunk).
- *   The actual chunk size starts at `min(2^maxChunkShift,
- *   nextPowerOfTwo(initialCapacity))` so small tables don't allocate
- *   a huge first chunk. Chunk size grows on resize until it reaches
- *   the cap, after which further resizes add chunks. Advanced
- *   parameter — almost all callers should leave it at the default;
- *   the only reason to lower it is to force multi-chunk layouts at
- *   small total sizes (used by this class's own unit tests). Must
- *   be in `(0, MAX_CHUNK_SHIFT]`.
+ * @param initialCapacity initial number of slots. Rounded up to the next power of two and floored
+ *   at [MIN_CAPACITY].
+ * @param loadFactor maximum fill ratio before a resize is triggered. Must be in `(0, 1)`. Lower
+ *   values trade memory for shorter probe chains.
+ * @param maxChunkShift `log2` of the MAXIMUM per-chunk slot count. Defaults to
+ *   [DEFAULT_CHUNK_SHIFT] (i.e. `2^30` slots per chunk). The actual chunk size starts at
+ *   `min(2^maxChunkShift, nextPowerOfTwo(initialCapacity))` so small tables don't allocate a huge
+ *   first chunk. Chunk size grows on resize until it reaches the cap, after which further resizes
+ *   add chunks. Advanced parameter — almost all callers should leave it at the default; the only
+ *   reason to lower it is to force multi-chunk layouts at small total sizes (used by this class's
+ *   own unit tests). Must be in `(0, MAX_CHUNK_SHIFT]`.
  */
 class Bytes12IntMap(
   initialCapacity: Long = DEFAULT_INITIAL_CAPACITY,
@@ -127,9 +104,7 @@ class Bytes12IntMap(
 ) {
   init {
     require(initialCapacity > 0L) { "initialCapacity must be > 0, got $initialCapacity" }
-    require(loadFactor > 0f && loadFactor < 1f) {
-      "loadFactor must be in (0, 1), got $loadFactor"
-    }
+    require(loadFactor > 0f && loadFactor < 1f) { "loadFactor must be in (0, 1), got $loadFactor" }
     require(maxChunkShift in 1..MAX_CHUNK_SHIFT) {
       "maxChunkShift must be in [1, $MAX_CHUNK_SHIFT], got $maxChunkShift"
     }
@@ -147,28 +122,32 @@ class Bytes12IntMap(
   // access them from inlined code without exposing them in the public
   // API. The setter is kept private so external callers cannot mutate
   // the layout.
-  @PublishedApi internal var keysHi: Array<LongArray> = emptyArray()
+  @PublishedApi
+  internal var keysHi: Array<LongArray> = emptyArray()
     private set
 
-  @PublishedApi internal var keysLo: Array<IntArray> = emptyArray()
+  @PublishedApi
+  internal var keysLo: Array<IntArray> = emptyArray()
     private set
 
-  @PublishedApi internal var values: Array<IntArray> = emptyArray()
+  @PublishedApi
+  internal var values: Array<IntArray> = emptyArray()
     private set
 
   /**
-   * The all-zero key `(keyHi == 0L && keyLo == 0)` cannot be stored in
-   * the parallel arrays because that value is the empty-slot sentinel.
-   * It is stored out-of-band so non-zero keys can use the cheap
-   * sentinel-based empty check.
+   * The all-zero key `(keyHi == 0L && keyLo == 0)` cannot be stored in the parallel arrays because
+   * that value is the empty-slot sentinel. It is stored out-of-band so non-zero keys can use the
+   * cheap sentinel-based empty check.
    *
-   * Marked @PublishedApi internal so the inline [forEach] can read it
-   * from inlined code; setter remains private.
+   * Marked @PublishedApi internal so the inline [forEach] can read it from inlined code; setter
+   * remains private.
    */
-  @PublishedApi internal var containsZeroKey: Boolean = false
+  @PublishedApi
+  internal var containsZeroKey: Boolean = false
     private set
 
-  @PublishedApi internal var zeroKeyValue: Int = 0
+  @PublishedApi
+  internal var zeroKeyValue: Int = 0
     private set
 
   /** Number of entries currently in the table. */
@@ -181,16 +160,14 @@ class Bytes12IntMap(
   }
 
   /**
-   * Allocates fresh parallel-array storage for [newCapacity] slots and
-   * updates all dependent state. The chunk size is chosen as
-   * `min(2^maxChunkShift, newCapacity)` so small tables allocate small
-   * chunks; once `newCapacity` exceeds the chunk-size cap, additional
-   * chunks of `2^maxChunkShift` slots are allocated.
+   * Allocates fresh parallel-array storage for [newCapacity] slots and updates all dependent state.
+   * The chunk size is chosen as `min(2^maxChunkShift, newCapacity)` so small tables allocate small
+   * chunks; once `newCapacity` exceeds the chunk-size cap, additional chunks of `2^maxChunkShift`
+   * slots are allocated.
    */
   private fun installLayout(newCapacity: Long) {
     val maxChunk = 1L shl maxChunkShift
-    val effectiveChunkSize =
-      if (newCapacity < maxChunk) newCapacity.toInt() else maxChunk.toInt()
+    val effectiveChunkSize = if (newCapacity < maxChunk) newCapacity.toInt() else maxChunk.toInt()
     val numChunksLong = newCapacity / effectiveChunkSize
     check(numChunksLong <= Int.MAX_VALUE.toLong()) {
       "numChunks ($numChunksLong) would exceed Int.MAX_VALUE; capacity=$newCapacity, " +
@@ -220,8 +197,8 @@ class Bytes12IntMap(
   /**
    * Inserts or updates the mapping `(keyHi, keyLo) -> value`.
    *
-   * @return the previous value associated with the key, or [NOT_PRESENT]
-   *   if the key was not present.
+   * @return the previous value associated with the key, or [NOT_PRESENT] if the key was not
+   *   present.
    */
   fun put(keyHi: Long, keyLo: Int, value: Int): Int {
     if (keyHi == 0L && keyLo == 0) {
@@ -270,8 +247,7 @@ class Bytes12IntMap(
   }
 
   /**
-   * Returns the value associated with `(keyHi, keyLo)`, or [NOT_PRESENT]
-   * if the key is not present.
+   * Returns the value associated with `(keyHi, keyLo)`, or [NOT_PRESENT] if the key is not present.
    */
   fun get(keyHi: Long, keyLo: Int): Int {
     if (keyHi == 0L && keyLo == 0) {
@@ -304,8 +280,7 @@ class Bytes12IntMap(
   /**
    * Removes the entry for `(keyHi, keyLo)`.
    *
-   * @return the previous value, or [NOT_PRESENT] if the key was not
-   *   present.
+   * @return the previous value, or [NOT_PRESENT] if the key was not present.
    */
   fun remove(keyHi: Long, keyLo: Int): Int {
     if (keyHi == 0L && keyLo == 0) {
@@ -348,10 +323,9 @@ class Bytes12IntMap(
   /**
    * Returns `true` iff `(keyHi, keyLo)` is present in the table.
    *
-   * Probes the key arrays directly and never reads the value slot, so
-   * the result is correct regardless of what `Int` value the caller
-   * stored. This is the only correct way to disambiguate "present
-   * with value [NOT_PRESENT]" from "absent".
+   * Probes the key arrays directly and never reads the value slot, so the result is correct
+   * regardless of what `Int` value the caller stored. This is the only correct way to disambiguate
+   * "present with value [NOT_PRESENT]" from "absent".
    */
   fun containsKey(keyHi: Long, keyLo: Int): Boolean {
     if (keyHi == 0L && keyLo == 0) return containsZeroKey
@@ -395,9 +369,8 @@ class Bytes12IntMap(
    *
    * Iteration concurrent with mutation produces undefined behavior.
    *
-   * Inlined into call sites to avoid a per-entry virtual call;
-   * critical when iterating tables with hundreds of millions of
-   * entries.
+   * Inlined into call sites to avoid a per-entry virtual call; critical when iterating tables with
+   * hundreds of millions of entries.
    */
   inline fun forEach(action: (keyHi: Long, keyLo: Int, value: Int) -> Unit) {
     if (containsZeroKey) action(0L, 0, zeroKeyValue)
@@ -423,8 +396,7 @@ class Bytes12IntMap(
   }
 
   /**
-   * Inserts or updates the entry whose key is the 12 bytes of
-   * [fingerprint]. Equivalent to
+   * Inserts or updates the entry whose key is the 12 bytes of [fingerprint]. Equivalent to
    * `put(highOf(fingerprint), lowOf(fingerprint), value)`.
    *
    * @throws IllegalArgumentException if `fingerprint.size != 12`.
@@ -453,9 +425,8 @@ class Bytes12IntMap(
   }
 
   /**
-   * Advances [pos] by one logical slot, wrapping at [capacity]. Works
-   * transparently across chunk boundaries: the chunk index is implicit
-   * in the high bits of the logical position.
+   * Advances [pos] by one logical slot, wrapping at [capacity]. Works transparently across chunk
+   * boundaries: the chunk index is implicit in the high bits of the logical position.
    */
   private fun nextPos(pos: Long): Long {
     val p = pos + 1L
@@ -463,12 +434,10 @@ class Bytes12IntMap(
   }
 
   /**
-   * Backward-shift deletion. After freeing slot [initial], walks
-   * forward and pulls each subsequent occupied slot back into the gap
-   * whenever doing so does not invalidate its lookup path. Operates on
-   * the logical (chunk-spanning) index; chunk boundaries do not affect
-   * the algorithm because logical-distance arithmetic is performed on
-   * the Long index.
+   * Backward-shift deletion. After freeing slot [initial], walks forward and pulls each subsequent
+   * occupied slot back into the gap whenever doing so does not invalidate its lookup path. Operates
+   * on the logical (chunk-spanning) index; chunk boundaries do not affect the algorithm because
+   * logical-distance arithmetic is performed on the Long index.
    */
   private fun shiftKeys(initial: Long) {
     val shift = chunkShift
@@ -494,8 +463,7 @@ class Bytes12IntMap(
         }
         val natural = indexFor(currHi, currLo)
         val canShift =
-          if (last <= pos) last >= natural || natural > pos
-          else last >= natural && natural > pos
+          if (last <= pos) last >= natural || natural > pos else last >= natural && natural > pos
         if (canShift) {
           val lastChunk = (last ushr shift).toInt()
           val lastSlot = last.toInt() and sMask
@@ -554,18 +522,17 @@ class Bytes12IntMap(
   }
 
   /**
-   * Inserts `(hi, lo) -> v` into the current (post-resize) arrays
-   * without touching [size] or triggering a re-resize.
+   * Inserts `(hi, lo) -> v` into the current (post-resize) arrays without touching [size] or
+   * triggering a re-resize.
    *
    * Preconditions (caller must guarantee):
-   *  * `(hi, lo) != (0L, 0)` — zero-key is stored out-of-band.
-   *  * `(hi, lo)` is NOT already present in the table — this method
-   *    has no key-equality check; a duplicate would loop forever or
-   *    silently land in an unrelated empty slot.
+   * * `(hi, lo) != (0L, 0)` — zero-key is stored out-of-band.
+   * * `(hi, lo)` is NOT already present in the table — this method has no key-equality check; a
+   *   duplicate would loop forever or silently land in an unrelated empty slot.
    *
-   * Used by [resize] to repopulate the new chunks from old contents;
-   * both preconditions hold by construction there (zero-key never
-   * appears in the data arrays, and old contents have unique keys).
+   * Used by [resize] to repopulate the new chunks from old contents; both preconditions hold by
+   * construction there (zero-key never appears in the data arrays, and old contents have unique
+   * keys).
    */
   private fun insertNoResize(hi: Long, lo: Int, v: Int) {
     val shift = chunkShift
@@ -595,13 +562,11 @@ class Bytes12IntMap(
   }
 
   /**
-   * Maps a 96-bit key to a logical Long slot index in `[0, capacity)`.
-   * Combines all 96 bits of the key via XOR folding (no avalanche
-   * mixing): the 32-bit low half is XORed into both halves of the
-   * 64-bit high, then reduced to range via `and mask`. This is
-   * adequate only for uniformly-distributed keys (see the class-level
-   * "Key assumptions" section); adversarial or clustered keys can
-   * still produce pathological probe chains.
+   * Maps a 96-bit key to a logical Long slot index in `[0, capacity)`. Combines all 96 bits of the
+   * key via XOR folding (no avalanche mixing): the 32-bit low half is XORed into both halves of the
+   * 64-bit high, then reduced to range via `and mask`. This is adequate only for
+   * uniformly-distributed keys (see the class-level "Key assumptions" section); adversarial or
+   * clustered keys can still produce pathological probe chains.
    */
   private fun indexFor(keyHi: Long, keyLo: Int): Long {
     val loAsLong = keyLo.toLong() and 0xFFFFFFFFL
@@ -610,9 +575,8 @@ class Bytes12IntMap(
   }
 
   /**
-   * Sentinel test: a slot is empty iff both halves of its key are
-   * zero. The actual zero key `(0L, 0)` is stored out-of-band so this
-   * never produces a false positive for the in-array data.
+   * Sentinel test: a slot is empty iff both halves of its key are zero. The actual zero key `(0L,
+   * 0)` is stored out-of-band so this never produces a false positive for the in-array data.
    */
   private fun isEmptySlot(hi: Long, lo: Int): Boolean = hi == 0L && lo == 0
 
@@ -626,19 +590,15 @@ class Bytes12IntMap(
     /** Width in bytes of a fingerprint key (12 bytes = 96 bits). */
     const val FINGERPRINT_BYTE_WIDTH: Int = 12
 
-    /**
-     * Returned by [get], [put] and [remove] to indicate the key was not
-     * present.
-     */
+    /** Returned by [get], [put] and [remove] to indicate the key was not present. */
     const val NOT_PRESENT: Int = -1
 
     /** Minimum total capacity (in slots) of the table. */
     const val MIN_CAPACITY: Long = 16L
 
     /**
-     * Per-chunk slot count cap: `2^30` slots per chunk, the largest
-     * power of two below the JVM array length limit
-     * (`Int.MAX_VALUE - 8`).
+     * Per-chunk slot count cap: `2^30` slots per chunk, the largest power of two below the JVM
+     * array length limit (`Int.MAX_VALUE - 8`).
      */
     const val MAX_CHUNK_SHIFT: Int = 30
 
@@ -646,8 +606,8 @@ class Bytes12IntMap(
     const val DEFAULT_CHUNK_SHIFT: Int = MAX_CHUNK_SHIFT
 
     /**
-     * Hard upper bound on total capacity: `2^60` slots. Far beyond
-     * realistic use; bounded in practice by heap memory.
+     * Hard upper bound on total capacity: `2^60` slots. Far beyond realistic use; bounded in
+     * practice by heap memory.
      */
     const val MAX_CAPACITY: Long = 1L shl 60
 
