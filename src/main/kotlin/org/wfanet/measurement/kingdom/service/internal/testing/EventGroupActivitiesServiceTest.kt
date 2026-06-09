@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Empty
+import com.google.protobuf.timestamp
 import com.google.type.Date
 import com.google.type.date
 import com.google.type.interval
@@ -1382,6 +1383,206 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception).hasMessageThat().contains("DataProvider not found")
+  }
+
+  @Test
+  fun `listEventGroupActivities returns activities across multiple event groups with empty filter`() =
+    runBlocking {
+      val eventGroup2 = createEventGroup(dataProvider)
+
+      // Create activities on event group 1
+      eventGroupActivitiesService.batchUpdateEventGroupActivities(
+        batchUpdateEventGroupActivitiesRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+          requests += updateEventGroupActivityRequest {
+            allowMissing = true
+            eventGroupActivity = eventGroupActivity {
+              externalEventGroupId = eventGroup.externalEventGroupId
+              date = date {
+                year = 2025
+                month = 12
+                day = 1
+              }
+            }
+          }
+        }
+      )
+
+      // Create activities on event group 2
+      eventGroupActivitiesService.batchUpdateEventGroupActivities(
+        batchUpdateEventGroupActivitiesRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup2.externalEventGroupId
+          requests += updateEventGroupActivityRequest {
+            allowMissing = true
+            eventGroupActivity = eventGroupActivity {
+              externalEventGroupId = eventGroup2.externalEventGroupId
+              date = date {
+                year = 2025
+                month = 12
+                day = 1
+              }
+            }
+          }
+        }
+      )
+
+      // List with no event group filter — should return all
+      val response =
+        eventGroupActivitiesService.listEventGroupActivities(
+          listEventGroupActivitiesRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+          }
+        )
+
+      assertThat(response.eventGroupActivitiesList).hasSize(2)
+      // Both have the same date — ordering tiebreaks on ExternalEventGroupId ASC
+      assertThat(response.eventGroupActivitiesList[0].externalEventGroupId)
+        .isLessThan(response.eventGroupActivitiesList[1].externalEventGroupId)
+      assertThat(response.eventGroupActivitiesList[0].date)
+        .isEqualTo(response.eventGroupActivitiesList[1].date)
+    }
+
+  @Test
+  fun `listEventGroupActivities filters to subset of event groups`() = runBlocking {
+    val eventGroup2 = createEventGroup(dataProvider)
+
+    // Create activities on event group 1
+    eventGroupActivitiesService.batchUpdateEventGroupActivities(
+      batchUpdateEventGroupActivitiesRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalEventGroupId = eventGroup.externalEventGroupId
+        requests += updateEventGroupActivityRequest {
+          allowMissing = true
+          eventGroupActivity = eventGroupActivity {
+            externalEventGroupId = eventGroup.externalEventGroupId
+            date = date {
+              year = 2025
+              month = 12
+              day = 1
+            }
+          }
+        }
+      }
+    )
+
+    // Create activities on event group 2
+    eventGroupActivitiesService.batchUpdateEventGroupActivities(
+      batchUpdateEventGroupActivitiesRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalEventGroupId = eventGroup2.externalEventGroupId
+        requests += updateEventGroupActivityRequest {
+          allowMissing = true
+          eventGroupActivity = eventGroupActivity {
+            externalEventGroupId = eventGroup2.externalEventGroupId
+            date = date {
+              year = 2025
+              month = 12
+              day = 5
+            }
+          }
+        }
+      }
+    )
+
+    // Filter to only event group 1
+    val response =
+      eventGroupActivitiesService.listEventGroupActivities(
+        listEventGroupActivitiesRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          filter =
+            ListEventGroupActivitiesRequest.Filter.newBuilder()
+              .addExternalEventGroupIds(eventGroup.externalEventGroupId)
+              .build()
+        }
+      )
+
+    assertThat(response.eventGroupActivitiesList).hasSize(1)
+    assertThat(response.eventGroupActivitiesList[0].externalEventGroupId)
+      .isEqualTo(eventGroup.externalEventGroupId)
+  }
+
+  @Test
+  fun `listEventGroupActivities filters by date_interval`() = runBlocking {
+    eventGroupActivitiesService.batchUpdateEventGroupActivities(
+      batchUpdateEventGroupActivitiesRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalEventGroupId = eventGroup.externalEventGroupId
+        requests += updateEventGroupActivityRequest {
+          allowMissing = true
+          eventGroupActivity = eventGroupActivity {
+            externalEventGroupId = eventGroup.externalEventGroupId
+            date = date {
+              year = 2025
+              month = 11
+              day = 15
+            }
+          }
+        }
+        requests += updateEventGroupActivityRequest {
+          allowMissing = true
+          eventGroupActivity = eventGroupActivity {
+            externalEventGroupId = eventGroup.externalEventGroupId
+            date = date {
+              year = 2025
+              month = 12
+              day = 1
+            }
+          }
+        }
+        requests += updateEventGroupActivityRequest {
+          allowMissing = true
+          eventGroupActivity = eventGroupActivity {
+            externalEventGroupId = eventGroup.externalEventGroupId
+            date = date {
+              year = 2025
+              month = 12
+              day = 15
+            }
+          }
+        }
+      }
+    )
+
+    val response =
+      eventGroupActivitiesService.listEventGroupActivities(
+        listEventGroupActivitiesRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          filter =
+            ListEventGroupActivitiesRequest.Filter.newBuilder()
+              .addExternalEventGroupIds(eventGroup.externalEventGroupId)
+              .setDateInterval(
+                interval {
+                  startTime = timestamp {
+                    seconds = 1764565200 // 2025-12-01T00:00:00Z
+                  }
+                  endTime = timestamp {
+                    seconds = 1767243600 // 2026-01-01T00:00:00Z
+                  }
+                }
+              )
+              .build()
+        }
+      )
+
+    assertThat(response.eventGroupActivitiesList).hasSize(2)
+    assertThat(response.eventGroupActivitiesList[0].date)
+      .isEqualTo(
+        date {
+          year = 2025
+          month = 12
+          day = 1
+        }
+      )
+    assertThat(response.eventGroupActivitiesList[1].date)
+      .isEqualTo(
+        date {
+          year = 2025
+          month = 12
+          day = 15
+        }
+      )
   }
 
   private suspend fun createEventGroup(dataProvider: DataProvider): EventGroup {

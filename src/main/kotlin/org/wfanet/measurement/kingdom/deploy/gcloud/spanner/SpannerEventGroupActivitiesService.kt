@@ -256,6 +256,13 @@ class SpannerEventGroupActivitiesService(
         emptyList()
       }
 
+    val dateInterval =
+      if (request.hasFilter() && request.filter.hasDateInterval()) {
+        request.filter.dateInterval
+      } else {
+        null
+      }
+
     val resultList =
       EventGroupActivityReader()
         .readEventGroupActivities(
@@ -264,6 +271,7 @@ class SpannerEventGroupActivitiesService(
           externalEventGroupIds,
           pageSize + 1,
           after,
+          dateInterval,
         )
         .map { it.eventGroupActivity }
 
