@@ -18,6 +18,7 @@ import org.wfanet.virtualpeople.common.CompiledNode
 import org.wfanet.virtualpeople.common.LabelerEvent
 import org.wfanet.virtualpeople.common.RankedPopulationNode.UnrankedMode
 import org.wfanet.virtualpeople.common.VirtualPersonActivity
+import org.wfanet.virtualpeople.common.poolAssignment
 import org.wfanet.virtualpeople.core.model.utils.Feistel
 import org.wfanet.virtualpeople.core.model.utils.PopulationNodeHelper
 import org.wfanet.virtualpeople.core.model.utils.jumpConsistentHash
@@ -41,18 +42,34 @@ private constructor(
 ) : ModelNode(nodeConfig) {
 
   override fun apply(event: LabelerEvent.Builder) {
+    // Pass-1 mode: emit pool identity and return without assigning a VID.
+    if (event.poolIdentityMode) {
+      event.addPoolAssignments(
+        poolAssignment {
+          poolOffset = this@RankedPopulationNodeImpl.poolOffset.toLong()
+          poolSize = this@RankedPopulationNodeImpl.poolSize.toLong()
+          rankedSize = this@RankedPopulationNodeImpl.rankedSize.toLong()
+        }
+      )
+      return
+    }
+
     if (event.virtualPersonActivitiesCount > 0) {
       error("virtual_person_activities should only be created in leaf nodes.")
     }
 
     val activity = VirtualPersonActivity.newBuilder()
 
-    val rankAssignment =
-      if (event.hasLabelerInput()) {
-        event.labelerInput.rankAssignmentsList.firstOrNull { it.poolOffset.toULong() == poolOffset }
-      } else {
-        null
-      }
+    val rankAssignments =
+      if (event.hasLabelerInput()) event.labelerInput.rankAssignmentsList else emptyList()
+    val rankAssignment = rankAssignments.firstOrNull { it.poolOffset.toULong() == poolOffset }
+
+    if (rankAssignments.isNotEmpty() && rankAssignment == null) {
+      error(
+        "RankAssignment provided but none match pool_offset=$poolOffset. " +
+          "Available: ${rankAssignments.map { it.poolOffset }}."
+      )
+    }
 
     val virtualPersonId =
       if (rankAssignment != null && rankAssignment.localRank.toULong() < rankedSize) {

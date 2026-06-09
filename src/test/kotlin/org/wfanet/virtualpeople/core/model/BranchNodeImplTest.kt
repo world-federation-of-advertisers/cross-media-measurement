@@ -1595,4 +1595,73 @@ class BranchNodeImplTest {
     assertEquals(945, virtualPersonSizeCounts[3])
     assertEquals(765, virtualPersonSizeCounts[4])
   }
+
+  @Test
+  fun `apply multiplicity in pass-1 mode folds back pool assignments`() {
+    /**
+     * The branch node has one ranked-population-node branch and uses multiplicity to clone events.
+     * In pool-identity (pass-1) mode each clone emits a PoolAssignment instead of a virtual person.
+     * Every clone's assignment must be folded back onto the event, so the pass-1 pool-assignment
+     * total must equal the full-mode virtual-person total (one of each per clone). Regression test
+     * for applyMultiplicity previously dropping pool assignments from clones.
+     */
+    val config = compiledNode {
+      name = "TestBranchNode"
+      index = 1
+      branchNode = branchNode {
+        branches.add(
+          branch {
+            node = compiledNode {
+              rankedPopulationNode = rankedPopulationNode {
+                pools.add(
+                  virtualPersonPool {
+                    populationOffset = 100
+                    totalPopulation = 500
+                  }
+                )
+                randomSeed = "TestRankedSeed"
+                rankedSize = 200
+                unrankedMode = RankedPopulationNode.UnrankedMode.DISJOINT
+              }
+            }
+            chance = 1.0
+          }
+        )
+        randomSeed = "TestBranchNodeSeed"
+        multiplicity = multiplicity {
+          expectedMultiplicity = 3.0
+          maxValue = 1.2
+          capAtMax = true
+          personIndexField = "multiplicity_person_index"
+          randomSeed = "test multiplicity"
+        }
+      }
+    }
+    val node = ModelNode.build(config)
+
+    /**
+     * cloneCount depends only on actingFingerprint, so it is identical across both modes. Full mode
+     * yields one virtual person per clone; pass-1 mode must yield one pool assignment per clone.
+     */
+    var fullModeTotal = 0
+    var pass1Total = 0
+    (0 until FINGERPRINT_NUMBER).forEach {
+      val fullInput = labelerEvent { actingFingerprint = it }.toBuilder()
+      node.apply(fullInput)
+      fullModeTotal += fullInput.virtualPersonActivitiesCount
+
+      val pass1Input =
+        labelerEvent {
+            actingFingerprint = it
+            poolIdentityMode = true
+          }
+          .toBuilder()
+      node.apply(pass1Input)
+      assertEquals(0, pass1Input.virtualPersonActivitiesCount)
+      pass1Total += pass1Input.poolAssignmentsCount
+    }
+
+    assertEquals(fullModeTotal, pass1Total)
+    assertTrue(pass1Total > FINGERPRINT_NUMBER, "Expected multiplicity to clone some events")
+  }
 }

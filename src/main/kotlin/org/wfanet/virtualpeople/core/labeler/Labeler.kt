@@ -25,6 +25,11 @@ import org.wfanet.virtualpeople.common.labelerOutput
 import org.wfanet.virtualpeople.core.common.Hashing
 import org.wfanet.virtualpeople.core.model.ModelNode
 
+enum class LabelingMode {
+  FULL,
+  POOL_IDENTITY,
+}
+
 class Labeler private constructor(private val rootNode: ModelNode) {
 
   /**
@@ -33,14 +38,27 @@ class Labeler private constructor(private val rootNode: ModelNode) {
    * Thread safety: a single [Labeler] instance may be called from multiple threads concurrently —
    * the model is immutable. Each [label] call uses its own mutable event builder internally.
    */
-  fun label(input: LabelerInput): LabelerOutput {
+  fun label(input: LabelerInput): LabelerOutput = label(input, LabelingMode.FULL)
+
+  /**
+   * Apply the model with a specific labeling mode.
+   *
+   * In [LabelingMode.POOL_IDENTITY] mode, RankedPopulationNode leaves emit PoolAssignment entries
+   * instead of assigning VIDs.
+   */
+  fun label(input: LabelerInput, mode: LabelingMode): LabelerOutput {
     val eventBuilder = labelerEvent { labelerInput = input }.toBuilder()
     setFingerprints(eventBuilder)
+
+    if (mode == LabelingMode.POOL_IDENTITY) {
+      eventBuilder.poolIdentityMode = true
+    }
 
     rootNode.apply(eventBuilder)
 
     return labelerOutput {
-      people.addAll(eventBuilder.virtualPersonActivitiesList)
+      people += eventBuilder.virtualPersonActivitiesList
+      poolAssignments += eventBuilder.poolAssignmentsList
       if (input.enableDebugTrace) {
         serializedDebugTrace = TextFormat.printer().printToString(eventBuilder.build())
       }

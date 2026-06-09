@@ -36,10 +36,16 @@ private constructor(
    * assigned to virtual_person_activities[0] in [event].
    */
   override fun apply(event: LabelerEvent.Builder) {
-    /**
-     * Creates a new virtual_person_activities in [event] and write the virtual person id and label.
-     * No virtual_person_activity should be added by previous nodes.
-     */
+    // Pass-1 (pool-identity) mode: a plain PopulationNode has no ranked pool to
+    // announce, so it produces no output. This lets a model mix ranked and
+    // unranked leaves; events routing here are labeled normally in pass-2.
+    if (event.poolIdentityMode) {
+      return
+    }
+
+    // Creates a new virtual_person_activities in the event and writes the
+    // virtual person id and label. No virtual_person_activity should be added
+    // by previous nodes.
     if (event.virtualPersonActivitiesCount > 0) {
       error("virtual_person_activities should only be created in leaf nodes.")
     }

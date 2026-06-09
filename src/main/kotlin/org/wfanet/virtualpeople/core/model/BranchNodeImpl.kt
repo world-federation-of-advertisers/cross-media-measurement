@@ -25,19 +25,19 @@ import org.wfanet.virtualpeople.core.model.utils.FieldFiltersMatcher
  * The implementation of the CompiledNode with branch_node set.
  *
  * @param nodeConfig the compiledNode used to build the branch node. The field branch_node must be
- * set.
+ *   set.
  * @param childNodes include the child nodes in all the branches, in the same order as the branches
- * in nodeConfig.
+ *   in nodeConfig.
  * @param hashing if chance is set in each branches in nodeConfig, hashing is set and used to select
- * a child node with randomSeed when Apply is called.
+ *   a child node with randomSeed when Apply is called.
  * @param randomSeed a seed used by the hashing.
  * @param matcher if condition is set in each branches in nodeConfig, matcher is set and used to
- * select the first child node whose condition matches when Apply is called.
+ *   select the first child node whose condition matches when Apply is called.
  * @param updaters if updates is set in nodeConfig, updaters is set. When calling Apply, entries of
- * [updaters] is applied to the event in order. Each entry of updaters updates the value of some
- * fields in the event.
+ *   [updaters] is applied to the event in order. Each entry of updaters updates the value of some
+ *   fields in the event.
  * @param multiplicity if multiplicity is set in nodeConfig, multiplicity is set. When calling
- * Apply, call ApplyMultiplicity.
+ *   Apply, call ApplyMultiplicity.
  */
 internal class BranchNodeImpl
 private constructor(
@@ -99,6 +99,14 @@ private constructor(
       clone.virtualPersonActivitiesList.forEach { person ->
         event.addVirtualPersonActivities(person)
       }
+      /**
+       * Fold back pool assignments too. In pool-identity (pass-1) mode, leaf nodes emit pool
+       * assignments instead of virtual person activities; without this, assignments from cloned
+       * multiplicity events would be dropped.
+       */
+      clone.poolAssignmentsList.forEach { poolAssignment ->
+        event.addPoolAssignments(poolAssignment)
+      }
     }
     return
   }
@@ -129,13 +137,13 @@ private constructor(
      * 1. [nodeConfig].branch_node is not set.
      * 2. [nodeConfig].branch_node.branches is empty.
      * 3. There is at least one of [nodeConfig].branch_node.branches, which has neither node_index
-     * nor node set.
+     *    nor node set.
      * 4. There is at least one of [nodeConfig].branch_node.branches, which has neither chance nor
-     * condition set.
+     *    condition set.
      * 5. At least one of [nodeConfig].branch_node.branches has chance set, and at least one of
-     * [nodeConfig].branch_node.branches has condition set.
+     *    [nodeConfig].branch_node.branches has condition set.
      * 6. When node_index is set in [nodeConfig].branch_node.branches. [nodeRefs] has no entry for
-     * this node_index.
+     *    this node_index.
      *
      * For any [nodeConfig].branch_node.branches with node_index set, the corresponding child node
      * is retrieved from [nodeRefs] using node_index as the key.
