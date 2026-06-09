@@ -32,18 +32,16 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.vidRange
 import org.wfanet.measurement.api.v2alpha.populationSpec
+import org.wfanet.virtualpeople.core.labeler.Labeler
 
 /**
- * Converts [ReferenceVidEventGroupSpec] labeler output to equivalent [SyntheticEventGroupSpec] and
- * [PopulationSpec] pairs.
+ * Converts a [ReferenceVidEventGroupSpec] to equivalent [SyntheticEventGroupSpec] and
+ * [PopulationSpec] by running reference VIDs through a [Labeler].
  *
  * Only practical for small-pool VID models. Throws [IllegalArgumentException] if the output would
  * exceed [DEFAULT_MAX_VID_RANGE_SPECS] VidRangeSpec entries.
  */
 object ReferenceVidSpecConverter {
-  private val logger: Logger = Logger.getLogger(this::class.java.name)
-
-  const val DEFAULT_MAX_VID_RANGE_SPECS = 500
 
   data class ConvertedSpecs(
     val syntheticEventGroupSpec: SyntheticEventGroupSpec,
@@ -51,32 +49,34 @@ object ReferenceVidSpecConverter {
   )
 
   /**
-   * Converts labeled VIDs to a [SyntheticEventGroupSpec] and [PopulationSpec] pair.
-   *
-   * Groups VIDs by effective frequency (collision count * spec frequency), merges adjacent VIDs
-   * into ranges, and produces a spec that yields identical events when used with
-   * [SyntheticDataGeneration].
+   * Converts a [ReferenceVidEventGroupSpec] to a [SyntheticEventGroupSpec] and [PopulationSpec]
+   * pair by running reference VIDs through the [labeler].
    *
    * @throws IllegalArgumentException if the resulting spec exceeds [maxVidRangeSpecs]
    */
   fun convert(
-    labeledVids: List<ReferenceVidDataGeneration.LabeledVid>,
+    labeler: Labeler,
     spec: ReferenceVidEventGroupSpec,
     sourcePopulationSpec: PopulationSpec,
     maxVidRangeSpecs: Int = DEFAULT_MAX_VID_RANGE_SPECS,
   ): ConvertedSpecs {
+    val labeledReferenceVids: List<ReferenceVidDataGeneration.LabeledVid> =
+      ReferenceVidDataGeneration.generateEvents(labeler, sourcePopulationSpec, spec)
+        .flatMap { it.labeledVids.toList() }
+        .toList()
+
     return ConvertedSpecs(
-      syntheticEventGroupSpec = convertSyntheticSpec(labeledVids, spec, maxVidRangeSpecs),
-      populationSpec = convertPopulationSpec(labeledVids, sourcePopulationSpec),
+      syntheticEventGroupSpec = convertSyntheticSpec(labeledReferenceVids, spec, maxVidRangeSpecs),
+      populationSpec = convertPopulationSpec(labeledReferenceVids, sourcePopulationSpec),
     )
   }
 
   private fun convertSyntheticSpec(
-    labeledVids: List<ReferenceVidDataGeneration.LabeledVid>,
+    labeledReferenceVids: List<ReferenceVidDataGeneration.LabeledVid>,
     spec: ReferenceVidEventGroupSpec,
     maxVidRangeSpecs: Int,
   ): SyntheticEventGroupSpec {
-    val vidCounts: Map<Long, Int> = labeledVids.groupingBy { it.vid }.eachCount()
+    val vidCounts: Map<Long, Int> = labeledReferenceVids.groupingBy { it.vid }.eachCount()
 
     val result = syntheticEventGroupSpec {
       for (refDateSpec in spec.dateSpecsList) {
@@ -115,7 +115,7 @@ object ReferenceVidSpecConverter {
       result.dateSpecsList.sumOf { ds -> ds.frequencySpecsList.sumOf { it.vidRangeSpecsCount } }
     require(totalVidRangeSpecs <= maxVidRangeSpecs) {
       "Converted spec has $totalVidRangeSpecs VidRangeSpecs, exceeding threshold of " +
-        "$maxVidRangeSpecs. Use direct generation (Option A) instead of converting."
+        "$maxVidRangeSpecs. Use direct generation instead of converting."
     }
 
     logger.info("Converted to SyntheticEventGroupSpec with $totalVidRangeSpecs VidRangeSpecs")
@@ -123,11 +123,11 @@ object ReferenceVidSpecConverter {
   }
 
   private fun convertPopulationSpec(
-    labeledVids: List<ReferenceVidDataGeneration.LabeledVid>,
+    labeledReferenceVids: List<ReferenceVidDataGeneration.LabeledVid>,
     sourcePopulationSpec: PopulationSpec,
   ): PopulationSpec {
     val vidsBySubPop: Map<Int, List<Long>> =
-      labeledVids
+      labeledReferenceVids
         .groupBy { it.subPopulationIndex }
         .mapValues { (_, vids) -> vids.map { it.vid }.distinct().sorted() }
 
@@ -171,4 +171,8 @@ object ReferenceVidSpecConverter {
     ranges.add(rangeStart..rangeEnd)
     return ranges
   }
+
+  const val DEFAULT_MAX_VID_RANGE_SPECS = 500
+
+  private val logger: Logger = Logger.getLogger(this::class.java.name)
 }

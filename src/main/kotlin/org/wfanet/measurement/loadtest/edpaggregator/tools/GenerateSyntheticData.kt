@@ -398,17 +398,7 @@ class GenerateSyntheticData : Runnable {
               ReferenceVidEventGroupSpec.getDefaultInstance(),
             )
           val labeler = buildLabeler(spec.vidModelResourcePath)
-          val exportVidShards =
-            ReferenceVidDataGeneration.generateEvents(
-              labeler = labeler,
-              populationSpec = populationSpec,
-              spec = refVidSpec,
-              zoneId = ZoneId.of(zoneId),
-            )
-          val allLabeledVids: List<ReferenceVidDataGeneration.LabeledVid> =
-            exportVidShards.flatMap { it.labeledVids.toList() }.toList()
-          val converted =
-            ReferenceVidSpecConverter.convert(allLabeledVids, refVidSpec, populationSpec)
+          val converted = ReferenceVidSpecConverter.convert(labeler, refVidSpec, populationSpec)
           val specFile = exportSyntheticSpecPath!!
           ReferenceVidSpecConverter.writeTextProto(specFile, converted.syntheticEventGroupSpec)
           val popFile =
