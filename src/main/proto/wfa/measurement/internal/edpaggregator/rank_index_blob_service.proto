@@ -120,8 +120,9 @@ message ListRankIndexBlobsRequest {
     // Filter by subpool ID.
     int32 subpool_id = 3;
 
-    // Filter by max event date on or before this date.
-    google.type.Date max_event_date_before = 4;
+    // Filter for blobs with max_event_date on or before
+    // this value. Used for retention policy queries.
+    google.type.Date max_event_date_cutoff = 4;
   }
   Filter filter = 5;
 
