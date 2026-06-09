@@ -64,7 +64,10 @@ class McpServerTest {
 
   @Test
   fun registersAllExpectedTools() {
-    val server = createMcpServer(FakeReportingPublicApiClient.create()) { "test-token" }
+    val server =
+      ReportingMcpServerFromFlags.createMcpServer(FakeReportingPublicApiClient.create()) {
+        "test-token"
+      }
     assertThat(server.tools.keys)
       .containsExactly(
         "get_event_group",
@@ -82,7 +85,10 @@ class McpServerTest {
 
   @Test
   fun allToolsHaveDescriptions() {
-    val server = createMcpServer(FakeReportingPublicApiClient.create()) { "test-token" }
+    val server =
+      ReportingMcpServerFromFlags.createMcpServer(FakeReportingPublicApiClient.create()) {
+        "test-token"
+      }
     for ((name, tool) in server.tools) {
       assertWithMessage("tool '$name' should have a description")
         .that(tool.tool.description)
@@ -93,7 +99,7 @@ class McpServerTest {
   @Test
   fun callToolByNameReturnsProtoJsonResponse() = runBlocking {
     val apiClient = createFakeApiClientWithServices()
-    val server = createMcpServer(apiClient) { "test-token" }
+    val server = ReportingMcpServerFromFlags.createMcpServer(apiClient) { "test-token" }
 
     val (clientTransport, serverTransport) = ChannelTransport.createLinkedPair()
     val client = Client(clientInfo = Implementation(name = "test-client", version = "0.1"))
@@ -117,7 +123,7 @@ class McpServerTest {
   @Test
   fun callToolWithNotFoundReturnsError() = runBlocking {
     val apiClient = createFakeApiClientWithServices()
-    val server = createMcpServer(apiClient) { "test-token" }
+    val server = ReportingMcpServerFromFlags.createMcpServer(apiClient) { "test-token" }
 
     val (clientTransport, serverTransport) = ChannelTransport.createLinkedPair()
     val client = Client(clientInfo = Implementation(name = "test-client", version = "0.1"))
@@ -141,7 +147,7 @@ class McpServerTest {
   @Test
   fun listEventGroupsWithStructuredFilterViaMcpClient() = runBlocking {
     val apiClient = createFakeApiClientWithServices()
-    val mcpServer = createMcpServer(apiClient) { "test-token" }
+    val mcpServer = ReportingMcpServerFromFlags.createMcpServer(apiClient) { "test-token" }
 
     val (clientTransport, serverTransport) = ChannelTransport.createLinkedPair()
     val mcpClient = Client(clientInfo = Implementation(name = "test-client", version = "1.0.0"))

@@ -37,7 +37,9 @@ import io.modelcontextprotocol.kotlin.sdk.server.ServerOptions
 import io.modelcontextprotocol.kotlin.sdk.server.mcpStatelessStreamableHttp
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import io.modelcontextprotocol.kotlin.sdk.types.ServerCapabilities
+import java.time.Duration
 import java.util.concurrent.TimeUnit
+import kotlin.properties.Delegates
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
@@ -94,8 +96,8 @@ object ReportingMcpServerFromFlags {
           next.newCall(
             method,
             callOptions.withDeadlineAfter(
-              mcpServerFlags.reportingPublicApiDeadlineSeconds,
-              TimeUnit.SECONDS,
+              mcpServerFlags.reportingPublicApiDeadline.toMillis(),
+              TimeUnit.MILLISECONDS,
             ),
           )
       }
@@ -123,53 +125,66 @@ object ReportingMcpServerFromFlags {
 
         // Stateless Streamable HTTP: the SDK helper creates a fresh Server per POST
         // (no session state), so any replica can serve any request and pod restarts
-        // lose nothing. The helper installs ContentNegotiation(McpJson) and SSE
-        // itself. The bearer token is read per request and forwarded to the Reporting
-        // public API, which validates it.
+        // lose nothing. The helper installs ContentNegotiation(McpJson) and SSE itself.
         //
         // DNS rebinding protection is enabled only when --allowed-host is set (e.g. the
         // in-cluster service hostnames); otherwise the Host header is not checked.
+        //
+        // The bearer token is read per request and resolved lazily inside each tool call
+        // (a missing token throws IllegalArgumentException, which the tool error handler
+        // turns into a clean tool error rather than a 500).
         mcpStatelessStreamableHttp(
           enableDnsRebindingProtection = mcpServerFlags.allowedHosts.isNotEmpty(),
           allowedHosts = mcpServerFlags.allowedHosts.ifEmpty { null },
         ) {
-          val bearerToken =
-            call.request.headers[HttpHeaders.Authorization]
-              ?.takeIf { it.startsWith(BEARER_PREFIX, ignoreCase = true) }
-              ?.substring(BEARER_PREFIX.length)
-              ?.trim()
-              ?.takeUnless(String::isEmpty) ?: error("Missing bearer token in Authorization header")
-          createMcpServer(apiClient) { bearerToken }
+          val authorizationHeader = call.request.headers[HttpHeaders.Authorization]
+          createMcpServer(apiClient) { bearerToken(authorizationHeader) }
         }
 
         routing { get("/healthz") { call.respondText("OK", status = HttpStatusCode.OK) } }
       }
       .start(wait = true)
   }
-}
 
-fun createMcpServer(apiClient: ReportingPublicApiClient, getBearerToken: () -> String): Server {
-  val server =
-    Server(
-      serverInfo = Implementation(name = SERVER_NAME, version = SERVER_VERSION),
-      options =
-        ServerOptions(
-          capabilities =
-            ServerCapabilities(
-              // Stateless mode: no server-to-client push (logging/notifications), so
-              // only the tools capability is advertised.
-              tools = ServerCapabilities.Tools(listChanged = false)
-              // TODO(#3834): Add prompts capability in follow-up PR.
-            )
-        ),
-    )
+  /**
+   * Extracts the bearer token from an `Authorization` header value, forwarded to the Reporting API.
+   *
+   * @throws IllegalArgumentException if the header is missing or has no non-blank bearer token
+   */
+  private fun bearerToken(authorizationHeader: String?): String {
+    val token =
+      authorizationHeader
+        ?.takeIf { it.startsWith(BEARER_PREFIX, ignoreCase = true) }
+        ?.substring(BEARER_PREFIX.length)
+        ?.trim()
+    return requireNotNull(token?.takeUnless(String::isEmpty)) {
+      "Missing bearer token in Authorization header"
+    }
+  }
 
-  server.registerBasicReportTools(apiClient, getBearerToken)
-  server.registerEventGroupTools(apiClient, getBearerToken)
-  server.registerReportingSetTools(apiClient, getBearerToken)
-  server.registerIqfTools(apiClient, getBearerToken)
+  fun createMcpServer(apiClient: ReportingPublicApiClient, getBearerToken: () -> String): Server {
+    val server =
+      Server(
+        serverInfo = Implementation(name = SERVER_NAME, version = SERVER_VERSION),
+        options =
+          ServerOptions(
+            capabilities =
+              ServerCapabilities(
+                // Stateless mode: no server-to-client push (logging/notifications), so
+                // only the tools capability is advertised.
+                tools = ServerCapabilities.Tools(listChanged = false)
+                // TODO(#3834): Add prompts capability in follow-up PR.
+              )
+          ),
+      )
 
-  return server
+    server.registerBasicReportTools(apiClient, getBearerToken)
+    server.registerEventGroupTools(apiClient, getBearerToken)
+    server.registerReportingSetTools(apiClient, getBearerToken)
+    server.registerIqfTools(apiClient, getBearerToken)
+
+    return server
+  }
 }
 
 class McpServerFlags {
@@ -181,24 +196,23 @@ class McpServerFlags {
   lateinit var host: String
     private set
 
-  @CommandLine.Option(
+  @set:CommandLine.Option(
     names = ["--port"],
     description =
       [
-        "HTTP port for the MCP server. Deploy behind a TLS-terminating proxy " +
-          "(e.g. Envoy, K8s Ingress) for production use."
+        "HTTP port for the MCP server. For external access, terminate TLS upstream " +
+          "(a LoadBalancer or proxy)."
       ],
     defaultValue = "8080",
   )
-  var port: Int = 8080
-    private set
+  var port by Delegates.notNull<Int>()
 
   @CommandLine.Option(
     names = ["--reporting-public-api-deadline"],
-    description = ["Deadline in seconds for downstream Reporting API gRPC calls."],
-    defaultValue = "30",
+    description = ["Deadline for downstream Reporting API gRPC calls, e.g. 30s or 1m."],
+    defaultValue = "30s",
   )
-  var reportingPublicApiDeadlineSeconds: Long = 30
+  lateinit var reportingPublicApiDeadline: Duration
     private set
 
   @CommandLine.Option(
@@ -227,13 +241,12 @@ class McpServerFlags {
   var allowedHosts: List<String> = emptyList()
     private set
 
-  @CommandLine.Option(
+  @set:CommandLine.Option(
     names = ["--debug-verbose-grpc-client-logging"],
     description = ["Enables verbose downstream gRPC logging."],
     defaultValue = "false",
   )
-  var debugVerboseGrpcClientLogging: Boolean = false
-    private set
+  var debugVerboseGrpcClientLogging by Delegates.notNull<Boolean>()
 }
 
 fun main(args: Array<String>) = commandLineMain(ReportingMcpServerFromFlags::run, args)
