@@ -32,11 +32,10 @@ import picocli.CommandLine
 /**
  * CLI entry point for the [SubpoolAssignerApp] Phase-0 TEE container.
  *
- * Pulls EDPA mTLS material from Secret Manager, builds per-`DataProvider`
- * [KmsClient]s from the EDPA-level `event-data-provider-configs.textproto`
- * via Workload Identity Federation, opens a mutual-TLS channel to the
- * Secure Computation control plane for `WorkItem` / `WorkItemAttempt` writes,
- * subscribes to the Phase-0 Pub/Sub topic, and hands everything to
+ * Pulls EDPA mTLS material from Secret Manager, builds per-`DataProvider` [KmsClient]s from the
+ * EDPA-level `event-data-provider-configs.textproto` via Workload Identity Federation, opens a
+ * mutual-TLS channel to the Secure Computation control plane for `WorkItem` / `WorkItemAttempt`
+ * writes, subscribes to the Phase-0 Pub/Sub topic, and hands everything to
  * [SubpoolAssignerApp.run].
  */
 @CommandLine.Command(name = "subpool_assigner_app_runner")

@@ -295,14 +295,8 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
         edpConfig.consentSignalingConfig.encPrivateSecretId,
         edpConfig.consentSignalingConfig.encPrivateLocalPath,
       )
-      saveSecretToFile(
-        edpConfig.tlsConfig.tlsKeySecretId,
-        edpConfig.tlsConfig.tlsKeyLocalPath,
-      )
-      saveSecretToFile(
-        edpConfig.tlsConfig.tlsPemSecretId,
-        edpConfig.tlsConfig.tlsPemLocalPath,
-      )
+      saveSecretToFile(edpConfig.tlsConfig.tlsKeySecretId, edpConfig.tlsConfig.tlsKeyLocalPath)
+      saveSecretToFile(edpConfig.tlsConfig.tlsPemSecretId, edpConfig.tlsConfig.tlsPemLocalPath)
     }
   }
 

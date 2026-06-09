@@ -49,13 +49,12 @@ import org.wfanet.measurement.queue.QueueSubscriber
 import picocli.CommandLine
 
 /**
- * Shared boilerplate for EDPA TEE container CLI entry points (e.g.
- * `ResultsFulfillerAppRunner`, `SubpoolAssignerAppRunner`).
+ * Shared boilerplate for EDPA TEE container CLI entry points (e.g. `ResultsFulfillerAppRunner`,
+ * `SubpoolAssignerAppRunner`).
  *
- * Provides the common flags (EDPA mTLS material, Secure Computation mTLS,
- * Pub/Sub subscription, Google project), Secret Manager retrieval, per-EDP
- * [KmsClient] construction via Workload Identity Federation, the mutual-TLS
- * channel to the Secure Computation control plane, and Cloud Logging /
+ * Provides the common flags (EDPA mTLS material, Secure Computation mTLS, Pub/Sub subscription,
+ * Google project), Secret Manager retrieval, per-EDP [KmsClient] construction via Workload Identity
+ * Federation, the mutual-TLS channel to the Secure Computation control plane, and Cloud Logging /
  * OpenTelemetry initialization.
  *
  * Subclasses declare additional flags / wiring and implement [Runnable.run].
@@ -183,16 +182,15 @@ abstract class BaseTeeAppRunner : Runnable {
     private set
 
   /**
-   * Lazily loaded EDPA-level `event-data-provider-configs.textproto`. Held as a
-   * companion-level singleton so all subclasses share the same instance.
+   * Lazily loaded EDPA-level `event-data-provider-configs.textproto`. Held as a companion-level
+   * singleton so all subclasses share the same instance.
    */
   protected val edpsConfig: EventDataProviderConfigs
     get() = sharedEdpsConfig
 
   /**
-   * Pulls EDPA mTLS cert and key, plus the Secure Computation and Metadata
-   * Storage trusted root cert collections, from Secret Manager and writes them
-   * to their configured local paths.
+   * Pulls EDPA mTLS cert and key, plus the Secure Computation and Metadata Storage trusted root
+   * cert collections, from Secret Manager and writes them to their configured local paths.
    */
   protected fun saveCommonEdpaCerts() {
     saveSecretToFile(edpaCertSecretId, edpaCertFilePath)
@@ -205,8 +203,8 @@ abstract class BaseTeeAppRunner : Runnable {
   }
 
   /**
-   * Fetches `secretId` (latest version) from Secret Manager in [googleProjectId]
-   * and writes it to [path], creating parent directories as needed.
+   * Fetches `secretId` (latest version) from Secret Manager in [googleProjectId] and writes it to
+   * [path], creating parent directories as needed.
    */
   protected fun saveSecretToFile(secretId: String, path: String) {
     saveByteArrayToFile(accessSecretBytes(googleProjectId, secretId, SECRET_VERSION), path)
@@ -218,11 +216,7 @@ abstract class BaseTeeAppRunner : Runnable {
     file.writeBytes(bytes)
   }
 
-  protected fun accessSecretBytes(
-    projectId: String,
-    secretId: String,
-    version: String,
-  ): ByteArray {
+  protected fun accessSecretBytes(projectId: String, secretId: String, version: String): ByteArray {
     return SecretManagerServiceClient.create().use { client ->
       val secretVersionName = SecretVersionName.of(projectId, secretId, version)
       val request =
@@ -291,8 +285,8 @@ abstract class BaseTeeAppRunner : Runnable {
   }
 
   /**
-   * Builds the mutual-TLS gRPC [Channel] to the Secure Computation public API,
-   * wrapped with the gRPC OpenTelemetry interceptor.
+   * Builds the mutual-TLS gRPC [Channel] to the Secure Computation public API, wrapped with the
+   * gRPC OpenTelemetry interceptor.
    */
   protected fun buildSecureComputationPublicChannel(): Channel =
     buildEdpaMutualTlsChannel(
@@ -302,8 +296,8 @@ abstract class BaseTeeAppRunner : Runnable {
     )
 
   /**
-   * Builds the mutual-TLS gRPC [Channel] to the EDP Aggregator Metadata Storage
-   * public API, wrapped with the gRPC OpenTelemetry interceptor.
+   * Builds the mutual-TLS gRPC [Channel] to the EDP Aggregator Metadata Storage public API, wrapped
+   * with the gRPC OpenTelemetry interceptor.
    */
   protected fun buildMetadataStoragePublicChannel(): Channel =
     buildEdpaMutualTlsChannel(
@@ -339,8 +333,7 @@ abstract class BaseTeeAppRunner : Runnable {
       "/run/container_launcher/attestation_verifier_claims_token"
     private const val EDP_TARGET_SERVICE_ACCOUNT_FORMAT =
       "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken"
-    private const val EVENT_DATA_PROVIDER_CONFIGS_BLOB_KEY =
-      "event-data-provider-configs.textproto"
+    private const val EVENT_DATA_PROVIDER_CONFIGS_BLOB_KEY = "event-data-provider-configs.textproto"
 
     private val sharedEdpsConfig: EventDataProviderConfigs by lazy {
       runBlockingWithTelemetry {
