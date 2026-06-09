@@ -44,7 +44,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
-import org.wfanet.measurement.reporting.mcp.testing.FakeReportingPublicApiClient
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.CreateBasicReportRequest
@@ -78,7 +77,7 @@ class McpServerTest {
   @Test
   fun registersAllExpectedTools() {
     val server =
-      ReportingMcpServerFromFlags.createMcpServer(FakeReportingPublicApiClient.create()) {
+      ReportingMcpServerFromFlags.createMcpServer(createFakeApiClientWithServices()) {
         "test-token"
       }
     assertThat(server.tools.keys)
@@ -99,7 +98,7 @@ class McpServerTest {
   @Test
   fun allToolsHaveDescriptions() {
     val server =
-      ReportingMcpServerFromFlags.createMcpServer(FakeReportingPublicApiClient.create()) {
+      ReportingMcpServerFromFlags.createMcpServer(createFakeApiClientWithServices()) {
         "test-token"
       }
     for ((name, tool) in server.tools) {
@@ -257,6 +256,42 @@ class McpServerTest {
         )
       assertThat(initializeResponse.statusCode()).isEqualTo(200)
       assertThat(initializeResponse.body()).contains("HaloReportingMcpServer")
+    } finally {
+      server.stop()
+    }
+  }
+
+  /**
+   * Exercises the real `bearerToken()` extraction over HTTP: a POST with no `Authorization` header
+   * surfaces as a clean tool error (not a 500).
+   */
+  @Test
+  fun rejectsToolCallWithoutBearerTokenOverHttp() = runBlocking {
+    val server =
+      embeddedServer(CIO, host = "127.0.0.1", port = 0) {
+        installReportingMcp(createFakeApiClientWithServices())
+      }
+    server.start(wait = false)
+    try {
+      val port = server.engine.resolvedConnectors().first().port
+      val response =
+        HttpClient.newHttpClient()
+          .send(
+            HttpRequest.newBuilder(URI("http://127.0.0.1:$port/mcp"))
+              .header("Content-Type", "application/json")
+              .header("Accept", "application/json, text/event-stream")
+              .POST(
+                HttpRequest.BodyPublishers.ofString(
+                  """{"jsonrpc":"2.0","method":"tools/call","id":1,"params":{""" +
+                    """"name":"get_basic_report",""" +
+                    """"arguments":{"name":"measurementConsumers/mc1/basicReports/br1"}}}"""
+                )
+              )
+              .build(),
+            HttpResponse.BodyHandlers.ofString(),
+          )
+      assertThat(response.statusCode()).isEqualTo(200)
+      assertThat(response.body()).contains("Missing bearer token")
     } finally {
       server.stop()
     }

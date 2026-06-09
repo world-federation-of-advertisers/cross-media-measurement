@@ -11,7 +11,6 @@ kt_jvm_test(
         "//imports/java/io/modelcontextprotocol/kotlin/sdk:testing",
         "//src/main/kotlin/org/wfanet/measurement/reporting/mcp:halo_reporting_mcp_server",
         "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/testing:fake_reporting_public_api_client",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_report_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_reports_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:event_group_kt_jvm_proto",
