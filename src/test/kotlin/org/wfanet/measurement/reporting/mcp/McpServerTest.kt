@@ -22,16 +22,24 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.inprocess.InProcessServerBuilder
+import io.grpc.testing.GrpcCleanupRule
+import io.ktor.server.cio.CIO
+import io.ktor.server.engine.embeddedServer
 import io.modelcontextprotocol.kotlin.sdk.client.Client
 import io.modelcontextprotocol.kotlin.sdk.testing.ChannelTransport
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -58,9 +66,14 @@ import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsResponse
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt
+import org.wfanet.measurement.reporting.v2alpha.basicReport
+import org.wfanet.measurement.reporting.v2alpha.eventGroup
+import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilter
+import org.wfanet.measurement.reporting.v2alpha.reportingSet
 
 @RunWith(JUnit4::class)
 class McpServerTest {
+  @get:Rule val grpcCleanup = GrpcCleanupRule()
 
   @Test
   fun registersAllExpectedTools() {
@@ -145,6 +158,35 @@ class McpServerTest {
   }
 
   @Test
+  fun callToolWithMissingBearerTokenReturnsError() = runBlocking {
+    val apiClient = createFakeApiClientWithServices()
+    // A missing bearer token surfaces as an IllegalArgumentException from getBearerToken, which the
+    // tool error handler turns into a clean tool error rather than crashing the request.
+    val server =
+      ReportingMcpServerFromFlags.createMcpServer(apiClient) {
+        throw IllegalArgumentException("Missing bearer token in Authorization header")
+      }
+
+    val (clientTransport, serverTransport) = ChannelTransport.createLinkedPair()
+    val client = Client(clientInfo = Implementation(name = "test-client", version = "0.1"))
+
+    server.createSession(serverTransport)
+    client.connect(clientTransport)
+
+    val result =
+      client.callTool(
+        "get_basic_report",
+        buildJsonObject { put("name", "measurementConsumers/mc1/basicReports/br1") },
+      )
+
+    assertThat(result.isError).isTrue()
+    val text = (result.content[0] as TextContent).text
+    assertThat(text).contains("Missing bearer token")
+
+    client.close()
+  }
+
+  @Test
   fun listEventGroupsWithStructuredFilterViaMcpClient() = runBlocking {
     val apiClient = createFakeApiClientWithServices()
     val mcpServer = ReportingMcpServerFromFlags.createMcpServer(apiClient) { "test-token" }
@@ -174,67 +216,119 @@ class McpServerTest {
     mcpClient.close()
   }
 
+  /**
+   * Exercises the real HTTP surface (CIO engine, CORS, bearer extraction, `/healthz`, and the
+   * stateless Streamable HTTP route) that the in-process [ChannelTransport] tests bypass.
+   */
+  @Test
+  fun servesHealthzAndInitializeOverHttp() = runBlocking {
+    val server =
+      embeddedServer(CIO, host = "127.0.0.1", port = 0) {
+        installReportingMcp(createFakeApiClientWithServices())
+      }
+    server.start(wait = false)
+    try {
+      val port = server.engine.resolvedConnectors().first().port
+      val httpClient = HttpClient.newHttpClient()
+
+      val healthResponse =
+        httpClient.send(
+          HttpRequest.newBuilder(URI("http://127.0.0.1:$port/healthz")).GET().build(),
+          HttpResponse.BodyHandlers.ofString(),
+        )
+      assertThat(healthResponse.statusCode()).isEqualTo(200)
+      assertThat(healthResponse.body()).isEqualTo("OK")
+
+      val initializeResponse =
+        httpClient.send(
+          HttpRequest.newBuilder(URI("http://127.0.0.1:$port/mcp"))
+            .header("Authorization", "Bearer test-token")
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json, text/event-stream")
+            .POST(
+              HttpRequest.BodyPublishers.ofString(
+                """{"jsonrpc":"2.0","method":"initialize","id":1,"params":{""" +
+                  """"protocolVersion":"2025-03-26","capabilities":{},""" +
+                  """"clientInfo":{"name":"test","version":"1.0"}}}"""
+              )
+            )
+            .build(),
+          HttpResponse.BodyHandlers.ofString(),
+        )
+      assertThat(initializeResponse.statusCode()).isEqualTo(200)
+      assertThat(initializeResponse.body()).contains("HaloReportingMcpServer")
+    } finally {
+      server.stop()
+    }
+  }
+
   private fun createFakeApiClientWithServices(): ReportingPublicApiClient {
     val serverName = InProcessServerBuilder.generateName()
-    InProcessServerBuilder.forName(serverName)
-      .directExecutor()
-      .addService(
-        object : BasicReportsGrpcKt.BasicReportsCoroutineImplBase() {
-          override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport =
-            BasicReport.newBuilder()
-              .setName("${request.parent}/basicReports/${request.basicReportId}")
-              .build()
+    grpcCleanup.register(
+      InProcessServerBuilder.forName(serverName)
+        .directExecutor()
+        .addService(
+          object : BasicReportsGrpcKt.BasicReportsCoroutineImplBase() {
+            override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport =
+              basicReport {
+                name = "${request.parent}/basicReports/${request.basicReportId}"
+              }
 
-          override suspend fun getBasicReport(request: GetBasicReportRequest): BasicReport {
-            if (request.name.contains("nonexistent")) {
-              throw StatusException(Status.NOT_FOUND.withDescription("Not found"))
+            override suspend fun getBasicReport(request: GetBasicReportRequest): BasicReport {
+              if (request.name.contains("nonexistent")) {
+                throw StatusException(Status.NOT_FOUND.withDescription("Not found"))
+              }
+              return basicReport { name = request.name }
             }
-            return BasicReport.newBuilder().setName(request.name).build()
+
+            override suspend fun listBasicReports(
+              request: ListBasicReportsRequest
+            ): ListBasicReportsResponse = ListBasicReportsResponse.getDefaultInstance()
           }
+        )
+        .addService(
+          object : EventGroupsGrpcKt.EventGroupsCoroutineImplBase() {
+            override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup =
+              eventGroup {
+                name = request.name
+              }
 
-          override suspend fun listBasicReports(
-            request: ListBasicReportsRequest
-          ): ListBasicReportsResponse = ListBasicReportsResponse.getDefaultInstance()
-        }
-      )
-      .addService(
-        object : EventGroupsGrpcKt.EventGroupsCoroutineImplBase() {
-          override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup =
-            EventGroup.newBuilder().setName(request.name).build()
+            override suspend fun listEventGroups(
+              request: ListEventGroupsRequest
+            ): ListEventGroupsResponse = ListEventGroupsResponse.getDefaultInstance()
+          }
+        )
+        .addService(
+          object : ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase() {
+            override suspend fun getReportingSet(request: GetReportingSetRequest): ReportingSet =
+              reportingSet {
+                name = request.name
+              }
 
-          override suspend fun listEventGroups(
-            request: ListEventGroupsRequest
-          ): ListEventGroupsResponse = ListEventGroupsResponse.getDefaultInstance()
-        }
-      )
-      .addService(
-        object : ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase() {
-          override suspend fun getReportingSet(request: GetReportingSetRequest): ReportingSet =
-            ReportingSet.newBuilder().setName(request.name).build()
+            override suspend fun listReportingSets(
+              request: ListReportingSetsRequest
+            ): ListReportingSetsResponse = ListReportingSetsResponse.getDefaultInstance()
+          }
+        )
+        .addService(
+          object :
+            ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineImplBase() {
+            override suspend fun getImpressionQualificationFilter(
+              request: GetImpressionQualificationFilterRequest
+            ): ImpressionQualificationFilter = impressionQualificationFilter { name = request.name }
 
-          override suspend fun listReportingSets(
-            request: ListReportingSetsRequest
-          ): ListReportingSetsResponse = ListReportingSetsResponse.getDefaultInstance()
-        }
-      )
-      .addService(
-        object :
-          ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineImplBase() {
-          override suspend fun getImpressionQualificationFilter(
-            request: GetImpressionQualificationFilterRequest
-          ): ImpressionQualificationFilter =
-            ImpressionQualificationFilter.newBuilder().setName(request.name).build()
+            override suspend fun listImpressionQualificationFilters(
+              request: ListImpressionQualificationFiltersRequest
+            ): ListImpressionQualificationFiltersResponse =
+              ListImpressionQualificationFiltersResponse.getDefaultInstance()
+          }
+        )
+        .build()
+        .start()
+    )
 
-          override suspend fun listImpressionQualificationFilters(
-            request: ListImpressionQualificationFiltersRequest
-          ): ListImpressionQualificationFiltersResponse =
-            ListImpressionQualificationFiltersResponse.getDefaultInstance()
-        }
-      )
-      .build()
-      .start()
-
-    val channel = InProcessChannelBuilder.forName(serverName).directExecutor().build()
+    val channel =
+      grpcCleanup.register(InProcessChannelBuilder.forName(serverName).directExecutor().build())
     return ReportingPublicApiClient(
       basicReports = BasicReportsGrpcKt.BasicReportsCoroutineStub(channel),
       eventGroups = EventGroupsGrpcKt.EventGroupsCoroutineStub(channel),

@@ -25,6 +25,7 @@ import io.grpc.MethodDescriptor
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
@@ -59,6 +60,62 @@ import picocli.CommandLine
 private const val SERVER_NAME = "HaloReportingMcpServer"
 private const val SERVER_VERSION = "0.1.0"
 private const val BEARER_PREFIX = "Bearer "
+
+/**
+ * Configures this [Application] as the Halo Reporting MCP server.
+ *
+ * Stateless Streamable HTTP: the SDK helper creates a fresh [Server] per POST (no session state),
+ * so any replica can serve any request and pod restarts lose nothing. The helper installs
+ * ContentNegotiation(McpJson) and SSE itself.
+ *
+ * DNS rebinding protection is enabled only when [allowedHosts] is non-empty (e.g. the in-cluster
+ * service hostnames); otherwise the Host header is not checked.
+ *
+ * The bearer token is read per request and resolved lazily inside each tool call: a missing token
+ * throws [IllegalArgumentException], which the tool error handler turns into a clean tool error
+ * rather than a 500.
+ */
+fun Application.installReportingMcp(
+  apiClient: ReportingPublicApiClient,
+  allowedHosts: List<String> = emptyList(),
+) {
+  install(CORS) {
+    anyHost()
+    allowNonSimpleContentTypes = true
+    allowMethod(HttpMethod.Options)
+    allowMethod(HttpMethod.Post)
+    allowHeader(HttpHeaders.ContentType)
+    allowHeader(HttpHeaders.Authorization)
+    allowHeader("Mcp-Protocol-Version")
+    exposeHeader("Mcp-Protocol-Version")
+  }
+
+  mcpStatelessStreamableHttp(
+    enableDnsRebindingProtection = allowedHosts.isNotEmpty(),
+    allowedHosts = allowedHosts.ifEmpty { null },
+  ) {
+    val authorizationHeader = call.request.headers[HttpHeaders.Authorization]
+    ReportingMcpServerFromFlags.createMcpServer(apiClient) { bearerToken(authorizationHeader) }
+  }
+
+  routing { get("/healthz") { call.respondText("OK", status = HttpStatusCode.OK) } }
+}
+
+/**
+ * Extracts the bearer token from an `Authorization` header value, forwarded to the Reporting API.
+ *
+ * @throws IllegalArgumentException if the header is missing or has no non-blank bearer token
+ */
+private fun bearerToken(authorizationHeader: String?): String {
+  val token =
+    authorizationHeader
+      ?.takeIf { it.startsWith(BEARER_PREFIX, ignoreCase = true) }
+      ?.substring(BEARER_PREFIX.length)
+      ?.trim()
+  return requireNotNull(token?.takeUnless(String::isEmpty)) {
+    "Missing bearer token in Authorization header"
+  }
+}
 
 object ReportingMcpServerFromFlags {
   @CommandLine.Command(
@@ -112,54 +169,9 @@ object ReportingMcpServerFromFlags {
       )
 
     embeddedServer(CIO, host = mcpServerFlags.host, port = mcpServerFlags.port) {
-        install(CORS) {
-          anyHost()
-          allowNonSimpleContentTypes = true
-          allowMethod(HttpMethod.Options)
-          allowMethod(HttpMethod.Post)
-          allowHeader(HttpHeaders.ContentType)
-          allowHeader(HttpHeaders.Authorization)
-          allowHeader("Mcp-Protocol-Version")
-          exposeHeader("Mcp-Protocol-Version")
-        }
-
-        // Stateless Streamable HTTP: the SDK helper creates a fresh Server per POST
-        // (no session state), so any replica can serve any request and pod restarts
-        // lose nothing. The helper installs ContentNegotiation(McpJson) and SSE itself.
-        //
-        // DNS rebinding protection is enabled only when --allowed-host is set (e.g. the
-        // in-cluster service hostnames); otherwise the Host header is not checked.
-        //
-        // The bearer token is read per request and resolved lazily inside each tool call
-        // (a missing token throws IllegalArgumentException, which the tool error handler
-        // turns into a clean tool error rather than a 500).
-        mcpStatelessStreamableHttp(
-          enableDnsRebindingProtection = mcpServerFlags.allowedHosts.isNotEmpty(),
-          allowedHosts = mcpServerFlags.allowedHosts.ifEmpty { null },
-        ) {
-          val authorizationHeader = call.request.headers[HttpHeaders.Authorization]
-          createMcpServer(apiClient) { bearerToken(authorizationHeader) }
-        }
-
-        routing { get("/healthz") { call.respondText("OK", status = HttpStatusCode.OK) } }
+        installReportingMcp(apiClient, mcpServerFlags.allowedHosts)
       }
       .start(wait = true)
-  }
-
-  /**
-   * Extracts the bearer token from an `Authorization` header value, forwarded to the Reporting API.
-   *
-   * @throws IllegalArgumentException if the header is missing or has no non-blank bearer token
-   */
-  private fun bearerToken(authorizationHeader: String?): String {
-    val token =
-      authorizationHeader
-        ?.takeIf { it.startsWith(BEARER_PREFIX, ignoreCase = true) }
-        ?.substring(BEARER_PREFIX.length)
-        ?.trim()
-    return requireNotNull(token?.takeUnless(String::isEmpty)) {
-      "Missing bearer token in Authorization header"
-    }
   }
 
   fun createMcpServer(apiClient: ReportingPublicApiClient, getBearerToken: () -> String): Server {

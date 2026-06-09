@@ -47,6 +47,7 @@ import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFiltersGr
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsResponse
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequest
+import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.reporting.v2alpha.ListImpressionQualificationFiltersRequest
 import org.wfanet.measurement.reporting.v2alpha.ListImpressionQualificationFiltersResponse
@@ -54,6 +55,14 @@ import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsResponse
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt
+import org.wfanet.measurement.reporting.v2alpha.basicReport
+import org.wfanet.measurement.reporting.v2alpha.createBasicReportRequest
+import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
+import org.wfanet.measurement.reporting.v2alpha.eventGroup
+import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
+import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilter
+import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.reporting.v2alpha.reportingSet
 
 private val AUTH_KEY: Metadata.Key<String> =
   Metadata.Key.of("authorization", Metadata.ASCII_STRING_MARSHALLER)
@@ -113,7 +122,7 @@ class ToolsIntegrationTest {
     val stubs = apiClient.withBearerToken("test-token")
     val result =
       stubs.eventGroups.listEventGroups(
-        ListEventGroupsRequest.newBuilder().setParent("measurementConsumers/mc1").build()
+        listEventGroupsRequest { parent = "measurementConsumers/mc1" }
       )
     assertThat(result).isNotNull()
   }
@@ -123,9 +132,7 @@ class ToolsIntegrationTest {
     val stubs = apiClient.withBearerToken("test-token")
     val result =
       stubs.basicReports.getBasicReport(
-        GetBasicReportRequest.newBuilder()
-          .setName("measurementConsumers/mc1/basicReports/br1")
-          .build()
+        getBasicReportRequest { name = "measurementConsumers/mc1/basicReports/br1" }
       )
     assertThat(result.name).isEqualTo("measurementConsumers/mc1/basicReports/br1")
   }
@@ -134,10 +141,10 @@ class ToolsIntegrationTest {
   fun createBasicReportForwardsBearerToken() = runBlocking {
     val stubs = apiClient.withBearerToken("my-secret-bearer")
     stubs.basicReports.createBasicReport(
-      CreateBasicReportRequest.newBuilder()
-        .setParent("measurementConsumers/mc1")
-        .setBasicReportId("test-report")
-        .build()
+      createBasicReportRequest {
+        parent = "measurementConsumers/mc1"
+        basicReportId = "test-report"
+      }
     )
     assertThat(capturedAuthHeader).isEqualTo("Bearer my-secret-bearer")
   }
@@ -149,9 +156,7 @@ class ToolsIntegrationTest {
       ToolSupport.handleToolCall {
         ToolSupport.PROTO_JSON_PRINTER.print(
           stubs.basicReports.getBasicReport(
-            GetBasicReportRequest.newBuilder()
-              .setName("measurementConsumers/mc1/basicReports/nonexistent")
-              .build()
+            getBasicReportRequest { name = "measurementConsumers/mc1/basicReports/nonexistent" }
           )
         )
       }
@@ -191,10 +196,10 @@ class ToolsIntegrationTest {
       ToolSupport.handleToolCall {
         ToolSupport.PROTO_JSON_PRINTER.print(
           stubs.reportingSets.createReportingSet(
-            CreateReportingSetRequest.newBuilder()
-              .setParent("")
-              .setReportingSetId("test-rs")
-              .build()
+            createReportingSetRequest {
+              parent = ""
+              reportingSetId = "test-rs"
+            }
           )
         )
       }
@@ -206,14 +211,13 @@ class ToolsIntegrationTest {
   @Test
   fun listEventGroupsWithStructuredFilterMergesIntoProto() = runBlocking {
     val stubs = apiClient.withBearerToken("test-token")
-    val filter =
-      ListEventGroupsRequest.Filter.newBuilder().addCmmsDataProviderIn("dataProviders/dp1").build()
+    val filter = ListEventGroupsRequestKt.filter { cmmsDataProviderIn += "dataProviders/dp1" }
     val result =
       stubs.eventGroups.listEventGroups(
-        ListEventGroupsRequest.newBuilder()
-          .setParent("measurementConsumers/mc1")
-          .setStructuredFilter(filter)
-          .build()
+        listEventGroupsRequest {
+          parent = "measurementConsumers/mc1"
+          structuredFilter = filter
+        }
       )
     assertThat(result).isNotNull()
   }
@@ -230,15 +234,15 @@ class ToolsIntegrationTest {
 
   private class FakeBasicReportsService : BasicReportsGrpcKt.BasicReportsCoroutineImplBase() {
     override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport =
-      BasicReport.newBuilder()
-        .setName("${request.parent}/basicReports/${request.basicReportId}")
-        .build()
+      basicReport {
+        name = "${request.parent}/basicReports/${request.basicReportId}"
+      }
 
     override suspend fun getBasicReport(request: GetBasicReportRequest): BasicReport {
       if (request.name.contains("nonexistent")) {
         throw StatusException(Status.NOT_FOUND.withDescription("Report not found"))
       }
-      return BasicReport.newBuilder().setName(request.name).build()
+      return basicReport { name = request.name }
     }
 
     override suspend fun listBasicReports(
@@ -247,8 +251,9 @@ class ToolsIntegrationTest {
   }
 
   private class FakeEventGroupsService : EventGroupsGrpcKt.EventGroupsCoroutineImplBase() {
-    override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup =
-      EventGroup.newBuilder().setName(request.name).build()
+    override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup = eventGroup {
+      name = request.name
+    }
 
     override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse =
       ListEventGroupsResponse.getDefaultInstance()
@@ -259,13 +264,13 @@ class ToolsIntegrationTest {
       if (request.parent.isEmpty()) {
         throw StatusException(Status.INVALID_ARGUMENT.withDescription("parent must not be empty"))
       }
-      return ReportingSet.newBuilder()
-        .setName("${request.parent}/reportingSets/${request.reportingSetId}")
-        .build()
+      return reportingSet { name = "${request.parent}/reportingSets/${request.reportingSetId}" }
     }
 
     override suspend fun getReportingSet(request: GetReportingSetRequest): ReportingSet =
-      ReportingSet.newBuilder().setName(request.name).build()
+      reportingSet {
+        name = request.name
+      }
 
     override suspend fun listReportingSets(
       request: ListReportingSetsRequest
@@ -276,8 +281,7 @@ class ToolsIntegrationTest {
     ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineImplBase() {
     override suspend fun getImpressionQualificationFilter(
       request: GetImpressionQualificationFilterRequest
-    ): ImpressionQualificationFilter =
-      ImpressionQualificationFilter.newBuilder().setName(request.name).build()
+    ): ImpressionQualificationFilter = impressionQualificationFilter { name = request.name }
 
     override suspend fun listImpressionQualificationFilters(
       request: ListImpressionQualificationFiltersRequest
