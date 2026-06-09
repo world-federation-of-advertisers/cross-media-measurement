@@ -17,147 +17,72 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Truth.assertThat
-import com.google.crypto.tink.aead.AeadConfig
-import com.google.crypto.tink.streamingaead.StreamingAeadConfig
-import com.google.protobuf.TypeRegistry
 import java.nio.file.Paths
-import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.Common
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.virtualpeople.common.CompiledNode
-import org.wfanet.virtualpeople.core.labeler.Labeler
 
 @RunWith(JUnit4::class)
 class ReferenceVidDataGenerationTest {
 
   @Test
-  fun `generateEvents produces labeled VIDs`() {
-    val shards: List<ReferenceVidDataGeneration.LabeledVidDateShard> =
-      ReferenceVidDataGeneration.generateEvents(
-          buildLabeler(),
-          loadPopulationSpec(),
-          loadDataSpec(),
-        )
-        .toList()
+  fun `generate produces one record per reference VID`() {
+    val records: List<ReferenceVidDataGeneration.ReferenceVidRecord> =
+      ReferenceVidDataGeneration.generate(loadDataSpec())
 
-    assertThat(shards).isNotEmpty()
-    val allVids: List<ReferenceVidDataGeneration.LabeledVid> =
-      shards.flatMap { it.labeledVids.toList() }
-    assertThat(allVids).isNotEmpty()
-    allVids.forEach { assertThat(it.vid).isGreaterThan(0) }
+    assertThat(records).hasSize(300)
   }
 
   @Test
-  fun `generateEvents distributes events across dates`() {
-    val shards: List<ReferenceVidDataGeneration.LabeledVidDateShard> =
-      ReferenceVidDataGeneration.generateEvents(
-          buildLabeler(),
-          loadPopulationSpec(),
-          loadDataSpec(),
-        )
-        .toList()
+  fun `generate assigns correct demographics from spec`() {
+    val records: List<ReferenceVidDataGeneration.ReferenceVidRecord> =
+      ReferenceVidDataGeneration.generate(loadDataSpec())
 
-    val dates = shards.map { it.localDate }.distinct()
-    assertThat(dates).hasSize(3)
-  }
+    val m1634 = records.filter { it.referenceVid in 0L until 100L }
+    assertThat(m1634).hasSize(100)
+    m1634.forEach {
+      assertThat(it.gender).isEqualTo(1)
+      assertThat(it.minAge).isEqualTo(16)
+      assertThat(it.maxAge).isEqualTo(34)
+    }
 
-  @Test
-  fun `generateEvents produces expected total event count`() {
-    val shards: List<ReferenceVidDataGeneration.LabeledVidDateShard> =
-      ReferenceVidDataGeneration.generateEvents(
-          buildLabeler(),
-          loadPopulationSpec(),
-          loadDataSpec(),
-        )
-        .toList()
+    val f3554 = records.filter { it.referenceVid in 100L until 200L }
+    assertThat(f3554).hasSize(100)
+    f3554.forEach {
+      assertThat(it.gender).isEqualTo(2)
+      assertThat(it.minAge).isEqualTo(35)
+      assertThat(it.maxAge).isEqualTo(54)
+    }
 
-    val totalEvents = shards.sumOf { it.labeledVids.toList().size }
-    assertThat(totalEvents).isEqualTo(600)
-  }
-
-  @Test
-  fun `correction matrix causes some demographic reassignment`() {
-    val populationSpec: PopulationSpec = loadPopulationSpec()
-    val shards: List<ReferenceVidDataGeneration.LabeledVidDateShard> =
-      ReferenceVidDataGeneration.generateEvents(buildLabeler(), populationSpec, loadDataSpec())
-        .toList()
-
-    val allVids: List<ReferenceVidDataGeneration.LabeledVid> =
-      shards.flatMap { it.labeledVids.toList() }
-
-    // Map subPopulationIndex back to demographics via the PopulationSpec.
-    // Input spec: 100 ref VIDs M16-34, 100 F35-54, 100 M55+, freq 2 = 200 events each.
-    // Count events per subpopulation index.
-    val countsPerSubPop: Map<Int, Int> = allVids.groupingBy { it.subPopulationIndex }.eachCount()
-
-    // With correction matrix, events should spread across more than 3 subpopulations.
-    assertThat(countsPerSubPop.keys.size).isGreaterThan(3)
-
-    // No single subpopulation should have all 200 events from one input bucket.
-    for ((_, count) in countsPerSubPop) {
-      assertThat(count).isLessThan(200)
+    val m55plus = records.filter { it.referenceVid in 200L until 300L }
+    assertThat(m55plus).hasSize(100)
+    m55plus.forEach {
+      assertThat(it.gender).isEqualTo(1)
+      assertThat(it.minAge).isEqualTo(55)
+      assertThat(it.maxAge).isEqualTo(99)
     }
   }
 
   @Test
-  fun `all VIDs fall within PopulationSpec ranges`() {
-    val populationSpec: PopulationSpec = loadPopulationSpec()
-    val shards: List<ReferenceVidDataGeneration.LabeledVidDateShard> =
-      ReferenceVidDataGeneration.generateEvents(buildLabeler(), populationSpec, loadDataSpec())
-        .toList()
+  fun `generate preserves non-population field values`() {
+    val records: List<ReferenceVidDataGeneration.ReferenceVidRecord> =
+      ReferenceVidDataGeneration.generate(loadDataSpec())
 
-    val allVids: List<ReferenceVidDataGeneration.LabeledVid> =
-      shards.flatMap { it.labeledVids.toList() }
-    val allVidRanges: List<LongRange> =
-      populationSpec.subpopulationsList.flatMap { sub ->
-        sub.vidRangesList.map { it.startVid..it.endVidInclusive }
-      }
-
-    allVids.forEach { labeledVid ->
-      val inRange = allVidRanges.any { labeledVid.vid in it }
-      assertThat(inRange).isTrue()
+    records.forEach {
+      assertThat(it.nonPopulationFieldValues).containsKey("video.completed_50_percent_plus")
     }
   }
 
-  private fun buildLabeler(): Labeler {
-    val modelPath =
-      getRuntimePath(
-        Paths.get(
-          "wfa_measurement_system",
-          "src",
-          "main",
-          "resources",
-          "testing",
-          "labeler",
-          "reference_test_model.textproto",
-        )
-      )!!
-    return Labeler.build(parseTextProto(modelPath.toFile(), CompiledNode.getDefaultInstance()))
-  }
+  @Test
+  fun `generate produces sequential reference VIDs`() {
+    val records: List<ReferenceVidDataGeneration.ReferenceVidRecord> =
+      ReferenceVidDataGeneration.generate(loadDataSpec())
 
-  private fun loadPopulationSpec(): PopulationSpec {
-    val path =
-      getRuntimePath(
-        Paths.get(
-          "wfa_measurement_system",
-          "src",
-          "main",
-          "proto",
-          "wfa",
-          "measurement",
-          "loadtest",
-          "dataprovider",
-          "reference_vid_population_spec.textproto",
-        )
-      )!!
-    val typeRegistry = TypeRegistry.newBuilder().add(Common.getDescriptor()).build()
-    return parseTextProto(path.toFile(), PopulationSpec.getDefaultInstance(), typeRegistry)
+    val referenceVids: List<Long> = records.map { it.referenceVid }
+    assertThat(referenceVids).isEqualTo((0L until 300L).toList())
   }
 
   private fun loadDataSpec(): ReferenceVidEventGroupSpec {
@@ -176,14 +101,5 @@ class ReferenceVidDataGenerationTest {
         )
       )!!
     return parseTextProto(path.toFile(), ReferenceVidEventGroupSpec.getDefaultInstance())
-  }
-
-  companion object {
-    @BeforeClass
-    @JvmStatic
-    fun registerTink() {
-      AeadConfig.register()
-      StreamingAeadConfig.register()
-    }
   }
 }

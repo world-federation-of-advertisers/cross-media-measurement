@@ -22,25 +22,25 @@ import "wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synth
 option java_package = "org.wfanet.measurement.api.v2alpha.event_group_metadata.testing";
 option java_multiple_files = true;
 
-// Specification for generating synthetic events by running input IDs through a
+// Specification for generating synthetic events by running reference VIDs through a
 // VID labeler model.
 //
 // Instead of specifying VID ranges directly (as in `SyntheticEventGroupSpec`),
-// this spec defines input ID ranges with demographic distributions. Each ID is
+// this spec defines reference VID ranges with demographic distributions. Each reference VID is
 // converted to a string and passed through a VID labeler model, which assigns
 // VIDs via hash-based routing and a demographic correction matrix.
 message ReferenceVidEventGroupSpec {
-  // A range of input IDs (inclusive start, exclusive end).
+  // A range of reference VIDs (inclusive start, exclusive end).
   message IdRange {
     int64 start = 1;
     int64 end_exclusive = 2;
   }
 
-  // Assigns demographics to a sub-range of input IDs.
+  // Assigns demographics to a sub-range of reference VIDs.
   //
-  // Each ID in the range is converted to a string (`id.toString()`) and used
+  // Each reference VID in the range is converted to a string (`id.toString()`) and used
   // as `event_id.id` for the labeler. Demographics are set on the labeler
-  // input's `proprietary_id_space_1_user_info.demo.demo_bucket`.
+  // reference VID's `proprietary_id_space_1_user_info.demo.demo_bucket`.
   message DemographicDistribution {
     IdRange id_range = 1;
 
@@ -60,7 +60,7 @@ message ReferenceVidEventGroupSpec {
 
     DateRange date_range = 1;
 
-    // Total frequency for each input ID over this date range.
+    // Total frequency for each reference VID over this date range.
     int64 frequency = 2;
   }
 

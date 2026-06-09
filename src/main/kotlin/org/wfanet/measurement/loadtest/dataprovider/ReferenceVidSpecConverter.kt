@@ -16,9 +16,6 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-import com.google.protobuf.Message
-import com.google.protobuf.TextFormat
-import java.io.File
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
@@ -32,6 +29,14 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.vidRange
 import org.wfanet.measurement.api.v2alpha.populationSpec
+import org.wfanet.virtualpeople.common.Gender
+import org.wfanet.virtualpeople.common.ageRange
+import org.wfanet.virtualpeople.common.demoBucket
+import org.wfanet.virtualpeople.common.demoInfo
+import org.wfanet.virtualpeople.common.eventId
+import org.wfanet.virtualpeople.common.labelerInput
+import org.wfanet.virtualpeople.common.profileInfo
+import org.wfanet.virtualpeople.common.userInfo
 import org.wfanet.virtualpeople.core.labeler.Labeler
 
 /**
@@ -60,23 +65,71 @@ object ReferenceVidSpecConverter {
     sourcePopulationSpec: PopulationSpec,
     maxVidRangeSpecs: Int = DEFAULT_MAX_VID_RANGE_SPECS,
   ): ConvertedSpecs {
-    val labeledReferenceVids: List<ReferenceVidDataGeneration.LabeledVid> =
-      ReferenceVidDataGeneration.generateEvents(labeler, sourcePopulationSpec, spec)
-        .flatMap { it.labeledVids.toList() }
-        .toList()
+    val records: List<ReferenceVidDataGeneration.ReferenceVidRecord> =
+      ReferenceVidDataGeneration.generate(spec)
+
+    val labeledVids: List<LabeledReferenceVid> =
+      records.map { record ->
+        val input = labelerInput {
+          eventId = eventId { id = record.referenceVid.toString() }
+          timestampUsec = 0L
+          profileInfo = profileInfo {
+            proprietaryIdSpace1UserInfo = userInfo {
+              userId = record.referenceVid.toString()
+              demo = demoInfo {
+                demoBucket = demoBucket {
+                  gender =
+                    Gender.forNumber(record.gender) ?: error("Invalid gender: ${record.gender}")
+                  age = ageRange {
+                    minAge = record.minAge
+                    maxAge = record.maxAge
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        val output = labeler.label(input)
+        check(output.peopleCount > 0) {
+          "Labeler returned no people for reference VID ${record.referenceVid}"
+        }
+        val person = output.getPeople(0)
+        check(person.virtualPersonId > 0) {
+          "Labeler returned VID 0 for reference VID ${record.referenceVid}"
+        }
+
+        val vid = person.virtualPersonId.toLong()
+        val subPopIndex: Int =
+          sourcePopulationSpec.subpopulationsList.indexOfFirst { sub ->
+            sub.vidRangesList.any { range -> vid >= range.startVid && vid <= range.endVidInclusive }
+          }
+        require(subPopIndex >= 0) {
+          "VID $vid (from reference VID ${record.referenceVid}) not in any PopulationSpec range"
+        }
+
+        LabeledReferenceVid(vid = vid, subPopulationIndex = subPopIndex)
+      }
+
+    logger.info(
+      "Labeled ${labeledVids.size} reference VIDs, " +
+        "${labeledVids.map { it.vid }.distinct().size} unique VIDs"
+    )
 
     return ConvertedSpecs(
-      syntheticEventGroupSpec = convertSyntheticSpec(labeledReferenceVids, spec, maxVidRangeSpecs),
-      populationSpec = convertPopulationSpec(labeledReferenceVids, sourcePopulationSpec),
+      syntheticEventGroupSpec = convertSyntheticSpec(labeledVids, spec, maxVidRangeSpecs),
+      populationSpec = convertPopulationSpec(labeledVids, sourcePopulationSpec),
     )
   }
 
+  private data class LabeledReferenceVid(val vid: Long, val subPopulationIndex: Int)
+
   private fun convertSyntheticSpec(
-    labeledReferenceVids: List<ReferenceVidDataGeneration.LabeledVid>,
+    labeledVids: List<LabeledReferenceVid>,
     spec: ReferenceVidEventGroupSpec,
     maxVidRangeSpecs: Int,
   ): SyntheticEventGroupSpec {
-    val vidCounts: Map<Long, Int> = labeledReferenceVids.groupingBy { it.vid }.eachCount()
+    val vidCounts: Map<Long, Int> = labeledVids.groupingBy { it.vid }.eachCount()
 
     val result = syntheticEventGroupSpec {
       for (refDateSpec in spec.dateSpecsList) {
@@ -123,11 +176,11 @@ object ReferenceVidSpecConverter {
   }
 
   private fun convertPopulationSpec(
-    labeledReferenceVids: List<ReferenceVidDataGeneration.LabeledVid>,
+    labeledVids: List<LabeledReferenceVid>,
     sourcePopulationSpec: PopulationSpec,
   ): PopulationSpec {
     val vidsBySubPop: Map<Int, List<Long>> =
-      labeledReferenceVids
+      labeledVids
         .groupBy { it.subPopulationIndex }
         .mapValues { (_, vids) -> vids.map { it.vid }.distinct().sorted() }
 
@@ -145,11 +198,6 @@ object ReferenceVidSpecConverter {
         }
       }
     }
-  }
-
-  fun writeTextProto(file: File, message: Message) {
-    file.writeText(TextFormat.printer().printToString(message))
-    logger.info("Wrote ${file.path}")
   }
 
   private fun mergeAdjacentVids(sortedVids: List<Long>): List<LongRange> {

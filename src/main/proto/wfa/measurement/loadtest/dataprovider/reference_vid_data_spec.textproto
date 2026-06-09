@@ -1,9 +1,9 @@
 # proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/reference_vid_event_group_spec.proto
 # proto-message: ReferenceVidEventGroupSpec
 
-# Small test spec: 300 input IDs across 3 demographic buckets.
+# Small test spec: 300 reference VIDs across 3 demographic buckets.
 # Date range: 2024-01-01..2024-01-03 (3 days), frequency 2.
-# Total events: 300 input IDs * frequency 2 = 600 events across 3 days.
+# Total events: 300 reference VIDs * frequency 2 = 600 events across 3 days.
 
 demographic_distributions {
   id_range {
