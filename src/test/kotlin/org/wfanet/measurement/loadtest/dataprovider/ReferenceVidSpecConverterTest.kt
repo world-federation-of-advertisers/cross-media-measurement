@@ -17,17 +17,20 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Truth.assertThat
-import com.google.crypto.tink.aead.AeadConfig
-import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.TypeRegistry
+import com.google.type.date
 import java.nio.file.Paths
 import kotlin.test.assertFailsWith
-import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpecKt.DateSpecKt.dateRange
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpecKt.dateSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpecKt.demographicDistribution
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpecKt.idRange
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.referenceVidEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.Common
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
@@ -39,7 +42,8 @@ class ReferenceVidSpecConverterTest {
 
   @Test
   fun `convert produces SyntheticEventGroupSpec with correct date range`() {
-    val converted = convertDefault()
+    val converted =
+      ReferenceVidSpecConverter.convert(buildLabeler(), loadDataSpec(), loadPopulationSpec())
 
     assertThat(converted.syntheticEventGroupSpec.dateSpecsCount).isEqualTo(1)
     val dateSpec = converted.syntheticEventGroupSpec.getDateSpecs(0)
@@ -53,7 +57,8 @@ class ReferenceVidSpecConverterTest {
 
   @Test
   fun `convert preserves non-population field values`() {
-    val converted = convertDefault()
+    val converted =
+      ReferenceVidSpecConverter.convert(buildLabeler(), loadDataSpec(), loadPopulationSpec())
 
     val dateSpec = converted.syntheticEventGroupSpec.getDateSpecs(0)
     for (freqSpec in dateSpec.frequencySpecsList) {
@@ -66,7 +71,8 @@ class ReferenceVidSpecConverterTest {
 
   @Test
   fun `convert produces VIDs within PopulationSpec ranges`() {
-    val converted = convertDefault()
+    val converted =
+      ReferenceVidSpecConverter.convert(buildLabeler(), loadDataSpec(), loadPopulationSpec())
     val populationSpec = converted.populationSpec
 
     val allVidRanges: List<LongRange> =
@@ -87,7 +93,8 @@ class ReferenceVidSpecConverterTest {
 
   @Test
   fun `convert produces multiple frequency groups when collisions exist`() {
-    val converted = convertDefault()
+    val converted =
+      ReferenceVidSpecConverter.convert(buildLabeler(), loadDataSpec(), loadPopulationSpec())
 
     val dateSpec = converted.syntheticEventGroupSpec.getDateSpecs(0)
     val frequencies: List<Long> = dateSpec.frequencySpecsList.map { it.frequency }
@@ -98,7 +105,8 @@ class ReferenceVidSpecConverterTest {
 
   @Test
   fun `convert preserves PopulationSpec attributes`() {
-    val converted = convertDefault()
+    val converted =
+      ReferenceVidSpecConverter.convert(buildLabeler(), loadDataSpec(), loadPopulationSpec())
     val sourcePopSpec = loadPopulationSpec()
 
     for (subPop in converted.populationSpec.subpopulationsList) {
@@ -124,20 +132,54 @@ class ReferenceVidSpecConverterTest {
   }
 
   @Test
-  fun `convert produces PopulationSpec with merged adjacent VID ranges`() {
-    val converted = convertDefault()
-
-    for (subPop in converted.populationSpec.subpopulationsList) {
-      for (i in 0 until subPop.vidRangesCount - 1) {
-        val current = subPop.getVidRanges(i)
-        val next = subPop.getVidRanges(i + 1)
-        assertThat(current.endVidInclusive).isLessThan(next.startVid - 1)
+  fun `convert produces expected SyntheticEventGroupSpec for known inputs`() {
+    val smallSpec = referenceVidEventGroupSpec {
+      demographicDistributions += demographicDistribution {
+        idRange = idRange {
+          start = 0
+          endExclusive = 5
+        }
+        gender = 1
+        minAge = 16
+        maxAge = 34
+      }
+      dateSpecs += dateSpec {
+        this.dateRange = dateRange {
+          start = date {
+            year = 2024
+            month = 1
+            day = 1
+          }
+          endExclusive = date {
+            year = 2024
+            month = 1
+            day = 2
+          }
+        }
+        frequency = 1
       }
     }
-  }
 
-  private fun convertDefault(): ReferenceVidSpecConverter.ConvertedSpecs =
-    ReferenceVidSpecConverter.convert(buildLabeler(), loadDataSpec(), loadPopulationSpec())
+    val converted =
+      ReferenceVidSpecConverter.convert(buildLabeler(), smallSpec, loadPopulationSpec())
+
+    val dateSpec = converted.syntheticEventGroupSpec.getDateSpecs(0)
+    assertThat(dateSpec.frequencySpecsCount).isEqualTo(1)
+
+    val freqSpec = dateSpec.getFrequencySpecs(0)
+    assertThat(freqSpec.frequency).isEqualTo(1)
+    assertThat(freqSpec.vidRangeSpecsCount).isEqualTo(4)
+
+    val vidRanges: List<Pair<Long, Long>> =
+      freqSpec.vidRangeSpecsList.map { it.vidRange.start to it.vidRange.endExclusive }
+    assertThat(vidRanges)
+      .containsExactly(10002L to 10003L, 10023L to 10024L, 10025L to 10027L, 10094L to 10095L)
+      .inOrder()
+
+    assertThat(converted.populationSpec.subpopulationsCount).isEqualTo(1)
+    val subPop = converted.populationSpec.getSubpopulations(0)
+    assertThat(subPop.vidRangesCount).isEqualTo(4)
+  }
 
   private fun buildLabeler(): Labeler {
     val modelPath =
@@ -190,14 +232,5 @@ class ReferenceVidSpecConverterTest {
         )
       )!!
     return parseTextProto(path.toFile(), ReferenceVidEventGroupSpec.getDefaultInstance())
-  }
-
-  companion object {
-    @BeforeClass
-    @JvmStatic
-    fun registerTink() {
-      AeadConfig.register()
-      StreamingAeadConfig.register()
-    }
   }
 }
