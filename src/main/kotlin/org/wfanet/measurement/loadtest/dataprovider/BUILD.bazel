@@ -104,8 +104,10 @@ kt_jvm_library(
     deps = [
         ":event_query",
         ":frequency_vector_generator",
+        ":labeled_event",
         ":sketch_encrypter",
         ":sketch_generator",
+        ":synthetic_data_generation",
         ":vid_to_index_map_generator",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
@@ -134,6 +136,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_lines_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "@any_sketch_java//src/main/java/org/wfanet/anysketch",
         "@any_sketch_java//src/main/java/org/wfanet/frequencycount",
         "@any_sketch_java//src/main/java/org/wfanet/sampling",
