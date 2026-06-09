@@ -99,9 +99,12 @@ class ReportingApiServerFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--ami-mrc-exempted-edps"],
+    names = ["--ami-mrc-exempted-edp"],
     description =
-      ["Event Data Provider (EDP) resource name for which the ami >= mrc constraint is exempted."],
+      [
+        "Event Data Provider (EDP) resource name for which the ami >= mrc constraint is exempted. " +
+          "Can be specified multiple times."
+      ],
     required = false,
   )
   var amiMrcExemptedEdps: List<String> = emptyList()

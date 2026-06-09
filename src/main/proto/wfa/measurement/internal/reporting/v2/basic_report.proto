@@ -100,5 +100,5 @@ message BasicReport {
 
   // The list of data provider resource names for which AMI vs MRC consistency
   // check is disabled.
-  repeated string ami_mrc_exempted_edps = 15;
+  repeated string ami_mrc_exempted_cmms_data_provider_ids = 15;
 }

@@ -114,7 +114,7 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         mock_report = BasicReport(
             cmms_measurement_consumer_id="mc_id_1",
             external_report_result_id=101,
-            ami_mrc_exempted_edps=["edp1", "edp2"],
+            ami_mrc_exempted_cmms_data_provider_ids=["edp1", "edp2"],
         )
         self.mock_basic_reports_stub.ListBasicReports.return_value = (
             basic_reports_service_pb2.ListBasicReportsResponse(

@@ -3112,7 +3112,7 @@ class BasicReportTransformationsTest {
         amiMrcExemptedEdps = listOf("edp1", "edp2"),
       )
 
-    assertThat(internalReport.amiMrcExemptedEdpsList).containsExactly("edp1", "edp2")
+    assertThat(internalReport.amiMrcExemptedCmmsDataProviderIdsList).containsExactly("edp1", "edp2")
   }
 
   companion object {

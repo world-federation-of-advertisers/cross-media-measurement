@@ -696,7 +696,7 @@ class BasicReportsServiceTest {
 
     assertThat(internalBasicReport.externalReportId).isEqualTo(createReportRequest.reportId)
     assertThat(internalBasicReport.createReportRequestId).isEqualTo(createReportRequest.requestId)
-    assertThat(internalBasicReport.amiMrcExemptedEdpsList).containsExactly("edp1")
+    assertThat(internalBasicReport.amiMrcExemptedCmmsDataProviderIdsList).containsExactly("edp1")
   }
 
   @Test

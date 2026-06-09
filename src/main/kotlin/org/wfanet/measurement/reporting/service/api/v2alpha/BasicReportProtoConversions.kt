@@ -146,7 +146,7 @@ fun BasicReport.toInternal(
 
       modelLineSystemSpecified = source.modelLine.isEmpty()
     }
-    this.amiMrcExemptedEdps += amiMrcExemptedEdps
+    this.amiMrcExemptedCmmsDataProviderIds += amiMrcExemptedEdps
   }
 }
 
