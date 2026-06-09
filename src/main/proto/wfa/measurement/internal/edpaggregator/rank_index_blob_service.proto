@@ -121,7 +121,7 @@ message ListRankIndexBlobsRequest {
     // Filter by CMMS model line resource name.
     string cmms_model_line = 2;
 
-    // Filter by subpool ID.
+    // Filter by subpool ID. Optional because 0 is a valid subpool ID.
     optional int32 subpool_id = 3;
 
     // Filter for blobs with max_event_date on or before
