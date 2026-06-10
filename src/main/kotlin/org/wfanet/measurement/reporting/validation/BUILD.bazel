@@ -1,0 +1,14 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/reporting:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/reporting:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "validation_cloud_function_client",
+    srcs = ["ValidationCloudFunctionClient.kt"],
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:data_provider_impression_validation_kt_jvm_proto",
+    ],
+)
