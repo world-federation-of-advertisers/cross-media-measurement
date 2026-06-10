@@ -48,7 +48,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
 /**
- * Dispatches VID labeling work items to the Secure Computation control plane.
+ * Uploads VID labeling work items to the Secure Computation control plane.
  *
  * Processes "done" blob events by crawling directories for raw impression files, resolving active
  * model lines via the VID Repository API (ListModelLines -> ListModelRollouts -> ListModelShards),
@@ -102,14 +102,14 @@ class VidLabelingDispatcher(
   )
 
   /**
-   * Dispatches VID labeling work for raw impression files in the directory containing the done
+   * Uploads VID labeling work for raw impression files in the directory containing the done
    * blob.
    *
-   * @param doneBlobPath the full storage URI of the "done" blob that triggered this dispatch.
+   * @param doneBlobPath the full storage URI of the "done" blob that triggered this upload.
    * @throws IllegalArgumentException if [doneBlobPath] uses an unsupported URI scheme.
    * @throws Exception if a WorkItem creation fails via the Secure Computation API.
    */
-  suspend fun dispatch(doneBlobPath: String) {
+  suspend fun upload(doneBlobPath: String) {
     val startTime: TimeSource.Monotonic.ValueTimeMark = TimeSource.Monotonic.markNow()
 
     try {
@@ -125,7 +125,7 @@ class VidLabelingDispatcher(
 
       if (blobKeys.isEmpty()) {
         logger.info("No raw impression files found in $folderPrefix")
-        recordDispatchDuration(startTime, DISPATCH_STATUS_SUCCESS)
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
       }
 
@@ -135,13 +135,13 @@ class VidLabelingDispatcher(
       )
 
       val rawImpressionUpload = createRawImpressionUpload(doneBlobPath)
-      val dispatchId = rawImpressionUpload.name.substringAfterLast("/")
+      val uploadId = rawImpressionUpload.name.substringAfterLast("/")
 
       val resolvedModelLines = resolveModelLines()
 
       if (resolvedModelLines.isEmpty()) {
         logger.info("No active model lines resolved for $modelSuiteName")
-        recordDispatchDuration(startTime, DISPATCH_STATUS_SUCCESS)
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
       }
 
@@ -152,7 +152,7 @@ class VidLabelingDispatcher(
       var totalWorkItems = 0
       for (resolvedModelLine in resolvedModelLines) {
         for (shardIndex in 0 until numberOfShards) {
-          createWorkItem(resolvedModelLine, shardIndex, dispatchId)
+          createWorkItem(resolvedModelLine, shardIndex, uploadId)
           totalWorkItems++
         }
       }
@@ -169,9 +169,9 @@ class VidLabelingDispatcher(
         Attributes.of(DATA_PROVIDER_ATTR, dataProviderName),
       )
 
-      recordDispatchDuration(startTime, DISPATCH_STATUS_SUCCESS)
+      recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
     } catch (e: Exception) {
-      recordDispatchDuration(startTime, DISPATCH_STATUS_FAILED)
+      recordUploadDuration(startTime, UPLOAD_STATUS_FAILED)
       throw e
     }
   }
@@ -347,7 +347,7 @@ class VidLabelingDispatcher(
   }
 
   /**
-   * Creates a `RawImpressionUpload` resource to track this dispatch.
+   * Creates a `RawImpressionUpload` resource to track this upload.
    *
    * @param doneBlobPath the full storage URI of the "done" blob.
    * @return the created `RawImpressionUpload`.
@@ -374,13 +374,13 @@ class VidLabelingDispatcher(
    *
    * @param resolvedModelLine the resolved model line with its blob path.
    * @param shardIndex zero-based index of this shard.
-   * @param dispatchId unique identifier for this dispatch, used to prevent WorkItem ID collisions
+   * @param uploadId unique identifier for this upload, used to prevent WorkItem ID collisions
    *   across multiple uploads by the same `DataProvider`.
    */
   private suspend fun createWorkItem(
     resolvedModelLine: ResolvedModelLine,
     shardIndex: Int,
-    dispatchId: String,
+    uploadId: String,
   ) {
     val modelLineName = resolvedModelLine.modelLineName
     val modelLineConfig =
@@ -405,7 +405,7 @@ class VidLabelingDispatcher(
     }
 
     val workItemId =
-      "vid-labeling-$dispatchId-${modelLineName.substringAfterLast("/")}-shard-$shardIndex"
+      "vid-labeling-$uploadId-${modelLineName.substringAfterLast("/")}-shard-$shardIndex"
     val packedWorkItemParams = workItemParams { appParams = params.pack() }.pack()
 
     val request = createWorkItemRequest {
@@ -424,14 +424,14 @@ class VidLabelingDispatcher(
     logger.info("Created WorkItem $workItemId for model line $modelLineName shard $shardIndex")
   }
 
-  private fun recordDispatchDuration(
+  private fun recordUploadDuration(
     startTime: TimeSource.Monotonic.ValueTimeMark,
     status: String,
   ) {
     val duration: Double = startTime.elapsedNow().inWholeMilliseconds / 1000.0
-    metrics.dispatchDurationHistogram.record(
+    metrics.uploadDurationHistogram.record(
       duration,
-      Attributes.of(DATA_PROVIDER_ATTR, dataProviderName, DISPATCH_STATUS_ATTR, status),
+      Attributes.of(DATA_PROVIDER_ATTR, dataProviderName, UPLOAD_STATUS_ATTR, status),
     )
   }
 
@@ -446,10 +446,10 @@ class VidLabelingDispatcher(
 
     private val DATA_PROVIDER_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("edpa.vid_labeling_dispatcher.data_provider")
-    private val DISPATCH_STATUS_ATTR: AttributeKey<String> =
+    private val UPLOAD_STATUS_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("edpa.vid_labeling_dispatcher.dispatch_status")
-    private const val DISPATCH_STATUS_SUCCESS = "success"
-    private const val DISPATCH_STATUS_FAILED = "failed"
+    private const val UPLOAD_STATUS_SUCCESS = "success"
+    private const val UPLOAD_STATUS_FAILED = "failed"
 
     private fun isWithinActiveWindow(modelLine: ModelLine, now: Timestamp): Boolean {
       if (!modelLine.hasActiveStartTime()) return false
