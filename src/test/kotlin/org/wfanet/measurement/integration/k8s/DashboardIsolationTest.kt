@@ -42,40 +42,35 @@ class DashboardIsolationTest {
   fun dataIsolation() {
     val results = checks.checkDataIsolation(bigQuery, edp)
     val failures = results.filter { !it.passed }
-    assertWithMessage(failures.joinToString("\n") { it.message })
-      .that(failures).isEmpty()
+    assertWithMessage(failures.joinToString("\n") { it.message }).that(failures).isEmpty()
   }
 
   @Test
   fun iamBoundary() {
     val results = checks.checkIamBoundary(bigQuery, edp)
     val failures = results.filter { !it.passed }
-    assertWithMessage(failures.joinToString("\n") { it.message })
-      .that(failures).isEmpty()
+    assertWithMessage(failures.joinToString("\n") { it.message }).that(failures).isEmpty()
   }
 
   @Test
   fun externalQueryBypass() {
     val results = checks.checkExternalQueryBypass(bigQuery, edp)
     val failures = results.filter { !it.passed }
-    assertWithMessage(failures.joinToString("\n") { it.message })
-      .that(failures).isEmpty()
+    assertWithMessage(failures.joinToString("\n") { it.message }).that(failures).isEmpty()
   }
 
   @Test
   fun driftDetection() {
     val results = checks.checkDriftDetection(bigQuery)
     val failures = results.filter { !it.passed }
-    assertWithMessage(failures.joinToString("\n") { it.message })
-      .that(failures).isEmpty()
+    assertWithMessage(failures.joinToString("\n") { it.message }).that(failures).isEmpty()
   }
 
   @Test
   fun dataCorrectness() {
     val results = checks.checkDataCorrectness(bigQuery, edp)
     val failures = results.filter { !it.passed }
-    assertWithMessage(failures.joinToString("\n") { it.message })
-      .that(failures).isEmpty()
+    assertWithMessage(failures.joinToString("\n") { it.message }).that(failures).isEmpty()
   }
 
   companion object {
@@ -85,8 +80,7 @@ class DashboardIsolationTest {
       System.getenv("GOOGLE_CLOUD_PROJECT")
         ?: throw IllegalStateException("GOOGLE_CLOUD_PROJECT not set")
     private val REGION =
-      System.getenv("BIGQUERY_REGION")
-        ?: throw IllegalStateException("BIGQUERY_REGION not set")
+      System.getenv("BIGQUERY_REGION") ?: throw IllegalStateException("BIGQUERY_REGION not set")
     private val EDP_NAME =
       System.getenv("EDP_NAME") ?: throw IllegalStateException("EDP_NAME not set")
     private val EDP_RESOURCE_ID =
