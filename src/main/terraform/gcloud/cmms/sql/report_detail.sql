@@ -40,7 +40,7 @@ FROM (
       'projects/${project_id}/locations/${region}/connections/reporting-conn',
       '''SELECT
         br.ExternalReportId,
-        CAST(TO_JSON(br.BasicReportResultDetails) AS STRING) AS details
+        TO_JSON_STRING(TO_JSON(br.BasicReportResultDetails)) AS details
       FROM BasicReports br''')
   ) br,
   UNNEST(JSON_QUERY_ARRAY(br.details, '$.resultGroups')) AS rg,

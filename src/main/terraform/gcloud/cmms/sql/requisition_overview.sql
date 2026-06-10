@@ -82,14 +82,14 @@ LEFT JOIN (
       CAST(JSON_VALUE(TO_JSON(br.BasicReportDetails), '$.reportingInterval.reportEnd.year') AS STRING) AS ReportEndYear,
       CAST(JSON_VALUE(TO_JSON(br.BasicReportDetails), '$.reportingInterval.reportEnd.month') AS STRING) AS ReportEndMonth,
       CAST(JSON_VALUE(TO_JSON(br.BasicReportDetails), '$.reportingInterval.reportEnd.day') AS STRING) AS ReportEndDay,
-      CAST(TO_JSON(br.BasicReportDetails).impressionQualificationFilters AS STRING) AS ImpressionQualificationFilters,
+      TO_JSON_STRING(TO_JSON(br.BasicReportDetails).impressionQualificationFilters) AS ImpressionQualificationFilters,
       JSON_VALUE(TO_JSON(br.BasicReportDetails), '$.title') AS ReportTitle,
       (SELECT ARRAY_AGG(
         STRUCT(
           JSON_VALUE(rgs, '$.title') AS title,
           JSON_VALUE(rgs, '$.metricFrequency') AS metricFrequency
         )
-      FROM UNNEST(JSON_QUERY_ARRAY(CAST(TO_JSON(br.BasicReportDetails).resultGroupSpecs AS STRING))) AS rgs
+      FROM UNNEST(JSON_QUERY_ARRAY(TO_JSON(br.BasicReportDetails), "\$.resultGroupSpecs")) AS rgs
       ) AS ResultGroupSpecs
     FROM BasicReports br''')
 ) br

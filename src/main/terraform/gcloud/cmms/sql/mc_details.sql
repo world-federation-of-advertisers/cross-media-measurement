@@ -48,8 +48,8 @@ FROM (
       eg.DataAvailabilityEndTime,
       TO_JSON(eg.EventGroupDetails).metadata.adMetadata.campaignMetadata.campaignName AS CampaignName,
       TO_JSON(eg.EventGroupDetails).metadata.adMetadata.campaignMetadata.brandName AS BrandName,
-      CAST(TO_JSON(eg.EventGroupDetails).eventTemplates AS STRING) AS EventTemplates,
-      CAST(TO_JSON(eg.EntityMetadata) AS STRING) AS EntityMetadata
+      TO_JSON_STRING(TO_JSON(eg.EventGroupDetails).eventTemplates) AS EventTemplates,
+      TO_JSON_STRING(TO_JSON(eg.EntityMetadata)) AS EntityMetadata
     FROM EventGroups eg''')
 ) eg
 LEFT JOIN (
