@@ -9370,11 +9370,10 @@ class BasicReportsServiceTest {
         .toName()
     // Opt in to the deprecated event_group_summaries field so the full result structure is
     // exercised.
-    val request =
-      getBasicReportRequest {
-        name = basicReportName
-        includeDeprecatedEventGroupSummaries = true
-      }
+    val request = getBasicReportRequest {
+      name = basicReportName
+      includeDeprecatedEventGroupSummaries = true
+    }
     val getBasicReportResponse: BasicReport =
       withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.getBasicReport(request) }
 
