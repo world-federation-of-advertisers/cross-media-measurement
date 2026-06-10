@@ -228,18 +228,6 @@ class SpannerEventGroupActivitiesService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    // Validate DataProvider exists.
-    val dataProviderResult =
-      DataProviderReader()
-        .readByExternalDataProviderId(
-          client.singleUse(),
-          ExternalId(request.externalDataProviderId),
-        )
-    if (dataProviderResult == null) {
-      throw DataProviderNotFoundException(ExternalId(request.externalDataProviderId))
-        .asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
-    }
-
     val pageSize =
       if (request.pageSize == 0) {
         DEFAULT_PAGE_SIZE
@@ -264,16 +252,27 @@ class SpannerEventGroupActivitiesService(
       }
 
     val resultList =
-      EventGroupActivityReader()
-        .readEventGroupActivities(
-          client.singleUse(),
-          request.externalDataProviderId,
-          externalEventGroupIds,
-          pageSize + 1,
-          after,
-          dateInterval,
-        )
-        .map { it.eventGroupActivity }
+      client.readOnlyTransaction().use { txn ->
+        // Validate DataProvider exists.
+        val dataProviderResult =
+          DataProviderReader()
+            .readByExternalDataProviderId(txn, ExternalId(request.externalDataProviderId))
+        if (dataProviderResult == null) {
+          throw DataProviderNotFoundException(ExternalId(request.externalDataProviderId))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND)
+        }
+
+        EventGroupActivityReader()
+          .readEventGroupActivities(
+            txn,
+            request.externalDataProviderId,
+            externalEventGroupIds,
+            pageSize + 1,
+            after,
+            dateInterval,
+          )
+          .map { it.eventGroupActivity }
+      }
 
     if (resultList.isEmpty()) {
       return ListEventGroupActivitiesResponse.getDefaultInstance()
