@@ -33,6 +33,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.toInstant
@@ -47,7 +48,7 @@ import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.EventGroupMet
 import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.EventGroupMetadataKt.adMetadata
 import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.eventGroupMetadata
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesRequest
+import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MediaType
 import org.wfanet.measurement.internal.kingdom.batchDeleteEventGroupActivitiesRequest
@@ -1042,30 +1043,33 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          filter =
-            ListEventGroupActivitiesRequest.Filter.newBuilder()
-              .addExternalEventGroupIds(eventGroup.externalEventGroupId)
-              .build()
+          filter = filter { externalEventGroupIds += eventGroup.externalEventGroupId }
         }
       )
 
-    assertThat(response.eventGroupActivitiesList).hasSize(2)
-    assertThat(response.eventGroupActivitiesList[0].date)
-      .isEqualTo(
-        date {
-          year = 2025
-          month = 12
-          day = 1
-        }
+    assertThat(response.eventGroupActivitiesList)
+      .ignoringFields(EventGroupActivity.CREATE_TIME_FIELD_NUMBER)
+      .containsExactly(
+        eventGroupActivity {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 12
+            day = 1
+          }
+        },
+        eventGroupActivity {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 12
+            day = 10
+          }
+        },
       )
-    assertThat(response.eventGroupActivitiesList[1].date)
-      .isEqualTo(
-        date {
-          year = 2025
-          month = 12
-          day = 10
-        }
-      )
+      .inOrder()
   }
 
   @Test
@@ -1114,10 +1118,7 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          filter =
-            ListEventGroupActivitiesRequest.Filter.newBuilder()
-              .addExternalEventGroupIds(eventGroup.externalEventGroupId)
-              .build()
+          filter = filter { externalEventGroupIds += eventGroup.externalEventGroupId }
           pageSize = 1
         }
       )
@@ -1129,31 +1130,34 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          filter =
-            ListEventGroupActivitiesRequest.Filter.newBuilder()
-              .addExternalEventGroupIds(eventGroup.externalEventGroupId)
-              .build()
+          filter = filter { externalEventGroupIds += eventGroup.externalEventGroupId }
           pageToken = firstResponse.nextPageToken
         }
       )
 
-    assertThat(secondResponse.eventGroupActivitiesList).hasSize(2)
-    assertThat(secondResponse.eventGroupActivitiesList[0].date)
-      .isEqualTo(
-        date {
-          year = 2025
-          month = 12
-          day = 5
-        }
+    assertThat(secondResponse.eventGroupActivitiesList)
+      .ignoringFields(EventGroupActivity.CREATE_TIME_FIELD_NUMBER)
+      .containsExactly(
+        eventGroupActivity {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 12
+            day = 5
+          }
+        },
+        eventGroupActivity {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 12
+            day = 10
+          }
+        },
       )
-    assertThat(secondResponse.eventGroupActivitiesList[1].date)
-      .isEqualTo(
-        date {
-          year = 2025
-          month = 12
-          day = 10
-        }
-      )
+      .inOrder()
     assertThat(secondResponse.eventGroupActivitiesList.map { it.date })
       .containsNoneIn(firstResponse.eventGroupActivitiesList.map { it.date })
   }
@@ -1164,10 +1168,7 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          filter =
-            ListEventGroupActivitiesRequest.Filter.newBuilder()
-              .addExternalEventGroupIds(eventGroup.externalEventGroupId)
-              .build()
+          filter = filter { externalEventGroupIds += eventGroup.externalEventGroupId }
         }
       )
 
@@ -1176,7 +1177,7 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
   }
 
   @Test
-  fun `listEventGroupActivities throws INVALID_ARGUMENT when external_data_provider_id is missing`() =
+  fun `listEventGroupActivities throws INVALID_ARGUMENT when external_data_provider_id is missing`() {
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
@@ -1184,8 +1185,10 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception).hasMessageThat().contains("external_data_provider_id")
+      assertThat(exception.errorInfo?.metadataMap)
+        .containsAtLeast("field_name", "external_data_provider_id")
     }
+  }
 
   @Test
   fun `listEventGroupActivities respects page_size`() = runBlocking {
@@ -1233,21 +1236,22 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          filter =
-            ListEventGroupActivitiesRequest.Filter.newBuilder()
-              .addExternalEventGroupIds(eventGroup.externalEventGroupId)
-              .build()
+          filter = filter { externalEventGroupIds += eventGroup.externalEventGroupId }
           pageSize = 1
         }
       )
 
-    assertThat(response.eventGroupActivitiesList).hasSize(1)
-    assertThat(response.eventGroupActivitiesList[0].date)
-      .isEqualTo(
-        date {
-          year = 2025
-          month = 12
-          day = 1
+    assertThat(response.eventGroupActivitiesList)
+      .ignoringFields(EventGroupActivity.CREATE_TIME_FIELD_NUMBER)
+      .containsExactly(
+        eventGroupActivity {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 12
+            day = 1
+          }
         }
       )
     assertThat(response.hasNextPageToken()).isTrue()
@@ -1299,10 +1303,7 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          filter =
-            ListEventGroupActivitiesRequest.Filter.newBuilder()
-              .addExternalEventGroupIds(eventGroup.externalEventGroupId)
-              .build()
+          filter = filter { externalEventGroupIds += eventGroup.externalEventGroupId }
           pageSize = 1
         }
       )
@@ -1314,22 +1315,23 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          filter =
-            ListEventGroupActivitiesRequest.Filter.newBuilder()
-              .addExternalEventGroupIds(eventGroup.externalEventGroupId)
-              .build()
+          filter = filter { externalEventGroupIds += eventGroup.externalEventGroupId }
           pageSize = 1
           pageToken = firstResponse.nextPageToken
         }
       )
 
-    assertThat(secondResponse.eventGroupActivitiesList).hasSize(1)
-    assertThat(secondResponse.eventGroupActivitiesList[0].date)
-      .isEqualTo(
-        date {
-          year = 2025
-          month = 12
-          day = 5
+    assertThat(secondResponse.eventGroupActivitiesList)
+      .ignoringFields(EventGroupActivity.CREATE_TIME_FIELD_NUMBER)
+      .containsExactly(
+        eventGroupActivity {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 12
+            day = 5
+          }
         }
       )
     assertThat(secondResponse.hasNextPageToken()).isTrue()
@@ -1361,10 +1363,7 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          filter =
-            ListEventGroupActivitiesRequest.Filter.newBuilder()
-              .addExternalEventGroupIds(eventGroup.externalEventGroupId)
-              .build()
+          filter = filter { externalEventGroupIds += eventGroup.externalEventGroupId }
           pageSize = 5000
         }
       )
@@ -1373,16 +1372,19 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
   }
 
   @Test
-  fun `listEventGroupActivities throws NOT_FOUND for non existent DataProvider`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        eventGroupActivitiesService.listEventGroupActivities(
-          listEventGroupActivitiesRequest { externalDataProviderId = 999999L }
-        )
-      }
+  fun `listEventGroupActivities throws NOT_FOUND for non existent DataProvider`() {
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.listEventGroupActivities(
+            listEventGroupActivitiesRequest { externalDataProviderId = 999999L }
+          )
+        }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("DataProvider not found")
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      assertThat(exception.errorInfo?.metadataMap)
+        .containsAtLeast("external_data_provider_id", "999999")
+    }
   }
 
   @Test
@@ -1436,26 +1438,84 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
           }
         )
 
-      assertThat(response.eventGroupActivitiesList).hasSize(2)
-      // Both have the same date — ordering tiebreaks on ExternalEventGroupId ASC
-      assertThat(response.eventGroupActivitiesList[0].externalEventGroupId)
-        .isLessThan(response.eventGroupActivitiesList[1].externalEventGroupId)
-      assertThat(response.eventGroupActivitiesList[0].date)
-        .isEqualTo(response.eventGroupActivitiesList[1].date)
+      val expectedActivities =
+        listOf(eventGroup, eventGroup2)
+          .sortedBy { it.externalEventGroupId }
+          .map { eg ->
+            eventGroupActivity {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              externalEventGroupId = eg.externalEventGroupId
+              date = date {
+                year = 2025
+                month = 12
+                day = 1
+              }
+            }
+          }
+
+      assertThat(response.eventGroupActivitiesList)
+        .ignoringFields(EventGroupActivity.CREATE_TIME_FIELD_NUMBER)
+        .containsExactlyElementsIn(expectedActivities)
+        .inOrder()
     }
 
   @Test
-  fun `listEventGroupActivities filters to subset of event groups`() = runBlocking {
-    val eventGroup2 = createEventGroup(dataProvider)
+  fun `listEventGroupActivities filters to subset of event groups`() {
+    runBlocking {
+      val eventGroup2 = createEventGroup(dataProvider)
 
-    // Create activities on event group 1
-    eventGroupActivitiesService.batchUpdateEventGroupActivities(
-      batchUpdateEventGroupActivitiesRequest {
-        externalDataProviderId = dataProvider.externalDataProviderId
-        externalEventGroupId = eventGroup.externalEventGroupId
-        requests += updateEventGroupActivityRequest {
-          allowMissing = true
-          eventGroupActivity = eventGroupActivity {
+      // Create activities on event group 1
+      eventGroupActivitiesService.batchUpdateEventGroupActivities(
+        batchUpdateEventGroupActivitiesRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+          requests += updateEventGroupActivityRequest {
+            allowMissing = true
+            eventGroupActivity = eventGroupActivity {
+              externalEventGroupId = eventGroup.externalEventGroupId
+              date = date {
+                year = 2025
+                month = 12
+                day = 1
+              }
+            }
+          }
+        }
+      )
+
+      // Create activities on event group 2
+      eventGroupActivitiesService.batchUpdateEventGroupActivities(
+        batchUpdateEventGroupActivitiesRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup2.externalEventGroupId
+          requests += updateEventGroupActivityRequest {
+            allowMissing = true
+            eventGroupActivity = eventGroupActivity {
+              externalEventGroupId = eventGroup2.externalEventGroupId
+              date = date {
+                year = 2025
+                month = 12
+                day = 5
+              }
+            }
+          }
+        }
+      )
+
+      // Filter to only event group 1
+      val response =
+        eventGroupActivitiesService.listEventGroupActivities(
+          listEventGroupActivitiesRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            filter = filter { externalEventGroupIds += eventGroup.externalEventGroupId }
+          }
+        )
+
+      assertThat(response.eventGroupActivitiesList)
+        .ignoringFields(EventGroupActivity.CREATE_TIME_FIELD_NUMBER)
+        .containsExactly(
+          eventGroupActivity {
+            externalDataProviderId = dataProvider.externalDataProviderId
             externalEventGroupId = eventGroup.externalEventGroupId
             date = date {
               year = 2025
@@ -1463,44 +1523,8 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
               day = 1
             }
           }
-        }
-      }
-    )
-
-    // Create activities on event group 2
-    eventGroupActivitiesService.batchUpdateEventGroupActivities(
-      batchUpdateEventGroupActivitiesRequest {
-        externalDataProviderId = dataProvider.externalDataProviderId
-        externalEventGroupId = eventGroup2.externalEventGroupId
-        requests += updateEventGroupActivityRequest {
-          allowMissing = true
-          eventGroupActivity = eventGroupActivity {
-            externalEventGroupId = eventGroup2.externalEventGroupId
-            date = date {
-              year = 2025
-              month = 12
-              day = 5
-            }
-          }
-        }
-      }
-    )
-
-    // Filter to only event group 1
-    val response =
-      eventGroupActivitiesService.listEventGroupActivities(
-        listEventGroupActivitiesRequest {
-          externalDataProviderId = dataProvider.externalDataProviderId
-          filter =
-            ListEventGroupActivitiesRequest.Filter.newBuilder()
-              .addExternalEventGroupIds(eventGroup.externalEventGroupId)
-              .build()
-        }
-      )
-
-    assertThat(response.eventGroupActivitiesList).hasSize(1)
-    assertThat(response.eventGroupActivitiesList[0].externalEventGroupId)
-      .isEqualTo(eventGroup.externalEventGroupId)
+        )
+    }
   }
 
   @Test
@@ -1549,44 +1573,47 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          filter =
-            ListEventGroupActivitiesRequest.Filter.newBuilder()
-              .addExternalEventGroupIds(eventGroup.externalEventGroupId)
-              .setDateInterval(
-                dateInterval {
-                  startDate = date {
-                    year = 2025
-                    month = 12
-                    day = 1
-                  }
-                  endDate = date {
-                    year = 2026
-                    month = 1
-                    day = 1
-                  }
-                }
-              )
-              .build()
+          filter = filter {
+            externalEventGroupIds += eventGroup.externalEventGroupId
+            dateInterval = dateInterval {
+              startDate = date {
+                year = 2025
+                month = 12
+                day = 1
+              }
+              endDate = date {
+                year = 2026
+                month = 1
+                day = 1
+              }
+            }
+          }
         }
       )
 
-    assertThat(response.eventGroupActivitiesList).hasSize(2)
-    assertThat(response.eventGroupActivitiesList[0].date)
-      .isEqualTo(
-        date {
-          year = 2025
-          month = 12
-          day = 1
-        }
+    assertThat(response.eventGroupActivitiesList)
+      .ignoringFields(EventGroupActivity.CREATE_TIME_FIELD_NUMBER)
+      .containsExactly(
+        eventGroupActivity {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 12
+            day = 1
+          }
+        },
+        eventGroupActivity {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 12
+            day = 15
+          }
+        },
       )
-    assertThat(response.eventGroupActivitiesList[1].date)
-      .isEqualTo(
-        date {
-          year = 2025
-          month = 12
-          day = 15
-        }
-      )
+      .inOrder()
   }
 
   private suspend fun createEventGroup(dataProvider: DataProvider): EventGroup {
