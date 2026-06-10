@@ -1,0 +1,80 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.config.edpaggregator;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/duration.proto";
+
+option java_package = "org.wfanet.measurement.config.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "DataProviderValidationConfigProto";
+
+// Static configuration for all DataProvider impression validation.
+message DataProviderValidationConfigs {
+  // Per-DataProvider validation configurations. At most one entry per
+  // `data_provider`; the loader enforces uniqueness.
+  repeated DataProviderValidationConfig configs = 1;
+}
+
+// Per-DataProvider validation configuration.
+//
+// Skipped responses (see `DataProviderImpressionQueryResponse.SkipReason`) are
+// always logged and never fail the report.
+message DataProviderValidationConfig {
+  // Resource name of the `DataProvider` this configuration applies to.
+  string data_provider = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
+  ];
+
+  // HTTP endpoint for the DataProvider's validation cloud function.
+  HttpEndpointSink endpoint = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // Tolerance thresholds for deviation evaluation.
+  ToleranceConfig tolerance = 3 [(google.api.field_behavior) = REQUIRED];
+
+  // Optional override for the cloud-function call timeout. If unset, the EDPA
+  // uses the built-in default.
+  google.protobuf.Duration request_timeout_override = 4
+      [(google.api.field_behavior) = OPTIONAL];
+
+  reserved 5;
+  reserved "failure_policy";
+}
+
+// HTTP endpoint configuration for a DataProvider's cloud function.
+message HttpEndpointSink {
+  // HTTPS endpoint URI of the cloud function.
+  string endpoint_uri = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Tolerance thresholds for deviation between reported and publisher values.
+message ToleranceConfig {
+  // Deviation fraction that triggers a warning. Severe telemetry is emitted
+  // but the report continues. Default: 0.02 (2%).
+  double warning_threshold_fraction = 1;
+
+  // Deviation fraction that triggers report failure. If unset, the report is
+  // never failed. Must be >= `warning_threshold_fraction` when set; the loader
+  // enforces this.
+  optional double failure_threshold_fraction = 2;
+
+  // Minimum impression count below which validation is skipped to avoid
+  // false failures on small campaigns. Default: 1000.
+  int64 minimum_impression_count = 3;
+}
