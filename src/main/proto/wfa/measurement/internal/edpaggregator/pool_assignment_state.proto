@@ -26,7 +26,7 @@ enum PoolAssignmentState {
   POOL_ASSIGNMENT_STATE_UNSPECIFIED = 0;
   // The job has been created and is awaiting processing.
   POOL_ASSIGNMENT_STATE_CREATED = 1;
-  // The job completed successfully.
+  // The job completed successfully. Terminal state.
   POOL_ASSIGNMENT_STATE_SUCCEEDED = 2;
   // The job failed. Not terminal — operator can retry after
   // fixing the root cause.

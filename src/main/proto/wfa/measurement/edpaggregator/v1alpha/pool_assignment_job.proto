@@ -43,7 +43,7 @@ message PoolAssignmentJob {
     STATE_UNSPECIFIED = 0;
     // The job has been created and is awaiting processing.
     CREATED = 1;
-    // The job completed successfully.
+    // The job completed successfully. Terminal state.
     SUCCEEDED = 2;
     // The job failed. Not terminal — operator can retry after
     // fixing the root cause.
@@ -69,21 +69,17 @@ message PoolAssignmentJob {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // The timestamp when processing completed (success or failure).
-  google.protobuf.Timestamp completion_time = 5
-      [(google.api.field_behavior) = OUTPUT_ONLY];
-
   // The timestamp when this record was created.
-  google.protobuf.Timestamp create_time = 6
+  google.protobuf.Timestamp create_time = 5
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The timestamp when this record was last updated.
-  google.protobuf.Timestamp update_time = 7
+  google.protobuf.Timestamp update_time = 6
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Detail about the failure, set when state is FAILED.
-  string error_message = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+  string error_message = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Entity tag for optimistic concurrency control.
-  string etag = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+  string etag = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
