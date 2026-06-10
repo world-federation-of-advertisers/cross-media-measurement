@@ -279,10 +279,11 @@ message ResultGroup {
       // A summary of each EventGroup entailed by the component.
       //
       // Deprecated in favor of `reporting_set`, which references a ReportingSet
-      // whose membership enumerates the same EventGroups. This field is only
-      // emitted during the EventGroup-to-ReportingSet migration, when enabled
-      // by the server operator, and will be removed in cross-media-measurement
-      // release 0.5.42.
+      // whose membership enumerates the same EventGroups. During the
+      // EventGroup-to-ReportingSet migration, this field is only emitted when
+      // explicitly requested via the `include_deprecated_event_group_summaries`
+      // request field, and will be removed in cross-media-measurement release
+      // 0.5.42.
       // TODO(world-federation-of-advertisers/cross-media-measurement#3919):
       // Remove this field once consumers have migrated to `reporting_set`.
       repeated EventGroupSummary event_group_summaries = 3

@@ -132,7 +132,6 @@ class BasicReportsService(
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
   private val defaultReportStartHour: ZonedHour? = null,
   private val baseExternalImpressionQualificationFilterIds: Iterable<String>,
-  private val populateDeprecatedReportingUnitEventGroupSummaries: Boolean = true,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   data class ZonedHour(val hour: Int, val zoneId: ZoneId)
@@ -410,7 +409,9 @@ class BasicReportsService(
       }
     )
 
-    return createdInternalBasicReport.toBasicReport(includeDeprecatedEventGroupSummaries(null))
+    return createdInternalBasicReport.toBasicReport(
+      populateDeprecatedReportingUnitEventGroupSummaries = false
+    )
   }
 
   /**
@@ -550,15 +551,7 @@ class BasicReportsService(
         }
       }
 
-    val includeDeprecated =
-      includeDeprecatedEventGroupSummaries(
-        if (request.hasIncludeDeprecatedEventGroupSummaries()) {
-          request.includeDeprecatedEventGroupSummaries
-        } else {
-          null
-        }
-      )
-    return internalBasicReport.toBasicReport(includeDeprecated)
+    return internalBasicReport.toBasicReport(request.includeDeprecatedEventGroupSummaries)
   }
 
   override suspend fun listBasicReports(
@@ -610,14 +603,7 @@ class BasicReportsService(
       return ListBasicReportsResponse.getDefaultInstance()
     }
 
-    val includeDeprecated =
-      includeDeprecatedEventGroupSummaries(
-        if (request.hasIncludeDeprecatedEventGroupSummaries()) {
-          request.includeDeprecatedEventGroupSummaries
-        } else {
-          null
-        }
-      )
+    val includeDeprecated = request.includeDeprecatedEventGroupSummaries
     return listBasicReportsResponse {
       this.basicReports +=
         internalListBasicReportsResponse.basicReportsList
@@ -1051,17 +1037,6 @@ class BasicReportsService(
           filters += normalizedEventFilters.map { it.toEventFilter() }
         }
       }
-  }
-
-  /**
-   * Returns whether the deprecated `event_group_summaries` field of `ReportingUnitComponentSummary`
-   * should be emitted, combining the server configuration with the per-request preference.
-   *
-   * @param requestPreference the request's include preference, or `null` when unset (defaults to
-   *   `true`)
-   */
-  private fun includeDeprecatedEventGroupSummaries(requestPreference: Boolean?): Boolean {
-    return populateDeprecatedReportingUnitEventGroupSummaries && (requestPreference ?: true)
   }
 
   object Permission {

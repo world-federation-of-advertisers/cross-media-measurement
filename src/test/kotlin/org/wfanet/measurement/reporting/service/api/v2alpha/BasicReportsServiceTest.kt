@@ -9368,7 +9368,13 @@ class BasicReportsServiceTest {
           basicReportId = basicReportId,
         )
         .toName()
-    val request = getBasicReportRequest { name = basicReportName }
+    // Opt in to the deprecated event_group_summaries field so the full result structure is
+    // exercised.
+    val request =
+      getBasicReportRequest {
+        name = basicReportName
+        includeDeprecatedEventGroupSummaries = true
+      }
     val getBasicReportResponse: BasicReport =
       withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.getBasicReport(request) }
 
@@ -10029,19 +10035,14 @@ class BasicReportsServiceTest {
         }
       )
 
-    // When the request opts out, the deprecated event_group_summaries field is omitted while the
+    // By default (field unset), the deprecated event_group_summaries field is omitted while the
     // ReportingSet reference remains populated.
-    val responseWithoutDeprecated =
+    val defaultResponse =
       withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.getBasicReport(
-          getBasicReportRequest {
-            name = basicReportName
-            includeDeprecatedEventGroupSummaries = false
-          }
-        )
+        service.getBasicReport(getBasicReportRequest { name = basicReportName })
       }
-    val componentSummaryWithoutDeprecated =
-      responseWithoutDeprecated.resultGroupsList
+    val defaultComponentSummary =
+      defaultResponse.resultGroupsList
         .first()
         .resultsList
         .first()
@@ -10049,66 +10050,8 @@ class BasicReportsServiceTest {
         .reportingUnitSummary
         .reportingUnitComponentSummaryList
         .first()
-    assertThat(componentSummaryWithoutDeprecated.eventGroupSummariesList).isEmpty()
-    assertThat(componentSummaryWithoutDeprecated.reportingSet).isNotEmpty()
-
-    // Explicitly requesting the deprecated field still includes it.
-    val responseWithDeprecated =
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.getBasicReport(
-          getBasicReportRequest {
-            name = basicReportName
-            includeDeprecatedEventGroupSummaries = true
-          }
-        )
-      }
-    val componentSummaryWithDeprecated =
-      responseWithDeprecated.resultGroupsList
-        .first()
-        .resultsList
-        .first()
-        .metadata
-        .reportingUnitSummary
-        .reportingUnitComponentSummaryList
-        .first()
-    assertThat(componentSummaryWithDeprecated.eventGroupSummariesList).isNotEmpty()
-
-    // When the server is configured to omit the deprecated field, it is omitted regardless of the
-    // request, while reporting_set remains populated.
-    val serviceWithDeprecatedDisabled =
-      BasicReportsService(
-        internalBasicReportsService,
-        internalImpressionQualificationFiltersService,
-        internalReportingSetsService,
-        internalMetricCalculationSpecsService,
-        reportsService,
-        modelLinesService,
-        TEST_EVENT_DESCRIPTOR,
-        METRIC_SPEC_CONFIG,
-        SecureRandom().asKotlinRandom(),
-        authorization,
-        MEASUREMENT_CONSUMER_CONFIGS,
-        defaultReportStartHour = null,
-        baseExternalImpressionQualificationFilterIds = emptyList(),
-        populateDeprecatedReportingUnitEventGroupSummaries = false,
-      )
-    val responseServerDisabled =
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        serviceWithDeprecatedDisabled.getBasicReport(
-          getBasicReportRequest { name = basicReportName }
-        )
-      }
-    val componentSummaryServerDisabled =
-      responseServerDisabled.resultGroupsList
-        .first()
-        .resultsList
-        .first()
-        .metadata
-        .reportingUnitSummary
-        .reportingUnitComponentSummaryList
-        .first()
-    assertThat(componentSummaryServerDisabled.eventGroupSummariesList).isEmpty()
-    assertThat(componentSummaryServerDisabled.reportingSet).isNotEmpty()
+    assertThat(defaultComponentSummary.eventGroupSummariesList).isEmpty()
+    assertThat(defaultComponentSummary.reportingSet).isNotEmpty()
   }
 
   @Test

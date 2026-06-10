@@ -116,24 +116,6 @@ class ReportingApiServerFlags {
   lateinit var populationDataProvider: String
     private set
 
-  // TODO(world-federation-of-advertisers/cross-media-measurement#3919): Remove this flag once the
-  // deprecated ResultGroup.MetricMetadata.ReportingUnitComponentSummary.event_group_summaries field
-  // is dropped.
-  @set:CommandLine.Option(
-    names = ["--populate-deprecated-reporting-unit-event-group-summaries"],
-    description =
-      [
-        "Whether to emit the deprecated " +
-          "ResultGroup.MetricMetadata.ReportingUnitComponentSummary.event_group_summaries field " +
-          "in BasicReport results during the EventGroup-to-ReportingSet migration. The " +
-          "replacement reporting_set field is always populated regardless of this value. This " +
-          "flag will be removed once the deprecated field is dropped."
-      ],
-    defaultValue = "true",
-  )
-  var populateDeprecatedReportingUnitEventGroupSummaries by Delegates.notNull<Boolean>()
-    private set
-
   class ReportStart {
     class TimeOffset {
       @CommandLine.Option(
