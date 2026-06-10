@@ -89,7 +89,7 @@ LEFT JOIN (
           JSON_VALUE(rgs, '$.title') AS title,
           JSON_VALUE(rgs, '$.metricFrequency') AS metricFrequency
         )
-      FROM UNNEST(JSON_QUERY_ARRAY(TO_JSON(br.BasicReportDetails), "\$.resultGroupSpecs")) AS rgs
+      FROM UNNEST(JSON_QUERY_ARRAY(TO_JSON(br.BasicReportDetails), "$.resultGroupSpecs")) AS rgs
       ) AS ResultGroupSpecs
     FROM BasicReports br''')
 ) br
