@@ -66,7 +66,7 @@ private data class ChannelKey(
 )
 
 /**
- * Cloud Function that dispatches VID labeling work items to the Secure Computation control plane.
+ * Cloud Function that uploads VID labeling work items to the Secure Computation control plane.
  *
  * Invoked when an EDP finishes uploading raw impressions and writes a "done" blob. The function
  * looks up the matching [VidLabelingConfig] for the data provider, resolves active model lines via
@@ -206,7 +206,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
         )
 
       Tracing.withW3CTraceContext(request) {
-        runBlocking(Context.current().asContextElement()) { dispatcher.dispatch(doneBlobPath) }
+        runBlocking(Context.current().asContextElement()) { dispatcher.upload(doneBlobPath) }
       }
     } finally {
       EdpaTelemetry.flush()

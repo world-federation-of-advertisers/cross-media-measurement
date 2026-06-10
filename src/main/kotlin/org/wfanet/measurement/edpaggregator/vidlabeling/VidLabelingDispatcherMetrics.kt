@@ -28,7 +28,7 @@ import org.wfanet.measurement.common.Instrumentation
  */
 class VidLabelingDispatcherMetrics(meter: Meter = Instrumentation.meter) {
   /** Histogram recording the duration of each dispatch cycle in seconds. */
-  val dispatchDurationHistogram: DoubleHistogram =
+  val uploadDurationHistogram: DoubleHistogram =
     meter
       .histogramBuilder("edpa.vid_labeling_dispatcher.dispatch_duration")
       .setDescription("Duration of the VID labeling dispatch cycle")

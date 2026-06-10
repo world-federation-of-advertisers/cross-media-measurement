@@ -215,18 +215,18 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
-  fun `dispatch with empty directory creates no work items`() = runBlocking {
+  fun `upload with empty directory creates no work items`() = runBlocking {
     whenever(storageClient.listBlobs(any())).thenReturn(emptyFlow())
 
     val dispatcher = createDispatcher()
-    dispatcher.dispatch(DONE_BLOB_PATH)
+    dispatcher.upload(DONE_BLOB_PATH)
 
     verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
     verifyBlocking(modelLinesService, never()) { listModelLines(any()) }
   }
 
   @Test
-  fun `dispatch creates N work items per active model line`() = runBlocking {
+  fun `upload creates N work items per active model line`() = runBlocking {
     val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1))
     stubRawImpressionUploadCreation()
@@ -234,7 +234,7 @@ class VidLabelingDispatcherTest {
     whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
     val dispatcher = createDispatcher(numberOfShards = 3)
-    dispatcher.dispatch(DONE_BLOB_PATH)
+    dispatcher.upload(DONE_BLOB_PATH)
 
     val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
     verifyBlocking(workItemsService, times(6)) { createWorkItem(requestCaptor.capture()) }
@@ -251,7 +251,7 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
-  fun `dispatch with override model lines skips ListModelLines API`() = runBlocking {
+  fun `upload with override model lines skips ListModelLines API`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
     stubRawImpressionUploadCreation()
@@ -263,7 +263,7 @@ class VidLabelingDispatcherTest {
         numberOfShards = 2,
         overrideModelLines = listOf(MODEL_LINE_1),
       )
-    dispatcher.dispatch(DONE_BLOB_PATH)
+    dispatcher.upload(DONE_BLOB_PATH)
 
     verifyBlocking(modelLinesService, never()) { listModelLines(any()) }
 
@@ -272,7 +272,7 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
-  fun `dispatch with no active model lines creates no work items`() = runBlocking {
+  fun `upload with no active model lines creates no work items`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
     stubRawImpressionUploadCreation()
@@ -281,13 +281,13 @@ class VidLabelingDispatcherTest {
     )
 
     val dispatcher = createDispatcher()
-    dispatcher.dispatch(DONE_BLOB_PATH)
+    dispatcher.upload(DONE_BLOB_PATH)
 
     verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
   }
 
   @Test
-  fun `dispatch sets shard index and model blob path in work item params`() = runBlocking {
+  fun `upload sets shard index and model blob path in work item params`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
     stubRawImpressionUploadCreation()
@@ -295,7 +295,7 @@ class VidLabelingDispatcherTest {
     whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
     val dispatcher = createDispatcher(numberOfShards = 2)
-    dispatcher.dispatch(DONE_BLOB_PATH)
+    dispatcher.upload(DONE_BLOB_PATH)
 
     val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
     verifyBlocking(workItemsService, times(2)) { createWorkItem(requestCaptor.capture()) }
@@ -323,7 +323,7 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
-  fun `dispatch excludes done marker from file list`() = runBlocking {
+  fun `upload excludes done marker from file list`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     val doneBlob = createMockBlob("$FOLDER_PREFIX/done")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob, doneBlob))
@@ -332,14 +332,14 @@ class VidLabelingDispatcherTest {
     whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
     val dispatcher = createDispatcher(numberOfShards = 1)
-    dispatcher.dispatch(DONE_BLOB_PATH)
+    dispatcher.upload(DONE_BLOB_PATH)
 
     val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
     verifyBlocking(workItemsService, times(1)) { createWorkItem(requestCaptor.capture()) }
   }
 
   @Test
-  fun `dispatch propagates exception on work item creation failure`() = runBlocking {
+  fun `upload propagates exception on work item creation failure`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
     stubRawImpressionUploadCreation()
@@ -349,13 +349,13 @@ class VidLabelingDispatcherTest {
     }
 
     val dispatcher = createDispatcher(numberOfShards = 1)
-    val exception = assertFailsWith<Exception> { dispatcher.dispatch(DONE_BLOB_PATH) }
+    val exception = assertFailsWith<Exception> { dispatcher.upload(DONE_BLOB_PATH) }
     assertThat(exception).hasMessageThat().contains("Error creating WorkItem")
     assertThat(exception).hasCauseThat().isInstanceOf(StatusException::class.java)
   }
 
   @Test
-  fun `dispatch propagates exception on ListModelLines failure`() = runBlocking {
+  fun `upload propagates exception on ListModelLines failure`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
     stubRawImpressionUploadCreation()
@@ -364,13 +364,13 @@ class VidLabelingDispatcherTest {
     }
 
     val dispatcher = createDispatcher()
-    val exception = assertFailsWith<Exception> { dispatcher.dispatch(DONE_BLOB_PATH) }
+    val exception = assertFailsWith<Exception> { dispatcher.upload(DONE_BLOB_PATH) }
     assertThat(exception).hasMessageThat().contains("Error listing model lines")
     assertThat(exception).hasCauseThat().isInstanceOf(StatusException::class.java)
   }
 
   @Test
-  fun `dispatch skips model line when no rollout found`() = runBlocking {
+  fun `upload skips model line when no rollout found`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
     stubRawImpressionUploadCreation()
@@ -389,7 +389,7 @@ class VidLabelingDispatcherTest {
     )
 
     val dispatcher = createDispatcher(numberOfShards = 1)
-    dispatcher.dispatch(DONE_BLOB_PATH)
+    dispatcher.upload(DONE_BLOB_PATH)
 
     verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
   }
