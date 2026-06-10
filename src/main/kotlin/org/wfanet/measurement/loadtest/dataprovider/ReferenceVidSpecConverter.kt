@@ -66,66 +66,98 @@ object ReferenceVidSpecConverter {
     sourcePopulationSpec: PopulationSpec,
     maxVidRangeSpecs: Int = DEFAULT_MAX_VID_RANGE_SPECS,
   ): ConvertedSpecs {
-    val records: List<ReferenceVidRecord> = ReferenceVidDataGeneration.generate(spec).toList()
+    val totalInputSize: Long =
+      spec.dateSpecsList.sumOf { ds ->
+        ds.demographicDistributionsList.sumOf { it.idRange.endExclusive - it.idRange.start }
+      }
+    require(totalInputSize <= MAX_INPUT_REFERENCE_VIDS) {
+      "Input spec has $totalInputSize reference VIDs, exceeding maximum of " +
+        "$MAX_INPUT_REFERENCE_VIDS."
+    }
 
-    val labeledVids: List<LabeledReferenceVid> =
-      records.map { record ->
-        val input = labelerInput {
-          eventId = eventId { id = record.referenceVid.toString() }
-          timestampUsec = 0L
-          profileInfo = profileInfo {
-            proprietaryIdSpace1UserInfo = userInfo {
-              userId = record.referenceVid.toString()
-              demo = demoInfo {
-                demoBucket = demoBucket {
-                  gender =
-                    Gender.forNumber(record.gender) ?: error("Invalid gender: ${record.gender}")
-                  age = ageRange {
-                    minAge = record.minAge
-                    maxAge = record.maxAge
+    val allLabeledVids = mutableListOf<LabeledReferenceVid>()
+    val perDateSpecVids = mutableListOf<List<LabeledReferenceVid>>()
+
+    for (dateSpec in spec.dateSpecsList) {
+      val dateSpecVids = mutableListOf<LabeledReferenceVid>()
+      for (demoDist in dateSpec.demographicDistributionsList) {
+        for (referenceVid in demoDist.idRange.start until demoDist.idRange.endExclusive) {
+          val record =
+            ReferenceVidRecord(
+              referenceVid = referenceVid,
+              gender = demoDist.gender,
+              minAge = demoDist.minAge,
+              maxAge = demoDist.maxAge,
+              frequency = demoDist.frequency,
+              nonPopulationFieldValues = demoDist.nonPopulationFieldValuesMap,
+            )
+
+          val input = labelerInput {
+            eventId = eventId { id = record.referenceVid.toString() }
+            timestampUsec = 0L
+            profileInfo = profileInfo {
+              proprietaryIdSpace1UserInfo = userInfo {
+                userId = record.referenceVid.toString()
+                demo = demoInfo {
+                  demoBucket = demoBucket {
+                    gender =
+                      Gender.forNumber(record.gender) ?: error("Invalid gender: ${record.gender}")
+                    age = ageRange {
+                      minAge = record.minAge
+                      maxAge = record.maxAge
+                    }
                   }
                 }
               }
             }
           }
-        }
 
-        val output = labeler.label(input)
-        check(output.peopleCount > 0) {
-          "Labeler returned no people for reference VID ${record.referenceVid}"
-        }
-        val person = output.getPeople(0)
-        check(person.virtualPersonId > 0) {
-          "Labeler returned VID 0 for reference VID ${record.referenceVid}"
-        }
-
-        val vid = person.virtualPersonId.toLong()
-        val subPopIndex: Int =
-          sourcePopulationSpec.subpopulationsList.indexOfFirst { sub ->
-            sub.vidRangesList.any { range -> vid >= range.startVid && vid <= range.endVidInclusive }
+          val output = labeler.label(input)
+          check(output.peopleCount > 0) {
+            "Labeler returned no people for reference VID ${record.referenceVid}"
           }
-        require(subPopIndex >= 0) {
-          "VID $vid (from reference VID ${record.referenceVid}) not in any PopulationSpec range"
-        }
+          val person = output.getPeople(0)
+          check(person.virtualPersonId > 0) {
+            "Labeler returned VID 0 for reference VID ${record.referenceVid}"
+          }
 
-        LabeledReferenceVid(
-          vid = vid,
-          subPopulationIndex = subPopIndex,
-          frequency = record.frequency,
-          nonPopulationFieldValues = record.nonPopulationFieldValues,
-        )
+          val vid = person.virtualPersonId.toLong()
+          val subPopIndex: Int =
+            sourcePopulationSpec.subpopulationsList.indexOfFirst { sub ->
+              sub.vidRangesList.any { range ->
+                vid >= range.startVid && vid <= range.endVidInclusive
+              }
+            }
+          require(subPopIndex >= 0) {
+            "VID $vid (from reference VID ${record.referenceVid}) not in any PopulationSpec range"
+          }
+
+          val labeled =
+            LabeledReferenceVid(
+              vid = vid,
+              subPopulationIndex = subPopIndex,
+              frequency = record.frequency,
+              nonPopulationFieldValues = record.nonPopulationFieldValues,
+            )
+          dateSpecVids.add(labeled)
+          allLabeledVids.add(labeled)
+        }
       }
+      perDateSpecVids.add(dateSpecVids)
+    }
 
     logger.info(
-      "Labeled ${labeledVids.size} reference VIDs, " +
-        "${labeledVids.map { it.vid }.distinct().size} unique VIDs"
+      "Labeled ${allLabeledVids.size} reference VIDs, " +
+        "${allLabeledVids.map { it.vid }.distinct().size} unique VIDs"
     )
 
     return ConvertedSpecs(
-      syntheticEventGroupSpec = convertSyntheticSpec(labeledVids, spec, maxVidRangeSpecs),
-      populationSpec = convertPopulationSpec(labeledVids, sourcePopulationSpec),
+      syntheticEventGroupSpec = convertSyntheticSpec(perDateSpecVids, spec, maxVidRangeSpecs),
+      populationSpec = convertPopulationSpec(allLabeledVids, sourcePopulationSpec),
     )
   }
+
+  private data class VidGroupKey(val frequency: Long, val fieldValues: Map<String, FieldValue>)
 
   private data class LabeledReferenceVid(
     val vid: Long,
@@ -135,29 +167,37 @@ object ReferenceVidSpecConverter {
   )
 
   private fun convertSyntheticSpec(
-    labeledVids: List<LabeledReferenceVid>,
+    perDateSpecVids: List<List<LabeledReferenceVid>>,
     spec: ReferenceVidEventGroupSpec,
     maxVidRangeSpecs: Int,
   ): SyntheticEventGroupSpec {
-    val vidFrequencies: Map<Long, Long> =
-      labeledVids.groupBy { it.vid }.mapValues { (_, vids) -> vids.sumOf { it.frequency } }
-
-    val vidsByEffFreq: Map<Long, List<Long>> =
-      vidFrequencies.entries.groupBy({ it.value }, { it.key }).mapValues { (_, vids) ->
-        vids.sorted()
-      }
-
-    val totalVidRangeSpecs: Int = vidsByEffFreq.values.sumOf { mergeAdjacentVids(it).size }
-    require(totalVidRangeSpecs <= maxVidRangeSpecs) {
-      "Converted spec would have $totalVidRangeSpecs VidRangeSpecs, exceeding threshold of " +
-        "$maxVidRangeSpecs. Use direct generation instead of converting."
-    }
-
-    val vidFieldValues: Map<Long, Map<String, FieldValue>> =
-      labeledVids.associate { it.vid to it.nonPopulationFieldValues }
+    var totalVidRangeSpecs = 0
 
     val result = syntheticEventGroupSpec {
-      for (refDateSpec in spec.dateSpecsList) {
+      for ((index, refDateSpec) in spec.dateSpecsList.withIndex()) {
+        val dateSpecVids = perDateSpecVids[index]
+
+        val vidFrequencies: Map<Long, Long> =
+          dateSpecVids.groupBy { it.vid }.mapValues { (_, vids) -> vids.sumOf { it.frequency } }
+
+        val vidsByEffFreq: Map<Long, List<Long>> =
+          vidFrequencies.entries.groupBy({ it.value }, { it.key }).mapValues { (_, vids) ->
+            vids.sorted()
+          }
+
+        val vidFieldValues: Map<Long, Map<String, FieldValue>> =
+          dateSpecVids
+            .groupBy { it.vid }
+            .mapValues { (vid, vids) ->
+              val distinct = vids.map { it.nonPopulationFieldValues }.distinct()
+              require(distinct.size == 1) {
+                "VID $vid has conflicting non-population field values from different reference VIDs."
+              }
+              distinct.first()
+            }
+
+        val dateSpecRangeCount = vidsByEffFreq.values.sumOf { mergeAdjacentVids(it).size }
+        totalVidRangeSpecs += dateSpecRangeCount
 
         dateSpecs += dateSpec {
           this.dateRange = dateRange {
@@ -180,6 +220,11 @@ object ReferenceVidSpecConverter {
           }
         }
       }
+    }
+
+    require(totalVidRangeSpecs <= maxVidRangeSpecs) {
+      "Converted spec would have $totalVidRangeSpecs VidRangeSpecs, exceeding threshold of " +
+        "$maxVidRangeSpecs. Use direct generation instead of converting."
     }
 
     logger.info("Converted to SyntheticEventGroupSpec with $totalVidRangeSpecs VidRangeSpecs")
@@ -232,6 +277,7 @@ object ReferenceVidSpecConverter {
   }
 
   const val DEFAULT_MAX_VID_RANGE_SPECS = 500
+  const val MAX_INPUT_REFERENCE_VIDS = 10_000L
 
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 }

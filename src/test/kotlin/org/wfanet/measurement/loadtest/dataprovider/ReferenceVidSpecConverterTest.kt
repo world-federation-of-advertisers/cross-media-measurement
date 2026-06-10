@@ -31,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Reference
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpecKt.demographicDistribution
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpecKt.idRange
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.fieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.referenceVidEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.Common
 import org.wfanet.measurement.common.getRuntimePath
@@ -172,6 +173,181 @@ class ReferenceVidSpecConverterTest {
         maxAge = 99
         frequency = 1
       }
+    }
+  }
+
+  @Test
+  fun `convert produces independent output per date spec`() {
+    val spec = referenceVidEventGroupSpec {
+      dateSpecs += dateSpec {
+        this.dateRange = dateRange {
+          start = date {
+            year = 2024
+            month = 1
+            day = 1
+          }
+          endExclusive = date {
+            year = 2024
+            month = 1
+            day = 2
+          }
+        }
+        demographicDistributions += demographicDistribution {
+          idRange = idRange {
+            start = 0
+            endExclusive = 5
+          }
+          gender = 1
+          minAge = 16
+          maxAge = 34
+          frequency = 1
+        }
+      }
+      dateSpecs += dateSpec {
+        this.dateRange = dateRange {
+          start = date {
+            year = 2024
+            month = 2
+            day = 1
+          }
+          endExclusive = date {
+            year = 2024
+            month = 2
+            day = 2
+          }
+        }
+        demographicDistributions += demographicDistribution {
+          idRange = idRange {
+            start = 100
+            endExclusive = 105
+          }
+          gender = 2
+          minAge = 55
+          maxAge = 99
+          frequency = 2
+        }
+      }
+    }
+
+    val converted = ReferenceVidSpecConverter.convert(buildLabeler(), spec, loadPopulationSpec())
+
+    assertThat(converted.syntheticEventGroupSpec.dateSpecsCount).isEqualTo(2)
+
+    val dateSpec1 = converted.syntheticEventGroupSpec.getDateSpecs(0)
+    val dateSpec2 = converted.syntheticEventGroupSpec.getDateSpecs(1)
+
+    val vids1: Set<Long> =
+      dateSpec1.frequencySpecsList
+        .flatMap { it.vidRangeSpecsList }
+        .flatMap { (it.vidRange.start until it.vidRange.endExclusive).toList() }
+        .toSet()
+    val vids2: Set<Long> =
+      dateSpec2.frequencySpecsList
+        .flatMap { it.vidRangeSpecsList }
+        .flatMap { (it.vidRange.start until it.vidRange.endExclusive).toList() }
+        .toSet()
+
+    assertThat(vids1).isNotEmpty()
+    assertThat(vids2).isNotEmpty()
+    assertThat(vids1.intersect(vids2)).isEmpty()
+
+    val freq1: List<Long> = dateSpec1.frequencySpecsList.map { it.frequency }
+    val freq2: List<Long> = dateSpec2.frequencySpecsList.map { it.frequency }
+    assertThat(freq1).containsExactly(1L)
+    assertThat(freq2).containsExactly(2L)
+  }
+
+  @Test
+  fun `convert preserves different non-population field values for same frequency`() {
+    val spec = referenceVidEventGroupSpec {
+      dateSpecs += dateSpec {
+        this.dateRange = dateRange {
+          start = date {
+            year = 2024
+            month = 1
+            day = 1
+          }
+          endExclusive = date {
+            year = 2024
+            month = 1
+            day = 2
+          }
+        }
+        demographicDistributions += demographicDistribution {
+          idRange = idRange {
+            start = 0
+            endExclusive = 5
+          }
+          gender = 1
+          minAge = 16
+          maxAge = 34
+          frequency = 1
+          nonPopulationFieldValues.put(
+            "video.completed_50_percent_plus",
+            fieldValue { boolValue = true },
+          )
+        }
+        demographicDistributions += demographicDistribution {
+          idRange = idRange {
+            start = 5
+            endExclusive = 10
+          }
+          gender = 1
+          minAge = 16
+          maxAge = 34
+          frequency = 1
+          nonPopulationFieldValues.put(
+            "display.viewable_100_percent",
+            fieldValue { boolValue = true },
+          )
+        }
+      }
+    }
+
+    val converted = ReferenceVidSpecConverter.convert(buildLabeler(), spec, loadPopulationSpec())
+    val dateSpec = converted.syntheticEventGroupSpec.getDateSpecs(0)
+
+    val allFieldKeys: Set<String> =
+      dateSpec.frequencySpecsList
+        .flatMap { it.vidRangeSpecsList }
+        .flatMap { it.nonPopulationFieldValuesMap.keys }
+        .toSet()
+
+    assertThat(allFieldKeys)
+      .containsAtLeast("video.completed_50_percent_plus", "display.viewable_100_percent")
+  }
+
+  @Test
+  fun `convert throws when input reference VID count exceeds maximum`() {
+    val hugeSpec = referenceVidEventGroupSpec {
+      dateSpecs += dateSpec {
+        this.dateRange = dateRange {
+          start = date {
+            year = 2024
+            month = 1
+            day = 1
+          }
+          endExclusive = date {
+            year = 2024
+            month = 1
+            day = 2
+          }
+        }
+        demographicDistributions += demographicDistribution {
+          idRange = idRange {
+            start = 0
+            endExclusive = ReferenceVidSpecConverter.MAX_INPUT_REFERENCE_VIDS + 1
+          }
+          gender = 1
+          minAge = 16
+          maxAge = 34
+          frequency = 1
+        }
+      }
+    }
+
+    assertFailsWith<IllegalArgumentException> {
+      ReferenceVidSpecConverter.convert(buildLabeler(), hugeSpec, loadPopulationSpec())
     }
   }
 

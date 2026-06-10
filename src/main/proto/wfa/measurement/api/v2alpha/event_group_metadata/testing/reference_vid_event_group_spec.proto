@@ -58,7 +58,7 @@ message ReferenceVidEventGroupSpec {
 
     // Non-population field values for events in this distribution (e.g.
     // viewability flags). Same key format as
-    // .
+    // `SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec.non_population_field_values`.
     map<string, FieldValue> non_population_field_values = 6;
   }
 
@@ -77,9 +77,4 @@ message ReferenceVidEventGroupSpec {
 
   // Date ranges with their demographic distributions.
   repeated DateSpec date_specs = 1;
-
-  // Non-population field values applied to all generated events (e.g.
-  // viewability flags). Same key format as
-  // `SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec.non_population_field_values`.
-  map<string, FieldValue> non_population_field_values = 2;
 }
