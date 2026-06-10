@@ -245,6 +245,10 @@ class VidLabelingDispatcher(
       for (modelLine in response.modelLinesList) {
         if (modelLine.type != ModelLine.Type.PROD) continue
         if (!isWithinActiveWindow(modelLine, now)) continue
+        // TODO(world-federation-of-advertisers/cross-media-measurement#3956): Remove the static
+        // modelLineConfigs dependency. Field mappings should come from ModelShard or be
+        // convention-based so adding a new model line in the VID Repository doesn't require a
+        // Cloud Function config redeploy.
         if (modelLine.name !in modelLineConfigs) {
           logger.warning("Skipping model line ${modelLine.name}: no config entry")
           continue
