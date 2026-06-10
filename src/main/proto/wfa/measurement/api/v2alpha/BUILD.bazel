@@ -19,6 +19,7 @@ MESSAGE_LIBS = [
     ":certificate_proto",
     ":client_account_proto",
     ":crypto_proto",
+    ":data_provider_impression_query_proto",
     ":data_provider_proto",
     ":date_interval_proto",
     ":differential_privacy_proto",
