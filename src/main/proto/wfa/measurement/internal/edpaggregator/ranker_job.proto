@@ -47,18 +47,15 @@ message RankerJob {
   // The processing state of this job.
   RankerState state = 6;
 
-  // The timestamp when processing completed (success or failure).
-  google.protobuf.Timestamp completion_time = 7;
-
   // The timestamp when this record was created.
-  google.protobuf.Timestamp create_time = 8;
+  google.protobuf.Timestamp create_time = 7;
 
   // The timestamp when this record was last updated.
-  google.protobuf.Timestamp update_time = 9;
+  google.protobuf.Timestamp update_time = 8;
 
   // Detail about the failure, set when state is FAILED.
-  string error_message = 10;
+  string error_message = 9;
 
   // Entity tag for optimistic concurrency control.
-  string etag = 11;
+  string etag = 10;
 }
