@@ -486,31 +486,6 @@ class DashboardIsolationChecks(
       )
     }
 
-    // Check externalIdToApiId produces valid output
-    try {
-      val result =
-        bq.query(
-          QueryJobConfiguration.of("SELECT `$project.$dataset.externalIdToApiId`(1) AS output")
-        )
-      val output = result.iterateAll().firstOrNull()?.get("output")?.stringValue ?: ""
-      results.add(
-        CheckResult(
-          "${edp.name}: externalIdToApiId",
-          output.isNotEmpty(),
-          if (output.isNotEmpty()) "${edp.name}: externalIdToApiId produces valid output: $output"
-          else "${edp.name}: externalIdToApiId returned empty",
-        )
-      )
-    } catch (e: Exception) {
-      results.add(
-        CheckResult(
-          "${edp.name}: externalIdToApiId",
-          false,
-          "${edp.name}: externalIdToApiId failed: ${e.message}",
-        )
-      )
-    }
-
     // Check requisition_overview has populated metrics for fulfilled requisitions
     try {
       val result =
