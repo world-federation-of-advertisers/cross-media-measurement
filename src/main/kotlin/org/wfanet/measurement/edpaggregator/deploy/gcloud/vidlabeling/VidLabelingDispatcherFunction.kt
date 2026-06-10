@@ -21,6 +21,7 @@ import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
 import com.google.protobuf.util.JsonFormat
+import io.grpc.Channel
 import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
 import io.opentelemetry.context.Context
@@ -45,6 +46,7 @@ import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
@@ -176,14 +178,20 @@ class VidLabelingDispatcherFunction : HttpFunction {
           )
         )
 
+      val rawImpressionUploadChannel =
+        createInstrumentedChannel(
+          config.rawImpressionMetadataStorageConnection,
+          rawImpressionUploadTarget,
+          rawImpressionUploadCertHost,
+          grpcTelemetry,
+        )
       val rawImpressionUploadStub =
         RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(
-          createInstrumentedChannel(
-            config.rawImpressionMetadataStorageConnection,
-            rawImpressionUploadTarget,
-            rawImpressionUploadCertHost,
-            grpcTelemetry,
-          )
+          rawImpressionUploadChannel
+        )
+      val rawImpressionUploadFilesStub =
+        RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
+          rawImpressionUploadChannel
         )
 
       val vidLabelerParamsTemplate: VidLabelerParams = buildVidLabelerParamsTemplate(config)
@@ -193,6 +201,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
           storageClient = storageClient,
           workItemsStub = workItemsStub,
           rawImpressionUploadStub = rawImpressionUploadStub,
+          rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
           modelLinesStub = modelLinesStub,
           modelRolloutsStub = modelRolloutsStub,
           modelShardsStub = modelShardsStub,
@@ -224,8 +233,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
     private val controlPlaneCertHost: String? = System.getenv("CONTROL_PLANE_CERT_HOST")
     private val modelLinesTarget: String = EnvVars.checkNotNullOrEmpty("MODEL_LINES_TARGET")
     private val modelLinesCertHost: String? = System.getenv("MODEL_LINES_CERT_HOST")
-    private val modelRolloutsTarget: String =
-      EnvVars.checkNotNullOrEmpty("MODEL_ROLLOUTS_TARGET")
+    private val modelRolloutsTarget: String = EnvVars.checkNotNullOrEmpty("MODEL_ROLLOUTS_TARGET")
     private val modelRolloutsCertHost: String? = System.getenv("MODEL_ROLLOUTS_CERT_HOST")
     private val modelShardsTarget: String = EnvVars.checkNotNullOrEmpty("MODEL_SHARDS_TARGET")
     private val modelShardsCertHost: String? = System.getenv("MODEL_SHARDS_CERT_HOST")
@@ -313,7 +321,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
       target: String,
       hostName: String?,
       grpcTelemetry: GrpcTelemetry,
-    ): ManagedChannel {
+    ): Channel {
       val channel = getOrCreateChannel(connectionParams, target, hostName)
       return ClientInterceptors.intercept(channel, grpcTelemetry.newClientInterceptor())
     }
