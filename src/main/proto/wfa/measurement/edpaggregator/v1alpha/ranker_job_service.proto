@@ -43,11 +43,13 @@ service RankerJobService {
 
   // Marks a `RankerJob` as `SUCCEEDED`. Atomically checks if
   // this is the last job for the (upload, model line) and
-  // returns the signal to the caller.
+  // returns the signal to the caller. Throws
+  // FAILED_PRECONDITION if state is not CREATED or FAILED.
   rpc MarkRankerJobSucceeded(MarkRankerJobSucceededRequest)
       returns (MarkRankerJobSucceededResponse) {}
 
-  // Marks a `RankerJob` as `FAILED`.
+  // Marks a `RankerJob` as `FAILED`. Throws
+  // FAILED_PRECONDITION if state is not CREATED or FAILED.
   rpc MarkRankerJobFailed(MarkRankerJobFailedRequest) returns (RankerJob) {}
 }
 
