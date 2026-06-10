@@ -53,11 +53,7 @@ class DashboardComplianceCheck : Runnable {
   )
   private lateinit var edpFlags: List<String>
 
-  @CommandLine.Option(
-    names = ["--region"],
-    required = true,
-    description = ["BigQuery region"],
-  )
+  @CommandLine.Option(names = ["--region"], required = true, description = ["BigQuery region"])
   private lateinit var region: String
 
   private val edps by lazy {
@@ -109,7 +105,9 @@ class DashboardComplianceCheck : Runnable {
     if (failed == 0) {
       println("=== RESULT: ALL CHECKS PASSED ($passed/$total) ===")
     } else {
-      println("=== RESULT: $failed CHECKS FAILED ($passed passed, $failed failed out of $total) ===")
+      println(
+        "=== RESULT: $failed CHECKS FAILED ($passed passed, $failed failed out of $total) ==="
+      )
       System.exit(1)
     }
   }
