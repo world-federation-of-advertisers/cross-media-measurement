@@ -11,3 +11,32 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/org/junit",
     ],
 )
+
+kt_jvm_test(
+    name = "ValidationCloudFunctionClientTest",
+    srcs = ["ValidationCloudFunctionClientTest.kt"],
+    test_class = "org.wfanet.measurement.reporting.validation.ValidationCloudFunctionClientTest",
+    deps = [
+        "//imports/java/com/google/auth:oauth_http2",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/validation:validation_cloud_function_client",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_impression_query_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "EdpValidationPostProcessorTest",
+    srcs = ["EdpValidationPostProcessorTest.kt"],
+    test_class = "org.wfanet.measurement.reporting.validation.EdpValidationPostProcessorTest",
+    deps = [
+        "//imports/java/com/google/auth:oauth_http2",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/validation:edp_validation_post_processor",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/validation:validation_cloud_function_client",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_impression_query_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:data_provider_validation_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
