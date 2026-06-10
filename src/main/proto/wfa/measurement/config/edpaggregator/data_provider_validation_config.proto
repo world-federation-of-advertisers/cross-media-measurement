@@ -1,0 +1,101 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.config.edpaggregator;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/duration.proto";
+
+option java_package = "org.wfanet.measurement.config.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "DataProviderValidationConfigProto";
+
+// Static configuration for all DataProvider impression validation.
+message DataProviderValidationConfigs {
+  // Per-DataProvider validation configurations. At most one entry per
+  // `data_provider`; the loader enforces uniqueness.
+  repeated DataProviderValidationConfig configs = 1;
+}
+
+// Per-DataProvider validation configuration.
+//
+// Skipped responses (see `DataProviderImpressionQueryResponse.SkipReason`) are
+// always logged and never fail the report.
+message DataProviderValidationConfig {
+  // Resource name of the `DataProvider` this configuration applies to.
+  string data_provider = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
+  ];
+
+  // HTTP endpoint for the DataProvider's validation cloud function.
+  HttpEndpointSink endpoint = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // Tolerance thresholds for deviation evaluation.
+  ToleranceConfig tolerance = 3 [(google.api.field_behavior) = REQUIRED];
+
+  // Optional override for the cloud-function call timeout. If unset, the EDPA
+  // uses the built-in default.
+  google.protobuf.Duration request_timeout_override = 4
+      [(google.api.field_behavior) = OPTIONAL];
+
+  reserved 5;
+  reserved "failure_policy";
+}
+
+// HTTP endpoint configuration for a DataProvider's cloud function.
+message HttpEndpointSink {
+  // HTTPS endpoint URI of the cloud function.
+  string endpoint_uri = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Tolerance thresholds for deviation between reported and publisher values.
+message ToleranceConfig {
+  // Tolerance band that triggers a warning. Telemetry is emitted but the report
+  // continues.
+  ToleranceBand warning = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // Tolerance band that triggers report failure. If unset, the report is never
+  // failed; use `has_failure()` to check. When set, its `threshold_fraction`
+  // must be >= `warning.threshold_fraction`; the loader enforces this.
+  ToleranceBand failure = 2;
+
+  // Minimum publisher impression count below which the cloud-function API call
+  // is not made and validation is skipped, avoiding false failures on small
+  // campaigns. If unset, the loader applies 1000. Set to 0 to disable the
+  // floor and always validate.
+  optional int64 minimum_impression_count = 3;
+}
+
+// Threshold for a single tolerance band.
+//
+// The band is triggered only when the deviation between the reported and
+// publisher counts is strictly greater than BOTH `threshold_fraction` AND
+// `minimum_absolute_deviation`. Requiring both guards against small absolute
+// differences tripping the fractional threshold on medium-sized campaigns
+// (e.g. publisher=1001 vs reported=900 is 10.1% but only 101 impressions).
+message ToleranceBand {
+  // Fractional deviation that triggers the band, e.g. 0.10 for 10%. A deviation
+  // strictly greater than this fraction is required to trigger the band;
+  // equality does not.
+  double threshold_fraction = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // Absolute deviation, in impressions, that must also be exceeded for the band
+  // to trigger. A deviation strictly greater than this count is required;
+  // equality does not.
+  int64 minimum_absolute_deviation = 2 [(google.api.field_behavior) = REQUIRED];
+}
