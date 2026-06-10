@@ -28,12 +28,10 @@ kt_jvm_library(
     deps = [
         ":fingerprint",
         ":fingerprint_extractor",
-        "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/utils:active_window",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//imports/java/org/apache/parquet:parquet_hadoop",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:parquet_storage_client",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
     ],
 )

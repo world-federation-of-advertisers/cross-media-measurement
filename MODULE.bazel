@@ -43,12 +43,12 @@ bazel_dep(
     repo_name = "wfa_common_jvm",
 )
 
-# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#???)
+# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#385)
 # Pulls ParquetStorageClient from marcopremier/parquet-storage-client.
 archive_override(
     module_name = "common-jvm",
-    urls = ["https://github.com/world-federation-of-advertisers/common-jvm/archive/1fb51b0a4884e9478fe96a8b1819e0aff5a34f23.tar.gz"],
-    strip_prefix = "common-jvm-1fb51b0a4884e9478fe96a8b1819e0aff5a34f23",
+    urls = ["https://github.com/world-federation-of-advertisers/common-jvm/archive/2ae81ab840a34e385daabf0b6852f2cb2fb48ef1.tar.gz"],
+    strip_prefix = "common-jvm-2ae81ab840a34e385daabf0b6852f2cb2fb48ef1",
 )
 bazel_dep(
     name = "common-cpp",

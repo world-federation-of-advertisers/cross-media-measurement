@@ -16,117 +16,158 @@
 
 package org.wfanet.measurement.edpaggregator.rawimpressions
 
-import com.google.crypto.tink.KmsClient
 import com.google.protobuf.ByteString
 import java.time.Instant
-import java.util.Base64
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.buffer
-import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
-import org.apache.parquet.crypto.FileDecryptionProperties
-import org.wfanet.measurement.storage.BlobUri
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
+import org.wfanet.measurement.edpaggregator.vidlabeler.utils.instantToEpochMicros
 import org.wfanet.measurement.storage.ParquetStorageClient
-import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.storage.StorageClient
 
 /**
- * Streams the local VM's shard of raw impressions for one upload,
- * window-filtered and fingerprinted.
+ * Streams the local VM's shard of raw impressions for one upload and runs the
+ * full read → decrypt → fingerprint → shard-filter → caller-supplied work chain
+ * **inline, one coroutine per file, in parallel across files** — labeling each
+ * surviving event against one or more model lines in a single pass.
  *
- * Each emission is a batch of [FingerprintedEvent]. For every parquet
- * blob in the upload folder identified by [doneBlobPath]:
- *  1. Open via [ParquetStorageClient]; column data is PME-decrypted
- *     page-by-page inside parquet-mr.
- *  2. Per row: drop if outside `[activeStartTime, activeEndTime)`;
- *     compute SHA-256 fingerprint of the event-id column; drop if not
- *     this shard (`fp.high % totalShards != shardIndex`).
- *  3. Emit surviving rows in batches of [batchSize].
+ * ## Execution model (why it is shaped this way)
+ *
+ * The read path is CPU-heavy (parquet decode + PME AES-GCM decrypt +
+ * decompression) on top of blocking GCS I/O, and there are always far more
+ * files than cores. So the most efficient model is:
+ *
+ *  - **One coroutine per file**, launched on [readDispatcher] (an *elastic*
+ *    dispatcher — [Dispatchers.IO] by default — so a coroutine blocked on a GCS
+ *    read does not pin a core; siblings keep the CPU busy).
+ *  - **A single [Semaphore] of [maxConcurrentReaders]** is the one governor for
+ *    both peak memory (open readers × prefetch buffers) and effective CPU
+ *    concurrency. It defaults to ~1.5× cores: enough slack that while some files
+ *    block on the network others keep the cores doing decrypt/fingerprint/label,
+ *    without so many simultaneous CPU-bound coroutines that the cores thrash.
+ *  - **The whole chain runs inline on the file's coroutine.** The decoded row
+ *    (`Map<String, Any?>`) is fingerprinted and handed to the caller's work on
+ *    the same core that decoded it — cache-hot — and is then discarded.
+ *
+ * With ≫ files than cores, this file-level parallelism alone saturates the
+ * cores; there is no serial collector to bottleneck on, and no intra-file
+ * parallelism is needed (the parquet reader is sequential per file anyway).
+ *
+ * ## Per-file consumers & concurrency
+ *
+ * For each input file, [stream] calls [ModelLineConsumerFactory.open] to create
+ * a fresh [ModelLineConsumer] per model line, **confined to that file's
+ * coroutine**: `open(blobKey)` → `process(event)` for each in-window event →
+ * `close()` once the file is fully read. Because a consumer is created and used
+ * on a single coroutine, its own state (e.g. a per-file output writer) is
+ * single-threaded and needs **no synchronization**. Only state shared *across*
+ * files (e.g. Phase 0's per-subpool accumulators captured in the factory) must
+ * be concurrency-safe — shard it by owner or synchronize it.
+ *
+ * ## Filtering split
+ *
+ *  - **Shard filter** (`fp.high % totalShards == shardIndex`) is applied here:
+ *    it is fingerprint-only, hence identical for every model line in a WorkItem,
+ *    so it is paid once in the shared pass.
+ *  - **Active-window filter** is per-model-line and is applied by [stream] via
+ *    each consumer's [ActiveWindow][ModelLineConsumer.window]; the stream itself
+ *    is window-agnostic.
  *
  * ## Blob discovery
  *
- * [doneBlobPath] points at the `done` marker an EDP writes at the end
- * of an upload (mirrors `VidLabelingDispatcher.dispatch`). The stream
- * lists the containing folder and treats every blob except the marker
- * as a raw-impression parquet file.
+ * [doneBlobKey] is the blob key (relative to the [parquetStorageClient] root) of
+ * the `done` marker an EDP writes at the end of an upload. The containing folder
+ * is listed and every blob except the marker is treated as a raw-impression
+ * parquet file.
  *
  * ## Encryption
  *
- * Per-blob PME bootstrap via this class's [resolveBlobDecryption]
- * callback wired into [ParquetStorageClient]: read `kek_uri` +
- * `encrypted_dek` from the plaintext footer, unwrap via
- * `kmsClient.getAead(kekUri).decrypt(...)`, hand raw AES bytes to
- * parquet-mr. Plaintext column data never leaves the JVM heap; the
- * on-disk temp file stays PME-encrypted.
+ * PME decryption is handled declaratively by the injected [parquetStorageClient]
+ * (configure it with a `ParquetDecryptionConfig` pointing at the EDP's footer
+ * keys). Plaintext column data never leaves the JVM heap.
  *
  * ## Column mapping
  *
  * [labelerInputFieldMapping] mirrors
- * `VidLabelingConfig.ModelLineConfig.labeler_input_field_mapping`
- * (key = LabelerInput field path, value = parquet column name). Two
- * entries are required:
- *  - `timestamp_usec` -> parquet INT64 column carrying event time in
- *    epoch microseconds.
- *  - `event_id.id` -> parquet BINARY/STRING column carrying the event
- *    identifier bytes.
- *
- * Every other field stays in [FingerprintedEvent.row] for downstream
- * consumers to project as they see fit.
- *
- * ## Parallelism
- *
- *  - **Producer**: up to [ioParallelism] per-blob coroutines run
- *    concurrently on `Dispatchers.IO.limitedParallelism(...)`. Each
- *    drops out-of-window and out-of-shard rows BEFORE emission, so
- *    ~`(N-1)/N` of input rows never reach the output channel.
- *  - **Channel** is bounded by [bufferedBatches] to backpressure
- *    producers when consumers fall behind.
- *  - **Consumer** parallelism is the caller's responsibility. The
- *    returned `Flow` is cold and sequential at the collection point;
- *    CPU-bound downstream work should fan out via
- *    `flatMapMerge(workers)`.
+ * `VidLabelingConfig.ModelLineConfig.labeler_input_field_mapping` (key =
+ * LabelerInput field path, value = parquet column name). Required entries:
+ *  - `timestamp_usec` -> parquet INT64 column (epoch micros), or an
+ *    INT64+TIMESTAMP column (decoded as `Instant`); both are accepted.
+ *  - `event_id.id` -> parquet BINARY/STRING column with the event id bytes.
  */
 class RawImpressionStream(
-  private val storageClient: StorageClient,
-  private val kmsClient: KmsClient,
-  private val doneBlobPath: String,
+  private val parquetStorageClient: ParquetStorageClient,
+  private val doneBlobKey: String,
   private val labelerInputFieldMapping: Map<String, String>,
-  private val activeStartTime: Instant,
-  private val activeEndTime: Instant?,
   private val shardIndex: Int,
   private val totalShards: Int,
   private val fingerprintExtractor: FingerprintExtractor,
-  // Number of survivors accumulated per emitted batch. Mirrors
-  // StorageEventReader's production default of 256.
-  private val batchSize: Int = DEFAULT_BATCH_SIZE,
-  // No oversubscription: on n2d-highmem-16 (16 vCPU) this is 16. Each
-  // per-blob coroutine does mixed CPU (parquet parse + decrypt +
-  // fingerprint) and network work; over-allocating threads here would
-  // thrash the CPU during the decrypt-heavy windows.
-  private val ioParallelism: Int = Runtime.getRuntime().availableProcessors(),
-  // Capacity of the bounded channel between per-blob producers and the
-  // downstream collector. Sized to absorb consumer-side jitter without
-  // blocking producers; memory footprint stays in the tens of MB
-  // (ioParallelism * 2 * batchSize records).
-  private val bufferedBatches: Int = ioParallelism * 2,
+  // Elastic dispatcher for the per-file coroutines. MUST tolerate blocking work
+  // (the parquet read is synchronous), so the default is Dispatchers.IO. The
+  // CPU concurrency is governed by maxConcurrentReaders, not by this dispatcher.
+  private val readDispatcher: CoroutineContext = Dispatchers.IO,
+  // The single concurrency governor: how many files are read+processed at once.
+  // Bounds both peak memory and effective CPU concurrency. Defaults to ~1.5×
+  // cores to hide GCS stalls without oversubscribing the cores.
+  private val maxConcurrentReaders: Int = DEFAULT_MAX_CONCURRENT_READERS,
 ) {
-  /** Atomic counters updated as the cold flow is consumed. */
+  /**
+   * Per-(input file, model line) consumer. Created fresh for each file by a
+   * [ModelLineConsumerFactory], so it is confined to one file's coroutine and
+   * its own state (e.g. an output writer) needs no synchronization.
+   *
+   * Lifecycle, all on the file's coroutine: `open(blobKey)` (factory) →
+   * [process] for each in-window, shard-surviving event → [close] once the file
+   * is fully read.
+   */
+  interface ModelLineConsumer {
+    /** This model line's active window; events whose time is outside it are skipped. */
+    val window: ActiveWindow
+
+    /**
+     * Handles one in-window event for the current file. Typically projects the
+     * row into a `LabelerInput`, runs the labeler for this model line, and
+     * appends/routes the result.
+     */
+    suspend fun process(event: FingerprintedEvent)
+
+    /**
+     * The current file has been fully read. Flush + upload this model line's
+     * output for this file (Phase 2), or no-op (Phase 0, which accumulates into
+     * shared per-subpool state and uploads once after [stream] returns).
+     *
+     * Called only on **successful** completion of the file: if the file read
+     * fails, the exception propagates and [close] is NOT called, so a partial
+     * output is never uploaded (see [stream]'s failure semantics).
+     */
+    suspend fun close()
+  }
+
+  /**
+   * Opens one [ModelLineConsumer] per input file, for a single model line.
+   * [open] receives the source `blobKey`, so per-file outputs can be keyed/named
+   * by it. The returned consumer is used by exactly one coroutine.
+   */
+  fun interface ModelLineConsumerFactory {
+    suspend fun open(blobKey: String): ModelLineConsumer
+  }
+
+  /** Atomic counters updated as the chain runs (safe under parallel files). */
   data class Stats(
     val read: AtomicLong = AtomicLong(),
-    val droppedOutsideWindow: AtomicLong = AtomicLong(),
     val droppedOtherShard: AtomicLong = AtomicLong(),
     val emitted: AtomicLong = AtomicLong(),
   )
 
   val stats: Stats = Stats()
 
-  // Resolve the parquet column names for the two semantic fields via
-  // the well-known LabelerInput paths. Failing here keeps
-  // misconfiguration out of the hot path.
   private val eventTimeColumn: String =
     labelerInputFieldMapping[EVENT_TIME_FIELD_PATH]
       ?: throw IllegalArgumentException(
@@ -141,189 +182,168 @@ class RawImpressionStream(
           "'$EVENT_ID_FIELD_PATH'; got keys ${labelerInputFieldMapping.keys}"
       )
 
-  // One ParquetStorageClient is shared across all per-blob reads.
-  // PME decryption properties are resolved per-blob from each parquet
-  // file's plaintext footer via the callback below.
-  private val parquetClient: ParquetStorageClient =
-    ParquetStorageClient(storageClient, decryptionPropertiesProvider = ::resolveBlobDecryption)
-
   init {
     require(totalShards > 0) { "totalShards must be positive, got $totalShards" }
     require(shardIndex in 0 until totalShards) {
       "shardIndex ($shardIndex) must be in [0, totalShards=$totalShards)"
     }
-    require(batchSize > 0) { "batchSize must be positive, got $batchSize" }
-    require(ioParallelism > 0) { "ioParallelism must be positive, got $ioParallelism" }
-    require(bufferedBatches > 0) { "bufferedBatches must be positive, got $bufferedBatches" }
-    require(doneBlobPath.isNotBlank()) { "doneBlobPath must be non-blank" }
-    activeEndTime?.let {
-      require(it.isAfter(activeStartTime)) {
-        "activeEndTime ($it) must be strictly after activeStartTime ($activeStartTime)"
+    require(maxConcurrentReaders > 0) {
+      "maxConcurrentReaders must be positive, got $maxConcurrentReaders"
+    }
+    require(doneBlobKey.isNotBlank()) { "doneBlobKey must be non-blank" }
+  }
+
+  /**
+   * Streams this VM's shard of the upload exactly once and runs the per-file
+   * lifecycle of each model line's consumer, inline and in parallel across files
+   * (≤ [maxConcurrentReaders] concurrent). For every input file, on its own
+   * coroutine: open one consumer per factory, deliver each shard-surviving event
+   * to every consumer whose window contains it, then close every consumer.
+   * Decode + decrypt + fingerprint are paid once per row; suspends until every
+   * file has been fully processed.
+   *
+   * ## How many consumers (Phase 0 vs Phase 2)
+   *
+   *  - **Phase 0 (pool assignment):** at most ONE model line per WorkItem, so
+   *    `consumerFactories` has size 1. The consumer labels in pool-emit mode and
+   *    routes `(subpoolId, fingerprint)` into shared per-subpool accumulators;
+   *    `close()` is a no-op and the accumulators are uploaded once after this
+   *    call returns.
+   *  - **Phase 2 (labeling):** multiple model lines appear in one WorkItem ONLY
+   *    when they do NOT require memoization — i.e. no per-model-line rank-index
+   *    map has to be pulled from GCS — so labeling several in parallel adds no
+   *    large in-memory state and is safe. When a model line DOES require
+   *    memoization (its rank-index blob, a large file, must be loaded), Phase 1
+   *    emits a WorkItem with a SINGLE model line, so at most one big rank-index
+   *    map is resident at a time and this design cannot OOM on that account.
+   *
+   * ## Output-side memory caveat
+   *
+   * In Phase 2 each consumer buffers one output (mesos record-IO) file in memory
+   * per (input file, model line) until `close()` uploads it, so N model lines ⇒
+   * up to N output files resident per in-flight input file. Each output is much
+   * smaller than its input because this VM keeps only events surviving the
+   * fingerprint shard filter (~1/totalShards).
+   * TODO(@marcopremier): benchmark peak memory of this output-buffering approach
+   * (maxConcurrentReaders × N model lines × per-file output buffer) and bound it
+   * if it proves material.
+   *
+   * ## Failure semantics
+   *
+   * If reading/processing a file throws, the exception propagates, the enclosing
+   * [coroutineScope] cancels sibling files, and that file's consumers are NOT
+   * closed — so no partial output is uploaded (per-file upload stays atomic).
+   * The WorkItem is then retried per the pipeline's failure policy.
+   *
+   * @param consumerFactories one factory per model line; each `open` MUST return
+   *   a fresh consumer (its per-file state is thread-confined). State shared
+   *   across files (captured in the factory) must be concurrency-safe.
+   */
+  suspend fun stream(consumerFactories: List<ModelLineConsumerFactory>) {
+    require(consumerFactories.isNotEmpty()) { "consumerFactories must be non-empty" }
+    val semaphore = Semaphore(maxConcurrentReaders)
+    coroutineScope {
+      for (blobKey in discoverBlobKeys()) {
+        launch(readDispatcher) {
+          semaphore.withPermit {
+            // Fresh consumer per (file, model line): thread-confined to this coroutine.
+            val consumers = consumerFactories.map { it.open(blobKey) }
+            processFile(blobKey) { event ->
+              val eventMicros = readEventMicros(event.row)
+              for (consumer in consumers) {
+                if (consumer.window.contains(eventMicros)) consumer.process(event)
+              }
+            }
+            // File fully read → flush + upload each model line's output for this file.
+            // Reached only on success; a failure above propagates and skips this.
+            for (consumer in consumers) consumer.close()
+          }
+        }
       }
     }
   }
 
-  /** See class-level KDoc for parallelism contract. */
-  fun stream(): Flow<List<FingerprintedEvent>> {
-    val ioDispatcher = Dispatchers.IO.limitedParallelism(ioParallelism)
-    return channelFlow {
-        val blobUris = discoverBlobUris()
-        blobUris.forEach { blobUri ->
-          launch(ioDispatcher) { streamBlob(blobUri) { batch -> send(batch) } }
-        }
-      }
-      .buffer(bufferedBatches)
-  }
-
-  /** Inclusive lower bound, exclusive upper bound; `null` end means open-ended. */
-  internal fun isInsideActiveWindow(eventTime: Instant): Boolean {
-    if (eventTime.isBefore(activeStartTime)) return false
-    val end = activeEndTime ?: return true
-    return eventTime.isBefore(end)
-  }
-
   internal fun belongsToShard(fingerprint: Fingerprint): Boolean {
-    // SHA-256's avalanche makes the upper Long a uniform shard hash on
-    // its own — no mixing with the low 4 bytes needed.
+    // SHA-256's avalanche makes the upper Long a uniform shard hash on its own.
     val shard = Math.floorMod(fingerprint.high, totalShards.toLong()).toInt()
     return shard == shardIndex
   }
 
   /**
-   * Parses [doneBlobPath], lists its folder, drops the done marker,
-   * and rebuilds full blob URIs for the remaining files. Mirrors
-   * `VidLabelingDispatcher.dispatch`.
+   * Reads one blob, fingerprints + shard-filters each row, and invokes [onEvent]
+   * inline for every surviving event. Runs entirely on the calling file
+   * coroutine.
    */
-  private suspend fun discoverBlobUris(): List<String> {
-    val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
-    val folderPrefix: String = doneBlobUri.key.substringBeforeLast("/")
-    return storageClient
+  private suspend fun processFile(
+    blobKey: String,
+    onEvent: suspend (FingerprintedEvent) -> Unit,
+  ) {
+    val parquetBlob =
+      parquetStorageClient.getBlob(blobKey) ?: error("Raw-impression blob not found: $blobKey")
+    parquetBlob.readRows().collect { row ->
+      stats.read.incrementAndGet()
+      val fingerprint = fingerprintExtractor.extract(readEventIdBytes(row, blobKey))
+      if (!belongsToShard(fingerprint)) {
+        stats.droppedOtherShard.incrementAndGet()
+        return@collect
+      }
+      stats.emitted.incrementAndGet()
+      onEvent(FingerprintedEvent(row, fingerprint))
+    }
+  }
+
+  /**
+   * Lists the folder containing [doneBlobKey] and drops the done marker,
+   * returning the blob keys of the remaining raw-impression files.
+   */
+  private suspend fun discoverBlobKeys(): List<String> {
+    val folderPrefix: String = doneBlobKey.substringBeforeLast("/")
+    return parquetStorageClient
       .listBlobs(folderPrefix)
-      .toList()
-      .asSequence()
       .map { it.blobKey }
-      .filterNot { isDoneMarker(it) }
-      .map { buildBlobUri(doneBlobUri, it) }
       .toList()
+      .filterNot { isDoneMarker(it) }
   }
 
   private fun isDoneMarker(blobKey: String): Boolean =
     blobKey.substringAfterLast("/").equals(DONE_MARKER_FILE_NAME, ignoreCase = true)
 
-  private fun buildBlobUri(doneBlobUri: BlobUri, blobKey: String): String =
-    when (doneBlobUri.scheme) {
-      "gs" -> "${doneBlobUri.scheme}://${doneBlobUri.bucket}/$blobKey"
-      "file" -> "${doneBlobUri.scheme}:///${doneBlobUri.bucket}/$blobKey"
-      else -> throw IllegalArgumentException("Unsupported scheme: ${doneBlobUri.scheme}")
-    }
-
   /**
-   * Per-blob PME bootstrap callback. Invoked at most once per blob by
-   * [ParquetStorageClient] when the first row is read. Reads the
-   * blob's plaintext parquet footer, pulls `kek_uri` + `encrypted_dek`,
-   * unwraps the DEK via KMS, and returns parquet's
-   * [FileDecryptionProperties] keyed by the raw AES bytes.
-   *
-   * Re-entry note: this callback MAY call [ParquetBlob.readKeyValueMetadata]
-   * on the same blob (that's the bootstrap) but MUST NOT call
-   * [ParquetBlob.readRows] — see common-jvm `ParquetStorageClient` KDoc.
+   * Reads the event-id column from [row] as bytes. Parquet may surface the
+   * `event_id.id` column either as a [String] (BINARY+STRING) or a [ByteString]
+   * (raw BINARY); both are accepted.
    */
-  private suspend fun resolveBlobDecryption(
-    blob: ParquetStorageClient.ParquetBlob
-  ): FileDecryptionProperties {
-    val md = blob.readKeyValueMetadata()
-    val kekUri =
-      md[FOOTER_KEY_KEK_URI]
-        ?: error("Parquet footer of '${blob.blobKey}' missing '$FOOTER_KEY_KEK_URI' entry")
-    val encryptedDekB64 =
-      md[FOOTER_KEY_ENCRYPTED_DEK]
-        ?: error("Parquet footer of '${blob.blobKey}' missing '$FOOTER_KEY_ENCRYPTED_DEK' entry")
-    val encryptedDekBytes: ByteArray =
-      try {
-        Base64.getDecoder().decode(encryptedDekB64)
-      } catch (e: IllegalArgumentException) {
-        throw IllegalStateException(
-          "Parquet footer entry '$FOOTER_KEY_ENCRYPTED_DEK' of '${blob.blobKey}' is not " +
-            "valid base64",
-          e,
-        )
-      }
-    val rawAesKey: ByteArray =
-      kmsClient.getAead(kekUri).decrypt(encryptedDekBytes, EMPTY_AAD)
-    return FileDecryptionProperties.builder().withFooterKey(rawAesKey).build()
-  }
-
-  private suspend fun streamBlob(
-    blobUri: String,
-    emit: suspend (List<FingerprintedEvent>) -> Unit,
-  ) {
-    val blobKey = SelectedStorageClient.parseBlobUri(blobUri).key
-    val parquetBlob =
-      parquetClient.getBlob(blobKey)
-        ?: error("Raw-impression blob not found: $blobUri")
-
-    parquetBlob.use { blob ->
-      val current = ArrayList<FingerprintedEvent>(batchSize)
-      blob.readRows().collect { row ->
-        stats.read.incrementAndGet()
-
-        // Window filter — runs BEFORE the per-row fingerprint cost.
-        val eventTime = epochMicrosToInstant(row[eventTimeColumn] as Long)
-        if (!isInsideActiveWindow(eventTime)) {
-          stats.droppedOutsideWindow.incrementAndGet()
-          return@collect
-        }
-
-        // Shard filter — fingerprint is unavoidable here.
-        val idBytes: ByteString = readEventIdBytes(row, blobUri)
-        val fingerprint = fingerprintExtractor.extract(idBytes)
-        if (!belongsToShard(fingerprint)) {
-          stats.droppedOtherShard.incrementAndGet()
-          return@collect
-        }
-
-        current.add(FingerprintedEvent(row, fingerprint))
-        if (current.size >= batchSize) {
-          emit(current.toList())
-          stats.emitted.addAndGet(current.size.toLong())
-          current.clear()
-        }
-      }
-      // Trailing partial batch.
-      if (current.isNotEmpty()) {
-        emit(current.toList())
-        stats.emitted.addAndGet(current.size.toLong())
-      }
-    }
-  }
-
-  /**
-   * Reads the event-id column from [row] as bytes. The column is
-   * declared `LabelerInput.event_id.id` which is `string`; parquet may
-   * surface it either as a Kotlin [String] (BINARY with `STRING`
-   * logical type) or as a raw [ByteString] (BINARY without
-   * annotation). We accept either.
-   */
-  private fun readEventIdBytes(row: Map<String, Any?>, blobUri: String): ByteString =
+  private fun readEventIdBytes(row: Map<String, Any?>, blobKey: String): ByteString =
     when (val v = row[eventIdColumn]) {
       is String -> ByteString.copyFromUtf8(v)
       is ByteString -> v
       else ->
         error(
-          "event-id column '$eventIdColumn' of '$blobUri' has unexpected type " +
+          "event-id column '$eventIdColumn' of '$blobKey' has unexpected type " +
             "${v?.javaClass?.simpleName} (expected String or ByteString)"
         )
     }
 
-  /** Converts an epoch-microseconds `long` to an [Instant]. */
-  private fun epochMicrosToInstant(epochMicros: Long): Instant {
-    val seconds = Math.floorDiv(epochMicros, 1_000_000L)
-    val nanos = Math.floorMod(epochMicros, 1_000_000L) * 1_000L
-    return Instant.ofEpochSecond(seconds, nanos)
-  }
+  /**
+   * Reads the event-time column from [row] as epoch microseconds. Accepts a
+   * [Long] (plain INT64 epoch micros) or an [Instant] (INT64+TIMESTAMP), and
+   * normalizes to a primitive `long` — neither path allocates on the hot path.
+   */
+  private fun readEventMicros(row: Map<String, Any?>): Long =
+    when (val v = row.getValue(eventTimeColumn)) {
+      is Long -> v
+      is Instant -> instantToEpochMicros(v)
+      else ->
+        error(
+          "event-time column '$eventTimeColumn' has unexpected type " +
+            "${v?.javaClass?.simpleName} (expected Long epoch micros or Instant)"
+        )
+    }
 
   companion object {
-    const val DEFAULT_BATCH_SIZE = 256
+    /** ~1.5× cores: hides GCS stalls without oversubscribing the cores. */
+    private val DEFAULT_MAX_CONCURRENT_READERS: Int =
+      maxOf(1, (Runtime.getRuntime().availableProcessors() * 3 + 1) / 2)
 
     /** Marker file name written at the end of an upload. */
     private const val DONE_MARKER_FILE_NAME = "done"
@@ -333,22 +353,5 @@ class RawImpressionStream(
 
     /** Well-known LabelerInput field path for the publisher-specific event id. */
     private const val EVENT_ID_FIELD_PATH = "event_id.id"
-
-    /** Parquet footer key carrying the KMS KEK URI used to wrap the DEK. */
-    private const val FOOTER_KEY_KEK_URI = "kek_uri"
-
-    /**
-     * Parquet footer key carrying the base64-encoded ciphertext of the
-     * raw AES key (encrypted directly by the KEK Aead, NOT a Tink
-     * keyset, NOT a serialized proto envelope).
-     */
-    private const val FOOTER_KEY_ENCRYPTED_DEK = "encrypted_dek"
-
-    /**
-     * Associated Data used during KMS `Aead.encrypt` of the DEK on
-     * the writer side. Must match what the EDP used when wrapping.
-     * Empty by default.
-     */
-    private val EMPTY_AAD = ByteArray(0)
   }
 }
