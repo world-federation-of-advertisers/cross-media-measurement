@@ -42,8 +42,6 @@ import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsResponse
 import org.wfanet.measurement.api.v2alpha.listModelShardsResponse
@@ -52,8 +50,13 @@ import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadFilesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -70,7 +73,11 @@ class VidLabelingDispatcherTest {
     mockService()
   private val modelShardsService: ModelShardsGrpcKt.ModelShardsCoroutineImplBase = mockService()
   private val rawImpressionUploadService:
-    RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase = mockService()
+    RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase =
+    mockService()
+  private val rawImpressionUploadFileService:
+    RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase =
+    mockService()
   private val storageClient: StorageClient = mock()
 
   @get:Rule
@@ -80,6 +87,7 @@ class VidLabelingDispatcherTest {
     addService(modelRolloutsService)
     addService(modelShardsService)
     addService(rawImpressionUploadService)
+    addService(rawImpressionUploadFileService)
   }
 
   private val workItemsStub by lazy {
@@ -100,6 +108,12 @@ class VidLabelingDispatcherTest {
 
   private val rawImpressionUploadStub by lazy {
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(
+      grpcTestServerRule.channel
+    )
+  }
+
+  private val rawImpressionUploadFilesStub by lazy {
+    RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
       grpcTestServerRule.channel
     )
   }
@@ -129,6 +143,7 @@ class VidLabelingDispatcherTest {
       storageClient = storageClient,
       workItemsStub = workItemsStub,
       rawImpressionUploadStub = rawImpressionUploadStub,
+      rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
       modelLinesStub = modelLinesStub,
       modelRolloutsStub = modelRolloutsStub,
       modelShardsStub = modelShardsStub,
@@ -149,69 +164,77 @@ class VidLabelingDispatcherTest {
     return blob
   }
 
-  private fun stubRawImpressionUploadCreation() {
-    whenever(rawImpressionUploadService.createRawImpressionUpload(any())).thenReturn(
-      RawImpressionUpload.newBuilder()
-        .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID")
-        .setDoneBlobUri(DONE_BLOB_PATH)
-        .build()
-    )
+  private suspend fun stubRawImpressionUploadCreation() {
+    whenever(rawImpressionUploadService.createRawImpressionUpload(any()))
+      .thenReturn(
+        RawImpressionUpload.newBuilder()
+          .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID")
+          .setDoneBlobUri(DONE_BLOB_PATH)
+          .build()
+      )
+    whenever(rawImpressionUploadFileService.batchCreateRawImpressionUploadFiles(any()))
+      .thenReturn(batchCreateRawImpressionUploadFilesResponse {})
   }
 
   private suspend fun stubFullResolutionChain(vararg modelLineNames: String) {
-    whenever(modelLinesService.listModelLines(any())).thenReturn(
-      listModelLinesResponse {
-        modelLines +=
-          modelLineNames.map { name ->
-            modelLine {
-              this.name = name
-              type = ModelLine.Type.PROD
-              activeStartTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() - 86400000)
-              activeEndTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() + 86400000)
-            }
-          }
-      }
-    )
-
-    whenever(modelRolloutsService.listModelRollouts(any())).thenReturn(
-      listModelRolloutsResponse {
-        modelRollouts += modelRollout { modelRelease = MODEL_RELEASE_NAME }
-      }
-    )
-
-    whenever(modelShardsService.listModelShards(any())).thenReturn(
-      listModelShardsResponse {
-        modelShards += modelShard {
-          name = "$DATA_PROVIDER_NAME/modelShards/ms1"
-          modelRelease = MODEL_RELEASE_NAME
-          modelBlob =
-            org.wfanet.measurement.api.v2alpha.ModelShardKt.modelBlob {
-              modelBlobPath = MODEL_BLOB_PATH
+    whenever(modelLinesService.listModelLines(any()))
+      .thenReturn(
+        listModelLinesResponse {
+          modelLines +=
+            modelLineNames.map { name ->
+              modelLine {
+                this.name = name
+                type = ModelLine.Type.PROD
+                activeStartTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() - 86400000)
+                activeEndTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() + 86400000)
+              }
             }
         }
-      }
-    )
+      )
+
+    whenever(modelRolloutsService.listModelRollouts(any()))
+      .thenReturn(
+        listModelRolloutsResponse {
+          modelRollouts += modelRollout { modelRelease = MODEL_RELEASE_NAME }
+        }
+      )
+
+    whenever(modelShardsService.listModelShards(any()))
+      .thenReturn(
+        listModelShardsResponse {
+          modelShards += modelShard {
+            name = "$DATA_PROVIDER_NAME/modelShards/ms1"
+            modelRelease = MODEL_RELEASE_NAME
+            modelBlob =
+              org.wfanet.measurement.api.v2alpha.ModelShardKt.modelBlob {
+                modelBlobPath = MODEL_BLOB_PATH
+              }
+          }
+        }
+      )
   }
 
   private suspend fun stubOverrideResolutionChain() {
-    whenever(modelRolloutsService.listModelRollouts(any())).thenReturn(
-      listModelRolloutsResponse {
-        modelRollouts += modelRollout { modelRelease = MODEL_RELEASE_NAME }
-      }
-    )
-
-    whenever(modelShardsService.listModelShards(any())).thenReturn(
-      listModelShardsResponse {
-        modelShards += modelShard {
-          name = "$DATA_PROVIDER_NAME/modelShards/ms1"
-          modelRelease = MODEL_RELEASE_NAME
-          modelBlob =
-            org.wfanet.measurement.api.v2alpha.ModelShardKt.modelBlob {
-              modelBlobPath = MODEL_BLOB_PATH
-            }
+    whenever(modelRolloutsService.listModelRollouts(any()))
+      .thenReturn(
+        listModelRolloutsResponse {
+          modelRollouts += modelRollout { modelRelease = MODEL_RELEASE_NAME }
         }
-      }
-    )
+      )
+
+    whenever(modelShardsService.listModelShards(any()))
+      .thenReturn(
+        listModelShardsResponse {
+          modelShards += modelShard {
+            name = "$DATA_PROVIDER_NAME/modelShards/ms1"
+            modelRelease = MODEL_RELEASE_NAME
+            modelBlob =
+              org.wfanet.measurement.api.v2alpha.ModelShardKt.modelBlob {
+                modelBlobPath = MODEL_BLOB_PATH
+              }
+          }
+        }
+      )
   }
 
   @Test
@@ -226,28 +249,56 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
-  fun `upload creates N work items per active model line`() = runBlocking {
+  fun `upload creates N work items per active model line`() =
+    runBlocking<Unit> {
+      val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1))
+      stubRawImpressionUploadCreation()
+      stubFullResolutionChain(MODEL_LINE_1, MODEL_LINE_2)
+      whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
+
+      val dispatcher = createDispatcher(numberOfShards = 3)
+      dispatcher.upload(DONE_BLOB_PATH)
+
+      val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(6)) { createWorkItem(requestCaptor.capture()) }
+
+      val workItemIds = requestCaptor.allValues.map { it.workItemId }
+      assertThat(workItemIds)
+        .containsExactly(
+          "vid-labeling-$RAW_IMPRESSION_UPLOAD_ID-ml1-shard-0",
+          "vid-labeling-$RAW_IMPRESSION_UPLOAD_ID-ml1-shard-1",
+          "vid-labeling-$RAW_IMPRESSION_UPLOAD_ID-ml1-shard-2",
+          "vid-labeling-$RAW_IMPRESSION_UPLOAD_ID-ml2-shard-0",
+          "vid-labeling-$RAW_IMPRESSION_UPLOAD_ID-ml2-shard-1",
+          "vid-labeling-$RAW_IMPRESSION_UPLOAD_ID-ml2-shard-2",
+        )
+    }
+
+  @Test
+  fun `upload creates a RawImpressionUploadFile for each blob`() = runBlocking {
     val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet")
-    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1))
+    val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2))
     stubRawImpressionUploadCreation()
-    stubFullResolutionChain(MODEL_LINE_1, MODEL_LINE_2)
+    stubFullResolutionChain(MODEL_LINE_1)
     whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
-    val dispatcher = createDispatcher(numberOfShards = 3)
+    val dispatcher = createDispatcher(numberOfShards = 1)
     dispatcher.upload(DONE_BLOB_PATH)
 
-    val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
-    verifyBlocking(workItemsService, times(6)) { createWorkItem(requestCaptor.capture()) }
-
-    val workItemIds = requestCaptor.allValues.map { it.workItemId }
-    assertThat(workItemIds).containsExactly(
-      "vid-labeling-$RAW_IMPRESSION_UPLOAD_ID-ml1-shard-0",
-      "vid-labeling-$RAW_IMPRESSION_UPLOAD_ID-ml1-shard-1",
-      "vid-labeling-$RAW_IMPRESSION_UPLOAD_ID-ml1-shard-2",
-      "vid-labeling-$RAW_IMPRESSION_UPLOAD_ID-ml2-shard-0",
-      "vid-labeling-$RAW_IMPRESSION_UPLOAD_ID-ml2-shard-1",
-      "vid-labeling-$RAW_IMPRESSION_UPLOAD_ID-ml2-shard-2",
-    )
+    val requestCaptor = argumentCaptor<BatchCreateRawImpressionUploadFilesRequest>()
+    verifyBlocking(rawImpressionUploadFileService) {
+      batchCreateRawImpressionUploadFiles(requestCaptor.capture())
+    }
+    val request = requestCaptor.firstValue
+    val uploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID"
+    assertThat(request.parent).isEqualTo(uploadName)
+    assertThat(request.requestsList.map { it.parent }).containsExactly(uploadName, uploadName)
+    val blobUris = request.requestsList.map { it.rawImpressionUploadFile.blobUri }
+    assertThat(blobUris).hasSize(2)
+    assertThat(blobUris.any { it.endsWith("/file1.parquet") }).isTrue()
+    assertThat(blobUris.any { it.endsWith("/file2.parquet") }).isTrue()
   }
 
   @Test
@@ -258,11 +309,7 @@ class VidLabelingDispatcherTest {
     stubOverrideResolutionChain()
     whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
 
-    val dispatcher =
-      createDispatcher(
-        numberOfShards = 2,
-        overrideModelLines = listOf(MODEL_LINE_1),
-      )
+    val dispatcher = createDispatcher(numberOfShards = 2, overrideModelLines = listOf(MODEL_LINE_1))
     dispatcher.upload(DONE_BLOB_PATH)
 
     verifyBlocking(modelLinesService, never()) { listModelLines(any()) }
@@ -276,9 +323,7 @@ class VidLabelingDispatcherTest {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
     stubRawImpressionUploadCreation()
-    whenever(modelLinesService.listModelLines(any())).thenReturn(
-      listModelLinesResponse {}
-    )
+    whenever(modelLinesService.listModelLines(any())).thenReturn(listModelLinesResponse {})
 
     val dispatcher = createDispatcher()
     dispatcher.upload(DONE_BLOB_PATH)
@@ -374,19 +419,18 @@ class VidLabelingDispatcherTest {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
     stubRawImpressionUploadCreation()
-    whenever(modelLinesService.listModelLines(any())).thenReturn(
-      listModelLinesResponse {
-        modelLines += modelLine {
-          name = MODEL_LINE_1
-          type = ModelLine.Type.PROD
-          activeStartTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() - 86400000)
-          activeEndTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() + 86400000)
+    whenever(modelLinesService.listModelLines(any()))
+      .thenReturn(
+        listModelLinesResponse {
+          modelLines += modelLine {
+            name = MODEL_LINE_1
+            type = ModelLine.Type.PROD
+            activeStartTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() - 86400000)
+            activeEndTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() + 86400000)
+          }
         }
-      }
-    )
-    whenever(modelRolloutsService.listModelRollouts(any())).thenReturn(
-      listModelRolloutsResponse {}
-    )
+      )
+    whenever(modelRolloutsService.listModelRollouts(any())).thenReturn(listModelRolloutsResponse {})
 
     val dispatcher = createDispatcher(numberOfShards = 1)
     dispatcher.upload(DONE_BLOB_PATH)
@@ -417,9 +461,7 @@ class VidLabelingDispatcherTest {
             labelerInputFieldMapping["gender"] = "user_gender"
           },
         MODEL_LINE_2 to
-          VidLabelerParamsKt.modelLineConfig {
-            labelerInputFieldMapping["age"] = "user_age"
-          },
+          VidLabelerParamsKt.modelLineConfig { labelerInputFieldMapping["age"] = "user_age" },
       )
   }
 }

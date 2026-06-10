@@ -33,11 +33,15 @@ import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
 import org.wfanet.measurement.api.v2alpha.listModelShardsRequest
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadFileRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
@@ -57,6 +61,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @param storageClient client for crawling raw impressions directory.
  * @param workItemsStub gRPC stub for creating WorkItems via Secure Computation API.
  * @param rawImpressionUploadStub gRPC stub for the `RawImpressionUploadService`.
+ * @param rawImpressionUploadFilesStub gRPC stub for the `RawImpressionUploadFileService`.
  * @param modelLinesStub gRPC stub for the VID Repository ModelLines API.
  * @param modelRolloutsStub gRPC stub for the VID Repository ModelRollouts API.
  * @param modelShardsStub gRPC stub for the VID Repository ModelShards API.
@@ -76,6 +81,8 @@ class VidLabelingDispatcher(
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   private val rawImpressionUploadStub:
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub,
+  private val rawImpressionUploadFilesStub:
+    RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub,
   private val modelLinesStub: ModelLinesGrpcKt.ModelLinesCoroutineStub,
   private val modelRolloutsStub: ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub,
   private val modelShardsStub: ModelShardsGrpcKt.ModelShardsCoroutineStub,
@@ -96,14 +103,10 @@ class VidLabelingDispatcher(
    * @param modelLineName resource name of the model line.
    * @param modelBlobPath path to the compiled model blob.
    */
-  private data class ResolvedModelLine(
-    val modelLineName: String,
-    val modelBlobPath: String,
-  )
+  private data class ResolvedModelLine(val modelLineName: String, val modelBlobPath: String)
 
   /**
-   * Uploads VID labeling work for raw impression files in the directory containing the done
-   * blob.
+   * Uploads VID labeling work for raw impression files in the directory containing the done blob.
    *
    * @param doneBlobPath the full storage URI of the "done" blob that triggered this upload.
    * @throws IllegalArgumentException if [doneBlobPath] uses an unsupported URI scheme.
@@ -137,6 +140,8 @@ class VidLabelingDispatcher(
       val rawImpressionUpload = createRawImpressionUpload(doneBlobPath)
       val uploadId = rawImpressionUpload.name.substringAfterLast("/")
 
+      createRawImpressionUploadFiles(rawImpressionUpload.name, blobKeys, doneBlobUri)
+
       val resolvedModelLines = resolveModelLines()
 
       if (resolvedModelLines.isEmpty()) {
@@ -158,8 +163,6 @@ class VidLabelingDispatcher(
       }
 
       // TODO(world-federation-of-advertisers/cross-media-measurement#3899): Create
-      // RawImpressionUploadFile resources for each blob URI.
-      // TODO(world-federation-of-advertisers/cross-media-measurement#3899): Create
       // RawImpressionUploadModelLine resources for each active model line.
       // TODO(world-federation-of-advertisers/cross-media-measurement#3899): For memoized
       // model lines, create PoolAssignmentJobs instead of WorkItems.
@@ -179,8 +182,8 @@ class VidLabelingDispatcher(
   /**
    * Resolves active model lines with their model blob paths from the VID Repository API.
    *
-   * If [overrideModelLines] is non-empty, uses those directly without active window filtering.
-   * This supports backfilling past data where the model line may no longer be in the active window.
+   * If [overrideModelLines] is non-empty, uses those directly without active window filtering. This
+   * supports backfilling past data where the model line may no longer be in the active window.
    *
    * Resolution chain: ListModelLines -> ListModelRollouts (to find active ModelRelease for each
    * ModelLine) -> ListModelShards (for this DataProvider, filtered by ModelRelease) ->
@@ -370,6 +373,50 @@ class VidLabelingDispatcher(
   }
 
   /**
+   * Creates a `RawImpressionUploadFile` for each raw impression blob in the upload.
+   *
+   * @param uploadName resource name of the parent `RawImpressionUpload`.
+   * @param blobKeys storage keys of the raw impression files in the upload.
+   * @param doneBlobUri parsed URI of the "done" blob, used to reconstruct full blob URIs.
+   */
+  private suspend fun createRawImpressionUploadFiles(
+    uploadName: String,
+    blobKeys: List<String>,
+    doneBlobUri: BlobUri,
+  ) {
+    for (chunk in blobKeys.chunked(RAW_IMPRESSION_UPLOAD_FILE_BATCH_SIZE)) {
+      val request = batchCreateRawImpressionUploadFilesRequest {
+        parent = uploadName
+        for (blobKey in chunk) {
+          val fileBlobUri = buildBlobUri(doneBlobUri, blobKey)
+          requests += createRawImpressionUploadFileRequest {
+            parent = uploadName
+            rawImpressionUploadFile = rawImpressionUploadFile { blobUri = fileBlobUri }
+            requestId = UUID.nameUUIDFromBytes(fileBlobUri.toByteArray()).toString()
+          }
+        }
+      }
+
+      try {
+        rawImpressionUploadFilesStub.batchCreateRawImpressionUploadFiles(request)
+      } catch (e: StatusException) {
+        throw Exception("Error creating RawImpressionUploadFiles for $uploadName", e)
+      }
+    }
+  }
+
+  /**
+   * Reconstructs the full storage URI for a blob key using the scheme and bucket of the "done"
+   * blob.
+   */
+  private fun buildBlobUri(doneBlobUri: BlobUri, blobKey: String): String =
+    when (doneBlobUri.scheme) {
+      "gs" -> "${doneBlobUri.scheme}://${doneBlobUri.bucket}/$blobKey"
+      "file" -> "${doneBlobUri.scheme}:///${doneBlobUri.bucket}/$blobKey"
+      else -> throw IllegalArgumentException("Unsupported scheme: ${doneBlobUri.scheme}")
+    }
+
+  /**
    * Creates a WorkItem in the Secure Computation control plane for a single model line shard.
    *
    * @param resolvedModelLine the resolved model line with its blob path.
@@ -394,10 +441,11 @@ class VidLabelingDispatcher(
         vidLabelerParamsTemplate.vidLabeledImpressionsStorageParams
       rawImpressionsStorageParams = vidLabelerParamsTemplate.rawImpressionsStorageParams
       vidRepoConnection = vidLabelerParamsTemplate.vidRepoConnection
-      modelLineConfigs[modelLineName] = VidLabelerParamsKt.modelLineConfig {
-        labelerInputFieldMapping.putAll(modelLineConfig.labelerInputFieldMappingMap)
-        eventTemplateFieldMapping.putAll(modelLineConfig.eventTemplateFieldMappingMap)
-      }
+      modelLineConfigs[modelLineName] =
+        VidLabelerParamsKt.modelLineConfig {
+          labelerInputFieldMapping.putAll(modelLineConfig.labelerInputFieldMappingMap)
+          eventTemplateFieldMapping.putAll(modelLineConfig.eventTemplateFieldMappingMap)
+        }
       overrideModelLines += listOf(modelLineName)
       this.shardIndex = shardIndex
       totalShards = numberOfShards
@@ -424,10 +472,7 @@ class VidLabelingDispatcher(
     logger.info("Created WorkItem $workItemId for model line $modelLineName shard $shardIndex")
   }
 
-  private fun recordUploadDuration(
-    startTime: TimeSource.Monotonic.ValueTimeMark,
-    status: String,
-  ) {
+  private fun recordUploadDuration(startTime: TimeSource.Monotonic.ValueTimeMark, status: String) {
     val duration: Double = startTime.elapsedNow().inWholeMilliseconds / 1000.0
     metrics.uploadDurationHistogram.record(
       duration,
@@ -443,6 +488,8 @@ class VidLabelingDispatcher(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     private const val DONE_MARKER_FILE_NAME = "done"
+
+    private const val RAW_IMPRESSION_UPLOAD_FILE_BATCH_SIZE = 100
 
     private val DATA_PROVIDER_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("edpa.vid_labeling_dispatcher.data_provider")
