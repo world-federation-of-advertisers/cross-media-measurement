@@ -25,6 +25,11 @@ import java.time.Clock
 import java.util.UUID
 import java.util.logging.Logger
 import kotlin.time.TimeSource
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
@@ -32,8 +37,12 @@ import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
 import org.wfanet.measurement.api.v2alpha.listModelShardsRequest
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.flattenConcat
+import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.BlobUris
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
@@ -120,12 +129,12 @@ class VidLabelingDispatcher(
       val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
       val folderPrefix: String = doneBlobUri.key.substringBeforeLast("/")
 
-      val blobKeys = mutableListOf<String>()
-      storageClient.listBlobs(folderPrefix).collect { blob ->
-        if (!isDoneMarker(blob.blobKey)) {
-          blobKeys.add(blob.blobKey)
-        }
-      }
+      val blobKeys: List<String> =
+        storageClient
+          .listBlobs(folderPrefix)
+          .filter { !isDoneMarker(it.blobKey) }
+          .map { it.blobKey }
+          .toList()
 
       if (blobKeys.isEmpty()) {
         logger.info("No raw impression files found in $folderPrefix")
@@ -204,13 +213,14 @@ class VidLabelingDispatcher(
 
     if (activeModelLineNames.isEmpty()) return emptyList()
 
-    val resolved = mutableListOf<ResolvedModelLine>()
-    for (modelLineName in activeModelLineNames) {
-      val modelBlobPath = resolveModelBlobPath(modelLineName)
-      if (modelBlobPath != null) {
-        resolved.add(ResolvedModelLine(modelLineName, modelBlobPath))
-      } else {
-        logger.warning("Could not resolve model blob path for $modelLineName, skipping")
+    val resolved: List<ResolvedModelLine> = buildList {
+      for (modelLineName in activeModelLineNames) {
+        val modelBlobPath = resolveModelBlobPath(modelLineName)
+        if (modelBlobPath != null) {
+          add(ResolvedModelLine(modelLineName, modelBlobPath))
+        } else {
+          logger.warning("Could not resolve model blob path for $modelLineName, skipping")
+        }
       }
     }
 
@@ -223,45 +233,55 @@ class VidLabelingDispatcher(
    *
    * @return list of active model line resource names that have entries in [modelLineConfigs].
    */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private suspend fun resolveActiveModelLinesFromApi(): List<String> {
     val now: Timestamp = Timestamps.fromMillis(clock.millis())
-    val activeModelLines = mutableListOf<String>()
-    var pageToken = ""
 
-    do {
-      val request = listModelLinesRequest {
-        parent = modelSuiteName
-        if (pageToken.isNotEmpty()) {
-          this.pageToken = pageToken
+    val activeModelLines: List<String> =
+      modelLinesStub
+        .listResources { pageToken: String ->
+          val response =
+            try {
+              modelLinesStub.listModelLines(
+                listModelLinesRequest {
+                  parent = modelSuiteName
+                  if (pageToken.isNotEmpty()) {
+                    this.pageToken = pageToken
+                  }
+                }
+              )
+            } catch (e: StatusException) {
+              throw Exception("Error listing model lines for $modelSuiteName", e)
+            }
+          ResourceList(response.modelLinesList, response.nextPageToken)
         }
-      }
-
-      val response =
-        try {
-          modelLinesStub.listModelLines(request)
-        } catch (e: StatusException) {
-          throw Exception("Error listing model lines for $modelSuiteName", e)
-        }
-
-      for (modelLine in response.modelLinesList) {
-        if (modelLine.type != ModelLine.Type.PROD) continue
-        if (!isWithinActiveWindow(modelLine, now)) continue
-        // TODO(world-federation-of-advertisers/cross-media-measurement#3956): Remove the static
-        // modelLineConfigs dependency. Field mappings should come from ModelShard or be
-        // convention-based so adding a new model line in the VID Repository doesn't require a
-        // Cloud Function config redeploy.
-        if (modelLine.name !in modelLineConfigs) {
-          logger.warning("Skipping model line ${modelLine.name}: no config entry")
-          continue
-        }
-        activeModelLines.add(modelLine.name)
-      }
-
-      pageToken = response.nextPageToken
-    } while (pageToken.isNotEmpty())
+        .flattenConcat()
+        .filter { modelLine -> isActiveProdModelLineWithConfig(modelLine, now) }
+        .map { it.name }
+        .toList()
 
     logger.info("Found ${activeModelLines.size} active PROD model lines from API")
     return activeModelLines
+  }
+
+  /**
+   * Returns whether [modelLine] is an active PROD model line that has a [modelLineConfigs] entry.
+   *
+   * @param modelLine the model line to check.
+   * @param now the current time used for active window evaluation.
+   */
+  private fun isActiveProdModelLineWithConfig(modelLine: ModelLine, now: Timestamp): Boolean {
+    if (modelLine.type != ModelLine.Type.PROD) return false
+    if (!isWithinActiveWindow(modelLine, now)) return false
+    // TODO(world-federation-of-advertisers/cross-media-measurement#3956): Remove the static
+    // modelLineConfigs dependency. Field mappings should come from ModelShard or be
+    // convention-based so adding a new model line in the VID Repository doesn't require a
+    // Cloud Function config redeploy.
+    if (modelLine.name !in modelLineConfigs) {
+      logger.warning("Skipping model line ${modelLine.name}: no config entry")
+      return false
+    }
+    return true
   }
 
   /**
@@ -282,35 +302,34 @@ class VidLabelingDispatcher(
    * @param modelLineName resource name of the model line.
    * @return the model release resource name, or null if no rollout is found.
    */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private suspend fun resolveActiveModelRelease(modelLineName: String): String? {
-    var pageToken = ""
-
-    do {
-      val request = listModelRolloutsRequest {
-        parent = modelLineName
-        if (pageToken.isNotEmpty()) {
-          this.pageToken = pageToken
+    val modelRelease: String? =
+      modelRolloutsStub
+        .listResources { pageToken: String ->
+          val response =
+            try {
+              modelRolloutsStub.listModelRollouts(
+                listModelRolloutsRequest {
+                  parent = modelLineName
+                  if (pageToken.isNotEmpty()) {
+                    this.pageToken = pageToken
+                  }
+                }
+              )
+            } catch (e: StatusException) {
+              throw Exception("Error listing model rollouts for $modelLineName", e)
+            }
+          ResourceList(response.modelRolloutsList, response.nextPageToken)
         }
-      }
+        .flattenConcat()
+        .firstOrNull { it.modelRelease.isNotEmpty() }
+        ?.modelRelease
 
-      val response =
-        try {
-          modelRolloutsStub.listModelRollouts(request)
-        } catch (e: StatusException) {
-          throw Exception("Error listing model rollouts for $modelLineName", e)
-        }
-
-      for (rollout in response.modelRolloutsList) {
-        if (rollout.modelRelease.isNotEmpty()) {
-          return rollout.modelRelease
-        }
-      }
-
-      pageToken = response.nextPageToken
-    } while (pageToken.isNotEmpty())
-
-    logger.warning("No model rollout found for model line $modelLineName")
-    return null
+    if (modelRelease == null) {
+      logger.warning("No model rollout found for model line $modelLineName")
+    }
+    return modelRelease
   }
 
   /**
@@ -320,38 +339,38 @@ class VidLabelingDispatcher(
    * @param modelReleaseName resource name of the model release.
    * @return the model blob path, or null if no matching shard is found.
    */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private suspend fun resolveModelBlobPathFromShards(modelReleaseName: String): String? {
-    var pageToken = ""
-
-    do {
-      val request = listModelShardsRequest {
-        parent = dataProviderName
-        if (pageToken.isNotEmpty()) {
-          this.pageToken = pageToken
+    val modelBlobPath: String? =
+      modelShardsStub
+        .listResources { pageToken: String ->
+          val response =
+            try {
+              modelShardsStub.listModelShards(
+                listModelShardsRequest {
+                  parent = dataProviderName
+                  if (pageToken.isNotEmpty()) {
+                    this.pageToken = pageToken
+                  }
+                }
+              )
+            } catch (e: StatusException) {
+              throw Exception(
+                "Error listing model shards for $dataProviderName release $modelReleaseName",
+                e,
+              )
+            }
+          ResourceList(response.modelShardsList, response.nextPageToken)
         }
-      }
+        .flattenConcat()
+        .firstOrNull { it.modelRelease == modelReleaseName && it.hasModelBlob() }
+        ?.modelBlob
+        ?.modelBlobPath
 
-      val response =
-        try {
-          modelShardsStub.listModelShards(request)
-        } catch (e: StatusException) {
-          throw Exception(
-            "Error listing model shards for $dataProviderName release $modelReleaseName",
-            e,
-          )
-        }
-
-      for (shard in response.modelShardsList) {
-        if (shard.modelRelease == modelReleaseName && shard.hasModelBlob()) {
-          return shard.modelBlob.modelBlobPath
-        }
-      }
-
-      pageToken = response.nextPageToken
-    } while (pageToken.isNotEmpty())
-
-    logger.warning("No model shard found for release $modelReleaseName on $dataProviderName")
-    return null
+    if (modelBlobPath == null) {
+      logger.warning("No model shard found for release $modelReleaseName on $dataProviderName")
+    }
+    return modelBlobPath
   }
 
   /**
@@ -360,9 +379,7 @@ class VidLabelingDispatcher(
    * @param doneBlobPath the full storage URI of the "done" blob.
    * @return the created `RawImpressionUpload`.
    */
-  private suspend fun createRawImpressionUpload(
-    doneBlobPath: String
-  ): org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload {
+  private suspend fun createRawImpressionUpload(doneBlobPath: String): RawImpressionUpload {
     val requestId = UUID.nameUUIDFromBytes(doneBlobPath.toByteArray()).toString()
     val request = createRawImpressionUploadRequest {
       parent = dataProviderName
