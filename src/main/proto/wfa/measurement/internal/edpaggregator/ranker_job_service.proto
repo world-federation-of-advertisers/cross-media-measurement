@@ -40,11 +40,13 @@ service RankerJobService {
   // Lists `RankerJob` resources.
   rpc ListRankerJobs(ListRankerJobsRequest) returns (ListRankerJobsResponse);
 
-  // Marks a `RankerJob` as `SUCCEEDED`.
+  // Marks a `RankerJob` as `SUCCEEDED`. Throws
+  // FAILED_PRECONDITION if state is not CREATED or FAILED.
   rpc MarkRankerJobSucceeded(MarkRankerJobSucceededRequest)
       returns (MarkRankerJobSucceededResponse);
 
-  // Marks a `RankerJob` as `FAILED`.
+  // Marks a `RankerJob` as `FAILED`. Throws
+  // FAILED_PRECONDITION if state is not CREATED or FAILED.
   rpc MarkRankerJobFailed(MarkRankerJobFailedRequest) returns (RankerJob);
 }
 
