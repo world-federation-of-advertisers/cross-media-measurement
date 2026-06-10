@@ -665,30 +665,6 @@ resource "google_bigquery_connection_iam_member" "terraform_reporting_conn" {
 }
 
 
-# Connection SAs need databaseReaderWithDataBoost on target Spanner databases
-resource "google_spanner_database_iam_member" "edp_aggregator_conn_reader" {
-  project  = var.edp_aggregator_spanner_project
-  instance = var.edp_aggregator_spanner_instance
-  database = "edp-aggregator"
-  role     = "roles/spanner.databaseReaderWithDataBoost"
-  member   = "serviceAccount:${google_bigquery_connection.edp_aggregator.cloud_spanner[0].service_account_id}"
-}
-
-resource "google_spanner_database_iam_member" "kingdom_conn_reader" {
-  project  = var.kingdom_spanner_project
-  instance = var.kingdom_spanner_instance
-  database = "kingdom"
-  role     = "roles/spanner.databaseReaderWithDataBoost"
-  member   = "serviceAccount:${google_bigquery_connection.kingdom.cloud_spanner[0].service_account_id}"
-}
-
-resource "google_spanner_database_iam_member" "reporting_conn_reader" {
-  project  = var.reporting_spanner_project
-  instance = var.reporting_spanner_instance
-  database = "reporting"
-  role     = "roles/spanner.databaseReaderWithDataBoost"
-  member   = "serviceAccount:${google_bigquery_connection.reporting.cloud_spanner[0].service_account_id}"
-}
 # Terraform SA needs dataEditor on dashboard dataset for scheduled query writes
 resource "google_bigquery_dataset_iam_member" "terraform_data_editor" {
   dataset_id = google_bigquery_dataset.dashboard.dataset_id
