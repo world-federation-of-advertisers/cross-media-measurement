@@ -62,6 +62,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkI
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
+import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
 @RunWith(JUnit4::class)
@@ -276,7 +277,7 @@ class VidLabelingDispatcherTest {
     }
 
   @Test
-  fun `upload creates a RawImpressionUploadFile for each blob`() = runBlocking {
+  fun `upload creates a RawImpressionUploadFile for each blob`() = runBlocking<Unit> {
     val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2))
@@ -295,10 +296,13 @@ class VidLabelingDispatcherTest {
     val uploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID"
     assertThat(request.parent).isEqualTo(uploadName)
     assertThat(request.requestsList.map { it.parent }).containsExactly(uploadName, uploadName)
+    val bucket = SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH).bucket
     val blobUris = request.requestsList.map { it.rawImpressionUploadFile.blobUri }
-    assertThat(blobUris).hasSize(2)
-    assertThat(blobUris.any { it.endsWith("/file1.parquet") }).isTrue()
-    assertThat(blobUris.any { it.endsWith("/file2.parquet") }).isTrue()
+    assertThat(blobUris)
+      .containsExactly(
+        "file:///$bucket/$FOLDER_PREFIX/file1.parquet",
+        "file:///$bucket/$FOLDER_PREFIX/file2.parquet",
+      )
   }
 
   @Test

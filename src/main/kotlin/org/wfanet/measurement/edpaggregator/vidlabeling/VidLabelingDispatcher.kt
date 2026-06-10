@@ -33,6 +33,7 @@ import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
 import org.wfanet.measurement.api.v2alpha.listModelShardsRequest
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.edpaggregator.BlobUris
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
@@ -392,7 +393,7 @@ class VidLabelingDispatcher(
       val request = batchCreateRawImpressionUploadFilesRequest {
         parent = uploadName
         for (blobKey in chunk) {
-          val fileBlobUri = buildBlobUri(doneBlobUri, blobKey)
+          val fileBlobUri = BlobUris.buildUri(doneBlobUri, blobKey)
           requests += createRawImpressionUploadFileRequest {
             parent = uploadName
             rawImpressionUploadFile = rawImpressionUploadFile { blobUri = fileBlobUri }
@@ -408,17 +409,6 @@ class VidLabelingDispatcher(
       }
     }
   }
-
-  /**
-   * Reconstructs the full storage URI for a blob key using the scheme and bucket of the "done"
-   * blob.
-   */
-  private fun buildBlobUri(doneBlobUri: BlobUri, blobKey: String): String =
-    when (doneBlobUri.scheme) {
-      "gs" -> "${doneBlobUri.scheme}://${doneBlobUri.bucket}/$blobKey"
-      "file" -> "${doneBlobUri.scheme}:///${doneBlobUri.bucket}/$blobKey"
-      else -> throw IllegalArgumentException("Unsupported scheme: ${doneBlobUri.scheme}")
-    }
 
   /**
    * Creates a WorkItem in the Secure Computation control plane for a single model line shard.

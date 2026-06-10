@@ -42,6 +42,7 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.edpaggregator.BlobUris
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
@@ -518,14 +519,7 @@ class DataAvailabilitySync(
           }
         }
         val impressionBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
-        val metadataBlobUri =
-          when (doneBlobUri.scheme) {
-            "gs" ->
-              "${doneBlobUri.scheme}://${doneBlobUri.bucket}/${impressionMetadataBlob.blobKey}"
-            "file" ->
-              "${doneBlobUri.scheme}:///${doneBlobUri.bucket}/${impressionMetadataBlob.blobKey}"
-            else -> throw IllegalArgumentException("Unsupported scheme: ${doneBlobUri.scheme}")
-          }
+        val metadataBlobUri = BlobUris.buildUri(doneBlobUri, impressionMetadataBlob.blobKey)
         logger.info("Checking impression blob presence: ${impressionBlobUri.key}")
         val impressionBlob = storageClient.getBlob(impressionBlobUri.key)
         if (impressionBlob == null) {
