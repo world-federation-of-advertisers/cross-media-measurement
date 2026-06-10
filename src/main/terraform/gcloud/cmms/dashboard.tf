@@ -249,6 +249,11 @@ resource "google_bigquery_table" "mc_details" {
     "mode": "REPEATED"
   },
   {
+    "name": "EntityMetadata",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
     "name": "MediaTypes",
     "type": "STRING",
     "mode": "REPEATED"
@@ -332,6 +337,11 @@ resource "google_bigquery_table" "mc_details_edp" {
   },
   {
     "name": "EventTemplates",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
+    "name": "EntityMetadata",
     "type": "STRING",
     "mode": "REPEATED"
   },
@@ -664,6 +674,33 @@ resource "google_bigquery_connection_iam_member" "terraform_reporting_conn" {
   member        = "serviceAccount:${var.terraform_service_account}"
 }
 
+
+
+# BigQuery Connection service agent needs databaseReaderWithDataBoost on
+# target Spanner databases for EXTERNAL_QUERY via Cloud Spanner connections.
+resource "google_spanner_database_iam_member" "edp_aggregator_conn_reader" {
+  project  = var.edp_aggregator_spanner_project
+  instance = var.edp_aggregator_spanner_instance
+  database = "edp-aggregator"
+  role     = "roles/spanner.databaseReaderWithDataBoost"
+  member   = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com"
+}
+
+resource "google_spanner_database_iam_member" "kingdom_conn_reader" {
+  project  = var.kingdom_spanner_project
+  instance = var.kingdom_spanner_instance
+  database = "kingdom"
+  role     = "roles/spanner.databaseReaderWithDataBoost"
+  member   = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com"
+}
+
+resource "google_spanner_database_iam_member" "reporting_conn_reader" {
+  project  = var.reporting_spanner_project
+  instance = var.reporting_spanner_instance
+  database = "reporting"
+  role     = "roles/spanner.databaseReaderWithDataBoost"
+  member   = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com"
+}
 
 # Terraform SA needs dataEditor on dashboard dataset for scheduled query writes
 resource "google_bigquery_dataset_iam_member" "terraform_data_editor" {

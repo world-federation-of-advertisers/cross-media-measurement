@@ -22,6 +22,7 @@ SELECT
   ARRAY_AGG(IFNULL(eg.CampaignName, '')) AS CampaignNames,
   ARRAY_AGG(IFNULL(eg.BrandName, '')) AS BrandNames,
   ARRAY_AGG(IFNULL(eg.EventTemplates, '')) AS EventTemplates,
+  ARRAY_AGG(IFNULL(eg.EntityMetadata, '')) AS EntityMetadata,
   ARRAY_AGG(IFNULL(mt.MediaTypes, '')) AS MediaTypes,
   ARRAY_AGG(IFNULL(ca.ClientAccountReferenceId, '')) AS AccountIds,
   MIN(eg.DataAvailabilityStartTime) AS DataAvailabilityStartTime,
@@ -47,7 +48,8 @@ FROM (
       eg.DataAvailabilityEndTime,
       TO_JSON(eg.EventGroupDetails).metadata.adMetadata.campaignMetadata.campaignName AS CampaignName,
       TO_JSON(eg.EventGroupDetails).metadata.adMetadata.campaignMetadata.brandName AS BrandName,
-      CAST(TO_JSON(eg.EventGroupDetails).eventTemplates AS STRING) AS EventTemplates
+      CAST(TO_JSON(eg.EventGroupDetails).eventTemplates AS STRING) AS EventTemplates,
+      CAST(TO_JSON(eg.EntityMetadata) AS STRING) AS EntityMetadata
     FROM EventGroups eg''')
 ) eg
 LEFT JOIN (
