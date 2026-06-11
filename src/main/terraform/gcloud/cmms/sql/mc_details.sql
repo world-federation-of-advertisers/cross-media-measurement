@@ -39,7 +39,7 @@ FROM (
     'projects/${project_id}/locations/${region}/connections/kingdom-conn',
     '''SELECT
       eg.DataProviderId,
-      eg.ExternalDataProviderId,
+      dp.ExternalDataProviderId,
       eg.EventGroupId,
       eg.MeasurementConsumerId,
       eg.ProvidedEventGroupId,
@@ -51,7 +51,8 @@ FROM (
       JSON_VALUE(TO_JSON(eg.EventGroupDetails), '$.metadata.adMetadata.campaignMetadata.brandName') AS BrandName,
       TO_JSON_STRING(TO_JSON(eg.EventGroupDetails).eventTemplates) AS EventTemplates,
       TO_JSON_STRING(TO_JSON(eg.EntityMetadata)) AS EntityMetadata
-    FROM EventGroups eg''')
+    FROM EventGroups eg
+    JOIN DataProviders dp ON eg.DataProviderId = dp.DataProviderId''')
 ) eg
 LEFT JOIN (
   SELECT * FROM EXTERNAL_QUERY(
