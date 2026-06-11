@@ -30,10 +30,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.storage.ParquetStorageClient
 import org.wfanet.measurement.storage.ParquetValue
+
+/** A shard-surviving parquet row + its event-id digest, delivered to a [RawImpressionSource.BlobSink]. */
+typealias ParquetDigestedEvent = DigestedEvent<Map<String, ParquetValue>>
 
 /**
  * Reads the local VM's shard of raw impressions for one upload in parallel and
@@ -206,7 +211,7 @@ class RawImpressionSource(
    */
   interface BlobSink {
     /** Processes one shard-filtered batch for this blob. Called concurrently. */
-    suspend fun processBatch(events: List<DigestedEvent>)
+    suspend fun processBatch(events: List<ParquetDigestedEvent>)
 
     /**
      * Finalizes + publishes this blob's output (Phase 2 upload; Phase 0 no-op).
@@ -343,14 +348,14 @@ class RawImpressionSource(
    */
   private suspend fun readEventsFromBlob(
     blobUri: String,
-    onBatch: suspend (List<DigestedEvent>) -> Unit,
+    onBatch: suspend (List<ParquetDigestedEvent>) -> Unit,
   ): FileCounts {
     val parquetBlob =
       parquetStorageClient.getBlob(blobUri) ?: error("Raw-impression blob not found: $blobUri")
     var read = 0L
     var droppedOtherShard = 0L
     var emitted = 0L
-    var batch = ArrayList<DigestedEvent>(batchSize)
+    var batch = ArrayList<ParquetDigestedEvent>(batchSize)
     parquetBlob.readRows().collect { row ->
       read++
       val digest = eventIdDigestExtractor.extract(readEventIdBytes(row, blobUri))
@@ -379,23 +384,23 @@ class RawImpressionSource(
    */
   private suspend fun discoverBlobUris(): List<String> {
     val blobUris = mutableListOf<String>()
-    var nextPageToken = ""
-    do {
-      val response =
-        try {
-          rawImpressionUploadFilesStub.listRawImpressionUploadFiles(
-            listRawImpressionUploadFilesRequest {
-              parent = rawImpressionUpload
-              pageSize = LIST_PAGE_SIZE
-              pageToken = nextPageToken
-            }
-          )
-        } catch (e: StatusException) {
-          throw Exception("Error listing RawImpressionUploadFiles for $rawImpressionUpload", e)
-        }
-      response.rawImpressionUploadFilesList.forEach { blobUris.add(it.blobUri) }
-      nextPageToken = response.nextPageToken
-    } while (nextPageToken.isNotEmpty())
+    rawImpressionUploadFilesStub
+      .listResources { pageToken: String ->
+        val response =
+          try {
+            listRawImpressionUploadFiles(
+              listRawImpressionUploadFilesRequest {
+                parent = rawImpressionUpload
+                pageSize = LIST_PAGE_SIZE
+                this.pageToken = pageToken
+              }
+            )
+          } catch (e: StatusException) {
+            throw Exception("Error listing RawImpressionUploadFiles for $rawImpressionUpload", e)
+          }
+        ResourceList(response.rawImpressionUploadFilesList, response.nextPageToken)
+      }
+      .collect { page -> page.forEach { blobUris.add(it.blobUri) } }
     return blobUris
   }
 
