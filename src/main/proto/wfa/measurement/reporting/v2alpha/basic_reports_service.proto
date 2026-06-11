@@ -72,15 +72,15 @@ message GetBasicReportRequest {
     }
   ];
 
-  // Whether to include the deprecated
+  // Whether to exclude the deprecated
   // `ResultGroup.MetricMetadata.ReportingUnitComponentSummary.event_group_summaries`
-  // field in the response. When unset, the field is omitted; use the
+  // field from the response. When unset, the field is still populated; use the
   // `reporting_set` reference instead.
   //
-  // This is a temporary opt-in to keep the deprecated field during the
-  // EventGroup-to-ReportingSet migration. It will be removed in
-  // cross-media-measurement release 0.5.42.
-  bool include_deprecated_event_group_summaries = 2 [
+  // This is a temporary opt-out to drop the deprecated field early during the
+  // EventGroup-to-ReportingSet migration. It will be removed in a future
+  // release.
+  bool exclude_deprecated_event_group_summaries = 2 [
     (google.api.field_behavior) = OPTIONAL,
     (type.future_disposition) = DEPRECATED
   ];
@@ -126,15 +126,15 @@ message ListBasicReportsRequest {
   // match the call that provided the page token.
   string page_token = 4 [(google.api.field_behavior) = OPTIONAL];
 
-  // Whether to include the deprecated
+  // Whether to exclude the deprecated
   // `ResultGroup.MetricMetadata.ReportingUnitComponentSummary.event_group_summaries`
-  // field in each returned `BasicReport`. When unset, the field is omitted; use
-  // the `reporting_set` reference instead.
+  // field from each returned `BasicReport`. When unset, the field is still
+  // populated; use the `reporting_set` reference instead.
   //
-  // This is a temporary opt-in to keep the deprecated field during the
-  // EventGroup-to-ReportingSet migration. It will be removed in
-  // cross-media-measurement release 0.5.42.
-  bool include_deprecated_event_group_summaries = 5 [
+  // This is a temporary opt-out to drop the deprecated field early during the
+  // EventGroup-to-ReportingSet migration. It will be removed in a future
+  // release.
+  bool exclude_deprecated_event_group_summaries = 5 [
     (google.api.field_behavior) = OPTIONAL,
     (type.future_disposition) = DEPRECATED
   ];

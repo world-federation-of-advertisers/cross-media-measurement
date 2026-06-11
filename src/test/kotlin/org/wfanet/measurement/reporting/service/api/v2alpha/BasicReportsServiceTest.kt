@@ -9368,12 +9368,9 @@ class BasicReportsServiceTest {
           basicReportId = basicReportId,
         )
         .toName()
-    // Opt in to the deprecated event_group_summaries field so the full result structure is
-    // exercised.
-    val request = getBasicReportRequest {
-      name = basicReportName
-      includeDeprecatedEventGroupSummaries = true
-    }
+    // Leave exclude_deprecated_event_group_summaries unset so the deprecated
+    // event_group_summaries field is populated and the full result structure is exercised.
+    val request = getBasicReportRequest { name = basicReportName }
     val getBasicReportResponse: BasicReport =
       withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.getBasicReport(request) }
 
@@ -10034,14 +10031,19 @@ class BasicReportsServiceTest {
         }
       )
 
-    // By default (field unset), the deprecated event_group_summaries field is omitted while the
-    // ReportingSet reference remains populated.
-    val defaultResponse =
+    // When exclude_deprecated_event_group_summaries is set, the deprecated
+    // event_group_summaries field is omitted while the ReportingSet reference remains populated.
+    val excludedResponse =
       withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.getBasicReport(getBasicReportRequest { name = basicReportName })
+        service.getBasicReport(
+          getBasicReportRequest {
+            name = basicReportName
+            excludeDeprecatedEventGroupSummaries = true
+          }
+        )
       }
-    val defaultComponentSummary =
-      defaultResponse.resultGroupsList
+    val excludedComponentSummary =
+      excludedResponse.resultGroupsList
         .first()
         .resultsList
         .first()
@@ -10049,8 +10051,8 @@ class BasicReportsServiceTest {
         .reportingUnitSummary
         .reportingUnitComponentSummaryList
         .first()
-    assertThat(defaultComponentSummary.eventGroupSummariesList).isEmpty()
-    assertThat(defaultComponentSummary.reportingSet).isNotEmpty()
+    assertThat(excludedComponentSummary.eventGroupSummariesList).isEmpty()
+    assertThat(excludedComponentSummary.reportingSet).isNotEmpty()
   }
 
   @Test
