@@ -167,10 +167,10 @@ message MarkPoolAssignmentJobSucceededResponse {
   // (upload, model line).
   bool is_last_shard = 2;
 
-  // The subpool IDs discovered during Phase 0. Only populated
+  // The pool offsets discovered during Phase 0. Only populated
   // when is_last_shard is true. Used to create RankerJob rows
   // and trigger Phase 1.
-  repeated int32 subpool_ids = 3;
+  repeated int64 pool_offsets = 3;
 }
 
 // Request message for MarkPoolAssignmentJobFailed.
