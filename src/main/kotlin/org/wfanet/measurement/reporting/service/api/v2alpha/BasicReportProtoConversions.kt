@@ -724,10 +724,28 @@ fun InternalResultGroup.toResultGroup(): ResultGroup {
   val source = this
   return resultGroup {
     title = source.title
+    val sharedReportingUnitSummary =
+      when {
+        source.hasMetricMetadata() && source.metricMetadata.hasReportingUnitSummary() ->
+          source.metricMetadata.reportingUnitSummary
+        else ->
+          // Legacy ResultGroups stored this shared summary on each Result rather than on the
+          // group itself, so migrate from the first Result when group-level metadata is absent.
+          source.resultsList
+            .firstOrNull { it.metadata.hasReportingUnitSummary() }
+            ?.metadata
+            ?.reportingUnitSummary
+      }
+    if (sharedReportingUnitSummary != null) {
+      metricMetadata =
+        ResultGroupKt.metricMetadata {
+          reportingUnitSummary = sharedReportingUnitSummary.toReportingUnitSummary()
+        }
+    }
     for (internalResult in source.resultsList) {
       results +=
         ResultGroupKt.result {
-          metadata = internalResult.metadata.toMetricMetadata()
+          metadata = internalResult.metadata.toMetricMetadata(includeReportingUnitSummary = false)
           metricSet = internalResult.metricSet.toMetricSet()
         }
     }
@@ -751,34 +769,42 @@ fun InternalMetricFrequencySpec.toMetricFrequencySpec(): MetricFrequencySpec {
   }
 }
 
+private fun InternalMetricMetadata.ReportingUnitSummary.toReportingUnitSummary():
+  MetricMetadata.ReportingUnitSummary {
+  val source = this
+  return ResultGroupKt.MetricMetadataKt.reportingUnitSummary {
+    for (internalReportingUnitComponentSummary in source.reportingUnitComponentSummaryList) {
+      reportingUnitComponentSummary +=
+        ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
+          component =
+            DataProviderKey(internalReportingUnitComponentSummary.cmmsDataProviderId).toName()
+          displayName = internalReportingUnitComponentSummary.cmmsDataProviderDisplayName
+          for (internalEventGroupSummary in
+            internalReportingUnitComponentSummary.eventGroupSummariesList) {
+            eventGroupSummaries +=
+              ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt.eventGroupSummary {
+                eventGroup =
+                  MeasurementConsumerEventGroupKey(
+                      internalEventGroupSummary.cmmsMeasurementConsumerId,
+                      internalEventGroupSummary.cmmsEventGroupId,
+                    )
+                    .toName()
+              }
+          }
+        }
+    }
+  }
+}
+
 /** Converts the internal [InternalMetricMetadata] to the public [MetricMetadata]. */
-fun InternalMetricMetadata.toMetricMetadata(): MetricMetadata {
+fun InternalMetricMetadata.toMetricMetadata(
+  includeReportingUnitSummary: Boolean = true
+): MetricMetadata {
   val source = this
   return ResultGroupKt.metricMetadata {
-    reportingUnitSummary =
-      ResultGroupKt.MetricMetadataKt.reportingUnitSummary {
-        for (internalReportingUnitComponentSummary in
-          source.reportingUnitSummary.reportingUnitComponentSummaryList) {
-          reportingUnitComponentSummary +=
-            ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
-              component =
-                DataProviderKey(internalReportingUnitComponentSummary.cmmsDataProviderId).toName()
-              displayName = internalReportingUnitComponentSummary.cmmsDataProviderDisplayName
-              for (internalEventGroupSummary in
-                internalReportingUnitComponentSummary.eventGroupSummariesList) {
-                eventGroupSummaries +=
-                  ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt.eventGroupSummary {
-                    eventGroup =
-                      MeasurementConsumerEventGroupKey(
-                          internalEventGroupSummary.cmmsMeasurementConsumerId,
-                          internalEventGroupSummary.cmmsEventGroupId,
-                        )
-                        .toName()
-                  }
-              }
-            }
-        }
-      }
+    if (includeReportingUnitSummary && source.hasReportingUnitSummary()) {
+      reportingUnitSummary = source.reportingUnitSummary.toReportingUnitSummary()
+    }
     nonCumulativeMetricStartTime = source.nonCumulativeMetricStartTime
     cumulativeMetricStartTime = source.cumulativeMetricStartTime
     metricEndTime = source.metricEndTime

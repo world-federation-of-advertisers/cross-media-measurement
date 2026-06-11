@@ -62,6 +62,9 @@ message ResultGroup {
       repeated ReportingUnitComponentSummary reporting_unit_component_summary =
           1;
     }
+    // Deprecated: use ResultGroup.metric_metadata.reporting_unit_summary for
+    // metadata shared across all results in the ResultGroup.
+    //
     // A summary of the ReportingUnit
     ReportingUnitSummary reporting_unit_summary = 1;
 
@@ -192,4 +195,7 @@ message ResultGroup {
   }
   // The set of results for the ResultGroup.
   repeated Result results = 2;
+
+  // Metadata shared by every Result in this ResultGroup.
+  MetricMetadata metric_metadata = 3;
 }
