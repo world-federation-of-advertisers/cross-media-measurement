@@ -66,8 +66,8 @@ message RankIndexBlob {
     (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
   ];
 
-  // The subpool ID this blob belongs to.
-  int32 subpool_id = 4 [
+  // The pool offset this blob belongs to.
+  int64 pool_offset = 4 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];

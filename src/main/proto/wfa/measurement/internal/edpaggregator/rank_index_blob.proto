@@ -44,8 +44,8 @@ message RankIndexBlob {
   // The type of rank index blob.
   BlobType blob_type = 5;
 
-  // The subpool ID this blob belongs to.
-  int32 subpool_id = 6;
+  // The pool offset this blob belongs to.
+  int64 pool_offset = 6;
 
   // Cloud Storage URI of the rank index blob.
   string blob_uri = 7;

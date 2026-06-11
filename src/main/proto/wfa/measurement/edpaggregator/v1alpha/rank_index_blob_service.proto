@@ -154,8 +154,8 @@ message ListRankIndexBlobsRequest {
       (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
     ];
 
-    // Filter by subpool ID. Optional because 0 is a valid subpool ID.
-    optional int32 subpool_id = 3 [(google.api.field_behavior) = OPTIONAL];
+    // Filter by pool offset. Optional because 0 is a valid pool offset.
+    optional int64 pool_offset = 3 [(google.api.field_behavior) = OPTIONAL];
 
     // Filter for blobs with max_event_date on or before
     // this value. Used for retention policy queries.
