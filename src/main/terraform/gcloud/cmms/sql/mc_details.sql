@@ -14,7 +14,7 @@
 
 SELECT
   `${project_id}.dashboard.externalIdToApiId`(eg.MeasurementConsumerId) AS CmmsMeasurementConsumer,
-  `${project_id}.dashboard.externalIdToApiId`(eg.DataProviderId) AS CmmsDataProvider,
+  `${project_id}.dashboard.externalIdToApiId`(eg.ExternalDataProviderId) AS CmmsDataProvider,
   COUNT(*) AS EventGroupCount,
   ARRAY_AGG(IFNULL(eg.ProvidedEventGroupId, '')) AS ProvidedEventGroupIds,
   ARRAY_AGG(IFNULL(eg.EntityType, '')) AS EntityTypes,
@@ -39,6 +39,7 @@ FROM (
     'projects/${project_id}/locations/${region}/connections/kingdom-conn',
     '''SELECT
       eg.DataProviderId,
+      eg.ExternalDataProviderId,
       eg.EventGroupId,
       eg.MeasurementConsumerId,
       eg.ProvidedEventGroupId,
