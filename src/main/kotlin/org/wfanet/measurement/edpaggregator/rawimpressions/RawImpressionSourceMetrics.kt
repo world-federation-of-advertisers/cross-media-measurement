@@ -24,9 +24,9 @@ import org.wfanet.measurement.common.Instrumentation
 /**
  * Encapsulates the OpenTelemetry instruments used by [RawImpressionSource].
  *
- * These integrate with `EdpaTelemetry`, so read/drop/emit rates and per-file
- * processing latency surface on operator dashboards (the component runs in the
- * same TEE apps as the rest of the EDPA pipeline).
+ * These integrate with `EdpaTelemetry`, so read/drop/emit rates and per-file processing latency
+ * surface on operator dashboards (the component runs in the same TEE apps as the rest of the EDPA
+ * pipeline).
  *
  * @param meter the OpenTelemetry [Meter] used to create instruments.
  */
