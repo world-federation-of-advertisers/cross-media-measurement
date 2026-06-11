@@ -170,7 +170,7 @@ resource "terraform_data" "attach_dead_letter_policy" {
     google_project_iam_member.pubsub_subscriber,
   ]
 
-
+  triggers_replace = [var.uber_jar_path]
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
