@@ -351,7 +351,8 @@ class DashboardIsolationChecks(
             "ReportEndDate",
             "ImpressionQualificationFilters",
             "ReportTitle",
-            "ResultGroupSpecs",
+            "ResultGroupTitles",
+            "ResultGroupMetricFrequencies",
           ),
         "mc_details_edp" to
           setOf(

@@ -51,7 +51,8 @@ SELECT
   ) AS ReportEndDate,
   br.ImpressionQualificationFilters,
   br.ReportTitle,
-  br.ResultGroupSpecs
+  br.ResultGroupTitles,
+  br.ResultGroupMetricFrequencies
 FROM (
   SELECT * FROM EXTERNAL_QUERY(
     'projects/${project_id}/locations/${region}/connections/edp-aggregator-conn',
@@ -84,12 +85,12 @@ LEFT JOIN (
       CAST(JSON_VALUE(TO_JSON(br.BasicReportDetails), '$.reportingInterval.reportEnd.day') AS STRING) AS ReportEndDay,
       TO_JSON_STRING(TO_JSON(br.BasicReportDetails).impressionQualificationFilters) AS ImpressionQualificationFilters,
       JSON_VALUE(TO_JSON(br.BasicReportDetails), '$.title') AS ReportTitle,
-      IFNULL((SELECT ARRAY_AGG(STRUCT(
-        JSON_VALUE(rgs, '$.title') AS title,
-        JSON_VALUE(rgs, '$.metricFrequency') AS metricFrequency
-      )) FROM UNNEST(JSON_QUERY_ARRAY(
+      (SELECT STRING_AGG(JSON_VALUE(rgs, '$.title'), ',') FROM UNNEST(JSON_QUERY_ARRAY(
         TO_JSON_STRING(TO_JSON(br.BasicReportDetails).resultGroupSpecs)
-      )) AS rgs), ARRAY<STRUCT<title STRING, metricFrequency STRING>>[]) AS ResultGroupSpecs
+      )) AS rgs) AS ResultGroupTitles,
+      (SELECT STRING_AGG(JSON_VALUE(rgs, '$.metricFrequency'), ',') FROM UNNEST(JSON_QUERY_ARRAY(
+        TO_JSON_STRING(TO_JSON(br.BasicReportDetails).resultGroupSpecs)
+      )) AS rgs) AS ResultGroupMetricFrequencies
     FROM BasicReports br''')
 ) br
   ON REGEXP_EXTRACT(r.Report, r'reports/([^/]+)$') = br.ExternalReportId
