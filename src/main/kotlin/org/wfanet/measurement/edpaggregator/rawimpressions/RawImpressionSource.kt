@@ -18,15 +18,12 @@ package org.wfanet.measurement.edpaggregator.rawimpressions
 
 import com.google.protobuf.ByteString
 import io.grpc.StatusException
-import java.util.concurrent.atomic.AtomicInteger
 import java.util.logging.Logger
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.TimeSource
-import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -46,45 +43,58 @@ import org.wfanet.measurement.storage.ParquetValue
  * lifecycle) and is **agnostic to what downstream does** with the events —
  * labeling, pool assignment, etc. all live in the [BlobSink].
  *
- * ## Execution model (two stages joined by a bounded channel)
+ * ## Execution model
  *
- * 1. **Unwrappers** — one coroutine per open input file, on [readDispatcher] (an
- *    *elastic* dispatcher, [Dispatchers.IO] by default), bounded to [maxOpenFiles]
- *    concurrent files by a [Semaphore]. Each reads its file's rows (parquet decode
- *    + PME AES-GCM decrypt + decompression), computes the event-id [EventIdDigest],
- *    shard-filters, batches the survivors, and sends each batch onto the shared
- *    [workerChannel][Channel].
- * 2. **Workers** — a fixed pool of [workers] coroutines on [workerDispatcher]
- *    ([Dispatchers.Default] ≈ #cores by default). Each pulls an [EventBatch] off
- *    the shared channel (work-stealing: any idle worker takes the next batch) and
- *    calls [BlobSink.processBatch] on that batch's blob's sink. A single large file
- *    is processed by the whole pool in parallel, and a thousand small files too.
+ * One coroutine **per open input file** (on [readDispatcher], an elastic
+ * dispatcher — [Dispatchers.IO] by default), bounded to [maxOpenFiles] concurrent
+ * files by a [Semaphore]. Each file coroutine:
+ *  1. opens its [BlobSink];
+ *  2. reads the file's rows (parquet decode + PME AES-GCM decrypt +
+ *     decompression), computes the event-id [EventIdDigest], shard-filters, and
+ *     batches survivors;
+ *  3. inside a **per-file [coroutineScope]**, launches each batch as a child on
+ *     the shared `cpuDispatcher` (= [workerDispatcher] limited to [workers]
+ *     threads) — so one file's batches run on many cores at once (intra-file
+ *     parallelism), and even a lone large file saturates the cores;
+ *  4. the scope **joins all batch children** — so per-file completion is
+ *     structural (no shared belt, no per-batch file tagging, no completion latch);
+ *  5. then [commits][BlobSink.commit] and always [closes][BlobSink.close] the sink.
  *
- * **Backpressure lives here:** the worker channel is bounded ([workerChannelCapacity]);
- * when the workers fall behind, `send` suspends the unwrappers, throttling file
- * reads to downstream consumption speed.
+ * Why this shape (vs ResultsFulfiller's shared channel + fixed worker pool):
+ * output here is **per file**, so a per-file [coroutineScope] that joins its own
+ * batch jobs gives completion for free — the single-sink shared-pool shape would
+ * force a hand-rolled latch + per-batch tagging that this design avoids.
+ *
+ * **Global CPU cap (saturation):** every batch from every file runs on the single
+ * `cpuDispatcher` capped at [workers], so total CPU parallelism never exceeds the
+ * cores even with many files open. This shared dispatcher is the analog of a fixed
+ * worker pool: any file's batches fill any free CPU slot (global load-balancing).
+ *
+ * **Backpressure / memory bound:** a global [Semaphore] of [maxInFlightBatches]
+ * permits (`inFlight`) is acquired before each batch is launched and released when
+ * it finishes. When that many batches are launched-but-unfinished, a reader's next
+ * acquire suspends, pausing its read — so readers run at most [maxInFlightBatches]
+ * batches ahead of the CPU workers (the analog of a bounded channel's capacity).
+ * Keep [maxInFlightBatches] > [workers] so a finishing worker always has a decoded
+ * batch already queued (read-ahead depth = [maxInFlightBatches] − [workers]).
  *
  * ## Per-blob lifecycle & concurrency
  *
- * Because batches from all files are mixed in one shared pool, a batch is decoupled
- * from its file, so per-file completion is tracked by hand via [BlobContext]: an
- * `AtomicInteger` (starting at 1 for "reading in progress") + a [CompletableDeferred];
- * the unwrapper reserves one before each send and releases the reservation when
- * reading finishes, while a worker releases one per batch processed. When the count
- * hits 0 the file is done. Each [EventBatch] is tagged with its [BlobContext].
- *
- * A fresh sink is minted **per blob** by `openSink(blobUri)`, because up to
- * [maxOpenFiles] files are processed concurrently. **[BlobSink.processBatch] is
- * called concurrently for the same blob** (the shared pool), so it MUST be
- * thread-safe or serialize internally. [BlobSink.commit] runs once **on success**
- * (finalize/publish) and [BlobSink.close] **always** runs once to release resources
- * — even on cancellation, so a cancelled blob never leaks.
+ * A fresh sink is minted **per blob** by `openSink(blobUri)` (not per call),
+ * because up to [maxOpenFiles] files are processed concurrently, so that many
+ * sinks must be live at once. Because the per-file scope launches one batch per
+ * `launch(cpuDispatcher)`, **[BlobSink.processBatch] is called concurrently for
+ * the same blob** and MUST be thread-safe or serialize internally. After every
+ * `processBatch` for the blob has returned (the scope join guarantees this),
+ * [BlobSink.commit] runs once **on success** (finalize/publish) and
+ * [BlobSink.close] **always** runs once to release resources — even on
+ * cancellation, so a cancelled blob never leaks.
  *
  * ## Filtering (done here)
  *
- * Only the **shard filter** is applied in the unwrapper, so non-shard rows never
- * reach the worker channel: `floorMod(digest.high, totalShards) == shardIndex`. It
- * is digest-only and identical for every model line in a WorkItem, so it is paid
+ * Only the **shard filter** is applied in the reader, so non-shard rows never
+ * reach the CPU workers: `floorMod(digest.high, totalShards) == shardIndex`. It is
+ * digest-only and identical for every model line in a WorkItem, so it is paid
  * once. (SHA-256 avalanche makes `digest.high` a uniform shard hash.)
  *
  * ## What this class does NOT do
@@ -99,28 +109,37 @@ import org.wfanet.measurement.storage.ParquetValue
  * Input files are discovered by listing the [rawImpressionUpload]'s
  * `RawImpressionUploadFile`s via [rawImpressionUploadFilesStub]
  * (`ListRawImpressionUploadFiles`, paginated). Each file's `blob_uri` is a full
- * Cloud Storage URI handed straight to [parquetStorageClient].
+ * Cloud Storage URI handed straight to [parquetStorageClient] ([ParquetStorageClient]
+ * resolves an absolute URI to itself, so the client's root is irrelevant for the
+ * read).
  *
  * ## Encryption
  *
- * PME decryption is handled declaratively by the injected [parquetStorageClient].
- * Plaintext column data never leaves the JVM heap.
+ * PME decryption is handled declaratively by the injected [parquetStorageClient]
+ * (configure it with a `ParquetDecryptionConfig` pointing at the EDP's footer
+ * keys). Plaintext column data never leaves the JVM heap.
  *
  * ## Failure semantics
  *
  * If reading a file or a [BlobSink.processBatch] call throws, the exception
- * propagates, the enclosing [coroutineScope] cancels every sibling (unwrappers and
- * workers), and the **failed** blob's `sink.commit()` is skipped → it publishes no
- * partial output; its [BlobSink.close] still runs (under [NonCancellable]) to
- * release resources. This is a **per-blob, not per-upload** guarantee: blobs that
- * committed before the failure are already published, so a retry must be idempotent
- * per blob.
+ * propagates: the per-file [coroutineScope] cancels that file's other batches and
+ * rethrows, which cancels every sibling file. The **failed** blob's sink is **not
+ * committed**, so it publishes no partial output; its [BlobSink.close] still runs
+ * (under [NonCancellable]) to release resources, so a cancelled blob never leaks.
+ *
+ * This is a **per-blob, not per-upload** guarantee: blobs that committed *before*
+ * the failure have already published their output. There is no upload-level
+ * atomicity — so when the WorkItem is retried per the pipeline's failure policy,
+ * those already-published blobs are produced again. The retry (or the sink's
+ * output naming) MUST therefore be idempotent per blob to avoid duplicates.
  *
  * @property rawImpressionUploadFilesStub client used to list the upload's files.
  * @property rawImpressionUpload resource name of the upload to read, format
  *   `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`.
  * @property eventIdColumn parquet column holding the event id (used for the
- *   digest). A `STRING` (BINARY+STRING) or raw `BINARY` column; both are accepted.
+ *   digest). A `STRING` (BINARY+STRING) or raw `BINARY` column; both are
+ *   accepted. Downstream reads any other columns it needs (e.g. event time for
+ *   per-model-line windowing) from [DigestedEvent.row].
  */
 class RawImpressionSource(
   private val parquetStorageClient: ParquetStorageClient,
@@ -130,13 +149,24 @@ class RawImpressionSource(
   private val shardIndex: Int,
   private val totalShards: Int,
   private val eventIdDigestExtractor: EventIdDigestExtractor,
+  // OpenTelemetry instruments (read/drop/emit counters + per-file latency
+  // histogram) that surface on operator dashboards via EdpaTelemetry.
   private val metrics: RawImpressionSourceMetrics = RawImpressionSourceMetrics(),
+  // Elastic dispatcher for the per-file coroutines. MUST tolerate blocking work
+  // (the parquet read is synchronous), so the default is Dispatchers.IO.
   private val readDispatcher: CoroutineContext = Dispatchers.IO,
-  private val workerDispatcher: CoroutineContext = Dispatchers.Default,
+  // CPU dispatcher for batch processing; capped to [workers] via limitedParallelism.
+  private val workerDispatcher: CoroutineDispatcher = Dispatchers.Default,
+  // Max input files open at once: the memory/I/O governor for reading. Defaults to
+  // ~2× cores — enough open readers to keep the CPU pool fed while some block on GCS.
   private val maxOpenFiles: Int = DEFAULT_MAX_OPEN_FILES,
+  // CPU parallelism for batch processing (the bottleneck). Defaults to ~#cores.
   private val workers: Int = DEFAULT_WORKERS,
+  // Number of shard-surviving events per batch (amortizes per-batch handoff).
   private val batchSize: Int = DEFAULT_BATCH_SIZE,
-  private val workerChannelCapacity: Int = DEFAULT_WORKER_CHANNEL_CAPACITY,
+  // Read-ahead / memory bound: max batches launched-but-unfinished at once. Keep
+  // it > [workers] so finishing workers always have a decoded batch queued.
+  private val maxInFlightBatches: Int = DEFAULT_MAX_IN_FLIGHT_BATCHES,
 ) {
   init {
     require(totalShards > 0) { "totalShards must be positive, got $totalShards" }
@@ -146,144 +176,132 @@ class RawImpressionSource(
     require(maxOpenFiles > 0) { "maxOpenFiles must be positive, got $maxOpenFiles" }
     require(workers > 0) { "workers must be positive, got $workers" }
     require(batchSize > 0) { "batchSize must be positive, got $batchSize" }
-    require(workerChannelCapacity > 0) {
-      "workerChannelCapacity must be positive, got $workerChannelCapacity"
+    require(maxInFlightBatches > 0) {
+      "maxInFlightBatches must be positive, got $maxInFlightBatches"
     }
     require(rawImpressionUpload.isNotBlank()) { "rawImpressionUpload must be non-blank" }
     require(eventIdColumn.isNotBlank()) { "eventIdColumn must be non-blank" }
   }
 
   /**
-   * Caller-supplied, per-blob consumer of shard-filtered event batches. Minted per
-   * file by the `openSink` lambda passed to [streamBlobs].
+   * Caller-supplied, per-blob consumer of shard-filtered event batches. One is
+   * minted per file by the `openSink` lambda passed to [streamBlobs]. This class is
+   * agnostic to what [processBatch] does (label + write per-blob output, or
+   * accumulate into a shared map, …).
    *
-   * Threading: [processBatch] is invoked **concurrently by the worker pool** for
-   * the same blob, so it MUST be thread-safe or serialize internally. [commit] runs
-   * once on success (after every [processBatch] has returned); [close] always runs
-   * once to release resources.
+   * Threading: [processBatch] is invoked **concurrently by the CPU pool** for the
+   * same blob, so it MUST be thread-safe or serialize internally (e.g. forward to
+   * a single per-blob writer coroutine over a channel). [commit] runs once on
+   * success (after every [processBatch] has returned); [close] always runs once to
+   * release resources (so a cancelled blob never leaks).
    *
    *  - **Phase 2 (labeling):** per-blob output. `processBatch` labels each event
-   *    and streams the records to this blob's own output; `commit` finalizes/uploads
-   *    it and `close` releases the writer.
+   *    and streams the records to this blob's own output (typically via an
+   *    internal channel + one writer coroutine so the output is single-threaded);
+   *    `commit` finalizes/uploads it and `close` releases the writer.
    *  - **Phase 0 (pool assignment):** `processBatch` records each event's
-   *    `(subpoolId, eventIdDigest)` into a single shared concurrency-safe map;
-   *    `commit`/`close` are no-ops and the map is uploaded once after [streamBlobs]
-   *    returns.
+   *    `(subpoolId, eventIdDigest)` into a single shared map (concurrency-safe —
+   *    e.g. a striped wrapper around `Bytes12IntMap`); `commit`/`close` are no-ops
+   *    and the whole map is uploaded once after [streamBlobs] returns.
    */
   interface BlobSink {
     /** Processes one shard-filtered batch for this blob. Called concurrently. */
     suspend fun processBatch(events: List<DigestedEvent>)
 
-    /** Finalizes + publishes this blob's output. Once, only on success. */
+    /**
+     * Finalizes + publishes this blob's output (Phase 2 upload; Phase 0 no-op).
+     * Called exactly once, **only on success**, after every [processBatch] has
+     * returned.
+     */
     suspend fun commit()
 
-    /** Releases resources. Always, once (idempotent; must not publish partial output). */
+    /**
+     * Releases resources (e.g. an open output stream). **Always** called exactly
+     * once — after [commit] on success, or alone on failure/cancellation. MUST be
+     * idempotent and MUST NOT publish partial output. Should not throw; if it does
+     * during a failure it is attached as a suppressed exception (it never masks the
+     * original processing failure), and on the success path it surfaces normally.
+     */
     suspend fun close()
   }
 
-  /** A batch of shard-surviving events tagged with the [blob] they came from. */
-  private class EventBatch(val events: List<DigestedEvent>, val blob: BlobContext)
-
   /**
-   * Per-input-file coordination: the blob's [sink] plus an outstanding-work counter
-   * (a wait-group) that signals [allBatchesDone] once the file is fully read AND
-   * every batch it produced has been processed by the worker pool.
-   */
-  private class BlobContext(val sink: BlobSink) {
-    private val outstanding = AtomicInteger(1)
-    val allBatchesDone = CompletableDeferred<Unit>()
-
-    fun reserveBatch() {
-      outstanding.incrementAndGet()
-    }
-
-    fun release() {
-      if (outstanding.decrementAndGet() == 0) allBatchesDone.complete(Unit)
-    }
-  }
-
-  /**
-   * Streams this VM's shard of the upload exactly once (unwrappers → worker channel
-   * → worker pool) and suspends until every file has been fully read and processed.
+   * Streams this VM's shard of the upload exactly once and suspends until every
+   * file has been fully read and processed. Decode + decrypt + event-id digest +
+   * the shard filter are paid once per row in the reader.
    *
    * Delivers **every** row that passes the shard filter — including **duplicate
-   * [EventIdDigest]s** (the same event id can appear in many impressions). Callers
-   * needing unique digests (e.g. Phase 0's subpool map) de-duplicate in their
-   * [BlobSink].
+   * [EventIdDigest]s**: the same event id can appear in many impressions across
+   * files, and no de-duplication is performed here. Callers that need unique
+   * digests (e.g. Phase 0's subpool map keyed by [EventIdDigest]) are responsible
+   * for de-duplicating in their [BlobSink].
    *
    * @param openSink mints a fresh [BlobSink] for one input file, given its
-   *   `blobUri`. Its [BlobSink.processBatch] is invoked concurrently; state shared
-   *   across files captured by this lambda must be concurrency-safe.
+   *   `blobUri`. Called once per file. The returned sink's [BlobSink.processBatch]
+   *   is invoked concurrently (see [BlobSink]); any state shared across files
+   *   captured by this lambda must be concurrency-safe.
    */
   suspend fun streamBlobs(openSink: suspend (blobUri: String) -> BlobSink) {
+    val blobUris = discoverBlobUris()
+    logger.info(
+      "Starting raw-impression read of ${blobUris.size} file(s) for shard " +
+        "$shardIndex/$totalShards of upload $rawImpressionUpload"
+    )
+    val progress = ProgressTracker(blobUris.size)
+    val openFiles = Semaphore(maxOpenFiles)
+    // Per-call (not instance fields): the shared CPU cap and the read-ahead bound.
+    // Scoping them here keeps each streamBlobs call self-contained — a failed run
+    // can abandon in-flight permits without throttling a later call on the same
+    // instance.
+    val cpuDispatcher: CoroutineDispatcher = workerDispatcher.limitedParallelism(workers)
+    val inFlight = Semaphore(maxInFlightBatches)
     coroutineScope {
-      val workerChannel = Channel<EventBatch>(workerChannelCapacity)
-
-      // Stage 1: unwrappers, ≤ maxOpenFiles open at once. Closes the worker channel
-      // once every file is read so the workers terminate after draining.
-      launch(readDispatcher) {
-        val blobUris = discoverBlobUris()
-        logger.info(
-          "Starting raw-impression read of ${blobUris.size} file(s) for shard " +
-            "$shardIndex/$totalShards of upload $rawImpressionUpload"
-        )
-        val progress = ProgressTracker(blobUris.size)
-        val openFiles = Semaphore(maxOpenFiles)
-        coroutineScope {
-          for (blobUri in blobUris) {
-            launch(readDispatcher) {
-              openFiles.withPermit { processBlob(blobUri, openSink, workerChannel, progress) }
-            }
-          }
-        }
-        workerChannel.close()
-        progress.logSummary()
-      }
-
-      // Stage 2: worker pool draining the shared worker channel.
-      repeat(workers) {
-        launch(workerDispatcher) {
-          for (batch in workerChannel) dispatchBatch(batch)
+      for (blobUri in blobUris) {
+        launch(readDispatcher) {
+          openFiles.withPermit { processBlob(blobUri, openSink, cpuDispatcher, inFlight, progress) }
         }
       }
     }
+    progress.logSummary()
   }
 
   /**
-   * Reads one input file on its own coroutine: mints its [BlobSink], batches its
-   * shard-surviving events onto the [workerChannel], and holds the file "open"
-   * (keeping its [maxOpenFiles] permit) until every batch has been processed, then
-   * commits and always closes.
+   * Reads one input file on its own coroutine: mints its [BlobSink], launches each
+   * batch onto the shared `cpuDispatcher` inside a per-file [coroutineScope] (which
+   * joins them, giving per-file completion), then commits and always closes.
    */
   private suspend fun processBlob(
     blobUri: String,
     openSink: suspend (blobUri: String) -> BlobSink,
-    workerChannel: SendChannel<EventBatch>,
+    cpuDispatcher: CoroutineDispatcher,
+    inFlight: Semaphore,
     progress: ProgressTracker,
   ) {
     val startTime: TimeSource.Monotonic.ValueTimeMark = TimeSource.Monotonic.markNow()
     logger.fine { "Reading raw-impression file $blobUri" }
-    val blob = BlobContext(openSink(blobUri))
+    val sink = openSink(blobUri)
+    var primary: Throwable? = null
     try {
-      var batch = ArrayList<DigestedEvent>(batchSize)
-      val flush = suspend {
-        if (batch.isNotEmpty()) {
-          blob.reserveBatch()
-          workerChannel.send(EventBatch(batch, blob))
-          batch = ArrayList(batchSize)
-        }
-      }
+      // The per-file scope owns this file's batch jobs; it returns the reader's
+      // tallies after reading finishes AND after every launched batch has joined.
       val counts =
-        readEventsFromBlob(blobUri) { event ->
-          batch.add(event)
-          if (batch.size >= batchSize) flush()
+        coroutineScope {
+          readEventsFromBlob(blobUri) { batch ->
+            // Backpressure: suspend the reader once maxInFlightBatches are in
+            // flight. The permit is held until this batch finishes (release in the
+            // finally — load-bearing; missing it would deadlock the reader).
+            inFlight.acquire()
+            launch(cpuDispatcher) {
+              try {
+                sink.processBatch(batch)
+              } finally {
+                inFlight.release()
+              }
+            }
+          }
         }
-      flush()
-      // Release the reading reservation; the blob's batches finish on the worker
-      // pool, then we finalize. Reached only on success.
-      blob.release()
-      blob.allBatchesDone.await()
-      blob.sink.commit()
+      // Reached only on success: a thrown batch/read cancels the scope first.
+      sink.commit()
       metrics.fileProcessingDurationHistogram.record(
         startTime.elapsedNow().inWholeMilliseconds / 1000.0
       )
@@ -292,17 +310,23 @@ class RawImpressionSource(
           "(emitted ${counts.emitted}, dropped ${counts.droppedOtherShard})"
       }
       progress.recordFileComplete(counts)
+    } catch (t: Throwable) {
+      primary = t
+      throw t
     } finally {
-      // Always release the sink's resources, even on cancellation, so an
-      // open-but-uncommitted sink never leaks. close() must not publish output.
-      withContext(NonCancellable) { blob.sink.close() }
+      // Always release the sink's resources, even on cancellation (a sibling
+      // failure), so an open-but-uncommitted sink never leaks. NonCancellable lets
+      // the suspend close() run after this coroutine is already cancelled; close()
+      // must not publish partial output. If close() itself throws, don't let it
+      // mask an in-flight processing failure — attach it as suppressed; on the
+      // success path (no primary), let it surface.
+      try {
+        withContext(NonCancellable) { sink.close() }
+      } catch (closeError: Throwable) {
+        val pending = primary
+        if (pending != null) pending.addSuppressed(closeError) else throw closeError
+      }
     }
-  }
-
-  /** Hands one [EventBatch] to its blob's [BlobSink]. Runs on the worker pool. */
-  private suspend fun dispatchBatch(batch: EventBatch) {
-    batch.blob.sink.processBatch(batch.events)
-    batch.blob.release()
   }
 
   internal fun belongsToShard(digest: EventIdDigest): Boolean {
@@ -313,18 +337,20 @@ class RawImpressionSource(
 
   /**
    * Reads one blob, computes the event-id digest, applies the shard filter, and
-   * invokes [onEvent] inline for every surviving event. Runs on the file's
-   * unwrapper coroutine; returns the file's row tallies.
+   * invokes [onBatch] for each full batch of survivors (a fresh list each time, so
+   * it is safe to hand to a concurrent worker). Runs on the file's reader
+   * coroutine; returns the file's row tallies.
    */
   private suspend fun readEventsFromBlob(
     blobUri: String,
-    onEvent: suspend (DigestedEvent) -> Unit,
+    onBatch: suspend (List<DigestedEvent>) -> Unit,
   ): FileCounts {
     val parquetBlob =
       parquetStorageClient.getBlob(blobUri) ?: error("Raw-impression blob not found: $blobUri")
     var read = 0L
     var droppedOtherShard = 0L
     var emitted = 0L
+    var batch = ArrayList<DigestedEvent>(batchSize)
     parquetBlob.readRows().collect { row ->
       read++
       val digest = eventIdDigestExtractor.extract(readEventIdBytes(row, blobUri))
@@ -333,8 +359,13 @@ class RawImpressionSource(
         return@collect
       }
       emitted++
-      onEvent(DigestedEvent(row, digest))
+      batch.add(DigestedEvent(row, digest))
+      if (batch.size >= batchSize) {
+        onBatch(batch)
+        batch = ArrayList(batchSize)
+      }
     }
+    if (batch.isNotEmpty()) onBatch(batch)
     // Aggregate per file, then emit to the OTel counters once (instead of per row).
     metrics.rowsReadCounter.add(read)
     metrics.rowsDroppedOtherShardCounter.add(droppedOtherShard)
@@ -369,8 +400,9 @@ class RawImpressionSource(
   }
 
   /**
-   * Reads the [eventIdColumn] from [row] as bytes. Parquet may surface it either as
-   * a `STRING_VALUE` (BINARY+STRING) or a `BYTES_VALUE` (raw BINARY); both accepted.
+   * Reads the [eventIdColumn] from [row] as bytes. Parquet may surface it either
+   * as a `STRING_VALUE` (BINARY+STRING) or a `BYTES_VALUE` (raw BINARY); both are
+   * accepted.
    */
   private fun readEventIdBytes(row: Map<String, ParquetValue>, blobUri: String): ByteString {
     val v = row.getValue(eventIdColumn)
@@ -389,9 +421,11 @@ class RawImpressionSource(
   private class FileCounts(val read: Long, val droppedOtherShard: Long, val emitted: Long)
 
   /**
-   * Concurrency-safe progress logging across files (which complete on many
-   * coroutines): logs a line every ~10% of files completed and a final summary.
-   * Keeps its own in-process counts independent of the OTel counters in [metrics].
+   * Concurrency-safe progress logging across files. Files complete on many
+   * coroutines, so [recordFileComplete] is `@Synchronized`. Logs a line every
+   * ~10% of files completed; [logSummary] logs the final totals. Keeps its own
+   * in-process counts (for the log) independent of the OTel counters in [metrics]
+   * (which feed dashboards).
    */
   private class ProgressTracker(private val totalFiles: Int) {
     private var filesCompleted = 0
@@ -430,15 +464,15 @@ class RawImpressionSource(
     /** ~#cores: the CPU bottleneck for downstream processing. */
     private val DEFAULT_WORKERS: Int = maxOf(1, Runtime.getRuntime().availableProcessors())
 
-    /** ~2× cores: enough open readers to keep the worker channel full despite GCS stalls. */
+    /** ~2× cores: enough open readers to keep the CPU pool fed despite GCS stalls. */
     private val DEFAULT_MAX_OPEN_FILES: Int =
       maxOf(1, Runtime.getRuntime().availableProcessors() * 2)
 
     /** Shard-surviving events per batch. */
     private const val DEFAULT_BATCH_SIZE = 256
 
-    /** Worker-channel depth in batches, between unwrappers and the worker pool. */
-    private const val DEFAULT_WORKER_CHANNEL_CAPACITY = 64
+    /** Read-ahead depth in batches (> DEFAULT_WORKERS so the CPU pool stays fed). */
+    private const val DEFAULT_MAX_IN_FLIGHT_BATCHES = 64
 
     /** Page size for listing the upload's files. */
     private const val LIST_PAGE_SIZE = 1000
