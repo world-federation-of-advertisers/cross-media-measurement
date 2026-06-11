@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.mcp.grpc
 
+import org.wfanet.measurement.common.grpc.BearerTokenCallCredentials
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub
@@ -24,7 +25,7 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSet
 /**
  * Wrapper around gRPC stubs for the Reporting v2alpha public API.
  *
- * Per-request bearer tokens are attached via [BearerPassthroughCallCredentials].
+ * Per-request bearer tokens are attached via [BearerTokenCallCredentials].
  */
 class ReportingPublicApiClient(
   val basicReports: BasicReportsCoroutineStub,
@@ -34,7 +35,9 @@ class ReportingPublicApiClient(
 ) {
   /** Returns stubs with the given bearer token attached as call credentials. */
   fun withBearerToken(bearerToken: String): AuthenticatedStubs {
-    val credentials = BearerPassthroughCallCredentials(bearerToken)
+    // requirePrivacy = false: the caller's token is forwarded over the channel, whose transport
+    // privacy is established at construction (mTLS in production, in-process for tests).
+    val credentials = BearerTokenCallCredentials(bearerToken, requirePrivacy = false)
     return AuthenticatedStubs(
       basicReports = basicReports.withCallCredentials(credentials),
       eventGroups = eventGroups.withCallCredentials(credentials),
