@@ -17,7 +17,9 @@ syntax = "proto3";
 package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
 import "google/type/interval.proto";
+import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
 import "wfa/measurement/internal/edpaggregator/pool_assignment_job.proto";
 import "wfa/measurement/internal/edpaggregator/pool_assignment_state.proto";
 
@@ -156,6 +158,16 @@ message MarkPoolAssignmentJobSucceededRequest {
 
   // Entity tag for optimistic concurrency control.
   string etag = 4;
+
+  // DEK that encrypts this shard's SubpoolFingerprints blobs; persisted on the job.
+  wfa.measurement.securecomputation.impressions.EncryptedDek encrypted_dek = 5;
+
+  // Subpool offsets discovered by this shard during Phase 0; unioned across shards by the service.
+  repeated int64 pool_offsets = 6;
+
+  // Latest event date (UTC) among the impressions this shard wrote; reduced to a maximum across
+  // shards by the service. Unset for a shard that wrote no impressions.
+  google.type.Date max_event_date = 7;
 }
 
 // Response message for MarkPoolAssignmentJobSucceeded.
@@ -173,6 +185,9 @@ message MarkPoolAssignmentJobSucceededResponse {
   message LastShardResult {
     // The pool offsets discovered during Phase 0.
     repeated int64 pool_offsets = 1;
+
+    // The maximum event date (UTC) across all shards. Unset only if no shard wrote any impression.
+    google.type.Date max_event_date = 2;
   }
 }
 
