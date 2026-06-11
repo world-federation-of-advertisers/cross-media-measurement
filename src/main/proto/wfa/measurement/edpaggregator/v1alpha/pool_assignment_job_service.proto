@@ -203,14 +203,17 @@ message MarkPoolAssignmentJobSucceededResponse {
   // The updated PoolAssignmentJob.
   PoolAssignmentJob pool_assignment_job = 1;
 
-  // Whether this was the last shard to complete for the
-  // (upload, model line).
-  bool is_last_shard = 2;
+  // Present when this is the last shard to complete for the
+  // (upload, model line). Contains the pool offsets discovered
+  // during Phase 0, used to create RankerJob rows and trigger
+  // Phase 1.
+  LastShardResult last_shard_result = 2;
 
-  // The pool offsets discovered during Phase 0. Only populated
-  // when is_last_shard is true. Used to create RankerJob rows
-  // and trigger Phase 1.
-  repeated int64 pool_offsets = 3;
+  // Result of the last shard completing.
+  message LastShardResult {
+    // The pool offsets discovered during Phase 0.
+    repeated int64 pool_offsets = 1 [(google.api.field_behavior) = REQUIRED];
+  }
 }
 
 // Request message for the
