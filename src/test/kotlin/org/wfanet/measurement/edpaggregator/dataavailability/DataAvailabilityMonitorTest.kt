@@ -50,6 +50,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataReques
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata as v1alphaImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
 class DataAvailabilityMonitorTest {
@@ -140,6 +141,9 @@ class DataAvailabilityMonitorTest {
       .find { it.attributes.get(DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR) == status }
       ?.value
   }
+
+  private fun blobKey(modelLine: String, date: String, fileName: String): String =
+    "$EDP_IMPRESSION_PATH/model-line/$modelLine/$date/$fileName"
 
   private fun createDoneBlob(
     storageClient: FileSystemStorageClient,
@@ -840,7 +844,9 @@ class DataAvailabilityMonitorTest {
 
     val status = result.statuses.single()
     assertThat(status.datesWithoutDoneBlob).containsExactly(LocalDate.of(2026, 3, 14))
-    assertThat(status.gapDates).containsExactly(LocalDate.of(2026, 3, 14))
+    // A folder that has data but no "done" blob is reported under datesWithoutDoneBlob, not as a
+    // gap (the date is present, just not finalized).
+    assertThat(status.gapDates).isEmpty()
     assertThat(status.zeroImpressionDates).isEmpty()
   }
 
@@ -870,7 +876,9 @@ class DataAvailabilityMonitorTest {
 
     val status = result.statuses.single()
     assertThat(status.datesWithoutDoneBlob).containsExactly(LocalDate.of(2026, 3, 14))
-    assertThat(status.gapDates).containsExactly(LocalDate.of(2026, 3, 14))
+    // A folder that has data but no "done" blob is reported under datesWithoutDoneBlob, not as a
+    // gap (the date is present, just not finalized).
+    assertThat(status.gapDates).isEmpty()
     assertThat(status.zeroImpressionDates).isEmpty()
   }
 
@@ -1088,15 +1096,17 @@ class DataAvailabilityMonitorTest {
 
   @Test
   fun `checkFullStatus detects late-arriving data after done blob`(): Unit = runBlocking {
-    val storageClient = createStorageClient()
-
-    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
-    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-
-    val doneFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "done")
-    val dataFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "data_campaign_1")
-    dataFile.setLastModified(doneFile.lastModified() + 2000)
+    // InMemoryStorageClient assigns createTime at first write, so writing the done blob before the
+    // data file makes the data genuinely created after "done" (late-arriving).
+    val storageClient = InMemoryStorageClient()
+    storageClient.writeBlob(
+      blobKey(MODEL_LINE_A.modelLineId, "2026-03-15", "done"),
+      ByteString.copyFromUtf8("done"),
+    )
+    storageClient.writeBlob(
+      blobKey(MODEL_LINE_A.modelLineId, "2026-03-15", "data_campaign_1"),
+      ByteString.copyFromUtf8("data"),
+    )
 
     val monitor =
       DataAvailabilityMonitor(
@@ -1122,15 +1132,16 @@ class DataAvailabilityMonitorTest {
   @Test
   fun `checkFullStatus reports no late-arriving data when files arrive before done blob`(): Unit =
     runBlocking {
-      val storageClient = createStorageClient()
-
-      ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
-      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-      createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-
-      val doneFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "done")
-      val dataFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "data_campaign_1")
-      doneFile.setLastModified(dataFile.lastModified() + 2000)
+      // Data is written before the done blob, so its createTime precedes "done".
+      val storageClient = InMemoryStorageClient()
+      storageClient.writeBlob(
+        blobKey(MODEL_LINE_A.modelLineId, "2026-03-15", "data_campaign_1"),
+        ByteString.copyFromUtf8("data"),
+      )
+      storageClient.writeBlob(
+        blobKey(MODEL_LINE_A.modelLineId, "2026-03-15", "done"),
+        ByteString.copyFromUtf8("done"),
+      )
 
       val monitor =
         DataAvailabilityMonitor(
@@ -1154,16 +1165,53 @@ class DataAvailabilityMonitorTest {
     }
 
   @Test
+  fun `checkFullStatus does not flag late-arriving when only updateTime changes after done blob`():
+    Unit = runBlocking {
+    val storageClient = InMemoryStorageClient()
+    val dataKey = blobKey(MODEL_LINE_A.modelLineId, "2026-03-15", "data_campaign_1")
+    // Data is created before the done blob (normal arrival order).
+    storageClient.writeBlob(dataKey, ByteString.copyFromUtf8("data"))
+    storageClient.writeBlob(
+      blobKey(MODEL_LINE_A.modelLineId, "2026-03-15", "done"),
+      ByteString.copyFromUtf8("done"),
+    )
+    // Simulate post-"done" processing (e.g. metadata sync) overwriting the data blob: this bumps
+    // its updateTime past the done blob while its createTime is preserved (still before "done").
+    // Late-arriving detection keys off createTime, so this must NOT be reported as late-arriving.
+    storageClient.writeBlob(dataKey, ByteString.copyFromUtf8("data"))
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
+      )
+
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
+
+    val status = result.statuses.single()
+    assertThat(status.lateArrivingDates).isEmpty()
+  }
+
+  @Test
   fun `checkGaps detects late-arriving data after done blob`(): Unit = runBlocking {
-    val storageClient = createStorageClient()
-
-    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
-    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-
-    val doneFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "done")
-    val dataFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "data_campaign_1")
-    dataFile.setLastModified(doneFile.lastModified() + 2000)
+    val storageClient = InMemoryStorageClient()
+    storageClient.writeBlob(
+      blobKey(MODEL_LINE_A.modelLineId, "2026-03-15", "done"),
+      ByteString.copyFromUtf8("done"),
+    )
+    storageClient.writeBlob(
+      blobKey(MODEL_LINE_A.modelLineId, "2026-03-15", "data_campaign_1"),
+      ByteString.copyFromUtf8("data"),
+    )
 
     val monitor =
       DataAvailabilityMonitor(
@@ -1182,15 +1230,15 @@ class DataAvailabilityMonitorTest {
 
   @Test
   fun `checkFullStatus emits late-arriving dates metric`(): Unit = runBlocking {
-    val storageClient = createStorageClient()
-
-    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
-    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-
-    val doneFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "done")
-    val dataFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "data_campaign_1")
-    dataFile.setLastModified(doneFile.lastModified() + 2000)
+    val storageClient = InMemoryStorageClient()
+    storageClient.writeBlob(
+      blobKey(MODEL_LINE_A.modelLineId, "2026-03-15", "done"),
+      ByteString.copyFromUtf8("done"),
+    )
+    storageClient.writeBlob(
+      blobKey(MODEL_LINE_A.modelLineId, "2026-03-15", "data_campaign_1"),
+      ByteString.copyFromUtf8("data"),
+    )
 
     val monitor =
       DataAvailabilityMonitor(
