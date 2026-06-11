@@ -1,0 +1,29 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "ReportingMcpServerTest",
+    srcs = ["ReportingMcpServerTest.kt"],
+    test_class = "org.wfanet.measurement.reporting.mcp.ReportingMcpServerTest",
+    deps = [
+        "//imports/java/io/ktor/server:cio",
+        "//imports/java/io/modelcontextprotocol/kotlin/sdk:client",
+        "//imports/java/io/modelcontextprotocol/kotlin/sdk:server",
+        "//imports/java/io/modelcontextprotocol/kotlin/sdk:testing",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp:reporting_mcp_server",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_report_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_reports_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:impression_qualification_filter_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:impression_qualification_filters_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_set_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_sets_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/grpc/inprocess",
+        "@wfa_common_jvm//imports/java/io/grpc/testing",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
