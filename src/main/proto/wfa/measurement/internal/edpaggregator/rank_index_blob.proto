@@ -54,8 +54,7 @@ message RankIndexBlob {
   // detect corruption after decryption.
   bytes blob_checksum = 8;
 
-  // The encrypted data encryption key (DEK) used to encrypt
-  // the blob, itself encrypted via the DataProvider's KMS.
+  // Serialized EncryptedDek for this blob.
   bytes encrypted_dek = 9;
 
   // The newest event date among the impressions in this blob.

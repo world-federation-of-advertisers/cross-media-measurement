@@ -20,6 +20,7 @@ import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
 import "google/type/date.proto";
+import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
@@ -85,9 +86,8 @@ message RankIndexBlob {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // The encrypted data encryption key (DEK) used to encrypt
-  // the blob, itself encrypted via the DataProvider's KMS.
-  bytes encrypted_dek = 7 [
+  // The encrypted data encryption key (DEK) for this blob.
+  wfa.measurement.securecomputation.impressions.EncryptedDek encrypted_dek = 7 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];

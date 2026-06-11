@@ -126,7 +126,7 @@ message ListRankIndexBlobsRequest {
 
     // Filter for blobs with max_event_date on or before
     // this value. Used for retention policy queries.
-    google.type.Date max_event_date_cutoff = 4;
+    google.type.Date max_event_date_on_or_before = 4;
   }
   Filter filter = 5;
 

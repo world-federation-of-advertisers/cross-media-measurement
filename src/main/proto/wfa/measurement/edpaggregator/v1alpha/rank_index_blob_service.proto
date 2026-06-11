@@ -159,11 +159,14 @@ message ListRankIndexBlobsRequest {
 
     // Filter for blobs with max_event_date on or before
     // this value. Used for retention policy queries.
-    google.type.Date max_event_date_cutoff = 4
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: Explicit semantics for
+    //     date comparison filter. --)
+    google.type.Date max_event_date_on_or_before = 4
         [(google.api.field_behavior) = OPTIONAL];
   }
 
-  // Optional. A filter to apply to the results.
+  // A filter to apply to the results.
   Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
 
   // Whether to include soft-deleted entries.
