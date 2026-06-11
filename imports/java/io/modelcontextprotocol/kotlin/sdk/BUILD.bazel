@@ -7,6 +7,7 @@ alias(
 
 alias(
     name = "client",
+    testonly = True,
     actual = "@maven//:io_modelcontextprotocol_kotlin_sdk_client_jvm",
 )
 
@@ -17,5 +18,6 @@ alias(
 
 alias(
     name = "testing",
+    testonly = True,
     actual = "@maven//:io_modelcontextprotocol_kotlin_sdk_testing_jvm",
 )
