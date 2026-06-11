@@ -71,7 +71,7 @@ import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 
 @RunWith(JUnit4::class)
-class McpServerTest {
+class ReportingMcpServerTest {
   @get:Rule val grpcCleanup = GrpcCleanupRule()
 
   @Test
@@ -249,7 +249,7 @@ class McpServerTest {
           HttpResponse.BodyHandlers.ofString(),
         )
       assertThat(initializeResponse.statusCode()).isEqualTo(200)
-      assertThat(initializeResponse.body()).contains("HaloReportingMcpServer")
+      assertThat(initializeResponse.body()).contains("ReportingMcpServer")
     } finally {
       server.stop()
     }
