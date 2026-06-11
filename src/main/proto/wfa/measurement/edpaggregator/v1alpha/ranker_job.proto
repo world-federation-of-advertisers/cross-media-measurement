@@ -26,7 +26,7 @@ option java_outer_classname = "RankerJobProto";
 
 // A Phase-1 ranker job for a RawImpressionUpload.
 // One record per (upload, model line, ranker job), pre-created by
-// the Phase-0 last-out trigger. The "last job out" of a (upload,
+// the Phase-0 last-out trigger. The "last ranker job out" of a (upload,
 // model line) flips the parent RawImpressionUploadModelLine state
 // from RANKING to LABELING and triggers Phase 2.
 message RankerJob {
@@ -63,8 +63,8 @@ message RankerJob {
     (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
   ];
 
-  // The subpool IDs this ranker job is responsible for processing.
-  repeated int32 subpool_ids = 4 [
+  // The pool offsets this ranker job is responsible for processing.
+  repeated int64 pool_offsets = 4 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
