@@ -76,10 +76,7 @@ class McpServerTest {
 
   @Test
   fun registersAllExpectedTools() {
-    val server =
-      ReportingMcpServerFromFlags.createMcpServer(createFakeApiClientWithServices()) {
-        "test-token"
-      }
+    val server = ReportingMcpServer.createServer(createFakeApiClientWithServices()) { "test-token" }
     assertThat(server.tools.keys)
       .containsExactly(
         "get_event_group",
@@ -97,10 +94,7 @@ class McpServerTest {
 
   @Test
   fun allToolsHaveDescriptions() {
-    val server =
-      ReportingMcpServerFromFlags.createMcpServer(createFakeApiClientWithServices()) {
-        "test-token"
-      }
+    val server = ReportingMcpServer.createServer(createFakeApiClientWithServices()) { "test-token" }
     for ((name, tool) in server.tools) {
       assertWithMessage("tool '$name' should have a description")
         .that(tool.tool.description)
@@ -111,7 +105,7 @@ class McpServerTest {
   @Test
   fun callToolByNameReturnsProtoJsonResponse() = runBlocking {
     val apiClient = createFakeApiClientWithServices()
-    val server = ReportingMcpServerFromFlags.createMcpServer(apiClient) { "test-token" }
+    val server = ReportingMcpServer.createServer(apiClient) { "test-token" }
 
     val (clientTransport, serverTransport) = ChannelTransport.createLinkedPair()
     val client = Client(clientInfo = Implementation(name = "test-client", version = "0.1"))
@@ -135,7 +129,7 @@ class McpServerTest {
   @Test
   fun callToolWithNotFoundReturnsError() = runBlocking {
     val apiClient = createFakeApiClientWithServices()
-    val server = ReportingMcpServerFromFlags.createMcpServer(apiClient) { "test-token" }
+    val server = ReportingMcpServer.createServer(apiClient) { "test-token" }
 
     val (clientTransport, serverTransport) = ChannelTransport.createLinkedPair()
     val client = Client(clientInfo = Implementation(name = "test-client", version = "0.1"))
@@ -162,7 +156,7 @@ class McpServerTest {
     // A missing bearer token surfaces as an IllegalArgumentException from getBearerToken, which the
     // tool error handler turns into a clean tool error rather than crashing the request.
     val server =
-      ReportingMcpServerFromFlags.createMcpServer(apiClient) {
+      ReportingMcpServer.createServer(apiClient) {
         throw IllegalArgumentException("Missing bearer token in Authorization header")
       }
 
@@ -188,7 +182,7 @@ class McpServerTest {
   @Test
   fun listEventGroupsWithStructuredFilterViaMcpClient() = runBlocking {
     val apiClient = createFakeApiClientWithServices()
-    val mcpServer = ReportingMcpServerFromFlags.createMcpServer(apiClient) { "test-token" }
+    val mcpServer = ReportingMcpServer.createServer(apiClient) { "test-token" }
 
     val (clientTransport, serverTransport) = ChannelTransport.createLinkedPair()
     val mcpClient = Client(clientInfo = Implementation(name = "test-client", version = "1.0.0"))

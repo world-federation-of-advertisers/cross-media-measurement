@@ -95,7 +95,7 @@ fun Application.installReportingMcp(
     allowedHosts = allowedHosts.ifEmpty { null },
   ) {
     val authorizationHeader = call.request.headers[HttpHeaders.Authorization]
-    ReportingMcpServerFromFlags.createMcpServer(apiClient) { bearerToken(authorizationHeader) }
+    ReportingMcpServer.createServer(apiClient) { bearerToken(authorizationHeader) }
   }
 
   routing { get("/healthz") { call.respondText("OK", status = HttpStatusCode.OK) } }
@@ -117,17 +117,51 @@ private fun bearerToken(authorizationHeader: String?): String {
   }
 }
 
-object ReportingMcpServerFromFlags {
-  @CommandLine.Command(
-    name = SERVER_NAME,
-    description = ["MCP server for the Halo Reporting v2alpha public API."],
-    mixinStandardHelpOptions = true,
-    showDefaultValues = true,
-  )
-  fun run(
-    @CommandLine.Mixin tlsFlags: TlsFlags,
-    @CommandLine.Mixin mcpServerFlags: McpServerFlags,
-  ) {
+/**
+ * Factory for the Reporting MCP [Server].
+ *
+ * Builds the server from already-constructed dependencies and has no knowledge of flags. The
+ * flags-based entry point is [ReportingMcpServerFromFlags].
+ */
+object ReportingMcpServer {
+  /** Builds the MCP [Server] with all Reporting tools registered. */
+  fun createServer(apiClient: ReportingPublicApiClient, getBearerToken: () -> String): Server {
+    val server =
+      Server(
+        serverInfo = Implementation(name = SERVER_NAME, version = SERVER_VERSION),
+        options =
+          ServerOptions(
+            capabilities =
+              ServerCapabilities(
+                // Stateless mode: no server-to-client push (logging/notifications), so
+                // only the tools capability is advertised.
+                tools = ServerCapabilities.Tools(listChanged = false)
+                // TODO(#3834): Add prompts capability in follow-up PR.
+              )
+          ),
+      )
+
+    server.registerBasicReportTools(apiClient, getBearerToken)
+    server.registerEventGroupTools(apiClient, getBearerToken)
+    server.registerReportingSetTools(apiClient, getBearerToken)
+    server.registerIqfTools(apiClient, getBearerToken)
+
+    return server
+  }
+}
+
+/** Builds the runtime dependencies from command-line flags and starts the MCP server. */
+@CommandLine.Command(
+  name = SERVER_NAME,
+  description = ["MCP server for the Halo Reporting v2alpha public API."],
+  mixinStandardHelpOptions = true,
+  showDefaultValues = true,
+)
+class ReportingMcpServerFromFlags : Runnable {
+  @CommandLine.Mixin private lateinit var tlsFlags: TlsFlags
+  @CommandLine.Mixin private lateinit var mcpServerFlags: McpServerFlags
+
+  override fun run() {
     val clientCerts =
       SigningCerts.fromPemFiles(
         certificateFile = tlsFlags.certFile,
@@ -172,30 +206,6 @@ object ReportingMcpServerFromFlags {
         installReportingMcp(apiClient, mcpServerFlags.allowedHosts)
       }
       .start(wait = true)
-  }
-
-  fun createMcpServer(apiClient: ReportingPublicApiClient, getBearerToken: () -> String): Server {
-    val server =
-      Server(
-        serverInfo = Implementation(name = SERVER_NAME, version = SERVER_VERSION),
-        options =
-          ServerOptions(
-            capabilities =
-              ServerCapabilities(
-                // Stateless mode: no server-to-client push (logging/notifications), so
-                // only the tools capability is advertised.
-                tools = ServerCapabilities.Tools(listChanged = false)
-                // TODO(#3834): Add prompts capability in follow-up PR.
-              )
-          ),
-      )
-
-    server.registerBasicReportTools(apiClient, getBearerToken)
-    server.registerEventGroupTools(apiClient, getBearerToken)
-    server.registerReportingSetTools(apiClient, getBearerToken)
-    server.registerIqfTools(apiClient, getBearerToken)
-
-    return server
   }
 }
 
@@ -261,4 +271,4 @@ class McpServerFlags {
   var debugVerboseGrpcClientLogging by Delegates.notNull<Boolean>()
 }
 
-fun main(args: Array<String>) = commandLineMain(ReportingMcpServerFromFlags::run, args)
+fun main(args: Array<String>) = commandLineMain(ReportingMcpServerFromFlags(), args)
