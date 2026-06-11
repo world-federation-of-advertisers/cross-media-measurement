@@ -47,8 +47,8 @@ bazel_dep(
 # Pulls ParquetStorageClient from marcopremier/parquet-storage-client.
 archive_override(
     module_name = "common-jvm",
-    urls = ["https://github.com/world-federation-of-advertisers/common-jvm/archive/b4cd5df291cd836c2dd6800287303a7185108b15.tar.gz"],
-    strip_prefix = "common-jvm-b4cd5df291cd836c2dd6800287303a7185108b15",
+    urls = ["https://github.com/world-federation-of-advertisers/common-jvm/archive/861e6b944ee984fe459a39c2ba1b16809c04f6dc.tar.gz"],
+    strip_prefix = "common-jvm-861e6b944ee984fe459a39c2ba1b16809c04f6dc",
 )
 bazel_dep(
     name = "common-cpp",
