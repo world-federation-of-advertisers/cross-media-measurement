@@ -187,7 +187,7 @@ resource "terraform_data" "attach_dead_letter_policy" {
 
       # Find the Eventarc-managed subscription for this function.
       SUB=$(gcloud pubsub subscriptions list \
-        --filter="name~eventarc.*$FUNCTION_NAME" \
+        --filter="name~eventarc.*-$FUNCTION_NAME-" \
         --format="value(name)" \
         --limit=1)
 
