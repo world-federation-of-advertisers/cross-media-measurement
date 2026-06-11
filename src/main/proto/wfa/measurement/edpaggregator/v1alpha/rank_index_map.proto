@@ -88,7 +88,7 @@ message RankIndexMap {
   //
   // The in-memory map representation
   // (`org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap`)
-  // reserves `-1` (`0xFFFFFFFF` when reinterpreted as unsigned) as
+  // reserves `0xFFFFFFFF` (`Int` value `-1` in Kotlin) as
   // its [NOT_PRESENT] sentinel; that value MUST never appear in this
   // field. Holds by construction because valid ranks are in
   // `[0, ranked_size)` and `ranked_size` is bounded well below
