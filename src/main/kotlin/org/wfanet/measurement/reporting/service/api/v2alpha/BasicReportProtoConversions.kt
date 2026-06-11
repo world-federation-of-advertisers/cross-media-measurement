@@ -787,7 +787,6 @@ fun InternalMetricFrequencySpec.toMetricFrequencySpec(): MetricFrequencySpec {
  *   `event_group_summaries` field
  */
 // Intentionally reads/writes the deprecated event_group_summaries field during the migration.
-@Suppress("DEPRECATION")
 fun InternalMetricMetadata.toMetricMetadata(
   cmmsMeasurementConsumerId: String,
   populateDeprecatedReportingUnitEventGroupSummaries: Boolean,
@@ -810,6 +809,9 @@ fun InternalMetricMetadata.toMetricMetadata(
                   )
                   .toName()
               if (populateDeprecatedReportingUnitEventGroupSummaries) {
+                // TODO(world-federation-of-advertisers/cross-media-measurement#3919):
+                // Stop reading/setting the deprecated event_group_summaries field once
+                // consumers have migrated to reporting_set.
                 for (internalEventGroupSummary in
                   internalReportingUnitComponentSummary.eventGroupSummariesList) {
                   eventGroupSummaries +=
