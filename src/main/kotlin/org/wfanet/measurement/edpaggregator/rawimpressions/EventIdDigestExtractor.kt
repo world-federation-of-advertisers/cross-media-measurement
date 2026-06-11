@@ -23,26 +23,23 @@ import java.security.MessageDigest
 /**
  * Computes the 12-byte truncated SHA-256 [EventIdDigest] of an event identifier.
  *
- * The caller supplies the raw identifier bytes (extracted from whichever source
- * format — parquet column, proto field, etc.). Keeping the input as a
- * [ByteString] lets the call site do format-specific extraction without dragging
- * that concern into this class.
+ * The caller supplies the raw identifier bytes (extracted from whichever source format — parquet
+ * column, proto field, etc.). Keeping the input as a [ByteString] lets the call site do
+ * format-specific extraction without dragging that concern into this class.
  *
  * Hot-path discipline:
- *  - One `SHA-256 MessageDigest` plus one 32-byte output buffer per thread,
- *    bundled in [State] and reused via a single `ThreadLocal` lookup per
- *    `extract()` call.
- *  - `digest.digest(out, 0, 32)` writes the digest into the pre-allocated
- *    buffer — avoids the per-event `byte[]` JCE would otherwise allocate.
- *  - Unpacking to `(Long, Int)` is done with manual big-endian shifts on the
- *    output buffer, avoiding the `ByteBuffer.wrap` + `.order` wrapper
- *    allocations.
- *  - Only per-event allocation in this class is the returned [EventIdDigest]
- *    data class. Eliminate that only if profiling shows it material.
+ * - One `SHA-256 MessageDigest` plus one 32-byte output buffer per thread, bundled in [State] and
+ *   reused via a single `ThreadLocal` lookup per `extract()` call.
+ * - `digest.digest(out, 0, 32)` writes the digest into the pre-allocated buffer — avoids the
+ *   per-event `byte[]` JCE would otherwise allocate.
+ * - Unpacking to `(Long, Int)` is done with manual big-endian shifts on the output buffer, avoiding
+ *   the `ByteBuffer.wrap` + `.order` wrapper allocations.
+ * - Only per-event allocation in this class is the returned [EventIdDigest] data class. Eliminate
+ *   that only if profiling shows it material.
  *
- * The JDK's `SHA-256` implementation uses SHA-NI hardware intrinsics on modern
- * x86 (including the n2d-highmem-16 EPYC target); on small inputs this puts the
- * per-event floor in the ~100-200 ns range, dominated by the digest itself.
+ * The JDK's `SHA-256` implementation uses SHA-NI hardware intrinsics on modern x86 (including the
+ * n2d-highmem-16 EPYC target); on small inputs this puts the per-event floor in the ~100-200 ns
+ * range, dominated by the digest itself.
  *
  * Thread-safety: instances are safe to share across threads.
  */

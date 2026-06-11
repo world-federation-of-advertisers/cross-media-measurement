@@ -143,9 +143,8 @@ class RawImpressionSourceTest {
   }
 
   /**
-   * Builds an `openSink` lambda whose per-blob [RawImpressionSource.BlobSink]
-   * records every event id into [sink] (and, optionally, open/close calls into
-   * [opened]/[closed]).
+   * Builds an `openSink` lambda whose per-blob [RawImpressionSource.BlobSink] records every event
+   * id into [sink] (and, optionally, open/close calls into [opened]/[closed]).
    */
   private fun collectingSink(
     sink: ConcurrentLinkedQueue<String>,
@@ -188,33 +187,34 @@ class RawImpressionSourceTest {
   }
 
   @Test
-  fun `streamBlobs processes every event across many files (concurrent-safe sink)`(): Unit = runBlocking {
-    val client = newClient()
-    // More files than the default open-file concurrency would admit at once, so
-    // the per-file coroutines genuinely overlap and a blob's batches are
-    // processed by multiple workers; the shared sink must be concurrency-safe.
-    val fileCount = 12
-    val perFile = 50
-    val expected = mutableListOf<String>()
-    for (f in 0 until fileCount) {
-      val rows =
-        (0 until perFile).map { i ->
-          val id = "f$f-e$i"
-          expected.add(id)
-          row(id)
-        }
-      writeFile(client, "many/file-$f.parquet", rows)
+  fun `streamBlobs processes every event across many files (concurrent-safe sink)`(): Unit =
+    runBlocking {
+      val client = newClient()
+      // More files than the default open-file concurrency would admit at once, so
+      // the per-file coroutines genuinely overlap and a blob's batches are
+      // processed by multiple workers; the shared sink must be concurrency-safe.
+      val fileCount = 12
+      val perFile = 50
+      val expected = mutableListOf<String>()
+      for (f in 0 until fileCount) {
+        val rows =
+          (0 until perFile).map { i ->
+            val id = "f$f-e$i"
+            expected.add(id)
+            row(id)
+          }
+        writeFile(client, "many/file-$f.parquet", rows)
+      }
+      val subject = newSource(client)
+
+      val sink = ConcurrentLinkedQueue<String>()
+      subject.streamBlobs(collectingSink(sink))
+
+      assertThat(sink.toList()).containsExactlyElementsIn(expected)
+      assertThat(counterValue(READ)).isEqualTo((fileCount * perFile).toLong())
+      assertThat(counterValue(EMITTED)).isEqualTo((fileCount * perFile).toLong())
+      assertThat(histogramCount(FILE_DURATION)).isEqualTo(fileCount.toLong())
     }
-    val subject = newSource(client)
-
-    val sink = ConcurrentLinkedQueue<String>()
-    subject.streamBlobs(collectingSink(sink))
-
-    assertThat(sink.toList()).containsExactlyElementsIn(expected)
-    assertThat(counterValue(READ)).isEqualTo((fileCount * perFile).toLong())
-    assertThat(counterValue(EMITTED)).isEqualTo((fileCount * perFile).toLong())
-    assertThat(histogramCount(FILE_DURATION)).isEqualTo(fileCount.toLong())
-  }
 
   @Test
   fun `streamBlobs opens, commits, and closes one sink per input file`(): Unit = runBlocking {
@@ -228,42 +228,49 @@ class RawImpressionSourceTest {
     val committed = ConcurrentLinkedQueue<String>()
     val closed = ConcurrentLinkedQueue<String>()
     subject.streamBlobs(
-      collectingSink(ConcurrentLinkedQueue(), opened = opened, committed = committed, closed = closed)
+      collectingSink(
+        ConcurrentLinkedQueue(),
+        opened = opened,
+        committed = committed,
+        closed = closed,
+      )
     )
 
-    // openSink receives each file's blob URI; on success commit() and close() each run once per file.
+    // openSink receives each file's blob URI; on success commit() and close() each run once per
+    // file.
     assertThat(opened.toList()).containsExactly("lc/a.parquet", "lc/b.parquet", "lc/c.parquet")
     assertThat(committed.toList()).containsExactly("lc/a.parquet", "lc/b.parquet", "lc/c.parquet")
     assertThat(closed.toList()).containsExactly("lc/a.parquet", "lc/b.parquet", "lc/c.parquet")
   }
 
   @Test
-  fun `streamBlobs does not commit but still closes a sink when a file fails`(): Unit = runBlocking {
-    val client = newClient()
-    // event_id written as INT64 → readEventIdBytes throws mid-file (unwrapper).
-    writeFile(
-      client,
-      "fail/a.parquet",
-      listOf(
-        ParquetRow.newBuilder()
-          .putColumns("event_id", ParquetValue.newBuilder().setInt64Value(7L).build())
-          .build()
-      ),
-    )
-    val subject = newSource(client)
-
-    val committed = ConcurrentLinkedQueue<String>()
-    val closed = ConcurrentLinkedQueue<String>()
-    assertFailsWith<IllegalStateException> {
-      subject.streamBlobs(
-        collectingSink(ConcurrentLinkedQueue(), committed = committed, closed = closed)
+  fun `streamBlobs does not commit but still closes a sink when a file fails`(): Unit =
+    runBlocking {
+      val client = newClient()
+      // event_id written as INT64 → readEventIdBytes throws mid-file (unwrapper).
+      writeFile(
+        client,
+        "fail/a.parquet",
+        listOf(
+          ParquetRow.newBuilder()
+            .putColumns("event_id", ParquetValue.newBuilder().setInt64Value(7L).build())
+            .build()
+        ),
       )
+      val subject = newSource(client)
+
+      val committed = ConcurrentLinkedQueue<String>()
+      val closed = ConcurrentLinkedQueue<String>()
+      assertFailsWith<IllegalStateException> {
+        subject.streamBlobs(
+          collectingSink(ConcurrentLinkedQueue(), committed = committed, closed = closed)
+        )
+      }
+      // Failure ⇒ commit() is skipped (no partial output published) but close() still
+      // runs (resources released — no leak).
+      assertThat(committed).isEmpty()
+      assertThat(closed.toList()).containsExactly("fail/a.parquet")
     }
-    // Failure ⇒ commit() is skipped (no partial output published) but close() still
-    // runs (resources released — no leak).
-    assertThat(committed).isEmpty()
-    assertThat(closed.toList()).containsExactly("fail/a.parquet")
-  }
 
   @Test
   fun `streamBlobs drops rows that do not belong to this shard`(): Unit = runBlocking {
@@ -318,18 +325,36 @@ class RawImpressionSourceTest {
     )
     val subject = newSource(client)
 
-    assertFailsWith<IllegalStateException> { subject.streamBlobs(collectingSink(ConcurrentLinkedQueue())) }
+    assertFailsWith<IllegalStateException> {
+      subject.streamBlobs(collectingSink(ConcurrentLinkedQueue()))
+    }
   }
 
   @Test
   fun `constructor rejects invalid arguments`() {
     // totalShards must be positive.
     assertFailsWith<IllegalArgumentException> {
-      RawImpressionSource(newClient(), filesStub, UPLOAD, "event_id", 0, 0, EventIdDigestExtractor())
+      RawImpressionSource(
+        newClient(),
+        filesStub,
+        UPLOAD,
+        "event_id",
+        0,
+        0,
+        EventIdDigestExtractor(),
+      )
     }
     // shardIndex out of range.
     assertFailsWith<IllegalArgumentException> {
-      RawImpressionSource(newClient(), filesStub, UPLOAD, "event_id", 5, 2, EventIdDigestExtractor())
+      RawImpressionSource(
+        newClient(),
+        filesStub,
+        UPLOAD,
+        "event_id",
+        5,
+        2,
+        EventIdDigestExtractor(),
+      )
     }
     // maxOpenFiles must be positive.
     assertFailsWith<IllegalArgumentException> {

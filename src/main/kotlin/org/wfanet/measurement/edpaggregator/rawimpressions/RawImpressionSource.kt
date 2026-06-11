@@ -41,110 +41,108 @@ import org.wfanet.measurement.storage.ParquetValue
 typealias ParquetDigestedEvent = DigestedEvent<Map<String, ParquetValue>>
 
 /**
- * Reads the local VM's shard of raw impressions for one upload in parallel and
- * hands shard-filtered batches to a caller-supplied per-file [BlobSink]. The class
- * owns the **parallel reading skeleton** (discovery, decode/decrypt, event-id
- * digest, shard filter, batching, bounded concurrency, backpressure, per-blob
- * lifecycle) and is **agnostic to what downstream does** with the events —
- * labeling, pool assignment, etc. all live in the [BlobSink].
+ * A shard-surviving parquet row + its event-id digest, delivered to a
+ * [RawImpressionSource.BlobSink].
+ */
+typealias ParquetDigestedEvent = DigestedEvent<Map<String, ParquetValue>>
+
+/**
+ * Reads the local VM's shard of raw impressions for one upload in parallel and hands shard-filtered
+ * batches to a caller-supplied per-file [BlobSink]. The class owns the **parallel reading
+ * skeleton** (discovery, decode/decrypt, event-id digest, shard filter, batching, bounded
+ * concurrency, backpressure, per-blob lifecycle) and is **agnostic to what downstream does** with
+ * the events — labeling, pool assignment, etc. all live in the [BlobSink].
  *
  * ## Execution model
  *
- * One coroutine **per open input file** (on [readDispatcher], an elastic
- * dispatcher — [Dispatchers.IO] by default), bounded to [maxOpenFiles] concurrent
- * files by a [Semaphore]. Each file coroutine:
- *  1. opens its [BlobSink];
- *  2. reads the file's rows (parquet decode + PME AES-GCM decrypt +
- *     decompression), computes the event-id [EventIdDigest], shard-filters, and
- *     batches survivors;
- *  3. inside a **per-file [coroutineScope]**, launches each batch as a child on
- *     the shared `cpuDispatcher` (= [workerDispatcher] limited to [workers]
- *     threads) — so one file's batches run on many cores at once (intra-file
- *     parallelism), and even a lone large file saturates the cores;
- *  4. the scope **joins all batch children** — so per-file completion is
- *     structural (no shared belt, no per-batch file tagging, no completion latch);
- *  5. then [commits][BlobSink.commit] and always [closes][BlobSink.close] the sink.
+ * One coroutine **per open input file** (on [readDispatcher], an elastic dispatcher —
+ * [Dispatchers.IO] by default), bounded to [maxOpenFiles] concurrent files by a [Semaphore]. Each
+ * file coroutine:
+ * 1. opens its [BlobSink];
+ * 2. reads the file's rows (parquet decode + PME AES-GCM decrypt + decompression), computes the
+ *    event-id [EventIdDigest], shard-filters, and batches survivors;
+ * 3. inside a **per-file [coroutineScope]**, launches each batch as a child on the shared
+ *    `cpuDispatcher` (= [workerDispatcher] limited to [workers] threads) — so one file's batches
+ *    run on many cores at once (intra-file parallelism), and even a lone large file saturates the
+ *    cores;
+ * 4. the scope **joins all batch children** — so per-file completion is structural (no shared belt,
+ *    no per-batch file tagging, no completion latch);
+ * 5. then [commits][BlobSink.commit] and always [closes][BlobSink.close] the sink.
  *
- * Why this shape (vs ResultsFulfiller's shared channel + fixed worker pool):
- * output here is **per file**, so a per-file [coroutineScope] that joins its own
- * batch jobs gives completion for free — the single-sink shared-pool shape would
- * force a hand-rolled latch + per-batch tagging that this design avoids.
+ * Why this shape (vs ResultsFulfiller's shared channel + fixed worker pool): output here is **per
+ * file**, so a per-file [coroutineScope] that joins its own batch jobs gives completion for free —
+ * the single-sink shared-pool shape would force a hand-rolled latch + per-batch tagging that this
+ * design avoids.
  *
- * **Global CPU cap (saturation):** every batch from every file runs on the single
- * `cpuDispatcher` capped at [workers], so total CPU parallelism never exceeds the
- * cores even with many files open. This shared dispatcher is the analog of a fixed
- * worker pool: any file's batches fill any free CPU slot (global load-balancing).
+ * **Global CPU cap (saturation):** every batch from every file runs on the single `cpuDispatcher`
+ * capped at [workers], so total CPU parallelism never exceeds the cores even with many files open.
+ * This shared dispatcher is the analog of a fixed worker pool: any file's batches fill any free CPU
+ * slot (global load-balancing).
  *
- * **Backpressure / memory bound:** a global [Semaphore] of [maxInFlightBatches]
- * permits (`inFlight`) is acquired before each batch is launched and released when
- * it finishes. When that many batches are launched-but-unfinished, a reader's next
- * acquire suspends, pausing its read — so readers run at most [maxInFlightBatches]
- * batches ahead of the CPU workers (the analog of a bounded channel's capacity).
- * Keep [maxInFlightBatches] > [workers] so a finishing worker always has a decoded
- * batch already queued (read-ahead depth = [maxInFlightBatches] − [workers]).
+ * **Backpressure / memory bound:** a global [Semaphore] of [maxInFlightBatches] permits
+ * (`inFlight`) is acquired before each batch is launched and released when it finishes. When that
+ * many batches are launched-but-unfinished, a reader's next acquire suspends, pausing its read — so
+ * readers run at most [maxInFlightBatches] batches ahead of the CPU workers (the analog of a
+ * bounded channel's capacity). Keep [maxInFlightBatches] > [workers] so a finishing worker always
+ * has a decoded batch already queued (read-ahead depth = [maxInFlightBatches] − [workers]).
  *
  * ## Per-blob lifecycle & concurrency
  *
- * A fresh sink is minted **per blob** by `openSink(blobUri)` (not per call),
- * because up to [maxOpenFiles] files are processed concurrently, so that many
- * sinks must be live at once. Because the per-file scope launches one batch per
- * `launch(cpuDispatcher)`, **[BlobSink.processBatch] is called concurrently for
- * the same blob** and MUST be thread-safe or serialize internally. After every
- * `processBatch` for the blob has returned (the scope join guarantees this),
- * [BlobSink.commit] runs once **on success** (finalize/publish) and
- * [BlobSink.close] **always** runs once to release resources — even on
- * cancellation, so a cancelled blob never leaks.
+ * A fresh sink is minted **per blob** by `openSink(blobUri)` (not per call), because up to
+ * [maxOpenFiles] files are processed concurrently, so that many sinks must be live at once. Because
+ * the per-file scope launches one batch per `launch(cpuDispatcher)`, **[BlobSink.processBatch] is
+ * called concurrently for the same blob** and MUST be thread-safe or serialize internally. After
+ * every `processBatch` for the blob has returned (the scope join guarantees this),
+ * [BlobSink.commit] runs once **on success** (finalize/publish) and [BlobSink.close] **always**
+ * runs once to release resources — even on cancellation, so a cancelled blob never leaks.
  *
  * ## Filtering (done here)
  *
- * Only the **shard filter** is applied in the reader, so non-shard rows never
- * reach the CPU workers: `floorMod(digest.high, totalShards) == shardIndex`. It is
- * digest-only and identical for every model line in a WorkItem, so it is paid
- * once. (SHA-256 avalanche makes `digest.high` a uniform shard hash.)
+ * Only the **shard filter** is applied in the reader, so non-shard rows never reach the CPU
+ * workers: `floorMod(digest.high, totalShards) == shardIndex`. It is digest-only and identical for
+ * every model line in a WorkItem, so it is paid once. (SHA-256 avalanche makes `digest.high` a
+ * uniform shard hash.)
  *
  * ## What this class does NOT do
  *
- * Time-window filtering, labeling, model-line fan-out, and output writing are all
- * the [BlobSink]'s job. Window filtering in particular is **per model line**, so
- * the sink does it with the shared `ActiveWindow` utility (reading the event time
- * from [DigestedEvent.row]); this class is window-agnostic.
+ * Time-window filtering, labeling, model-line fan-out, and output writing are all the [BlobSink]'s
+ * job. Window filtering in particular is **per model line**, so the sink does it with the shared
+ * `ActiveWindow` utility (reading the event time from [DigestedEvent.row]); this class is
+ * window-agnostic.
  *
  * ## Blob discovery
  *
- * Input files are discovered by listing the [rawImpressionUpload]'s
- * `RawImpressionUploadFile`s via [rawImpressionUploadFilesStub]
- * (`ListRawImpressionUploadFiles`, paginated). Each file's `blob_uri` is a full
- * Cloud Storage URI handed straight to [parquetStorageClient] ([ParquetStorageClient]
- * resolves an absolute URI to itself, so the client's root is irrelevant for the
- * read).
+ * Input files are discovered by listing the [rawImpressionUpload]'s `RawImpressionUploadFile`s via
+ * [rawImpressionUploadFilesStub] (`ListRawImpressionUploadFiles`, paginated). Each file's
+ * `blob_uri` is a full Cloud Storage URI handed straight to [parquetStorageClient]
+ * ([ParquetStorageClient] resolves an absolute URI to itself, so the client's root is irrelevant
+ * for the read).
  *
  * ## Encryption
  *
- * PME decryption is handled declaratively by the injected [parquetStorageClient]
- * (configure it with a `ParquetDecryptionConfig` pointing at the EDP's footer
- * keys). Plaintext column data never leaves the JVM heap.
+ * PME decryption is handled declaratively by the injected [parquetStorageClient] (configure it with
+ * a `ParquetDecryptionConfig` pointing at the EDP's footer keys). Plaintext column data never
+ * leaves the JVM heap.
  *
  * ## Failure semantics
  *
- * If reading a file or a [BlobSink.processBatch] call throws, the exception
- * propagates: the per-file [coroutineScope] cancels that file's other batches and
- * rethrows, which cancels every sibling file. The **failed** blob's sink is **not
- * committed**, so it publishes no partial output; its [BlobSink.close] still runs
- * (under [NonCancellable]) to release resources, so a cancelled blob never leaks.
+ * If reading a file or a [BlobSink.processBatch] call throws, the exception propagates: the
+ * per-file [coroutineScope] cancels that file's other batches and rethrows, which cancels every
+ * sibling file. The **failed** blob's sink is **not committed**, so it publishes no partial output;
+ * its [BlobSink.close] still runs (under [NonCancellable]) to release resources, so a cancelled
+ * blob never leaks.
  *
- * This is a **per-blob, not per-upload** guarantee: blobs that committed *before*
- * the failure have already published their output. There is no upload-level
- * atomicity — so when the WorkItem is retried per the pipeline's failure policy,
- * those already-published blobs are produced again. The retry (or the sink's
- * output naming) MUST therefore be idempotent per blob to avoid duplicates.
+ * This is a **per-blob, not per-upload** guarantee: blobs that committed *before* the failure have
+ * already published their output. There is no upload-level atomicity — so when the WorkItem is
+ * retried per the pipeline's failure policy, those already-published blobs are produced again. The
+ * retry (or the sink's output naming) MUST therefore be idempotent per blob to avoid duplicates.
  *
  * @property rawImpressionUploadFilesStub client used to list the upload's files.
  * @property rawImpressionUpload resource name of the upload to read, format
  *   `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`.
- * @property eventIdColumn parquet column holding the event id (used for the
- *   digest). A `STRING` (BINARY+STRING) or raw `BINARY` column; both are
- *   accepted. Downstream reads any other columns it needs (e.g. event time for
- *   per-model-line windowing) from [DigestedEvent.row].
+ * @property eventIdColumn parquet column holding the event id (used for the digest). A `STRING`
+ *   (BINARY+STRING) or raw `BINARY` column; both are accepted. Downstream reads any other columns
+ *   it needs (e.g. event time for per-model-line windowing) from [DigestedEvent.row].
  */
 class RawImpressionSource(
   private val parquetStorageClient: ParquetStorageClient,
@@ -189,62 +187,56 @@ class RawImpressionSource(
   }
 
   /**
-   * Caller-supplied, per-blob consumer of shard-filtered event batches. One is
-   * minted per file by the `openSink` lambda passed to [streamBlobs]. This class is
-   * agnostic to what [processBatch] does (label + write per-blob output, or
-   * accumulate into a shared map, …).
+   * Caller-supplied, per-blob consumer of shard-filtered event batches. One is minted per file by
+   * the `openSink` lambda passed to [streamBlobs]. This class is agnostic to what [processBatch]
+   * does (label + write per-blob output, or accumulate into a shared map, …).
    *
-   * Threading: [processBatch] is invoked **concurrently by the CPU pool** for the
-   * same blob, so it MUST be thread-safe or serialize internally (e.g. forward to
-   * a single per-blob writer coroutine over a channel). [commit] runs once on
-   * success (after every [processBatch] has returned); [close] always runs once to
-   * release resources (so a cancelled blob never leaks).
-   *
-   *  - **Phase 2 (labeling):** per-blob output. `processBatch` labels each event
-   *    and streams the records to this blob's own output (typically via an
-   *    internal channel + one writer coroutine so the output is single-threaded);
-   *    `commit` finalizes/uploads it and `close` releases the writer.
-   *  - **Phase 0 (pool assignment):** `processBatch` records each event's
-   *    `(subpoolId, eventIdDigest)` into a single shared map (concurrency-safe —
-   *    e.g. a striped wrapper around `Bytes12IntMap`); `commit`/`close` are no-ops
-   *    and the whole map is uploaded once after [streamBlobs] returns.
+   * Threading: [processBatch] is invoked **concurrently by the CPU pool** for the same blob, so it
+   * MUST be thread-safe or serialize internally (e.g. forward to a single per-blob writer coroutine
+   * over a channel). [commit] runs once on success (after every [processBatch] has returned);
+   * [close] always runs once to release resources (so a cancelled blob never leaks).
+   * - **Phase 2 (labeling):** per-blob output. `processBatch` labels each event and streams the
+   *   records to this blob's own output (typically via an internal channel + one writer coroutine
+   *   so the output is single-threaded); `commit` finalizes/uploads it and `close` releases the
+   *   writer.
+   * - **Phase 0 (pool assignment):** `processBatch` records each event's `(subpoolId,
+   *   eventIdDigest)` into a single shared map (concurrency-safe — e.g. a striped wrapper around
+   *   `Bytes12IntMap`); `commit`/`close` are no-ops and the whole map is uploaded once after
+   *   [streamBlobs] returns.
    */
   interface BlobSink {
     /** Processes one shard-filtered batch for this blob. Called concurrently. */
     suspend fun processBatch(events: List<ParquetDigestedEvent>)
 
     /**
-     * Finalizes + publishes this blob's output (Phase 2 upload; Phase 0 no-op).
-     * Called exactly once, **only on success**, after every [processBatch] has
-     * returned.
+     * Finalizes + publishes this blob's output (Phase 2 upload; Phase 0 no-op). Called exactly
+     * once, **only on success**, after every [processBatch] has returned.
      */
     suspend fun commit()
 
     /**
-     * Releases resources (e.g. an open output stream). **Always** called exactly
-     * once — after [commit] on success, or alone on failure/cancellation. MUST be
-     * idempotent and MUST NOT publish partial output. Should not throw; if it does
-     * during a failure it is attached as a suppressed exception (it never masks the
-     * original processing failure), and on the success path it surfaces normally.
+     * Releases resources (e.g. an open output stream). **Always** called exactly once — after
+     * [commit] on success, or alone on failure/cancellation. MUST be idempotent and MUST NOT
+     * publish partial output. Should not throw; if it does during a failure it is attached as a
+     * suppressed exception (it never masks the original processing failure), and on the success
+     * path it surfaces normally.
      */
     suspend fun close()
   }
 
   /**
-   * Streams this VM's shard of the upload exactly once and suspends until every
-   * file has been fully read and processed. Decode + decrypt + event-id digest +
-   * the shard filter are paid once per row in the reader.
+   * Streams this VM's shard of the upload exactly once and suspends until every file has been fully
+   * read and processed. Decode + decrypt + event-id digest + the shard filter are paid once per row
+   * in the reader.
    *
-   * Delivers **every** row that passes the shard filter — including **duplicate
-   * [EventIdDigest]s**: the same event id can appear in many impressions across
-   * files, and no de-duplication is performed here. Callers that need unique
-   * digests (e.g. Phase 0's subpool map keyed by [EventIdDigest]) are responsible
-   * for de-duplicating in their [BlobSink].
+   * Delivers **every** row that passes the shard filter — including **duplicate [EventIdDigest]s**:
+   * the same event id can appear in many impressions across files, and no de-duplication is
+   * performed here. Callers that need unique digests (e.g. Phase 0's subpool map keyed by
+   * [EventIdDigest]) are responsible for de-duplicating in their [BlobSink].
    *
-   * @param openSink mints a fresh [BlobSink] for one input file, given its
-   *   `blobUri`. Called once per file. The returned sink's [BlobSink.processBatch]
-   *   is invoked concurrently (see [BlobSink]); any state shared across files
-   *   captured by this lambda must be concurrency-safe.
+   * @param openSink mints a fresh [BlobSink] for one input file, given its `blobUri`. Called once
+   *   per file. The returned sink's [BlobSink.processBatch] is invoked concurrently (see
+   *   [BlobSink]); any state shared across files captured by this lambda must be concurrency-safe.
    */
   suspend fun streamBlobs(openSink: suspend (blobUri: String) -> BlobSink) {
     val blobUris = discoverBlobUris()
@@ -271,9 +263,9 @@ class RawImpressionSource(
   }
 
   /**
-   * Reads one input file on its own coroutine: mints its [BlobSink], launches each
-   * batch onto the shared `cpuDispatcher` inside a per-file [coroutineScope] (which
-   * joins them, giving per-file completion), then commits and always closes.
+   * Reads one input file on its own coroutine: mints its [BlobSink], launches each batch onto the
+   * shared `cpuDispatcher` inside a per-file [coroutineScope] (which joins them, giving per-file
+   * completion), then commits and always closes.
    */
   private suspend fun processBlob(
     blobUri: String,
@@ -289,22 +281,21 @@ class RawImpressionSource(
     try {
       // The per-file scope owns this file's batch jobs; it returns the reader's
       // tallies after reading finishes AND after every launched batch has joined.
-      val counts =
-        coroutineScope {
-          readEventsFromBlob(blobUri) { batch ->
-            // Backpressure: suspend the reader once maxInFlightBatches are in
-            // flight. The permit is held until this batch finishes (release in the
-            // finally — load-bearing; missing it would deadlock the reader).
-            inFlight.acquire()
-            launch(cpuDispatcher) {
-              try {
-                sink.processBatch(batch)
-              } finally {
-                inFlight.release()
-              }
+      val counts = coroutineScope {
+        readEventsFromBlob(blobUri) { batch ->
+          // Backpressure: suspend the reader once maxInFlightBatches are in
+          // flight. The permit is held until this batch finishes (release in the
+          // finally — load-bearing; missing it would deadlock the reader).
+          inFlight.acquire()
+          launch(cpuDispatcher) {
+            try {
+              sink.processBatch(batch)
+            } finally {
+              inFlight.release()
             }
           }
         }
+      }
       // Reached only on success: a thrown batch/read cancels the scope first.
       sink.commit()
       metrics.fileProcessingDurationHistogram.record(
@@ -341,10 +332,9 @@ class RawImpressionSource(
   }
 
   /**
-   * Reads one blob, computes the event-id digest, applies the shard filter, and
-   * invokes [onBatch] for each full batch of survivors (a fresh list each time, so
-   * it is safe to hand to a concurrent worker). Runs on the file's reader
-   * coroutine; returns the file's row tallies.
+   * Reads one blob, computes the event-id digest, applies the shard filter, and invokes [onBatch]
+   * for each full batch of survivors (a fresh list each time, so it is safe to hand to a concurrent
+   * worker). Runs on the file's reader coroutine; returns the file's row tallies.
    */
   private suspend fun readEventsFromBlob(
     blobUri: String,
@@ -379,8 +369,8 @@ class RawImpressionSource(
   }
 
   /**
-   * Lists the [rawImpressionUpload]'s `RawImpressionUploadFile`s via the metadata
-   * service (paginated) and returns their Cloud Storage `blob_uri`s.
+   * Lists the [rawImpressionUpload]'s `RawImpressionUploadFile`s via the metadata service
+   * (paginated) and returns their Cloud Storage `blob_uri`s.
    */
   private suspend fun discoverBlobUris(): List<String> {
     val blobUris = mutableListOf<String>()
@@ -405,9 +395,8 @@ class RawImpressionSource(
   }
 
   /**
-   * Reads the [eventIdColumn] from [row] as bytes. Parquet may surface it either
-   * as a `STRING_VALUE` (BINARY+STRING) or a `BYTES_VALUE` (raw BINARY); both are
-   * accepted.
+   * Reads the [eventIdColumn] from [row] as bytes. Parquet may surface it either as a
+   * `STRING_VALUE` (BINARY+STRING) or a `BYTES_VALUE` (raw BINARY); both are accepted.
    */
   private fun readEventIdBytes(row: Map<String, ParquetValue>, blobUri: String): ByteString {
     val v = row.getValue(eventIdColumn)
@@ -426,11 +415,10 @@ class RawImpressionSource(
   private class FileCounts(val read: Long, val droppedOtherShard: Long, val emitted: Long)
 
   /**
-   * Concurrency-safe progress logging across files. Files complete on many
-   * coroutines, so [recordFileComplete] is `@Synchronized`. Logs a line every
-   * ~10% of files completed; [logSummary] logs the final totals. Keeps its own
-   * in-process counts (for the log) independent of the OTel counters in [metrics]
-   * (which feed dashboards).
+   * Concurrency-safe progress logging across files. Files complete on many coroutines, so
+   * [recordFileComplete] is `@Synchronized`. Logs a line every ~10% of files completed;
+   * [logSummary] logs the final totals. Keeps its own in-process counts (for the log) independent
+   * of the OTel counters in [metrics] (which feed dashboards).
    */
   private class ProgressTracker(private val totalFiles: Int) {
     private var filesCompleted = 0
