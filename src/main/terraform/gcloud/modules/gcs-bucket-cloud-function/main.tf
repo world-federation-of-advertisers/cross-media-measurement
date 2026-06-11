@@ -217,7 +217,7 @@ resource "google_monitoring_alert_policy" "dlq_alert" {
       filter          = "resource.type = \"pubsub_subscription\" AND resource.labels.subscription_id = \"${google_pubsub_subscription.dead_letter_subscription.name}\" AND metric.type = \"pubsub.googleapis.com/subscription/num_undelivered_messages\""
       comparison      = "COMPARISON_GT"
       threshold_value = 0
-      duration        = "0s"
+      duration        = "60s"
 
       aggregations {
         alignment_period   = "60s"
