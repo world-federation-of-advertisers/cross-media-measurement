@@ -133,7 +133,7 @@ class RawImpressionSourceTest {
     )
 
   /** Reads the decoded `event_id` (STRING or BINARY) from a [DigestedEvent]. */
-  private fun eventId(event: DigestedEvent): String {
+  private fun eventId(event: ParquetDigestedEvent): String {
     val v = event.row.getValue("event_id")
     return when (v.kindCase) {
       ParquetValue.KindCase.STRING_VALUE -> v.stringValue
@@ -155,7 +155,7 @@ class RawImpressionSourceTest {
   ): suspend (String) -> RawImpressionSource.BlobSink = { blobUri ->
     opened?.add(blobUri)
     object : RawImpressionSource.BlobSink {
-      override suspend fun processBatch(events: List<DigestedEvent>) {
+      override suspend fun processBatch(events: List<ParquetDigestedEvent>) {
         events.forEach { sink.add(eventId(it)) }
       }
 

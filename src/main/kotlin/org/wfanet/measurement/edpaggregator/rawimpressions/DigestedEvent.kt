@@ -16,25 +16,19 @@
 
 package org.wfanet.measurement.edpaggregator.rawimpressions
 
-import org.wfanet.measurement.storage.ParquetValue
-
 /**
  * One surviving raw impression event after shard-filtering, with its 12-byte
  * [EventIdDigest] pre-computed.
  *
- * [row] is the full parquet row as returned by
- * [org.wfanet.measurement.storage.ParquetStorageClient.ParquetBlob.readRows]:
- * a `Map` keyed by **parquet column name** (NOT LabelerInput field name), with
- * each value a typed [ParquetValue] (a `oneof` over all parquet types; an absent
- * OPTIONAL column is a `ParquetValue` with `KIND_NOT_SET`). Consumers read a cell
- * by switching on [ParquetValue.kindCase] rather than casting out of `Any?`.
+ * [row] is the reader's representation of the decoded row; the type parameter [R]
+ * keeps this reusable across readers. For the parquet reader ([RawImpressionSource])
+ * `R` is `Map<String, ParquetValue>` — keyed by **parquet column name** (NOT
+ * LabelerInput field name), each value a typed `ParquetValue`; downstream consumers
+ * project it into whatever shape they need (e.g. a `LabelerInput` proto) via the
+ * `labeler_input_field_mapping`.
  *
- * Downstream consumers project [row] into whatever shape they need (typically a
- * `LabelerInput` proto or a market event-template) using the
- * `labeler_input_field_mapping` to translate semantic LabelerInput field paths to
- * the parquet column names that key this map.
- *
+ * @property row the decoded row.
  * @property digest the event-id [EventIdDigest]; distinct from the labeler's
  *   `acting_fingerprint`.
  */
-data class DigestedEvent(val row: Map<String, ParquetValue>, val digest: EventIdDigest)
+data class DigestedEvent<R>(val row: R, val digest: EventIdDigest)
