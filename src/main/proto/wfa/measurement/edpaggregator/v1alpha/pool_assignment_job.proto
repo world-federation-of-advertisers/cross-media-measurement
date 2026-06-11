@@ -19,6 +19,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
@@ -82,4 +83,10 @@ message PoolAssignmentJob {
 
   // Entity tag for optimistic concurrency control.
   string etag = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The DEK used to encrypt every per-(shard, subpool) `SubpoolFingerprints`
+  // blob written by this shard's VM. Populated when the job is marked
+  // `SUCCEEDED`; read by the last-shard-out to decrypt this shard's blobs.
+  wfa.measurement.securecomputation.impressions.EncryptedDek encrypted_dek = 9
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 }
