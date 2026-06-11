@@ -53,8 +53,8 @@ FROM (
       '''SELECT
         eg.ExternalEventGroupId,
         eg.MeasurementConsumerId,
-        CAST(TO_JSON(eg.EventGroupDetails).metadata.adMetadata.campaignMetadata.campaignName AS STRING) AS CampaignName,
-        CAST(TO_JSON(eg.EventGroupDetails).metadata.adMetadata.campaignMetadata.brandName AS STRING) AS BrandName
+        JSON_VALUE(TO_JSON(eg.EventGroupDetails), '$.metadata.adMetadata.campaignMetadata.campaignName') AS CampaignName,
+        JSON_VALUE(TO_JSON(eg.EventGroupDetails), '$.metadata.adMetadata.campaignMetadata.brandName') AS BrandName
       FROM EventGroups eg''')
   ) keg
     ON JSON_VALUE(eg, '$.cmmsEventGroupId') = `${project_id}.dashboard.externalIdToApiId`(keg.ExternalEventGroupId)

@@ -46,8 +46,8 @@ FROM (
       eg.EntityId,
       eg.DataAvailabilityStartTime,
       eg.DataAvailabilityEndTime,
-      CAST(TO_JSON(eg.EventGroupDetails).metadata.adMetadata.campaignMetadata.campaignName AS STRING) AS CampaignName,
-      CAST(TO_JSON(eg.EventGroupDetails).metadata.adMetadata.campaignMetadata.brandName AS STRING) AS BrandName,
+      JSON_VALUE(TO_JSON(eg.EventGroupDetails), '$.metadata.adMetadata.campaignMetadata.campaignName') AS CampaignName,
+      JSON_VALUE(TO_JSON(eg.EventGroupDetails), '$.metadata.adMetadata.campaignMetadata.brandName') AS BrandName,
       TO_JSON_STRING(TO_JSON(eg.EventGroupDetails).eventTemplates) AS EventTemplates,
       TO_JSON_STRING(TO_JSON(eg.EntityMetadata)) AS EntityMetadata
     FROM EventGroups eg''')
