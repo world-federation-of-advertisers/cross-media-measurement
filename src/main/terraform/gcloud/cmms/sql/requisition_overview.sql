@@ -84,13 +84,12 @@ LEFT JOIN (
       CAST(JSON_VALUE(TO_JSON(br.BasicReportDetails), '$.reportingInterval.reportEnd.day') AS STRING) AS ReportEndDay,
       TO_JSON_STRING(TO_JSON(br.BasicReportDetails).impressionQualificationFilters) AS ImpressionQualificationFilters,
       JSON_VALUE(TO_JSON(br.BasicReportDetails), '$.title') AS ReportTitle,
-      (SELECT ARRAY_AGG(
-        STRUCT(
-          JSON_VALUE(rgs, '$.title') AS title,
-          JSON_VALUE(rgs, '$.metricFrequency') AS metricFrequency
-        )
-      FROM UNNEST(JSON_QUERY_ARRAY(TO_JSON(br.BasicReportDetails), "$.resultGroupSpecs")) AS rgs
-      ) AS ResultGroupSpecs
+      IFNULL((SELECT ARRAY_AGG(STRUCT(
+        JSON_VALUE(rgs, '$.title') AS title,
+        JSON_VALUE(rgs, '$.metricFrequency') AS metricFrequency
+      )) FROM UNNEST(JSON_QUERY_ARRAY(
+        TO_JSON_STRING(TO_JSON(br.BasicReportDetails).resultGroupSpecs)
+      )) AS rgs), ARRAY<STRUCT<title STRING, metricFrequency STRING>>[]) AS ResultGroupSpecs
     FROM BasicReports br''')
 ) br
   ON REGEXP_EXTRACT(r.Report, r'reports/([^/]+)$') = br.ExternalReportId
