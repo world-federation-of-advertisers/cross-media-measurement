@@ -22,6 +22,10 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.edpaggregator.BaseTeeAppRunner
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.runBlockingWithTelemetry
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams.StorageParams
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -35,11 +39,20 @@ import picocli.CommandLine
  * Pulls EDPA mTLS material from Secret Manager, builds per-`DataProvider` [KmsClient]s from the
  * EDPA-level `event-data-provider-configs.textproto` via Workload Identity Federation, opens a
  * mutual-TLS channel to the Secure Computation control plane for `WorkItem` / `WorkItemAttempt`
- * writes, subscribes to the Phase-0 Pub/Sub topic, and hands everything to
- * [SubpoolAssignerApp.run].
+ * writes and a mutual-TLS channel to the EDP Aggregator metadata-storage public API for the
+ * `RawImpressionUpload`, `RawImpressionUploadModelLine`, and `RankerJob` services, subscribes to
+ * the Phase-0 Pub/Sub topic, and hands everything to [SubpoolAssignerApp.run].
  */
 @CommandLine.Command(name = "subpool_assigner_app_runner")
 class SubpoolAssignerAppRunner : BaseTeeAppRunner() {
+
+  @CommandLine.Option(
+    names = ["--vid-rank-builder-queue"],
+    description =
+      ["Resource name of the Secure Computation queue for Phase-1 VidRankBuilder work."],
+    required = true,
+  )
+  private lateinit var vidRankBuilderQueue: String
 
   private val getStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)
@@ -58,6 +71,13 @@ class SubpoolAssignerAppRunner : BaseTeeAppRunner() {
     val workItemAttemptsClient =
       WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(secureComputationPublicChannel)
 
+    val metadataStorageChannel = buildMetadataStoragePublicChannel()
+    val rawImpressionUploadsClient = RawImpressionUploadServiceCoroutineStub(metadataStorageChannel)
+    val rawImpressionUploadModelLinesClient =
+      RawImpressionUploadModelLineServiceCoroutineStub(metadataStorageChannel)
+    val rankerJobsClient = RankerJobServiceCoroutineStub(metadataStorageChannel)
+    val poolAssignmentJobsClient = PoolAssignmentJobServiceCoroutineStub(metadataStorageChannel)
+
     val subpoolAssignerApp =
       SubpoolAssignerApp(
         subscriptionId = subscriptionId,
@@ -65,9 +85,14 @@ class SubpoolAssignerAppRunner : BaseTeeAppRunner() {
         parser = parser,
         workItemsClient = workItemsClient,
         workItemAttemptsClient = workItemAttemptsClient,
+        vidRankBuilderQueue = vidRankBuilderQueue,
         kmsClients = kmsClientsMap,
         getSubpoolMapStorageConfig = getStorageConfig,
         getRawImpressionsStorageConfig = getStorageConfig,
+        rawImpressionUploadsStub = rawImpressionUploadsClient,
+        rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesClient,
+        rankerJobsStub = rankerJobsClient,
+        poolAssignmentJobsStub = poolAssignmentJobsClient,
       )
 
     runBlockingWithTelemetry { subpoolAssignerApp.run() }
