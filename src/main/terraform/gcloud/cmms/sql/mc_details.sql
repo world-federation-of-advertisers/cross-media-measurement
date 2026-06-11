@@ -14,7 +14,7 @@
 
 SELECT
   `${project_id}.dashboard.externalIdToApiId`(eg.MeasurementConsumerId) AS CmmsMeasurementConsumer,
-  `${project_id}.dashboard.externalIdToApiId`(eg.ExternalDataProviderId) AS CmmsDataProvider,
+  `${project_id}.dashboard.externalIdToApiId`(dp.ExternalDataProviderId) AS CmmsDataProvider,
   COUNT(*) AS EventGroupCount,
   ARRAY_AGG(IFNULL(eg.ProvidedEventGroupId, '')) AS ProvidedEventGroupIds,
   ARRAY_AGG(IFNULL(eg.EntityType, '')) AS EntityTypes,
@@ -39,7 +39,6 @@ FROM (
     'projects/${project_id}/locations/${region}/connections/kingdom-conn',
     '''SELECT
       eg.DataProviderId,
-      dp.ExternalDataProviderId,
       eg.EventGroupId,
       eg.MeasurementConsumerId,
       eg.ProvidedEventGroupId,
@@ -51,9 +50,17 @@ FROM (
       JSON_VALUE(TO_JSON(eg.EventGroupDetails), '$.metadata.adMetadata.campaignMetadata.brandName') AS BrandName,
       TO_JSON_STRING(TO_JSON(eg.EventGroupDetails).eventTemplates) AS EventTemplates,
       TO_JSON_STRING(TO_JSON(eg.EntityMetadata)) AS EntityMetadata
-    FROM EventGroups eg
-    JOIN DataProviders dp ON eg.DataProviderId = dp.DataProviderId''')
+    FROM EventGroups eg''')
 ) eg
+LEFT JOIN (
+  SELECT * FROM EXTERNAL_QUERY(
+    'projects/${project_id}/locations/${region}/connections/kingdom-conn',
+    '''SELECT
+      dp.DataProviderId,
+      dp.ExternalDataProviderId
+    FROM DataProviders dp''')
+) dp
+  ON eg.DataProviderId = dp.DataProviderId
 LEFT JOIN (
   SELECT * FROM EXTERNAL_QUERY(
     'projects/${project_id}/locations/${region}/connections/kingdom-conn',
