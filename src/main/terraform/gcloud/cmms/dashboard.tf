@@ -183,13 +183,14 @@ resource "google_bigquery_table" "requisition_overview" {
     "mode": "NULLABLE"
   },
   {
-    "name": "ResultGroupSpecs",
-    "type": "RECORD",
-    "mode": "REPEATED",
-    "fields": [
-      {"name": "title", "type": "STRING", "mode": "NULLABLE"},
-      {"name": "metricFrequency", "type": "STRING", "mode": "NULLABLE"}
-    ]
+    "name": "ResultGroupTitles",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ResultGroupMetricFrequencies",
+    "type": "STRING",
+    "mode": "NULLABLE"
   }
 ]
 EOF
