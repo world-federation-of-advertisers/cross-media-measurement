@@ -63,7 +63,10 @@ option java_outer_classname = "RankIndexMapProto";
 // `org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap`.
 message RankIndexMap {
   // Identifier of the subpool this map is scoped to.
-  int64 subpool_id = 1;
+  // The pool's population_offset from the RankedPopulationNode model
+  // config. Matches PoolAssignment.pool_offset (pass-1) and
+  // RankAssignment.pool_offset (pass-2).
+  int64 pool_offset = 1;
 
   // The ranked sub-range size for this subpool as configured in the model.
   // Each value in `ranks` MUST satisfy `0 <= rank < ranked_size`.
@@ -85,7 +88,7 @@ message RankIndexMap {
   //
   // The in-memory map representation
   // (`org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap`)
-  // reserves `-1` (`0xFFFFFFFF` when reinterpreted as unsigned) as
+  // reserves `0xFFFFFFFF` (`Int` value `-1` in Kotlin) as
   // its [NOT_PRESENT] sentinel; that value MUST never appear in this
   // field. Holds by construction because valid ranks are in
   // `[0, ranked_size)` and `ranked_size` is bounded well below
