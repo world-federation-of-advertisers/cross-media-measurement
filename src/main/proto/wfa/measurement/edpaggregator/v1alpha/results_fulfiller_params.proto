@@ -24,6 +24,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "wfa/measurement/edpaggregator/v1alpha/storage_params_api.proto";
 import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -34,22 +35,14 @@ option java_outer_classname = "ResultsFulfillerParamsProto";
 message ResultsFulfillerParams {
   // The Cmms Resource name for the EDP
   string data_provider = 1;
-  // Message representing the storage details used by the results fulfiller app
-  message StorageParams {
-    // The blob uri prefix for the labeled impressions `BlobDetails` that is
-    // stored in GCS for a given EDP
-    // See reference:
-    // https://github.com/world-federation-of-advertisers/common-jvm/blob/main/src/main/kotlin/org/wfanet/measurement/storage/SelectedStorageClient.kt
-    string labeled_impressions_blob_details_uri_prefix = 1
-        [(google.api.field_behavior) = REQUIRED];
 
-    // The Project ID for the requisitions GCS instance that can be
-    // used with a blob URI to retrieve the data. Optional.
-    string gcs_project_id = 4;
-  }
-
-  // The storage used by the tee app
-  StorageParams storage_params = 2 [(google.api.field_behavior) = REQUIRED];
+  // The storage used by the tee app. `blob_prefix` is the labeled-impressions
+  // `BlobDetails` URI prefix; `gcs_project_id` is the project for that storage
+  // instance.
+  //
+  // TODO: split into separate `impressions` (labeled impressions + BlobDetails,
+  // operator or EDP) and `requisitions` (always operator) roles.
+  StorageParamsApi storage_params = 2 [(google.api.field_behavior) = REQUIRED];
 
   // Message representing the details needed to generate certificates
   message ConsentParams {

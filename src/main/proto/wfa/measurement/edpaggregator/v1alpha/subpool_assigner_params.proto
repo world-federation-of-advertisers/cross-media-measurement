@@ -19,6 +19,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/edpaggregator/v1alpha/storage_params_api.proto";
 import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -37,27 +38,13 @@ message SubpoolAssignerParams {
     (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
   ];
 
-  // Cloud Storage location used by the SubpoolAssigner.
-  message StorageParams {
-    // The Google Cloud Storage project ID for the storage instance.
-    string gcs_project_id = 1 [(google.api.field_behavior) = REQUIRED];
-
-    // The Cloud Storage blob URI prefix.
-    //
-    // Required for the subpool-map storage (a static, config-driven
-    // location that does not change at runtime). May be left empty for the
-    // raw-impressions storage, where the location is supplied by the API
-    // via `RawImpressionUpload.done_blob_uri`.
-    string blob_prefix = 2 [(google.api.field_behavior) = OPTIONAL];
-  }
-
   // Storage from which raw impressions are read.
   //
   // Read by the Phase-0 SubpoolAssigner. Also carried as pass-through so
   // the last-shard-out can populate the VidRankBuilder Phase-1 WorkItem
   // (and ultimately the VidLabeler Phase-2 WorkItem) without round-tripping
   // back to the dispatcher for it.
-  StorageParams raw_impression_storage_params = 2
+  StorageParamsApi raw_impression_storage_params = 2
       [(google.api.field_behavior) = REQUIRED];
 
   // Storage to which the VidLabeler will write the labeled impressions.
@@ -65,7 +52,7 @@ message SubpoolAssignerParams {
   // Not consumed by the Phase-0 SubpoolAssigner. Pass-through for the
   // VidRankBuilder Phase-1 WorkItem and the VidLabeler Phase-2 WorkItem
   // construction by the last-shard-out.
-  StorageParams vid_labeled_impressions_storage_params = 3
+  StorageParamsApi vid_labeled_impressions_storage_params = 3
       [(google.api.field_behavior) = REQUIRED];
 
   // Storage from which the VidRankBuilder reads prior cumulative rank-index
@@ -74,12 +61,12 @@ message SubpoolAssignerParams {
   //
   // Not consumed by the Phase-0 SubpoolAssigner. Pass-through for the
   // VidRankBuilder Phase-1 WorkItem construction by the last-shard-out.
-  StorageParams vid_rank_map_storage_params = 4
+  StorageParamsApi vid_rank_map_storage_params = 4
       [(google.api.field_behavior) = REQUIRED];
 
   // Storage to which per-(shard, subpool) SubpoolFingerprints blobs are
   // written.
-  StorageParams subpool_map_storage_params = 5
+  StorageParamsApi subpool_map_storage_params = 5
       [(google.api.field_behavior) = REQUIRED];
 
   // TLS connection parameters used by the TEE app to talk to the

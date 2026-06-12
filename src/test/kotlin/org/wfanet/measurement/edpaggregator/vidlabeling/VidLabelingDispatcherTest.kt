@@ -41,6 +41,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchFi
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.storageParamsApi
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionMetadataBatch
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
@@ -87,14 +88,14 @@ class VidLabelingDispatcherTest {
   private val vidLabelerParamsTemplate = vidLabelerParams {
     dataProvider = DATA_PROVIDER_NAME
     vidLabeledImpressionsStorageParams =
-      VidLabelerParamsKt.storageParams {
+      storageParamsApi {
         gcsProjectId = "test-project"
-        impressionsBlobPrefix = "gs://output-bucket/labeled"
+        blobPrefix = "gs://output-bucket/labeled"
       }
     rawImpressionsStorageParams =
-      VidLabelerParamsKt.storageParams {
+      storageParamsApi {
         gcsProjectId = "test-project"
-        impressionsBlobPrefix = "gs://input-bucket/raw"
+        blobPrefix = "gs://input-bucket/raw"
       }
   }
 

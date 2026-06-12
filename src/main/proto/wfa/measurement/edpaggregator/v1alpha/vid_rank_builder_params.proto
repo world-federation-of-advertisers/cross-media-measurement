@@ -20,6 +20,7 @@ import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/type/date.proto";
 import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
+import "wfa/measurement/edpaggregator/v1alpha/storage_params_api.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
@@ -42,20 +43,6 @@ message VidRankBuilderParams {
   wfa.measurement.securecomputation.impressions.EncryptedDek
       encrypted_subpool_maps_dek = 2 [(google.api.field_behavior) = REQUIRED];
 
-  // Cloud Storage location used by the VidRankBuilder.
-  message StorageParams {
-    // The Google Cloud Storage project ID for the storage instance.
-    string gcs_project_id = 1 [(google.api.field_behavior) = REQUIRED];
-
-    // The Cloud Storage blob URI prefix.
-    //
-    // Required for the subpool-map and vid-rank-map storage (static,
-    // config-driven locations that do not change at runtime). May be left
-    // empty for the raw-impressions storage, where the location is supplied
-    // by the API via `RawImpressionUpload.done_blob_uri`.
-    string blob_prefix = 2 [(google.api.field_behavior) = OPTIONAL];
-  }
-
   // Storage from which raw impressions are read.
   //
   // Not consumed by the Phase-1 ranker itself (Phase-1 reads only
@@ -64,24 +51,24 @@ message VidRankBuilderParams {
   // here only as pass-through so the last-`RankerJob`-out can populate the
   // VidLabeler Phase-2 WorkItem without round-tripping back to the
   // dispatcher for it.
-  StorageParams raw_impression_storage_params = 3
+  StorageParamsApi raw_impression_storage_params = 3
       [(google.api.field_behavior) = REQUIRED];
 
   // Storage to which the VidLabeler will write the labeled impressions.
   //
   // Not consumed by the Phase-1 ranker. Pass-through for Phase-2 WorkItem
   // construction by the last-`RankerJob`-out.
-  StorageParams vid_labeled_impressions_storage_params = 4
+  StorageParamsApi vid_labeled_impressions_storage_params = 4
       [(google.api.field_behavior) = REQUIRED];
 
   // Storage from which the per-(shard, subpool) `SubpoolFingerprints` blobs
   // produced by the SubpoolAssigner are read.
-  StorageParams subpool_map_storage_params = 5
+  StorageParamsApi subpool_map_storage_params = 5
       [(google.api.field_behavior) = REQUIRED];
 
   // Storage from which prior cumulative rank-index blobs are read and to
   // which the new day-only + cumulative rank-index blobs are written.
-  StorageParams vid_rank_map_storage_params = 6
+  StorageParamsApi vid_rank_map_storage_params = 6
       [(google.api.field_behavior) = REQUIRED];
 
   // Fully qualified resource name of the `RawImpressionUpload` this WorkItem

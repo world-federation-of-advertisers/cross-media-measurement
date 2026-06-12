@@ -67,10 +67,25 @@ kt_jvm_proto_library(
 )
 
 proto_library(
+    name = "storage_params_api_proto",
+    srcs = ["storage_params_api.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "storage_params_api_kt_jvm_proto",
+    deps = [":storage_params_api_proto"],
+)
+
+proto_library(
     name = "results_fulfiller_params_proto",
     srcs = ["results_fulfiller_params.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
+        ":storage_params_api_proto",
         ":transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
@@ -89,6 +104,7 @@ proto_library(
     srcs = ["vid_labeler_params.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
+        ":storage_params_api_proto",
         ":transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
@@ -107,6 +123,7 @@ proto_library(
     srcs = ["subpool_assigner_params.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
+        ":storage_params_api_proto",
         ":transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
@@ -126,6 +143,7 @@ proto_library(
     srcs = ["vid_rank_builder_params.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
+        ":storage_params_api_proto",
         ":encrypted_dek_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",

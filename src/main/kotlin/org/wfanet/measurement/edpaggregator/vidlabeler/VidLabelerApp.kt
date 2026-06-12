@@ -20,6 +20,7 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.Parser
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.v1alpha.StorageParamsApi
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -42,7 +43,7 @@ import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
  * @param rawImpressionsKmsClient decrypt-only KMS clients keyed by data provider resource name.
  * @param vidLabeledImpressionsKmsClient encrypt/decrypt KMS clients keyed by data provider resource
  *   name.
- * @param getStorageConfig builds a [StorageConfig] from [VidLabelerParams.StorageParams].
+ * @param getStorageConfig builds a [StorageConfig] from [StorageParamsApi].
  */
 class VidLabelerApp(
   subscriptionId: String,
@@ -52,7 +53,7 @@ class VidLabelerApp(
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
   private val rawImpressionsKmsClient: Map<String, KmsClient>,
   private val vidLabeledImpressionsKmsClient: Map<String, KmsClient>,
-  private val getStorageConfig: (VidLabelerParams.StorageParams) -> StorageConfig,
+  private val getStorageConfig: (StorageParamsApi) -> StorageConfig,
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
