@@ -384,9 +384,20 @@ class DataAvailabilitySync(
             .impressionMetadataList
         }
 
-      // Set GCS object metadata for lifecycle management and cleanup
-      for (resultMetadata in createResponses + updateResponses) {
-        val metadataBlobUri = SelectedStorageClient.parseBlobUri(resultMetadata.blobUri)
+      // Set GCS object metadata on every scanned metadata blob — not just newly
+      // created/updated ones. A re-sync of a date whose metadata content is unchanged would
+      // land in neither `createResponses` nor `updateResponses` (contentAwareRequestId
+      // dedupes), but the marker stamp must still run so DataAvailabilityMonitor sees the
+      // blob as synced. Resource IDs come from the response when available, else from the
+      // pre-existing entries listed up-front.
+      val resourceIdByBlobUri: Map<String, ImpressionMetadata> =
+        (existingByBlobUri +
+          createResponses.associateBy { it.blobUri } +
+          updateResponses.associateBy { it.blobUri })
+      for (item in impressionMetadataList) {
+        val blobUri = item.impressionMetadata.blobUri
+        val resultMetadata = resourceIdByBlobUri.getValue(blobUri)
+        val metadataBlobUri = SelectedStorageClient.parseBlobUri(blobUri)
         val customCreateTime = resultMetadata.interval.startTime.toInstant()
 
         storageClient.updateBlobMetadata(
@@ -400,7 +411,7 @@ class DataAvailabilitySync(
         )
 
         // Also update the impressions blob with Custom-Time (no resource ID needed)
-        val impressionsBlobKey = impressionsBlobKeyByMetadataUri.getValue(resultMetadata.blobUri)
+        val impressionsBlobKey = impressionsBlobKeyByMetadataUri.getValue(blobUri)
         storageClient.updateBlobMetadata(
           blobKey = impressionsBlobKey,
           customCreateTime = customCreateTime,
