@@ -189,3 +189,204 @@ kt_jvm_grpc_proto_library(
     name = "raw_impression_metadata_batch_file_service_kt_jvm_grpc_proto",
     deps = [":raw_impression_metadata_batch_file_service_proto"],
 )
+
+proto_library(
+    name = "raw_impression_upload_state_proto",
+    srcs = ["raw_impression_upload_state.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "raw_impression_upload_state_kt_jvm_proto",
+    deps = [":raw_impression_upload_state_proto"],
+)
+
+proto_library(
+    name = "raw_impression_upload_proto",
+    srcs = ["raw_impression_upload.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":raw_impression_upload_state_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "raw_impression_upload_kt_jvm_proto",
+    deps = [":raw_impression_upload_proto"],
+)
+
+proto_library(
+    name = "raw_impression_upload_service_proto",
+    srcs = ["raw_impression_upload_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":raw_impression_upload_proto",
+        ":raw_impression_upload_state_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "raw_impression_upload_service_kt_jvm_grpc_proto",
+    deps = [":raw_impression_upload_service_proto"],
+)
+
+proto_library(
+    name = "raw_impression_upload_file_proto",
+    srcs = ["raw_impression_upload_file.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "raw_impression_upload_file_kt_jvm_proto",
+    deps = [":raw_impression_upload_file_proto"],
+)
+
+proto_library(
+    name = "raw_impression_upload_file_service_proto",
+    srcs = ["raw_impression_upload_file_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":raw_impression_upload_file_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "raw_impression_upload_file_service_kt_jvm_grpc_proto",
+    deps = [":raw_impression_upload_file_service_proto"],
+)
+
+proto_library(
+    name = "raw_impression_upload_model_line_state_proto",
+    srcs = ["raw_impression_upload_model_line_state.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "raw_impression_upload_model_line_state_kt_jvm_proto",
+    deps = [":raw_impression_upload_model_line_state_proto"],
+)
+
+proto_library(
+    name = "raw_impression_upload_model_line_proto",
+    srcs = ["raw_impression_upload_model_line.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":raw_impression_upload_model_line_state_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "raw_impression_upload_model_line_kt_jvm_proto",
+    deps = [":raw_impression_upload_model_line_proto"],
+)
+
+proto_library(
+    name = "raw_impression_upload_model_line_service_proto",
+    srcs = ["raw_impression_upload_model_line_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":raw_impression_upload_model_line_proto",
+        ":raw_impression_upload_model_line_state_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
+    deps = [":raw_impression_upload_model_line_service_proto"],
+)
+
+proto_library(
+    name = "ranker_state_proto",
+    srcs = ["ranker_state.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "ranker_state_kt_jvm_proto",
+    deps = [":ranker_state_proto"],
+)
+
+proto_library(
+    name = "ranker_job_proto",
+    srcs = ["ranker_job.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":ranker_state_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "ranker_job_kt_jvm_proto",
+    deps = [":ranker_job_proto"],
+)
+
+proto_library(
+    name = "ranker_job_service_proto",
+    srcs = ["ranker_job_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":ranker_job_proto",
+        ":ranker_state_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "ranker_job_service_kt_jvm_grpc_proto",
+    deps = [":ranker_job_service_proto"],
+)
+
+proto_library(
+    name = "pool_assignment_state_proto",
+    srcs = ["pool_assignment_state.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "pool_assignment_state_kt_jvm_proto",
+    deps = [":pool_assignment_state_proto"],
+)
+
+proto_library(
+    name = "pool_assignment_job_proto",
+    srcs = ["pool_assignment_job.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":pool_assignment_state_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "pool_assignment_job_kt_jvm_proto",
+    deps = [":pool_assignment_job_proto"],
+)
+
+proto_library(
+    name = "pool_assignment_job_service_proto",
+    srcs = ["pool_assignment_job_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":pool_assignment_job_proto",
+        ":pool_assignment_state_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "pool_assignment_job_service_kt_jvm_grpc_proto",
+    deps = [":pool_assignment_job_service_proto"],
+)

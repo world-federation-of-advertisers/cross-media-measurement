@@ -6,6 +6,9 @@
     "abandonments:recommended"
   ],
   "assignees": ["laureanobrs"],
+  "vulnerabilityAlerts": {
+    "enabled": false
+  },  
   "packageRules": [
     {
       "groupName": "GitHub Actions",

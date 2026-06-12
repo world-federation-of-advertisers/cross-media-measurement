@@ -40,6 +40,7 @@ class ModelShardReader : SpannerReader<ModelShardReader.Result>() {
      ModelShards.ModelShardId,
      ModelShards.ExternalModelShardId,
      ModelShards.ModelBlobPath,
+     ModelShards.MemoizedVidAssignmentEnabled,
      ModelShards.CreateTime,
      ModelReleases.ExternalModelReleaseId,
      DataProviders.ExternalDataProviderId,
@@ -67,6 +68,7 @@ class ModelShardReader : SpannerReader<ModelShardReader.Result>() {
     externalModelSuiteId = struct.getLong("ExternalModelSuiteId")
     externalModelReleaseId = struct.getLong("ExternalModelReleaseId")
     modelBlobPath = struct.getString("ModelBlobPath")
+    memoizedVidAssignmentEnabled = struct.getBoolean("MemoizedVidAssignmentEnabled")
     createTime = struct.getTimestamp("CreateTime").toProto()
   }
 

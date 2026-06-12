@@ -411,7 +411,9 @@ class BasicReportsService(
       }
     )
 
-    return createdInternalBasicReport.toBasicReport()
+    return createdInternalBasicReport.toBasicReport(
+      populateDeprecatedReportingUnitEventGroupSummaries = false
+    )
   }
 
   /**
@@ -551,7 +553,7 @@ class BasicReportsService(
         }
       }
 
-    return internalBasicReport.toBasicReport()
+    return internalBasicReport.toBasicReport(!request.excludeDeprecatedEventGroupSummaries)
   }
 
   override suspend fun listBasicReports(
@@ -603,9 +605,12 @@ class BasicReportsService(
       return ListBasicReportsResponse.getDefaultInstance()
     }
 
+    val populateDeprecated = !request.excludeDeprecatedEventGroupSummaries
     return listBasicReportsResponse {
       this.basicReports +=
-        internalListBasicReportsResponse.basicReportsList.map { it.toBasicReport() }.toList()
+        internalListBasicReportsResponse.basicReportsList
+          .map { it.toBasicReport(populateDeprecated) }
+          .toList()
       unreachable += internalListBasicReportsResponse.unreachableList
       if (internalListBasicReportsResponse.hasNextPageToken()) {
         nextPageToken =

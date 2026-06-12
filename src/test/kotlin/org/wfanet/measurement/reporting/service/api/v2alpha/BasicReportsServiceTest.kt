@@ -8840,6 +8840,7 @@ class BasicReportsServiceTest {
                         InternalResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           this.cmmsDataProviderId = cmmsDataProviderId
                           cmmsDataProviderDisplayName = "display"
+                          externalReportingSetId = COMPONENT_EXTERNAL_REPORTING_SET_ID
                           eventGroupSummaries +=
                             InternalResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -8857,6 +8858,7 @@ class BasicReportsServiceTest {
                         InternalResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           this.cmmsDataProviderId = cmmsDataProviderId
                           cmmsDataProviderDisplayName = "display"
+                          externalReportingSetId = COMPONENT_EXTERNAL_REPORTING_SET_ID
                           eventGroupSummaries +=
                             InternalResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -9068,6 +9070,7 @@ class BasicReportsServiceTest {
                         InternalResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           this.cmmsDataProviderId = cmmsDataProviderId
                           cmmsDataProviderDisplayName = "display"
+                          externalReportingSetId = COMPONENT_EXTERNAL_REPORTING_SET_ID
                           eventGroupSummaries +=
                             InternalResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -9221,6 +9224,7 @@ class BasicReportsServiceTest {
                         InternalResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           this.cmmsDataProviderId = cmmsDataProviderId
                           cmmsDataProviderDisplayName = "display"
+                          externalReportingSetId = COMPONENT_EXTERNAL_REPORTING_SET_ID
                           eventGroupSummaries +=
                             InternalResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -9375,6 +9379,8 @@ class BasicReportsServiceTest {
           basicReportId = basicReportId,
         )
         .toName()
+    // Leave exclude_deprecated_event_group_summaries unset so the deprecated
+    // event_group_summaries field is populated and the full result structure is exercised.
     val request = getBasicReportRequest { name = basicReportName }
     val getBasicReportResponse: BasicReport =
       withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.getBasicReport(request) }
@@ -9460,6 +9466,12 @@ class BasicReportsServiceTest {
                           ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                             component = DataProviderKey(cmmsDataProviderId).toName()
                             displayName = "display"
+                            reportingSet =
+                              ReportingSetKey(
+                                  cmmsMeasurementConsumerId,
+                                  COMPONENT_EXTERNAL_REPORTING_SET_ID,
+                                )
+                                .toName()
                             eventGroupSummaries +=
                               ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                                 .eventGroupSummary {
@@ -9485,6 +9497,12 @@ class BasicReportsServiceTest {
                           ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                             component = DataProviderKey(cmmsDataProviderId).toName()
                             displayName = "display"
+                            reportingSet =
+                              ReportingSetKey(
+                                  cmmsMeasurementConsumerId,
+                                  COMPONENT_EXTERNAL_REPORTING_SET_ID,
+                                )
+                                .toName()
                             eventGroupSummaries +=
                               ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                                 .eventGroupSummary {
@@ -9700,6 +9718,12 @@ class BasicReportsServiceTest {
                           ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                             component = DataProviderKey(cmmsDataProviderId).toName()
                             displayName = "display"
+                            reportingSet =
+                              ReportingSetKey(
+                                  cmmsMeasurementConsumerId,
+                                  COMPONENT_EXTERNAL_REPORTING_SET_ID,
+                                )
+                                .toName()
                             eventGroupSummaries +=
                               ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                                 .eventGroupSummary {
@@ -9860,6 +9884,12 @@ class BasicReportsServiceTest {
                           ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                             component = DataProviderKey(cmmsDataProviderId).toName()
                             displayName = "display"
+                            reportingSet =
+                              ReportingSetKey(
+                                  cmmsMeasurementConsumerId,
+                                  COMPONENT_EXTERNAL_REPORTING_SET_ID,
+                                )
+                                .toName()
                             eventGroupSummaries +=
                               ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                                 .eventGroupSummary {
@@ -10011,6 +10041,29 @@ class BasicReportsServiceTest {
           createTime = internalBasicReport.createTime
         }
       )
+
+    // When exclude_deprecated_event_group_summaries is set, the deprecated
+    // event_group_summaries field is omitted while the ReportingSet reference remains populated.
+    val excludedResponse =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        service.getBasicReport(
+          getBasicReportRequest {
+            name = basicReportName
+            excludeDeprecatedEventGroupSummaries = true
+          }
+        )
+      }
+    val excludedComponentSummary =
+      excludedResponse.resultGroupsList
+        .first()
+        .resultsList
+        .first()
+        .metadata
+        .reportingUnitSummary
+        .reportingUnitComponentSummaryList
+        .first()
+    assertThat(excludedComponentSummary.eventGroupSummariesList).isEmpty()
+    assertThat(excludedComponentSummary.reportingSet).isNotEmpty()
   }
 
   @Test
@@ -11307,6 +11360,10 @@ class BasicReportsServiceTest {
       )
 
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "1234"
+
+    // ReportingSet whose membership enumerates the EventGroups entailed by a reporting unit
+    // component, referenced by ReportingUnitComponentSummary.
+    private const val COMPONENT_EXTERNAL_REPORTING_SET_ID = "component-reporting-set"
 
     private val CONFIG = measurementConsumerConfig {
       apiKey = "api_key_1234"

@@ -1018,6 +1018,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
                                 primitiveReportingSet.primitive.eventGroupKeysList
                                   .first()
                                   .cmmsDataProviderId
+                              externalReportingSetId = primitiveReportingSet.externalReportingSetId
                               eventGroupSummaries +=
                                 ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                                   .eventGroupSummary {
@@ -1309,6 +1310,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
                                 primitiveReportingSet.primitive.eventGroupKeysList
                                   .first()
                                   .cmmsDataProviderId
+                              externalReportingSetId = primitiveReportingSet.externalReportingSetId
                               eventGroupSummaries +=
                                 ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                                   .eventGroupSummary {
