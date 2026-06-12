@@ -17,21 +17,21 @@ syntax = "proto3";
 package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
-import "wfa/measurement/internal/edpaggregator/labeling_state.proto";
+import "wfa/measurement/internal/edpaggregator/vid_labeling_state.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
-option java_outer_classname = "LabelingJobProto";
+option java_outer_classname = "VidLabelingJobProto";
 
-// Internal representation of a Phase-2 labeling job.
+// Internal representation of a Phase-2 VID labeling job.
 // One row per (upload, model line, shard), created by the
 // Phase-1 last-RankerJob-out when transitioning
 // RawImpressionUploadModelLine from RANKING to LABELING.
-// When the last LabelingJob for a (upload, model line) reaches
+// When the last VidVidLabelingJob for a (upload, model line) reaches
 // SUCCEEDED, the last-shard-out flips
 // RawImpressionUploadModelLine from LABELING to COMPLETED and
 // triggers DataAvailabilitySync.
-message LabelingJob {
+message VidLabelingJob {
   // Resource ID of the DataProvider.
   string data_provider_resource_id = 1;
 
@@ -39,16 +39,16 @@ message LabelingJob {
   string raw_impression_upload_resource_id = 2;
 
   // Resource ID of this job.
-  string labeling_job_resource_id = 3;
+  string vid_labeling_job_resource_id = 3;
 
   // The CMMS model line resource name.
   string cmms_model_line = 4;
 
-  // The shard index assigned to this job.
-  int32 shard_index = 5;
+  // The RawImpressionUploadFile resource names this job labels.
+  repeated string raw_impression_upload_files = 5;
 
   // The processing state of this job.
-  LabelingState state = 6;
+  VidLabelingState state = 6;
 
   // The timestamp when this record was created.
   google.protobuf.Timestamp create_time = 7;

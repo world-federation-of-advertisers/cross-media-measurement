@@ -22,25 +22,25 @@ import "google/protobuf/timestamp.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
-option java_outer_classname = "LabelingJobProto";
+option java_outer_classname = "VidLabelingJobProto";
 
-// A Phase-2 labeling job for a RawImpressionUpload.
+// A Phase-2 VID labeling job for a RawImpressionUpload.
 // One record per (upload, model line, shard), created by the
 // Phase-1 last-RankerJob-out when transitioning
 // RawImpressionUploadModelLine from RANKING to LABELING.
-// When the last LabelingJob for a (upload, model line) reaches
+// When the last VidLabelingJob for a (upload, model line) reaches
 // SUCCEEDED, the last-shard-out flips
 // RawImpressionUploadModelLine from LABELING to COMPLETED and
 // triggers DataAvailabilitySync.
-message LabelingJob {
+message VidLabelingJob {
   option (google.api.resource) = {
-    type: "edpaggregator.halo-cmm.org/LabelingJob"
-    pattern: "dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/labelingJobs/{labeling_job}"
-    singular: "labelingJob"
-    plural: "labelingJobs"
+    type: "edpaggregator.halo-cmm.org/VidLabelingJob"
+    pattern: "dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/vidLabelingJobs/{vid_labeling_job}"
+    singular: "vidLabelingJob"
+    plural: "vidLabelingJobs"
   };
 
-  // Processing state for a LabelingJob.
+  // Processing state for a VidLabelingJob.
   enum State {
     // Default, unspecified state. Should not be used.
     STATE_UNSPECIFIED = 0;
@@ -66,10 +66,15 @@ message LabelingJob {
     (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
   ];
 
-  // The shard index assigned to this job.
-  int32 shard_index = 4 [
+  // The RawImpressionUploadFiles this job labels. Bin-packed
+  // by the Phase-1 last-out so each job's total input size
+  // stays under a configured threshold.
+  repeated string raw_impression_upload_files = 4 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUploadFile"
+    }
   ];
 
   // The timestamp when this record was created.

@@ -546,8 +546,8 @@ kt_jvm_grpc_proto_library(
 )
 
 proto_library(
-    name = "labeling_job_proto",
-    srcs = ["labeling_job.proto"],
+    name = "vid_labeling_job_proto",
+    srcs = ["vid_labeling_job.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
         "@com_google_googleapis//google/api:field_behavior_proto",
@@ -557,16 +557,16 @@ proto_library(
 )
 
 kt_jvm_proto_library(
-    name = "labeling_job_kt_jvm_proto",
-    deps = [":labeling_job_proto"],
+    name = "vid_labeling_job_kt_jvm_proto",
+    deps = [":vid_labeling_job_proto"],
 )
 
 proto_library(
-    name = "labeling_job_service_proto",
-    srcs = ["labeling_job_service.proto"],
+    name = "vid_labeling_job_service_proto",
+    srcs = ["vid_labeling_job_service.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
-        ":labeling_job_proto",
+        ":vid_labeling_job_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:field_info_proto",
         "@com_google_googleapis//google/api:resource_proto",
@@ -575,6 +575,6 @@ proto_library(
 )
 
 kt_jvm_grpc_proto_library(
-    name = "labeling_job_service_kt_jvm_grpc_proto",
-    deps = [":labeling_job_service_proto"],
+    name = "vid_labeling_job_service_kt_jvm_grpc_proto",
+    deps = [":vid_labeling_job_service_proto"],
 )

@@ -18,59 +18,61 @@ package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
-import "wfa/measurement/internal/edpaggregator/labeling_job.proto";
-import "wfa/measurement/internal/edpaggregator/labeling_state.proto";
+import "wfa/measurement/internal/edpaggregator/vid_labeling_job.proto";
+import "wfa/measurement/internal/edpaggregator/vid_labeling_state.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
-option java_outer_classname = "LabelingJobServiceProto";
+option java_outer_classname = "VidVidLabelingJobServiceProto";
 
-// Service for managing `LabelingJob` resources, which track
+// Service for managing `VidLabelingJob` resources, which track
 // per-shard processing state for Phase 2 (VID labeling) of
 // a raw impression upload.
-service LabelingJobService {
-  // Creates a new `LabelingJob`.
-  rpc CreateLabelingJob(CreateLabelingJobRequest) returns (LabelingJob);
+service VidLabelingJobService {
+  // Creates a new `VidLabelingJob`.
+  rpc CreateVidLabelingJob(CreateVidLabelingJobRequest)
+      returns (VidLabelingJob);
 
-  // Creates multiple `LabelingJob` resources in a single
+  // Creates multiple `VidLabelingJob` resources in a single
   // request.
-  rpc BatchCreateLabelingJobs(BatchCreateLabelingJobsRequest)
-      returns (BatchCreateLabelingJobsResponse);
+  rpc BatchCreateVidLabelingJobs(BatchCreateVidLabelingJobsRequest)
+      returns (BatchCreateVidLabelingJobsResponse);
 
-  // Retrieves a specific `LabelingJob`.
-  rpc GetLabelingJob(GetLabelingJobRequest) returns (LabelingJob);
+  // Retrieves a specific `VidLabelingJob`.
+  rpc GetVidLabelingJob(GetVidLabelingJobRequest) returns (VidLabelingJob);
 
-  // Lists `LabelingJob` resources.
-  rpc ListLabelingJobs(ListLabelingJobsRequest)
-      returns (ListLabelingJobsResponse);
+  // Lists `VidLabelingJob` resources.
+  rpc ListVidLabelingJobs(ListVidLabelingJobsRequest)
+      returns (ListVidLabelingJobsResponse);
 
-  // Marks a `LabelingJob` as `SUCCEEDED`. Throws
+  // Marks a `VidLabelingJob` as `SUCCEEDED`. Throws
   // FAILED_PRECONDITION if state is not CREATED or FAILED.
-  rpc MarkLabelingJobSucceeded(MarkLabelingJobSucceededRequest)
-      returns (MarkLabelingJobSucceededResponse);
+  rpc MarkVidLabelingJobSucceeded(MarkVidLabelingJobSucceededRequest)
+      returns (MarkVidLabelingJobSucceededResponse);
 
-  // Marks a `LabelingJob` as `FAILED`. Throws
+  // Marks a `VidLabelingJob` as `FAILED`. Throws
   // FAILED_PRECONDITION if state is not CREATED or FAILED.
-  rpc MarkLabelingJobFailed(MarkLabelingJobFailedRequest) returns (LabelingJob);
+  rpc MarkVidLabelingJobFailed(MarkVidLabelingJobFailedRequest)
+      returns (VidLabelingJob);
 }
 
-// Request message for CreateLabelingJob.
-message CreateLabelingJobRequest {
+// Request message for CreateVidLabelingJob.
+message CreateVidLabelingJobRequest {
   // Resource ID of the DataProvider.
   string data_provider_resource_id = 1;
 
   // Resource ID of the parent upload.
   string raw_impression_upload_resource_id = 2;
 
-  // The LabelingJob to create.
-  LabelingJob labeling_job = 3;
+  // The VidLabelingJob to create.
+  VidLabelingJob vid_labeling_job = 3;
 
   // A request ID provided by the client to ensure idempotency.
   string request_id = 4;
 }
 
-// Request message for BatchCreateLabelingJobs.
-message BatchCreateLabelingJobsRequest {
+// Request message for BatchCreateVidLabelingJobs.
+message BatchCreateVidLabelingJobsRequest {
   // Resource ID of the DataProvider.
   string data_provider_resource_id = 1;
 
@@ -78,17 +80,17 @@ message BatchCreateLabelingJobsRequest {
   string raw_impression_upload_resource_id = 2;
 
   // Individual create requests. Maximum 50 per batch.
-  repeated CreateLabelingJobRequest requests = 3;
+  repeated CreateVidLabelingJobRequest requests = 3;
 }
 
-// Response message for BatchCreateLabelingJobs.
-message BatchCreateLabelingJobsResponse {
+// Response message for BatchCreateVidLabelingJobs.
+message BatchCreateVidLabelingJobsResponse {
   // The created labeling jobs.
-  repeated LabelingJob labeling_jobs = 1;
+  repeated VidLabelingJob vid_labeling_jobs = 1;
 }
 
-// Request message for GetLabelingJob.
-message GetLabelingJobRequest {
+// Request message for GetVidLabelingJob.
+message GetVidLabelingJobRequest {
   // Resource ID of the DataProvider.
   string data_provider_resource_id = 1;
 
@@ -96,11 +98,11 @@ message GetLabelingJobRequest {
   string raw_impression_upload_resource_id = 2;
 
   // Resource ID of this job.
-  string labeling_job_resource_id = 3;
+  string vid_labeling_job_resource_id = 3;
 }
 
-// Request message for ListLabelingJobs.
-message ListLabelingJobsRequest {
+// Request message for ListVidLabelingJobs.
+message ListVidLabelingJobsRequest {
   // Resource ID of the DataProvider.
   string data_provider_resource_id = 1;
 
@@ -115,12 +117,12 @@ message ListLabelingJobsRequest {
   int32 page_size = 3;
 
   // Page token from a previous list call.
-  ListLabelingJobsPageToken page_token = 4;
+  ListVidLabelingJobsPageToken page_token = 4;
 
   // Filter for narrowing results.
   message Filter {
     // Filter by processing state.
-    LabelingState state = 1;
+    VidLabelingState state = 1;
 
     // Filter for resources whose create_time falls within
     // this interval.
@@ -132,26 +134,26 @@ message ListLabelingJobsRequest {
   Filter filter = 5;
 }
 
-// Response message for ListLabelingJobs.
-message ListLabelingJobsResponse {
+// Response message for ListVidLabelingJobs.
+message ListVidLabelingJobsResponse {
   // The list of labeling jobs matching the request.
-  repeated LabelingJob labeling_jobs = 1;
+  repeated VidLabelingJob vid_labeling_jobs = 1;
 
   // A token to retrieve the next page of results.
-  ListLabelingJobsPageToken next_page_token = 2;
+  ListVidLabelingJobsPageToken next_page_token = 2;
 }
 
-// Page token for ListLabelingJobs.
-message ListLabelingJobsPageToken {
+// Page token for ListVidLabelingJobs.
+message ListVidLabelingJobsPageToken {
   message After {
     google.protobuf.Timestamp create_time = 1;
-    string labeling_job_resource_id = 2;
+    string vid_labeling_job_resource_id = 2;
   }
   After after = 1;
 }
 
-// Request message for MarkLabelingJobSucceeded.
-message MarkLabelingJobSucceededRequest {
+// Request message for MarkVidLabelingJobSucceeded.
+message MarkVidLabelingJobSucceededRequest {
   // Resource ID of the DataProvider.
   string data_provider_resource_id = 1;
 
@@ -159,24 +161,24 @@ message MarkLabelingJobSucceededRequest {
   string raw_impression_upload_resource_id = 2;
 
   // Resource ID of this job.
-  string labeling_job_resource_id = 3;
+  string vid_labeling_job_resource_id = 3;
 
   // Entity tag for optimistic concurrency control.
   string etag = 4;
 }
 
-// Response message for MarkLabelingJobSucceeded.
-message MarkLabelingJobSucceededResponse {
-  // The updated LabelingJob.
-  LabelingJob labeling_job = 1;
+// Response message for MarkVidLabelingJobSucceeded.
+message MarkVidLabelingJobSucceededResponse {
+  // The updated VidLabelingJob.
+  VidLabelingJob vid_labeling_job = 1;
 
   // Whether this was the last shard to complete for the
   // (upload, model line).
   bool is_last_shard = 2;
 }
 
-// Request message for MarkLabelingJobFailed.
-message MarkLabelingJobFailedRequest {
+// Request message for MarkVidLabelingJobFailed.
+message MarkVidLabelingJobFailedRequest {
   // Resource ID of the DataProvider.
   string data_provider_resource_id = 1;
 
@@ -184,7 +186,7 @@ message MarkLabelingJobFailedRequest {
   string raw_impression_upload_resource_id = 2;
 
   // Resource ID of this job.
-  string labeling_job_resource_id = 3;
+  string vid_labeling_job_resource_id = 3;
 
   // Entity tag for optimistic concurrency control.
   string etag = 4;
