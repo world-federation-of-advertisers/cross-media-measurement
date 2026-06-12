@@ -24,10 +24,10 @@ import "wfa/measurement/edpaggregator/v1alpha/vid_labeling_job.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
-option java_outer_classname = "VidVidVidLabelingJobServiceProto";
+option java_outer_classname = "VidLabelingJobServiceProto";
 
 // Service for managing `VidLabelingJob` resources, which track
-// per-shard processing state for Phase 2 (VID labeling) of
+// per-job processing state for Phase 2 (VID labeling) of
 // a raw impression upload.
 service VidVidLabelingJobService {
   // Creates a new `VidLabelingJob`.
@@ -47,7 +47,7 @@ service VidVidLabelingJobService {
       returns (ListVidLabelingJobsResponse) {}
 
   // Marks a `VidLabelingJob` as `SUCCEEDED`. Atomically checks
-  // if this is the last shard for the (upload, model line)
+  // if this is the last job for one or more model lines
   // and returns the signal to the caller. Throws
   // FAILED_PRECONDITION if state is not CREATED or FAILED.
   rpc MarkVidLabelingJobSucceeded(MarkVidLabelingJobSucceededRequest)
@@ -203,9 +203,20 @@ message MarkVidLabelingJobSucceededResponse {
   // The updated VidLabelingJob.
   VidLabelingJob vid_labeling_job = 1;
 
-  // Whether this was the last shard to complete for the
-  // (upload, model line).
-  bool is_last_shard = 2;
+  // Present when this VidLabelingJob's completion was the
+  // last for one or more of its model lines. Contains the
+  // model lines that just completed. Absent when no model
+  // line completed as a result of this call.
+  LastVidLabelingJobResult last_vid_labeling_job_result = 2;
+
+  // Result when one or more model lines complete.
+  message LastVidLabelingJobResult {
+    // The model lines whose last job just completed.
+    repeated string completed_model_lines = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+    ];
+  }
 }
 
 // Request message for the `MarkVidLabelingJobFailed` method.
