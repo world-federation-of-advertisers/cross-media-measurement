@@ -48,7 +48,10 @@ option java_outer_classname = "SubpoolFingerprintsProto";
 // 12-byte chunks (no per-element allocation needed).
 message SubpoolFingerprints {
   // Identifier of the subpool this blob is scoped to.
-  int64 subpool_id = 1;
+  // The pool's population_offset from the RankedPopulationNode model
+  // config. Matches PoolAssignment.pool_offset (pass-1) and
+  // RankAssignment.pool_offset (pass-2).
+  int64 pool_offset = 1;
 
   // Fingerprints packed back-to-back. Length MUST be a multiple of 12;
   // each contiguous 12-byte run is one fingerprint (the leading 12
