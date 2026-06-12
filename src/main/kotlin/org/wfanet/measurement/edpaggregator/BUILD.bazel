@@ -25,6 +25,14 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "metrics_util",
+    srcs = ["MetricsUtil.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
+    ],
+)
+
+kt_jvm_library(
     name = "config_loader",
     srcs = ["ConfigLoader.kt"],
     deps = [

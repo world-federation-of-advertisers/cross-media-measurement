@@ -74,6 +74,9 @@ class VidLabelerApp(
     require(vidLabelerParams.hasVidLabeledImpressionsStorageParams()) {
       "vid_labeled_impressions_storage_params must be set"
     }
+    require(vidLabelerParams.rawImpressionMetadataBatch.isNotEmpty()) {
+      "raw_impression_metadata_batch must not be empty"
+    }
 
     val decryptKmsClient =
       requireNotNull(rawImpressionsKmsClient[dataProvider]) {
