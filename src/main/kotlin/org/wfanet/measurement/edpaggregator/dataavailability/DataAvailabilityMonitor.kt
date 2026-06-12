@@ -230,7 +230,7 @@ class DataAvailabilityMonitor(
     val latestDate = sortedDates.last()
     val staleDays = (today.toEpochDay() - latestDate.toEpochDay()).toInt()
     val isStale = staleDays > maxStaleDays
-    val gapDates = findGaps(sortedDates)
+    val gapDates = findGaps(presentDates(dateInfo))
 
     logger.log(
       Level.INFO,
@@ -283,7 +283,7 @@ class DataAvailabilityMonitor(
     }
 
     val sortedDates = uploadedDates.sorted()
-    val gapDates = findGaps(sortedDates)
+    val gapDates = findGaps(presentDates(dateInfo))
 
     logger.log(
       Level.INFO,
@@ -496,6 +496,14 @@ class DataAvailabilityMonitor(
       legitimateDeletionCount = null,
     )
   }
+
+  /**
+   * All date folders that physically exist for the model line, whether or not they have a "done"
+   * blob. Used for gap detection so that a folder with data but no "done" blob (e.g. a date still
+   * being finalized) is not mistaken for a missing date.
+   */
+  private fun presentDates(dateInfo: DateInfo): List<LocalDate> =
+    (dateInfo.datesWithDoneBlob + dateInfo.datesWithoutDoneBlob).sorted()
 
   /** Finds dates that are missing in the sequence between the first and last date. */
   private fun findGaps(sortedDates: List<LocalDate>): List<LocalDate> {
