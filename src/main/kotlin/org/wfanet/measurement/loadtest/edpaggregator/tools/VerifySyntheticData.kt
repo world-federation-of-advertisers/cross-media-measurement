@@ -350,18 +350,11 @@ class VerifySyntheticData : Runnable {
         scanForMetadata(schema, outputBucket, basePath, storagePath)
       }
 
-    val eventMessageInstance: Message? =
-      if (
-        eventMessageTypeUrl != GenerateSyntheticData.DEFAULT_EVENT_MESSAGE_TYPE_URL ||
-          eventMessageDescriptorSetFiles.isNotEmpty()
-      ) {
-        GenerateSyntheticData.resolveEventMessageInstance(
-          eventMessageTypeUrl,
-          eventMessageDescriptorSetFiles,
-        )
-      } else {
-        null
-      }
+    val eventMessageInstance: Message =
+      GenerateSyntheticData.resolveEventMessageInstance(
+        eventMessageTypeUrl,
+        eventMessageDescriptorSetFiles,
+      )
 
     val result =
       verifyMetadata(
@@ -419,6 +412,13 @@ class VerifySyntheticData : Runnable {
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    /**
+     * True if this filename ends in a metadata extension the verifier knows how to parse (`.binpb`
+     * for binary protobuf or `.json` for JSON).
+     */
+    private fun String.isSupportedMetadataExtension(): Boolean =
+      endsWith(".binpb") || endsWith(".json")
 
     init {
       AeadConfig.register()
@@ -484,7 +484,7 @@ class VerifySyntheticData : Runnable {
       kekUri: String,
       metadataUris: List<String>,
       storagePath: File?,
-      eventMessageInstance: Message?,
+      eventMessageInstance: Message,
       expectedEventTypeUrl: String,
     ): VerificationResult {
       var totalImpressions = 0
@@ -511,9 +511,8 @@ class VerifySyntheticData : Runnable {
           val encryptedDek: EncryptedDek
 
           if (isJson) {
-            val fixedJson = fixBase64UrlCiphertext(metadataBytes.toStringUtf8())
             val builder = BlobDetails.newBuilder()
-            JsonFormat.parser().ignoringUnknownFields().merge(fixedJson, builder)
+            JsonFormat.parser().ignoringUnknownFields().merge(metadataBytes.toStringUtf8(), builder)
             blobDetails = builder.build()
             encryptedDek = blobDetails.encryptedDek
           } else {
@@ -558,14 +557,20 @@ class VerifySyntheticData : Runnable {
             check(impression.vid > 0) { "Invalid VID: ${impression.vid}" }
             check(impression.hasEvent()) { "Missing event in impression $index" }
             check(impression.hasEventTime()) { "Missing event time in impression $index" }
-
-            if (eventMessageInstance != null) {
-              check(impression.event.typeUrl == expectedEventTypeUrl) {
-                "Event type URL mismatch on impression $index: " +
-                  "expected $expectedEventTypeUrl, got ${impression.event.typeUrl}"
+            for ((entityKeyIndex, entityKey) in impression.entityKeysList.withIndex()) {
+              check(entityKey.entityType.isNotEmpty()) {
+                "EntityKey[$entityKeyIndex] on impression $index has empty entity_type"
               }
-              eventMessageInstance.newBuilderForType().mergeFrom(impression.event.value).build()
+              check(entityKey.entityId.isNotEmpty()) {
+                "EntityKey[$entityKeyIndex] on impression $index has empty entity_id"
+              }
             }
+
+            check(impression.event.typeUrl == expectedEventTypeUrl) {
+              "Event type URL mismatch on impression $index: " +
+                "expected $expectedEventTypeUrl, got ${impression.event.typeUrl}"
+            }
+            eventMessageInstance.newBuilderForType().mergeFrom(impression.event.value).build()
 
             if (index < 3) {
               val entityKeysSummary =
@@ -600,16 +605,6 @@ class VerifySyntheticData : Runnable {
         impressionsByEventGroupReferenceId = impressionsByEventGroupReferenceId.toMap(),
       )
     }
-
-    /**
-     * Converts base64url-encoded ciphertext in a JSON metadata string to standard base64 so that
-     * protobuf [JsonFormat] can parse the `bytes` field correctly.
-     */
-    private fun fixBase64UrlCiphertext(json: String): String =
-      json.replace(Regex("""("ciphertext"\s*:\s*")([^"]+)(")""")) {
-        val std = it.groupValues[2].replace('-', '+').replace('_', '/')
-        "${it.groupValues[1]}$std${it.groupValues[3]}"
-      }
   }
 }
 
