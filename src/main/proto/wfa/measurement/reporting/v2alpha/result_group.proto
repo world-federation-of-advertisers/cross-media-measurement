@@ -277,8 +277,27 @@ message ResultGroup {
         ];
       }
       // A summary of each EventGroup entailed by the component.
+      //
+      // Deprecated in favor of `reporting_set`, which references a ReportingSet
+      // whose membership enumerates the same EventGroups. During the
+      // EventGroup-to-ReportingSet migration, this field is still emitted by
+      // default and can be dropped early via the
+      // `exclude_deprecated_event_group_summaries` request field. It will be
+      // removed in a future release.
+      // TODO(world-federation-of-advertisers/cross-media-measurement#3919):
+      // Remove this field once consumers have migrated to `reporting_set`.
       repeated EventGroupSummary event_group_summaries = 3
-          [(google.api.field_behavior) = IMMUTABLE];
+          [(google.api.field_behavior) = IMMUTABLE, deprecated = true];
+
+      // Resource name of the ReportingSet whose membership enumerates the
+      // EventGroups entailed by this component; replaces
+      // `event_group_summaries`.
+      string reporting_set = 4 [
+        (google.api.field_behavior) = IMMUTABLE,
+        (google.api.resource_reference) = {
+          type: "reporting.halo-cmm.org/ReportingSet"
+        }
+      ];
     }
 
     // A summary of each component of the reporting_unit reported on
