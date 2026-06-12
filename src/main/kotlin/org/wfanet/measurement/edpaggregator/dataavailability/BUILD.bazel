@@ -7,6 +7,14 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
+    name = "data_availability_blobs",
+    srcs = ["DataAvailabilityBlobs.kt"],
+    deps = [
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+    ],
+)
+
+kt_jvm_library(
     name = "data_availability_sync",
     srcs = [
         "DataAvailabilityCleanup.kt",
@@ -15,6 +23,7 @@ kt_jvm_library(
         "DataAvailabilitySyncMetrics.kt",
     ],
     deps = [
+        ":data_availability_blobs",
         ":data_availability_monitor",
         "//imports/java/io/opentelemetry/api:context",
         "//imports/java/io/opentelemetry/extension:kotlin",
@@ -42,6 +51,7 @@ kt_jvm_library(
         "DataAvailabilityMonitorMetrics.kt",
     ],
     deps = [
+        ":data_availability_blobs",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_kt_jvm_proto",

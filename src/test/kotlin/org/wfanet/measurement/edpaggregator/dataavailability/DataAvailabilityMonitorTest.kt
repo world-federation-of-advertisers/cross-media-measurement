@@ -67,7 +67,7 @@ class DataAvailabilityMonitorTest {
             impressionMetadata += v1alphaImpressionMetadata {
               name = "$DATA_PROVIDER_NAME/impressionMetadata/imp-deleted-1"
               blobUri =
-                "gs://$BUCKET_NAME/$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metametadata_campaign_1.binpb23.json"
+                "gs://$BUCKET_NAME/$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata_campaign_123.json"
               state = V1AlphaImpressionMetadata.State.DELETED
             }
           }
@@ -162,7 +162,7 @@ class DataAvailabilityMonitorTest {
       storageClient.updateBlobMetadata(
         path,
         metadata =
-          mapOf(DataAvailabilityMonitor.SYNCED_BY_KEY to DataAvailabilityMonitor.SYNCED_BY_VALUE),
+          mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE),
       )
     }
   }
@@ -458,7 +458,7 @@ class DataAvailabilityMonitorTest {
       ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
       createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
       val dataPath =
-        "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-%02d/metametadata_campaign_1.binpb.json"
+        "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-%02d/metadata_campaign_1.json"
           .format(day)
       storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
     }
@@ -489,7 +489,7 @@ class DataAvailabilityMonitorTest {
       ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
       createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
       val dataPath =
-        "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-%02d/metametadata_campaign_1.binpb.json"
+        "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-%02d/metadata_campaign_1.json"
           .format(day)
       storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
     }
@@ -542,7 +542,7 @@ class DataAvailabilityMonitorTest {
     // Add data files for March 13 and 15 only
     for (day in listOf(13, 15)) {
       val dataPath =
-        "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-%02d/metametadata_campaign_1.binpb.json"
+        "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-%02d/metadata_campaign_1.json"
           .format(day)
       storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
     }
@@ -571,7 +571,7 @@ class DataAvailabilityMonitorTest {
       ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
       createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
       val dataPath =
-        "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-%02d/metametadata_campaign_1.binpb.json"
+        "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-%02d/metadata_campaign_1.json"
           .format(day)
       storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
     }
@@ -1276,7 +1276,7 @@ class DataAvailabilityMonitorTest {
 
     // Create a blob that matches the deleted entry's blobUri
     val blobPath =
-      "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metametadata_campaign_1.binpb23.json"
+      "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata_campaign_123.json"
     storageClient.writeBlob(blobPath, ByteString.copyFromUtf8("data"))
 
     val monitor =
@@ -1367,7 +1367,7 @@ class DataAvailabilityMonitorTest {
     createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
 
     val blobPath =
-      "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metametadata_campaign_1.binpb23.json"
+      "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata_campaign_123.json"
     storageClient.writeBlob(blobPath, ByteString.copyFromUtf8("data"))
 
     val monitor =

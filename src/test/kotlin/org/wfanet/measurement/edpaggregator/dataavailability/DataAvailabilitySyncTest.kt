@@ -881,9 +881,9 @@ class DataAvailabilitySyncTest {
     assertThat(metadataFileUpdate.blobKey).contains("metadata")
     assertThat(metadataFileUpdate.customCreateTime).isNotNull()
     assertThat(metadataFileUpdate.metadata)
-      .containsKey(DataAvailabilitySync.IMPRESSION_METADATA_RESOURCE_ID_KEY)
-    assertThat(metadataFileUpdate.metadata[DataAvailabilityMonitor.SYNCED_BY_KEY])
-      .isEqualTo(DataAvailabilityMonitor.SYNCED_BY_VALUE)
+      .containsKey(DataAvailabilityBlobs.IMPRESSION_METADATA_RESOURCE_ID_KEY)
+    assertThat(metadataFileUpdate.metadata[DataAvailabilityBlobs.SYNCED_BY_KEY])
+      .isEqualTo(DataAvailabilityBlobs.SYNCED_BY_VALUE)
 
     // Verify impressions file update (no metadata, just customCreateTime)
     val impressionsFileUpdate =
@@ -947,11 +947,11 @@ class DataAvailabilitySyncTest {
       val metadataUpdate = metadataUpdateCalls.first()
       assertThat(metadataUpdate.customCreateTime).isNotNull()
       assertThat(metadataUpdate.metadata)
-        .containsKey(DataAvailabilitySync.IMPRESSION_METADATA_RESOURCE_ID_KEY)
-      assertThat(metadataUpdate.metadata[DataAvailabilitySync.IMPRESSION_METADATA_RESOURCE_ID_KEY])
+        .containsKey(DataAvailabilityBlobs.IMPRESSION_METADATA_RESOURCE_ID_KEY)
+      assertThat(metadataUpdate.metadata[DataAvailabilityBlobs.IMPRESSION_METADATA_RESOURCE_ID_KEY])
         .isEqualTo("dataProviders/dataProvider123/impressionMetadata/im-0")
-      assertThat(metadataUpdate.metadata[DataAvailabilityMonitor.SYNCED_BY_KEY])
-        .isEqualTo(DataAvailabilityMonitor.SYNCED_BY_VALUE)
+      assertThat(metadataUpdate.metadata[DataAvailabilityBlobs.SYNCED_BY_KEY])
+        .isEqualTo(DataAvailabilityBlobs.SYNCED_BY_VALUE)
 
       // Verify both files have the same customCreateTime (derived from the interval start time)
       assertThat(impressionsUpdateCalls.first().customCreateTime)
