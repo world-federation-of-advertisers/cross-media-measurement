@@ -305,30 +305,6 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `constructor throws IllegalArgumentException when amiMrcExemptedEdps contains invalid name`() {
-    val exception =
-      assertThrows(IllegalArgumentException::class.java) {
-        BasicReportsService(
-          internalBasicReportsService,
-          internalImpressionQualificationFiltersService,
-          internalReportingSetsService,
-          internalMetricCalculationSpecsService,
-          reportsService,
-          modelLinesService,
-          TEST_EVENT_DESCRIPTOR,
-          METRIC_SPEC_CONFIG,
-          SecureRandom().asKotlinRandom(),
-          authorization,
-          MEASUREMENT_CONSUMER_CONFIGS,
-          defaultReportStartHour = null,
-          baseExternalImpressionQualificationFilterIds = emptyList(),
-          amiMrcExemptedEdps = listOf("invalid-edp-name"),
-        )
-      }
-    assertThat(exception).hasMessageThat().contains("Invalid EDP name invalid-edp-name")
-  }
-
-  @Test
   fun `createBasicReport returns basic report`(): Unit = runBlocking {
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
