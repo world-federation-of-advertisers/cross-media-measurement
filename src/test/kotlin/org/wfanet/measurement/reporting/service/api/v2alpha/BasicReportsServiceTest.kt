@@ -40,7 +40,6 @@ import kotlin.random.asKotlinRandom
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.ClassRule
 import org.junit.Rule
