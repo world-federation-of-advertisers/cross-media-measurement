@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Empty
+import com.google.rpc.errorInfo
 import com.google.type.Date
 import com.google.type.date
 import com.google.type.interval
@@ -41,6 +42,7 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroupActivity
@@ -61,6 +63,7 @@ import org.wfanet.measurement.internal.kingdom.eventGroupActivity
 import org.wfanet.measurement.internal.kingdom.eventGroupDetails
 import org.wfanet.measurement.internal.kingdom.listEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupActivityRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 
 private const val RANDOM_SEED = 1
 private const val PROVIDED_EVENT_GROUP_ID = "ProvidedEventGroupId"
@@ -1185,8 +1188,14 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo?.metadataMap)
-        .containsAtLeast("field_name", "external_data_provider_id")
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = KingdomInternalException.DOMAIN
+            reason = ErrorCode.REQUIRED_FIELD_NOT_SET.name
+            metadata["field_name"] = "external_data_provider_id"
+          }
+        )
     }
   }
 
@@ -1382,8 +1391,14 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-      assertThat(exception.errorInfo?.metadataMap)
-        .containsAtLeast("external_data_provider_id", "999999")
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = KingdomInternalException.DOMAIN
+            reason = ErrorCode.DATA_PROVIDER_NOT_FOUND.name
+            metadata["external_data_provider_id"] = "999999"
+          }
+        )
     }
   }
 
