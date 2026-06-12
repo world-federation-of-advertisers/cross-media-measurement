@@ -130,10 +130,14 @@ class VidLabelingDispatcher(
    * Uploads VID labeling work for raw impression files in the directory containing the done blob.
    *
    * @param doneBlobPath the full storage URI of the "done" blob that triggered this upload.
+   * @param doneBlobGeneration GCS object generation number of the done blob. Used to produce
+   *   idempotent request IDs that handle both Pub/Sub redelivery (same generation = same ID) and
+   *   EDP re-uploads to the same path (new generation = new ID). If null, falls back to a random
+   *   UUID (not idempotent on retries, suitable for testing only).
    * @throws IllegalArgumentException if [doneBlobPath] uses an unsupported URI scheme.
    * @throws Exception if a WorkItem creation fails via the Secure Computation API.
    */
-  suspend fun upload(doneBlobPath: String) {
+  suspend fun upload(doneBlobPath: String, doneBlobGeneration: Long? = null) {
     val startTime: TimeSource.Monotonic.ValueTimeMark = TimeSource.Monotonic.markNow()
 
     try {
@@ -158,7 +162,7 @@ class VidLabelingDispatcher(
         Attributes.of(DATA_PROVIDER_ATTR, dataProviderName),
       )
 
-      val rawImpressionUpload = createRawImpressionUpload(doneBlobPath)
+      val rawImpressionUpload = createRawImpressionUpload(doneBlobPath, doneBlobGeneration)
       val uploadId = rawImpressionUpload.name.substringAfterLast("/")
 
       createRawImpressionUploadFiles(rawImpressionUpload.name, blobKeys, doneBlobUri)
@@ -407,11 +411,24 @@ class VidLabelingDispatcher(
   /**
    * Creates a `RawImpressionUpload` resource to track this upload.
    *
+   * Uses the done blob path and GCS generation number to produce an idempotent request ID.
+   * Same (path, generation) → same request ID → idempotent on Pub/Sub redelivery. New generation
+   * at the same path → new request ID → new upload for EDP re-uploads.
+   *
    * @param doneBlobPath the full storage URI of the "done" blob.
+   * @param generation GCS object generation number, or null for testing.
    * @return the created `RawImpressionUpload`.
    */
-  private suspend fun createRawImpressionUpload(doneBlobPath: String): RawImpressionUpload {
-    val requestId = UUID.randomUUID().toString()
+  private suspend fun createRawImpressionUpload(
+    doneBlobPath: String,
+    generation: Long?,
+  ): RawImpressionUpload {
+    val requestId =
+      if (generation != null) {
+        UUID.nameUUIDFromBytes("$doneBlobPath:$generation".toByteArray()).toString()
+      } else {
+        UUID.randomUUID().toString()
+      }
     val request = createRawImpressionUploadRequest {
       parent = dataProviderName
       rawImpressionUpload = rawImpressionUpload { doneBlobUri = doneBlobPath }

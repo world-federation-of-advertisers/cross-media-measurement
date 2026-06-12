@@ -119,6 +119,15 @@ class VidLabelingDispatcherFunction : HttpFunction {
           IllegalArgumentException("Missing required header: $DATA_WATCHER_PATH_HEADER")
         }
 
+      // TODO(world-federation-of-advertisers/cross-media-measurement#3899): Pass generation
+      // from DataWatcher via X-DataWatcher-Generation header. Requires DataWatcher change to
+      // forward StorageObjectData.generation from the GCS CloudEvent.
+      val doneBlobGeneration: Long? =
+        request
+          .getFirstHeader(DATA_WATCHER_GENERATION_HEADER)
+          .map { it.toLong() }
+          .orElse(null)
+
       val overrideModelLines: List<String> =
         request
           .getFirstHeader(OVERRIDE_MODEL_LINES_HEADER)
@@ -215,7 +224,9 @@ class VidLabelingDispatcherFunction : HttpFunction {
         )
 
       Tracing.withW3CTraceContext(request) {
-        runBlocking(Context.current().asContextElement()) { dispatcher.upload(doneBlobPath) }
+        runBlocking(Context.current().asContextElement()) {
+          dispatcher.upload(doneBlobPath, doneBlobGeneration)
+        }
       }
     } finally {
       EdpaTelemetry.flush()
@@ -226,6 +237,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
+    private const val DATA_WATCHER_GENERATION_HEADER: String = "X-DataWatcher-Generation"
     private const val OVERRIDE_MODEL_LINES_HEADER: String = "X-Override-Model-Lines"
     private const val GOOGLE_PROJECT_ID_ENV = "GOOGLE_PROJECT_ID"
 
