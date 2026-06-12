@@ -299,6 +299,7 @@ class BasicReportsServiceTest {
         MEASUREMENT_CONSUMER_CONFIGS,
         defaultReportStartHour = null,
         baseExternalImpressionQualificationFilterIds = emptyList(),
+        amiMrcExemptedEdps = listOf(DataProviderKey("edp1").toName()),
       )
   }
 
@@ -695,6 +696,7 @@ class BasicReportsServiceTest {
 
     assertThat(internalBasicReport.externalReportId).isEqualTo(createReportRequest.reportId)
     assertThat(internalBasicReport.createReportRequestId).isEqualTo(createReportRequest.requestId)
+    assertThat(internalBasicReport.amiMrcExemptedCmmsDataProviderIdsList).containsExactly("edp1")
   }
 
   @Test
@@ -769,6 +771,7 @@ class BasicReportsServiceTest {
           defaultReportStartHour =
             BasicReportsService.ZonedHour(hour = 5, zoneId = ZoneId.of("America/Los_Angeles")),
           baseExternalImpressionQualificationFilterIds = emptyList(),
+          amiMrcExemptedEdps = emptyList(),
         )
 
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -839,6 +842,7 @@ class BasicReportsServiceTest {
         defaultReportStartHour =
           BasicReportsService.ZonedHour(hour = 5, zoneId = ZoneId.of("America/Los_Angeles")),
         baseExternalImpressionQualificationFilterIds = emptyList(),
+        amiMrcExemptedEdps = emptyList(),
       )
 
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -920,6 +924,7 @@ class BasicReportsServiceTest {
           defaultReportStartHour =
             BasicReportsService.ZonedHour(hour = 5, zoneId = ZoneOffset.ofTotalSeconds(14400)),
           baseExternalImpressionQualificationFilterIds = emptyList(),
+          amiMrcExemptedEdps = emptyList(),
         )
 
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -3001,6 +3006,7 @@ class BasicReportsServiceTest {
         defaultReportStartHour = null,
         baseExternalImpressionQualificationFilterIds =
           listOf(INTERNAL_AMI_IQF.externalImpressionQualificationFilterId),
+        amiMrcExemptedEdps = emptyList(),
       )
 
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -3118,6 +3124,7 @@ class BasicReportsServiceTest {
         defaultReportStartHour = null,
         baseExternalImpressionQualificationFilterIds =
           listOf(INTERNAL_AMI_IQF.externalImpressionQualificationFilterId),
+        amiMrcExemptedEdps = emptyList(),
       )
 
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -3248,6 +3255,7 @@ class BasicReportsServiceTest {
               INTERNAL_AMI_IQF.externalImpressionQualificationFilterId,
               INTERNAL_MRC_IQF.externalImpressionQualificationFilterId,
             ),
+          amiMrcExemptedEdps = emptyList(),
         )
 
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -4787,6 +4795,7 @@ class BasicReportsServiceTest {
           defaultReportStartHour =
             BasicReportsService.ZonedHour(hour = 5, zoneId = ZoneId.of("America/Los_Angeles")),
           baseExternalImpressionQualificationFilterIds = emptyList(),
+          amiMrcExemptedEdps = emptyList(),
         )
 
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -4862,6 +4871,7 @@ class BasicReportsServiceTest {
           defaultReportStartHour =
             BasicReportsService.ZonedHour(hour = 5, zoneId = ZoneId.of("America/Los_Angeles")),
           baseExternalImpressionQualificationFilterIds = emptyList(),
+          amiMrcExemptedEdps = emptyList(),
         )
 
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -4936,6 +4946,7 @@ class BasicReportsServiceTest {
         defaultReportStartHour =
           BasicReportsService.ZonedHour(hour = 5, zoneId = ZoneId.of("America/Los_Angeles")),
         baseExternalImpressionQualificationFilterIds = emptyList(),
+        amiMrcExemptedEdps = emptyList(),
       )
 
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)

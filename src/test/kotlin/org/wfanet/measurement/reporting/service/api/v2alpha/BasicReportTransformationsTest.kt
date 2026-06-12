@@ -19,6 +19,8 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.type.DayOfWeek
+import com.google.type.date
+import com.google.type.dateTime
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,11 +38,13 @@ import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
+import org.wfanet.measurement.reporting.v2alpha.basicReport
 import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.eventFilter
 import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.metricFrequencySpec
+import org.wfanet.measurement.reporting.v2alpha.reportingInterval
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.reportingUnit
 import org.wfanet.measurement.reporting.v2alpha.resultGroupMetricSpec
@@ -3073,6 +3077,42 @@ class BasicReportTransformationsTest {
           metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
         }
       )
+  }
+
+  @Test
+  fun `toInternal propagates amiMrcExemptedCmmsDataProviderIds`() {
+    val publicReport = basicReport {
+      title = "title"
+      campaignGroup = CAMPAIGN_GROUP_NAME
+      reportingInterval = reportingInterval {
+        reportStart = dateTime {
+          year = 2025
+          month = 7
+          day = 3
+        }
+        reportEnd = date {
+          year = 2026
+          month = 1
+          day = 5
+        }
+      }
+    }
+
+    val internalReport =
+      publicReport.toInternal(
+        cmmsMeasurementConsumerId = "mc-1",
+        basicReportId = "report-1",
+        campaignGroupId = "cg-1",
+        createReportRequestId = "req-1",
+        reportingImpressionQualificationFilters = emptyList(),
+        effectiveReportingImpressionQualificationFilters = emptyList(),
+        impressionQualificationFilterSpecsByName = emptyMap(),
+        effectiveModelLine = "",
+        effectiveReportStart = publicReport.reportingInterval.reportStart,
+        amiMrcExemptedEdps = listOf("dataProviders/edp1", "dataProviders/edp2"),
+      )
+
+    assertThat(internalReport.amiMrcExemptedCmmsDataProviderIdsList).containsExactly("edp1", "edp2")
   }
 
   companion object {
