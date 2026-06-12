@@ -25,11 +25,11 @@ option java_multiple_files = true;
 option java_outer_classname = "VidLabelingJobProto";
 
 // A Phase-2 VID labeling job for a RawImpressionUpload.
-// One record per (upload, model line, shard), created by the
+// One record per (upload, model line, file batch), created by the
 // Phase-1 last-RankerJob-out when transitioning
 // RawImpressionUploadModelLine from RANKING to LABELING.
 // When the last VidLabelingJob for a (upload, model line) reaches
-// SUCCEEDED, the last-shard-out flips
+// SUCCEEDED, the last-job-out flips
 // RawImpressionUploadModelLine from LABELING to COMPLETED and
 // triggers DataAvailabilitySync.
 message VidLabelingJob {
@@ -59,8 +59,8 @@ message VidLabelingJob {
   // The processing state of this job.
   State state = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // The CMMS model line resource name that this job processes.
-  string cmms_model_line = 3 [
+  // The CMMS model line resource names that this job processes.
+  repeated string cmms_model_lines = 3 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
