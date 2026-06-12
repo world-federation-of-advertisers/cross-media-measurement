@@ -64,5 +64,5 @@ databaseChangeLog:
     file: update-proto-bundle-for-reporting-interval-report-start.sql
     relativeToChangeLogFile: true    
 - include:
-    file: add-ami-mrc-exempted-edps-to-basic-report.sql
+    file: add-ami-mrc-exempted-cmms-data-provider-ids-to-basic-report.sql
     relativeToChangeLogFile: true

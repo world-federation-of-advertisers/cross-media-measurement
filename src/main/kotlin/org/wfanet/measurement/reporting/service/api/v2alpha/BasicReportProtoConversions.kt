@@ -146,7 +146,12 @@ fun BasicReport.toInternal(
 
       modelLineSystemSpecified = source.modelLine.isEmpty()
     }
-    this.amiMrcExemptedCmmsDataProviderIds += amiMrcExemptedEdps
+    this.amiMrcExemptedCmmsDataProviderIds +=
+      amiMrcExemptedEdps.map {
+        requireNotNull(DataProviderKey.fromName(it)?.dataProviderId) {
+          "Invalid EDP name $it"
+        }
+      }
   }
 }
 

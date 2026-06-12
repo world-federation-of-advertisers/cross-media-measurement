@@ -217,7 +217,7 @@ class ReportProcessorTest {
       TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_ami_mrc_exemption.json").toFile()
     val reportAsJson = reportFile.readText()
 
-    val exemptionList = listOf("edp1")
+    val exemptionList = listOf("dataProviders/edp1")
     val reportProcessingOutput: ReportProcessingOutput =
       ReportProcessor.processReportJsonAndLogResult(
         reportAsJson,
@@ -239,7 +239,7 @@ class ReportProcessorTest {
       TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_ami_mrc_exemption.json").toFile()
     val reportAsJson = reportFile.readText()
 
-    val exemptionList = listOf("edp1")
+    val exemptionList = listOf("dataProviders/edp1")
     val updatedReportAsJson =
       ReportProcessor.processReportJson(reportAsJson, amiMrcExemptedEdps = exemptionList)
     val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)

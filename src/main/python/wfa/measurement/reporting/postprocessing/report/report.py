@@ -829,9 +829,11 @@ class Report:
               for metric in self._metric_reports
           },
           metric_subsets_by_parent=self._metric_subsets_by_parent,
-          cumulative_inconsistency_allowed_edp_combinations=self._cumulative_inconsistency_allowed_edp_combinations,
+          cumulative_inconsistency_allowed_edp_combinations=(
+              self._cumulative_inconsistency_allowed_edp_combinations
+          ),
           ami_mrc_exempted_edps=self._ami_mrc_exempted_edps,
-          population_size=self._population_size
+          population_size=self._population_size,
       )
     else:
       return None
@@ -2140,11 +2142,16 @@ class Report:
       return False
 
     edp = next(iter(edp_combination))
+    cmms_data_provider_id = edp.split('/')[-1]
     return (
         parent_metric == "ami"
         and child_metric == "mrc"
-        and edp in self._ami_mrc_exempted_edps
+        and (
+            edp in self._ami_mrc_exempted_edps
+            or cmms_data_provider_id in self._ami_mrc_exempted_edps
+        )
     )
+
 
   def _get_zero_variance_edps(self) -> list[EdpCombination]:
     """Get the zero variance EDPs.

@@ -27,6 +27,11 @@ from tools import post_process_report_result
 _MAX_PAGE_SIZE = 50
 
 
+def _get_edp_name(cmms_data_provider_id: str) -> str:
+    """Converts a raw CMMS DataProvider ID to an EDP resource name."""
+    return f"dataProviders/{cmms_data_provider_id}"
+
+
 class PostProcessReportResultJob:
     """A job for fetching, correcting, and updating a report."""
 
@@ -75,10 +80,14 @@ class PostProcessReportResultJob:
             logging.info(
                 "Processing report %s", basic_report.external_report_result_id
             )
+            ami_mrc_exempted_edps = [
+                _get_edp_name(id_)
+                for id_ in basic_report.ami_mrc_exempted_cmms_data_provider_ids
+            ]
             add_processed_result_values_request = self._post_processor.process(
                 basic_report.cmms_measurement_consumer_id,
                 basic_report.external_report_result_id,
-                list(basic_report.ami_mrc_exempted_cmms_data_provider_ids),
+                ami_mrc_exempted_edps,
             )
             if add_processed_result_values_request:
                 logging.info(

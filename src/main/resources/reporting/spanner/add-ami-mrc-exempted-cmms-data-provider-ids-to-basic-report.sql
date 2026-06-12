@@ -15,6 +15,7 @@
 -- limitations under the License.
 
 -- changeset ple13:17 dbms:cloudspanner
--- comment: Add amiMrcExemptedEdps to BasicReport
+-- comment: Add amiMrcExemptedCmmsDataProviderIds to BasicReport
 
-ALTER TABLE BasicReports ADD COLUMN AmiMrcExemptedEdps ARRAY<STRING(MAX)>;
+ALTER TABLE BasicReports ADD COLUMN AmiMrcExemptedCmmsDataProviderIds ARRAY<STRING(MAX)>;
+

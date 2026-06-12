@@ -114,7 +114,10 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         mock_report = BasicReport(
             cmms_measurement_consumer_id="mc_id_1",
             external_report_result_id=101,
-            ami_mrc_exempted_cmms_data_provider_ids=["edp1", "edp2"],
+            ami_mrc_exempted_cmms_data_provider_ids=[
+                "edp1",
+                "edp2",
+            ],
         )
         self.mock_basic_reports_stub.ListBasicReports.return_value = (
             basic_reports_service_pb2.ListBasicReportsResponse(
@@ -130,7 +133,10 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         # Verifies the expected behavior.
         self.assertTrue(result)
         self.mock_post_processor.process.assert_called_once_with(
-            "mc_id_1", 101, ["edp1", "edp2"])
+            "mc_id_1",
+            101,
+            ["dataProviders/edp1", "dataProviders/edp2"],
+        )
 
     def test_execute_no_unprocessed_reports(self):
         # Sets up mock objects.

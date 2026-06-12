@@ -87,8 +87,8 @@ class PostProcessReportResult:
         Args:
             cmms_measurement_consumer_id: The Measurement Consumer ID.
             external_report_result_id: The external ID of the report result.
-            ami_mrc_exempted_edps: The list of EDPs for which AMI vs MRC
-                consistency check is disabled.
+            ami_mrc_exempted_edps: The list of EDPs for which
+                AMI vs MRC consistency check is disabled.
 
         Returns:
             An AddProcessedResultValuesRequest message or None if there is no
@@ -122,7 +122,8 @@ class PostProcessReportResult:
         for report_summary in report_summaries:
             result = ReportSummaryV2Processor(
                 report_summary,
-                ami_mrc_exempted_edps=ami_mrc_exempted_edps).process()
+                ami_mrc_exempted_edps=ami_mrc_exempted_edps,
+            ).process()
             if result.status.status_code in [
                     ReportPostProcessorStatus.SOLUTION_FOUND_WITH_HIGHS,
                     ReportPostProcessorStatus.SOLUTION_FOUND_WITH_OSQP,
@@ -182,7 +183,7 @@ class PostProcessReportResult:
 
         Returns:
             A dictionary mapping each external reporting set ID to a set of its
-            underlying primitive reporting set IDs.
+            underlying CMMS DataProvider resource names.
         """
         if not external_reporting_set_ids:
             return {}
@@ -197,21 +198,48 @@ class PostProcessReportResult:
             for reporting_set in response.reporting_sets
         }
 
-        def _get_primitive_ids(reporting_set: ReportingSet) -> set[str]:
-            """Recursively finds all primitive reporting set IDs."""
+        def _get_edp_names(reporting_set: ReportingSet) -> set[str]:
+            """Recursively finds all CMMS DataProvider resource names."""
             if reporting_set.WhichOneof("value") == "primitive":
-                return {reporting_set.external_reporting_set_id}
+                if not reporting_set.primitive.event_group_keys:
+                    raise ValueError(
+                        f"Primitive reporting set {reporting_set.external_reporting_set_id} "
+                        "has no event group keys."
+                    )
+                first_id = reporting_set.primitive.event_group_keys[0].cmms_data_provider_id
+                first_name = (
+                    first_id
+                    if first_id.startswith("dataProviders/")
+                    else f"dataProviders/{first_id}"
+                )
+                for key in reporting_set.primitive.event_group_keys:
+                    if key.cmms_data_provider_id != first_id:
+                        raise ValueError(
+                            "Event group keys have different CMMS DataProvider IDs: "
+                            f"{first_id} vs {key.cmms_data_provider_id}"
+                        )
+                return {first_name}
             else:
-                primitive_ids: set[str] = set()
+                edp_names: set[str] = set()
                 for weighted_subset_union in reporting_set.weighted_subset_unions:
                     for primitive_reporting_set_base in weighted_subset_union.primitive_reporting_set_bases:
-                        primitive_ids.add(primitive_reporting_set_base.
-                                          external_reporting_set_id)
-                return primitive_ids
+                        base_reporting_set = reporting_set_map.get(
+                            primitive_reporting_set_base.external_reporting_set_id
+                        )
+                        if base_reporting_set:
+                            edp_names.update(
+                                _get_edp_names(base_reporting_set)
+                            )
+                        else:
+                            raise ValueError(
+                                f"Could not find the base reporting set "
+                                f"{primitive_reporting_set_base.external_reporting_set_id}"
+                            )
+                return edp_names
 
         return {
             reporting_set_id:
-            _get_primitive_ids(reporting_set_map[reporting_set_id])
+            _get_edp_names(reporting_set_map[reporting_set_id])
             for reporting_set_id in external_reporting_set_ids
             if reporting_set_id in reporting_set_map
         }

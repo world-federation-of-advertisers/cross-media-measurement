@@ -230,11 +230,11 @@ class PostProcessReportResultTest(unittest.TestCase):
         self.assertCountEqual(
             batch_get_request.external_reporting_set_ids,
             [
-                'edp1',
-                'edp2',
-                'edp3',
-                'edp1_edp2',
-                'edp1_edp2_edp3',
+                'reporting_set_id_edp1',
+                'reporting_set_id_edp2',
+                'reporting_set_id_edp3',
+                'reporting_set_id_edp1_edp2',
+                'reporting_set_id_edp1_edp2_edp3',
             ],
         )
 
@@ -403,6 +403,42 @@ class PostProcessReportResultTest(unittest.TestCase):
             ANY,
             ami_mrc_exempted_edps=exempted_edps
         )
+
+    def test_post_process_report_result_mismatched_cmms_data_provider_ids_raises_error(self):
+        self.mock_report_results_stub.ListReportingSetResults.return_value = (
+            self.mock_list_reporing_set_results_response)
+
+        # Create a mock batch get response with mismatched cmms_data_provider_id
+        mismatched_reporting_sets = text_format.Parse(
+            """
+            reporting_sets {
+              cmms_measurement_consumer_id: "cmms-id"
+              external_reporting_set_id: "reporting_set_id_edp1"
+              primitive {
+                event_group_keys {
+                  cmms_data_provider_id: "dataProviders/edp1"
+                }
+                event_group_keys {
+                  cmms_data_provider_id: "dataProviders/mismatched_edp"
+                }
+              }
+            }
+            """,
+            reporting_sets_service_pb2.BatchGetReportingSetsResponse(),
+        )
+        self.mock_reporting_sets_stub.BatchGetReportingSets.return_value = mismatched_reporting_sets
+
+        report_result_processor = PostProcessReportResult(
+            self.mock_report_results_stub, self.mock_reporting_sets_stub)
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "Event group keys have different CMMS DataProvider IDs: "
+            "dataProviders/edp1 vs dataProviders/mismatched_edp"
+        ):
+            report_result_processor.process(
+                self.cmms_measurement_consumer_id, self.external_report_result_id,
+                [])
 
 
 if __name__ == "__main__":

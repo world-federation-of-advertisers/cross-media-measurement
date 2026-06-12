@@ -3080,7 +3080,7 @@ class BasicReportTransformationsTest {
   }
 
   @Test
-  fun `toInternal propagates amiMrcExemptedEdps`() {
+  fun `toInternal propagates amiMrcExemptedCmmsDataProviderIds`() {
     val publicReport = basicReport {
       title = "title"
       campaignGroup = CAMPAIGN_GROUP_NAME
@@ -3109,7 +3109,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsByName = emptyMap(),
         effectiveModelLine = "",
         effectiveReportStart = publicReport.reportingInterval.reportStart,
-        amiMrcExemptedEdps = listOf("edp1", "edp2"),
+        amiMrcExemptedEdps = listOf("dataProviders/edp1", "dataProviders/edp2"),
       )
 
     assertThat(internalReport.amiMrcExemptedCmmsDataProviderIdsList).containsExactly("edp1", "edp2")

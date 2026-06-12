@@ -44,6 +44,7 @@ import org.junit.Before
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assert.assertThrows
 import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -299,8 +300,32 @@ class BasicReportsServiceTest {
         MEASUREMENT_CONSUMER_CONFIGS,
         defaultReportStartHour = null,
         baseExternalImpressionQualificationFilterIds = emptyList(),
-        amiMrcExemptedEdps = listOf("edp1"),
+        amiMrcExemptedEdps = listOf(DataProviderKey("edp1").toName()),
       )
+  }
+
+  @Test
+  fun `constructor throws IllegalArgumentException when amiMrcExemptedEdps contains invalid name`() {
+    val exception =
+      assertThrows(IllegalArgumentException::class.java) {
+        BasicReportsService(
+          internalBasicReportsService,
+          internalImpressionQualificationFiltersService,
+          internalReportingSetsService,
+          internalMetricCalculationSpecsService,
+          reportsService,
+          modelLinesService,
+          TEST_EVENT_DESCRIPTOR,
+          METRIC_SPEC_CONFIG,
+          SecureRandom().asKotlinRandom(),
+          authorization,
+          MEASUREMENT_CONSUMER_CONFIGS,
+          defaultReportStartHour = null,
+          baseExternalImpressionQualificationFilterIds = emptyList(),
+          amiMrcExemptedEdps = listOf("invalid-edp-name"),
+        )
+      }
+    assertThat(exception).hasMessageThat().contains("Invalid EDP name invalid-edp-name")
   }
 
   @Test
