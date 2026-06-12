@@ -106,10 +106,10 @@ class DataAvailabilityMonitorFunctionTest {
     File(tempFolder.root, donePath).parentFile.mkdirs()
     storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
 
-    Thread.sleep(1100)
-
-    val dataPath = "$edpPath/model-line/$modelLine/$dateString/data_campaign_1"
-    storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+    // A metadata-named blob without the synced-by marker simulates a file that arrived after
+    // DataAvailabilitySync ran (or was rewritten by the EDP) — the monitor should flag it.
+    val metadataPath = "$edpPath/model-line/$modelLine/$dateString/metadata_campaign_1.binpb"
+    storageClient.writeBlob(metadataPath, ByteString.copyFromUtf8("data"))
   }
 
   private fun startFunction(configText: String): Int {
