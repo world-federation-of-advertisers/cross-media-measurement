@@ -20,6 +20,7 @@ import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
 import "google/type/interval.proto";
+import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
 import "wfa/measurement/edpaggregator/v1alpha/pool_assignment_job.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -195,6 +196,12 @@ message MarkPoolAssignmentJobSucceededRequest {
 
   // The etag of the PoolAssignmentJob for optimistic locking.
   string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // The DEK that encrypts this shard's `SubpoolFingerprints` blobs. Persisted by the server onto
+  // the job's OUTPUT_ONLY `PoolAssignmentJob.encrypted_dek` atomically with the `SUCCEEDED`
+  // transition, so the last-shard-out can recover every shard's DEK.
+  wfa.measurement.securecomputation.impressions.EncryptedDek encrypted_dek = 3
+      [(google.api.field_behavior) = REQUIRED];
 }
 
 // Response message for the

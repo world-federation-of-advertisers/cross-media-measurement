@@ -18,6 +18,7 @@ package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
+import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
 import "wfa/measurement/internal/edpaggregator/pool_assignment_job.proto";
 import "wfa/measurement/internal/edpaggregator/pool_assignment_state.proto";
 
@@ -156,6 +157,9 @@ message MarkPoolAssignmentJobSucceededRequest {
 
   // Entity tag for optimistic concurrency control.
   string etag = 4;
+
+  // DEK that encrypts this shard's SubpoolFingerprints blobs; persisted on the job.
+  wfa.measurement.securecomputation.impressions.EncryptedDek encrypted_dek = 5;
 }
 
 // Response message for MarkPoolAssignmentJobSucceeded.
