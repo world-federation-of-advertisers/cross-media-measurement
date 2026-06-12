@@ -18,17 +18,17 @@ package wfa.measurement.internal.edpaggregator;
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
-option java_outer_classname = "LabelingStateProto";
+option java_outer_classname = "VidLabelingStateProto";
 
-// Processing state for a LabelingJob.
-enum LabelingState {
+// Processing state for a VidLabelingJob.
+enum VidLabelingState {
   // Default, unspecified state. Should not be used.
-  LABELING_STATE_UNSPECIFIED = 0;
+  VID_LABELING_STATE_UNSPECIFIED = 0;
   // The job has been created and is awaiting processing.
-  LABELING_STATE_CREATED = 1;
+  VID_LABELING_STATE_CREATED = 1;
   // The job completed successfully. Terminal state.
-  LABELING_STATE_SUCCEEDED = 2;
+  VID_LABELING_STATE_SUCCEEDED = 2;
   // The job failed. Not terminal — operator can retry after
   // fixing the root cause.
-  LABELING_STATE_FAILED = 3;
+  VID_LABELING_STATE_FAILED = 3;
 }
