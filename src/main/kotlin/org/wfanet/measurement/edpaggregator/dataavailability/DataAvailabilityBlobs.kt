@@ -53,6 +53,7 @@ object DataAvailabilityBlobs {
    * substring match on "metadata", excluding the per-date done marker and zero-byte blobs.
    */
   fun isMetadataBlob(blob: StorageClient.Blob): Boolean {
+    if (blob.size == 0L) return false
     if (blob.blobKey.endsWith(DONE_SUFFIX)) return false
     val fileName = blob.blobKey.substringAfterLast("/").lowercase()
     return METADATA_FILE_NAME in fileName

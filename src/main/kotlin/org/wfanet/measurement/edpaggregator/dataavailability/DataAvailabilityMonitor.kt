@@ -539,9 +539,7 @@ class DataAvailabilityMonitor(
 
   /** Returns true if [blob] is a non-empty metadata file that has not been marked as synced. */
   private fun isUnsynced(blob: StorageClient.Blob): Boolean =
-    blob.size > 0 &&
-      DataAvailabilityBlobs.isMetadataBlob(blob) &&
-      !DataAvailabilityBlobs.isSynced(blob)
+    DataAvailabilityBlobs.isMetadataBlob(blob) && !DataAvailabilityBlobs.isSynced(blob)
 
   /** Finds dates that are missing in the sequence between the first and last date. */
   private fun findGaps(sortedDates: List<LocalDate>): List<LocalDate> {
