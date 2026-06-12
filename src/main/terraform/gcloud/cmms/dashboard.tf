@@ -473,7 +473,6 @@ resource "google_bigquery_data_transfer_config" "requisition_overview" {
   display_name           = "Dashboard: requisition_overview"
   data_source_id         = "scheduled_query"
   schedule               = "every 1 hours"
-  destination_dataset_id = google_bigquery_dataset.dashboard.dataset_id
   project                = data.google_client_config.default.project
   location               = data.google_client_config.default.region
   service_account_name   = var.terraform_service_account
@@ -494,7 +493,6 @@ resource "google_bigquery_data_transfer_config" "mc_details" {
   data_source_id         = "scheduled_query"
   service_account_name   = var.terraform_service_account
   schedule               = "every 1 hours"
-  destination_dataset_id = google_bigquery_dataset.dashboard.dataset_id
   project                = data.google_client_config.default.project
   location               = data.google_client_config.default.region
 
@@ -515,7 +513,6 @@ resource "google_bigquery_data_transfer_config" "mc_details_edp" {
   data_source_id         = "scheduled_query"
   service_account_name   = var.terraform_service_account
   schedule               = "every 1 hours"
-  destination_dataset_id = google_bigquery_dataset.dashboard.dataset_id
   project                = data.google_client_config.default.project
   location               = data.google_client_config.default.region
 
@@ -536,7 +533,6 @@ resource "google_bigquery_data_transfer_config" "report_detail" {
   data_source_id         = "scheduled_query"
   service_account_name   = var.terraform_service_account
   schedule               = "every 1 hours"
-  destination_dataset_id = google_bigquery_dataset.dashboard.dataset_id
   project                = data.google_client_config.default.project
   location               = data.google_client_config.default.region
 
@@ -557,7 +553,6 @@ resource "google_bigquery_data_transfer_config" "report_detail_edp" {
   data_source_id         = "scheduled_query"
   service_account_name   = var.terraform_service_account
   schedule               = "every 1 hours"
-  destination_dataset_id = google_bigquery_dataset.dashboard.dataset_id
   project                = data.google_client_config.default.project
   location               = data.google_client_config.default.region
 
@@ -630,6 +625,25 @@ resource "google_bigquery_row_access_policy" "mc_details_edp" {
   policy_id        = "${each.key}_filter"
   filter_predicate = "CmmsDataProvider = '${each.value}'"
   grantees         = ["serviceAccount:${google_service_account.edp_dashboard[each.key].email}"]
+}
+
+
+resource "google_bigquery_row_access_policy" "mc_details_edp_platform" {
+  project          = data.google_client_config.default.project
+  dataset_id       = google_bigquery_dataset.dashboard.dataset_id
+  table_id         = google_bigquery_table.mc_details_edp.table_id
+  policy_id        = "platform_full_access"
+  filter_predicate = "TRUE"
+  grantees         = ["serviceAccount:${var.terraform_service_account}"]
+}
+
+resource "google_bigquery_row_access_policy" "report_detail_edp_platform" {
+  project          = data.google_client_config.default.project
+  dataset_id       = google_bigquery_dataset.dashboard.dataset_id
+  table_id         = google_bigquery_table.report_detail_edp.table_id
+  policy_id        = "platform_full_access"
+  filter_predicate = "TRUE"
+  grantees         = ["serviceAccount:${var.terraform_service_account}"]
 }
 
 resource "google_bigquery_row_access_policy" "report_detail_edp" {
