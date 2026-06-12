@@ -1,0 +1,64 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/reporting/mcp:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/reporting/mcp:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "tool_support",
+    srcs = ["ToolSupport.kt"],
+    deps = [
+        "//imports/java/io/modelcontextprotocol/kotlin/sdk:server",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+    ],
+)
+
+kt_jvm_library(
+    name = "basic_report_tools",
+    srcs = ["BasicReportTools.kt"],
+    deps = [
+        ":tool_support",
+        "//imports/java/io/modelcontextprotocol/kotlin/sdk:server",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_report_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_reports_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+    ],
+)
+
+kt_jvm_library(
+    name = "event_group_tools",
+    srcs = ["EventGroupTools.kt"],
+    deps = [
+        ":tool_support",
+        "//imports/java/io/modelcontextprotocol/kotlin/sdk:server",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "reporting_set_tools",
+    srcs = ["ReportingSetTools.kt"],
+    deps = [
+        ":tool_support",
+        "//imports/java/io/modelcontextprotocol/kotlin/sdk:server",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_set_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_sets_service_kt_jvm_grpc_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "iqf_tools",
+    srcs = ["IqfTools.kt"],
+    deps = [
+        ":tool_support",
+        "//imports/java/io/modelcontextprotocol/kotlin/sdk:server",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:impression_qualification_filters_service_kt_jvm_grpc_proto",
+    ],
+)
