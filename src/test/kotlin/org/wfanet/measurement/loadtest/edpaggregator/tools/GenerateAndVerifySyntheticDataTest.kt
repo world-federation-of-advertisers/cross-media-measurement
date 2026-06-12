@@ -23,6 +23,7 @@ import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.Message
 import com.google.protobuf.TextFormat
+import com.google.protobuf.util.JsonFormat
 import java.io.File
 import java.nio.file.Paths
 import kotlin.test.assertFailsWith
@@ -147,6 +148,7 @@ class GenerateAndVerifySyntheticDataTest {
           "--kms-type=FAKE",
           "--kek-uri=$KEK_URI",
           "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+          "--schema=file:///",
           "--local-storage-path=${tempFolder.root.path}",
           "--output-bucket=$OUTPUT_BUCKET",
           "--base-path=$OUTPUT_BASE_PATH",
@@ -174,6 +176,7 @@ class GenerateAndVerifySyntheticDataTest {
           "--kms-type=FAKE",
           "--kek-uri=$KEK_URI_2",
           "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+          "--schema=file:///",
           "--local-storage-path=${tempFolder.root.path}",
           "--output-bucket=$OUTPUT_BUCKET",
           "--base-path=$OUTPUT_BASE_PATH_2",
@@ -182,6 +185,43 @@ class GenerateAndVerifySyntheticDataTest {
     val metaResult = verifyMeta.lastResult!!
     assertThat(metaResult.errors).isEqualTo(0)
     assertThat(metaResult.totalImpressions).isEqualTo(SPEC_A.expectedImpressions)
+  }
+
+  @Test
+  fun `verify reads JSON metadata via metadata-uri flag`() {
+    runGenerate()
+
+    // Find the first generated binary metadata file and rewrite it as JSON to exercise the
+    // JSON-DEK parsing path. The metadata file content (including the encrypted DEK) is
+    // preserved; only the serialization format changes.
+    val binaryMetadataFile: File =
+      tempFolder.root
+        .resolve(OUTPUT_BUCKET)
+        .resolve(OUTPUT_BASE_PATH)
+        .walkTopDown()
+        .filter { it.isFile && it.name.endsWith(".binpb") && it.name.startsWith("metadata") }
+        .first()
+    val blobDetails = BlobDetails.parseFrom(binaryMetadataFile.readBytes())
+    val jsonMetadataFile =
+      binaryMetadataFile.resolveSibling(binaryMetadataFile.nameWithoutExtension + ".json")
+    jsonMetadataFile.writeText(JsonFormat.printer().print(blobDetails))
+
+    val verifyCmd = VerifySyntheticData()
+    val jsonUri = "file:///" + jsonMetadataFile.relativeTo(tempFolder.root).path
+    val exitCode =
+      CommandLine(verifyCmd)
+        .execute(
+          "--kms-type=FAKE",
+          "--kek-uri=$KEK_URI",
+          "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+          "--local-storage-path=${tempFolder.root.path}",
+          "--metadata-uri=$jsonUri",
+        )
+    assertThat(exitCode).isEqualTo(0)
+    val result = verifyCmd.lastResult!!
+    assertThat(result.errors).isEqualTo(0)
+    assertThat(result.totalBlobsProcessed).isEqualTo(1)
+    assertThat(result.totalImpressions).isGreaterThan(0)
   }
 
   @Test
@@ -376,6 +416,7 @@ class GenerateAndVerifySyntheticDataTest {
           "--kms-type=FAKE",
           "--kek-uri=$KEK_URI",
           "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+          "--schema=file:///",
           "--local-storage-path=${tempFolder.root.path}",
           "--output-bucket=$OUTPUT_BUCKET",
           "--base-path=$OUTPUT_BASE_PATH",
@@ -438,6 +479,7 @@ class GenerateAndVerifySyntheticDataTest {
           "--kms-type=FAKE",
           "--kek-uri=$KEK_URI",
           "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+          "--schema=file:///",
           "--local-storage-path=${tempFolder.root.path}",
           "--output-bucket=$OUTPUT_BUCKET",
           "--base-path=$MARKET_OUTPUT_BASE_PATH",
@@ -565,6 +607,7 @@ class GenerateAndVerifySyntheticDataTest {
           "--kms-type=FAKE",
           "--kek-uri=$KEK_URI",
           "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+          "--schema=file:///",
           "--local-storage-path=${tempFolder.root.path}",
           "--output-bucket=$OUTPUT_BUCKET",
           "--base-path=$OUTPUT_BASE_PATH",
