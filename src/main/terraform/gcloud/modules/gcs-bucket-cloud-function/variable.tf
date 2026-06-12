@@ -82,3 +82,9 @@ variable "trigger_event_type" {
     error_message = "trigger_event_type must be either 'finalized' or 'deleted'."
   }
 }
+variable "uploaded_config_generation" {
+  description = "The GCS generation of the uploaded config file. Changes only when file is re-uploaded."
+  type        = string
+  nullable    = true
+  default     = null
+}
