@@ -28,6 +28,7 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
@@ -467,13 +468,13 @@ class DataAvailabilityMonitor(
           zeroImpressionDatesList.add(date)
         }
 
-        // Check if any file was updated after the done blob, indicating late-arriving data.
+        // Flag any metadata blob in this date folder that lacks the marker written by
+        // DataAvailabilitySync. The marker is wiped whenever a metadata blob is rewritten
+        // (a fresh upload replaces user-set custom metadata), so unmarked metadata blobs
+        // represent either late-arriving data or content that has been overwritten since the
+        // last sync.
         val hasLateArrivals =
-          storageClient
-            .listBlobsUpdatedAfter("${prefix}$dateString/", doneBlob.updateTime)
-            .take(2)
-            .toList()
-            .any { !it.blobKey.endsWith("/done") && it.size > 0 }
+          storageClient.listBlobs("${prefix}$dateString/").firstOrNull { isUnsynced(it) } != null
         if (hasLateArrivals) {
           lateArrivingDatesList.add(date)
         }
@@ -495,6 +496,20 @@ class DataAvailabilityMonitor(
       spuriousDeletionCount = null,
       legitimateDeletionCount = null,
     )
+  }
+
+  /**
+   * Returns true if [blob] is a non-empty metadata file that has not been marked as synced by
+   * [DataAvailabilitySync]. Matches the filename predicate DataAvailabilitySync uses to pick up
+   * metadata files (case-insensitive substring match on "metadata"), and ignores the per-date done
+   * marker.
+   */
+  private fun isUnsynced(blob: StorageClient.Blob): Boolean {
+    if (blob.size <= 0) return false
+    if (blob.blobKey.endsWith("/done")) return false
+    val fileName = blob.blobKey.substringAfterLast("/").lowercase()
+    if (METADATA_FILE_NAME !in fileName) return false
+    return blob.metadata[SYNCED_BY_KEY] != SYNCED_BY_VALUE
   }
 
   /** Finds dates that are missing in the sequence between the first and last date. */
@@ -553,6 +568,19 @@ class DataAvailabilityMonitor(
   }
 
   companion object {
+    /**
+     * GCS custom metadata key written on metadata blobs by [DataAvailabilitySync] to signal that
+     * the blob has been synced. The monitor uses the presence of this marker to identify which
+     * metadata blobs have been processed, rather than using updateTime (which the sync itself bumps
+     * after the done blob is written).
+     */
+    const val SYNCED_BY_KEY = "synced-by"
+
+    /** Value written to [SYNCED_BY_KEY] on processed metadata blobs. */
+    const val SYNCED_BY_VALUE = "data-availability-sync"
+
+    private const val METADATA_FILE_NAME = "metadata"
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     /**
      * Default staleness threshold in days. Set to 3 to allow for weekend gaps (Friday upload

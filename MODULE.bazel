@@ -471,3 +471,9 @@ single_version_override(
     version = BORINGSSL_VERSION,
 )
 
+
+git_override(
+    module_name = "common-jvm",
+    commit = "d7bfa820cb746a71854e22686f57a100443429b6",
+    remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
+)

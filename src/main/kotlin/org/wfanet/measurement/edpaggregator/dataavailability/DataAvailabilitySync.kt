@@ -379,7 +379,11 @@ class DataAvailabilitySync(
         storageClient.updateBlobMetadata(
           blobKey = metadataBlobUri.key,
           customCreateTime = customCreateTime,
-          metadata = mapOf(IMPRESSION_METADATA_RESOURCE_ID_KEY to resultMetadata.name),
+          metadata =
+            mapOf(
+              IMPRESSION_METADATA_RESOURCE_ID_KEY to resultMetadata.name,
+              DataAvailabilityMonitor.SYNCED_BY_KEY to DataAvailabilityMonitor.SYNCED_BY_VALUE,
+            ),
         )
 
         // Also update the impressions blob with Custom-Time (no resource ID needed)

@@ -49,7 +49,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrp
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata as v1alphaImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
-import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
 class DataAvailabilityMonitorTest {
@@ -67,7 +67,7 @@ class DataAvailabilityMonitorTest {
             impressionMetadata += v1alphaImpressionMetadata {
               name = "$DATA_PROVIDER_NAME/impressionMetadata/imp-deleted-1"
               blobUri =
-                "gs://$BUCKET_NAME/$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata_campaign_123.json"
+                "gs://$BUCKET_NAME/$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metametadata_campaign_1.binpb23.json"
               state = V1AlphaImpressionMetadata.State.DELETED
             }
           }
@@ -142,7 +142,7 @@ class DataAvailabilityMonitorTest {
   }
 
   private fun createDoneBlob(
-    storageClient: FileSystemStorageClient,
+    storageClient: InMemoryStorageClient,
     modelLine: String,
     date: String,
   ): Unit = runBlocking {
@@ -151,16 +151,24 @@ class DataAvailabilityMonitorTest {
   }
 
   private fun createDataFile(
-    storageClient: FileSystemStorageClient,
+    storageClient: InMemoryStorageClient,
     modelLine: String,
     date: String,
+    synced: Boolean = true,
   ): Unit = runBlocking {
-    val path = "$EDP_IMPRESSION_PATH/model-line/$modelLine/$date/data_campaign_1"
+    val path = "$EDP_IMPRESSION_PATH/model-line/$modelLine/$date/metadata_campaign_1.binpb"
     storageClient.writeBlob(path, ByteString.copyFromUtf8("data"))
+    if (synced) {
+      storageClient.updateBlobMetadata(
+        path,
+        metadata =
+          mapOf(DataAvailabilityMonitor.SYNCED_BY_KEY to DataAvailabilityMonitor.SYNCED_BY_VALUE),
+      )
+    }
   }
 
-  private fun createStorageClient(): FileSystemStorageClient {
-    return FileSystemStorageClient(tempFolder.root)
+  private fun createStorageClient(): InMemoryStorageClient {
+    return InMemoryStorageClient()
   }
 
   private fun ensureDirectories(modelLine: String, date: String) {
@@ -450,7 +458,7 @@ class DataAvailabilityMonitorTest {
       ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
       createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
       val dataPath =
-        "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-%02d/metadata_campaign_1.json"
+        "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-%02d/metametadata_campaign_1.binpb.json"
           .format(day)
       storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
     }
@@ -481,7 +489,7 @@ class DataAvailabilityMonitorTest {
       ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
       createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
       val dataPath =
-        "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-%02d/metadata_campaign_1.json"
+        "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-%02d/metametadata_campaign_1.binpb.json"
           .format(day)
       storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
     }
@@ -534,7 +542,7 @@ class DataAvailabilityMonitorTest {
     // Add data files for March 13 and 15 only
     for (day in listOf(13, 15)) {
       val dataPath =
-        "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-%02d/metadata_campaign_1.json"
+        "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-%02d/metametadata_campaign_1.binpb.json"
           .format(day)
       storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
     }
@@ -563,7 +571,7 @@ class DataAvailabilityMonitorTest {
       ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
       createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-%02d".format(day))
       val dataPath =
-        "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-%02d/metadata_campaign_1.json"
+        "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-%02d/metametadata_campaign_1.binpb.json"
           .format(day)
       storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
     }
@@ -1087,16 +1095,12 @@ class DataAvailabilityMonitorTest {
   }
 
   @Test
-  fun `checkFullStatus detects late-arriving data after done blob`(): Unit = runBlocking {
+  fun `checkFullStatus detects late-arriving data when marker is absent`(): Unit = runBlocking {
     val storageClient = createStorageClient()
 
     ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
     createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-
-    val doneFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "done")
-    val dataFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "data_campaign_1")
-    dataFile.setLastModified(doneFile.lastModified() + 2000)
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15", synced = false)
 
     val monitor =
       DataAvailabilityMonitor(
@@ -1120,50 +1124,77 @@ class DataAvailabilityMonitorTest {
   }
 
   @Test
-  fun `checkFullStatus reports no late-arriving data when files arrive before done blob`(): Unit =
-    runBlocking {
-      val storageClient = createStorageClient()
+  fun `checkFullStatus reports no late-arriving data when marker is present`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
 
-      ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
-      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-      createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
 
-      val doneFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "done")
-      val dataFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "data_campaign_1")
-      doneFile.setLastModified(dataFile.lastModified() + 2000)
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
+      )
 
-      val monitor =
-        DataAvailabilityMonitor(
-          storageClient = storageClient,
-          edpImpressionPath = EDP_IMPRESSION_PATH,
-          activeModelLines = setOf(MODEL_LINE_A),
-          impressionMetadataStub = null,
-          dataProviderName = null,
-        )
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
 
-      val result =
-        monitor.checkFullStatus(
-          maxStaleDays = 3,
-          timeZone = TIME_ZONE,
-          clock = { TODAY },
-          spuriousDeletionLookbackDays = null,
-        )
-
-      val status = result.statuses.single()
-      assertThat(status.lateArrivingDates).isEmpty()
-    }
+    val status = result.statuses.single()
+    assertThat(status.lateArrivingDates).isEmpty()
+  }
 
   @Test
-  fun `checkGaps detects late-arriving data after done blob`(): Unit = runBlocking {
+  fun `checkFullStatus ignores non-metadata files in date folder`(): Unit = runBlocking {
     val storageClient = createStorageClient()
 
     ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
     createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    // A synced metadata blob so the date is otherwise healthy.
     createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    // Unrelated blob (no "metadata" substring in filename, no marker) should not be flagged
+    // even though it lacks the synced-by marker.
+    storageClient.writeBlob(
+      "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-15/junk_file",
+      ByteString.copyFromUtf8("x"),
+    )
 
-    val doneFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "done")
-    val dataFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "data_campaign_1")
-    dataFile.setLastModified(doneFile.lastModified() + 2000)
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
+      )
+
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        spuriousDeletionLookbackDays = null,
+      )
+
+    val status = result.statuses.single()
+    assertThat(status.lateArrivingDates).isEmpty()
+  }
+
+  @Test
+  fun `checkGaps detects late-arriving data when marker is absent`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15", synced = false)
 
     val monitor =
       DataAvailabilityMonitor(
@@ -1186,11 +1217,7 @@ class DataAvailabilityMonitorTest {
 
     ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
     createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-
-    val doneFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "done")
-    val dataFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "data_campaign_1")
-    dataFile.setLastModified(doneFile.lastModified() + 2000)
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15", synced = false)
 
     val monitor =
       DataAvailabilityMonitor(
@@ -1249,7 +1276,7 @@ class DataAvailabilityMonitorTest {
 
     // Create a blob that matches the deleted entry's blobUri
     val blobPath =
-      "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata_campaign_123.json"
+      "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metametadata_campaign_1.binpb23.json"
     storageClient.writeBlob(blobPath, ByteString.copyFromUtf8("data"))
 
     val monitor =
@@ -1340,7 +1367,7 @@ class DataAvailabilityMonitorTest {
     createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
 
     val blobPath =
-      "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata_campaign_123.json"
+      "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metametadata_campaign_1.binpb23.json"
     storageClient.writeBlob(blobPath, ByteString.copyFromUtf8("data"))
 
     val monitor =
