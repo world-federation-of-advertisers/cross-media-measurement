@@ -222,7 +222,7 @@ object ReportingSets {
   }
 
   /** Compiles [InternalReportingSet.WeightedSubsetUnion]s for a composite [ReportingSet]. */
-  private fun compileWeightedSubsetUnions(
+  fun compileWeightedSubsetUnions(
     filter: String,
     setExpression: ReportingSet.SetExpression,
     cmmsMeasurementConsumerId: String,
