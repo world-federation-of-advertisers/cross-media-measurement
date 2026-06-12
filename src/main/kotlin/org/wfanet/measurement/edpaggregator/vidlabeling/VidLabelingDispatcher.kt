@@ -47,7 +47,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServi
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.createPoolAssignmentJobRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadFileRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
@@ -72,6 +76,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @param workItemsStub gRPC stub for creating WorkItems via Secure Computation API.
  * @param rawImpressionUploadStub gRPC stub for the `RawImpressionUploadService`.
  * @param rawImpressionUploadFilesStub gRPC stub for the `RawImpressionUploadFileService`.
+ * @param poolAssignmentJobStub gRPC stub for the `PoolAssignmentJobService`.
  * @param modelLinesStub gRPC stub for the VID Repository ModelLines API.
  * @param modelRolloutsStub gRPC stub for the VID Repository ModelRollouts API.
  * @param modelShardsStub gRPC stub for the VID Repository ModelShards API.
@@ -93,6 +98,8 @@ class VidLabelingDispatcher(
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub,
   private val rawImpressionUploadFilesStub:
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub,
+  private val poolAssignmentJobStub:
+    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub,
   private val modelLinesStub: ModelLinesGrpcKt.ModelLinesCoroutineStub,
   private val modelRolloutsStub: ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub,
   private val modelShardsStub: ModelShardsGrpcKt.ModelShardsCoroutineStub,
@@ -113,7 +120,11 @@ class VidLabelingDispatcher(
    * @param modelLineName resource name of the model line.
    * @param modelBlobPath path to the compiled model blob.
    */
-  private data class ResolvedModelLine(val modelLineName: String, val modelBlobPath: String)
+  private data class ResolvedModelLine(
+    val modelLineName: String,
+    val modelBlobPath: String,
+    val memoizationEnabled: Boolean,
+  )
 
   /**
    * Uploads VID labeling work for raw impression files in the directory containing the done blob.
@@ -160,22 +171,23 @@ class VidLabelingDispatcher(
         return
       }
 
-      // TODO(world-federation-of-advertisers/cross-media-measurement#3899): Check
-      // memoized_vid_assignment_enabled on ModelShard (available in API v0.94.0).
-      // For memoized model lines, create PoolAssignmentJobs instead of WorkItems.
+      // TODO(world-federation-of-advertisers/cross-media-measurement#3899): Create
+      // RawImpressionUploadModelLine resources for each active model line.
+
+      val (memoizedLines, nonMemoizedLines) =
+        resolvedModelLines.partition { it.memoizationEnabled }
 
       var totalWorkItems = 0
-      for (resolvedModelLine in resolvedModelLines) {
+      for (resolvedModelLine in nonMemoizedLines) {
         for (shardIndex in 0 until numberOfShards) {
           createWorkItem(resolvedModelLine, shardIndex, uploadId)
           totalWorkItems++
         }
       }
 
-      // TODO(world-federation-of-advertisers/cross-media-measurement#3899): Create
-      // RawImpressionUploadModelLine resources for each active model line.
-      // TODO(world-federation-of-advertisers/cross-media-measurement#3899): For memoized
-      // model lines, create PoolAssignmentJobs instead of WorkItems.
+      for (resolvedModelLine in memoizedLines) {
+        createPoolAssignmentJobs(rawImpressionUpload.name, resolvedModelLine)
+      }
 
       metrics.workItemsCreatedCounter.add(
         totalWorkItems.toLong(),
@@ -215,11 +227,17 @@ class VidLabelingDispatcher(
 
     val resolved: List<ResolvedModelLine> = buildList {
       for (modelLineName in activeModelLineNames) {
-        val modelBlobPath = resolveModelBlobPath(modelLineName)
-        if (modelBlobPath != null) {
-          add(ResolvedModelLine(modelLineName, modelBlobPath))
+        val shardInfo = resolveShardInfo(modelLineName)
+        if (shardInfo != null) {
+          add(
+            ResolvedModelLine(
+              modelLineName = modelLineName,
+              modelBlobPath = shardInfo.modelBlobPath,
+              memoizationEnabled = shardInfo.memoizationEnabled,
+            )
+          )
         } else {
-          logger.warning("Could not resolve model blob path for $modelLineName, skipping")
+          logger.warning("Could not resolve model shard for $modelLineName, skipping")
         }
       }
     }
@@ -285,15 +303,25 @@ class VidLabelingDispatcher(
   }
 
   /**
-   * Resolves the model blob path for a model line by traversing the ModelRollout -> ModelShard
-   * chain.
+   * Resolved model shard info from the VID Repository.
+   *
+   * @param modelBlobPath path to the compiled model blob.
+   * @param memoizationEnabled whether this model shard requires memoized VID assignment.
+   */
+  private data class ResolvedShardInfo(
+    val modelBlobPath: String,
+    val memoizationEnabled: Boolean,
+  )
+
+  /**
+   * Resolves model shard info for a model line by traversing the ModelRollout -> ModelShard chain.
    *
    * @param modelLineName resource name of the model line.
-   * @return the model blob path, or null if no active rollout or shard is found.
+   * @return resolved shard info, or null if no active rollout or shard is found.
    */
-  private suspend fun resolveModelBlobPath(modelLineName: String): String? {
+  private suspend fun resolveShardInfo(modelLineName: String): ResolvedShardInfo? {
     val modelReleaseName = resolveActiveModelRelease(modelLineName) ?: return null
-    return resolveModelBlobPathFromShards(modelReleaseName)
+    return resolveShardInfoFromShards(modelReleaseName)
   }
 
   /**
@@ -333,15 +361,15 @@ class VidLabelingDispatcher(
   }
 
   /**
-   * Resolves the model blob path from `ModelShard` resources for this `DataProvider` and
+   * Resolves model shard info from `ModelShard` resources for this `DataProvider` and
    * `ModelRelease`.
    *
    * @param modelReleaseName resource name of the model release.
-   * @return the model blob path, or null if no matching shard is found.
+   * @return resolved shard info, or null if no matching shard is found.
    */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  private suspend fun resolveModelBlobPathFromShards(modelReleaseName: String): String? {
-    val modelBlobPath: String? =
+  private suspend fun resolveShardInfoFromShards(modelReleaseName: String): ResolvedShardInfo? {
+    val shard =
       modelShardsStub
         .listResources { pageToken: String ->
           val response =
@@ -364,13 +392,16 @@ class VidLabelingDispatcher(
         }
         .flattenConcat()
         .firstOrNull { it.modelRelease == modelReleaseName && it.hasModelBlob() }
-        ?.modelBlob
-        ?.modelBlobPath
 
-    if (modelBlobPath == null) {
+    if (shard == null) {
       logger.warning("No model shard found for release $modelReleaseName on $dataProviderName")
+      return null
     }
-    return modelBlobPath
+
+    return ResolvedShardInfo(
+      modelBlobPath = shard.modelBlob.modelBlobPath,
+      memoizationEnabled = shard.memoizedVidAssignmentEnabled,
+    )
   }
 
   /**
@@ -380,7 +411,7 @@ class VidLabelingDispatcher(
    * @return the created `RawImpressionUpload`.
    */
   private suspend fun createRawImpressionUpload(doneBlobPath: String): RawImpressionUpload {
-    val requestId = UUID.nameUUIDFromBytes(doneBlobPath.toByteArray()).toString()
+    val requestId = UUID.randomUUID().toString()
     val request = createRawImpressionUploadRequest {
       parent = dataProviderName
       rawImpressionUpload = rawImpressionUpload { doneBlobUri = doneBlobPath }
@@ -431,6 +462,47 @@ class VidLabelingDispatcher(
    * Creates a WorkItem in the Secure Computation control plane for a single model line shard.
    *
    * @param resolvedModelLine the resolved model line with its blob path.
+  /**
+   * Creates `PoolAssignmentJob` resources for a memoized model line — one per shard.
+   *
+   * @param uploadName resource name of the parent `RawImpressionUpload`.
+   * @param resolvedModelLine the resolved model line with memoization enabled.
+   */
+  private suspend fun createPoolAssignmentJobs(
+    uploadName: String,
+    resolvedModelLine: ResolvedModelLine,
+  ) {
+    for (shardChunk in (0 until numberOfShards).chunked(POOL_ASSIGNMENT_JOB_BATCH_SIZE)) {
+      val request = batchCreatePoolAssignmentJobsRequest {
+        parent = uploadName
+        for (shardIndex in shardChunk) {
+          requests += createPoolAssignmentJobRequest {
+            parent = uploadName
+            poolAssignmentJob = poolAssignmentJob {
+              cmmsModelLine = resolvedModelLine.modelLineName
+              this.shardIndex = shardIndex
+            }
+            requestId = UUID.randomUUID().toString()
+          }
+        }
+      }
+
+      try {
+        poolAssignmentJobStub.batchCreatePoolAssignmentJobs(request)
+      } catch (e: StatusException) {
+        throw Exception(
+          "Error creating PoolAssignmentJobs for ${resolvedModelLine.modelLineName}",
+          e,
+        )
+      }
+    }
+
+    logger.info(
+      "Created $numberOfShards PoolAssignmentJobs for memoized model line " +
+        "${resolvedModelLine.modelLineName}"
+    )
+  }
+
    * @param shardIndex zero-based index of this shard.
    * @param uploadId unique identifier for this upload, used to prevent WorkItem ID collisions
    *   across multiple uploads by the same `DataProvider`.
@@ -501,6 +573,7 @@ class VidLabelingDispatcher(
     private const val DONE_MARKER_FILE_NAME = "done"
 
     private const val RAW_IMPRESSION_UPLOAD_FILE_BATCH_SIZE = 100
+    private const val POOL_ASSIGNMENT_JOB_BATCH_SIZE = 100
 
     private val DATA_PROVIDER_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("edpa.vid_labeling_dispatcher.data_provider")
