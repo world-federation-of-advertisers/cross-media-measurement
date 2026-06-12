@@ -151,6 +151,8 @@ object BasicReportProcessedResultsTransformation {
     }
   }
 
+  // Intentionally writes the deprecated event_group_summaries alongside
+  // external_reporting_set_id during the EventGroup-to-ReportingSet migration.
   private fun buildReportingUnitSummary(
     basicReport: BasicReport,
     reportingUnitDataProviderIds: List<String>,
@@ -162,6 +164,10 @@ object BasicReportProcessedResultsTransformation {
           ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
             cmmsDataProviderId = dataProviderId
             val primitiveInfo = primitiveInfoByDataProviderId.getValue(dataProviderId)
+            externalReportingSetId = primitiveInfo.externalReportingSetId
+            // TODO(world-federation-of-advertisers/cross-media-measurement#3919):
+            // Stop setting the deprecated event_group_summaries field once
+            // consumers have migrated to reporting_set.
             for (eventGroupKey in primitiveInfo.eventGroupKeys) {
               eventGroupSummaries +=
                 ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt.eventGroupSummary {
