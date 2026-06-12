@@ -729,6 +729,68 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
+  fun `sync with unchanged content restamps synced-by marker on metadata blobs`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+      )
+
+    // First sync — creates entries and stamps the marker.
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    val createCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      batchCreateImpressionMetadata(createCaptor.capture())
+    }
+    val createdMetadata = createCaptor.firstValue.requestsList.single().impressionMetadata
+
+    // List returns the just-created entries so the second sync sees them as existing.
+    wheneverBlocking {
+        impressionMetadataServiceMock.listImpressionMetadata(any<ListImpressionMetadataRequest>())
+      }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+        listImpressionMetadataResponse {
+          impressionMetadata +=
+            createdMetadata.copy { name = "${request.parent}/impressionMetadata/im-0" }
+        }
+      }
+
+    // Count metadata-blob stamp calls (those carrying the resource-ID + synced-by metadata)
+    // after the first sync.
+    val metadataStampCallsAfterFirstSync =
+      storageClient.updateBlobMetadataCalls.count {
+        it.metadata.containsKey(WatchedBlobs.IMPRESSION_METADATA_RESOURCE_ID_KEY)
+      }
+
+    // Second sync — same content, no create or update, but marker must still be restamped.
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    val metadataStampCallsAfterSecondSync =
+      storageClient.updateBlobMetadataCalls.count {
+        it.metadata.containsKey(WatchedBlobs.IMPRESSION_METADATA_RESOURCE_ID_KEY)
+      }
+
+    // Each sync should produce one metadata-stamp call per metadata blob (1 blob in this
+    // fixture). If the stamp was gated on create/update responses, the second sync would
+    // add zero new calls and this assertion would fail.
+    assertThat(metadataStampCallsAfterSecondSync - metadataStampCallsAfterFirstSync).isEqualTo(1)
+  }
+
+  @Test
   fun `saveImpressionMetadata batches according to batch size and throttles each batch`() =
     runBlocking {
       val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
