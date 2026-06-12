@@ -20,6 +20,13 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.metrics.SdkMeterProvider
+import io.opentelemetry.sdk.metrics.data.MetricData
+import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
@@ -38,6 +45,7 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
@@ -149,10 +157,41 @@ class VidLabelingDispatcherTest {
 
   private val fixedClock: Clock = Clock.fixed(FIXED_NOW, ZoneId.of("UTC"))
 
+  private data class MetricsTestEnvironment(
+    val metrics: VidLabelingDispatcherMetrics,
+    val metricExporter: InMemoryMetricExporter,
+    val metricReader: PeriodicMetricReader,
+    val openTelemetry: OpenTelemetrySdk,
+  ) {
+    fun close() {
+      openTelemetry.close()
+      GlobalOpenTelemetry.resetForTest()
+      Instrumentation.resetForTest()
+    }
+  }
+
+  private fun createMetricsEnvironment(): MetricsTestEnvironment {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    val metricExporter = InMemoryMetricExporter.create()
+    val metricReader = PeriodicMetricReader.create(metricExporter)
+    val meterProvider = SdkMeterProvider.builder().registerMetricReader(metricReader).build()
+    val openTelemetry =
+      OpenTelemetrySdk.builder().setMeterProvider(meterProvider).buildAndRegisterGlobal()
+    val meter = meterProvider.get("vid-labeling-dispatcher-test")
+    return MetricsTestEnvironment(
+      VidLabelingDispatcherMetrics(meter),
+      metricExporter,
+      metricReader,
+      openTelemetry,
+    )
+  }
+
   private fun createDispatcher(
     numberOfShards: Int = DEFAULT_NUMBER_OF_SHARDS,
     overrideModelLines: List<String> = emptyList(),
     modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig> = DEFAULT_MODEL_LINE_CONFIGS,
+    metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
   ): VidLabelingDispatcher {
     return VidLabelingDispatcher(
       storageClient = storageClient,
@@ -171,6 +210,7 @@ class VidLabelingDispatcherTest {
       overrideModelLines = overrideModelLines,
       modelLineConfigs = modelLineConfigs,
       clock = fixedClock,
+      metrics = metrics,
     )
   }
 
@@ -590,6 +630,113 @@ class VidLabelingDispatcherTest {
         .isNotEqualTo(requestCaptor.allValues[1].requestId)
     }
 
+  @Test
+  fun `upload emits filesProcessed counter on success`() = runBlocking {
+    val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet")
+    val blob3 = createMockBlob("$FOLDER_PREFIX/file3.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2, blob3))
+    stubRawImpressionUploadCreation()
+    stubFullResolutionChain(MODEL_LINE_1)
+    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
+
+    val metricsEnv = createMetricsEnvironment()
+    try {
+      val dispatcher = createDispatcher(numberOfShards = 1, metrics = metricsEnv.metrics)
+      dispatcher.upload(DONE_BLOB_PATH)
+
+      metricsEnv.metricReader.forceFlush()
+      val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+      val metricByName = metricData.associateBy { it.name }
+
+      val filesPoint =
+        metricByName
+          .getValue("edpa.vid_labeling_dispatcher.files_processed")
+          .longSumData
+          .points
+          .single()
+      assertThat(filesPoint.value).isEqualTo(3)
+      assertThat(filesPoint.attributes.get(DATA_PROVIDER_ATTR)).isEqualTo(DATA_PROVIDER_NAME)
+    } finally {
+      metricsEnv.close()
+    }
+  }
+
+  @Test
+  fun `upload emits workItemsCreated counter on success`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    stubFullResolutionChain(MODEL_LINE_1, MODEL_LINE_2)
+    whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
+
+    val metricsEnv = createMetricsEnvironment()
+    try {
+      val dispatcher = createDispatcher(numberOfShards = 2, metrics = metricsEnv.metrics)
+      dispatcher.upload(DONE_BLOB_PATH)
+
+      metricsEnv.metricReader.forceFlush()
+      val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+      val metricByName = metricData.associateBy { it.name }
+
+      val workItemsPoint =
+        metricByName
+          .getValue("edpa.vid_labeling_dispatcher.work_items_created")
+          .longSumData
+          .points
+          .single()
+      assertThat(workItemsPoint.value).isEqualTo(4)
+      assertThat(workItemsPoint.attributes.get(DATA_PROVIDER_ATTR)).isEqualTo(DATA_PROVIDER_NAME)
+    } finally {
+      metricsEnv.close()
+    }
+  }
+
+  @Test
+  fun `upload records upload duration on failure`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    stubFullResolutionChain(MODEL_LINE_1)
+    whenever(workItemsService.createWorkItem(any())).thenAnswer {
+      throw StatusException(Status.UNAVAILABLE.withDescription("Service unavailable"))
+    }
+
+    val metricsEnv = createMetricsEnvironment()
+    try {
+      val dispatcher = createDispatcher(numberOfShards = 1, metrics = metricsEnv.metrics)
+      assertFailsWith<Exception> { dispatcher.upload(DONE_BLOB_PATH) }
+
+      metricsEnv.metricReader.forceFlush()
+      val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+      val metricByName = metricData.associateBy { it.name }
+
+      val durationPoint =
+        metricByName
+          .getValue("edpa.vid_labeling_dispatcher.dispatch_duration")
+          .histogramData
+          .points
+          .single()
+      assertThat(durationPoint.attributes.get(UPLOAD_STATUS_ATTR)).isEqualTo("failed")
+      assertThat(durationPoint.attributes.get(DATA_PROVIDER_ATTR)).isEqualTo(DATA_PROVIDER_NAME)
+    } finally {
+      metricsEnv.close()
+    }
+  }
+
+  @Test
+  fun `upload with numberOfShards zero creates no work items`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    stubFullResolutionChain(MODEL_LINE_1)
+
+    val dispatcher = createDispatcher(numberOfShards = 0)
+    dispatcher.upload(DONE_BLOB_PATH)
+
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+  }
+
   companion object {
     private const val DATA_PROVIDER_NAME = "dataProviders/edp123"
     private const val QUEUE_NAME = "queues/vid-labeler-queue"
@@ -604,6 +751,11 @@ class VidLabelingDispatcherTest {
     private const val RAW_IMPRESSION_UPLOAD_ID = "upload-abc123"
 
     private val FIXED_NOW: Instant = Instant.parse("2026-06-03T12:00:00Z")
+
+    private val DATA_PROVIDER_ATTR: AttributeKey<String> =
+      AttributeKey.stringKey("edpa.vid_labeling_dispatcher.data_provider")
+    private val UPLOAD_STATUS_ATTR: AttributeKey<String> =
+      AttributeKey.stringKey("edpa.vid_labeling_dispatcher.dispatch_status")
 
     private val DEFAULT_MODEL_LINE_CONFIGS: Map<String, VidLabelerParams.ModelLineConfig> =
       mapOf(

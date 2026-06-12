@@ -33,6 +33,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
 import org.wfanet.measurement.common.EnvVars
@@ -203,6 +204,11 @@ class VidLabelingDispatcherFunction : HttpFunction {
           rawImpressionUploadChannel
         )
 
+      val poolAssignmentJobStub =
+        PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
+          rawImpressionUploadChannel
+        )
+
       val vidLabelerParamsTemplate: VidLabelerParams = buildVidLabelerParamsTemplate(config)
 
       val dispatcher =
@@ -211,6 +217,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
           workItemsStub = workItemsStub,
           rawImpressionUploadStub = rawImpressionUploadStub,
           rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
+          poolAssignmentJobStub = poolAssignmentJobStub,
           modelLinesStub = modelLinesStub,
           modelRolloutsStub = modelRolloutsStub,
           modelShardsStub = modelShardsStub,
