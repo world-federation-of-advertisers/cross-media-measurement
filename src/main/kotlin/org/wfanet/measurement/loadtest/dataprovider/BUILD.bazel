@@ -291,35 +291,35 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "reference_vid_record",
-    srcs = ["ReferenceVidRecord.kt"],
+    name = "labeler_input_record",
+    srcs = ["LabelerInputRecord.kt"],
     deps = [
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
     ],
 )
 
 kt_jvm_library(
-    name = "reference_vid_data_generation",
+    name = "labeler_input_data_generation",
     srcs = [
-        "ReferenceVidDataGeneration.kt",
+        "LabelerInputDataGeneration.kt",
     ],
     deps = [
-        ":reference_vid_record",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:reference_vid_event_group_spec_kt_jvm_proto",
+        ":labeler_input_record",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:labeler_input_event_group_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
     ],
 )
 
 kt_jvm_library(
-    name = "reference_vid_spec_converter",
+    name = "labeler_input_spec_converter",
     srcs = [
-        "ReferenceVidSpecConverter.kt",
+        "LabelerInputSpecConverter.kt",
     ],
     deps = [
-        ":reference_vid_data_generation",
-        ":reference_vid_record",
+        ":labeler_input_data_generation",
+        ":labeler_input_record",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:reference_vid_event_group_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:labeler_input_event_group_spec_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_virtual_people_core_serving//src/main/kotlin/org/wfanet/virtualpeople/core/labeler",
     ],

@@ -1,7 +1,7 @@
 # proto-file: wfa/measurement/api/v2alpha/population_spec.proto
 # proto-message: PopulationSpec
 
-# Expected output of ReferenceVidSpecConverter for the golden test input.
+# Expected output of LabelerInputSpecConverter for the golden test input.
 
 subpopulations {
   attributes {

@@ -22,26 +22,26 @@ import "wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synth
 option java_package = "org.wfanet.measurement.api.v2alpha.event_group_metadata.testing";
 option java_multiple_files = true;
 
-// Specification for generating synthetic events by running reference VIDs
+// Specification for generating synthetic events by running labeler input IDs
 // through a VID labeler model.
 //
 // Instead of specifying VID ranges directly (as in `SyntheticEventGroupSpec`),
-// this spec defines reference VID ranges with demographic distributions. Each
-// reference VID is converted to a string and passed through a VID labeler
+// this spec defines labeler input ID ranges with demographic distributions. Each
+// labeler input ID is converted to a string and passed through a VID labeler
 // model, which assigns VIDs via hash-based routing and a demographic correction
 // matrix.
-message ReferenceVidEventGroupSpec {
-  // A range of reference VIDs (inclusive start, exclusive end).
+message LabelerInputEventGroupSpec {
+  // A range of labeler input IDs (inclusive start, exclusive end).
   message IdRange {
     int64 start = 1;
     int64 end_exclusive = 2;
   }
 
-  // Assigns demographics and frequency to a range of reference VIDs.
+  // Assigns demographics and frequency to a range of labeler input IDs.
   //
-  // Each reference VID in the range is converted to a string (`id.toString()`)
+  // Each labeler input ID in the range is converted to a string (`id.toString()`)
   // and used as `event_id.id` for the labeler. Demographics are set on the
-  // labeler reference VID's
+  // labeler labeler input ID's
   // `proprietary_id_space_1_user_info.demo.demo_bucket`.
   message DemographicDistribution {
     IdRange id_range = 1;
@@ -52,7 +52,7 @@ message ReferenceVidEventGroupSpec {
     int32 min_age = 3;
     int32 max_age = 4;
 
-    // Total frequency for each reference VID in this distribution over the
+    // Total frequency for each labeler input ID in this distribution over the
     // containing date range.
     int64 frequency = 5;
 
@@ -72,6 +72,9 @@ message ReferenceVidEventGroupSpec {
     DateRange date_range = 1;
 
     // Demographic distributions with per-distribution frequency.
+    //
+    // Order is not semantically meaningful: the converter produces equivalent
+    // output for any permutation of this list.
     repeated DemographicDistribution demographic_distributions = 2;
   }
 

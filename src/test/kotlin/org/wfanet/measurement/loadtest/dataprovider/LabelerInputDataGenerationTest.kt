@@ -22,33 +22,33 @@ import java.nio.file.Paths
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpecKt.DateSpecKt.dateRange
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpecKt.dateSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpecKt.demographicDistribution
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpecKt.idRange
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.LabelerInputEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.LabelerInputEventGroupSpecKt.DateSpecKt.dateRange
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.LabelerInputEventGroupSpecKt.dateSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.LabelerInputEventGroupSpecKt.demographicDistribution
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.LabelerInputEventGroupSpecKt.idRange
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.fieldValue
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.referenceVidEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.labelerInputEventGroupSpec
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 
 @RunWith(JUnit4::class)
-class ReferenceVidDataGenerationTest {
+class LabelerInputDataGenerationTest {
 
   @Test
-  fun `generate produces one record per reference VID`() {
-    val records: List<ReferenceVidRecord> =
-      ReferenceVidDataGeneration.generate(loadDataSpec()).toList()
+  fun `generate produces one record per labeler input ID`() {
+    val records: List<LabelerInputRecord> =
+      LabelerInputDataGeneration.generate(loadDataSpec()).toList()
 
     assertThat(records).hasSize(300)
   }
 
   @Test
   fun `generate assigns correct demographics from spec`() {
-    val records: List<ReferenceVidRecord> =
-      ReferenceVidDataGeneration.generate(loadDataSpec()).toList()
+    val records: List<LabelerInputRecord> =
+      LabelerInputDataGeneration.generate(loadDataSpec()).toList()
 
-    val m1634: List<ReferenceVidRecord> = records.filter { it.referenceVid in 0L until 100L }
+    val m1634: List<LabelerInputRecord> = records.filter { it.labelerInputId in 0L until 100L }
     assertThat(m1634).hasSize(100)
     m1634.forEach {
       assertThat(it.gender).isEqualTo(1)
@@ -56,7 +56,7 @@ class ReferenceVidDataGenerationTest {
       assertThat(it.maxAge).isEqualTo(34)
     }
 
-    val f3554: List<ReferenceVidRecord> = records.filter { it.referenceVid in 100L until 200L }
+    val f3554: List<LabelerInputRecord> = records.filter { it.labelerInputId in 100L until 200L }
     assertThat(f3554).hasSize(100)
     f3554.forEach {
       assertThat(it.gender).isEqualTo(2)
@@ -64,7 +64,7 @@ class ReferenceVidDataGenerationTest {
       assertThat(it.maxAge).isEqualTo(54)
     }
 
-    val m55plus: List<ReferenceVidRecord> = records.filter { it.referenceVid in 200L until 300L }
+    val m55plus: List<LabelerInputRecord> = records.filter { it.labelerInputId in 200L until 300L }
     assertThat(m55plus).hasSize(100)
     m55plus.forEach {
       assertThat(it.gender).isEqualTo(1)
@@ -75,26 +75,26 @@ class ReferenceVidDataGenerationTest {
 
   @Test
   fun `generate assigns per-distribution frequency`() {
-    val records: List<ReferenceVidRecord> =
-      ReferenceVidDataGeneration.generate(loadDataSpec()).toList()
+    val records: List<LabelerInputRecord> =
+      LabelerInputDataGeneration.generate(loadDataSpec()).toList()
 
     val m1634Freq: List<Long> =
-      records.filter { it.referenceVid in 0L until 100L }.map { it.frequency }.distinct()
+      records.filter { it.labelerInputId in 0L until 100L }.map { it.frequency }.distinct()
     assertThat(m1634Freq).containsExactly(2L)
 
     val f3554Freq: List<Long> =
-      records.filter { it.referenceVid in 100L until 200L }.map { it.frequency }.distinct()
+      records.filter { it.labelerInputId in 100L until 200L }.map { it.frequency }.distinct()
     assertThat(f3554Freq).containsExactly(1L)
 
     val m55Freq: List<Long> =
-      records.filter { it.referenceVid in 200L until 300L }.map { it.frequency }.distinct()
+      records.filter { it.labelerInputId in 200L until 300L }.map { it.frequency }.distinct()
     assertThat(m55Freq).containsExactly(3L)
   }
 
   @Test
   fun `generate preserves non-population field values per distribution`() {
-    val records: List<ReferenceVidRecord> =
-      ReferenceVidDataGeneration.generate(loadDataSpec()).toList()
+    val records: List<LabelerInputRecord> =
+      LabelerInputDataGeneration.generate(loadDataSpec()).toList()
 
     records.forEach {
       assertThat(it.nonPopulationFieldValues).containsKey("video.completed_50_percent_plus")
@@ -102,26 +102,26 @@ class ReferenceVidDataGenerationTest {
   }
 
   @Test
-  fun `generate produces sequential reference VIDs`() {
-    val records: List<ReferenceVidRecord> =
-      ReferenceVidDataGeneration.generate(loadDataSpec()).toList()
+  fun `generate produces sequential labeler input IDs`() {
+    val records: List<LabelerInputRecord> =
+      LabelerInputDataGeneration.generate(loadDataSpec()).toList()
 
-    val referenceVids: List<Long> = records.map { it.referenceVid }
-    assertThat(referenceVids).isEqualTo((0L until 300L).toList())
+    val labelerInputIds: List<Long> = records.map { it.labelerInputId }
+    assertThat(labelerInputIds).isEqualTo((0L until 300L).toList())
   }
 
   @Test
   fun `generate returns empty sequence for empty spec`() {
-    val emptySpec: ReferenceVidEventGroupSpec = referenceVidEventGroupSpec {}
+    val emptySpec: LabelerInputEventGroupSpec = labelerInputEventGroupSpec {}
 
-    val records: List<ReferenceVidRecord> = ReferenceVidDataGeneration.generate(emptySpec).toList()
+    val records: List<LabelerInputRecord> = LabelerInputDataGeneration.generate(emptySpec).toList()
 
     assertThat(records).isEmpty()
   }
 
   @Test
   fun `generate emits records for multiple date specs`() {
-    val spec: ReferenceVidEventGroupSpec = referenceVidEventGroupSpec {
+    val spec: LabelerInputEventGroupSpec = labelerInputEventGroupSpec {
       dateSpecs += dateSpec {
         this.dateRange = dateRange {
           start = date {
@@ -172,17 +172,17 @@ class ReferenceVidDataGenerationTest {
       }
     }
 
-    val records: List<ReferenceVidRecord> = ReferenceVidDataGeneration.generate(spec).toList()
+    val records: List<LabelerInputRecord> = LabelerInputDataGeneration.generate(spec).toList()
 
     assertThat(records).hasSize(8)
-    assertThat(records.filter { it.referenceVid in 0L until 5L }).hasSize(5)
-    assertThat(records.filter { it.referenceVid in 10L until 13L }).hasSize(3)
+    assertThat(records.filter { it.labelerInputId in 0L until 5L }).hasSize(5)
+    assertThat(records.filter { it.labelerInputId in 10L until 13L }).hasSize(3)
     assertThat(records.filter { it.frequency == 3L }).hasSize(3)
   }
 
   @Test
   fun `generate assigns different non-population field values per distribution`() {
-    val spec: ReferenceVidEventGroupSpec = referenceVidEventGroupSpec {
+    val spec: LabelerInputEventGroupSpec = labelerInputEventGroupSpec {
       dateSpecs += dateSpec {
         this.dateRange = dateRange {
           start = date {
@@ -227,22 +227,23 @@ class ReferenceVidDataGenerationTest {
       }
     }
 
-    val records: List<ReferenceVidRecord> = ReferenceVidDataGeneration.generate(spec).toList()
+    val records: List<LabelerInputRecord> = LabelerInputDataGeneration.generate(spec).toList()
 
-    val videoRecords: List<ReferenceVidRecord> = records.filter { it.referenceVid in 0L until 3L }
+    val videoRecords: List<LabelerInputRecord> = records.filter { it.labelerInputId in 0L until 3L }
     videoRecords.forEach {
       assertThat(it.nonPopulationFieldValues).containsKey("video.completed_50_percent_plus")
       assertThat(it.nonPopulationFieldValues).doesNotContainKey("display.viewable_100_percent")
     }
 
-    val displayRecords: List<ReferenceVidRecord> = records.filter { it.referenceVid in 3L until 6L }
+    val displayRecords: List<LabelerInputRecord> =
+      records.filter { it.labelerInputId in 3L until 6L }
     displayRecords.forEach {
       assertThat(it.nonPopulationFieldValues).containsKey("display.viewable_100_percent")
       assertThat(it.nonPopulationFieldValues).doesNotContainKey("video.completed_50_percent_plus")
     }
   }
 
-  private fun loadDataSpec(): ReferenceVidEventGroupSpec {
+  private fun loadDataSpec(): LabelerInputEventGroupSpec {
     val path =
       getRuntimePath(
         Paths.get(
@@ -254,9 +255,9 @@ class ReferenceVidDataGenerationTest {
           "measurement",
           "loadtest",
           "dataprovider",
-          "reference_vid_data_spec.textproto",
+          "labeler_input_data_spec.textproto",
         )
       )!!
-    return parseTextProto(path.toFile(), ReferenceVidEventGroupSpec.getDefaultInstance())
+    return parseTextProto(path.toFile(), LabelerInputEventGroupSpec.getDefaultInstance())
   }
 }

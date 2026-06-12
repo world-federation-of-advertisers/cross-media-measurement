@@ -25,27 +25,31 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpecKt.DateSpecKt.dateRange
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpecKt.dateSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpecKt.demographicDistribution
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpecKt.idRange
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.LabelerInputEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.LabelerInputEventGroupSpecKt.DateSpecKt.dateRange
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.LabelerInputEventGroupSpecKt.dateSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.LabelerInputEventGroupSpecKt.demographicDistribution
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.LabelerInputEventGroupSpecKt.idRange
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.fieldValue
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.referenceVidEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.labelerInputEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.Common
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.virtualpeople.common.CompiledNode
+import org.wfanet.virtualpeople.common.LabelerInput
+import org.wfanet.virtualpeople.common.LabelerOutput
+import org.wfanet.virtualpeople.common.labelerOutput
+import org.wfanet.virtualpeople.common.virtualPersonActivity
 import org.wfanet.virtualpeople.core.labeler.Labeler
 
 @RunWith(JUnit4::class)
-class ReferenceVidSpecConverterTest {
+class LabelerInputSpecConverterTest {
 
   @Test
   fun `convert produces expected SyntheticEventGroupSpec for known inputs`() {
     val converted =
-      ReferenceVidSpecConverter.convert(
+      LabelerInputSpecConverter.convert(
         buildLabeler(),
         buildGoldenInputSpec(),
         loadPopulationSpec(),
@@ -70,7 +74,7 @@ class ReferenceVidSpecConverterTest {
   @Test
   fun `convert preserves non-population field values`() {
     val converted =
-      ReferenceVidSpecConverter.convert(buildLabeler(), loadDataSpec(), loadPopulationSpec())
+      LabelerInputSpecConverter.convert(buildLabeler(), loadDataSpec(), loadPopulationSpec())
 
     val dateSpec = converted.syntheticEventGroupSpec.getDateSpecs(0)
     for (freqSpec in dateSpec.frequencySpecsList) {
@@ -84,7 +88,7 @@ class ReferenceVidSpecConverterTest {
   @Test
   fun `convert throws when VidRangeSpec count exceeds threshold`() {
     assertFailsWith<IllegalArgumentException> {
-      ReferenceVidSpecConverter.convert(
+      LabelerInputSpecConverter.convert(
         buildLabeler(),
         loadDataSpec(),
         loadPopulationSpec(),
@@ -96,7 +100,7 @@ class ReferenceVidSpecConverterTest {
   @Test
   fun `convert passes when VidRangeSpec count equals threshold`() {
     val converted =
-      ReferenceVidSpecConverter.convert(
+      LabelerInputSpecConverter.convert(
         buildLabeler(),
         buildGoldenInputSpec(),
         loadPopulationSpec(),
@@ -107,7 +111,7 @@ class ReferenceVidSpecConverterTest {
       }
 
     val result =
-      ReferenceVidSpecConverter.convert(
+      LabelerInputSpecConverter.convert(
         buildLabeler(),
         buildGoldenInputSpec(),
         loadPopulationSpec(),
@@ -119,7 +123,7 @@ class ReferenceVidSpecConverterTest {
   @Test
   fun `convert throws when VidRangeSpec count is one over threshold`() {
     val converted =
-      ReferenceVidSpecConverter.convert(
+      LabelerInputSpecConverter.convert(
         buildLabeler(),
         buildGoldenInputSpec(),
         loadPopulationSpec(),
@@ -130,7 +134,7 @@ class ReferenceVidSpecConverterTest {
       }
 
     assertFailsWith<IllegalArgumentException> {
-      ReferenceVidSpecConverter.convert(
+      LabelerInputSpecConverter.convert(
         buildLabeler(),
         buildGoldenInputSpec(),
         loadPopulationSpec(),
@@ -139,7 +143,7 @@ class ReferenceVidSpecConverterTest {
     }
   }
 
-  private fun buildGoldenInputSpec(): ReferenceVidEventGroupSpec = referenceVidEventGroupSpec {
+  private fun buildGoldenInputSpec(): LabelerInputEventGroupSpec = labelerInputEventGroupSpec {
     dateSpecs += dateSpec {
       this.dateRange = dateRange {
         start = date {
@@ -178,7 +182,7 @@ class ReferenceVidSpecConverterTest {
 
   @Test
   fun `convert produces independent output per date spec`() {
-    val spec = referenceVidEventGroupSpec {
+    val spec = labelerInputEventGroupSpec {
       dateSpecs += dateSpec {
         this.dateRange = dateRange {
           start = date {
@@ -229,7 +233,7 @@ class ReferenceVidSpecConverterTest {
       }
     }
 
-    val converted = ReferenceVidSpecConverter.convert(buildLabeler(), spec, loadPopulationSpec())
+    val converted = LabelerInputSpecConverter.convert(buildLabeler(), spec, loadPopulationSpec())
 
     assertThat(converted.syntheticEventGroupSpec.dateSpecsCount).isEqualTo(2)
 
@@ -259,7 +263,7 @@ class ReferenceVidSpecConverterTest {
 
   @Test
   fun `convert preserves different non-population field values for same frequency`() {
-    val spec = referenceVidEventGroupSpec {
+    val spec = labelerInputEventGroupSpec {
       dateSpecs += dateSpec {
         this.dateRange = dateRange {
           start = date {
@@ -304,7 +308,7 @@ class ReferenceVidSpecConverterTest {
       }
     }
 
-    val converted = ReferenceVidSpecConverter.convert(buildLabeler(), spec, loadPopulationSpec())
+    val converted = LabelerInputSpecConverter.convert(buildLabeler(), spec, loadPopulationSpec())
     val dateSpec = converted.syntheticEventGroupSpec.getDateSpecs(0)
 
     val allFieldKeys: Set<String> =
@@ -318,8 +322,8 @@ class ReferenceVidSpecConverterTest {
   }
 
   @Test
-  fun `convert throws when input reference VID count exceeds maximum`() {
-    val hugeSpec = referenceVidEventGroupSpec {
+  fun `convert throws when input labeler input ID count exceeds maximum`() {
+    val hugeSpec = labelerInputEventGroupSpec {
       dateSpecs += dateSpec {
         this.dateRange = dateRange {
           start = date {
@@ -336,7 +340,7 @@ class ReferenceVidSpecConverterTest {
         demographicDistributions += demographicDistribution {
           idRange = idRange {
             start = 0
-            endExclusive = ReferenceVidSpecConverter.MAX_INPUT_REFERENCE_VIDS + 1
+            endExclusive = LabelerInputSpecConverter.MAX_INPUT_LABELER_INPUT_IDS + 1
           }
           gender = 1
           minAge = 16
@@ -347,8 +351,313 @@ class ReferenceVidSpecConverterTest {
     }
 
     assertFailsWith<IllegalArgumentException> {
-      ReferenceVidSpecConverter.convert(buildLabeler(), hugeSpec, loadPopulationSpec())
+      LabelerInputSpecConverter.convert(buildLabeler(), hugeSpec, loadPopulationSpec())
     }
+  }
+
+  @Test
+  fun `convert throws when demographic distribution frequency is non-positive`() {
+    val spec = labelerInputEventGroupSpec {
+      dateSpecs += dateSpec {
+        this.dateRange = dateRange {
+          start = date {
+            year = 2024
+            month = 1
+            day = 1
+          }
+          endExclusive = date {
+            year = 2024
+            month = 1
+            day = 2
+          }
+        }
+        demographicDistributions += demographicDistribution {
+          idRange = idRange {
+            start = 0
+            endExclusive = 5
+          }
+          gender = 1
+          minAge = 16
+          maxAge = 34
+          frequency = 0
+        }
+      }
+    }
+
+    assertFailsWith<IllegalArgumentException> {
+      LabelerInputSpecConverter.convert(buildLabeler(), spec, loadPopulationSpec())
+    }
+  }
+
+  @Test
+  fun `convert throws when id range is empty or inverted`() {
+    val spec = labelerInputEventGroupSpec {
+      dateSpecs += dateSpec {
+        this.dateRange = dateRange {
+          start = date {
+            year = 2024
+            month = 1
+            day = 1
+          }
+          endExclusive = date {
+            year = 2024
+            month = 1
+            day = 2
+          }
+        }
+        demographicDistributions += demographicDistribution {
+          idRange = idRange {
+            start = 10
+            endExclusive = 5
+          }
+          gender = 1
+          minAge = 16
+          maxAge = 34
+          frequency = 1
+        }
+      }
+    }
+
+    assertFailsWith<IllegalArgumentException> {
+      LabelerInputSpecConverter.convert(buildLabeler(), spec, loadPopulationSpec())
+    }
+  }
+
+  @Test
+  fun `convert throws when date range is empty or inverted`() {
+    val spec = labelerInputEventGroupSpec {
+      dateSpecs += dateSpec {
+        this.dateRange = dateRange {
+          start = date {
+            year = 2024
+            month = 1
+            day = 2
+          }
+          endExclusive = date {
+            year = 2024
+            month = 1
+            day = 1
+          }
+        }
+        demographicDistributions += demographicDistribution {
+          idRange = idRange {
+            start = 0
+            endExclusive = 5
+          }
+          gender = 1
+          minAge = 16
+          maxAge = 34
+          frequency = 1
+        }
+      }
+    }
+
+    assertFailsWith<IllegalArgumentException> {
+      LabelerInputSpecConverter.convert(buildLabeler(), spec, loadPopulationSpec())
+    }
+  }
+
+  @Test
+  fun `convert throws when id ranges overlap within a date spec`() {
+    val spec = labelerInputEventGroupSpec {
+      dateSpecs += dateSpec {
+        this.dateRange = dateRange {
+          start = date {
+            year = 2024
+            month = 1
+            day = 1
+          }
+          endExclusive = date {
+            year = 2024
+            month = 1
+            day = 2
+          }
+        }
+        demographicDistributions += demographicDistribution {
+          idRange = idRange {
+            start = 0
+            endExclusive = 10
+          }
+          gender = 1
+          minAge = 16
+          maxAge = 34
+          frequency = 1
+        }
+        // Overlaps with the first distribution's range [0, 10).
+        demographicDistributions += demographicDistribution {
+          idRange = idRange {
+            start = 5
+            endExclusive = 15
+          }
+          gender = 2
+          minAge = 55
+          maxAge = 99
+          frequency = 2
+        }
+      }
+    }
+
+    assertFailsWith<IllegalArgumentException> {
+      LabelerInputSpecConverter.convert(buildLabeler(), spec, loadPopulationSpec())
+    }
+  }
+
+  @Test
+  fun `convert throws when labeled VID is not in any PopulationSpec subpopulation`() {
+    val spec = labelerInputEventGroupSpec {
+      dateSpecs += dateSpec {
+        this.dateRange = dateRange {
+          start = date {
+            year = 2024
+            month = 1
+            day = 1
+          }
+          endExclusive = date {
+            year = 2024
+            month = 1
+            day = 2
+          }
+        }
+        demographicDistributions += demographicDistribution {
+          idRange = idRange {
+            start = 0
+            endExclusive = 1
+          }
+          gender = 1
+          minAge = 16
+          maxAge = 34
+          frequency = 1
+        }
+      }
+    }
+
+    // VID 99999 is outside every subpopulation range in labeler_input_population_spec.textproto.
+    val fakeLabel: (LabelerInput) -> LabelerOutput = {
+      labelerOutput { people += virtualPersonActivity { virtualPersonId = 99_999L } }
+    }
+
+    assertFailsWith<IllegalArgumentException> {
+      LabelerInputSpecConverter.convert(fakeLabel, spec, loadPopulationSpec())
+    }
+  }
+
+  @Test
+  fun `convert emits one entry per labeler-returned person`() {
+    val spec = labelerInputEventGroupSpec {
+      dateSpecs += dateSpec {
+        this.dateRange = dateRange {
+          start = date {
+            year = 2024
+            month = 1
+            day = 1
+          }
+          endExclusive = date {
+            year = 2024
+            month = 1
+            day = 2
+          }
+        }
+        demographicDistributions += demographicDistribution {
+          idRange = idRange {
+            start = 0
+            endExclusive = 1
+          }
+          gender = 1
+          minAge = 16
+          maxAge = 34
+          frequency = 7
+        }
+      }
+    }
+
+    // Fake labeler emits two valid VIDs (both within the MALE 16-34 subpopulation) plus one
+    // impression-counting-only entry (virtual_person_id = 0) that the converter should skip.
+    val fakeLabel: (LabelerInput) -> LabelerOutput = {
+      labelerOutput {
+        people += virtualPersonActivity { virtualPersonId = 10_000L }
+        people += virtualPersonActivity { virtualPersonId = 10_001L }
+        people += virtualPersonActivity {}
+      }
+    }
+
+    val converted = LabelerInputSpecConverter.convert(fakeLabel, spec, loadPopulationSpec())
+
+    // Both VIDs appear, each with the input's full frequency (no split).
+    val emittedVids: List<Pair<Long, Long>> =
+      converted.syntheticEventGroupSpec.dateSpecsList
+        .flatMap { it.frequencySpecsList }
+        .flatMap { freqSpec ->
+          freqSpec.vidRangeSpecsList.flatMap { vrs ->
+            (vrs.vidRange.start until vrs.vidRange.endExclusive).map { it to freqSpec.frequency }
+          }
+        }
+    assertThat(emittedVids).containsExactly(10_000L to 7L, 10_001L to 7L)
+  }
+
+  @Test
+  fun `convert throws when labeler returns no people with virtual_person_id`() {
+    val spec = labelerInputEventGroupSpec {
+      dateSpecs += dateSpec {
+        this.dateRange = dateRange {
+          start = date {
+            year = 2024
+            month = 1
+            day = 1
+          }
+          endExclusive = date {
+            year = 2024
+            month = 1
+            day = 2
+          }
+        }
+        demographicDistributions += demographicDistribution {
+          idRange = idRange {
+            start = 0
+            endExclusive = 1
+          }
+          gender = 1
+          minAge = 16
+          maxAge = 34
+          frequency = 1
+        }
+      }
+    }
+
+    // Labeler emits only impression-counting-only entries (virtual_person_id unset).
+    val fakeLabel: (LabelerInput) -> LabelerOutput = {
+      labelerOutput {
+        people += virtualPersonActivity {}
+        people += virtualPersonActivity {}
+      }
+    }
+
+    assertFailsWith<IllegalStateException> {
+      LabelerInputSpecConverter.convert(fakeLabel, spec, loadPopulationSpec())
+    }
+  }
+
+  @Test
+  fun `convert returns empty specs for empty input`() {
+    val converted =
+      LabelerInputSpecConverter.convert(
+        buildLabeler(),
+        labelerInputEventGroupSpec {},
+        loadPopulationSpec(),
+      )
+
+    assertThat(converted.syntheticEventGroupSpec.dateSpecsList).isEmpty()
+    assertThat(converted.populationSpec.subpopulationsList).isEmpty()
+  }
+
+  @Test
+  fun `convert is deterministic for the same input`() {
+    val spec = buildGoldenInputSpec()
+
+    val first = LabelerInputSpecConverter.convert(buildLabeler(), spec, loadPopulationSpec())
+    val second = LabelerInputSpecConverter.convert(buildLabeler(), spec, loadPopulationSpec())
+
+    assertThat(second.syntheticEventGroupSpec).isEqualTo(first.syntheticEventGroupSpec)
+    assertThat(second.populationSpec).isEqualTo(first.populationSpec)
   }
 
   private fun buildLabeler(): Labeler {
@@ -379,14 +688,14 @@ class ReferenceVidSpecConverterTest {
           "measurement",
           "loadtest",
           "dataprovider",
-          "reference_vid_population_spec.textproto",
+          "labeler_input_population_spec.textproto",
         )
       )!!
     val typeRegistry = TypeRegistry.newBuilder().add(Common.getDescriptor()).build()
     return parseTextProto(path.toFile(), PopulationSpec.getDefaultInstance(), typeRegistry)
   }
 
-  private fun loadDataSpec(): ReferenceVidEventGroupSpec {
+  private fun loadDataSpec(): LabelerInputEventGroupSpec {
     val path =
       getRuntimePath(
         Paths.get(
@@ -398,10 +707,10 @@ class ReferenceVidSpecConverterTest {
           "measurement",
           "loadtest",
           "dataprovider",
-          "reference_vid_data_spec.textproto",
+          "labeler_input_data_spec.textproto",
         )
       )!!
-    return parseTextProto(path.toFile(), ReferenceVidEventGroupSpec.getDefaultInstance())
+    return parseTextProto(path.toFile(), LabelerInputEventGroupSpec.getDefaultInstance())
   }
 
   private fun loadTestDataFile(name: String): java.io.File {

@@ -1,8 +1,8 @@
 # proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto
 # proto-message: SyntheticEventGroupSpec
 
-# Expected output of ReferenceVidSpecConverter for the golden test input:
-# 20 M16-34 reference VIDs (0-19, freq 2) + 10 F55+ reference VIDs (20-29, freq 1).
+# Expected output of LabelerInputSpecConverter for the golden test input:
+# 20 M16-34 labeler input IDs (0-19, freq 2) + 10 F55+ labeler input IDs (20-29, freq 1).
 
 date_specs {
   date_range {

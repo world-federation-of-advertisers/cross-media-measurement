@@ -16,12 +16,14 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.type.Date
+import java.time.LocalDate
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange as popVidRange
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.ReferenceVidEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.LabelerInputEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpecKt.DateSpecKt.dateRange
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec
@@ -31,6 +33,8 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.vidRange
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.virtualpeople.common.Gender
+import org.wfanet.virtualpeople.common.LabelerInput
+import org.wfanet.virtualpeople.common.LabelerOutput
 import org.wfanet.virtualpeople.common.ageRange
 import org.wfanet.virtualpeople.common.demoBucket
 import org.wfanet.virtualpeople.common.demoInfo
@@ -41,13 +45,13 @@ import org.wfanet.virtualpeople.common.userInfo
 import org.wfanet.virtualpeople.core.labeler.Labeler
 
 /**
- * Converts a [ReferenceVidEventGroupSpec] to equivalent [SyntheticEventGroupSpec] and
- * [PopulationSpec] by running reference VIDs through a [Labeler].
+ * Converts a [LabelerInputEventGroupSpec] to equivalent [SyntheticEventGroupSpec] and
+ * [PopulationSpec] by running labeler input IDs through a [Labeler].
  *
  * Only practical for small-pool VID models. Throws [IllegalArgumentException] if the output would
  * exceed [DEFAULT_MAX_VID_RANGE_SPECS] VidRangeSpec entries.
  */
-object ReferenceVidSpecConverter {
+object LabelerInputSpecConverter {
 
   data class ConvertedSpecs(
     val syntheticEventGroupSpec: SyntheticEventGroupSpec,
@@ -55,72 +59,76 @@ object ReferenceVidSpecConverter {
   )
 
   /**
-   * Converts a [ReferenceVidEventGroupSpec] to a [SyntheticEventGroupSpec] and [PopulationSpec]
-   * pair by running reference VIDs through the [labeler].
+   * Converts a [LabelerInputEventGroupSpec] to a [SyntheticEventGroupSpec] and [PopulationSpec]
+   * pair by running labeler input IDs through the [labeler].
    *
    * @throws IllegalArgumentException if the resulting spec exceeds [maxVidRangeSpecs]
    */
+  /**
+   * Convenience overload that delegates labeling to [labeler].
+   *
+   * Equivalent to calling the primary [convert] with `labeler::label`.
+   */
   fun convert(
     labeler: Labeler,
-    spec: ReferenceVidEventGroupSpec,
+    spec: LabelerInputEventGroupSpec,
+    sourcePopulationSpec: PopulationSpec,
+    maxVidRangeSpecs: Int = DEFAULT_MAX_VID_RANGE_SPECS,
+  ): ConvertedSpecs = convert(labeler::label, spec, sourcePopulationSpec, maxVidRangeSpecs)
+
+  fun convert(
+    label: (LabelerInput) -> LabelerOutput,
+    spec: LabelerInputEventGroupSpec,
     sourcePopulationSpec: PopulationSpec,
     maxVidRangeSpecs: Int = DEFAULT_MAX_VID_RANGE_SPECS,
   ): ConvertedSpecs {
-    val totalInputSize: Long =
-      spec.dateSpecsList.sumOf { ds ->
-        ds.demographicDistributionsList.sumOf { it.idRange.endExclusive - it.idRange.start }
-      }
-    require(totalInputSize <= MAX_INPUT_REFERENCE_VIDS) {
-      "Input spec has $totalInputSize reference VIDs, exceeding maximum of " +
-        "$MAX_INPUT_REFERENCE_VIDS."
-    }
+    validateSpec(spec)
 
-    val allLabeledVids = mutableListOf<LabeledReferenceVid>()
-    val perDateSpecVids = mutableListOf<List<LabeledReferenceVid>>()
+    val allLabeledVids = mutableListOf<LabelerOutputEntry>()
+    val perDateSpecVids = mutableListOf<List<LabelerOutputEntry>>()
 
     for (dateSpec in spec.dateSpecsList) {
-      val dateSpecVids = mutableListOf<LabeledReferenceVid>()
-      for (demoDist in dateSpec.demographicDistributionsList) {
-        for (referenceVid in demoDist.idRange.start until demoDist.idRange.endExclusive) {
-          val record =
-            ReferenceVidRecord(
-              referenceVid = referenceVid,
-              gender = demoDist.gender,
-              minAge = demoDist.minAge,
-              maxAge = demoDist.maxAge,
-              frequency = demoDist.frequency,
-              nonPopulationFieldValues = demoDist.nonPopulationFieldValuesMap,
-            )
-
-          val input = labelerInput {
-            eventId = eventId { id = record.referenceVid.toString() }
-            timestampUsec = 0L
-            profileInfo = profileInfo {
-              proprietaryIdSpace1UserInfo = userInfo {
-                userId = record.referenceVid.toString()
-                demo = demoInfo {
-                  demoBucket = demoBucket {
-                    gender =
-                      Gender.forNumber(record.gender) ?: error("Invalid gender: ${record.gender}")
-                    age = ageRange {
-                      minAge = record.minAge
-                      maxAge = record.maxAge
-                    }
+      val dateSpecVids = mutableListOf<LabelerOutputEntry>()
+      for (record in LabelerInputDataGeneration.generateForDateSpec(dateSpec)) {
+        val input = labelerInput {
+          eventId = eventId { id = record.labelerInputId.toString() }
+          // Hardcoded to 0: this converter only works correctly for time-independent labeler
+          // models (output VID is a deterministic function of profile + event_id alone). A
+          // time-dependent model would map every labeler input ID to its t=0 routing, which then
+          // mismatches every real impression's at-fulfillment-time routing — the resulting
+          // SyntheticEventGroupSpec would be wrong by construction. Do not use this converter
+          // with a time-dependent model.
+          timestampUsec = 0L
+          profileInfo = profileInfo {
+            proprietaryIdSpace1UserInfo = userInfo {
+              userId = record.labelerInputId.toString()
+              demo = demoInfo {
+                demoBucket = demoBucket {
+                  gender =
+                    Gender.forNumber(record.gender) ?: error("Invalid gender: ${record.gender}")
+                  age = ageRange {
+                    minAge = record.minAge
+                    maxAge = record.maxAge
                   }
                 }
               }
             }
           }
+        }
 
-          val output = labeler.label(input)
-          check(output.peopleCount > 0) {
-            "Labeler returned no people for reference VID ${record.referenceVid}"
-          }
-          val person = output.getPeople(0)
-          check(person.virtualPersonId > 0) {
-            "Labeler returned VID 0 for reference VID ${record.referenceVid}"
-          }
+        val output = label(input)
+        check(output.peopleCount > 0) {
+          "Labeler returned no people for labeler input ID ${record.labelerInputId}"
+        }
 
+        // Each labeled person becomes its own output entry at the input's full frequency. People
+        // without a virtual_person_id are impression-counting-only (per LabelerOutput's doc) and
+        // are skipped — they don't contribute to reach. Non-population field values are
+        // assumed to be a property of the input event and are duplicated across all output
+        // people for this labeler input ID.
+        var emittedForRecord = 0
+        for (person in output.peopleList) {
+          if (person.virtualPersonId == 0L) continue
           val vid = person.virtualPersonId.toLong()
           val subPopIndex: Int =
             sourcePopulationSpec.subpopulationsList.indexOfFirst { sub ->
@@ -129,11 +137,10 @@ object ReferenceVidSpecConverter {
               }
             }
           require(subPopIndex >= 0) {
-            "VID $vid (from reference VID ${record.referenceVid}) not in any PopulationSpec range"
+            "VID $vid (from labeler input ID ${record.labelerInputId}) not in any PopulationSpec range"
           }
-
           val labeled =
-            LabeledReferenceVid(
+            LabelerOutputEntry(
               vid = vid,
               subPopulationIndex = subPopIndex,
               frequency = record.frequency,
@@ -141,13 +148,18 @@ object ReferenceVidSpecConverter {
             )
           dateSpecVids.add(labeled)
           allLabeledVids.add(labeled)
+          emittedForRecord++
+        }
+        check(emittedForRecord > 0) {
+          "Labeler returned no people with virtual_person_id set for labeler input ID " +
+            "${record.labelerInputId}"
         }
       }
       perDateSpecVids.add(dateSpecVids)
     }
 
     logger.info(
-      "Labeled ${allLabeledVids.size} reference VIDs, " +
+      "Labeled ${allLabeledVids.size} labeler input IDs, " +
         "${allLabeledVids.map { it.vid }.distinct().size} unique VIDs"
     )
 
@@ -157,9 +169,7 @@ object ReferenceVidSpecConverter {
     )
   }
 
-  private data class VidGroupKey(val frequency: Long, val fieldValues: Map<String, FieldValue>)
-
-  private data class LabeledReferenceVid(
+  private data class LabelerOutputEntry(
     val vid: Long,
     val subPopulationIndex: Int,
     val frequency: Long,
@@ -167,15 +177,14 @@ object ReferenceVidSpecConverter {
   )
 
   private fun convertSyntheticSpec(
-    perDateSpecVids: List<List<LabeledReferenceVid>>,
-    spec: ReferenceVidEventGroupSpec,
+    perDateSpecVids: List<List<LabelerOutputEntry>>,
+    spec: LabelerInputEventGroupSpec,
     maxVidRangeSpecs: Int,
   ): SyntheticEventGroupSpec {
     var totalVidRangeSpecs = 0
 
     val result = syntheticEventGroupSpec {
-      for ((index, refDateSpec) in spec.dateSpecsList.withIndex()) {
-        val dateSpecVids = perDateSpecVids[index]
+      for ((refDateSpec, dateSpecVids) in spec.dateSpecsList.zip(perDateSpecVids)) {
 
         val vidFrequencies: Map<Long, Long> =
           dateSpecVids.groupBy { it.vid }.mapValues { (_, vids) -> vids.sumOf { it.frequency } }
@@ -191,7 +200,8 @@ object ReferenceVidSpecConverter {
             .mapValues { (vid, vids) ->
               val distinct = vids.map { it.nonPopulationFieldValues }.distinct()
               require(distinct.size == 1) {
-                "VID $vid has conflicting non-population field values from different reference VIDs."
+                "Labeler VID $vid has ${distinct.size} distinct non_population_field_values " +
+                  "maps from $vids; SyntheticEventGroupSpec does not allow more than one."
               }
               distinct.first()
             }
@@ -232,7 +242,7 @@ object ReferenceVidSpecConverter {
   }
 
   private fun convertPopulationSpec(
-    labeledVids: List<LabeledReferenceVid>,
+    labeledVids: List<LabelerOutputEntry>,
     sourcePopulationSpec: PopulationSpec,
   ): PopulationSpec {
     val vidsBySubPop: Map<Int, List<Long>> =
@@ -256,6 +266,57 @@ object ReferenceVidSpecConverter {
     }
   }
 
+  /**
+   * Throws if [spec] is malformed: empty/inverted ranges, non-positive frequency, overlapping
+   * idRanges within a DateSpec, or more labeler input IDs in total than
+   * [MAX_INPUT_LABELER_INPUT_IDS].
+   */
+  private fun validateSpec(spec: LabelerInputEventGroupSpec) {
+    var totalInputSize: Long = 0L
+    for ((dateSpecIndex, dateSpec) in spec.dateSpecsList.withIndex()) {
+      val dateRange = dateSpec.dateRange
+      require(dateRange.endExclusive.toLocalDate() > dateRange.start.toLocalDate()) {
+        "DateSpec[$dateSpecIndex] date_range.end_exclusive must be after start"
+      }
+
+      val ranges = mutableListOf<LongRange>()
+      for ((distIndex, dist) in dateSpec.demographicDistributionsList.withIndex()) {
+        val idRange = dist.idRange
+        require(idRange.endExclusive > idRange.start) {
+          "DateSpec[$dateSpecIndex].demographicDistributions[$distIndex] " +
+            "id_range.end_exclusive (\${idRange.endExclusive}) must be greater than start " +
+            "(\${idRange.start})"
+        }
+        require(dist.frequency > 0) {
+          "DateSpec[$dateSpecIndex].demographicDistributions[$distIndex] " +
+            "frequency must be positive (got \${dist.frequency})"
+        }
+        ranges.add(idRange.start until idRange.endExclusive)
+        totalInputSize += idRange.endExclusive - idRange.start
+      }
+
+      // O(n^2) check; fine for the small specs this converter is intended to handle.
+      for (i in ranges.indices) {
+        for (j in i + 1 until ranges.size) {
+          require(!rangesOverlap(ranges[i], ranges[j])) {
+            "DateSpec[$dateSpecIndex] demographicDistributions[\$i] id_range " +
+              "(\${ranges[i].first} until \${ranges[i].last + 1}) overlaps with " +
+              "[\$j] (\${ranges[j].first} until \${ranges[j].last + 1})"
+          }
+        }
+      }
+    }
+    require(totalInputSize <= MAX_INPUT_LABELER_INPUT_IDS) {
+      "Input spec has \$totalInputSize labeler input IDs, exceeding maximum of " +
+        "\$MAX_INPUT_LABELER_INPUT_IDS."
+    }
+  }
+
+  private fun rangesOverlap(a: LongRange, b: LongRange): Boolean =
+    a.first <= b.last && b.first <= a.last
+
+  private fun Date.toLocalDate(): LocalDate = java.time.LocalDate.of(year, month, day)
+
   private fun mergeAdjacentVids(sortedVids: List<Long>): List<LongRange> {
     if (sortedVids.isEmpty()) return emptyList()
 
@@ -276,8 +337,21 @@ object ReferenceVidSpecConverter {
     return ranges
   }
 
+  /**
+   * Default fail-fast cap on the size of the converted [SyntheticEventGroupSpec], counted as the
+   * total number of [VidRangeSpec] entries across all DateSpecs / FrequencySpecs. Protects callers
+   * from accidentally producing specs too large to be useful or to ingest. Callers can override via
+   * the `maxVidRangeSpecs` parameter to [convert].
+   */
   const val DEFAULT_MAX_VID_RANGE_SPECS = 500
-  const val MAX_INPUT_REFERENCE_VIDS = 10_000L
+
+  /**
+   * Hard cap on the total number of labeler input IDs across all DateSpecs /
+   * DemographicDistributions in a single input spec. Caps the number of [Labeler.label] calls made
+   * by one [convert] invocation. Not overridable — if you need more, run the converter on smaller
+   * specs.
+   */
+  const val MAX_INPUT_LABELER_INPUT_IDS = 10_000L
 
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 }

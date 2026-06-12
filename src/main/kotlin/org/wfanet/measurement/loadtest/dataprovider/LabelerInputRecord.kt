@@ -18,9 +18,9 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
 
-/** A reference VID with its demographic assignment, frequency, and non-population fields. */
-data class ReferenceVidRecord(
-  val referenceVid: Long,
+/** A labeler input ID with its demographic assignment, frequency, and non-population fields. */
+data class LabelerInputRecord(
+  val labelerInputId: Long,
   val gender: Int,
   val minAge: Int,
   val maxAge: Int,
