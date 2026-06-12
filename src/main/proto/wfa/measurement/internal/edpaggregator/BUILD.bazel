@@ -392,6 +392,17 @@ kt_jvm_grpc_proto_library(
 )
 
 proto_library(
+    name = "encrypted_dek_proto",
+    srcs = ["encrypted_dek.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "encrypted_dek_kt_jvm_proto",
+    deps = [":encrypted_dek_proto"],
+)
+
+proto_library(
     name = "blob_type_proto",
     srcs = ["blob_type.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -408,6 +419,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":blob_type_proto",
+        ":encrypted_dek_proto",
         "@com_google_googleapis//google/type:date_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
