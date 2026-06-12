@@ -50,12 +50,16 @@ import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreatePoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadFilesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
@@ -79,6 +83,9 @@ class VidLabelingDispatcherTest {
   private val rawImpressionUploadFileService:
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase =
     mockService()
+  private val poolAssignmentJobService:
+    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase =
+    mockService()
   private val storageClient: StorageClient = mock()
 
   @get:Rule
@@ -89,6 +96,7 @@ class VidLabelingDispatcherTest {
     addService(modelShardsService)
     addService(rawImpressionUploadService)
     addService(rawImpressionUploadFileService)
+    addService(poolAssignmentJobService)
   }
 
   private val workItemsStub by lazy {
@@ -119,6 +127,12 @@ class VidLabelingDispatcherTest {
     )
   }
 
+  private val poolAssignmentJobStub by lazy {
+    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
+      grpcTestServerRule.channel
+    )
+  }
+
   private val vidLabelerParamsTemplate = vidLabelerParams {
     dataProvider = DATA_PROVIDER_NAME
     vidLabeledImpressionsStorageParams =
@@ -145,6 +159,7 @@ class VidLabelingDispatcherTest {
       workItemsStub = workItemsStub,
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
+      poolAssignmentJobStub = poolAssignmentJobStub,
       modelLinesStub = modelLinesStub,
       modelRolloutsStub = modelRolloutsStub,
       modelShardsStub = modelShardsStub,
@@ -441,6 +456,139 @@ class VidLabelingDispatcherTest {
 
     verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
   }
+
+  private suspend fun stubMemoizedResolutionChain(vararg modelLineNames: String) {
+    whenever(modelLinesService.listModelLines(any()))
+      .thenReturn(
+        listModelLinesResponse {
+          modelLines +=
+            modelLineNames.map { name ->
+              modelLine {
+                this.name = name
+                type = ModelLine.Type.PROD
+                activeStartTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() - 86400000)
+                activeEndTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli() + 86400000)
+              }
+            }
+        }
+      )
+
+    whenever(modelRolloutsService.listModelRollouts(any()))
+      .thenReturn(
+        listModelRolloutsResponse {
+          modelRollouts += modelRollout { modelRelease = MODEL_RELEASE_NAME }
+        }
+      )
+
+    whenever(modelShardsService.listModelShards(any()))
+      .thenReturn(
+        listModelShardsResponse {
+          modelShards += modelShard {
+            name = "$DATA_PROVIDER_NAME/modelShards/ms1"
+            modelRelease = MODEL_RELEASE_NAME
+            modelBlob =
+              org.wfanet.measurement.api.v2alpha.ModelShardKt.modelBlob {
+                modelBlobPath = MODEL_BLOB_PATH
+              }
+            memoizedVidAssignmentEnabled = true
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `upload creates PoolAssignmentJobs for memoized model lines`() =
+    runBlocking<Unit> {
+      val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      stubRawImpressionUploadCreation()
+      stubMemoizedResolutionChain(MODEL_LINE_1)
+      whenever(poolAssignmentJobService.batchCreatePoolAssignmentJobs(any()))
+        .thenReturn(batchCreatePoolAssignmentJobsResponse {})
+
+      val dispatcher = createDispatcher(numberOfShards = 3)
+      dispatcher.upload(DONE_BLOB_PATH)
+
+      val requestCaptor = argumentCaptor<BatchCreatePoolAssignmentJobsRequest>()
+      verifyBlocking(poolAssignmentJobService) {
+        batchCreatePoolAssignmentJobs(requestCaptor.capture())
+      }
+      val request = requestCaptor.firstValue
+      assertThat(request.requestsList).hasSize(3)
+      assertThat(request.requestsList.map { it.poolAssignmentJob.shardIndex })
+        .containsExactly(0, 1, 2)
+      assertThat(request.requestsList.map { it.poolAssignmentJob.cmmsModelLine })
+        .containsExactly(MODEL_LINE_1, MODEL_LINE_1, MODEL_LINE_1)
+
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+    }
+
+  @Test
+  fun `upload chunks RawImpressionUploadFiles at batch size 100`() =
+    runBlocking<Unit> {
+      val blobs = (1..250).map { createMockBlob("$FOLDER_PREFIX/file$it.parquet") }
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(*blobs.toTypedArray()))
+      stubRawImpressionUploadCreation()
+      stubFullResolutionChain(MODEL_LINE_1)
+      whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
+
+      val dispatcher = createDispatcher(numberOfShards = 1)
+      dispatcher.upload(DONE_BLOB_PATH)
+
+      val requestCaptor = argumentCaptor<BatchCreateRawImpressionUploadFilesRequest>()
+      verifyBlocking(rawImpressionUploadFileService, times(3)) {
+        batchCreateRawImpressionUploadFiles(requestCaptor.capture())
+      }
+      assertThat(requestCaptor.allValues[0].requestsList).hasSize(100)
+      assertThat(requestCaptor.allValues[1].requestsList).hasSize(100)
+      assertThat(requestCaptor.allValues[2].requestsList).hasSize(50)
+    }
+
+  @Test
+  fun `upload with same generation produces same request ID`() =
+    runBlocking<Unit> {
+      val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      stubRawImpressionUploadCreation()
+      stubFullResolutionChain(MODEL_LINE_1)
+      whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
+
+      val dispatcher = createDispatcher(numberOfShards = 1)
+      dispatcher.upload(DONE_BLOB_PATH, doneBlobGeneration = 123L)
+
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      dispatcher.upload(DONE_BLOB_PATH, doneBlobGeneration = 123L)
+
+      val requestCaptor = argumentCaptor<CreateRawImpressionUploadRequest>()
+      verifyBlocking(rawImpressionUploadService, times(2)) {
+        createRawImpressionUpload(requestCaptor.capture())
+      }
+      assertThat(requestCaptor.allValues[0].requestId)
+        .isEqualTo(requestCaptor.allValues[1].requestId)
+    }
+
+  @Test
+  fun `upload with different generation produces different request ID`() =
+    runBlocking<Unit> {
+      val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      stubRawImpressionUploadCreation()
+      stubFullResolutionChain(MODEL_LINE_1)
+      whenever(workItemsService.createWorkItem(any())).thenReturn(WorkItem.getDefaultInstance())
+
+      val dispatcher = createDispatcher(numberOfShards = 1)
+      dispatcher.upload(DONE_BLOB_PATH, doneBlobGeneration = 123L)
+
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      dispatcher.upload(DONE_BLOB_PATH, doneBlobGeneration = 456L)
+
+      val requestCaptor = argumentCaptor<CreateRawImpressionUploadRequest>()
+      verifyBlocking(rawImpressionUploadService, times(2)) {
+        createRawImpressionUpload(requestCaptor.capture())
+      }
+      assertThat(requestCaptor.allValues[0].requestId)
+        .isNotEqualTo(requestCaptor.allValues[1].requestId)
+    }
 
   companion object {
     private const val DATA_PROVIDER_NAME = "dataProviders/edp123"
