@@ -12,6 +12,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+TRUNCATE TABLE `${project_id}.${dataset}.${table_name}`;
+INSERT INTO `${project_id}.${dataset}.${table_name}`
 SELECT
   r.DataProviderResourceId,
   r.Report,

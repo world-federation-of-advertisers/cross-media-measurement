@@ -107,7 +107,7 @@ data "google_project" "project" {
   project_id = data.google_client_config.default.project
 }
 
-# --- Tables (created empty, populated by scheduled queries via WRITE_TRUNCATE) ---
+# --- Tables (created empty, populated by scheduled queries via TRUNCATE+INSERT) ---
 
 resource "google_bigquery_table" "requisition_overview" {
   dataset_id          = google_bigquery_dataset.dashboard.dataset_id
@@ -479,12 +479,12 @@ resource "google_bigquery_data_transfer_config" "requisition_overview" {
   service_account_name   = var.terraform_service_account
 
   params = {
-    query                      = templatefile("${path.module}/sql/requisition_overview.sql", {
+    query = templatefile("${path.module}/sql/requisition_overview.sql", {
       project_id = data.google_client_config.default.project
       region     = data.google_client_config.default.region
+      dataset    = google_bigquery_dataset.dashboard.dataset_id
+      table_name = "requisition_overview"
     })
-    destination_table_name_template = "requisition_overview"
-    write_disposition               = "WRITE_TRUNCATE"
   }
 }
 
@@ -499,13 +499,13 @@ resource "google_bigquery_data_transfer_config" "mc_details" {
   location               = data.google_client_config.default.region
 
   params = {
-    query                      = templatefile("${path.module}/sql/mc_details.sql", {
+    query = templatefile("${path.module}/sql/mc_details.sql", {
       project_id               = data.google_client_config.default.project
       region                   = data.google_client_config.default.region
+      dataset                  = google_bigquery_dataset.dashboard.dataset_id
+      table_name               = "mc_details"
       include_platform_columns = true
     })
-    destination_table_name_template = "mc_details"
-    write_disposition               = "WRITE_TRUNCATE"
   }
 }
 
@@ -520,13 +520,13 @@ resource "google_bigquery_data_transfer_config" "mc_details_edp" {
   location               = data.google_client_config.default.region
 
   params = {
-    query                      = templatefile("${path.module}/sql/mc_details.sql", {
+    query = templatefile("${path.module}/sql/mc_details.sql", {
       project_id               = data.google_client_config.default.project
       region                   = data.google_client_config.default.region
+      dataset                  = google_bigquery_dataset.dashboard.dataset_id
+      table_name               = "mc_details_edp"
       include_platform_columns = false
     })
-    destination_table_name_template = "mc_details_edp"
-    write_disposition               = "WRITE_TRUNCATE"
   }
 }
 
@@ -541,13 +541,13 @@ resource "google_bigquery_data_transfer_config" "report_detail" {
   location               = data.google_client_config.default.region
 
   params = {
-    query                      = templatefile("${path.module}/sql/report_detail.sql", {
+    query = templatefile("${path.module}/sql/report_detail.sql", {
       project_id               = data.google_client_config.default.project
       region                   = data.google_client_config.default.region
+      dataset                  = google_bigquery_dataset.dashboard.dataset_id
+      table_name               = "report_detail"
       include_platform_columns = true
     })
-    destination_table_name_template = "report_detail"
-    write_disposition               = "WRITE_TRUNCATE"
   }
 }
 
@@ -562,13 +562,13 @@ resource "google_bigquery_data_transfer_config" "report_detail_edp" {
   location               = data.google_client_config.default.region
 
   params = {
-    query                      = templatefile("${path.module}/sql/report_detail.sql", {
+    query = templatefile("${path.module}/sql/report_detail.sql", {
       project_id               = data.google_client_config.default.project
       region                   = data.google_client_config.default.region
+      dataset                  = google_bigquery_dataset.dashboard.dataset_id
+      table_name               = "report_detail_edp"
       include_platform_columns = false
     })
-    destination_table_name_template = "report_detail_edp"
-    write_disposition               = "WRITE_TRUNCATE"
   }
 }
 
