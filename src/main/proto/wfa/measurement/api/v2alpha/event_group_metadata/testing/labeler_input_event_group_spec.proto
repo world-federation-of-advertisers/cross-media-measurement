@@ -26,10 +26,10 @@ option java_multiple_files = true;
 // through a VID labeler model.
 //
 // Instead of specifying VID ranges directly (as in `SyntheticEventGroupSpec`),
-// this spec defines labeler input ID ranges with demographic distributions. Each
-// labeler input ID is converted to a string and passed through a VID labeler
-// model, which assigns VIDs via hash-based routing and a demographic correction
-// matrix.
+// this spec defines labeler input ID ranges with demographic distributions.
+// Each labeler input ID is converted to a string and passed through a VID
+// labeler model, which assigns VIDs via hash-based routing and a demographic
+// correction matrix.
 message LabelerInputEventGroupSpec {
   // A range of labeler input IDs (inclusive start, exclusive end).
   message IdRange {
@@ -39,9 +39,9 @@ message LabelerInputEventGroupSpec {
 
   // Assigns demographics and frequency to a range of labeler input IDs.
   //
-  // Each labeler input ID in the range is converted to a string (`id.toString()`)
-  // and used as `event_id.id` for the labeler. Demographics are set on the
-  // labeler labeler input ID's
+  // Each labeler input ID in the range is converted to a string
+  // (`id.toString()`) and used as `event_id.id` for the labeler. Demographics
+  // are set on the labeler input ID's
   // `proprietary_id_space_1_user_info.demo.demo_bucket`.
   message DemographicDistribution {
     IdRange id_range = 1;
