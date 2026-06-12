@@ -476,10 +476,6 @@ class VidLabelingDispatcher(
   }
 
   /**
-   * Creates a WorkItem in the Secure Computation control plane for a single model line shard.
-   *
-   * @param resolvedModelLine the resolved model line with its blob path.
-  /**
    * Creates `PoolAssignmentJob` resources for a memoized model line — one per shard.
    *
    * @param uploadName resource name of the parent `RawImpressionUpload`.
@@ -520,6 +516,10 @@ class VidLabelingDispatcher(
     )
   }
 
+  /**
+   * Creates a WorkItem in the Secure Computation control plane for a single model line shard.
+   *
+   * @param resolvedModelLine the resolved model line with its blob path.
    * @param shardIndex zero-based index of this shard.
    * @param uploadId unique identifier for this upload, used to prevent WorkItem ID collisions
    *   across multiple uploads by the same `DataProvider`.
