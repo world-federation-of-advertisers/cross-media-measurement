@@ -16,6 +16,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:trus_tee_protocol_config",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/common",
+        "//src/main/proto/google/rpc:error_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:test_metadata_message_2_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:test_metadata_message_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
