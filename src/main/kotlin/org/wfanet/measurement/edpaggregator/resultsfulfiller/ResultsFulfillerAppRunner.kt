@@ -37,7 +37,7 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerMet
 import org.wfanet.measurement.edpaggregator.runBlockingWithTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
+import org.wfanet.measurement.edpaggregator.v1alpha.StorageParamsApi
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.ParallelInMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -171,7 +171,7 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
   )
   private var pipelineWorkers: Int = 0
 
-  private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
+  private val getImpressionsStorageConfig: (StorageParamsApi) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)
   }
 

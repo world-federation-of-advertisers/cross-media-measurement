@@ -1,0 +1,51 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "StorageParamsApiProto";
+
+// Cloud Storage location for a wire/API params message: a GCS project ID plus a
+// gs:// blob URI prefix.
+//
+// Shared by every EDP Aggregator TEE WorkItem params message
+// (VidLabelerParams, SubpoolAssignerParams, VidRankBuilderParams,
+// ResultsFulfillerParams) so the wire layer has a single storage shape instead
+// of four near-identical copies. This is the API-layer counterpart to the
+// config-layer `wfa.measurement.config.edpaggregator.StorageParams`; the
+// dispatcher / param builders translate config -> this message.
+message StorageParamsApi {
+  // The Google Cloud Storage project ID for the storage instance.
+  //
+  // Conditionally required: MUST be non-empty when the bucket is EDP-owned
+  // (cross-project); MAY be empty for operator-owned buckets, where it
+  // defaults to the runtime project. Enforced by the dispatcher / param
+  // builders, since `field_behavior` is not enforced at runtime.
+  string gcs_project_id = 1 [(google.api.field_behavior) = OPTIONAL];
+
+  // The gs:// blob URI prefix (e.g. `gs://bucket-name` or
+  // `gs://bucket-name/path`).
+  //
+  // Conditionally required: MAY be empty when the location is supplied at
+  // runtime (e.g. raw impressions, via `RawImpressionUpload.done_blob_uri`);
+  // MUST be non-empty for static, config-driven locations (subpool-map,
+  // vid-rank-map, labeled impressions).
+  string blob_prefix = 2 [(google.api.field_behavior) = OPTIONAL];
+}

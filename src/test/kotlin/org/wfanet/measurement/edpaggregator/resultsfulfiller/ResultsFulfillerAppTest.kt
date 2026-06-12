@@ -135,6 +135,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.StorageParamsApi
+import org.wfanet.measurement.edpaggregator.v1alpha.storageParamsApi
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
@@ -1610,8 +1612,8 @@ class ResultsFulfillerAppTest {
 
   private fun getStorageConfig(
     tmpPath: File
-  ): (ResultsFulfillerParams.StorageParams) -> StorageConfig {
-    return { _: ResultsFulfillerParams.StorageParams -> StorageConfig(rootDirectory = tmpPath) }
+  ): (StorageParamsApi) -> StorageConfig {
+    return { _: StorageParamsApi -> StorageConfig(rootDirectory = tmpPath) }
   }
 
   private fun createWorkItemParams(
@@ -1623,8 +1625,8 @@ class ResultsFulfillerAppTest {
         resultsFulfillerParams {
             dataProvider = EDP_NAME
             this.storageParams =
-              ResultsFulfillerParamsKt.storageParams {
-                labeledImpressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
+              storageParamsApi {
+                blobPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX
               }
             this.cmmsConnection = transportLayerSecurityParams {
               clientCertResourcePath = SECRET_FILES_PATH.resolve("edp1_tls.pem").toString()

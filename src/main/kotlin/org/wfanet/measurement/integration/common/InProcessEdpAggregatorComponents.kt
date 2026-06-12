@@ -91,6 +91,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.StorageParamsApi
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
@@ -190,7 +191,7 @@ class InProcessEdpAggregatorComponents(
         pullIntervalMillis = 100,
         blockingContext = Dispatchers.IO,
       )
-    val getStorageConfig = { _: ResultsFulfillerParams.StorageParams ->
+    val getStorageConfig = { _: StorageParamsApi ->
       StorageConfig(rootDirectory = storagePath.toFile())
     }
     ResultsFulfillerApp(

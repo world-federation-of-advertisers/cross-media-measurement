@@ -38,7 +38,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrp
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.NoiseParams.NoiseType
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
+import org.wfanet.measurement.edpaggregator.v1alpha.StorageParamsApi
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
@@ -84,9 +84,9 @@ class ResultsFulfillerApp(
   private val requisitionStubFactory: RequisitionStubFactory,
   private val kmsClients: Map<String, KmsClient>,
   private val trusTeeConfigs: Map<String, TrusTeeConfig>,
-  private val getImpressionsMetadataStorageConfig: (StorageParams) -> StorageConfig,
-  private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig,
-  private val getRequisitionsStorageConfig: (StorageParams) -> StorageConfig,
+  private val getImpressionsMetadataStorageConfig: (StorageParamsApi) -> StorageConfig,
+  private val getImpressionsStorageConfig: (StorageParamsApi) -> StorageConfig,
+  private val getRequisitionsStorageConfig: (StorageParamsApi) -> StorageConfig,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val pipelineConfiguration: PipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
   private val metrics: ResultsFulfillerMetrics,

@@ -47,6 +47,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchSe
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
+import org.wfanet.measurement.edpaggregator.v1alpha.storageParamsApi
 import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
@@ -336,15 +337,14 @@ class VidLabelingDispatcherFunction : HttpFunction {
       return vidLabelerParams {
         dataProvider = config.dataProvider
         vidLabeledImpressionsStorageParams =
-          VidLabelerParamsKt.storageParams {
+          storageParamsApi {
             gcsProjectId = config.vidLabeledImpressionsStorageParams.gcs.projectId
-            impressionsBlobPrefix =
-              "gs://${config.vidLabeledImpressionsStorageParams.gcs.bucketName}"
+            blobPrefix = "gs://${config.vidLabeledImpressionsStorageParams.gcs.bucketName}"
           }
         rawImpressionsStorageParams =
-          VidLabelerParamsKt.storageParams {
+          storageParamsApi {
             gcsProjectId = config.rawImpressionsStorageParams.gcs.projectId
-            impressionsBlobPrefix = "gs://${config.rawImpressionsStorageParams.gcs.bucketName}"
+            blobPrefix = "gs://${config.rawImpressionsStorageParams.gcs.bucketName}"
           }
         vidRepoConnection = transportLayerSecurityParams {
           clientCertResourcePath = config.vidRepoConnection.certFilePath

@@ -31,6 +31,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.storageParamsApi
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -90,14 +91,14 @@ class VidLabelerAppTest {
     val params = vidLabelerParams {
       dataProvider = DATA_PROVIDER_NAME
       rawImpressionsStorageParams =
-        VidLabelerParamsKt.storageParams {
+        storageParamsApi {
           gcsProjectId = "test-project"
-          impressionsBlobPrefix = "gs://raw-bucket/impressions"
+          blobPrefix = "gs://raw-bucket/impressions"
         }
       vidLabeledImpressionsStorageParams =
-        VidLabelerParamsKt.storageParams {
+        storageParamsApi {
           gcsProjectId = "test-project"
-          impressionsBlobPrefix = "gs://output-bucket/labeled"
+          blobPrefix = "gs://output-bucket/labeled"
         }
     }
 
@@ -110,14 +111,14 @@ class VidLabelerAppTest {
     val params = vidLabelerParams {
       dataProvider = DATA_PROVIDER_NAME
       rawImpressionsStorageParams =
-        VidLabelerParamsKt.storageParams {
+        storageParamsApi {
           gcsProjectId = "test-project"
-          impressionsBlobPrefix = "gs://raw-bucket/impressions"
+          blobPrefix = "gs://raw-bucket/impressions"
         }
       vidLabeledImpressionsStorageParams =
-        VidLabelerParamsKt.storageParams {
+        storageParamsApi {
           gcsProjectId = "test-project"
-          impressionsBlobPrefix = "gs://output-bucket/labeled"
+          blobPrefix = "gs://output-bucket/labeled"
         }
     }
 
@@ -132,14 +133,14 @@ class VidLabelerAppTest {
     val params = vidLabelerParams {
       dataProvider = DATA_PROVIDER_NAME
       rawImpressionsStorageParams =
-        VidLabelerParamsKt.storageParams {
+        storageParamsApi {
           gcsProjectId = "test-project"
-          impressionsBlobPrefix = "gs://raw-bucket/impressions"
+          blobPrefix = "gs://raw-bucket/impressions"
         }
       vidLabeledImpressionsStorageParams =
-        VidLabelerParamsKt.storageParams {
+        storageParamsApi {
           gcsProjectId = "test-project"
-          impressionsBlobPrefix = "gs://output-bucket/labeled"
+          blobPrefix = "gs://output-bucket/labeled"
         }
     }
 
@@ -153,14 +154,14 @@ class VidLabelerAppTest {
     val app = createApp()
     val params = vidLabelerParams {
       rawImpressionsStorageParams =
-        VidLabelerParamsKt.storageParams {
+        storageParamsApi {
           gcsProjectId = "test-project"
-          impressionsBlobPrefix = "gs://raw-bucket/impressions"
+          blobPrefix = "gs://raw-bucket/impressions"
         }
       vidLabeledImpressionsStorageParams =
-        VidLabelerParamsKt.storageParams {
+        storageParamsApi {
           gcsProjectId = "test-project"
-          impressionsBlobPrefix = "gs://output-bucket/labeled"
+          blobPrefix = "gs://output-bucket/labeled"
         }
     }
 
