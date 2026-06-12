@@ -1,0 +1,90 @@
+# proto-file: wfa/measurement/api/v2alpha/population_spec.proto
+# proto-message: PopulationSpec
+
+# PopulationSpec matching the reference_test_model.textproto VID pools.
+# 6 subpopulations: 2 genders x 3 age groups, 100 VIDs each.
+# Uses MarketEvent Common demographics.
+
+# MALE 16-34: VIDs 10000-10099
+subpopulations {
+  vid_ranges {
+    start_vid: 10000
+    end_vid_inclusive: 10099
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.market.v1.Common] {
+      sex: MALE
+      age_group: YEARS_16_TO_34
+    }
+  }
+}
+
+# MALE 35-54: VIDs 10100-10199
+subpopulations {
+  vid_ranges {
+    start_vid: 10100
+    end_vid_inclusive: 10199
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.market.v1.Common] {
+      sex: MALE
+      age_group: YEARS_35_TO_54
+    }
+  }
+}
+
+# MALE 55+: VIDs 10200-10299
+subpopulations {
+  vid_ranges {
+    start_vid: 10200
+    end_vid_inclusive: 10299
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.market.v1.Common] {
+      sex: MALE
+      age_group: YEARS_55_PLUS
+    }
+  }
+}
+
+# FEMALE 16-34: VIDs 10300-10399
+subpopulations {
+  vid_ranges {
+    start_vid: 10300
+    end_vid_inclusive: 10399
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.market.v1.Common] {
+      sex: FEMALE
+      age_group: YEARS_16_TO_34
+    }
+  }
+}
+
+# FEMALE 35-54: VIDs 10400-10499
+subpopulations {
+  vid_ranges {
+    start_vid: 10400
+    end_vid_inclusive: 10499
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.market.v1.Common] {
+      sex: FEMALE
+      age_group: YEARS_35_TO_54
+    }
+  }
+}
+
+# FEMALE 55+: VIDs 10500-10599
+subpopulations {
+  vid_ranges {
+    start_vid: 10500
+    end_vid_inclusive: 10599
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.market.v1.Common] {
+      sex: FEMALE
+      age_group: YEARS_55_PLUS
+    }
+  }
+}

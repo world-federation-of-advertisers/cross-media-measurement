@@ -1,0 +1,5 @@
+filegroup(
+    name = "reference_test_model",
+    srcs = ["reference_test_model.textproto"],
+    visibility = ["//visibility:public"],
+)
