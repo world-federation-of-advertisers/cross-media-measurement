@@ -347,3 +347,46 @@ kt_jvm_grpc_proto_library(
     name = "ranker_job_service_kt_jvm_grpc_proto",
     deps = [":ranker_job_service_proto"],
 )
+
+proto_library(
+    name = "pool_assignment_state_proto",
+    srcs = ["pool_assignment_state.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "pool_assignment_state_kt_jvm_proto",
+    deps = [":pool_assignment_state_proto"],
+)
+
+proto_library(
+    name = "pool_assignment_job_proto",
+    srcs = ["pool_assignment_job.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":pool_assignment_state_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "pool_assignment_job_kt_jvm_proto",
+    deps = [":pool_assignment_job_proto"],
+)
+
+proto_library(
+    name = "pool_assignment_job_service_proto",
+    srcs = ["pool_assignment_job_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":pool_assignment_job_proto",
+        ":pool_assignment_state_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "pool_assignment_job_service_kt_jvm_grpc_proto",
+    deps = [":pool_assignment_job_service_proto"],
+)
