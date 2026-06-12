@@ -64,7 +64,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadReq
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsResponse
@@ -94,6 +96,10 @@ class VidLabelingDispatcherTest {
   private val poolAssignmentJobService:
     PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase =
     mockService()
+  private val rawImpressionUploadModelLineService:
+    RawImpressionUploadModelLineServiceGrpcKt
+      .RawImpressionUploadModelLineServiceCoroutineImplBase =
+    mockService()
   private val storageClient: StorageClient = mock()
 
   @get:Rule
@@ -105,6 +111,7 @@ class VidLabelingDispatcherTest {
     addService(rawImpressionUploadService)
     addService(rawImpressionUploadFileService)
     addService(poolAssignmentJobService)
+    addService(rawImpressionUploadModelLineService)
   }
 
   private val workItemsStub by lazy {
@@ -131,6 +138,12 @@ class VidLabelingDispatcherTest {
 
   private val rawImpressionUploadFilesStub by lazy {
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
+      grpcTestServerRule.channel
+    )
+  }
+
+  private val rawImpressionUploadModelLineStub by lazy {
+    RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
       grpcTestServerRule.channel
     )
   }
@@ -199,6 +212,7 @@ class VidLabelingDispatcherTest {
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
       poolAssignmentJobStub = poolAssignmentJobStub,
+      rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
       modelLinesStub = modelLinesStub,
       modelRolloutsStub = modelRolloutsStub,
       modelShardsStub = modelShardsStub,
@@ -230,6 +244,8 @@ class VidLabelingDispatcherTest {
       )
     whenever(rawImpressionUploadFileService.batchCreateRawImpressionUploadFiles(any()))
       .thenReturn(batchCreateRawImpressionUploadFilesResponse {})
+    whenever(rawImpressionUploadModelLineService.batchCreateRawImpressionUploadModelLines(any()))
+      .thenReturn(batchCreateRawImpressionUploadModelLinesResponse {})
   }
 
   private suspend fun stubFullResolutionChain(vararg modelLineNames: String) {

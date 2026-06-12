@@ -48,6 +48,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadModelLinesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadModelLineRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createPoolAssignmentJobRequest
@@ -77,6 +81,8 @@ import org.wfanet.measurement.storage.StorageClient
  * @param rawImpressionUploadStub gRPC stub for the `RawImpressionUploadService`.
  * @param rawImpressionUploadFilesStub gRPC stub for the `RawImpressionUploadFileService`.
  * @param poolAssignmentJobStub gRPC stub for the `PoolAssignmentJobService`.
+ * @param rawImpressionUploadModelLineStub gRPC stub for the
+ *   `RawImpressionUploadModelLineService`.
  * @param modelLinesStub gRPC stub for the VID Repository ModelLines API.
  * @param modelRolloutsStub gRPC stub for the VID Repository ModelRollouts API.
  * @param modelShardsStub gRPC stub for the VID Repository ModelShards API.
@@ -100,6 +106,8 @@ class VidLabelingDispatcher(
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub,
   private val poolAssignmentJobStub:
     PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub,
+  private val rawImpressionUploadModelLineStub:
+    RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub,
   private val modelLinesStub: ModelLinesGrpcKt.ModelLinesCoroutineStub,
   private val modelRolloutsStub: ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub,
   private val modelShardsStub: ModelShardsGrpcKt.ModelShardsCoroutineStub,
@@ -175,8 +183,7 @@ class VidLabelingDispatcher(
         return
       }
 
-      // TODO(world-federation-of-advertisers/cross-media-measurement#3899): Create
-      // RawImpressionUploadModelLine resources for each active model line.
+      createRawImpressionUploadModelLines(rawImpressionUpload.name, resolvedModelLines)
 
       // TODO(world-federation-of-advertisers/cross-media-measurement#3958): Move WorkItem and
       // PoolAssignmentJob creation to VidLabelingMonitorFunction. The dispatcher should only
@@ -482,6 +489,40 @@ class VidLabelingDispatcher(
   }
 
   /**
+   * Creates a `RawImpressionUploadModelLine` for each resolved model line.
+   *
+   * @param uploadName resource name of the parent `RawImpressionUpload`.
+   * @param resolvedModelLines the resolved model lines to register.
+   */
+  private suspend fun createRawImpressionUploadModelLines(
+    uploadName: String,
+    resolvedModelLines: List<ResolvedModelLine>,
+  ) {
+    for (chunk in resolvedModelLines.chunked(RAW_IMPRESSION_UPLOAD_MODEL_LINE_BATCH_SIZE)) {
+      val request = batchCreateRawImpressionUploadModelLinesRequest {
+        parent = uploadName
+        for (resolvedModelLine in chunk) {
+          requests += createRawImpressionUploadModelLineRequest {
+            parent = uploadName
+            rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+              cmmsModelLine = resolvedModelLine.modelLineName
+            }
+            requestId = UUID.randomUUID().toString()
+          }
+        }
+      }
+
+      try {
+        rawImpressionUploadModelLineStub.batchCreateRawImpressionUploadModelLines(request)
+      } catch (e: StatusException) {
+        throw Exception("Error creating RawImpressionUploadModelLines for $uploadName", e)
+      }
+    }
+
+    logger.info("Created ${resolvedModelLines.size} RawImpressionUploadModelLines for $uploadName")
+  }
+
+  /**
    * Creates `PoolAssignmentJob` resources for a memoized model line — one per shard.
    *
    * @param uploadName resource name of the parent `RawImpressionUpload`.
@@ -596,6 +637,7 @@ class VidLabelingDispatcher(
     private const val DONE_MARKER_FILE_NAME = "done"
 
     private const val RAW_IMPRESSION_UPLOAD_FILE_BATCH_SIZE = 100
+    private const val RAW_IMPRESSION_UPLOAD_MODEL_LINE_BATCH_SIZE = 50
     private const val POOL_ASSIGNMENT_JOB_BATCH_SIZE = 100
 
     private val DATA_PROVIDER_ATTR: AttributeKey<String> =
