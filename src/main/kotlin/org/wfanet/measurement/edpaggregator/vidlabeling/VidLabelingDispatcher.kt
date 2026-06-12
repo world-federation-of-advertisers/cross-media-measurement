@@ -178,6 +178,12 @@ class VidLabelingDispatcher(
       // TODO(world-federation-of-advertisers/cross-media-measurement#3899): Create
       // RawImpressionUploadModelLine resources for each active model line.
 
+      // TODO(world-federation-of-advertisers/cross-media-measurement#3958): Move WorkItem and
+      // PoolAssignmentJob creation to VidLabelingMonitorFunction. The dispatcher should only
+      // register the upload (RawImpressionUpload + files). A separate Cloud Scheduler-triggered
+      // monitor function handles dispatch sequencing — it checks for uploads without WorkItems,
+      // verifies no concurrent dispatch for the same (DataProvider, ModelLine), and drives work
+      // forward. This prevents cross-dispatch concurrency corruption on concurrent uploads.
       val (memoizedLines, nonMemoizedLines) =
         resolvedModelLines.partition { it.memoizationEnabled }
 
