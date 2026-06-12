@@ -206,7 +206,8 @@ fun AsyncDatabaseClient.TransactionContext.insertBasicReport(
       set("CmmsModelLineId").to(basicReport.modelLineKey.cmmsModelLineId)
     }
     set("ModelLineSystemSpecified").to(basicReport.modelLineSystemSpecified)
-    set("AmiMrcExemptedCmmsDataProviderIds").toStringArray(basicReport.amiMrcExemptedCmmsDataProviderIdsList)
+    set("AmiMrcExemptedCmmsDataProviderIds")
+      .toStringArray(basicReport.amiMrcExemptedCmmsDataProviderIdsList)
   }
 }
 

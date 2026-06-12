@@ -148,9 +148,7 @@ fun BasicReport.toInternal(
     }
     this.amiMrcExemptedCmmsDataProviderIds +=
       amiMrcExemptedEdps.map {
-        requireNotNull(DataProviderKey.fromName(it)?.dataProviderId) {
-          "Invalid EDP name $it"
-        }
+        requireNotNull(DataProviderKey.fromName(it)?.dataProviderId) { "Invalid EDP name $it" }
       }
   }
 }
