@@ -8,12 +8,19 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
+    name = "watched_blobs",
+    srcs = ["WatchedBlobs.kt"],
+    visibility = ["//visibility:public"],
+)
+
+kt_jvm_library(
     name = "data_watcher",
     srcs = [
         "DataWatcher.kt",
         "DataWatcherMetrics.kt",
     ],
     deps = [
+        ":watched_blobs",
         "//imports/java/com/google/auth:credentials",
         "//imports/java/com/google/auth:oauth_http2",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
