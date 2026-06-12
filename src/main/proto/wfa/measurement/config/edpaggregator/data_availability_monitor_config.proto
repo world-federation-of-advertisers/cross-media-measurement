@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.config.edpaggregator;
 
+import "google/protobuf/duration.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
 import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
 
@@ -64,6 +65,11 @@ message DataAvailabilityMonitorConfig {
 
   // How to connect to the ImpressionMetadata service.
   TransportLayerSecurityParams impression_metadata_connection = 8;
+
+  // Maximum age of a "done" blob that lacks the `synced-by` marker before the
+  // date is flagged as having an unprocessed done blob (DataAvailabilitySync
+  // did not stamp it). If unset, defaults to 24h.
+  google.protobuf.Duration unprocessed_done_threshold = 9;
 }
 
 // Wrapper containing monitor configurations. Loaded at startup from the

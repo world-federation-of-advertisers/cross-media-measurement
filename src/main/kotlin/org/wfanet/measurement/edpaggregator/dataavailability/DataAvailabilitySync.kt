@@ -24,6 +24,7 @@ import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import java.nio.ByteBuffer
 import java.security.MessageDigest
+import java.time.Duration
 import java.util.UUID
 import java.util.logging.Logger
 import kotlin.text.Charsets.UTF_8
@@ -58,6 +59,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.updateImpressionMetadataRequest
+import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -182,6 +184,15 @@ class DataAvailabilitySync(
         saveImpressionMetadata(metadataWithBlobKeys)
       }
 
+      // 2b. Stamp the `done` blob with the synced-by marker. DataAvailabilityMonitor uses this
+      // to tell late-arrival from never-arrived: a done blob older than its threshold without
+      // this marker means Sync did not (yet) complete for the date.
+      storageClient.updateBlobMetadata(
+        blobKey = doneBlobUri.key,
+        metadata =
+          mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE),
+      )
+
       // 3. Retrieve model line bound from ImpressionMetadataStorage for all model lines
       val modelLineBounds: ComputeModelLineBoundsResponse =
         impressionMetadataServiceStub.computeModelLineBounds(
@@ -225,7 +236,9 @@ class DataAvailabilitySync(
           impressionMetadataStub = null,
           dataProviderName = null,
         )
-      val gapResult = gapMonitor.checkGaps()
+      // checkGaps in Sync's per-batch context doesn't care about unprocessed-done — this
+      // sync is the thing that writes the marker. Use a very large threshold to disable.
+      val gapResult = gapMonitor.checkGaps(unprocessedDoneThreshold = Duration.ofDays(365))
       val modelLinesWithGaps = gapResult.statuses.filter { !it.gapDates.isNullOrEmpty() }
       if (modelLinesWithGaps.isNotEmpty()) {
         val gapDetails =
@@ -381,7 +394,7 @@ class DataAvailabilitySync(
           customCreateTime = customCreateTime,
           metadata =
             mapOf(
-              DataAvailabilityBlobs.IMPRESSION_METADATA_RESOURCE_ID_KEY to resultMetadata.name,
+              WatchedBlobs.IMPRESSION_METADATA_RESOURCE_ID_KEY to resultMetadata.name,
               DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE,
             ),
         )

@@ -9,6 +9,7 @@ kt_jvm_test(
         "//imports/java/io/opentelemetry/sdk",
         "//imports/java/io/opentelemetry/sdk:sdk_metrics",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:watched_blobs",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/events",
         "@wfa_common_jvm//imports/java/com/google/protobuf",

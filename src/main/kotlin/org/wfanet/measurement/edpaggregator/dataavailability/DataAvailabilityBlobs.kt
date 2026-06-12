@@ -29,13 +29,6 @@ import org.wfanet.measurement.storage.StorageClient
  */
 object DataAvailabilityBlobs {
   /**
-   * GCS custom metadata key written on metadata blobs to record the resource name of the
-   * [ImpressionMetadata] they correspond to. Will appear as
-   * `x-goog-meta-impression-metadata-resource-id` in GCS.
-   */
-  const val IMPRESSION_METADATA_RESOURCE_ID_KEY = "impression-metadata-resource-id"
-
-  /**
    * GCS custom metadata key written on metadata blobs by [DataAvailabilitySync] to signal that the
    * blob has been synced. The monitor uses the presence of this marker to identify which metadata
    * blobs have been processed, rather than using updateTime (which the sync itself bumps after the
