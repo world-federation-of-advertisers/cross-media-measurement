@@ -27,6 +27,12 @@ bazel_dep(
     version = "0.13.0",
     repo_name = "wfa_rules_kotlin_jvm",
 )
+# DO_NOT_SUBMIT: use new release version
+git_override(
+    module_name = "rules_kotlin_jvm",
+    commit = "a8c01872660dc08644f88b7ab5ff495c6d34204a",
+    remote = "https://github.com/world-federation-of-advertisers/rules_kotlin_jvm.git",
+)
 bazel_dep(
     name = "rules_swig",
     version = "0.1.0",
@@ -41,6 +47,12 @@ bazel_dep(
     name = "common-jvm",
     version = "0.142.0",
     repo_name = "wfa_common_jvm",
+)
+# DO_NOT_SUBMIT: use new release version
+git_override(
+    module_name = "common-jvm",
+    commit = "ac2a3500d0c6f7bca4f125d5e15526dec7118d52",
+    remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )
 bazel_dep(
     name = "common-cpp",
