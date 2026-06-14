@@ -1,0 +1,57 @@
+name: AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out target repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check out reviewer
+        uses: actions/checkout@v4
+        with:
+          repository: SuryaRaut/agentic-code-reviewer
+          path: .reviewer
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run AI code review
+        id: review
+        env:
+          PYTHONPATH: .reviewer
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.1' }}
+        run: |
+          set +e
+          python -m review_agent review \
+            --repo . \
+            --base "origin/${{ github.base_ref }}" \
+            --output review.md
+          status=$?
+          cat review.md
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Publish PR review comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr comment "${{ github.event.pull_request.number }}" --body-file review.md
+
+      - name: Fail if AI review failed
+        if: steps.review.outputs.status != '0'
+        run: exit 1
