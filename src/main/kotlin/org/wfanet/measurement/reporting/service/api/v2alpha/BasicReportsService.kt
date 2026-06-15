@@ -132,7 +132,7 @@ class BasicReportsService(
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
   private val defaultReportStartHour: ZonedHour? = null,
   private val baseExternalImpressionQualificationFilterIds: Iterable<String>,
-  private val amiMrcExemptedEdps: List<String>,
+  private val amiMrcExemptedCmmsDataProviderIds: List<String>,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   data class ZonedHour(val hour: Int, val zoneId: ZoneId)
@@ -334,7 +334,7 @@ class BasicReportsService(
                 impressionQualificationFilterSpecsByName = impressionQualificationFilterSpecsByName,
                 effectiveModelLine = effectiveModelLine?.name.orEmpty(),
                 effectiveReportStart = effectiveReportStart,
-                amiMrcExemptedEdps = amiMrcExemptedEdps,
+                amiMrcExemptedCmmsDataProviderIds = amiMrcExemptedCmmsDataProviderIds,
               )
             requestId = request.requestId
           }

@@ -102,7 +102,7 @@ fun BasicReport.toInternal(
   impressionQualificationFilterSpecsByName: Map<String, List<ImpressionQualificationFilterSpec>>,
   effectiveModelLine: String,
   effectiveReportStart: DateTime,
-  amiMrcExemptedEdps: Iterable<String>,
+  amiMrcExemptedCmmsDataProviderIds: Iterable<String>,
 ): InternalBasicReport {
   val source = this
   return internalBasicReport {
@@ -146,10 +146,7 @@ fun BasicReport.toInternal(
 
       modelLineSystemSpecified = source.modelLine.isEmpty()
     }
-    this.amiMrcExemptedCmmsDataProviderIds +=
-      amiMrcExemptedEdps.map {
-        requireNotNull(DataProviderKey.fromName(it)?.dataProviderId) { "Invalid EDP name $it" }
-      }
+    this.amiMrcExemptedCmmsDataProviderIds += amiMrcExemptedCmmsDataProviderIds
   }
 }
 

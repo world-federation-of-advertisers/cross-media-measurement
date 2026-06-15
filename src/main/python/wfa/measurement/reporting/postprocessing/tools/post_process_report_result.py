@@ -51,6 +51,11 @@ ReportingWindowEntry = AddProcessedResultValuesRequest.ProcessedReportingSetResu
 ReportingSetResult = report_result_pb2.ReportingSetResult
 
 
+def _get_edp_name(cmms_data_provider_id: str) -> str:
+    """Converts a raw CMMS DataProvider ID to an EDP resource name."""
+    return f"dataProviders/{cmms_data_provider_id}"
+
+
 class PostProcessReportResult:
     """Correct a report result and write the processed results to the spanner.
 
@@ -108,6 +113,13 @@ class PostProcessReportResult:
         external_reporting_set_id_map = self._get_external_reporting_set_id_map(
             cmms_measurement_consumer_id, external_reporting_set_ids)
 
+        # Gets the AMI MRC exempted reporting set ids.
+        ami_mrc_exempted_reporting_set_ids = self._get_ami_mrc_exempted_reporting_set_id(
+            cmms_measurement_consumer_id,
+            external_reporting_set_ids,
+            ami_mrc_exempted_edps,
+        )
+
         # Converts report result to a list of report summary v2.
         report_summaries = report_conversion.report_summaries_from_reporting_set_results(
             reporting_set_results, external_reporting_set_id_map)
@@ -122,7 +134,7 @@ class PostProcessReportResult:
         for report_summary in report_summaries:
             result = ReportSummaryV2Processor(
                 report_summary,
-                ami_mrc_exempted_edps=ami_mrc_exempted_edps,
+                ami_mrc_exempted_reporting_set_ids
             ).process()
             if result.status.status_code in [
                     ReportPostProcessorStatus.SOLUTION_FOUND_WITH_HIGHS,
@@ -183,7 +195,7 @@ class PostProcessReportResult:
 
         Returns:
             A dictionary mapping each external reporting set ID to a set of its
-            underlying CMMS DataProvider resource names.
+            underlying primitive reporting set IDs.
         """
         if not external_reporting_set_ids:
             return {}
@@ -198,51 +210,64 @@ class PostProcessReportResult:
             for reporting_set in response.reporting_sets
         }
 
-        def _get_edp_names(reporting_set: ReportingSet) -> set[str]:
-            """Recursively finds all CMMS DataProvider resource names."""
+        def _get_primitive_ids(reporting_set: ReportingSet) -> set[str]:
+            """Recursively finds all primitive reporting set IDs."""
             if reporting_set.WhichOneof("value") == "primitive":
-                if not reporting_set.primitive.event_group_keys:
-                    raise ValueError(
-                        f"Primitive reporting set {reporting_set.external_reporting_set_id} "
-                        "has no event group keys."
-                    )
-                first_id = reporting_set.primitive.event_group_keys[0].cmms_data_provider_id
-                first_name = (
-                    first_id
-                    if first_id.startswith("dataProviders/")
-                    else f"dataProviders/{first_id}"
-                )
-                for key in reporting_set.primitive.event_group_keys:
-                    if key.cmms_data_provider_id != first_id:
-                        raise ValueError(
-                            "Event group keys have different CMMS DataProvider IDs: "
-                            f"{first_id} vs {key.cmms_data_provider_id}"
-                        )
-                return {first_name}
+                return {reporting_set.external_reporting_set_id}
             else:
-                edp_names: set[str] = set()
+                primitive_ids: set[str] = set()
                 for weighted_subset_union in reporting_set.weighted_subset_unions:
                     for primitive_reporting_set_base in weighted_subset_union.primitive_reporting_set_bases:
-                        base_reporting_set = reporting_set_map.get(
-                            primitive_reporting_set_base.external_reporting_set_id
-                        )
-                        if base_reporting_set:
-                            edp_names.update(
-                                _get_edp_names(base_reporting_set)
-                            )
-                        else:
-                            raise ValueError(
-                                f"Could not find the base reporting set "
-                                f"{primitive_reporting_set_base.external_reporting_set_id}"
-                            )
-                return edp_names
+                        primitive_ids.add(primitive_reporting_set_base.
+                                          external_reporting_set_id)
+                return primitive_ids
 
         return {
             reporting_set_id:
-            _get_edp_names(reporting_set_map[reporting_set_id])
+            _get_primitive_ids(reporting_set_map[reporting_set_id])
             for reporting_set_id in external_reporting_set_ids
             if reporting_set_id in reporting_set_map
         }
+
+    def _get_ami_mrc_exempted_reporting_set_id(
+        self,
+        cmms_measurement_consumer_id: str,
+        external_reporting_set_ids: Iterable[str],
+        ami_mrc_exempted_edps: Iterable[str],
+    ) -> list[str]:
+        """Gets the reporting set IDs that are exempted from AMI vs MRC check.
+
+        Args:
+            cmms_measurement_consumer_id: The MC's ID.
+            external_reporting_set_ids: A list of external reporting set IDs.
+            ami_mrc_exempted_edps: A list of exempted EDP names or raw IDs.
+
+        Returns:
+            A list of external reporting set IDs that belong to the exempted EDPs.
+        """
+        if not external_reporting_set_ids or not ami_mrc_exempted_edps:
+            return []
+
+        request = BatchGetReportingSetsRequest(
+            cmms_measurement_consumer_id=cmms_measurement_consumer_id,
+            external_reporting_set_ids=external_reporting_set_ids,
+        )
+        response = self._reporting_sets_stub.BatchGetReportingSets(request)
+
+        exempted_set = set(ami_mrc_exempted_edps)
+        exempted_reporting_set_ids = []
+
+        for reporting_set in response.reporting_sets:
+            if reporting_set.WhichOneof("value") != "primitive":
+                continue
+            for key in reporting_set.primitive.event_group_keys:
+                edp_name = _get_edp_name(key.cmms_data_provider_id)
+                if edp_name in exempted_set:
+                    exempted_reporting_set_ids.append(
+                        reporting_set.external_reporting_set_id)
+                    break
+
+        return exempted_reporting_set_ids
 
     def _process_window_results(
         self,

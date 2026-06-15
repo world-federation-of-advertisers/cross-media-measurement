@@ -3109,7 +3109,7 @@ class BasicReportTransformationsTest {
         impressionQualificationFilterSpecsByName = emptyMap(),
         effectiveModelLine = "",
         effectiveReportStart = publicReport.reportingInterval.reportStart,
-        amiMrcExemptedEdps = listOf("dataProviders/edp1", "dataProviders/edp2"),
+        amiMrcExemptedCmmsDataProviderIds = listOf("edp1", "edp2"),
       )
 
     assertThat(internalReport.amiMrcExemptedCmmsDataProviderIdsList).containsExactly("edp1", "edp2")

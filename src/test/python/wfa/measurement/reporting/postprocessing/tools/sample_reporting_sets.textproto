@@ -5,7 +5,7 @@ reporting_sets {
   external_reporting_set_id: "reporting_set_id_edp1"
   primitive {
     event_group_keys {
-      cmms_data_provider_id: "dataProviders/edp1"
+      cmms_data_provider_id: "edp1"
     }
   }
   weighted_subset_unions {
@@ -19,7 +19,7 @@ reporting_sets {
   external_reporting_set_id: "reporting_set_id_edp2"
   primitive {
     event_group_keys {
-      cmms_data_provider_id: "dataProviders/edp2"
+      cmms_data_provider_id: "edp2"
     }
   }
   weighted_subset_unions {
@@ -33,7 +33,7 @@ reporting_sets {
   external_reporting_set_id: "reporting_set_id_edp3"
   primitive {
     event_group_keys {
-      cmms_data_provider_id: "dataProviders/edp3"
+      cmms_data_provider_id: "edp3"
     }
   }
   weighted_subset_unions {

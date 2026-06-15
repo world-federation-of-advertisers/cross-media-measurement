@@ -59,11 +59,13 @@ class ReportSummaryV2Processor:
     def __init__(
         self,
         report_summary: report_summary_v2_pb2.ReportSummaryV2,
-        ami_mrc_exempted_edps: list[str],
+        ami_mrc_exempted_reporting_set_ids: list[str],
     ):
         """Initializes the processor with a ReportSummary v2 proto."""
         self._report_summary = report_summary
-        self._ami_mrc_exempted_edps = ami_mrc_exempted_edps or []
+        self._ami_mrc_exempted_reporting_set_ids = (
+            ami_mrc_exempted_reporting_set_ids or []
+        )
         self._weekly_cumulative_reaches: dict[ImpressionFilter,
                                               dict[EdpCombination,
                                                    list[Measurement]]] = {}
@@ -104,13 +106,18 @@ class ReportSummaryV2Processor:
         if "custom" in all_impression_filters:
             children_metrics.append("custom")
 
+
+        # In ReportSummaryV2, we use the `external_reporting_set_id` as the key
+        # for the metrics instead of `edp_names`. As a result, we use
+        # `ami_mrc_exempted_reporting_set_ids` to indicate which
+        # `external_reporting_set_ids` are exempted from AMI vs MRC consistency check.
         return Report(
             metric_reports,
             metric_subsets_by_parent={"ami": children_metrics}
             if "ami" in all_impression_filters and children_metrics
             else {},
             cumulative_inconsistency_allowed_edp_combinations={},
-            ami_mrc_exempted_edps=self._ami_mrc_exempted_edps,
+            ami_mrc_exempted_edps=self._ami_mrc_exempted_reporting_set_ids,
         )
 
     def _process_union_results(self):

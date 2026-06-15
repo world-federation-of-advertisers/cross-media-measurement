@@ -1574,7 +1574,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
                 external_reporting_set_result_id: 1
                 impression_filter: "ami"
                 set_operation: "union"
-                data_providers: "dataProviders/edp1"
+                data_providers: "reporting_set_id_edp1"
                 whole_campaign_result {
                     reach {
                         value: 100
@@ -1587,7 +1587,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
                 external_reporting_set_result_id: 2
                 impression_filter: "mrc"
                 set_operation: "union"
-                data_providers: "dataProviders/edp1"
+                data_providers: "reporting_set_id_edp1"
                 whole_campaign_result {
                     reach {
                         value: 200
@@ -1610,7 +1610,9 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
 
         # Case 2: Exemption for edp1. AMI reach remains 100.
         result_with_exemption = ReportSummaryV2Processor(
-            report_summary, ami_mrc_exempted_edps=["dataProviders/edp1"]).process()
+            report_summary,
+            ami_mrc_exempted_reporting_set_ids=["reporting_set_id_edp1"]
+        ).process()
         self.assertEqual(result_with_exemption.updated_measurements["ami_reach"],
                             100)
 
