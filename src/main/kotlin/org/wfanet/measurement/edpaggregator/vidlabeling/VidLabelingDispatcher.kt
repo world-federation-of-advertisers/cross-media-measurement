@@ -62,7 +62,7 @@ import org.wfanet.measurement.storage.StorageClient
  *
  * Processes "done" blob events by crawling directories for raw impression files, resolving active
  * model lines via the VID Repository API (ListModelLines -> ListModelRollouts -> ListModelShards),
- * and creating one WorkItem per shard per model line for TEE processing.
+ * and registering per-model-line state for downstream processing.
  *
  * @param storageClient client for crawling raw impressions directory.
  * @param rawImpressionUploadStub gRPC stub for the `RawImpressionUploadService`.
@@ -73,7 +73,6 @@ import org.wfanet.measurement.storage.StorageClient
  * @param modelRolloutsStub gRPC stub for the VID Repository ModelRollouts API.
  * @param modelShardsStub gRPC stub for the VID Repository ModelShards API.
  * @param dataProviderName resource name of the `DataProvider`.
- * @param vidLabelerParamsTemplate template [VidLabelerParams] with storage and connection fields.
  * @param modelSuiteName resource name of the model suite for ListModelLines.
  * @param overrideModelLines if non-empty, use these model lines instead of querying the API.
  *   Overrides bypass active window checks to support backfilling past data.
