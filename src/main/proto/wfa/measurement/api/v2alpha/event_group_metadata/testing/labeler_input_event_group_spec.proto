@@ -18,6 +18,7 @@ package wfa.measurement.api.v2alpha.event_group_metadata.testing;
 
 import "google/type/date.proto";
 import "wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto";
+import "wfa/virtual_people/common/demographic.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha.event_group_metadata.testing";
 option java_multiple_files = true;
@@ -46,11 +47,12 @@ message LabelerInputEventGroupSpec {
   message DemographicDistribution {
     IdRange id_range = 1;
 
-    // Gender enum value (wfa_virtual_people.Gender: 1=MALE, 2=FEMALE).
-    int32 gender = 2;
-
-    int32 min_age = 3;
-    int32 max_age = 4;
+    // Demographics for every labeler input ID in [id_range]. Copied directly
+    // onto the labeler input's
+    // `profile_info.proprietary_id_space_1_user_info.demo.demo_bucket`, so any
+    // field the labeler model understands (gender, age, social_grade, etc.)
+    // can be set here.
+    wfa_virtual_people.DemoBucket demo_bucket = 2;
 
     // Total frequency for each labeler input ID in this distribution over the
     // containing date range.

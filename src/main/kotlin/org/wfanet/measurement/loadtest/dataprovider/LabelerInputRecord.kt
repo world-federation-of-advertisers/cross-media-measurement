@@ -17,13 +17,12 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
+import org.wfanet.virtualpeople.common.DemoBucket
 
-/** A labeler input ID with its demographic assignment, frequency, and non-population fields. */
+/** A labeler input ID with its demographics, frequency, and non-population fields. */
 data class LabelerInputRecord(
   val labelerInputId: Long,
-  val gender: Int,
-  val minAge: Int,
-  val maxAge: Int,
+  val demoBucket: DemoBucket,
   val frequency: Long,
   val nonPopulationFieldValues: Map<String, FieldValue>,
 )

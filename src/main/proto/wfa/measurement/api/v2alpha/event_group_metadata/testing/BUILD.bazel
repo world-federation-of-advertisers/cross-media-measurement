@@ -65,6 +65,7 @@ proto_library(
     deps = [
         ":simulator_synthetic_data_spec_proto",
         "@com_google_googleapis//google/type:date_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:demographic_proto",
     ],
 )
 

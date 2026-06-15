@@ -43,9 +43,7 @@ object LabelerInputDataGeneration {
         yield(
           LabelerInputRecord(
             labelerInputId = labelerInputId,
-            gender = demoDist.gender,
-            minAge = demoDist.minAge,
-            maxAge = demoDist.maxAge,
+            demoBucket = demoDist.demoBucket,
             frequency = demoDist.frequency,
             nonPopulationFieldValues = demoDist.nonPopulationFieldValuesMap,
           )

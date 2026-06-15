@@ -32,11 +32,8 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.vidRange
 import org.wfanet.measurement.api.v2alpha.populationSpec
-import org.wfanet.virtualpeople.common.Gender
 import org.wfanet.virtualpeople.common.LabelerInput
 import org.wfanet.virtualpeople.common.LabelerOutput
-import org.wfanet.virtualpeople.common.ageRange
-import org.wfanet.virtualpeople.common.demoBucket
 import org.wfanet.virtualpeople.common.demoInfo
 import org.wfanet.virtualpeople.common.eventId
 import org.wfanet.virtualpeople.common.labelerInput
@@ -102,16 +99,7 @@ object LabelerInputSpecConverter {
           profileInfo = profileInfo {
             proprietaryIdSpace1UserInfo = userInfo {
               userId = record.labelerInputId.toString()
-              demo = demoInfo {
-                demoBucket = demoBucket {
-                  gender =
-                    Gender.forNumber(record.gender) ?: error("Invalid gender: ${record.gender}")
-                  age = ageRange {
-                    minAge = record.minAge
-                    maxAge = record.maxAge
-                  }
-                }
-              }
+              demo = demoInfo { demoBucket = record.demoBucket }
             }
           }
         }

@@ -31,6 +31,9 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.fieldValu
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.labelerInputEventGroupSpec
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.virtualpeople.common.Gender
+import org.wfanet.virtualpeople.common.ageRange
+import org.wfanet.virtualpeople.common.demoBucket
 
 @RunWith(JUnit4::class)
 class LabelerInputDataGenerationTest {
@@ -51,25 +54,25 @@ class LabelerInputDataGenerationTest {
     val m1634: List<LabelerInputRecord> = records.filter { it.labelerInputId in 0L until 100L }
     assertThat(m1634).hasSize(100)
     m1634.forEach {
-      assertThat(it.gender).isEqualTo(1)
-      assertThat(it.minAge).isEqualTo(16)
-      assertThat(it.maxAge).isEqualTo(34)
+      assertThat(it.demoBucket.gender).isEqualTo(Gender.GENDER_MALE)
+      assertThat(it.demoBucket.age.minAge).isEqualTo(16)
+      assertThat(it.demoBucket.age.maxAge).isEqualTo(34)
     }
 
     val f3554: List<LabelerInputRecord> = records.filter { it.labelerInputId in 100L until 200L }
     assertThat(f3554).hasSize(100)
     f3554.forEach {
-      assertThat(it.gender).isEqualTo(2)
-      assertThat(it.minAge).isEqualTo(35)
-      assertThat(it.maxAge).isEqualTo(54)
+      assertThat(it.demoBucket.gender).isEqualTo(Gender.GENDER_FEMALE)
+      assertThat(it.demoBucket.age.minAge).isEqualTo(35)
+      assertThat(it.demoBucket.age.maxAge).isEqualTo(54)
     }
 
     val m55plus: List<LabelerInputRecord> = records.filter { it.labelerInputId in 200L until 300L }
     assertThat(m55plus).hasSize(100)
     m55plus.forEach {
-      assertThat(it.gender).isEqualTo(1)
-      assertThat(it.minAge).isEqualTo(55)
-      assertThat(it.maxAge).isEqualTo(99)
+      assertThat(it.demoBucket.gender).isEqualTo(Gender.GENDER_MALE)
+      assertThat(it.demoBucket.age.minAge).isEqualTo(55)
+      assertThat(it.demoBucket.age.maxAge).isEqualTo(99)
     }
   }
 
@@ -140,9 +143,13 @@ class LabelerInputDataGenerationTest {
             start = 0
             endExclusive = 5
           }
-          gender = 1
-          minAge = 16
-          maxAge = 34
+          demoBucket = demoBucket {
+            gender = Gender.GENDER_MALE
+            age = ageRange {
+              minAge = 16
+              maxAge = 34
+            }
+          }
           frequency = 1
         }
       }
@@ -164,9 +171,13 @@ class LabelerInputDataGenerationTest {
             start = 10
             endExclusive = 13
           }
-          gender = 2
-          minAge = 55
-          maxAge = 99
+          demoBucket = demoBucket {
+            gender = Gender.GENDER_FEMALE
+            age = ageRange {
+              minAge = 55
+              maxAge = 99
+            }
+          }
           frequency = 3
         }
       }
@@ -201,9 +212,13 @@ class LabelerInputDataGenerationTest {
             start = 0
             endExclusive = 3
           }
-          gender = 1
-          minAge = 16
-          maxAge = 34
+          demoBucket = demoBucket {
+            gender = Gender.GENDER_MALE
+            age = ageRange {
+              minAge = 16
+              maxAge = 34
+            }
+          }
           frequency = 1
           nonPopulationFieldValues.put(
             "video.completed_50_percent_plus",
@@ -215,9 +230,13 @@ class LabelerInputDataGenerationTest {
             start = 3
             endExclusive = 6
           }
-          gender = 2
-          minAge = 55
-          maxAge = 99
+          demoBucket = demoBucket {
+            gender = Gender.GENDER_FEMALE
+            age = ageRange {
+              minAge = 55
+              maxAge = 99
+            }
+          }
           frequency = 1
           nonPopulationFieldValues.put(
             "display.viewable_100_percent",

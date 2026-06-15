@@ -23,9 +23,13 @@ date_specs {
       start: 0
       end_exclusive: 100
     }
-    gender: 1
-    min_age: 16
-    max_age: 34
+    demo_bucket {
+      gender: GENDER_MALE
+      age {
+        min_age: 16
+        max_age: 34
+      }
+    }
     frequency: 2
     non_population_field_values {
       key: "video.completed_50_percent_plus"
@@ -39,9 +43,13 @@ date_specs {
       start: 100
       end_exclusive: 200
     }
-    gender: 2
-    min_age: 35
-    max_age: 54
+    demo_bucket {
+      gender: GENDER_FEMALE
+      age {
+        min_age: 35
+        max_age: 54
+      }
+    }
     frequency: 1
     non_population_field_values {
       key: "video.completed_50_percent_plus"
@@ -55,9 +63,13 @@ date_specs {
       start: 200
       end_exclusive: 300
     }
-    gender: 1
-    min_age: 55
-    max_age: 99
+    demo_bucket {
+      gender: GENDER_MALE
+      age {
+        min_age: 55
+        max_age: 99
+      }
+    }
     frequency: 3
     non_population_field_values {
       key: "video.completed_50_percent_plus"

@@ -37,8 +37,11 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.Comm
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.virtualpeople.common.CompiledNode
+import org.wfanet.virtualpeople.common.Gender
 import org.wfanet.virtualpeople.common.LabelerInput
 import org.wfanet.virtualpeople.common.LabelerOutput
+import org.wfanet.virtualpeople.common.ageRange
+import org.wfanet.virtualpeople.common.demoBucket
 import org.wfanet.virtualpeople.common.labelerOutput
 import org.wfanet.virtualpeople.common.virtualPersonActivity
 import org.wfanet.virtualpeople.core.labeler.Labeler
@@ -162,9 +165,13 @@ class LabelerInputSpecConverterTest {
           start = 0
           endExclusive = 20
         }
-        gender = 1
-        minAge = 16
-        maxAge = 34
+        demoBucket = demoBucket {
+          gender = Gender.GENDER_MALE
+          age = ageRange {
+            minAge = 16
+            maxAge = 34
+          }
+        }
         frequency = 2
       }
       demographicDistributions += demographicDistribution {
@@ -172,9 +179,13 @@ class LabelerInputSpecConverterTest {
           start = 20
           endExclusive = 30
         }
-        gender = 2
-        minAge = 55
-        maxAge = 99
+        demoBucket = demoBucket {
+          gender = Gender.GENDER_FEMALE
+          age = ageRange {
+            minAge = 55
+            maxAge = 99
+          }
+        }
         frequency = 1
       }
     }
@@ -201,9 +212,13 @@ class LabelerInputSpecConverterTest {
             start = 0
             endExclusive = 5
           }
-          gender = 1
-          minAge = 16
-          maxAge = 34
+          demoBucket = demoBucket {
+            gender = Gender.GENDER_MALE
+            age = ageRange {
+              minAge = 16
+              maxAge = 34
+            }
+          }
           frequency = 1
         }
       }
@@ -225,9 +240,13 @@ class LabelerInputSpecConverterTest {
             start = 100
             endExclusive = 105
           }
-          gender = 2
-          minAge = 55
-          maxAge = 99
+          demoBucket = demoBucket {
+            gender = Gender.GENDER_FEMALE
+            age = ageRange {
+              minAge = 55
+              maxAge = 99
+            }
+          }
           frequency = 2
         }
       }
@@ -282,9 +301,13 @@ class LabelerInputSpecConverterTest {
             start = 0
             endExclusive = 5
           }
-          gender = 1
-          minAge = 16
-          maxAge = 34
+          demoBucket = demoBucket {
+            gender = Gender.GENDER_MALE
+            age = ageRange {
+              minAge = 16
+              maxAge = 34
+            }
+          }
           frequency = 1
           nonPopulationFieldValues.put(
             "video.completed_50_percent_plus",
@@ -296,9 +319,13 @@ class LabelerInputSpecConverterTest {
             start = 5
             endExclusive = 10
           }
-          gender = 1
-          minAge = 16
-          maxAge = 34
+          demoBucket = demoBucket {
+            gender = Gender.GENDER_MALE
+            age = ageRange {
+              minAge = 16
+              maxAge = 34
+            }
+          }
           frequency = 1
           nonPopulationFieldValues.put(
             "display.viewable_100_percent",
@@ -342,9 +369,13 @@ class LabelerInputSpecConverterTest {
             start = 0
             endExclusive = LabelerInputSpecConverter.MAX_INPUT_LABELER_INPUT_IDS + 1
           }
-          gender = 1
-          minAge = 16
-          maxAge = 34
+          demoBucket = demoBucket {
+            gender = Gender.GENDER_MALE
+            age = ageRange {
+              minAge = 16
+              maxAge = 34
+            }
+          }
           frequency = 1
         }
       }
@@ -376,9 +407,13 @@ class LabelerInputSpecConverterTest {
             start = 0
             endExclusive = 5
           }
-          gender = 1
-          minAge = 16
-          maxAge = 34
+          demoBucket = demoBucket {
+            gender = Gender.GENDER_MALE
+            age = ageRange {
+              minAge = 16
+              maxAge = 34
+            }
+          }
           frequency = 0
         }
       }
@@ -410,9 +445,13 @@ class LabelerInputSpecConverterTest {
             start = 10
             endExclusive = 5
           }
-          gender = 1
-          minAge = 16
-          maxAge = 34
+          demoBucket = demoBucket {
+            gender = Gender.GENDER_MALE
+            age = ageRange {
+              minAge = 16
+              maxAge = 34
+            }
+          }
           frequency = 1
         }
       }
@@ -444,9 +483,13 @@ class LabelerInputSpecConverterTest {
             start = 0
             endExclusive = 5
           }
-          gender = 1
-          minAge = 16
-          maxAge = 34
+          demoBucket = demoBucket {
+            gender = Gender.GENDER_MALE
+            age = ageRange {
+              minAge = 16
+              maxAge = 34
+            }
+          }
           frequency = 1
         }
       }
@@ -478,9 +521,13 @@ class LabelerInputSpecConverterTest {
             start = 0
             endExclusive = 10
           }
-          gender = 1
-          minAge = 16
-          maxAge = 34
+          demoBucket = demoBucket {
+            gender = Gender.GENDER_MALE
+            age = ageRange {
+              minAge = 16
+              maxAge = 34
+            }
+          }
           frequency = 1
         }
         // Overlaps with the first distribution's range [0, 10).
@@ -489,9 +536,13 @@ class LabelerInputSpecConverterTest {
             start = 5
             endExclusive = 15
           }
-          gender = 2
-          minAge = 55
-          maxAge = 99
+          demoBucket = demoBucket {
+            gender = Gender.GENDER_FEMALE
+            age = ageRange {
+              minAge = 55
+              maxAge = 99
+            }
+          }
           frequency = 2
         }
       }
@@ -523,9 +574,13 @@ class LabelerInputSpecConverterTest {
             start = 0
             endExclusive = 1
           }
-          gender = 1
-          minAge = 16
-          maxAge = 34
+          demoBucket = demoBucket {
+            gender = Gender.GENDER_MALE
+            age = ageRange {
+              minAge = 16
+              maxAge = 34
+            }
+          }
           frequency = 1
         }
       }
@@ -562,9 +617,13 @@ class LabelerInputSpecConverterTest {
             start = 0
             endExclusive = 1
           }
-          gender = 1
-          minAge = 16
-          maxAge = 34
+          demoBucket = demoBucket {
+            gender = Gender.GENDER_MALE
+            age = ageRange {
+              minAge = 16
+              maxAge = 34
+            }
+          }
           frequency = 7
         }
       }
@@ -615,9 +674,13 @@ class LabelerInputSpecConverterTest {
             start = 0
             endExclusive = 1
           }
-          gender = 1
-          minAge = 16
-          maxAge = 34
+          demoBucket = demoBucket {
+            gender = Gender.GENDER_MALE
+            age = ageRange {
+              minAge = 16
+              maxAge = 34
+            }
+          }
           frequency = 1
         }
       }
