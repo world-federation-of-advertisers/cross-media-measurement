@@ -1,0 +1,64 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/edpaggregator/vid_labeling_state.proto";
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "VidLabelingJobProto";
+
+// Internal representation of a Phase-2 VID labeling job.
+// One row per (upload, model line, file batch), created by the
+// Phase-1 last-RankerJob-out when transitioning
+// RawImpressionUploadModelLine from RANKING to LABELING.
+// When the last VidLabelingJob for a (upload, model line) reaches
+// SUCCEEDED, the last-job-out flips
+// RawImpressionUploadModelLine from LABELING to COMPLETED and
+// triggers DataAvailabilitySync.
+message VidLabelingJob {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // Resource ID of this job.
+  string vid_labeling_job_resource_id = 3;
+
+  // The CMMS model line resource names.
+  repeated string cmms_model_lines = 4;
+
+  // The RawImpressionUploadFile resource names this job labels.
+  repeated string raw_impression_upload_files = 5;
+
+  // The processing state of this job.
+  VidLabelingState state = 6;
+
+  // The timestamp when this record was created.
+  google.protobuf.Timestamp create_time = 7;
+
+  // The timestamp when this record was last updated.
+  google.protobuf.Timestamp update_time = 8;
+
+  // Detail about the failure, set when state is FAILED.
+  string error_message = 9;
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 10;
+}
