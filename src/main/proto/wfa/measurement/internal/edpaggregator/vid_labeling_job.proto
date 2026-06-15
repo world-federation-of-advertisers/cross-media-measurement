@@ -27,7 +27,7 @@ option java_outer_classname = "VidLabelingJobProto";
 // One row per (upload, model line, file batch), created by the
 // Phase-1 last-RankerJob-out when transitioning
 // RawImpressionUploadModelLine from RANKING to LABELING.
-// When the last VidVidLabelingJob for a (upload, model line) reaches
+// When the last VidLabelingJob for a (upload, model line) reaches
 // SUCCEEDED, the last-job-out flips
 // RawImpressionUploadModelLine from LABELING to COMPLETED and
 // triggers DataAvailabilitySync.

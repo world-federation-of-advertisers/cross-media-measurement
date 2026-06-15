@@ -29,7 +29,7 @@ option java_outer_classname = "VidLabelingJobServiceProto";
 // Service for managing `VidLabelingJob` resources, which track
 // per-job processing state for Phase 2 (VID labeling) of
 // a raw impression upload.
-service VidVidLabelingJobService {
+service VidLabelingJobService {
   // Creates a new `VidLabelingJob`.
   rpc CreateVidLabelingJob(CreateVidLabelingJobRequest)
       returns (VidLabelingJob) {}
@@ -46,10 +46,15 @@ service VidVidLabelingJobService {
   rpc ListVidLabelingJobs(ListVidLabelingJobsRequest)
       returns (ListVidLabelingJobsResponse) {}
 
-  // Marks a `VidLabelingJob` as `SUCCEEDED`. Atomically checks
-  // if this is the last job for one or more model lines
-  // and returns the signal to the caller. Throws
-  // FAILED_PRECONDITION if state is not CREATED or FAILED.
+  // Marks a `VidLabelingJob` as `SUCCEEDED`. Atomically
+  // checks if this is the last job for one or more model
+  // lines and returns the signal to the caller.
+  // Throws ABORTED if etag does not match the current
+  // resource version.
+  // Throws FAILED_PRECONDITION if state is not CREATED,
+  // FAILED, or SUCCEEDED-by-this-etag.
+  // A retry from the same etag returns the original
+  // `LastVidLabelingJobResult`.
   rpc MarkVidLabelingJobSucceeded(MarkVidLabelingJobSucceededRequest)
       returns (MarkVidLabelingJobSucceededResponse) {}
 
@@ -113,7 +118,7 @@ message BatchCreateVidLabelingJobsResponse {
 message GetVidLabelingJobRequest {
   // The resource name of the job to retrieve.
   // Format:
-  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/labelingJobs/{vid_labeling_job}`
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/vidLabelingJobs/{vid_labeling_job}`
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
@@ -185,7 +190,7 @@ message ListVidLabelingJobsResponse {
 message MarkVidLabelingJobSucceededRequest {
   // The resource name of the job.
   // Format:
-  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/labelingJobs/{vid_labeling_job}`
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/vidLabelingJobs/{vid_labeling_job}`
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
@@ -223,7 +228,7 @@ message MarkVidLabelingJobSucceededResponse {
 message MarkVidLabelingJobFailedRequest {
   // The resource name of the job.
   // Format:
-  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/labelingJobs/{vid_labeling_job}`
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/vidLabelingJobs/{vid_labeling_job}`
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
