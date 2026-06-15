@@ -514,13 +514,10 @@ class DataAvailabilityMonitor(
   }
 
   /**
-   * The sorted union of every date folder that physically exists for the model line — both
-   * finalized dates ([DateInfo.datesWithDoneBlob]) and unfinalized ones
-   * ([DateInfo.datesWithoutDoneBlob]).
-   *
-   * Gap detection runs over this union rather than over finalized dates alone so that a folder that
-   * has impression data but no "done" blob yet (e.g. a date still being finalized, or one whose
-   * "done" blob is late) is treated as present and is not mis-reported as a missing date.
+   * The sorted union of [DateInfo.datesWithDoneBlob] and [DateInfo.datesWithoutDoneBlob] — all date
+   * folders enumerated for the model line, whether or not they have a "done" blob. Used for gap
+   * detection so that a folder with data but no "done" blob (e.g. a date still being finalized) is
+   * not mistaken for a missing date.
    */
   private fun presentDates(dateInfo: DateInfo): List<LocalDate> =
     (dateInfo.datesWithDoneBlob + dateInfo.datesWithoutDoneBlob).sorted()

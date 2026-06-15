@@ -1117,7 +1117,11 @@ class DataAvailabilitySyncTest {
     }
   }
 
-  private fun newGapTestSync(storageClient: BlobMetadataStorageClient, edpPath: String) =
+  private fun newGapTestSync(
+    storageClient: BlobMetadataStorageClient,
+    edpPath: String,
+    metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
+  ) =
     DataAvailabilitySync(
       edpPath,
       storageClient,
@@ -1128,6 +1132,7 @@ class DataAvailabilitySyncTest {
       impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
       modelLineMap = emptyMap(),
       errorIfGapsExist = true,
+      metrics = metrics,
     )
 
   @Test
@@ -1163,9 +1168,22 @@ class DataAvailabilitySyncTest {
     writeModelLineDate(storageClient, edpPath, "2026-03-16", finalized = false)
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
-    newGapTestSync(storageClient, edpPath).sync("$bucket/${folderPrefix}done")
+    val metricsEnv = createMetricsEnvironment()
+    try {
+      newGapTestSync(storageClient, edpPath, metricsEnv.metrics).sync("$bucket/${folderPrefix}done")
 
-    verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+      verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+
+      // Publish proceeds, but the trailing unfinalized date is still surfaced to operators.
+      metricsEnv.metricReader.forceFlush()
+      val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+      assertThat(
+          getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_WITHOUT_DONE_BLOB)
+        )
+        .isEqualTo(1)
+    } finally {
+      metricsEnv.close()
+    }
   }
 
   @Test
@@ -1182,9 +1200,22 @@ class DataAvailabilitySyncTest {
     writeModelLineDate(storageClient, edpPath, "2026-03-14", finalized = true)
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
-    newGapTestSync(storageClient, edpPath).sync("$bucket/${folderPrefix}done")
+    val metricsEnv = createMetricsEnvironment()
+    try {
+      newGapTestSync(storageClient, edpPath, metricsEnv.metrics).sync("$bucket/${folderPrefix}done")
 
-    verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+      verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+
+      // Publish proceeds, but the leading-edge unfinalized date is still surfaced to operators.
+      metricsEnv.metricReader.forceFlush()
+      val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+      assertThat(
+          getDateStatusCount(metricData, DataAvailabilityMonitorMetrics.STATUS_WITHOUT_DONE_BLOB)
+        )
+        .isEqualTo(1)
+    } finally {
+      metricsEnv.close()
+    }
   }
 
   @Test
