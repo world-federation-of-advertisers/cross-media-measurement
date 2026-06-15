@@ -354,7 +354,7 @@ class RequisitionMetadataService(
     val internalFilter: InternalListRequisitionMetadataFilter =
       internalListRequisitionMetadataRequestFilter {
         if (request.hasFilter()) {
-          states += request.filter.statesList.map { it.toInternalState() }
+          stateIn += request.filter.stateInList.map { it.toInternalState() }
           if (request.filter.groupId.isNotEmpty()) {
             groupId = request.filter.groupId
           }

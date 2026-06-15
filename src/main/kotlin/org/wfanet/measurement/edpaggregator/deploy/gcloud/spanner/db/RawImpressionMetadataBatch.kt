@@ -206,8 +206,8 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionMetadataBatches(
       conjuncts.add("DeleteTime IS NULL")
     }
 
-    if (filter.statesList.isNotEmpty()) {
-      conjuncts.add("CAST(State AS INT64) IN UNNEST(@states)")
+    if (filter.stateInList.isNotEmpty()) {
+      conjuncts.add("CAST(State AS INT64) IN UNNEST(@state_in)")
     }
 
     if (after != null) {
@@ -226,8 +226,8 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionMetadataBatches(
       bind("dataProviderResourceId").to(dataProviderResourceId)
       bind("limit").to(limit.toLong())
 
-      if (filter.statesList.isNotEmpty()) {
-        bind("states").toInt64Array(filter.statesList.map { it.number.toLong() })
+      if (filter.stateInList.isNotEmpty()) {
+        bind("state_in").toInt64Array(filter.stateInList.map { it.number.toLong() })
       }
 
       if (after != null) {

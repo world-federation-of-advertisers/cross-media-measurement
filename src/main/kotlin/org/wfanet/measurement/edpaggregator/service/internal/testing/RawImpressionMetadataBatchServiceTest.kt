@@ -243,7 +243,7 @@ abstract class RawImpressionMetadataBatchServiceTest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           filter =
             ListRawImpressionMetadataBatchesRequestKt.filter {
-              states += RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_PROCESSED
+              stateIn += RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_PROCESSED
             }
         }
       )
@@ -294,8 +294,8 @@ abstract class RawImpressionMetadataBatchServiceTest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             filter =
               ListRawImpressionMetadataBatchesRequestKt.filter {
-                states += RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_PROCESSED
-                states += RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_FAILED
+                stateIn += RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_PROCESSED
+                stateIn += RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_FAILED
               }
           }
         )

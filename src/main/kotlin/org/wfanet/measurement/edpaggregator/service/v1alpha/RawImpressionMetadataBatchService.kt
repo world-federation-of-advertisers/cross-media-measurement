@@ -214,11 +214,11 @@ class RawImpressionMetadataBatchService(
             if (internalPageToken != null) {
               pageToken = internalPageToken
             }
-            if (request.hasFilter() && request.filter.statesList.isNotEmpty()) {
+            if (request.hasFilter() && request.filter.stateInList.isNotEmpty()) {
               filter =
                 org.wfanet.measurement.internal.edpaggregator
                   .ListRawImpressionMetadataBatchesRequestKt
-                  .filter { states += request.filter.statesList.map { it.toInternal() } }
+                  .filter { stateIn += request.filter.stateInList.map { it.toInternal() } }
             }
             showDeleted = request.showDeleted
           }

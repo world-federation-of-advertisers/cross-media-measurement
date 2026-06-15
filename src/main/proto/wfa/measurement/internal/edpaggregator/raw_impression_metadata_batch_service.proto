@@ -79,7 +79,7 @@ message ListRawImpressionMetadataBatchesRequest {
 
   message Filter {
     // Filter to resources whose state is in this set. Empty matches all states.
-    repeated RawImpressionBatchState states = 1;
+    repeated RawImpressionBatchState state_in = 1;
   }
   Filter filter = 4;
 

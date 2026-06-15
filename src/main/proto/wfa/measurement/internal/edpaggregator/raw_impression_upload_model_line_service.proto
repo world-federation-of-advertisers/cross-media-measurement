@@ -139,7 +139,7 @@ message ListRawImpressionUploadModelLinesRequest {
   // Filter for narrowing results.
   message Filter {
     // Filter to resources whose state is in this set. Empty matches all states.
-    repeated RawImpressionUploadModelLineState states = 1;
+    repeated RawImpressionUploadModelLineState state_in = 1;
 
     // Filter for resources whose create_time falls within this
     // interval. Start and end are both optional: omitting start
