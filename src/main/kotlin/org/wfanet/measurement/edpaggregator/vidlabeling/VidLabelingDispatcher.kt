@@ -40,31 +40,19 @@ import org.wfanet.measurement.api.v2alpha.listModelShardsRequest
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
-import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.BlobUris
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
-import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadModelLinesRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadModelLineRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
-import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.createPoolAssignmentJobRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadFileRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
-import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
@@ -77,10 +65,8 @@ import org.wfanet.measurement.storage.StorageClient
  * and creating one WorkItem per shard per model line for TEE processing.
  *
  * @param storageClient client for crawling raw impressions directory.
- * @param workItemsStub gRPC stub for creating WorkItems via Secure Computation API.
  * @param rawImpressionUploadStub gRPC stub for the `RawImpressionUploadService`.
  * @param rawImpressionUploadFilesStub gRPC stub for the `RawImpressionUploadFileService`.
- * @param poolAssignmentJobStub gRPC stub for the `PoolAssignmentJobService`.
  * @param rawImpressionUploadModelLineStub gRPC stub for the
  *   `RawImpressionUploadModelLineService`.
  * @param modelLinesStub gRPC stub for the VID Repository ModelLines API.
@@ -88,8 +74,6 @@ import org.wfanet.measurement.storage.StorageClient
  * @param modelShardsStub gRPC stub for the VID Repository ModelShards API.
  * @param dataProviderName resource name of the `DataProvider`.
  * @param vidLabelerParamsTemplate template [VidLabelerParams] with storage and connection fields.
- * @param queueName resource name of the Secure Computation queue.
- * @param numberOfShards static number of shards per model line.
  * @param modelSuiteName resource name of the model suite for ListModelLines.
  * @param overrideModelLines if non-empty, use these model lines instead of querying the API.
  *   Overrides bypass active window checks to support backfilling past data.
@@ -99,22 +83,16 @@ import org.wfanet.measurement.storage.StorageClient
  */
 class VidLabelingDispatcher(
   private val storageClient: StorageClient,
-  private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   private val rawImpressionUploadStub:
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub,
   private val rawImpressionUploadFilesStub:
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub,
-  private val poolAssignmentJobStub:
-    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub,
   private val rawImpressionUploadModelLineStub:
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub,
   private val modelLinesStub: ModelLinesGrpcKt.ModelLinesCoroutineStub,
   private val modelRolloutsStub: ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub,
   private val modelShardsStub: ModelShardsGrpcKt.ModelShardsCoroutineStub,
   private val dataProviderName: String,
-  private val vidLabelerParamsTemplate: VidLabelerParams,
-  private val queueName: String,
-  private val numberOfShards: Int,
   private val modelSuiteName: String,
   private val overrideModelLines: List<String>,
   private val modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig>,
@@ -140,12 +118,11 @@ class VidLabelingDispatcher(
    * @param doneBlobPath the full storage URI of the "done" blob that triggered this upload.
    * @param doneBlobGeneration GCS object generation number of the done blob. Used to produce
    *   idempotent request IDs that handle both Pub/Sub redelivery (same generation = same ID) and
-   *   EDP re-uploads to the same path (new generation = new ID). If null, falls back to a random
-   *   UUID (not idempotent on retries, suitable for testing only).
-   * @throws IllegalArgumentException if [doneBlobPath] uses an unsupported URI scheme.
-   * @throws Exception if a WorkItem creation fails via the Secure Computation API.
+   *   EDP re-uploads to the same path (new generation = new ID).
+   * @throws IllegalArgumentException if [doneBlobPath] uses an unsupported URI scheme or
+   *   [doneBlobGeneration] is null.
    */
-  suspend fun upload(doneBlobPath: String, doneBlobGeneration: Long? = null) {
+  suspend fun upload(doneBlobPath: String, doneBlobGeneration: Long) {
     val startTime: TimeSource.Monotonic.ValueTimeMark = TimeSource.Monotonic.markNow()
 
     try {
@@ -185,30 +162,14 @@ class VidLabelingDispatcher(
 
       createRawImpressionUploadModelLines(rawImpressionUpload.name, resolvedModelLines)
 
-      // TODO(world-federation-of-advertisers/cross-media-measurement#3958): Move WorkItem and
-      // PoolAssignmentJob creation to VidLabelingMonitorFunction. The dispatcher should only
-      // register the upload (RawImpressionUpload + files). A separate Cloud Scheduler-triggered
-      // monitor function handles dispatch sequencing — it checks for uploads without WorkItems,
-      // verifies no concurrent dispatch for the same (DataProvider, ModelLine), and drives work
-      // forward. This prevents cross-dispatch concurrency corruption on concurrent uploads.
-      val (memoizedLines, nonMemoizedLines) =
-        resolvedModelLines.partition { it.memoizationEnabled }
+      // Registration complete. WorkItem and PoolAssignmentJob creation is handled by
+      // VidLabelingMonitorFunction (#3958), which checks for uploads without WorkItems,
+      // verifies no concurrent dispatch for the same (DataProvider, ModelLine), and drives
+      // work forward. This prevents cross-dispatch concurrency corruption on concurrent uploads.
 
-      var totalWorkItems = 0
-      for (resolvedModelLine in nonMemoizedLines) {
-        for (shardIndex in 0 until numberOfShards) {
-          createWorkItem(resolvedModelLine, shardIndex, uploadId)
-          totalWorkItems++
-        }
-      }
-
-      for (resolvedModelLine in memoizedLines) {
-        createPoolAssignmentJobs(rawImpressionUpload.name, resolvedModelLine)
-      }
-
-      metrics.workItemsCreatedCounter.add(
-        totalWorkItems.toLong(),
-        Attributes.of(DATA_PROVIDER_ATTR, dataProviderName),
+      logger.info(
+        "Registered upload ${rawImpressionUpload.name} with ${blobKeys.size} files and " +
+          "${resolvedModelLines.size} model lines"
       )
 
       recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
@@ -429,19 +390,15 @@ class VidLabelingDispatcher(
    * at the same path → new request ID → new upload for EDP re-uploads.
    *
    * @param doneBlobPath the full storage URI of the "done" blob.
-   * @param generation GCS object generation number, or null for testing.
+   * @param generation GCS object generation number.
    * @return the created `RawImpressionUpload`.
    */
   private suspend fun createRawImpressionUpload(
     doneBlobPath: String,
-    generation: Long?,
+    generation: Long,
   ): RawImpressionUpload {
     val requestId =
-      if (generation != null) {
-        UUID.nameUUIDFromBytes("$doneBlobPath:$generation".toByteArray()).toString()
-      } else {
-        UUID.randomUUID().toString()
-      }
+      UUID.nameUUIDFromBytes("$doneBlobPath:$generation".toByteArray()).toString()
     val request = createRawImpressionUploadRequest {
       parent = dataProviderName
       rawImpressionUpload = rawImpressionUpload { doneBlobUri = doneBlobPath }
@@ -507,7 +464,10 @@ class VidLabelingDispatcher(
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
               cmmsModelLine = resolvedModelLine.modelLineName
             }
-            requestId = UUID.randomUUID().toString()
+            requestId =
+              UUID.nameUUIDFromBytes(
+                "$uploadName:${resolvedModelLine.modelLineName}".toByteArray()
+              ).toString()
           }
         }
       }
@@ -520,103 +480,6 @@ class VidLabelingDispatcher(
     }
 
     logger.info("Created ${resolvedModelLines.size} RawImpressionUploadModelLines for $uploadName")
-  }
-
-  /**
-   * Creates `PoolAssignmentJob` resources for a memoized model line — one per shard.
-   *
-   * @param uploadName resource name of the parent `RawImpressionUpload`.
-   * @param resolvedModelLine the resolved model line with memoization enabled.
-   */
-  private suspend fun createPoolAssignmentJobs(
-    uploadName: String,
-    resolvedModelLine: ResolvedModelLine,
-  ) {
-    for (shardChunk in (0 until numberOfShards).chunked(POOL_ASSIGNMENT_JOB_BATCH_SIZE)) {
-      val request = batchCreatePoolAssignmentJobsRequest {
-        parent = uploadName
-        for (shardIndex in shardChunk) {
-          requests += createPoolAssignmentJobRequest {
-            parent = uploadName
-            poolAssignmentJob = poolAssignmentJob {
-              cmmsModelLine = resolvedModelLine.modelLineName
-              this.shardIndex = shardIndex
-            }
-            requestId = UUID.randomUUID().toString()
-          }
-        }
-      }
-
-      try {
-        poolAssignmentJobStub.batchCreatePoolAssignmentJobs(request)
-      } catch (e: StatusException) {
-        throw Exception(
-          "Error creating PoolAssignmentJobs for ${resolvedModelLine.modelLineName}",
-          e,
-        )
-      }
-    }
-
-    logger.info(
-      "Created $numberOfShards PoolAssignmentJobs for memoized model line " +
-        "${resolvedModelLine.modelLineName}"
-    )
-  }
-
-  /**
-   * Creates a WorkItem in the Secure Computation control plane for a single model line shard.
-   *
-   * @param resolvedModelLine the resolved model line with its blob path.
-   * @param shardIndex zero-based index of this shard.
-   * @param uploadId unique identifier for this upload, used to prevent WorkItem ID collisions
-   *   across multiple uploads by the same `DataProvider`.
-   */
-  private suspend fun createWorkItem(
-    resolvedModelLine: ResolvedModelLine,
-    shardIndex: Int,
-    uploadId: String,
-  ) {
-    val modelLineName = resolvedModelLine.modelLineName
-    val modelLineConfig =
-      requireNotNull(modelLineConfigs[modelLineName]) {
-        "No ModelLineConfig found for model line: $modelLineName"
-      }
-
-    val params = vidLabelerParams {
-      dataProvider = dataProviderName
-      vidLabeledImpressionsStorageParams =
-        vidLabelerParamsTemplate.vidLabeledImpressionsStorageParams
-      rawImpressionsStorageParams = vidLabelerParamsTemplate.rawImpressionsStorageParams
-      vidRepoConnection = vidLabelerParamsTemplate.vidRepoConnection
-      modelLineConfigs[modelLineName] =
-        VidLabelerParamsKt.modelLineConfig {
-          labelerInputFieldMapping.putAll(modelLineConfig.labelerInputFieldMappingMap)
-          eventTemplateFieldMapping.putAll(modelLineConfig.eventTemplateFieldMappingMap)
-        }
-      overrideModelLines += listOf(modelLineName)
-      this.shardIndex = shardIndex
-      totalShards = numberOfShards
-      modelBlobPaths[modelLineName] = resolvedModelLine.modelBlobPath
-    }
-
-    val workItemId =
-      "vid-labeling-$uploadId-${modelLineName.substringAfterLast("/")}-shard-$shardIndex"
-    val packedWorkItemParams = workItemParams { appParams = params.pack() }.pack()
-
-    val request = createWorkItemRequest {
-      this.workItemId = workItemId
-      workItem = workItem {
-        queue = queueName
-        workItemParams = packedWorkItemParams
-      }
-    }
-
-    try {
-      workItemsStub.createWorkItem(request)
-    } catch (e: StatusException) {
-      throw Exception("Error creating WorkItem $workItemId", e)
-    }
-    logger.info("Created WorkItem $workItemId for model line $modelLineName shard $shardIndex")
   }
 
   private fun recordUploadDuration(startTime: TimeSource.Monotonic.ValueTimeMark, status: String) {
@@ -638,7 +501,6 @@ class VidLabelingDispatcher(
 
     private const val RAW_IMPRESSION_UPLOAD_FILE_BATCH_SIZE = 100
     private const val RAW_IMPRESSION_UPLOAD_MODEL_LINE_BATCH_SIZE = 50
-    private const val POOL_ASSIGNMENT_JOB_BATCH_SIZE = 100
 
     private val DATA_PROVIDER_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("edpa.vid_labeling_dispatcher.data_provider")
