@@ -239,16 +239,33 @@ class DataAvailabilitySync(
       // checkGaps in Sync's per-batch context doesn't care about unprocessed-done — this
       // sync is the thing that writes the marker. Use a very large threshold to disable.
       val gapResult = gapMonitor.checkGaps(unprocessedDoneThreshold = Duration.ofDays(365))
-      val modelLinesWithGaps = gapResult.statuses.filter { !it.gapDates.isNullOrEmpty() }
-      if (modelLinesWithGaps.isNotEmpty()) {
-        val gapDetails =
-          modelLinesWithGaps.joinToString("; ") { status ->
-            "Model line ${status.modelLineKey.toName()} gap dates: ${status.gapDates}"
+      // A model line is blocked from publishing when it has a true gap (a missing date between two
+      // finalized dates) OR when a date inside its finalized range [earliestDate, latestDate] still
+      // has no "done" blob. The latter is data that is present but not yet finalized within the
+      // already-published window, so publishing now would advertise availability over an interval
+      // that is not actually complete. Unfinalized dates that trail after latestDate or lead before
+      // earliestDate are ignored here — they extend the window rather than punching a hole in it.
+      val modelLinesBlocked =
+        gapResult.statuses.filter { status ->
+          val earliest = status.earliestDate
+          val inRangeUnfinalized =
+            earliest != null &&
+              status.datesWithoutDoneBlob.orEmpty().any { it in earliest..status.latestDate }
+          !status.gapDates.isNullOrEmpty() || inRangeUnfinalized
+        }
+      if (modelLinesBlocked.isNotEmpty()) {
+        val blockDetails =
+          modelLinesBlocked.joinToString("; ") { status ->
+            "Model line ${status.modelLineKey.toName()} gap dates: ${status.gapDates}, " +
+              "unfinalized dates: ${status.datesWithoutDoneBlob}"
           }
-        logger.warning("Date gaps detected in $edpImpressionPath. $gapDetails")
+        logger.warning(
+          "Date gaps or in-range unfinalized dates detected in $edpImpressionPath. $blockDetails"
+        )
         if (errorIfGapsExist) {
           logger.warning(
-            "Skipping replaceDataAvailabilityIntervals due to date gaps in $edpImpressionPath."
+            "Skipping replaceDataAvailabilityIntervals due to date gaps or in-range unfinalized " +
+              "dates in $edpImpressionPath."
           )
           recordSyncDuration(syncStartTime, SYNC_STATUS_SKIPPED_GAPS)
           return

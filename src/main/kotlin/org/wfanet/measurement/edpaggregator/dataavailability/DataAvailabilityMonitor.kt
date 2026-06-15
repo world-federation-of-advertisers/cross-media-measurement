@@ -95,6 +95,10 @@ class DataAvailabilityMonitor(
    *   or `null` when staleness was not checked (e.g., gap-only mode or no uploaded dates found).
    * @property latestDate The most recent date with a completed upload ("done" blob). Set to the
    *   current date when no uploads are found (staleness mode) or [LocalDate.MIN] in gap-only mode.
+   * @property earliestDate The earliest date with a completed upload ("done" blob), or `null` when
+   *   no uploaded dates were found. Together with [latestDate] this bounds the finalized range used
+   *   to decide whether an unfinalized date (one in [datesWithoutDoneBlob]) falls inside the
+   *   already-published window.
    * @property gapDates Dates missing between the earliest and latest uploaded dates, or `null` when
    *   no uploaded dates were found.
    * @property staleDays Number of days between today and [latestDate], or `null` when staleness was
@@ -119,6 +123,7 @@ class DataAvailabilityMonitor(
     val modelLineKey: ModelLineKey,
     val isStale: Boolean?,
     val latestDate: LocalDate,
+    val earliestDate: LocalDate?,
     val gapDates: List<LocalDate>?,
     val staleDays: Int?,
     val zeroImpressionDates: List<LocalDate>?,
@@ -226,6 +231,7 @@ class DataAvailabilityMonitor(
         modelLineKey = modelLineKey,
         isStale = null,
         latestDate = today,
+        earliestDate = null,
         gapDates = null,
         staleDays = null,
         zeroImpressionDates = null,
@@ -242,7 +248,7 @@ class DataAvailabilityMonitor(
     val latestDate = sortedDates.last()
     val staleDays = (today.toEpochDay() - latestDate.toEpochDay()).toInt()
     val isStale = staleDays > maxStaleDays
-    val gapDates = findGaps(sortedDates)
+    val gapDates = findGaps(presentDates(dateInfo))
 
     logger.log(
       Level.INFO,
@@ -263,6 +269,7 @@ class DataAvailabilityMonitor(
       modelLineKey = modelLineKey,
       isStale = isStale,
       latestDate = latestDate,
+      earliestDate = sortedDates.first(),
       gapDates = gapDates,
       staleDays = staleDays,
       zeroImpressionDates = dateInfo.zeroImpressionDates,
@@ -284,6 +291,7 @@ class DataAvailabilityMonitor(
         modelLineKey = modelLineKey,
         isStale = null,
         latestDate = LocalDate.MIN,
+        earliestDate = null,
         gapDates = null,
         staleDays = null,
         zeroImpressionDates = null,
@@ -297,7 +305,7 @@ class DataAvailabilityMonitor(
     }
 
     val sortedDates = uploadedDates.sorted()
-    val gapDates = findGaps(sortedDates)
+    val gapDates = findGaps(presentDates(dateInfo))
 
     logger.log(
       Level.INFO,
@@ -312,6 +320,7 @@ class DataAvailabilityMonitor(
       modelLineKey = modelLineKey,
       isStale = null,
       latestDate = sortedDates.last(),
+      earliestDate = sortedDates.first(),
       gapDates = gapDates,
       staleDays = null,
       zeroImpressionDates = dateInfo.zeroImpressionDates,
@@ -525,6 +534,13 @@ class DataAvailabilityMonitor(
       }
     }
 
+    // datesWithDone and datesWithoutDoneBlob come from mutually exclusive branches above, so the
+    // two
+    // sets must never overlap. The in-range gating in DataAvailabilitySync relies on this invariant
+    // (a date is either finalized or unfinalized, never both), so assert it explicitly.
+    val overlap = datesWithDone.intersect(datesWithoutDoneBlobList.toSet())
+    check(overlap.isEmpty()) { "A date cannot both have and lack a done blob: $overlap" }
+
     return DateInfo(
       datesWithDoneBlob = datesWithDone,
       zeroImpressionDates = zeroImpressionDatesList.sorted(),
@@ -537,7 +553,16 @@ class DataAvailabilityMonitor(
     )
   }
 
-  /** Returns true if [blob] is a non-empty metadata file that has not been marked as synced. */
+  /**
+   * The sorted union of [DateInfo.datesWithDoneBlob] and [DateInfo.datesWithoutDoneBlob] — all date
+   * folders enumerated for the model line, whether or not they have a "done" blob. Used for gap
+   * detection so that a folder with data but no "done" blob (e.g. a date still being finalized) is
+   * not mistaken for a missing date.
+   */
+  private fun presentDates(dateInfo: DateInfo): List<LocalDate> =
+    (dateInfo.datesWithDoneBlob + dateInfo.datesWithoutDoneBlob).sorted()
+
+  /** Returns true if [blob] is a metadata file that has not been marked as synced. */
   private fun isUnsynced(blob: StorageClient.Blob): Boolean =
     DataAvailabilityBlobs.isMetadataBlob(blob) && !DataAvailabilityBlobs.isSynced(blob)
 
