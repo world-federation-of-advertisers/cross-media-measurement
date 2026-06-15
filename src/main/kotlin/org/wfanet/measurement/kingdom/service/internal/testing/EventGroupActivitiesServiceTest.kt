@@ -1180,6 +1180,26 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
   }
 
   @Test
+  fun `listEventGroupActivities throws INVALID_ARGUMENT when external_data_provider_id is missing`() {
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.listEventGroupActivities(listEventGroupActivitiesRequest {})
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = KingdomInternalException.DOMAIN
+            reason = ErrorCode.REQUIRED_FIELD_NOT_SET.name
+            metadata["field_name"] = "external_data_provider_id"
+          }
+        )
+    }
+  }
+
+  @Test
   fun `listEventGroupActivities respects page_size`() = runBlocking {
     val createRequest = batchUpdateEventGroupActivitiesRequest {
       externalDataProviderId = dataProvider.externalDataProviderId

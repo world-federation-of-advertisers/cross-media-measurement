@@ -239,24 +239,27 @@ class SpannerEventGroupActivitiesService(
         null
       }
 
+    if (request.externalDataProviderId == 0L) {
+      throw RequiredFieldNotSetException("external_data_provider_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
     val resultList =
       client.readOnlyTransaction().use { txn ->
-        // Validate DataProvider exists if specified.
-        if (request.externalDataProviderId != 0L) {
-          val dataProviderResult =
-            DataProviderReader()
-              .readByExternalDataProviderId(txn, ExternalId(request.externalDataProviderId))
-          if (dataProviderResult == null) {
-            throw DataProviderNotFoundException(ExternalId(request.externalDataProviderId))
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          }
+        // Validate DataProvider exists.
+        val dataProviderResult =
+          DataProviderReader()
+            .readByExternalDataProviderId(txn, ExternalId(request.externalDataProviderId))
+        if (dataProviderResult == null) {
+          throw DataProviderNotFoundException(ExternalId(request.externalDataProviderId))
+            .asStatusRuntimeException(Status.Code.NOT_FOUND)
         }
 
         EventGroupActivityReader()
           .readEventGroupActivities(
             txn,
             request.externalDataProviderId,
-            request.externalEventGroupId,
+            if (request.hasExternalEventGroupId()) request.externalEventGroupId else null,
             pageSize + 1,
             after,
             dateInterval,
