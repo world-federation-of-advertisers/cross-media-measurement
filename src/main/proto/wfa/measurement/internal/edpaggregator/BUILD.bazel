@@ -347,3 +347,102 @@ kt_jvm_grpc_proto_library(
     name = "ranker_job_service_kt_jvm_grpc_proto",
     deps = [":ranker_job_service_proto"],
 )
+
+proto_library(
+    name = "pool_assignment_state_proto",
+    srcs = ["pool_assignment_state.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "pool_assignment_state_kt_jvm_proto",
+    deps = [":pool_assignment_state_proto"],
+)
+
+proto_library(
+    name = "pool_assignment_job_proto",
+    srcs = ["pool_assignment_job.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":pool_assignment_state_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "pool_assignment_job_kt_jvm_proto",
+    deps = [":pool_assignment_job_proto"],
+)
+
+proto_library(
+    name = "pool_assignment_job_service_proto",
+    srcs = ["pool_assignment_job_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":pool_assignment_job_proto",
+        ":pool_assignment_state_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "pool_assignment_job_service_kt_jvm_grpc_proto",
+    deps = [":pool_assignment_job_service_proto"],
+)
+
+proto_library(
+    name = "encrypted_dek_proto",
+    srcs = ["encrypted_dek.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "encrypted_dek_kt_jvm_proto",
+    deps = [":encrypted_dek_proto"],
+)
+
+proto_library(
+    name = "blob_type_proto",
+    srcs = ["blob_type.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "blob_type_kt_jvm_proto",
+    deps = [":blob_type_proto"],
+)
+
+proto_library(
+    name = "rank_index_blob_proto",
+    srcs = ["rank_index_blob.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":blob_type_proto",
+        ":encrypted_dek_proto",
+        "@com_google_googleapis//google/type:date_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "rank_index_blob_kt_jvm_proto",
+    deps = [":rank_index_blob_proto"],
+)
+
+proto_library(
+    name = "rank_index_blob_service_proto",
+    srcs = ["rank_index_blob_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":blob_type_proto",
+        ":rank_index_blob_proto",
+        "@com_google_googleapis//google/type:date_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "rank_index_blob_service_kt_jvm_grpc_proto",
+    deps = [":rank_index_blob_service_proto"],
+)
