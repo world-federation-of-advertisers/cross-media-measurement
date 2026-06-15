@@ -78,8 +78,8 @@ message ListRawImpressionUploadsRequest {
 
   // Filter for narrowing results.
   message Filter {
-    // Filter by pipeline state.
-    RawImpressionUploadState state = 1;
+    // Filter to resources whose state is in this set. Empty matches all states.
+    repeated RawImpressionUploadState states = 1;
 
     // Filter for resources whose create_time falls within this
     // interval. Start and end are both optional: omitting start

@@ -113,11 +113,11 @@ message ListRawImpressionMetadataBatchesRequest {
 
   // Filter for `ListRawImpressionMetadataBatches` method.
   message Filter {
-    // The state to filter by.
+    // Filter to resources whose state is in this set. Empty matches all states.
     // (-- api-linter: core::0216::state-field-output-only=disabled
     //     aip.dev/not-precedent: This is a filter input field, not a
     //     resource state field. --)
-    RawImpressionMetadataBatch.State state = 1
+    repeated RawImpressionMetadataBatch.State states = 1
         [(google.api.field_behavior) = OPTIONAL];
   }
 

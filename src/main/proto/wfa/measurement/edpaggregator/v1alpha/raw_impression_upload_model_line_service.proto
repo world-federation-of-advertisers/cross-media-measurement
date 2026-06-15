@@ -170,11 +170,11 @@ message ListRawImpressionUploadModelLinesRequest {
 
   // Structured filter for narrowing results.
   message Filter {
-    // Filter by pipeline state.
+    // Filter to resources whose state is in this set. Empty matches all states.
     // (-- api-linter: core::0216::state-field-output-only=disabled
     //     aip.dev/not-precedent: This is a filter input field, not
     //     a resource state field. --)
-    RawImpressionUploadModelLine.State state = 1
+    repeated RawImpressionUploadModelLine.State states = 1
         [(google.api.field_behavior) = OPTIONAL];
 
     // Filter for resources whose create_time falls within this

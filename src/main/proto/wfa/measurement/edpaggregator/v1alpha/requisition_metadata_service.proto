@@ -203,11 +203,11 @@ message ListRequisitionMetadataRequest {
 
   // Filtering criteria for the list request.
   message Filter {
-    // Filter by the state of the requisition.
+    // Filter to resources whose state is in this set. Empty matches all states.
     // (-- api-linter: core::0216::state-field-output-only=disabled
     //     aip.dev/not-precedent: The state field is used for filtering input.
     //     --)
-    RequisitionMetadata.State state = 1
+    repeated RequisitionMetadata.State states = 1
         [(google.api.field_behavior) = OPTIONAL];
     // Filter by the group ID of the requisition.
     string group_id = 2 [(google.api.field_behavior) = OPTIONAL];
