@@ -19,6 +19,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
+import "google/type/interval.proto";
 import "wfa/measurement/edpaggregator/v1alpha/raw_impression_upload_file.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -147,6 +148,13 @@ message ListRawImpressionUploadFilesRequest {
   message Filter {
     // Filter by blob URIs.
     repeated string blob_uri_in = 1 [(google.api.field_behavior) = OPTIONAL];
+
+    // Filter for resources whose create_time falls within this interval.
+    // Start and end are both optional: omitting start returns resources
+    // created before end, omitting end returns resources created after
+    // start.
+    google.type.Interval create_time_interval = 2
+        [(google.api.field_behavior) = OPTIONAL];
   }
 
   // Optional. A filter to apply to the results.

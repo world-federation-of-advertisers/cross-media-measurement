@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
 // Import the message definitions used by this service.
 import "wfa/measurement/internal/edpaggregator/requisition_metadata.proto";
 import "wfa/measurement/internal/edpaggregator/requisition_metadata_state.proto";
@@ -121,6 +122,9 @@ message ListRequisitionMetadataRequest {
     RequisitionMetadataState state = 1;
     string group_id = 2;
     string report = 3;
+
+    // Filter for resources whose create_time falls within this interval.
+    google.type.Interval create_time_interval = 4;
   }
   Filter filter = 1;
 
