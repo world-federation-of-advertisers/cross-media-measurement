@@ -42,7 +42,7 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
  * @param overrideModelLines if non-empty, only these model lines are used (validated against
  *   [modelLineSpecs]).
  * @param vidModelLoader loads + caches the compiled model per model blob URI.
- * @param impressionProjector projects Parquet rows into [ProjectedImpression]s (schema seam).
+ * @param impressionConverter converts Parquet rows into [ConvertedImpression]s (schema seam).
  * @param encryptKmsClient encrypt/decrypt KMS client for the labeled output.
  * @param encryptKekUri KEK URI for generating per-output DEKs.
  * @param outputStorageParams GCS project + blob prefix for labeled output.
@@ -53,7 +53,7 @@ class VidLabeler(
   private val modelLineSpecs: List<ModelLineSpec>,
   private val overrideModelLines: List<String>,
   private val vidModelLoader: VidModelLoader,
-  private val impressionProjector: ImpressionProjector,
+  private val impressionConverter: ImpressionConverter,
   private val encryptKmsClient: KmsClient,
   private val encryptKekUri: String,
   private val outputStorageParams: VidLabelerParams.StorageParams,
@@ -80,7 +80,7 @@ class VidLabeler(
       VidLabelingSink(
         inputBlobUri = blobUri,
         modelLineContexts = contexts,
-        impressionProjector = impressionProjector,
+        impressionConverter = impressionConverter,
         encryptKmsClient = encryptKmsClient,
         encryptKekUri = encryptKekUri,
         outputStorageParams = outputStorageParams,

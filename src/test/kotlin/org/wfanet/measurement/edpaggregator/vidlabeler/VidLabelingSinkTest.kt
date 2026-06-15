@@ -67,7 +67,7 @@ class VidLabelingSinkTest {
     VidLabelingSink(
       inputBlobUri = "file:///raw/file-1.parquet",
       modelLineContexts = contexts,
-      impressionProjector = FakeImpressionProjector(),
+      impressionConverter = FakeImpressionConverter(),
       encryptKmsClient = kmsClient,
       encryptKekUri = kekUri,
       outputStorageParams = outputStorageParams,
@@ -141,12 +141,12 @@ class VidLabelingSinkTest {
   }
 
   /** Projects the test rows: reads event time + event group from fixed columns. */
-  private class FakeImpressionProjector : ImpressionProjector {
-    override fun project(
+  private class FakeImpressionConverter : ImpressionConverter {
+    override fun convert(
       event: ParquetDigestedEvent,
       config: VidLabelerParams.ModelLineConfig,
-    ): ProjectedImpression =
-      ProjectedImpression(
+    ): ConvertedImpression =
+      ConvertedImpression(
         labelerInput = LabelerInput.getDefaultInstance(),
         eventTimeMicros = event.row.getValue(EVENT_TIME_COLUMN).int64Value,
         eventGroupReferenceId = event.row.getValue(EVENT_GROUP_COLUMN).stringValue,

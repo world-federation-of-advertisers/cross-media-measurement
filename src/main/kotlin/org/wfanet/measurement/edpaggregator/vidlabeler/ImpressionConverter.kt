@@ -21,32 +21,32 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.virtualpeople.common.LabelerInput
 
 /**
- * Projects a raw-impression Parquet row into the fields needed to label and emit an impression for
+ * Converts a raw-impression Parquet row into the fields needed to label and emit an impression for
  * one model line.
  *
  * This is the seam between the raw-impression reader (which hands out rows keyed by **Parquet
- * column name** — see [ParquetDigestedEvent]) and the VirtualPeople [LabelerInput]. The projection
+ * column name** — see [ParquetDigestedEvent]) and the VirtualPeople [LabelerInput]. The conversion
  * is model-line-specific because the column→field mapping lives in
  * [VidLabelerParams.ModelLineConfig.getLabelerInputFieldMappingMap].
  *
  * It is injected (rather than implemented inline) so the labeling pipeline can be built and tested
- * before the Parquet schema is finalized: tests supply a fake, and the production projector is
+ * before the Parquet schema is finalized: tests supply a fake, and the production converter is
  * wired in once the schema is pinned.
  *
  * TODO(world-federation-of-advertisers/cross-media-measurement#3913): provide the production
  *   implementation once the raw-impression Parquet schema (column names + types) is finalized with
  *   the reader (#3954).
  */
-fun interface ImpressionProjector {
+fun interface ImpressionConverter {
   /**
-   * Projects [event]'s row for the model line described by [config].
+   * Converts [event]'s row for the model line described by [config].
    *
-   * @return the [ProjectedImpression], or `null` to skip this row for this model line.
+   * @return the [ConvertedImpression], or `null` to skip this row for this model line.
    */
-  fun project(
+  fun convert(
     event: ParquetDigestedEvent,
     config: VidLabelerParams.ModelLineConfig,
-  ): ProjectedImpression?
+  ): ConvertedImpression?
 }
 
 /**
@@ -58,7 +58,7 @@ fun interface ImpressionProjector {
  * @property eventGroupReferenceId event group the impression belongs to.
  * @property event the Event payload to embed in the labeled output.
  */
-data class ProjectedImpression(
+data class ConvertedImpression(
   val labelerInput: LabelerInput,
   val eventTimeMicros: Long,
   val eventGroupReferenceId: String,

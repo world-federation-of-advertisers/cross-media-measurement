@@ -53,7 +53,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param inputBlobUri URI of the raw-impression file this sink consumes.
  * @param modelLineContexts model lines to label with, each with its [ActiveWindow] and
  *   [VidAssigner].
- * @param impressionProjector projects a Parquet row into a [ProjectedImpression] (schema seam).
+ * @param impressionConverter converts a Parquet row into a [ConvertedImpression] (schema seam).
  * @param encryptKmsClient encrypt/decrypt KMS client for the labeled output.
  * @param encryptKekUri KEK URI for generating per-output DEKs.
  * @param outputStorageParams GCS project + blob prefix for labeled output.
@@ -62,7 +62,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 class VidLabelingSink(
   private val inputBlobUri: String,
   private val modelLineContexts: List<ModelLineContext>,
-  private val impressionProjector: ImpressionProjector,
+  private val impressionConverter: ImpressionConverter,
   private val encryptKmsClient: KmsClient,
   private val encryptKekUri: String,
   private val outputStorageParams: VidLabelerParams.StorageParams,
@@ -78,24 +78,24 @@ class VidLabelingSink(
     val produced = ArrayList<Pair<OutputGroupKey, LabeledImpression>>()
     for (digestedEvent in events) {
       for (context in modelLineContexts) {
-        val projected = impressionProjector.project(digestedEvent, context.config) ?: continue
-        if (!context.activeWindow.contains(projected.eventTimeMicros)) continue
+        val converted = impressionConverter.convert(digestedEvent, context.config) ?: continue
+        if (!context.activeWindow.contains(converted.eventTimeMicros)) continue
 
-        val output = context.assigner.assign(projected.labelerInput)
+        val output = context.assigner.assign(converted.labelerInput)
         if (output.peopleCount == 0) continue
 
         val labeled = labeledImpression {
           eventTime = timestamp {
-            seconds = Math.floorDiv(projected.eventTimeMicros, MICROS_PER_SECOND)
+            seconds = Math.floorDiv(converted.eventTimeMicros, MICROS_PER_SECOND)
             nanos =
-              (Math.floorMod(projected.eventTimeMicros, MICROS_PER_SECOND) * NANOS_PER_MICRO)
+              (Math.floorMod(converted.eventTimeMicros, MICROS_PER_SECOND) * NANOS_PER_MICRO)
                 .toInt()
           }
           vid = output.getPeople(0).virtualPersonId
-          event = projected.event
-          eventGroupReferenceId = projected.eventGroupReferenceId
+          event = converted.event
+          eventGroupReferenceId = converted.eventGroupReferenceId
         }
-        produced.add(OutputGroupKey(context.modelLine, projected.eventGroupReferenceId) to labeled)
+        produced.add(OutputGroupKey(context.modelLine, converted.eventGroupReferenceId) to labeled)
       }
     }
 
