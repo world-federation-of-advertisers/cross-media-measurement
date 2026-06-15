@@ -41,7 +41,10 @@ service RankerJobService {
   rpc ListRankerJobs(ListRankerJobsRequest) returns (ListRankerJobsResponse);
 
   // Marks a `RankerJob` as `SUCCEEDED`. Throws
-  // FAILED_PRECONDITION if state is not CREATED or FAILED.
+  // FAILED_PRECONDITION if state is not CREATED, FAILED, or
+  // SUCCEEDED-by-this-etag. Throws ABORTED if etag does not
+  // match the current resource version. A retry from the same
+  // etag returns the original `MarkRankerJobSucceededResponse`.
   rpc MarkRankerJobSucceeded(MarkRankerJobSucceededRequest)
       returns (MarkRankerJobSucceededResponse);
 

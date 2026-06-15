@@ -47,7 +47,11 @@ service PoolAssignmentJobService {
 
   // Marks a `PoolAssignmentJob` as `SUCCEEDED`. Atomically
   // checks if this is the last shard for the (upload, model
-  // line) and returns the signal to the caller.
+  // line) and returns the signal to the caller. Throws
+  // FAILED_PRECONDITION if state is not CREATED, FAILED, or
+  // SUCCEEDED-by-this-etag. Throws ABORTED if etag does not
+  // match the current resource version. A retry from the same
+  // etag returns the original `MarkPoolAssignmentJobSucceededResponse`.
   rpc MarkPoolAssignmentJobSucceeded(MarkPoolAssignmentJobSucceededRequest)
       returns (MarkPoolAssignmentJobSucceededResponse) {}
 

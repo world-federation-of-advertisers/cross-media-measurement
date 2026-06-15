@@ -44,7 +44,11 @@ service PoolAssignmentJobService {
   rpc ListPoolAssignmentJobs(ListPoolAssignmentJobsRequest)
       returns (ListPoolAssignmentJobsResponse);
 
-  // Marks a `PoolAssignmentJob` as `SUCCEEDED`.
+  // Marks a `PoolAssignmentJob` as `SUCCEEDED`. Throws
+  // FAILED_PRECONDITION if state is not CREATED, FAILED, or
+  // SUCCEEDED-by-this-etag. Throws ABORTED if etag does not
+  // match the current resource version. A retry from the same
+  // etag returns the original `MarkPoolAssignmentJobSucceededResponse`.
   rpc MarkPoolAssignmentJobSucceeded(MarkPoolAssignmentJobSucceededRequest)
       returns (MarkPoolAssignmentJobSucceededResponse);
 
