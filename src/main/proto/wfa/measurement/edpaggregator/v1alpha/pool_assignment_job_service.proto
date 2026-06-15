@@ -151,7 +151,8 @@ message ListPoolAssignmentJobsRequest {
     // (-- api-linter: core::0216::state-field-output-only=disabled
     //     aip.dev/not-precedent: This is a filter input field, not
     //     a resource state field. --)
-    repeated PoolAssignmentJob.State states = 1 [(google.api.field_behavior) = OPTIONAL];
+    repeated PoolAssignmentJob.State states = 1
+        [(google.api.field_behavior) = OPTIONAL];
 
     // Filter for resources whose create_time falls within this
     // interval. Start and end are both optional: omitting start

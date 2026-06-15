@@ -218,9 +218,7 @@ class RawImpressionMetadataBatchService(
               filter =
                 org.wfanet.measurement.internal.edpaggregator
                   .ListRawImpressionMetadataBatchesRequestKt
-                  .filter {
-                    states += request.filter.statesList.map { it.toInternal() }
-                  }
+                  .filter { states += request.filter.statesList.map { it.toInternal() } }
             }
             showDeleted = request.showDeleted
           }
