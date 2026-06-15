@@ -206,8 +206,8 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionMetadataBatches(
       conjuncts.add("DeleteTime IS NULL")
     }
 
-    if (filter.state != RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_UNSPECIFIED) {
-      conjuncts.add("State = @state")
+    if (filter.statesList.isNotEmpty()) {
+      conjuncts.add("State IN UNNEST(@states)")
     }
 
     if (after != null) {
@@ -226,8 +226,8 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionMetadataBatches(
       bind("dataProviderResourceId").to(dataProviderResourceId)
       bind("limit").to(limit.toLong())
 
-      if (filter.state != RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_UNSPECIFIED) {
-        bind("state").to(filter.state.number.toLong())
+      if (filter.statesList.isNotEmpty()) {
+        bind("states").toInt64Array(filter.statesList.map { it.number.toLong() })
       }
 
       if (after != null) {

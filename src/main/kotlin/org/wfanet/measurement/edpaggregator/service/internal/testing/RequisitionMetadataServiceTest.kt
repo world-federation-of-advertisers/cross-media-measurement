@@ -1503,7 +1503,7 @@ abstract class RequisitionMetadataServiceTest {
       service.listRequisitionMetadata(
         listRequisitionMetadataRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          filter = ListRequisitionMetadataRequestKt.filter { state = queuedRequisition.state }
+          filter = ListRequisitionMetadataRequestKt.filter { states += queuedRequisition.state }
         }
       )
 
