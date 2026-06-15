@@ -101,8 +101,9 @@ message ListRawImpressionMetadataBatchFilesRequest {
   message Filter {
     repeated string blob_uri_in = 1;
 
-    // Filter for resources whose create_time falls within this interval.
-    google.type.Interval create_time_interval = 2;
+    // Filter for resources whose create_time is in the given interval. At least
+    // one of `start_time` or `end_time` must be set.
+    google.type.Interval create_time_in = 2;
   }
   Filter filter = 5;
 
