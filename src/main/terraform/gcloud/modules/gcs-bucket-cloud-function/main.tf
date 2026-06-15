@@ -82,7 +82,12 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
     google_secret_manager_secret_iam_member.secret_accessor,
   ]
 
-  triggers_replace = [var.uber_jar_path]
+  triggers_replace = [
+    var.uber_jar_path,
+    var.extra_env_vars,
+    var.secret_mappings,
+    var.uploaded_config_generation,
+  ]
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
