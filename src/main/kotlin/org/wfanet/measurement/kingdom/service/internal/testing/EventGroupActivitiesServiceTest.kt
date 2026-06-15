@@ -1046,7 +1046,7 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          filter = filter { externalEventGroupIds += eventGroup.externalEventGroupId }
+          externalEventGroupId = eventGroup.externalEventGroupId
         }
       )
 
@@ -1121,7 +1121,7 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          filter = filter { externalEventGroupIds += eventGroup.externalEventGroupId }
+          externalEventGroupId = eventGroup.externalEventGroupId
           pageSize = 1
         }
       )
@@ -1133,7 +1133,7 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          filter = filter { externalEventGroupIds += eventGroup.externalEventGroupId }
+          externalEventGroupId = eventGroup.externalEventGroupId
           pageToken = firstResponse.nextPageToken
         }
       )
@@ -1171,32 +1171,12 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          filter = filter { externalEventGroupIds += eventGroup.externalEventGroupId }
+          externalEventGroupId = eventGroup.externalEventGroupId
         }
       )
 
     assertThat(response.eventGroupActivitiesList).isEmpty()
     assertThat(response.hasNextPageToken()).isFalse()
-  }
-
-  @Test
-  fun `listEventGroupActivities throws INVALID_ARGUMENT when external_data_provider_id is missing`() {
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          eventGroupActivitiesService.listEventGroupActivities(listEventGroupActivitiesRequest {})
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = KingdomInternalException.DOMAIN
-            reason = ErrorCode.REQUIRED_FIELD_NOT_SET.name
-            metadata["field_name"] = "external_data_provider_id"
-          }
-        )
-    }
   }
 
   @Test
@@ -1245,7 +1225,7 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          filter = filter { externalEventGroupIds += eventGroup.externalEventGroupId }
+          externalEventGroupId = eventGroup.externalEventGroupId
           pageSize = 1
         }
       )
@@ -1312,7 +1292,7 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          filter = filter { externalEventGroupIds += eventGroup.externalEventGroupId }
+          externalEventGroupId = eventGroup.externalEventGroupId
           pageSize = 1
         }
       )
@@ -1324,7 +1304,7 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          filter = filter { externalEventGroupIds += eventGroup.externalEventGroupId }
+          externalEventGroupId = eventGroup.externalEventGroupId
           pageSize = 1
           pageToken = firstResponse.nextPageToken
         }
@@ -1372,7 +1352,7 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
-          filter = filter { externalEventGroupIds += eventGroup.externalEventGroupId }
+          externalEventGroupId = eventGroup.externalEventGroupId
           pageSize = 5000
         }
       )
@@ -1522,7 +1502,7 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
         eventGroupActivitiesService.listEventGroupActivities(
           listEventGroupActivitiesRequest {
             externalDataProviderId = dataProvider.externalDataProviderId
-            filter = filter { externalEventGroupIds += eventGroup.externalEventGroupId }
+            externalEventGroupId = eventGroup.externalEventGroupId
           }
         )
 
@@ -1588,8 +1568,8 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       eventGroupActivitiesService.listEventGroupActivities(
         listEventGroupActivitiesRequest {
           externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
           filter = filter {
-            externalEventGroupIds += eventGroup.externalEventGroupId
             dateInterval = dateInterval {
               startDate = date {
                 year = 2025
