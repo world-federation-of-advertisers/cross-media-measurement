@@ -48,18 +48,20 @@ service VidLabelingJobService {
 
   // Marks a `VidLabelingJob` as `SUCCEEDED`. Atomically
   // checks if this is the last job for one or more model
-  // lines and returns the signal to the caller.
-  // Throws ABORTED if etag does not match the current
-  // resource version.
-  // Throws FAILED_PRECONDITION if state is not CREATED,
-  // FAILED, or SUCCEEDED-by-this-etag.
-  // A retry from the same etag returns the original
-  // `LastVidLabelingJobResult`.
+  // lines and returns the signal to the caller. Throws
+  // ABORTED if etag does not match the current resource
+  // version (AIP-154). Throws FAILED_PRECONDITION if
+  // state is not CREATED or FAILED. A retry with the
+  // same `request_id` returns the original response
+  // without modifying state (AIP-155).
   rpc MarkVidLabelingJobSucceeded(MarkVidLabelingJobSucceededRequest)
       returns (MarkVidLabelingJobSucceededResponse) {}
 
-  // Marks a `VidLabelingJob` as `FAILED`. Throws
-  // FAILED_PRECONDITION if state is not CREATED or FAILED.
+  // Marks a `VidLabelingJob` as `FAILED`. Throws ABORTED
+  // if etag does not match (AIP-154). Throws
+  // FAILED_PRECONDITION if state is not CREATED or
+  // FAILED. A retry with the same `request_id` returns
+  // the original response (AIP-155).
   rpc MarkVidLabelingJobFailed(MarkVidLabelingJobFailedRequest)
       returns (VidLabelingJob) {}
 }
@@ -200,6 +202,17 @@ message MarkVidLabelingJobSucceededRequest {
 
   // The etag of the VidLabelingJob for optimistic locking.
   string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure
+  // idempotency on retry. A retry with the same
+  // `request_id` returns the original response without
+  // re-transitioning the resource.
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
 }
 
 // Response message for the
@@ -236,9 +249,20 @@ message MarkVidLabelingJobFailedRequest {
     }
   ];
 
-  // The etag of the VidLabelingJob for optimistic locking.
-  string etag = 2 [(google.api.field_behavior) = REQUIRED];
-
   // Human-readable detail about the failure.
-  string error_message = 3 [(google.api.field_behavior) = OPTIONAL];
+  string error_message = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // The etag of the VidLabelingJob for optimistic locking.
+  string etag = 3 [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure
+  // idempotency on retry. A retry with the same
+  // `request_id` returns the original response without
+  // re-transitioning the resource.
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 4 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
 }

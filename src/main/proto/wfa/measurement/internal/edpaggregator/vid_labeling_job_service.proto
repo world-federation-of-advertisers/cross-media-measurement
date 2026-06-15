@@ -46,16 +46,18 @@ service VidLabelingJobService {
       returns (ListVidLabelingJobsResponse);
 
   // Marks a `VidLabelingJob` as `SUCCEEDED`. Throws
-  // ABORTED if etag does not match. Throws
-  // FAILED_PRECONDITION if state is not CREATED, FAILED,
-  // or SUCCEEDED-by-this-etag. A retry from the same
-  // etag returns the original
-  // `LastVidLabelingJobResult`.
+  // ABORTED if etag does not match (AIP-154). Throws
+  // FAILED_PRECONDITION if state is not CREATED or
+  // FAILED. A retry with the same request_id returns
+  // the original response (AIP-155).
   rpc MarkVidLabelingJobSucceeded(MarkVidLabelingJobSucceededRequest)
       returns (MarkVidLabelingJobSucceededResponse);
 
   // Marks a `VidLabelingJob` as `FAILED`. Throws
-  // FAILED_PRECONDITION if state is not CREATED or FAILED.
+  // ABORTED if etag does not match. Throws
+  // FAILED_PRECONDITION if state is not CREATED or
+  // FAILED. A retry with the same request_id returns
+  // the original response.
   rpc MarkVidLabelingJobFailed(MarkVidLabelingJobFailedRequest)
       returns (VidLabelingJob);
 }
@@ -169,6 +171,9 @@ message MarkVidLabelingJobSucceededRequest {
 
   // Entity tag for optimistic concurrency control.
   string etag = 4;
+
+  // A request ID for retry idempotency.
+  string request_id = 5;
 }
 
 // Response message for MarkVidLabelingJobSucceeded.
@@ -198,9 +203,12 @@ message MarkVidLabelingJobFailedRequest {
   // Resource ID of this job.
   string vid_labeling_job_resource_id = 3;
 
-  // Entity tag for optimistic concurrency control.
-  string etag = 4;
-
   // Human-readable detail about the failure.
-  string error_message = 5;
+  string error_message = 4;
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 5;
+
+  // A request ID for retry idempotency.
+  string request_id = 6;
 }
