@@ -384,9 +384,9 @@ class VidLabelingDispatcher(
   /**
    * Creates a `RawImpressionUpload` resource to track this upload.
    *
-   * Uses the done blob path and GCS generation number to produce an idempotent request ID.
-   * Same (path, generation) → same request ID → idempotent on Pub/Sub redelivery. New generation
-   * at the same path → new request ID → new upload for EDP re-uploads.
+   * Uses the done blob path and GCS generation number to produce an idempotent request ID. Same
+   * (path, generation) → same request ID → idempotent on Pub/Sub redelivery. New generation at the
+   * same path → new request ID → new upload for EDP re-uploads.
    *
    * @param doneBlobPath the full storage URI of the "done" blob.
    * @param generation GCS object generation number.
@@ -396,8 +396,7 @@ class VidLabelingDispatcher(
     doneBlobPath: String,
     generation: Long,
   ): RawImpressionUpload {
-    val requestId =
-      UUID.nameUUIDFromBytes("$doneBlobPath:$generation".toByteArray()).toString()
+    val requestId = UUID.nameUUIDFromBytes("$doneBlobPath:$generation".toByteArray()).toString()
     val request = createRawImpressionUploadRequest {
       parent = dataProviderName
       rawImpressionUpload = rawImpressionUpload { doneBlobUri = doneBlobPath }
