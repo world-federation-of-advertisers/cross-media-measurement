@@ -1503,13 +1503,92 @@ abstract class RequisitionMetadataServiceTest {
       service.listRequisitionMetadata(
         listRequisitionMetadataRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          filter = ListRequisitionMetadataRequestKt.filter { state = queuedRequisition.state }
+          filter = ListRequisitionMetadataRequestKt.filter { stateIn += queuedRequisition.state }
         }
       )
 
     assertThat(response)
       .isEqualTo(listRequisitionMetadataResponse { requisitionMetadata += queuedRequisition })
   }
+
+  @Test
+  fun `listRequisitionMetadata filters by multiple states (OR)`() =
+    runBlocking<Unit> {
+      val created =
+        createRequisitionMetadata(
+          REQUISITION_METADATA_2,
+          REQUISITION_METADATA_3,
+          REQUISITION_METADATA_4,
+        )
+
+      val queuedRequisition =
+        service.queueRequisitionMetadata(
+          queueRequisitionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requisitionMetadataResourceId = REQUISITION_METADATA_RESOURCE_ID_4
+            workItem = WORK_ITEM
+            etag = created.last().etag
+          }
+        )
+
+      val refusedRequisition =
+        service.refuseRequisitionMetadata(
+          refuseRequisitionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requisitionMetadataResourceId = REQUISITION_METADATA_RESOURCE_ID_3
+            refusalMessage = "Refused for test"
+            etag = created[1].etag
+          }
+        )
+
+      val response =
+        service.listRequisitionMetadata(
+          listRequisitionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            filter =
+              ListRequisitionMetadataRequestKt.filter {
+                stateIn += queuedRequisition.state
+                stateIn += refusedRequisition.state
+              }
+          }
+        )
+
+      assertThat(response.requisitionMetadataList.map { it.requisitionMetadataResourceId })
+        .containsExactly(
+          refusedRequisition.requisitionMetadataResourceId,
+          queuedRequisition.requisitionMetadataResourceId,
+        )
+    }
+
+  @Test
+  fun `listRequisitionMetadata with empty states filter returns all states`() =
+    runBlocking<Unit> {
+      val created =
+        createRequisitionMetadata(
+          REQUISITION_METADATA_2,
+          REQUISITION_METADATA_3,
+          REQUISITION_METADATA_4,
+        )
+
+      service.queueRequisitionMetadata(
+        queueRequisitionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          requisitionMetadataResourceId = REQUISITION_METADATA_RESOURCE_ID_4
+          workItem = WORK_ITEM
+          etag = created.last().etag
+        }
+      )
+
+      val response =
+        service.listRequisitionMetadata(
+          listRequisitionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            filter = ListRequisitionMetadataRequestKt.filter {}
+          }
+        )
+
+      assertThat(response.requisitionMetadataList).hasSize(3)
+    }
 
   @Test
   fun `listRequisitionMetadata throws INVALID_ARGUMENT if dataProviderResourceId not set`() =

@@ -45,6 +45,10 @@ service RankerJobService {
   // this is the last job for the (upload, model line) and
   // returns the signal to the caller. Throws
   // FAILED_PRECONDITION if state is not CREATED or FAILED.
+  // Throws ABORTED if etag does not match the current resource
+  // version (AIP-154). A retry with the same `request_id`
+  // returns the original response without modifying state
+  // (AIP-155).
   rpc MarkRankerJobSucceeded(MarkRankerJobSucceededRequest)
       returns (MarkRankerJobSucceededResponse) {}
 
@@ -141,11 +145,15 @@ message ListRankerJobsRequest {
 
   // Structured filter for narrowing results.
   message Filter {
-    // Filter by processing state.
+    // Filter to resources whose state is in this set. Empty matches all states.
     // (-- api-linter: core::0216::state-field-output-only=disabled
     //     aip.dev/not-precedent: This is a filter input field, not
     //     a resource state field. --)
-    RankerJob.State state = 1 [(google.api.field_behavior) = OPTIONAL];
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: `_in` is the established repo convention
+    //     for set-membership filter fields. --)
+    repeated RankerJob.State state_in = 1
+        [(google.api.field_behavior) = OPTIONAL];
 
     // Filter for resources whose create_time falls within this
     // interval. Start and end are both optional: omitting start
@@ -188,6 +196,16 @@ message MarkRankerJobSucceededRequest {
 
   // The etag of the RankerJob for optimistic locking.
   string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure idempotency
+  // on retry. A retry with the same `request_id` returns the
+  // original response without re-transitioning the resource.
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
 }
 
 // Response message for the `MarkRankerJobSucceeded` method.
