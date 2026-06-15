@@ -128,18 +128,18 @@ object DataAvailabilityBlobs {
       .toList()
   }
 
+  /**
+   * Result of [enumerateDateInfo]. Each date is in exactly one of the two collections (enforced by
+   * a `check` in the producer).
+   *
+   * @property datesWithDoneBlob map from date to the `done` blob itself, so callers can read
+   *   `createTime` / `metadata` without re-fetching.
+   * @property datesWithoutDoneBlob sorted list of date folders that exist but have no `done` blob.
+   */
+  data class EnumeratedDateInfo(
+    val datesWithDoneBlob: Map<LocalDate, StorageClient.Blob>,
+    val datesWithoutDoneBlob: List<LocalDate>,
+  )
+
   private val logger: Logger = Logger.getLogger(DataAvailabilityBlobs::class.java.name)
 }
-
-/**
- * Result of [DataAvailabilityBlobs.enumerateDateInfo]. Each date is in exactly one of the two
- * collections (enforced by a `check` in the producer).
- *
- * @property datesWithDoneBlob map from date to the `done` blob itself, so callers can read
- *   `createTime` / `metadata` without re-fetching.
- * @property datesWithoutDoneBlob sorted list of date folders that exist but have no `done` blob.
- */
-data class EnumeratedDateInfo(
-  val datesWithDoneBlob: Map<LocalDate, StorageClient.Blob>,
-  val datesWithoutDoneBlob: List<LocalDate>,
-)
