@@ -10,6 +10,7 @@ kt_jvm_library(
     name = "data_availability_blobs",
     srcs = ["DataAvailabilityBlobs.kt"],
     deps = [
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],
 )

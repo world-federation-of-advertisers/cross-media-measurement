@@ -25,7 +25,6 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeParseException
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -248,7 +247,8 @@ class DataAvailabilityMonitor(
     val latestDate = sortedDates.last()
     val staleDays = (today.toEpochDay() - latestDate.toEpochDay()).toInt()
     val isStale = staleDays > maxStaleDays
-    val gapDates = findGaps(presentDates(dateInfo))
+    val gapDates =
+      DataAvailabilityBlobs.findGaps(dateInfo.datesWithDoneBlob + dateInfo.datesWithoutDoneBlob)
 
     logger.log(
       Level.INFO,
@@ -305,7 +305,8 @@ class DataAvailabilityMonitor(
     }
 
     val sortedDates = uploadedDates.sorted()
-    val gapDates = findGaps(presentDates(dateInfo))
+    val gapDates =
+      DataAvailabilityBlobs.findGaps(dateInfo.datesWithDoneBlob + dateInfo.datesWithoutDoneBlob)
 
     logger.log(
       Level.INFO,
@@ -457,94 +458,62 @@ class DataAvailabilityMonitor(
   }
 
   /**
-   * Discovers date folders under the given prefix using delimiter-based listing, then checks each
-   * date folder for a "done" blob and at least one data file.
-   *
-   * This avoids enumerating all blobs in every date folder, which can be slow when folders contain
-   * thousands of files. Instead, it:
-   * 1. Lists date-level prefixes using [StorageClient.listBlobKeysAndPrefixes].
-   * 2. For each date, checks for the "done" blob via [StorageClient.getBlob].
-   * 3. For dates with a done blob, checks for at least one data file via [StorageClient.listBlobs].
-   *
-   * Expected path format: `{prefix}{date}/done` and `{prefix}{date}/other_files`
+   * Layers Monitor-specific classification (zero-impression, late-arrival, unprocessed-done,
+   * healthy) on top of [DataAvailabilityBlobs.enumerateDateInfo]'s storage-level classification.
    */
   private suspend fun getDateInfo(prefix: String, unprocessedDoneThreshold: Duration): DateInfo {
-    val datesWithDone = mutableSetOf<LocalDate>()
+    val enumerated = DataAvailabilityBlobs.enumerateDateInfo(storageClient, prefix)
     val zeroImpressionDatesList = mutableListOf<LocalDate>()
-    val datesWithoutDoneBlobList = mutableListOf<LocalDate>()
     val lateArrivingDatesList = mutableListOf<LocalDate>()
     val unprocessedDoneDatesList = mutableListOf<LocalDate>()
     val healthyDatesList = mutableListOf<LocalDate>()
 
     val now = clock()
-    val datePrefixes = storageClient.listBlobKeysAndPrefixes(prefix).toList()
+    for ((date, doneBlob) in enumerated.datesWithDoneBlob) {
+      val dateString = date.toString()
 
-    for (datePrefix in datePrefixes) {
-      val dateString = datePrefix.removePrefix(prefix).trimEnd('/')
-      val date =
-        try {
-          LocalDate.parse(dateString)
-        } catch (e: DateTimeParseException) {
-          logger.warning("Skipping non-date folder: $dateString")
-          continue
+      // Check if there is at least one non-done file with content
+      val hasData =
+        storageClient.listBlobs("${prefix}$dateString/").take(2).toList().any {
+          !it.blobKey.endsWith("/done") && it.size > 0
         }
+      if (!hasData) {
+        zeroImpressionDatesList.add(date)
+      }
 
-      val doneBlob = storageClient.getBlob("${prefix}$dateString/done")
-      if (doneBlob != null) {
-        datesWithDone.add(date)
+      // Two distinct alert categories share the marker:
+      //   - Sync stamps `synced-by=data-availability-sync` on the `done` blob after it
+      //     successfully processes the date. Absent marker => Sync did not (yet) complete.
+      //   - Sync stamps the same marker on each metadata blob it processes. An unmarked
+      //     metadata blob in a date Sync DID complete for represents late-arriving or
+      //     rewritten data (the EDP overwrote a metadata blob after Sync ran; fresh GCS
+      //     uploads replace prior user-set custom metadata).
+      val doneSynced = DataAvailabilityBlobs.isSynced(doneBlob)
+      val hasLateArrivals =
+        if (doneSynced) {
+          storageClient.listBlobs("${prefix}$dateString/").firstOrNull { isUnsynced(it) } != null
+        } else false
+      if (hasLateArrivals) {
+        lateArrivingDatesList.add(date)
+      }
 
-        // Check if there is at least one non-done file with content
-        val hasData =
-          storageClient.listBlobs("${prefix}$dateString/").take(2).toList().any {
-            !it.blobKey.endsWith("/done") && it.size > 0
-          }
-        if (!hasData) {
-          zeroImpressionDatesList.add(date)
-        }
+      // Done blob exists but lacks the marker. If it has been there long enough that Sync
+      // should reasonably have processed it, flag the date as having an unprocessed done.
+      val doneAge = Duration.between(doneBlob.createTime, now)
+      val isUnprocessedDone = !doneSynced && doneAge >= unprocessedDoneThreshold
+      if (isUnprocessedDone) {
+        unprocessedDoneDatesList.add(date)
+      }
 
-        // Two distinct alert categories share the marker:
-        //   - Sync stamps `synced-by=data-availability-sync` on the `done` blob after it
-        //     successfully processes the date. Absent marker => Sync did not (yet) complete.
-        //   - Sync stamps the same marker on each metadata blob it processes. An unmarked
-        //     metadata blob in a date Sync DID complete for represents late-arriving or
-        //     rewritten data (the EDP overwrote a metadata blob after Sync ran; fresh GCS
-        //     uploads replace prior user-set custom metadata).
-        val doneSynced = DataAvailabilityBlobs.isSynced(doneBlob)
-        val hasLateArrivals =
-          if (doneSynced) {
-            storageClient.listBlobs("${prefix}$dateString/").firstOrNull { isUnsynced(it) } != null
-          } else false
-        if (hasLateArrivals) {
-          lateArrivingDatesList.add(date)
-        }
-
-        // Done blob exists but lacks the marker. If it has been there long enough that Sync
-        // should reasonably have processed it, flag the date as having an unprocessed done.
-        val doneAge = Duration.between(doneBlob.createTime, now)
-        val isUnprocessedDone = !doneSynced && doneAge >= unprocessedDoneThreshold
-        if (isUnprocessedDone) {
-          unprocessedDoneDatesList.add(date)
-        }
-
-        if (hasData && !hasLateArrivals && !isUnprocessedDone) {
-          healthyDatesList.add(date)
-        }
-      } else {
-        datesWithoutDoneBlobList.add(date)
+      if (hasData && !hasLateArrivals && !isUnprocessedDone) {
+        healthyDatesList.add(date)
       }
     }
 
-    // datesWithDone and datesWithoutDoneBlob come from mutually exclusive branches above, so the
-    // two
-    // sets must never overlap. The in-range gating in DataAvailabilitySync relies on this invariant
-    // (a date is either finalized or unfinalized, never both), so assert it explicitly.
-    val overlap = datesWithDone.intersect(datesWithoutDoneBlobList.toSet())
-    check(overlap.isEmpty()) { "A date cannot both have and lack a done blob: $overlap" }
-
     return DateInfo(
-      datesWithDoneBlob = datesWithDone,
+      datesWithDoneBlob = enumerated.datesWithDoneBlob.keys,
       zeroImpressionDates = zeroImpressionDatesList.sorted(),
-      datesWithoutDoneBlob = datesWithoutDoneBlobList.sorted(),
+      datesWithoutDoneBlob = enumerated.datesWithoutDoneBlob,
       lateArrivingDates = lateArrivingDatesList.sorted(),
       unprocessedDoneDates = unprocessedDoneDatesList.sorted(),
       healthyDates = healthyDatesList.sorted(),
@@ -553,29 +522,9 @@ class DataAvailabilityMonitor(
     )
   }
 
-  /**
-   * The sorted union of [DateInfo.datesWithDoneBlob] and [DateInfo.datesWithoutDoneBlob] — all date
-   * folders enumerated for the model line, whether or not they have a "done" blob. Used for gap
-   * detection so that a folder with data but no "done" blob (e.g. a date still being finalized) is
-   * not mistaken for a missing date.
-   */
-  private fun presentDates(dateInfo: DateInfo): List<LocalDate> =
-    (dateInfo.datesWithDoneBlob + dateInfo.datesWithoutDoneBlob).sorted()
-
   /** Returns true if [blob] is a metadata file that has not been marked as synced. */
   private fun isUnsynced(blob: StorageClient.Blob): Boolean =
     DataAvailabilityBlobs.isMetadataBlob(blob) && !DataAvailabilityBlobs.isSynced(blob)
-
-  /** Finds dates that are missing in the sequence between the first and last date. */
-  private fun findGaps(sortedDates: List<LocalDate>): List<LocalDate> {
-    if (sortedDates.size <= 1) return emptyList()
-
-    val dateSet = sortedDates.toSet()
-    return generateSequence(sortedDates.first().plusDays(1)) { it.plusDays(1) }
-      .takeWhile { it.isBefore(sortedDates.last()) }
-      .filter { it !in dateSet }
-      .toList()
-  }
 
   private fun recordMetrics(status: ModelLineStatus) {
     val modelLineName = status.modelLineKey.toName()

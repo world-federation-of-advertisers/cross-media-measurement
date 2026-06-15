@@ -24,7 +24,6 @@ import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import java.nio.ByteBuffer
 import java.security.MessageDigest
-import java.time.Duration
 import java.util.UUID
 import java.util.logging.Logger
 import kotlin.text.Charsets.UTF_8
@@ -231,44 +230,57 @@ class DataAvailabilitySync(
           }
         }
 
-      // Check for date gaps before updating availability intervals.
-      // A new monitor is created per sync call because activeModelLines is derived from the
-      // metadata in this sync batch, which may vary between invocations. This intentionally only
-      // checks model lines present in the current trigger; model lines without metadata in this
-      // batch are not covered here.
-      val gapMonitor =
-        DataAvailabilityMonitor(
-          storageClient = storageClient,
-          edpImpressionPath = edpImpressionPath,
-          activeModelLines = impressionMetadataMap.keys,
-          impressionMetadataStub = null,
-          dataProviderName = null,
-        )
-      // checkGaps in Sync's per-batch context doesn't care about unprocessed-done — this
-      // sync is the thing that writes the marker. Use a very large threshold to disable.
-      val gapResult = gapMonitor.checkGaps(unprocessedDoneThreshold = Duration.ofDays(365))
-      // A model line is blocked from publishing when it has a true gap (a missing date between two
-      // finalized dates) OR when a date inside its finalized range [earliestDate, latestDate] still
-      // has no "done" blob. The latter is data that is present but not yet finalized within the
-      // already-published window, so publishing now would advertise availability over an interval
-      // that is not actually complete. Unfinalized dates that trail after latestDate or lead before
-      // earliestDate are ignored here — they extend the window rather than punching a hole in it.
-      val modelLinesBlocked =
-        gapResult.statuses.filter { status ->
-          val earliest = status.earliestDate
-          val inRangeUnfinalized =
-            earliest != null &&
-              status.datesWithoutDoneBlob.orEmpty().any { it in earliest..status.latestDate }
-          !status.gapDates.isNullOrEmpty() || inRangeUnfinalized
+      // Check, per model line present in this batch, for date gaps or in-range unfinalized
+      // dates before updating availability intervals. Done locally via
+      // DataAvailabilityBlobs.enumerateDateInfo — Sync doesn't need DataAvailabilityMonitor's
+      // staleness/threshold/metrics machinery, only the storage-level date classification.
+      //
+      // A model line is blocked from publishing when it has a true gap (a missing date between
+      // two finalized dates) OR when a date inside its finalized range
+      // [earliestFinalized, latestFinalized] still has no "done" blob. Unfinalized dates that
+      // trail after latestFinalized or lead before earliestFinalized are ignored — they extend
+      // the window rather than punching a hole in it.
+      val blockedDetails = mutableListOf<String>()
+      for (modelLineKey in impressionMetadataMap.keys) {
+        val modelLinePrefix =
+          if (edpImpressionPath.isEmpty()) "model-line/${modelLineKey.modelLineId}/"
+          else "$edpImpressionPath/model-line/${modelLineKey.modelLineId}/"
+        val enumerated = DataAvailabilityBlobs.enumerateDateInfo(storageClient, modelLinePrefix)
+        val finalized = enumerated.datesWithDoneBlob.keys
+        val unfinalized = enumerated.datesWithoutDoneBlob
+        val gaps = DataAvailabilityBlobs.findGaps(finalized + unfinalized)
+        val earliest = finalized.minOrNull()
+        val latest = finalized.maxOrNull()
+        val inRangeUnfinalized =
+          earliest != null && latest != null && unfinalized.any { it in earliest..latest }
+        if (gaps.isNotEmpty() || inRangeUnfinalized) {
+          blockedDetails.add(
+            "Model line ${modelLineKey.toName()} gap dates: $gaps, " +
+              "unfinalized dates: $unfinalized"
+          )
         }
-      if (modelLinesBlocked.isNotEmpty()) {
-        val blockDetails =
-          modelLinesBlocked.joinToString("; ") { status ->
-            "Model line ${status.modelLineKey.toName()} gap dates: ${status.gapDates}, " +
-              "unfinalized dates: ${status.datesWithoutDoneBlob}"
-          }
+
+        // Emit per-batch date-status metrics for the dates Sync just classified, mirroring
+        // what DataAvailabilityMonitor emits when invoked on the same paths. The healthy count
+        // here is "finalized minus in-range unfinalized blockers" — Sync's per-batch view, not
+        // Monitor's full late-arrival/unprocessed-done check.
+        val healthyCount = if (gaps.isEmpty() && !inRangeUnfinalized) finalized.size else 0
+        emitDateStatusMetric(modelLineKey, DataAvailabilityMonitorMetrics.STATUS_GAP, gaps.size)
+        emitDateStatusMetric(
+          modelLineKey,
+          DataAvailabilityMonitorMetrics.STATUS_WITHOUT_DONE_BLOB,
+          unfinalized.size,
+        )
+        emitDateStatusMetric(
+          modelLineKey,
+          DataAvailabilityMonitorMetrics.STATUS_HEALTHY,
+          healthyCount,
+        )
+      }
+      if (blockedDetails.isNotEmpty()) {
         logger.warning(
-          "Date gaps or in-range unfinalized dates detected in $edpImpressionPath. $blockDetails"
+          "Date gaps or in-range unfinalized dates detected in $edpImpressionPath. " +
+            blockedDetails.joinToString("; ")
         )
         if (errorIfGapsExist) {
           logger.warning(
@@ -334,6 +346,21 @@ class DataAvailabilitySync(
     metrics.syncDurationHistogram.record(
       syncDuration,
       Attributes.of(DATA_PROVIDER_KEY_ATTR, dataProviderName, SYNC_STATUS_ATTR, syncStatus),
+    )
+  }
+
+  private fun emitDateStatusMetric(modelLineKey: ModelLineKey, status: String, count: Int) {
+    if (count <= 0) return
+    DataAvailabilityMonitorMetrics.dateStatusCounter.add(
+      count.toLong(),
+      Attributes.of(
+        DataAvailabilityMonitor.MODEL_LINE_ATTR,
+        modelLineKey.toName(),
+        DataAvailabilityMonitor.EDP_IMPRESSION_PATH_ATTR,
+        edpImpressionPath,
+        DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR,
+        status,
+      ),
     )
   }
 

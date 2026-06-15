@@ -16,6 +16,10 @@
 
 package org.wfanet.measurement.edpaggregator.dataavailability
 
+import java.time.LocalDate
+import java.time.format.DateTimeParseException
+import java.util.logging.Logger
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.storage.StorageClient
 
 /**
@@ -61,4 +65,81 @@ object DataAvailabilityBlobs {
 
   /** Returns true if [blob] carries the marker written by [DataAvailabilitySync]. */
   fun isSynced(blob: StorageClient.Blob): Boolean = blob.metadata[SYNCED_BY_KEY] == SYNCED_BY_VALUE
+
+  /**
+   * Storage-only enumeration of date folders under [prefix]. Classifies each date-named subfolder
+   * as either having a `done` blob or not, without doing any threshold/staleness/marker
+   * interpretation.
+   *
+   * Shared by [DataAvailabilitySync] (which uses it for its in-flight gap check) and
+   * [DataAvailabilityMonitor] (which layers staleness/late-arrival/unprocessed-done classification
+   * on top).
+   *
+   * @param storageClient client to enumerate against.
+   * @param prefix path prefix to enumerate under; typically `"$edpImpressionPath/model-line/$id/"`.
+   * @return [EnumeratedDateInfo] with disjoint `datesWithDoneBlob` and `datesWithoutDoneBlob`.
+   */
+  suspend fun enumerateDateInfo(storageClient: StorageClient, prefix: String): EnumeratedDateInfo {
+    val datesWithDoneBlob = mutableMapOf<LocalDate, StorageClient.Blob>()
+    val datesWithoutDoneBlob = mutableListOf<LocalDate>()
+
+    val datePrefixes = storageClient.listBlobKeysAndPrefixes(prefix).toList()
+    for (datePrefix in datePrefixes) {
+      val dateString = datePrefix.removePrefix(prefix).trimEnd('/')
+      val date =
+        try {
+          LocalDate.parse(dateString)
+        } catch (e: DateTimeParseException) {
+          logger.warning("Skipping non-date folder: $dateString")
+          continue
+        }
+      val doneBlob = storageClient.getBlob("${prefix}$dateString/done")
+      if (doneBlob != null) {
+        datesWithDoneBlob[date] = doneBlob
+      } else {
+        datesWithoutDoneBlob.add(date)
+      }
+    }
+
+    // datesWithDoneBlob and datesWithoutDoneBlob come from mutually exclusive branches above, so
+    // they must never overlap. The in-range gating in DataAvailabilitySync relies on this
+    // invariant (a date is either finalized or unfinalized, never both), so assert it explicitly.
+    val overlap = datesWithDoneBlob.keys.intersect(datesWithoutDoneBlob.toSet())
+    check(overlap.isEmpty()) { "A date cannot both have and lack a done blob: $overlap" }
+
+    return EnumeratedDateInfo(
+      datesWithDoneBlob = datesWithDoneBlob,
+      datesWithoutDoneBlob = datesWithoutDoneBlob.sorted(),
+    )
+  }
+
+  /**
+   * Finds dates that are missing between the first and last dates in [presentDates]. Operates on
+   * the *union* of finalized and unfinalized dates so a folder that exists but lacks a `done` blob
+   * is not mistaken for a missing date.
+   */
+  fun findGaps(presentDates: Collection<LocalDate>): List<LocalDate> {
+    if (presentDates.size <= 1) return emptyList()
+    val sorted = presentDates.sorted()
+    val dateSet = sorted.toSet()
+    return generateSequence(sorted.first().plusDays(1)) { it.plusDays(1) }
+      .takeWhile { it.isBefore(sorted.last()) }
+      .filter { it !in dateSet }
+      .toList()
+  }
+
+  private val logger: Logger = Logger.getLogger(DataAvailabilityBlobs::class.java.name)
 }
+
+/**
+ * Result of [DataAvailabilityBlobs.enumerateDateInfo]. Each date is in exactly one of the two
+ * collections (enforced by a `check` in the producer).
+ *
+ * @property datesWithDoneBlob map from date to the `done` blob itself, so callers can read
+ *   `createTime` / `metadata` without re-fetching.
+ * @property datesWithoutDoneBlob sorted list of date folders that exist but have no `done` blob.
+ */
+data class EnumeratedDateInfo(
+  val datesWithDoneBlob: Map<LocalDate, StorageClient.Blob>,
+  val datesWithoutDoneBlob: List<LocalDate>,
+)
