@@ -111,13 +111,17 @@ class PostProcessReportResultJobTest(unittest.TestCase):
 
     def test_execute_with_exemption(self):
         # Sets up mock objects.
+        mock_channel = mock.create_autospec(grpc.Channel)
+        job_with_exemption = post_process_report_result_job.PostProcessReportResultJob(
+            mock_channel,
+            ami_mrc_exempted_edps=[
+                "dataProviders/edp1",
+                "dataProviders/edp2",
+            ],
+        )
         mock_report = BasicReport(
             cmms_measurement_consumer_id="mc_id_1",
             external_report_result_id=101,
-            ami_mrc_exempted_cmms_data_provider_ids=[
-                "edp1",
-                "edp2",
-            ],
         )
         self.mock_basic_reports_stub.ListBasicReports.return_value = (
             basic_reports_service_pb2.ListBasicReportsResponse(
@@ -128,7 +132,7 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.mock_post_processor.process.return_value = mock_request
 
         # Executes the job.
-        result = self.job.execute()
+        result = job_with_exemption.execute()
 
         # Verifies the expected behavior.
         self.assertTrue(result)

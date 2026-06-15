@@ -51,9 +51,9 @@ ReportingWindowEntry = AddProcessedResultValuesRequest.ProcessedReportingSetResu
 ReportingSetResult = report_result_pb2.ReportingSetResult
 
 
-def _get_edp_name(cmms_data_provider_id: str) -> str:
-    """Converts a raw CMMS DataProvider ID to an EDP resource name."""
-    return f"dataProviders/{cmms_data_provider_id}"
+def _get_cmms_data_provider_id(edp_name: str) -> str:
+    """Converts an EDP resource name to a raw CMMS DataProvider ID."""
+    return edp_name.split("/")[-1]
 
 
 class PostProcessReportResult:
@@ -253,16 +253,17 @@ class PostProcessReportResult:
             external_reporting_set_ids=external_reporting_set_ids,
         )
         response = self._reporting_sets_stub.BatchGetReportingSets(request)
-
-        exempted_set = set(ami_mrc_exempted_edps)
+        # Gets a list of exempted cmms data provider ids from edp names.
+        exempted_cmms_data_provider_ids = set(
+            _get_cmms_data_provider_id(edp) for edp in ami_mrc_exempted_edps
+        )
         exempted_reporting_set_ids = []
 
         for reporting_set in response.reporting_sets:
             if reporting_set.WhichOneof("value") != "primitive":
                 continue
             for key in reporting_set.primitive.event_group_keys:
-                edp_name = _get_edp_name(key.cmms_data_provider_id)
-                if edp_name in exempted_set:
+                if key.cmms_data_provider_id in exempted_cmms_data_provider_ids:
                     exempted_reporting_set_ids.append(
                         reporting_set.external_reporting_set_id)
                     break

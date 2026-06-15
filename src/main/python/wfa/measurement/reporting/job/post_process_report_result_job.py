@@ -26,24 +26,21 @@ from tools import post_process_report_result
 
 _MAX_PAGE_SIZE = 50
 
-
-def _get_edp_name(cmms_data_provider_id: str) -> str:
-    """Converts a raw CMMS DataProvider ID to an EDP resource name."""
-    return f"dataProviders/{cmms_data_provider_id}"
-
-
 class PostProcessReportResultJob:
     """A job for fetching, correcting, and updating a report."""
 
     def __init__(
         self,
         internal_reporting_channel: grpc.Channel,
+        ami_mrc_exempted_edps: Iterable[str] | None = None,
     ):
         """Initializes the job with the necessary gRPC stubs.
 
         Args:
             internal_reporting_channel: A gRPC channel to the internal reporting
                 server.
+            ami_mrc_exempted_edps: The list of EDPs resource name for which the
+                AMI >= MRC consistency checks are disabled.
         """
         self._report_results_stub = (
             report_results_service_pb2_grpc.ReportResultsStub(
@@ -59,6 +56,7 @@ class PostProcessReportResultJob:
                 self._report_results_stub, self._reporting_sets_stub
             )
         )
+        self._ami_mrc_exempted_edps = ami_mrc_exempted_edps or []
 
     def _process_basic_report(
             self, basic_report: basic_report_pb2.BasicReport) -> bool:
@@ -80,14 +78,10 @@ class PostProcessReportResultJob:
             logging.info(
                 "Processing report %s", basic_report.external_report_result_id
             )
-            ami_mrc_exempted_edps = [
-                _get_edp_name(id_)
-                for id_ in basic_report.ami_mrc_exempted_cmms_data_provider_ids
-            ]
             add_processed_result_values_request = self._post_processor.process(
                 basic_report.cmms_measurement_consumer_id,
                 basic_report.external_report_result_id,
-                ami_mrc_exempted_edps,
+                self._ami_mrc_exempted_edps,
             )
             if add_processed_result_values_request:
                 logging.info(

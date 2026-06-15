@@ -72,7 +72,9 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
             "internal_api_target", mock_credentials, expected_options
         )
 
-        mock_job_class.assert_called_once_with(mock_channel_instance)
+        mock_job_class.assert_called_once_with(
+            mock_channel_instance, ami_mrc_exempted_edps=[]
+        )
         mock_job_instance.execute.assert_called_once()
 
     @flagsaver.flagsaver(
@@ -115,7 +117,52 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
         mock_create_channel.assert_called_once_with(
             "internal_api_target", mock_credentials, []
         )
-        mock_job_class.assert_called_once_with(mock_channel_instance)
+        mock_job_class.assert_called_once_with(
+            mock_channel_instance, ami_mrc_exempted_edps=[]
+        )
+        mock_job_instance.execute.assert_called_once()
+
+    @flagsaver.flagsaver(
+        internal_api_target="internal_api_target",
+        tls_cert_file="client_cert",
+        tls_key_file="client_key",
+        cert_collection_file="root_ca_cert",
+        ami_mrc_exempted_edps=[
+            "dataProviders/edp1",
+            "dataProviders/edp2",
+        ],
+    )
+    @mock.patch("os.path.exists", return_value=True)
+    @mock.patch("job.post_process_report_result_job.PostProcessReportResultJob")
+    @mock.patch(
+        "job.post_process_report_result_job_executor._get_secure_credentials"
+    )
+    @mock.patch(
+        "job.post_process_report_result_job_executor._create_secure_channel"
+    )
+    def test_post_process_report_result_job_executor_with_ami_mrc_exempted_edps_success(
+        self, mock_create_channel, mock_get_credentials, mock_job_class,
+        mock_exists
+    ):
+        # Sets up mock objects.
+        mock_credentials = mock.MagicMock()
+        mock_get_credentials.return_value = mock_credentials
+        mock_job_instance = mock.MagicMock()
+        mock_job_class.return_value = mock_job_instance
+        mock_channel_instance = mock.MagicMock(name="secure_channel_instance")
+        mock_create_channel.return_value.__enter__.return_value = mock_channel_instance
+
+        # Calls the main function.
+        post_process_report_result_job_executor.main(["test_main"])
+
+        # Verifies the expected behavior.
+        mock_create_channel.assert_called_once_with(
+            "internal_api_target", mock_credentials, []
+        )
+        mock_job_class.assert_called_once_with(
+            mock_channel_instance,
+            ami_mrc_exempted_edps=["dataProviders/edp1", "dataProviders/edp2"],
+        )
         mock_job_instance.execute.assert_called_once()
 
     @parameterized.named_parameters(
