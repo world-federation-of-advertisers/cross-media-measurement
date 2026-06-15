@@ -92,19 +92,17 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
 
   suspend fun readEventGroupActivities(
     readContext: AsyncDatabaseClient.ReadContext,
-    externalDataProviderId: Long = 0L,
-    externalEventGroupId: Long = 0L,
+    externalDataProviderId: Long,
+    externalEventGroupId: Long? = null,
     limit: Int,
     after: ListEventGroupActivitiesPageToken.After? = null,
     dateInterval: DateInterval? = null,
   ): List<Result> {
     return fillStatementBuilder {
         val conjuncts = mutableListOf<String>()
-        if (externalDataProviderId != 0L) {
-          conjuncts.add("DataProviders.ExternalDataProviderId = @externalDataProviderId")
-          bind("externalDataProviderId").to(externalDataProviderId)
-        }
-        if (externalEventGroupId != 0L) {
+        conjuncts.add("DataProviders.ExternalDataProviderId = @externalDataProviderId")
+        bind("externalDataProviderId").to(externalDataProviderId)
+        if (externalEventGroupId != null) {
           conjuncts.add("EventGroups.ExternalEventGroupId = @externalEventGroupId")
           bind("externalEventGroupId").to(externalEventGroupId)
         }
