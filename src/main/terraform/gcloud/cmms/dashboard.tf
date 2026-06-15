@@ -107,7 +107,7 @@ data "google_project" "project" {
   project_id = data.google_client_config.default.project
 }
 
-# --- Tables (created empty, populated by scheduled queries via TRUNCATE+INSERT) ---
+# --- Tables (created empty, populated by scheduled queries via atomic MERGE) ---
 
 resource "google_bigquery_table" "requisition_overview" {
   dataset_id          = google_bigquery_dataset.dashboard.dataset_id

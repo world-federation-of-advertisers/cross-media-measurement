@@ -12,8 +12,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-TRUNCATE TABLE `${project_id}.${dataset}.${table_name}`;
-INSERT INTO `${project_id}.${dataset}.${table_name}`
+MERGE INTO `${project_id}.${dataset}.${table_name}` T
+USING (
 SELECT
   `${project_id}.dashboard.externalIdToApiId`(eg.MeasurementConsumerId) AS CmmsMeasurementConsumer,
   `${project_id}.dashboard.externalIdToApiId`(dp.ExternalDataProviderId) AS CmmsDataProvider,
@@ -107,3 +107,8 @@ GROUP BY 1, 2, mc.TotalMcs
 %{ else }
 GROUP BY 1, 2
 %{ endif }
+
+) S
+ON FALSE
+WHEN NOT MATCHED THEN INSERT ROW
+WHEN NOT MATCHED BY SOURCE THEN DELETE;

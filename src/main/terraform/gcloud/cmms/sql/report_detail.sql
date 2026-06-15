@@ -12,8 +12,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-TRUNCATE TABLE `${project_id}.${dataset}.${table_name}`;
-INSERT INTO `${project_id}.${dataset}.${table_name}`
+MERGE INTO `${project_id}.${dataset}.${table_name}` T
+USING (
 %{ if include_platform_columns }
 SELECT
   *,
@@ -66,3 +66,8 @@ GROUP BY base.ExternalReportId, base.CmmsDataProvider
 %{ if include_platform_columns }
 )
 %{ endif }
+
+) S
+ON FALSE
+WHEN NOT MATCHED THEN INSERT ROW
+WHEN NOT MATCHED BY SOURCE THEN DELETE;
