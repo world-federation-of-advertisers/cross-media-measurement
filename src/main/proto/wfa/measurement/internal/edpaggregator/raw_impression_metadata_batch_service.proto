@@ -78,7 +78,8 @@ message ListRawImpressionMetadataBatchesRequest {
   ListRawImpressionMetadataBatchesPageToken page_token = 3;
 
   message Filter {
-    RawImpressionBatchState state = 1;
+    // Filter to resources whose state is in this set. Empty matches all states.
+    repeated RawImpressionBatchState state_in = 1;
   }
   Filter filter = 4;
 

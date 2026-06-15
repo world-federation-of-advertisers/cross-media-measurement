@@ -254,8 +254,8 @@ fun AsyncDatabaseClient.ReadContext.readRequisitionMetadata(
     val conjuncts = mutableListOf("DataProviderResourceId = @dataProviderResourceId")
 
     if (filter != null) {
-      if (filter.state != State.REQUISITION_METADATA_STATE_UNSPECIFIED) {
-        conjuncts.add("State = @state")
+      if (filter.stateInList.isNotEmpty()) {
+        conjuncts.add("CAST(State AS INT64) IN UNNEST(@state_in)")
       }
       if (filter.groupId.isNotEmpty()) {
         conjuncts.add("GroupId = @groupId")
@@ -285,8 +285,8 @@ fun AsyncDatabaseClient.ReadContext.readRequisitionMetadata(
       bind("dataProviderResourceId").to(dataProviderResourceId)
 
       if (filter != null) {
-        if (filter.state != State.REQUISITION_METADATA_STATE_UNSPECIFIED) {
-          bind("state").to(filter.state.number.toLong())
+        if (filter.stateInList.isNotEmpty()) {
+          bind("state_in").toInt64Array(filter.stateInList.map { it.number.toLong() })
         }
         if (filter.groupId.isNotEmpty()) {
           bind("groupId").to(filter.groupId)
