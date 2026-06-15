@@ -205,31 +205,20 @@ class VidLabelingDispatcherFunction : HttpFunction {
           rawImpressionUploadChannel
         )
 
-      val poolAssignmentJobStub =
-        PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
-          rawImpressionUploadChannel
-        )
       val rawImpressionUploadModelLineStub =
         RawImpressionUploadModelLineServiceGrpcKt
           .RawImpressionUploadModelLineServiceCoroutineStub(rawImpressionUploadChannel)
 
-      val vidLabelerParamsTemplate: VidLabelerParams = buildVidLabelerParamsTemplate(config)
-
       val dispatcher =
         VidLabelingDispatcher(
           storageClient = storageClient,
-          workItemsStub = workItemsStub,
           rawImpressionUploadStub = rawImpressionUploadStub,
           rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
-          poolAssignmentJobStub = poolAssignmentJobStub,
           rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
           modelLinesStub = modelLinesStub,
           modelRolloutsStub = modelRolloutsStub,
           modelShardsStub = modelShardsStub,
           dataProviderName = config.dataProvider,
-          vidLabelerParamsTemplate = vidLabelerParamsTemplate,
-          queueName = vidLabelerQueueName,
-          numberOfShards = config.numberOfShards,
           modelSuiteName = config.modelSuite,
           overrideModelLines = overrideModelLines,
           modelLineConfigs = convertModelLineConfigs(config.modelLineConfigsMap),
