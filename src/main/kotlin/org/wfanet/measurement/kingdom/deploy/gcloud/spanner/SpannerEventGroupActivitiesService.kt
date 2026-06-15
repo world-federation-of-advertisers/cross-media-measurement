@@ -223,11 +223,6 @@ class SpannerEventGroupActivitiesService(
   ): ListEventGroupActivitiesResponse {
     grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
 
-    if (request.externalDataProviderId == 0L) {
-      throw RequiredFieldNotSetException("external_data_provider_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
     val pageSize =
       if (request.pageSize == 0) {
         DEFAULT_PAGE_SIZE
@@ -236,13 +231,6 @@ class SpannerEventGroupActivitiesService(
       }
 
     val after = if (request.hasPageToken()) request.pageToken.after else null
-
-    val externalEventGroupIds =
-      if (request.hasFilter()) {
-        request.filter.externalEventGroupIdsList
-      } else {
-        emptyList()
-      }
 
     val dateInterval =
       if (request.hasFilter() && request.filter.hasDateInterval()) {
@@ -253,20 +241,22 @@ class SpannerEventGroupActivitiesService(
 
     val resultList =
       client.readOnlyTransaction().use { txn ->
-        // Validate DataProvider exists.
-        val dataProviderResult =
-          DataProviderReader()
-            .readByExternalDataProviderId(txn, ExternalId(request.externalDataProviderId))
-        if (dataProviderResult == null) {
-          throw DataProviderNotFoundException(ExternalId(request.externalDataProviderId))
-            .asStatusRuntimeException(Status.Code.NOT_FOUND)
+        // Validate DataProvider exists if specified.
+        if (request.externalDataProviderId != 0L) {
+          val dataProviderResult =
+            DataProviderReader()
+              .readByExternalDataProviderId(txn, ExternalId(request.externalDataProviderId))
+          if (dataProviderResult == null) {
+            throw DataProviderNotFoundException(ExternalId(request.externalDataProviderId))
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          }
         }
 
         EventGroupActivityReader()
           .readEventGroupActivities(
             txn,
             request.externalDataProviderId,
-            externalEventGroupIds,
+            request.externalEventGroupId,
             pageSize + 1,
             after,
             dateInterval,

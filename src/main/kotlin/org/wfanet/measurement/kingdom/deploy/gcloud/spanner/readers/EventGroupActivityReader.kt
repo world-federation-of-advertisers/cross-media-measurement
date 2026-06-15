@@ -92,19 +92,21 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
 
   suspend fun readEventGroupActivities(
     readContext: AsyncDatabaseClient.ReadContext,
-    externalDataProviderId: Long,
-    externalEventGroupIds: List<Long>,
+    externalDataProviderId: Long = 0L,
+    externalEventGroupId: Long = 0L,
     limit: Int,
     after: ListEventGroupActivitiesPageToken.After? = null,
     dateInterval: DateInterval? = null,
   ): List<Result> {
     return fillStatementBuilder {
         val conjuncts = mutableListOf<String>()
-        conjuncts.add("DataProviders.ExternalDataProviderId = @externalDataProviderId")
-        bind("externalDataProviderId").to(externalDataProviderId)
-        if (externalEventGroupIds.isNotEmpty()) {
-          conjuncts.add("EventGroups.ExternalEventGroupId IN UNNEST(@externalEventGroupIds)")
-          bind("externalEventGroupIds").toInt64Array(externalEventGroupIds)
+        if (externalDataProviderId != 0L) {
+          conjuncts.add("DataProviders.ExternalDataProviderId = @externalDataProviderId")
+          bind("externalDataProviderId").to(externalDataProviderId)
+        }
+        if (externalEventGroupId != 0L) {
+          conjuncts.add("EventGroups.ExternalEventGroupId = @externalEventGroupId")
+          bind("externalEventGroupId").to(externalEventGroupId)
         }
         if (dateInterval != null) {
           if (dateInterval.hasStartDate()) {
@@ -123,7 +125,9 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
           bind("afterDate").to(after.date.toCloudDate())
           bind("afterEventGroupId").to(after.externalEventGroupId)
         }
-        appendClause("WHERE " + conjuncts.joinToString(" AND "))
+        if (conjuncts.isNotEmpty()) {
+          appendClause("WHERE " + conjuncts.joinToString(" AND "))
+        }
         appendClause("ORDER BY ActivityDate ASC, EventGroups.ExternalEventGroupId ASC")
         appendClause("LIMIT $limit")
       }
