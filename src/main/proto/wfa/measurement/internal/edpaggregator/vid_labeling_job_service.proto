@@ -23,7 +23,7 @@ import "wfa/measurement/internal/edpaggregator/vid_labeling_state.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
-option java_outer_classname = "VidVidLabelingJobServiceProto";
+option java_outer_classname = "VidLabelingJobServiceProto";
 
 // Service for managing `VidLabelingJob` resources, which track
 // per-job processing state for Phase 2 (VID labeling) of
@@ -46,7 +46,11 @@ service VidLabelingJobService {
       returns (ListVidLabelingJobsResponse);
 
   // Marks a `VidLabelingJob` as `SUCCEEDED`. Throws
-  // FAILED_PRECONDITION if state is not CREATED or FAILED.
+  // ABORTED if etag does not match. Throws
+  // FAILED_PRECONDITION if state is not CREATED, FAILED,
+  // or SUCCEEDED-by-this-etag. A retry from the same
+  // etag returns the original
+  // `LastVidLabelingJobResult`.
   rpc MarkVidLabelingJobSucceeded(MarkVidLabelingJobSucceededRequest)
       returns (MarkVidLabelingJobSucceededResponse);
 
