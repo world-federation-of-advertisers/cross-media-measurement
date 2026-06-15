@@ -354,9 +354,9 @@ class DataAvailabilitySync(
     DataAvailabilityMonitorMetrics.dateStatusCounter.add(
       count.toLong(),
       Attributes.of(
-        DataAvailabilityMonitor.MODEL_LINE_ATTR,
+        DataAvailabilityMonitorMetrics.MODEL_LINE_ATTR,
         modelLineKey.toName(),
-        DataAvailabilityMonitor.EDP_IMPRESSION_PATH_ATTR,
+        DataAvailabilityMonitorMetrics.EDP_IMPRESSION_PATH_ATTR,
         edpImpressionPath,
         DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR,
         status,

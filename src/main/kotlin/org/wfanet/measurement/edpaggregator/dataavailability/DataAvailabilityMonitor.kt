@@ -19,7 +19,6 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 import com.google.protobuf.timestamp
 import com.google.type.Interval
 import com.google.type.interval
-import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import java.time.Duration
 import java.time.Instant
@@ -529,7 +528,12 @@ class DataAvailabilityMonitor(
   private fun recordMetrics(status: ModelLineStatus) {
     val modelLineName = status.modelLineKey.toName()
     val baseAttrs =
-      Attributes.of(MODEL_LINE_ATTR, modelLineName, EDP_IMPRESSION_PATH_ATTR, edpImpressionPath)
+      Attributes.of(
+        DataAvailabilityMonitorMetrics.MODEL_LINE_ATTR,
+        modelLineName,
+        DataAvailabilityMonitorMetrics.EDP_IMPRESSION_PATH_ATTR,
+        edpImpressionPath,
+      )
 
     if (status.staleDays != null) {
       DataAvailabilityMonitorMetrics.staleDaysGauge.set(status.staleDays.toLong(), baseAttrs)
@@ -581,10 +585,5 @@ class DataAvailabilityMonitor(
      * checked on Monday) plus one day of buffer for processing delays.
      */
     const val DEFAULT_MAX_STALE_DAYS = 3
-
-    val MODEL_LINE_ATTR: AttributeKey<String> =
-      AttributeKey.stringKey("edpa.data_availability_monitor.model_line")
-    val EDP_IMPRESSION_PATH_ATTR: AttributeKey<String> =
-      AttributeKey.stringKey("edpa.data_availability_monitor.edp_impression_path")
   }
 }

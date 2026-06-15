@@ -43,8 +43,8 @@ import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.EDP_IMPRESSION_PATH_ATTR
-import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.MODEL_LINE_ATTR
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitorMetrics.EDP_IMPRESSION_PATH_ATTR
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitorMetrics.MODEL_LINE_ATTR
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata as V1AlphaImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub

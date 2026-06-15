@@ -54,6 +54,10 @@ object DataAvailabilityMonitorMetrics {
         .setUnit("{date}")
         .build()
 
+  val MODEL_LINE_ATTR: AttributeKey<String> =
+    AttributeKey.stringKey("edpa.data_availability_monitor.model_line")
+  val EDP_IMPRESSION_PATH_ATTR: AttributeKey<String> =
+    AttributeKey.stringKey("edpa.data_availability_monitor.edp_impression_path")
   val DATE_STATUS_ATTR: AttributeKey<String> =
     AttributeKey.stringKey("edpa.data_availability_monitor.date_status")
 
