@@ -207,7 +207,7 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionMetadataBatches(
     }
 
     if (filter.statesList.isNotEmpty()) {
-      conjuncts.add("State IN UNNEST(@states)")
+      conjuncts.add("CAST(State AS INT64) IN UNNEST(@states)")
     }
 
     if (after != null) {

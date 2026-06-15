@@ -255,7 +255,7 @@ fun AsyncDatabaseClient.ReadContext.readRequisitionMetadata(
 
     if (filter != null) {
       if (filter.statesList.isNotEmpty()) {
-        conjuncts.add("State IN UNNEST(@states)")
+        conjuncts.add("CAST(State AS INT64) IN UNNEST(@states)")
       }
       if (filter.groupId.isNotEmpty()) {
         conjuncts.add("GroupId = @groupId")
