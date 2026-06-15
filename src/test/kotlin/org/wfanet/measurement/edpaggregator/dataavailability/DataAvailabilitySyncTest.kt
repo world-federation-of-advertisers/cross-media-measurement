@@ -1091,6 +1091,137 @@ class DataAvailabilitySyncTest {
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
   }
 
+  /**
+   * Writes a `done` blob (and, when [withData], a data file) under the model-line path so the gap
+   * monitor sees [date] as either finalized (with a "done" blob) or unfinalized (data but no "done"
+   * blob). [seedBlobDetails] always finalizes 2026-03-15 for modelLine1, so scenarios are built
+   * around that fixed finalized date.
+   */
+  private suspend fun writeModelLineDate(
+    storageClient: StorageClient,
+    edpPath: String,
+    date: String,
+    finalized: Boolean,
+    withData: Boolean = true,
+  ) {
+    val modelLineId = "modelLine1"
+    if (withData) {
+      val dataPath = "$edpPath/model-line/$modelLineId/$date/data_campaign_1"
+      File(tempFolder.root, dataPath).parentFile.mkdirs()
+      storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+    }
+    if (finalized) {
+      val donePath = "$edpPath/model-line/$modelLineId/$date/done"
+      File(tempFolder.root, donePath).parentFile.mkdirs()
+      storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
+    }
+  }
+
+  private fun newGapTestSync(storageClient: BlobMetadataStorageClient, edpPath: String) =
+    DataAvailabilitySync(
+      edpPath,
+      storageClient,
+      dataProvidersStub,
+      impressionMetadataStub,
+      "dataProviders/dataProvider123",
+      MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+      impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+      modelLineMap = emptyMap(),
+      errorIfGapsExist = true,
+    )
+
+  @Test
+  fun `sync skips replaceDataAvailabilityIntervals when an in-range date has no done blob`(): Unit =
+    runBlocking {
+      val storageClient =
+        FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+      val edpPath = "edp/edpa_edp"
+
+      // Finalized 03-13 and 03-15 (03-15 finalized by seedBlobDetails); 03-14 has data but no
+      // "done" blob, so it is unfinalized *inside* the finalized range [03-13, 03-15].
+      writeModelLineDate(storageClient, edpPath, "2026-03-13", finalized = true)
+      writeModelLineDate(storageClient, edpPath, "2026-03-14", finalized = false)
+      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+      newGapTestSync(storageClient, edpPath).sync("$bucket/${folderPrefix}done")
+
+      // No true gap exists, but the in-range unfinalized date blocks publishing.
+      verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    }
+
+  @Test
+  fun `sync calls replaceDataAvailabilityIntervals when an unfinalized date trails the range`():
+    Unit = runBlocking {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    val edpPath = "edp/edpa_edp"
+
+    // Finalized range is [03-13, 03-15] (03-15 from seedBlobDetails). 03-16 has data but no "done"
+    // blob, trailing *after* the finalized range, so it must not block publishing.
+    writeModelLineDate(storageClient, edpPath, "2026-03-13", finalized = true)
+    writeModelLineDate(storageClient, edpPath, "2026-03-14", finalized = true)
+    writeModelLineDate(storageClient, edpPath, "2026-03-16", finalized = false)
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    newGapTestSync(storageClient, edpPath).sync("$bucket/${folderPrefix}done")
+
+    verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
+  @Test
+  fun `sync calls replaceDataAvailabilityIntervals when an unfinalized date leads the range`():
+    Unit = runBlocking {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    val edpPath = "edp/edpa_edp"
+
+    // Finalized range is [03-13, 03-15] (03-15 from seedBlobDetails). 03-12 has data but no "done"
+    // blob, leading *before* the finalized range, so it must not block publishing.
+    writeModelLineDate(storageClient, edpPath, "2026-03-12", finalized = false)
+    writeModelLineDate(storageClient, edpPath, "2026-03-13", finalized = true)
+    writeModelLineDate(storageClient, edpPath, "2026-03-14", finalized = true)
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    newGapTestSync(storageClient, edpPath).sync("$bucket/${folderPrefix}done")
+
+    verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
+  @Test
+  fun `sync skips replaceDataAvailabilityIntervals when a date is entirely missing`(): Unit =
+    runBlocking {
+      val storageClient =
+        FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+      val edpPath = "edp/edpa_edp"
+
+      // Finalized 03-13 and 03-15 (03-15 from seedBlobDetails); 03-14 is absent entirely, a true
+      // gap between two finalized dates.
+      writeModelLineDate(storageClient, edpPath, "2026-03-13", finalized = true)
+      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+      newGapTestSync(storageClient, edpPath).sync("$bucket/${folderPrefix}done")
+
+      verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    }
+
+  @Test
+  fun `sync calls replaceDataAvailabilityIntervals when all dates are finalized and contiguous`():
+    Unit = runBlocking {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    val edpPath = "edp/edpa_edp"
+
+    // 03-13, 03-14, 03-15 all finalized and contiguous (03-15 from seedBlobDetails); no gaps and no
+    // unfinalized dates.
+    writeModelLineDate(storageClient, edpPath, "2026-03-13", finalized = true)
+    writeModelLineDate(storageClient, edpPath, "2026-03-14", finalized = true)
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    newGapTestSync(storageClient, edpPath).sync("$bucket/${folderPrefix}done")
+
+    verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
   @Test
   fun `sync emits monitor gap metrics when date gaps are detected`(): Unit = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
