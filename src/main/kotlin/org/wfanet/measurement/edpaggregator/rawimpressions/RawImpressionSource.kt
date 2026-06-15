@@ -37,9 +37,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFiles
 import org.wfanet.measurement.storage.ParquetStorageClient
 import org.wfanet.measurement.storage.ParquetValue
 
-/** A shard-surviving parquet row + its event-id digest, delivered to a [RawImpressionSource.BlobSink]. */
-typealias ParquetDigestedEvent = DigestedEvent<Map<String, ParquetValue>>
-
 /**
  * A shard-surviving parquet row + its event-id digest, delivered to a
  * [RawImpressionSource.BlobSink].
