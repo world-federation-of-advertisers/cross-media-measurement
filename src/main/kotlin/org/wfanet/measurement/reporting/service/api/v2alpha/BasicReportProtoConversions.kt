@@ -102,7 +102,6 @@ fun BasicReport.toInternal(
   impressionQualificationFilterSpecsByName: Map<String, List<ImpressionQualificationFilterSpec>>,
   effectiveModelLine: String,
   effectiveReportStart: DateTime,
-  amiMrcExemptedCmmsDataProviderIds: Iterable<String>,
 ): InternalBasicReport {
   val source = this
   return internalBasicReport {
@@ -146,7 +145,6 @@ fun BasicReport.toInternal(
 
       modelLineSystemSpecified = source.modelLine.isEmpty()
     }
-    this.amiMrcExemptedCmmsDataProviderIds += amiMrcExemptedCmmsDataProviderIds
   }
 }
 

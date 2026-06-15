@@ -221,8 +221,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         }
       }
       createReportRequestId = "1235"
-      amiMrcExemptedCmmsDataProviderIds += "edp1"
-      amiMrcExemptedCmmsDataProviderIds += "edp2"
     }
 
     val request = createBasicReportRequest { this.basicReport = basicReport }

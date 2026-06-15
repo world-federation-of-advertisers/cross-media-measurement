@@ -323,7 +323,6 @@ class InProcessReportingServer(
                 measurementConsumerConfigs,
                 defaultReportStartHour = null,
                 baseExternalImpressionQualificationFilterIds = emptyList(),
-                amiMrcExemptedCmmsDataProviderIds = emptyList(),
               )
               .withTrustedPrincipalAuthentication(),
             ImpressionQualificationFiltersService(
