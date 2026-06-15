@@ -33,7 +33,7 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/testing:functions_framework_invoker_process",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],
 )
