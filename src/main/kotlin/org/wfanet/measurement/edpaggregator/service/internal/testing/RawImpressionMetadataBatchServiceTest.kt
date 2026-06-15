@@ -254,6 +254,92 @@ abstract class RawImpressionMetadataBatchServiceTest {
   }
 
   @Test
+  fun `listRawImpressionMetadataBatches filters by multiple states (OR)`() =
+    runBlocking<Unit> {
+      val processedBatch: RawImpressionMetadataBatch =
+        service.createRawImpressionMetadataBatch(
+          createRawImpressionMetadataBatchRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          }
+        )
+      val failedBatch: RawImpressionMetadataBatch =
+        service.createRawImpressionMetadataBatch(
+          createRawImpressionMetadataBatchRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          }
+        )
+      // A third batch that stays in CREATED — must NOT be returned.
+      service.createRawImpressionMetadataBatch(
+        createRawImpressionMetadataBatchRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        }
+      )
+
+      service.markRawImpressionMetadataBatchProcessed(
+        markRawImpressionMetadataBatchProcessedRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          batchResourceId = processedBatch.batchResourceId
+        }
+      )
+      service.markRawImpressionMetadataBatchFailed(
+        markRawImpressionMetadataBatchFailedRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          batchResourceId = failedBatch.batchResourceId
+        }
+      )
+
+      val response: ListRawImpressionMetadataBatchesResponse =
+        service.listRawImpressionMetadataBatches(
+          listRawImpressionMetadataBatchesRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            filter =
+              ListRawImpressionMetadataBatchesRequestKt.filter {
+                states += RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_PROCESSED
+                states += RawImpressionBatchState.RAW_IMPRESSION_BATCH_STATE_FAILED
+              }
+          }
+        )
+
+      assertThat(response.rawImpressionMetadataBatchesList.map { it.batchResourceId })
+        .containsExactly(processedBatch.batchResourceId, failedBatch.batchResourceId)
+    }
+
+  @Test
+  fun `listRawImpressionMetadataBatches with empty states filter returns all states`() =
+    runBlocking<Unit> {
+      val batch1: RawImpressionMetadataBatch =
+        service.createRawImpressionMetadataBatch(
+          createRawImpressionMetadataBatchRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          }
+        )
+      val batch2: RawImpressionMetadataBatch =
+        service.createRawImpressionMetadataBatch(
+          createRawImpressionMetadataBatchRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          }
+        )
+
+      service.markRawImpressionMetadataBatchProcessed(
+        markRawImpressionMetadataBatchProcessedRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          batchResourceId = batch2.batchResourceId
+        }
+      )
+
+      val response: ListRawImpressionMetadataBatchesResponse =
+        service.listRawImpressionMetadataBatches(
+          listRawImpressionMetadataBatchesRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            filter = ListRawImpressionMetadataBatchesRequestKt.filter {}
+          }
+        )
+
+      assertThat(response.rawImpressionMetadataBatchesList.map { it.batchResourceId })
+        .containsExactly(batch1.batchResourceId, batch2.batchResourceId)
+    }
+
+  @Test
   fun `deleteRawImpressionMetadataBatch soft deletes a batch`() = runBlocking {
     val created: RawImpressionMetadataBatch =
       service.createRawImpressionMetadataBatch(
