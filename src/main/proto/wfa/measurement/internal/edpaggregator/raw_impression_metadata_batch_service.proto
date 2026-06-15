@@ -79,7 +79,8 @@ message ListRawImpressionMetadataBatchesRequest {
   ListRawImpressionMetadataBatchesPageToken page_token = 3;
 
   message Filter {
-    RawImpressionBatchState state = 1;
+    // Filter to resources whose state is in this set. Empty matches all states.
+    repeated RawImpressionBatchState state_in = 1;
 
     // Filter for resources whose create_time falls within this interval.
     google.type.Interval create_time_interval = 2;

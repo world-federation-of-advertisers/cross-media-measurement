@@ -114,11 +114,14 @@ message ListRawImpressionMetadataBatchesRequest {
 
   // Filter for `ListRawImpressionMetadataBatches` method.
   message Filter {
-    // The state to filter by.
+    // Filter to resources whose state is in this set. Empty matches all states.
     // (-- api-linter: core::0216::state-field-output-only=disabled
     //     aip.dev/not-precedent: This is a filter input field, not a
     //     resource state field. --)
-    RawImpressionMetadataBatch.State state = 1
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: `_in` is the established repo convention
+    //     for set-membership filter fields. --)
+    repeated RawImpressionMetadataBatch.State state_in = 1
         [(google.api.field_behavior) = OPTIONAL];
 
     // Filter for resources whose create_time falls within this interval.
