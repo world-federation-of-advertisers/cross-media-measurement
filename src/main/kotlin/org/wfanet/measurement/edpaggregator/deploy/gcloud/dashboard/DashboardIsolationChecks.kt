@@ -454,6 +454,80 @@ class DashboardIsolationChecks(
       results.add(CheckResult("schema", false, "Cannot check schema: ${e.message}"))
     }
 
+    // Verify row access policies exist on EDP-visible tables
+    for (tableName in listOf("requisition_overview", "mc_details_edp", "report_detail_edp")) {
+      try {
+        val result =
+          bq.query(
+            QueryJobConfiguration.of(
+              "SELECT policy_name, filter_predicate, grantee_list " +
+                "FROM `$project.region-$region.INFORMATION_SCHEMA.ROW_ACCESS_POLICIES` " +
+                "WHERE table_name = '$tableName'"
+            )
+          )
+        val policyCount = result.iterateAll().count()
+        if (policyCount > 0) {
+          results.add(
+            CheckResult(
+              "Policies $tableName",
+              true,
+              "Row access policies exist on $tableName ($policyCount policies)",
+            )
+          )
+        } else {
+          results.add(
+            CheckResult(
+              "Policies $tableName",
+              false,
+              "No row access policies on $tableName — EDP isolation not enforced",
+            )
+          )
+        }
+      } catch (e: BigQueryException) {
+        results.add(
+          CheckResult(
+            "Policies $tableName",
+            false,
+            "Cannot check row access policies on $tableName: ${e.message}",
+          )
+        )
+      }
+    }
+
+    // Verify only expected BigQuery connections exist
+    val expectedConnections = setOf("edp-aggregator-conn", "kingdom-conn", "reporting-conn")
+    try {
+      val result =
+        bq.query(
+          QueryJobConfiguration.of(
+            "SELECT connection_id FROM `$project.region-$region.INFORMATION_SCHEMA.CONNECTIONS`"
+          )
+        )
+      val actualConnections = result.iterateAll().map { it["connection_id"].stringValue }.toSet()
+      val unexpected = actualConnections - expectedConnections
+      if (unexpected.isEmpty()) {
+        results.add(
+          CheckResult(
+            "Connection inventory",
+            true,
+            "Only expected connections exist: $actualConnections",
+          )
+        )
+      } else {
+        results.add(
+          CheckResult(
+            "Connection inventory",
+            false,
+            "Unexpected connections found: $unexpected (share same Spanner SA)",
+          )
+        )
+      }
+    } catch (e: BigQueryException) {
+      results.add(
+        CheckResult("Connection inventory", false, "Cannot check connections: ${e.message}")
+      )
+    }
+
     return results
   }
 
@@ -513,6 +587,49 @@ class DashboardIsolationChecks(
           "${edp.name}: fulfilled metrics check failed: ${e.message}",
         )
       )
+    }
+
+    // Check data freshness — tables should be updated within the last 3 hours
+    val stalenessThresholdHours = 3
+    for (tableName in listOf("requisition_overview", "mc_details", "mc_details_edp")) {
+      try {
+        val result =
+          bq.query(
+            QueryJobConfiguration.of(
+              "SELECT TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), " +
+                "PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', " +
+                "option_value), HOUR) AS hours_stale " +
+                "FROM `$project.$dataset.INFORMATION_SCHEMA.TABLE_OPTIONS` " +
+                "WHERE table_name = '$tableName' AND option_name = 'last_modified_time'"
+            )
+          )
+        val hoursStale = result.iterateAll().firstOrNull()?.get("hours_stale")?.longValue
+        if (hoursStale != null && hoursStale <= stalenessThresholdHours) {
+          results.add(
+            CheckResult(
+              "${edp.name}: $tableName freshness",
+              true,
+              "${edp.name}: $tableName updated $hoursStale hours ago",
+            )
+          )
+        } else {
+          results.add(
+            CheckResult(
+              "${edp.name}: $tableName freshness",
+              false,
+              "${edp.name}: $tableName is stale (${hoursStale ?: "unknown"} hours old)",
+            )
+          )
+        }
+      } catch (e: BigQueryException) {
+        results.add(
+          CheckResult(
+            "${edp.name}: $tableName freshness",
+            false,
+            "${edp.name}: $tableName freshness check failed: ${e.message}",
+          )
+        )
+      }
     }
 
     return results

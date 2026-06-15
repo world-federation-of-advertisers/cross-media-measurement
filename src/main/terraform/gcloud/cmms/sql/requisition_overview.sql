@@ -12,8 +12,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-TRUNCATE TABLE `${project_id}.${dataset}.${table_name}`;
-INSERT INTO `${project_id}.${dataset}.${table_name}`
+MERGE INTO `${project_id}.${dataset}.${table_name}` T
+USING (
 SELECT
   r.DataProviderResourceId,
   r.Report,
@@ -96,3 +96,8 @@ LEFT JOIN (
     FROM BasicReports br''')
 ) br
   ON REGEXP_EXTRACT(r.Report, r'reports/([^/]+)$') = br.ExternalReportId
+
+) S
+ON FALSE
+WHEN NOT MATCHED THEN INSERT ROW
+WHEN NOT MATCHED BY SOURCE THEN DELETE;
