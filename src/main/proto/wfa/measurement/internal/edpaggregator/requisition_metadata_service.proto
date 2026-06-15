@@ -124,8 +124,9 @@ message ListRequisitionMetadataRequest {
     string group_id = 2;
     string report = 3;
 
-    // Filter for resources whose create_time falls within this interval.
-    google.type.Interval create_time_interval = 4;
+    // Filter for resources whose create_time is in the given interval. At least
+    // one of `start_time` or `end_time` must be set.
+    google.type.Interval create_time_in = 4;
   }
   Filter filter = 1;
 
