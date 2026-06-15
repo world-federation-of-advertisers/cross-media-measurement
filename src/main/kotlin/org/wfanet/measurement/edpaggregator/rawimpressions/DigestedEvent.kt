@@ -17,18 +17,16 @@
 package org.wfanet.measurement.edpaggregator.rawimpressions
 
 /**
- * One surviving raw impression event after shard-filtering, with its 12-byte
- * [EventIdDigest] pre-computed.
+ * One surviving raw impression event after shard-filtering, with its 12-byte [EventIdDigest]
+ * pre-computed.
  *
- * [row] is the reader's representation of the decoded row; the type parameter [R]
- * keeps this reusable across readers. For the parquet reader ([RawImpressionSource])
- * `R` is `Map<String, ParquetValue>` — keyed by **parquet column name** (NOT
- * LabelerInput field name), each value a typed `ParquetValue`; downstream consumers
- * project it into whatever shape they need (e.g. a `LabelerInput` proto) via the
- * `labeler_input_field_mapping`.
+ * [row] is the reader's representation of the decoded row; the type parameter [R] keeps this
+ * reusable across readers. For the parquet reader ([RawImpressionSource]) `R` is `Map<String,
+ * ParquetValue>` — keyed by **parquet column name** (NOT LabelerInput field name), each value a
+ * typed `ParquetValue`; downstream consumers project it into whatever shape they need (e.g. a
+ * `LabelerInput` proto) via the `labeler_input_field_mapping`.
  *
  * @property row the decoded row.
- * @property digest the event-id [EventIdDigest]; distinct from the labeler's
- *   `acting_fingerprint`.
+ * @property digest the event-id [EventIdDigest]; distinct from the labeler's `acting_fingerprint`.
  */
 data class DigestedEvent<R>(val row: R, val digest: EventIdDigest)
