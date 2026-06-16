@@ -18,6 +18,7 @@ package wfa.measurement.config.edpaggregator;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "google/protobuf/duration.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
 import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
 
@@ -89,6 +90,11 @@ message VidLabelingConfig {
   // (WorkItemsService). Distinct from the RawImpressionMetadata storage
   // connection.
   TransportLayerSecurityParams control_plane_connection = 12
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Duration a non-terminal upload may remain before it is flagged as stuck
+  // for alerting.
+  google.protobuf.Duration staleness_threshold = 13
       [(google.api.field_behavior) = REQUIRED];
 }
 
