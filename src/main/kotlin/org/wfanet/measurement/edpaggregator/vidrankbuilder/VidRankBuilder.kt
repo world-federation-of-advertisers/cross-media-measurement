@@ -34,16 +34,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServi
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.createVidLabelingJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRankerJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRankerJobFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRankerJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 
 /**
@@ -72,7 +68,8 @@ class VidRankBuilder(
   private val subpoolRanker: SubpoolRanker,
   private val rankerJobsStub: RankerJobServiceCoroutineStub,
   private val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
-  private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
+  @Suppress("unused") private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
+  @Suppress("unused")
   private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
   @Suppress("unused") private val workItemsStub: WorkItemsCoroutineStub,
   private val rawImpressionUpload: String,
@@ -80,7 +77,7 @@ class VidRankBuilder(
   private val rankerJob: String,
   private val subpoolMapBlobUris: Map<Long, String>,
   private val subpoolRankedSizes: Map<Long, Int>,
-  private val totalShards: Int,
+  @Suppress("unused") private val totalShards: Int,
   @Suppress("unused") private val vidLabelerQueue: String,
 ) {
   /**
@@ -181,29 +178,18 @@ class VidRankBuilder(
   }
 
   /**
-   * Batch-creates `total_shards` `VidLabelingJob` rows, round-robin distributing the upload's files
-   * across shards. Idempotent: each row's `request_id` is derived from (upload, model line, shard).
+   * Creates the Phase-2 `VidLabelingJob` rows for the (upload, model line).
+   *
+   * TODO(@Marco-Premier): implement alongside the memoized Phase-2 `VidLabelerParams`.
+   *
+   * Do NOT batch by an integer shard index. Phase 2 must batch by the uploaded *file*: an output
+   * blob's `entity_keys` must land in the same file groupings the EDP uploaded them in, so each
+   * output blob's `BlobDetails` carries the full `entity_keys` set its source file contained. The
+   * job unit is therefore the `RawImpressionUploadFile` (or a bin-packed group of files, listed via
+   * [rawImpressionUploadFilesStub] and created via [vidLabelingJobsStub]) — not shard `N`.
    */
   private suspend fun createVidLabelingJobs() {
-    val files = listUploadFiles()
-    val shards = Array(totalShards) { mutableListOf<String>() }
-    files.forEachIndexed { index, fileName -> shards[index % totalShards].add(fileName) }
-
-    vidLabelingJobsStub.batchCreateVidLabelingJobs(
-      batchCreateVidLabelingJobsRequest {
-        parent = rawImpressionUpload
-        for (shardIndex in 0 until totalShards) {
-          requests += createVidLabelingJobRequest {
-            parent = rawImpressionUpload
-            vidLabelingJob = vidLabelingJob {
-              cmmsModelLines += modelLine
-              rawImpressionUploadFiles += shards[shardIndex]
-            }
-            requestId = labelingJobRequestId(shardIndex)
-          }
-        }
-      }
-    )
+    // Intentionally empty until the file-batched Phase-2 fan-out is implemented (see KDoc).
   }
 
   /** Flips the parent `RANKING` -> `LABELING`, swallowing the benign "already advanced" races. */
@@ -241,24 +227,6 @@ class VidRankBuilder(
     } catch (e: Exception) {
       logger.log(Level.WARNING, "Failed to mark RankerJob $rankerJob FAILED", e)
     }
-  }
-
-  /** All `RankerJob` resource names of the upload's files, in listing order. */
-  private suspend fun listUploadFiles(): List<String> {
-    val files = mutableListOf<String>()
-    rawImpressionUploadFilesStub
-      .listResources { pageToken: String ->
-        val response =
-          listRawImpressionUploadFiles(
-            listRawImpressionUploadFilesRequest {
-              parent = rawImpressionUpload
-              this.pageToken = pageToken
-            }
-          )
-        ResourceList(response.rawImpressionUploadFilesList, response.nextPageToken)
-      }
-      .collect { page -> page.forEach { files.add(it.name) } }
-    return files
   }
 
   /** Whether every `RankerJob` for this (upload, model line) is `SUCCEEDED`. */
@@ -309,9 +277,6 @@ class VidRankBuilder(
   }
 
   private fun markSucceededRequestId(): String = deterministicUuid("$rankerJob|succeeded")
-
-  private fun labelingJobRequestId(shardIndex: Int): String =
-    deterministicUuid("$rawImpressionUpload|$modelLine|labeling|$shardIndex")
 
   /**
    * Deterministic UUID4 from [seed], stable across redeliveries so the server reuses an existing

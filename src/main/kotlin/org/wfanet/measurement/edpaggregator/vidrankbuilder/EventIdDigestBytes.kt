@@ -23,7 +23,7 @@ import com.google.protobuf.ByteString
  * Phase-1 (`EventIdDigest` / `Bytes12IntMap` / `SubpoolFingerprints` / `RankIndexMap`): bytes 0..7
  * are the high `Long`, bytes 8..11 the low `Int`. Packed back-to-back with no per-entry framing.
  */
-object FingerprintCodec {
+object EventIdDigestBytes {
   /** Width of one packed fingerprint, in bytes. */
   const val WIDTH = 12
 

@@ -171,8 +171,8 @@ class RankAllocatorTest {
 
   private fun packFingerprint(hi: Long, lo: Int): com.google.protobuf.ByteString {
     val fp = ByteArray(12)
-    FingerprintCodec.writeHi(fp, 0, hi)
-    FingerprintCodec.writeLo(fp, 8, lo)
+    EventIdDigestBytes.writeHi(fp, 0, hi)
+    EventIdDigestBytes.writeLo(fp, 8, lo)
     return com.google.protobuf.ByteString.copyFrom(fp)
   }
 
@@ -180,8 +180,8 @@ class RankAllocatorTest {
     val fps = ByteArray(entries.size * 12)
     val builder = RankIndexMap.newBuilder().setPoolOffset(poolOffset).setRankedSize(rankedSize)
     entries.forEachIndexed { i, e ->
-      FingerprintCodec.writeHi(fps, i * 12, e.hi)
-      FingerprintCodec.writeLo(fps, i * 12 + 8, e.lo)
+      EventIdDigestBytes.writeHi(fps, i * 12, e.hi)
+      EventIdDigestBytes.writeLo(fps, i * 12 + 8, e.lo)
       builder.addRanks(e.rank)
       builder.addLastSeenEpochDays(e.day)
     }

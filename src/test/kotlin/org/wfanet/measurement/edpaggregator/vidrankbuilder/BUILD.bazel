@@ -7,7 +7,7 @@ kt_jvm_test(
     srcs = ["RankAllocatorTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.vidrankbuilder.RankAllocatorTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:fingerprint_codec",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:event_id_digest_bytes",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:rank_allocator",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_map_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",

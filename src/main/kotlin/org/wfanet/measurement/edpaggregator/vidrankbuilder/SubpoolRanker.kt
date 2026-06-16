@@ -126,11 +126,15 @@ class SubpoolRanker(
     val todayFps = Bytes12IntMap()
     subpoolFingerprintsStore.readBlob(subpoolBlobUri, encryptedSubpoolMapsDek).collect { record ->
       val fps = record.fingerprints
-      val count = fps.size() / FingerprintCodec.WIDTH
+      val count = fps.size() / EventIdDigestBytes.WIDTH
       var off = 0
       repeat(count) {
-        todayFps.put(FingerprintCodec.readHi(fps, off), FingerprintCodec.readLo(fps, off + 8), 1)
-        off += FingerprintCodec.WIDTH
+        todayFps.put(
+          EventIdDigestBytes.readHi(fps, off),
+          EventIdDigestBytes.readLo(fps, off + 8),
+          1
+        )
+        off += EventIdDigestBytes.WIDTH
       }
     }
 

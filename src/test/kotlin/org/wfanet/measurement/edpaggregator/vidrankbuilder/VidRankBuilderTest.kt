@@ -164,7 +164,7 @@ class VidRankBuilderTest {
   }
 
   @Test
-  fun `last job out creates labeling jobs and flips parent to LABELING`() = runBlocking {
+  fun `last job out flips parent to LABELING`() = runBlocking {
     val ranker = rankerMock()
     val rankerJobs = rankerJobsMock(isLastJob = true)
     val vidLabelingJobs = vidLabelingJobsMock()
@@ -173,8 +173,9 @@ class VidRankBuilderTest {
     val result = builder(ranker, rankerJobs, modelLines, vidLabelingJobs).run()
 
     assertThat(result.lastJobOut).isTrue()
-    verifyBlocking(vidLabelingJobs) { batchCreateVidLabelingJobs(any(), any()) }
     verifyBlocking(modelLines) { markRawImpressionUploadModelLineLabeling(any(), any()) }
+    // VidLabelingJob creation is a TODO (file-batched Phase-2), so no rows are created yet.
+    verifyBlocking(vidLabelingJobs, never()) { batchCreateVidLabelingJobs(any(), any()) }
   }
 
   @Test
@@ -191,7 +192,7 @@ class VidRankBuilderTest {
       assertThat(result.lastJobOut).isTrue()
       verifyBlocking(ranker, never()) { rank(any(), any(), any()) }
       verifyBlocking(rankerJobs, never()) { markRankerJobSucceeded(any(), any()) }
-      verifyBlocking(vidLabelingJobs) { batchCreateVidLabelingJobs(any(), any()) }
+      verifyBlocking(modelLines) { markRawImpressionUploadModelLineLabeling(any(), any()) }
     }
 
   @Test
