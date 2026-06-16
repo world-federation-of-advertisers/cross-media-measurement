@@ -170,18 +170,24 @@ message ListRawImpressionUploadModelLinesRequest {
 
   // Structured filter for narrowing results.
   message Filter {
-    // Filter by pipeline state.
+    // Filter to resources whose state is in this set. Empty matches all states.
     // (-- api-linter: core::0216::state-field-output-only=disabled
     //     aip.dev/not-precedent: This is a filter input field, not
     //     a resource state field. --)
-    RawImpressionUploadModelLine.State state = 1
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: `_in` is the established repo convention
+    //     for set-membership filter fields. --)
+    repeated RawImpressionUploadModelLine.State state_in = 1
         [(google.api.field_behavior) = OPTIONAL];
 
-    // Filter for resources whose create_time falls within this
-    // interval. Start and end are both optional: omitting start
-    // returns resources created before end, omitting end returns
-    // resources created after start.
-    google.type.Interval create_time_interval = 2
+    // Filter for resources whose create_time is in the given interval.
+    // Start and end are both optional: omitting start_time matches
+    // resources created before end_time; omitting end_time matches
+    // resources created at or after start_time.
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: `_in` is the established repo convention
+    //     for set-membership filter fields. --)
+    google.type.Interval create_time_in = 2
         [(google.api.field_behavior) = OPTIONAL];
 
     // Filter by CMMS model line resource name.
