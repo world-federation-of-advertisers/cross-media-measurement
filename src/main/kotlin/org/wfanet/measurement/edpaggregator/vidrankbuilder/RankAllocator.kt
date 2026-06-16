@@ -26,29 +26,37 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
 
 /**
  * In-heap rank-allocation state for a **single** subpool: the source-of-truth cumulative
- * `(fingerprint -> rank)` map plus an acceleration [BitSet] of taken ranks.
+ * `(fingerprint -> rank)` map, an acceleration [BitSet] of taken ranks, and a per-rank `last_seen`
+ * recency index.
  *
  * Per the design, one subpool is owned by exactly one ranker VM, so this structure is
  * single-threaded and needs no synchronization.
  *
- * Two [Bytes12IntMap]s live here:
+ * State held here:
  * * [cumulative] — every surviving `(fp, rank)` across all uploads; serialized as the new
  *   `SNAPSHOT` blob. 12-byte key, [Int] rank value.
  * * [dayOnly] — the `(fp, rank)` pairs touched **this** dispatch (newly allocated *and* renewed);
- *   serialized as the `DAY_ONLY` blob for renewal tracking and retention bookkeeping.
+ *   serialized as the `DAY_ONLY` blob.
+ * * [taken] — rank `BitSet`, rebuilt from [cumulative] at load.
+ * * [lastSeen] — `lastSeen[rank]` is the epoch-day the fingerprint at that rank was most recently
+ *   observed. Indexed by rank (dense in `[0, ranked_size)`), it makes retention an in-heap pass
+ *   over [cumulative] rather than a re-scan of every surviving `DAY_ONLY` blob. Persisted
+ *   positionally in the `SNAPSHOT` (`RankIndexMap.last_seen_epoch_days`) and rebuilt at load.
  *
- * [taken] is rebuilt from [cumulative]'s rank values at load (never persisted). Allocation finds
- * the next free rank via [BitSet.nextClearBit] starting from a monotonically advancing [cursor];
- * because retention runs (and frees ranks) **before** any allocation, every freed slot is visible
- * to the first allocation pass.
+ * Allocation finds the next free rank via [BitSet.nextClearBit] from a monotonically advancing
+ * [cursor]; because [freeAgedRanks] runs **before** any [assign], freed slots are visible to the
+ * first allocation.
  *
  * @param poolOffset the subpool's `population_offset`.
  * @param rankedSize the subpool's ranked sub-range size; ranks are allocated in `[0, rankedSize)`.
- *   Fingerprints beyond it overflow and are left unranked (Phase-2 hash fallback).
+ * @param eventDay epoch-day stamped as `last_seen` for every fingerprint touched this dispatch
+ *   (typically the dispatch's `max_event_date`). Also the default `last_seen` for entries loaded
+ *   from a legacy `SNAPSHOT` that predates the field.
  */
 class RankAllocator(
   val poolOffset: Long,
   val rankedSize: Int,
+  private val eventDay: Int,
   initialCapacity: Long = Bytes12IntMap.DEFAULT_INITIAL_CAPACITY,
 ) {
   init {
@@ -58,6 +66,7 @@ class RankAllocator(
   private val cumulative = Bytes12IntMap(initialCapacity)
   private val dayOnly = Bytes12IntMap()
   private val taken = BitSet(rankedSize.coerceAtLeast(1))
+  private val lastSeen = IntArray(rankedSize)
   private var cursor = 0
 
   /** Number of fingerprints currently holding a rank in this subpool. */
@@ -76,30 +85,40 @@ class RankAllocator(
   var overflow: Long = 0L
     private set
 
-  /** Ranks freed by the retention pass. */
+  /** Ranks freed by [freeAgedRanks]. */
   var freed: Long = 0L
     private set
 
   /**
-   * Loads a single prior `(fp, rank)` entry into [cumulative] and marks its rank taken. Used by
-   * [loadFrom]; safe to call directly in tests.
+   * Loads a single prior `(fp, rank)` entry with its persisted [lastSeenDay], marking the rank
+   * taken and recording its recency. Used by [loadFrom]; safe to call directly in tests.
    */
-  fun loadEntry(keyHi: Long, keyLo: Int, rank: Int) {
+  fun loadEntry(keyHi: Long, keyLo: Int, rank: Int, lastSeenDay: Int) {
     cumulative.put(keyHi, keyLo, rank)
-    if (rank in 0 until rankedSize) taken.set(rank)
+    if (rank in 0 until rankedSize) {
+      taken.set(rank)
+      lastSeen[rank] = lastSeenDay
+    }
   }
 
-  /** Rebuilds [cumulative] + [taken] from a prior `SNAPSHOT` blob's records. */
+  /**
+   * Rebuilds [cumulative], [taken], and [lastSeen] from a prior `SNAPSHOT` blob's records. Records
+   * that predate `last_seen_epoch_days` (count mismatch) default every entry's recency to
+   * [eventDay] so a one-time migration never prematurely frees a still-active rank.
+   */
   suspend fun loadFrom(records: Flow<RankIndexMap>) {
     records.collect { record ->
       val fps = record.fingerprints
       val count = record.ranksCount
+      val hasLastSeen = record.lastSeenEpochDaysCount == count
       var off = 0
       for (i in 0 until count) {
+        val day = if (hasLastSeen) record.getLastSeenEpochDays(i) else eventDay
         loadEntry(
           FingerprintCodec.readHi(fps, off),
           FingerprintCodec.readLo(fps, off + 8),
           record.getRanks(i),
+          day,
         )
         off += FingerprintCodec.WIDTH
       }
@@ -112,20 +131,46 @@ class RankAllocator(
   /** The rank of [keyHi]/[keyLo], or [Bytes12IntMap.NOT_PRESENT] if unranked. */
   fun get(keyHi: Long, keyLo: Int): Int = cumulative.get(keyHi, keyLo)
 
+  /** The `last_seen` epoch-day recorded for [rank]. Exposed for tests. */
+  fun lastSeenOf(rank: Int): Int = lastSeen[rank]
+
   /**
-   * Frees the rank of [keyHi]/[keyLo] if present: removes it from [cumulative] and clears its
-   * [taken] bit so the slot is reusable. No-op if the fingerprint is not ranked.
+   * Frees the ranks of fingerprints that have aged out — `last_seen < cutoffEpochDay` — **unless**
+   * the fingerprint appears in [todayFps]. Excluding today's fingerprints is essential: a
+   * fingerprint whose persisted recency is old but which is observed again this dispatch must keep
+   * its rank (and therefore its VID); [assign] will refresh its `last_seen` afterwards.
+   *
+   * Runs before any [assign] so the freed slots are reusable by today's allocation. Collects the
+   * doomed keys first, then removes them, because mutating [cumulative] mid-iteration is undefined.
+   *
+   * @return the number of ranks freed.
    */
-  fun free(keyHi: Long, keyLo: Int) {
-    val rank = cumulative.remove(keyHi, keyLo)
-    if (rank != Bytes12IntMap.NOT_PRESENT) {
-      if (rank in 0 until rankedSize) taken.clear(rank)
-      freed++
+  fun freeAgedRanks(cutoffEpochDay: Int, todayFps: Bytes12IntMap): Long {
+    val freeHi = ArrayList<Long>()
+    val freeLo = ArrayList<Int>()
+    cumulative.forEach { keyHi, keyLo, rank ->
+      if (
+        rank in 0 until rankedSize &&
+          lastSeen[rank] < cutoffEpochDay &&
+          !todayFps.containsKey(keyHi, keyLo)
+      ) {
+        freeHi.add(keyHi)
+        freeLo.add(keyLo)
+      }
     }
+    for (i in freeHi.indices) {
+      val rank = cumulative.remove(freeHi[i], freeLo[i])
+      if (rank != Bytes12IntMap.NOT_PRESENT) {
+        if (rank in 0 until rankedSize) taken.clear(rank)
+        freed++
+      }
+    }
+    return freed
   }
 
   /**
-   * Assigns a rank to [keyHi]/[keyLo] for this dispatch and records it in [dayOnly]:
+   * Assigns a rank to [keyHi]/[keyLo] for this dispatch, stamping its `last_seen` to [eventDay] and
+   * recording it in [dayOnly]:
    * * already ranked -> reuses the existing rank (renewal; keeps the VID stable),
    * * otherwise -> claims the next free rank via [BitSet.nextClearBit], unless the subpool is full.
    *
@@ -135,6 +180,7 @@ class RankAllocator(
   fun assign(keyHi: Long, keyLo: Int): Int? {
     val existing = cumulative.get(keyHi, keyLo)
     if (existing != Bytes12IntMap.NOT_PRESENT) {
+      if (existing in 0 until rankedSize) lastSeen[existing] = eventDay
       dayOnly.put(keyHi, keyLo, existing)
       renewed++
       return existing
@@ -146,28 +192,38 @@ class RankAllocator(
     }
     taken.set(rank)
     cursor = rank + 1
+    lastSeen[rank] = eventDay
     cumulative.put(keyHi, keyLo, rank)
     dayOnly.put(keyHi, keyLo, rank)
     allocated++
     return rank
   }
 
-  /** Streams the cumulative map as chunked [RankIndexMap] records (the new `SNAPSHOT` blob). */
+  /**
+   * Streams the cumulative map as chunked [RankIndexMap] records (the new `SNAPSHOT` blob), each
+   * carrying its entries' persisted `last_seen` recency.
+   */
   fun streamCumulativeChunks(chunkEntries: Int = DEFAULT_CHUNK_ENTRIES): Flow<RankIndexMap> =
-    streamChunks(cumulative, chunkEntries)
+    streamChunks(cumulative, chunkEntries) { rank -> lastSeen[rank] }
 
   /**
-   * Streams this dispatch's touched entries as chunked [RankIndexMap] records (`DAY_ONLY` blob).
+   * Streams this dispatch's touched entries as chunked [RankIndexMap] records (`DAY_ONLY` blob);
+   * every entry's `last_seen` is [eventDay] (they were all observed this dispatch).
    */
   fun streamDayOnlyChunks(chunkEntries: Int = DEFAULT_CHUNK_ENTRIES): Flow<RankIndexMap> =
-    streamChunks(dayOnly, chunkEntries)
+    streamChunks(dayOnly, chunkEntries) { eventDay }
 
-  private fun streamChunks(map: Bytes12IntMap, chunkEntries: Int): Flow<RankIndexMap> = flow {
+  private fun streamChunks(
+    map: Bytes12IntMap,
+    chunkEntries: Int,
+    lastSeenOf: (rank: Int) -> Int,
+  ): Flow<RankIndexMap> = flow {
     val total = map.size
     if (total == 0L) return@flow
     val chunkCount = minOf(chunkEntries.toLong(), total).toInt()
     var fps = ByteArray(chunkCount * FingerprintCodec.WIDTH)
     var ranks = IntArray(chunkCount)
+    var seen = IntArray(chunkCount)
     var n = 0
     var produced = 0L
     // forEach is inline, so the suspend emit() is legal inside the flow block.
@@ -176,31 +232,40 @@ class RankAllocator(
       FingerprintCodec.writeHi(fps, base, keyHi)
       FingerprintCodec.writeLo(fps, base + 8, keyLo)
       ranks[n] = rank
+      seen[n] = lastSeenOf(rank)
       n++
       produced++
       if (n == ranks.size) {
-        emit(buildRecord(fps, ranks, n))
+        emit(buildRecord(fps, ranks, seen, n))
         val remaining = total - produced
         if (remaining > 0) {
           val next = minOf(chunkEntries.toLong(), remaining).toInt()
           fps = ByteArray(next * FingerprintCodec.WIDTH)
           ranks = IntArray(next)
+          seen = IntArray(next)
           n = 0
         }
       }
     }
   }
 
-  private fun buildRecord(fps: ByteArray, ranks: IntArray, count: Int): RankIndexMap =
-    rankIndexMap {
-      poolOffset = this@RankAllocator.poolOffset
-      rankedSize = this@RankAllocator.rankedSize
-      fingerprints = UnsafeByteOperations.unsafeWrap(fps, 0, count * FingerprintCodec.WIDTH)
-      for (i in 0 until count) this.ranks += ranks[i]
+  private fun buildRecord(
+    fps: ByteArray,
+    ranks: IntArray,
+    seen: IntArray,
+    count: Int,
+  ): RankIndexMap = rankIndexMap {
+    poolOffset = this@RankAllocator.poolOffset
+    rankedSize = this@RankAllocator.rankedSize
+    fingerprints = UnsafeByteOperations.unsafeWrap(fps, 0, count * FingerprintCodec.WIDTH)
+    for (i in 0 until count) {
+      this.ranks += ranks[i]
+      lastSeenEpochDays += seen[i]
     }
+  }
 
   companion object {
-    /** ~16M entries (~256 MB of fps+ranks) per record: one buffer in memory at a time. */
+    /** ~16M entries (~320 MB of fps+ranks+last_seen) per record: one buffer in memory at a time. */
     const val DEFAULT_CHUNK_ENTRIES = 16 * 1024 * 1024
   }
 }

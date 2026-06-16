@@ -136,6 +136,7 @@ class VidRankBuilderApp(
         kmsClient,
       )
 
+    val runDate = today()
     val retention =
       SubpoolRetention(
         rankIndexBlobsStub = rankIndexBlobsStub,
@@ -145,7 +146,7 @@ class VidRankBuilderApp(
         // TODO(@Marco-Premier): source RETENTION_DAYS from static runner config instead of the
         //   default; it MUST exceed the deployment's maximum measurement-report window.
         retentionDays = DEFAULT_RETENTION_DAYS,
-        today = today(),
+        today = runDate,
       )
 
     val subpoolRanker =
@@ -161,6 +162,8 @@ class VidRankBuilderApp(
         kekUri = getVidRankMapKekUri(dataProvider),
         encryptedSubpoolMapsDek = params.encryptedSubpoolMapsDek,
         maxEventDate = params.maxEventDate,
+        retentionDays = DEFAULT_RETENTION_DAYS,
+        today = runDate,
       )
 
     VidRankBuilder(

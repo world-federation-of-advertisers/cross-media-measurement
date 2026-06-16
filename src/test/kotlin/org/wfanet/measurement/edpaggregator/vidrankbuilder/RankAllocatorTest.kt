@@ -24,12 +24,15 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexMap
+import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
+
+private const val EVENT_DAY = 100
 
 @RunWith(JUnit4::class)
 class RankAllocatorTest {
   @Test
   fun `assign allocates sequential ranks from zero`() {
-    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100)
+    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100, eventDay = EVENT_DAY)
 
     assertThat(allocator.assign(1L, 0)).isEqualTo(0)
     assertThat(allocator.assign(2L, 0)).isEqualTo(1)
@@ -40,21 +43,21 @@ class RankAllocatorTest {
   }
 
   @Test
-  fun `assign renews an already-ranked fingerprint without consuming a new rank`() {
-    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100)
-    val rank = allocator.assign(1L, 0)
+  fun `assign renews an already-ranked fingerprint and refreshes its last_seen`() {
+    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100, eventDay = EVENT_DAY)
+    allocator.loadEntry(1L, 0, rank = 5, lastSeenDay = 3)
 
     val renewedRank = allocator.assign(1L, 0)
 
-    assertThat(renewedRank).isEqualTo(rank)
-    assertThat(allocator.allocated).isEqualTo(1)
+    assertThat(renewedRank).isEqualTo(5)
     assertThat(allocator.renewed).isEqualTo(1)
-    assertThat(allocator.cumulativeSize).isEqualTo(1)
+    assertThat(allocator.allocated).isEqualTo(0)
+    assertThat(allocator.lastSeenOf(5)).isEqualTo(EVENT_DAY)
   }
 
   @Test
   fun `assign returns null and counts overflow once the subpool is full`() {
-    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 2)
+    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 2, eventDay = EVENT_DAY)
 
     assertThat(allocator.assign(1L, 0)).isEqualTo(0)
     assertThat(allocator.assign(2L, 0)).isEqualTo(1)
@@ -66,103 +69,132 @@ class RankAllocatorTest {
   }
 
   @Test
-  fun `free releases a rank and a subsequent assign reuses the freed slot`() {
-    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100)
-    // Pre-load three entries (as a snapshot load would), then free the middle rank before any
-    // allocation — mirroring the retention-before-allocation ordering.
-    allocator.loadEntry(1L, 0, 0)
-    allocator.loadEntry(2L, 0, 1)
-    allocator.loadEntry(3L, 0, 2)
+  fun `freeAgedRanks frees only aged ranks and a subsequent assign reuses a freed slot`() {
+    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100, eventDay = EVENT_DAY)
+    // rank 0 + rank 2 are aged (last_seen 1); rank 1 is recent (last_seen 99).
+    allocator.loadEntry(1L, 0, rank = 0, lastSeenDay = 1)
+    allocator.loadEntry(2L, 0, rank = 1, lastSeenDay = 99)
+    allocator.loadEntry(3L, 0, rank = 2, lastSeenDay = 1)
 
-    allocator.free(2L, 0)
-    assertThat(allocator.freed).isEqualTo(1)
-    assertThat(allocator.contains(2L, 0)).isFalse()
+    val freed = allocator.freeAgedRanks(cutoffEpochDay = 50, todayFps = Bytes12IntMap())
 
-    // The next allocation claims the lowest free slot, which is the just-freed rank 1.
-    assertThat(allocator.assign(4L, 0)).isEqualTo(1)
+    assertThat(freed).isEqualTo(2)
+    assertThat(allocator.contains(1L, 0)).isFalse()
+    assertThat(allocator.contains(3L, 0)).isFalse()
+    assertThat(allocator.contains(2L, 0)).isTrue()
+    // The lowest free slot is the just-freed rank 0.
+    assertThat(allocator.assign(9L, 0)).isEqualTo(0)
   }
 
   @Test
-  fun `free is a no-op for an unranked fingerprint`() {
-    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100)
-    allocator.free(99L, 0)
-    assertThat(allocator.freed).isEqualTo(0)
+  fun `freeAgedRanks never frees a fingerprint observed this dispatch`() {
+    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100, eventDay = EVENT_DAY)
+    allocator.loadEntry(1L, 0, rank = 0, lastSeenDay = 1) // aged by date...
+    val todayFps = Bytes12IntMap().apply { put(1L, 0, 1) } // ...but seen today.
+
+    val freed = allocator.freeAgedRanks(cutoffEpochDay = 50, todayFps = todayFps)
+
+    assertThat(freed).isEqualTo(0)
+    assertThat(allocator.contains(1L, 0)).isTrue()
   }
 
   @Test
-  fun `loadFrom rebuilds the map and bitset so taken ranks are not reallocated`() = runBlocking {
-    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100)
+  fun `loadFrom rebuilds map, bitset, and last_seen`() = runBlocking {
+    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100, eventDay = EVENT_DAY)
     val record =
       buildRecord(
-        poolOffset = 7L,
-        rankedSize = 100,
-        entries = listOf((10L to 0) to 5, (20L to 0) to 9)
+        7L,
+        100,
+        entries = listOf(Entry(10L, 0, rank = 5, day = 30), Entry(20L, 0, rank = 9, day = 40)),
       )
 
     allocator.loadFrom(listOf(record).asFlow())
 
     assertThat(allocator.get(10L, 0)).isEqualTo(5)
-    assertThat(allocator.get(20L, 0)).isEqualTo(9)
+    assertThat(allocator.lastSeenOf(5)).isEqualTo(30)
+    assertThat(allocator.lastSeenOf(9)).isEqualTo(40)
     // Ranks 5 and 9 are taken; a fresh assign skips them.
     assertThat(allocator.assign(30L, 0)).isEqualTo(0)
   }
 
   @Test
-  fun `streamCumulativeChunks round-trips every entry across multiple chunks`() = runBlocking {
-    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100)
-    val assigned = mutableMapOf<Pair<Long, Int>, Int>()
-    for (i in 1..5) {
-      val rank = allocator.assign(i.toLong(), i)!!
-      assigned[i.toLong() to i] = rank
-    }
+  fun `loadFrom defaults last_seen to eventDay when the record predates the field`() = runBlocking {
+    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100, eventDay = EVENT_DAY)
+    // A legacy record: ranks present, last_seen_epoch_days absent.
+    val legacy =
+      RankIndexMap.newBuilder()
+        .setPoolOffset(7L)
+        .setRankedSize(100)
+        .setFingerprints(packFingerprint(10L, 0))
+        .addRanks(5)
+        .build()
 
-    val records = allocator.streamCumulativeChunks(chunkEntries = 2).toList()
+    allocator.loadFrom(listOf(legacy).asFlow())
 
-    // 5 entries at 2 per chunk -> 3 records (2, 2, 1).
-    assertThat(records.map { it.ranksCount }).containsExactly(2, 2, 1).inOrder()
-    assertThat(records.all { it.poolOffset == 7L && it.rankedSize == 100 }).isTrue()
-    assertThat(decode(records)).isEqualTo(assigned)
+    assertThat(allocator.lastSeenOf(5)).isEqualTo(EVENT_DAY)
   }
 
   @Test
-  fun `streamDayOnlyChunks contains only this dispatch's touched entries`() = runBlocking {
-    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100)
-    // A pre-existing entry that is NOT touched this dispatch must not appear in the day-only blob.
-    allocator.loadEntry(99L, 0, 42)
-    val a = allocator.assign(1L, 0)!! // new
-    allocator.loadEntry(2L, 0, 7)
-    val renewed = allocator.assign(2L, 0)!! // renewal of a loaded entry
+  fun `streamCumulativeChunks round-trips ranks and last_seen across chunks`() = runBlocking {
+    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100, eventDay = EVENT_DAY)
+    allocator.loadEntry(1L, 0, rank = 0, lastSeenDay = 11)
+    allocator.loadEntry(2L, 0, rank = 1, lastSeenDay = 22)
+    allocator.assign(3L, 0) // new entry -> rank 2, last_seen = EVENT_DAY
 
-    val dayOnly = decode(allocator.streamDayOnlyChunks().toList())
+    val records = allocator.streamCumulativeChunks(chunkEntries = 2).toList()
 
-    assertThat(dayOnly).containsExactly(1L to 0, a, 2L to 0, renewed)
-    assertThat(dayOnly).doesNotContainKey(99L to 0)
+    assertThat(records.map { it.ranksCount }).containsExactly(2, 1).inOrder()
+    assertThat(records.all { it.poolOffset == 7L && it.rankedSize == 100 }).isTrue()
+    // Every record carries a last_seen entry per rank entry.
+    assertThat(records.all { it.lastSeenEpochDaysCount == it.ranksCount }).isTrue()
+    assertThat(decodeLastSeenByRank(records)).containsExactly(0, 11, 1, 22, 2, EVENT_DAY)
+    Unit
   }
 
-  private fun buildRecord(
-    poolOffset: Long,
-    rankedSize: Int,
-    entries: List<Pair<Pair<Long, Int>, Int>>,
-  ): RankIndexMap {
+  @Test
+  fun `streamDayOnlyChunks stamps eventDay and contains only this dispatch's entries`() =
+    runBlocking {
+      val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100, eventDay = EVENT_DAY)
+      allocator.loadEntry(99L, 0, rank = 42, lastSeenDay = 3) // not touched this dispatch
+      allocator.assign(1L, 0) // new
+      allocator.loadEntry(2L, 0, rank = 7, lastSeenDay = 3)
+      allocator.assign(2L, 0) // renewal
+
+      val records = allocator.streamDayOnlyChunks().toList()
+
+      val ranks = records.flatMap { it.ranksList }.toSet()
+      assertThat(ranks).doesNotContain(42)
+      assertThat(records.all { it.lastSeenEpochDaysList.all { day -> day == EVENT_DAY } }).isTrue()
+    }
+
+  private data class Entry(val hi: Long, val lo: Int, val rank: Int, val day: Int)
+
+  private fun packFingerprint(hi: Long, lo: Int): com.google.protobuf.ByteString {
+    val fp = ByteArray(12)
+    FingerprintCodec.writeHi(fp, 0, hi)
+    FingerprintCodec.writeLo(fp, 8, lo)
+    return com.google.protobuf.ByteString.copyFrom(fp)
+  }
+
+  private fun buildRecord(poolOffset: Long, rankedSize: Int, entries: List<Entry>): RankIndexMap {
     val fps = ByteArray(entries.size * 12)
     val builder = RankIndexMap.newBuilder().setPoolOffset(poolOffset).setRankedSize(rankedSize)
-    entries.forEachIndexed { i, (key, rank) ->
-      FingerprintCodec.writeHi(fps, i * 12, key.first)
-      FingerprintCodec.writeLo(fps, i * 12 + 8, key.second)
-      builder.addRanks(rank)
+    entries.forEachIndexed { i, e ->
+      FingerprintCodec.writeHi(fps, i * 12, e.hi)
+      FingerprintCodec.writeLo(fps, i * 12 + 8, e.lo)
+      builder.addRanks(e.rank)
+      builder.addLastSeenEpochDays(e.day)
     }
     return builder.setFingerprints(com.google.protobuf.ByteString.copyFrom(fps)).build()
   }
 
-  /** Decodes a sequence of records into a `(hi, lo) -> rank` map. */
-  private fun decode(records: List<RankIndexMap>): Map<Pair<Long, Int>, Int> {
-    val out = mutableMapOf<Pair<Long, Int>, Int>()
+  /** Flattens `[rank0, lastSeen0, rank1, lastSeen1, …]` for order-insensitive assertion. */
+  private fun decodeLastSeenByRank(records: List<RankIndexMap>): List<Int> {
+    val out = mutableListOf<Int>()
     for (record in records) {
-      val fps = record.fingerprints
       for (i in 0 until record.ranksCount) {
-        val hi = FingerprintCodec.readHi(fps, i * 12)
-        val lo = FingerprintCodec.readLo(fps, i * 12 + 8)
-        out[hi to lo] = record.getRanks(i)
+        out.add(record.getRanks(i))
+        out.add(record.getLastSeenEpochDays(i))
       }
     }
     return out
