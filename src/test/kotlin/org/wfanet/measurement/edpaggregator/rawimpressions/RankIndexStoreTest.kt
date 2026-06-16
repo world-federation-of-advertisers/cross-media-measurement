@@ -23,6 +23,7 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.ByteString
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -113,13 +114,27 @@ class RankIndexStoreTest {
   }
 
   @Test
-  fun `blob keys are scoped by upload and model line resource ids`() {
+  fun `blob keys are scoped by upload, model line, and attempt`() {
     val upload = "dataProviders/edp1/rawImpressionUploads/abc-123"
     val modelLine = "modelProviders/mp/modelSuites/ms/modelLines/ml1"
 
-    assertThat(RankIndexStore.snapshotKey("maps", upload, modelLine, poolOffset = 7L))
-      .isEqualTo("maps/upload/abc-123/modelLine/ml1/snapshot/subpoolOffset/7")
-    assertThat(RankIndexStore.dayOnlyKey("maps/", upload, modelLine, poolOffset = 7L))
-      .isEqualTo("maps/upload/abc-123/modelLine/ml1/dayOnly/subpoolOffset/7")
+    assertThat(
+        RankIndexStore.snapshotKey("maps", upload, modelLine, poolOffset = 7L, attemptId = "att1")
+      )
+      .isEqualTo("maps/upload/abc-123/modelLine/ml1/snapshot/subpoolOffset/7/attempt/att1")
+    assertThat(
+        RankIndexStore.dayOnlyKey("maps/", upload, modelLine, poolOffset = 7L, attemptId = "att2")
+      )
+      .isEqualTo("maps/upload/abc-123/modelLine/ml1/dayOnly/subpoolOffset/7/attempt/att2")
+  }
+
+  @Test
+  fun `writeBlob of an empty flow yields an empty readable blob`() = runBlocking {
+    val store = RankIndexStore(storageClient, kmsClient)
+    val dek = store.generateDek(kekUri)
+
+    store.writeBlob("snapshot/empty", dek, emptyFlow())
+
+    assertThat(store.readBlob("snapshot/empty", dek).toList()).isEmpty()
   }
 }

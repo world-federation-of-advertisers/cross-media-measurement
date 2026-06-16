@@ -167,6 +167,44 @@ class RankAllocatorTest {
       assertThat(records.all { it.lastSeenEpochDaysList.all { day -> day == EVENT_DAY } }).isTrue()
     }
 
+  @Test
+  fun `loadEntry ignores ranks outside the ranked range`() {
+    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 3, eventDay = EVENT_DAY)
+    allocator.loadEntry(1L, 0, rank = 0, lastSeenDay = 5)
+    allocator.loadEntry(2L, 0, rank = 9, lastSeenDay = 5) // out of range -> ignored
+
+    assertThat(allocator.contains(1L, 0)).isTrue()
+    assertThat(allocator.contains(2L, 0)).isFalse()
+    assertThat(allocator.cumulativeSize).isEqualTo(1)
+  }
+
+  @Test
+  fun `loadFrom drops out-of-range ranks so they are not re-serialized`() = runBlocking {
+    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 2, eventDay = EVENT_DAY)
+    // rank 5 is invalid for rankedSize 2 (e.g. ranked_size shrank); must be dropped on load.
+    val record =
+      buildRecord(
+        7L,
+        2,
+        entries = listOf(Entry(1L, 0, rank = 0, day = 5), Entry(2L, 0, rank = 5, day = 5)),
+      )
+
+    allocator.loadFrom(listOf(record).asFlow())
+
+    assertThat(allocator.contains(1L, 0)).isTrue()
+    assertThat(allocator.contains(2L, 0)).isFalse()
+    assertThat(allocator.streamCumulativeChunks().toList().flatMap { it.ranksList })
+      .containsExactly(0)
+    Unit
+  }
+
+  @Test
+  fun `rankedSize of zero overflows every fingerprint`() {
+    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 0, eventDay = EVENT_DAY)
+    assertThat(allocator.assign(1L, 0)).isNull()
+    assertThat(allocator.overflow).isEqualTo(1)
+  }
+
   private data class Entry(val hi: Long, val lo: Int, val rank: Int, val day: Int)
 
   private fun packFingerprint(hi: Long, lo: Int): com.google.protobuf.ByteString {

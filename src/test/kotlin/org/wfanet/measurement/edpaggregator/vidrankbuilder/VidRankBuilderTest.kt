@@ -17,6 +17,8 @@
 package org.wfanet.measurement.edpaggregator.vidrankbuilder
 
 import com.google.common.truth.Truth.assertThat
+import io.grpc.Status
+import io.grpc.StatusException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -25,6 +27,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.doReturnConsecutively
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verifyBlocking
@@ -206,5 +209,128 @@ class VidRankBuilderTest {
     assertFailsWith<IllegalStateException> { builder(ranker, rankerJobs).run() }
 
     verifyBlocking(rankerJobs) { markRankerJobFailed(any(), any()) }
+  }
+
+  @Test
+  fun `lost etag race on mark succeeded acks when the job is already succeeded`() = runBlocking {
+    val ranker = rankerMock()
+    val rankerJobs =
+      mock<RankerJobServiceCoroutineStub> {
+        onBlocking { getRankerJob(any(), any()) } doReturnConsecutively
+          listOf(
+            rankerJob {
+              name = RANKER_JOB
+              state = RankerJob.State.CREATED
+              etag = "etag-1"
+            },
+            rankerJob {
+              name = RANKER_JOB
+              state = RankerJob.State.SUCCEEDED
+            },
+          )
+        onBlocking { markRankerJobSucceeded(any(), any()) } doAnswer
+          {
+            throw StatusException(Status.ABORTED)
+          }
+      }
+
+    val result = builder(ranker, rankerJobs).run()
+
+    assertThat(result.lastJobOut).isFalse()
+    assertThat(result.subpoolsRanked).isEqualTo(1)
+    verifyBlocking(rankerJobs, never()) { markRankerJobFailed(any(), any()) }
+  }
+
+  @Test
+  fun `a real conflict on mark succeeded fails the job`() = runBlocking {
+    val ranker = rankerMock()
+    val rankerJobs =
+      mock<RankerJobServiceCoroutineStub> {
+        onBlocking { getRankerJob(any(), any()) } doReturn
+          rankerJob {
+            name = RANKER_JOB
+            state = RankerJob.State.CREATED
+            etag = "etag-1"
+          }
+        onBlocking { markRankerJobSucceeded(any(), any()) } doAnswer
+          {
+            throw StatusException(Status.ABORTED)
+          }
+        onBlocking { markRankerJobFailed(any(), any()) } doReturn rankerJob { name = RANKER_JOB }
+      }
+
+    assertFailsWith<StatusException> { builder(ranker, rankerJobs).run() }
+    Unit
+  }
+
+  @Test
+  fun `missing subpool ranked size fails the job`() = runBlocking {
+    val ranker = rankerMock()
+    val rankerJobs = rankerJobsMock(state = RankerJob.State.CREATED)
+    val subject =
+      VidRankBuilder(
+        subpoolRanker = ranker,
+        rankerJobsStub = rankerJobs,
+        rawImpressionUploadModelLinesStub = modelLinesMock(),
+        vidLabelingJobsStub = vidLabelingJobsMock(),
+        rawImpressionUploadFilesStub = filesMock(),
+        workItemsStub = mock(),
+        rawImpressionUpload = UPLOAD,
+        modelLine = MODEL_LINE,
+        rankerJob = RANKER_JOB,
+        subpoolMapBlobUris = mapOf(7L to "merged/subpool-7"),
+        subpoolRankedSizes = emptyMap(),
+        totalShards = 2,
+        vidLabelerQueue = QUEUE,
+      )
+
+    assertFailsWith<IllegalArgumentException> { subject.run() }
+    Unit
+  }
+
+  @Test
+  fun `last job out with a missing parent fails`() = runBlocking {
+    val ranker = rankerMock()
+    val rankerJobs = rankerJobsMock(isLastJob = true)
+    val modelLines =
+      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+          listRawImpressionUploadModelLinesResponse {}
+      }
+
+    assertFailsWith<IllegalArgumentException> { builder(ranker, rankerJobs, modelLines).run() }
+    Unit
+  }
+
+  @Test
+  fun `redelivery with other jobs still pending does not fan out`() = runBlocking {
+    val ranker = rankerMock()
+    val rankerJobs =
+      mock<RankerJobServiceCoroutineStub> {
+        onBlocking { getRankerJob(any(), any()) } doReturn
+          rankerJob {
+            name = RANKER_JOB
+            state = RankerJob.State.SUCCEEDED
+          }
+        onBlocking { listRankerJobs(any(), any()) } doReturn
+          listRankerJobsResponse {
+            rankerJobs += rankerJob {
+              name = RANKER_JOB
+              state = RankerJob.State.SUCCEEDED
+              cmmsModelLine = MODEL_LINE
+            }
+            rankerJobs += rankerJob {
+              name = "$UPLOAD/rankerJobs/rj-other"
+              state = RankerJob.State.CREATED
+              cmmsModelLine = MODEL_LINE
+            }
+          }
+      }
+    val modelLines = modelLinesMock(RawImpressionUploadModelLine.State.RANKING)
+
+    val result = builder(ranker, rankerJobs, modelLines).run()
+
+    assertThat(result.lastJobOut).isFalse()
+    verifyBlocking(modelLines, never()) { markRawImpressionUploadModelLineLabeling(any(), any()) }
   }
 }

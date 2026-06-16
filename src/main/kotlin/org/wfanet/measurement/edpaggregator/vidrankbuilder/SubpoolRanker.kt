@@ -42,21 +42,33 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
  * `RankerJob` covers.
  *
  * For one subpool it:
- * 1. loads the prior cumulative `SNAPSHOT` (if any) into a [RankAllocator] (rebuilding its rank
+ * 1. **idempotency gate** — if a `SNAPSHOT` `RankIndexBlob` row already exists for this (upload,
+ *    subpool), a prior attempt already committed its blobs and rows atomically, so the subpool is
+ *    done and is skipped (cheap re-delivery no-op),
+ * 2. loads the prior cumulative `SNAPSHOT` (if any) into a [RankAllocator] (rebuilding its rank
  *    `BitSet` and per-rank `last_seen`), validating the blob checksum,
- * 2. materializes this dispatch's fingerprint set from the Phase-0 merged `SubpoolFingerprints`
+ * 3. materializes this dispatch's fingerprint set from the Phase-0 merged `SubpoolFingerprints`
  *    blob,
- * 3. garbage-collects aged-out `DAY_ONLY` blobs ([SubpoolRetention]) and frees aged-out ranks in
+ * 4. garbage-collects aged-out `DAY_ONLY` blobs ([SubpoolRetention]) and frees aged-out ranks in
  *    heap via the `last_seen` index, excluding fingerprints seen this dispatch,
- * 4. allocates ranks to today's fingerprints (renewing already-ranked ones, capping at
+ * 5. allocates ranks to today's fingerprints (renewing already-ranked ones, capping at
  *    `ranked_size`),
- * 5. writes the new `DAY_ONLY` + `SNAPSHOT` blobs (DEK-encrypted) and records both as
- *    `RankIndexBlob` rows.
+ * 6. writes the new `DAY_ONLY` + `SNAPSHOT` blobs (DEK-encrypted) under **per-attempt-unique keys**
+ *    and records both as `RankIndexBlob` rows.
+ *
+ * ## Idempotency & concurrency
+ *
+ * Blob keys carry a per-attempt UUID, so a re-delivered or concurrent ranker never overwrites
+ * another attempt's bytes. The `RankIndexBlob` rows are created with deterministic `request_id`s,
+ * so exactly one row wins per (upload, subpool, blob type); that winning row's `blob_uri` + `DEK`
+ * are always self-consistent (the winner durably wrote those bytes before inserting). Losing
+ * attempts' blobs are orphaned and reclaimed by the bucket lifecycle / monitor. This removes the
+ * write-before-CAS clobber hazard without needing a write-if-absent storage primitive.
  *
  * @param subpoolFingerprintsStore reads the Phase-0 merged `SubpoolFingerprints` blob.
  * @param rankIndexStore reads the prior snapshot and writes the new rank-index blobs.
- * @param rankIndexBlobsStub metadata-storage service for locating the prior snapshot and inserting
- *   the new blob rows.
+ * @param rankIndexBlobsStub metadata-storage service for the idempotency gate, locating the prior
+ *   snapshot, and inserting the new blob rows.
  * @param retention garbage-collects aged-out `DAY_ONLY` blobs.
  * @param dataProvider EDP resource name (`dataProviders/{dp}`), parent of the upload wildcard for
  *   the prior-snapshot lookup.
@@ -94,6 +106,7 @@ class SubpoolRanker(
    * @property overflow fingerprints left unranked because the subpool was full.
    * @property freed ranks released by the retention pass.
    * @property cumulativeSize total ranked fingerprints after this dispatch.
+   * @property skipped whether the subpool was already ranked for this upload (idempotency gate).
    */
   data class Result(
     val poolOffset: Long,
@@ -102,10 +115,20 @@ class SubpoolRanker(
     val overflow: Long,
     val freed: Long,
     val cumulativeSize: Long,
+    val skipped: Boolean = false,
   )
 
   /** Ranks [poolOffset]; [subpoolBlobUri] is its Phase-0 merged blob; caps at [rankedSize]. */
   suspend fun rank(poolOffset: Long, subpoolBlobUri: String, rankedSize: Int): Result {
+    // Idempotency gate: an existing SNAPSHOT row for this (upload, subpool) means a prior attempt
+    // committed both blobs + rows atomically, so the subpool is already done — skip the re-rank.
+    if (findUploadSnapshot(poolOffset) != null) {
+      logger.info(
+        "Subpool $poolOffset for $modelLine already ranked for $rawImpressionUpload; skipping"
+      )
+      return Result(poolOffset, 0, 0, 0, 0, 0, skipped = true)
+    }
+
     val eventDay = epochDayOf(maxEventDate)
     val cutoffEpochDay = (today.toEpochDay() - retentionDays).toInt()
     val allocator = RankAllocator(poolOffset, rankedSize, eventDay)
@@ -132,7 +155,7 @@ class SubpoolRanker(
         todayFps.put(
           EventIdDigestBytes.readHi(fps, off),
           EventIdDigestBytes.readLo(fps, off + 8),
-          1
+          1,
         )
         off += EventIdDigestBytes.WIDTH
       }
@@ -148,12 +171,28 @@ class SubpoolRanker(
     // 4. Allocate / renew ranks for today's fingerprints.
     todayFps.forEach { keyHi, keyLo, _ -> allocator.assign(keyHi, keyLo) }
 
-    // 5. Write the new DAY_ONLY + SNAPSHOT blobs and record both as RankIndexBlob rows.
+    // 5. Write the new DAY_ONLY + SNAPSHOT blobs and record both as RankIndexBlob rows. Keys carry
+    // a
+    // per-attempt UUID so a concurrent/re-delivered attempt never overwrites another's bytes; the
+    // winning (deterministic-request_id) row's blob_uri + DEK are always self-consistent.
+    val attemptId = UUID.randomUUID().toString()
     val dek = rankIndexStore.generateDek(kekUri)
     val snapshotKey =
-      RankIndexStore.snapshotKey(vidRankMapBlobPrefix, rawImpressionUpload, modelLine, poolOffset)
+      RankIndexStore.snapshotKey(
+        vidRankMapBlobPrefix,
+        rawImpressionUpload,
+        modelLine,
+        poolOffset,
+        attemptId,
+      )
     val dayOnlyKey =
-      RankIndexStore.dayOnlyKey(vidRankMapBlobPrefix, rawImpressionUpload, modelLine, poolOffset)
+      RankIndexStore.dayOnlyKey(
+        vidRankMapBlobPrefix,
+        rawImpressionUpload,
+        modelLine,
+        poolOffset,
+        attemptId,
+      )
     val snapshotChecksum =
       rankIndexStore.writeBlob(snapshotKey, dek, allocator.streamCumulativeChunks())
     val dayOnlyChecksum = rankIndexStore.writeBlob(dayOnlyKey, dek, allocator.streamDayOnlyChunks())
@@ -176,9 +215,42 @@ class SubpoolRanker(
   }
 
   /**
+   * The `SNAPSHOT` `RankIndexBlob` row for [poolOffset] under **this** upload, or `null`. A
+   * non-null result is the idempotency-gate signal that the subpool was already ranked for this
+   * dispatch.
+   */
+  private suspend fun findUploadSnapshot(poolOffset: Long): RankIndexBlob? {
+    var existing: RankIndexBlob? = null
+    rankIndexBlobsStub
+      .listResources { pageToken: String ->
+        val response =
+          listRankIndexBlobs(
+            listRankIndexBlobsRequest {
+              parent = rawImpressionUpload
+              filter =
+                ListRankIndexBlobsRequestKt.filter {
+                  blobType = RankIndexBlob.BlobType.SNAPSHOT
+                  cmmsModelLine = modelLine
+                  this.poolOffset = poolOffset
+                }
+              this.pageToken = pageToken
+            }
+          )
+        ResourceList(response.rankIndexBlobsList, response.nextPageToken)
+      }
+      .collect { page -> page.firstOrNull()?.let { existing = it } }
+    return existing
+  }
+
+  /**
    * The newest non-deleted `SNAPSHOT` blob for [poolOffset] of this (data provider, model line)
    * across all uploads, or `null` on a cold (Day-1) subpool. The most recent `create_time` is the
    * current cumulative state (the design's N−1 recovery baseline).
+   *
+   * TODO(world-federation-of-advertisers/cross-media-measurement#4008): this lists every
+   *   non-deleted SNAPSHOT across all uploads and scans for the newest — O(all snapshots), which
+   *   grows unbounded because SNAPSHOTs are never retention-pruned. Replace with an O(1)
+   *   latest-snapshot lookup and bound SNAPSHOT retention.
    */
   private suspend fun findPriorSnapshot(poolOffset: Long): RankIndexBlob? {
     var latest: RankIndexBlob? = null

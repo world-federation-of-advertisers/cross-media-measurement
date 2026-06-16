@@ -115,28 +115,37 @@ class RankIndexStore(storageClient: StorageClient, kmsClient: KmsClient) :
 
   companion object {
     /**
-     * Storage key for the cumulative `SNAPSHOT` blob of [poolOffset], scoped to the (upload, model
-     * line) run. A new snapshot is written per upload; the prior one is located via the
-     * `RankIndexBlob` table (its persisted `blob_uri`), not by recomputing this key.
+     * Storage key for a cumulative `SNAPSHOT` blob of [poolOffset], scoped to the (upload, model
+     * line) run and to a single write [attemptId].
+     *
+     * The [attemptId] (a per-write UUID) makes every attempt's key unique, so a concurrent or
+     * re-delivered ranker never overwrites another attempt's bytes. The authoritative blob is
+     * whichever the winning `RankIndexBlob` row points to (its `blob_uri`); readers always resolve
+     * the key from that row, never by recomputing it.
      */
     fun snapshotKey(
       blobPrefix: String,
       rawImpressionUpload: String,
       modelLine: String,
       poolOffset: Long,
+      attemptId: String,
     ): String =
-      "${runPrefix(blobPrefix, rawImpressionUpload, modelLine)}/snapshot/subpoolOffset/$poolOffset"
+      "${runPrefix(blobPrefix, rawImpressionUpload, modelLine)}/snapshot/subpoolOffset/" +
+        "$poolOffset/attempt/$attemptId"
 
     /**
-     * Storage key for the `DAY_ONLY` blob of [poolOffset], scoped to the (upload, model line) run.
+     * Storage key for a `DAY_ONLY` blob of [poolOffset], scoped to the (upload, model line) run and
+     * to a single write [attemptId] (see [snapshotKey]).
      */
     fun dayOnlyKey(
       blobPrefix: String,
       rawImpressionUpload: String,
       modelLine: String,
       poolOffset: Long,
+      attemptId: String,
     ): String =
-      "${runPrefix(blobPrefix, rawImpressionUpload, modelLine)}/dayOnly/subpoolOffset/$poolOffset"
+      "${runPrefix(blobPrefix, rawImpressionUpload, modelLine)}/dayOnly/subpoolOffset/" +
+        "$poolOffset/attempt/$attemptId"
 
     /**
      * Per-run key prefix scoping blobs by (upload, model line). Uses the resource id (last path

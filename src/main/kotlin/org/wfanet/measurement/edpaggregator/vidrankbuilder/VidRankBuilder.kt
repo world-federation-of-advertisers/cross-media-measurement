@@ -53,12 +53,13 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGr
  *    -> write new day-only + cumulative blobs + rows),
  * 3. marks its `RankerJob` `SUCCEEDED`; the service atomically reports whether this was the last
  *    job out for the (upload, model line),
- * 4. last-job-out only: fans out Phase 2 — batch-creates one `VidLabelingJob` per shard and flips
- *    the parent `RawImpressionUploadModelLine` `RANKING` -> `LABELING`.
+ * 4. last-job-out only: flips the parent `RawImpressionUploadModelLine` `RANKING` -> `LABELING`.
+ *    The Phase-2 fan-out (`VidLabelingJob` creation + WorkItem publish) is not yet implemented —
+ *    see [createVidLabelingJobs].
  *
- * Idempotent on redelivery: a `SUCCEEDED` job short-circuits ranking; `VidLabelingJob` creation is
- * keyed by deterministic `request_id`s; the parent flip is a no-op once advanced. On failure the
- * job is marked `FAILED` and the error rethrown so the TEE framework nacks.
+ * Idempotent on redelivery: a `SUCCEEDED` job short-circuits ranking; the parent flip is a no-op
+ * once advanced. On failure the job is marked `FAILED` and the error rethrown so the TEE framework
+ * nacks.
  *
  * Concurrent-ranker protection: `MarkRankerJobSucceeded` carries the read `etag`; a stale write
  * (another VM won the race after Pub/Sub redelivery) surfaces as `ABORTED`/`FAILED_PRECONDITION`
@@ -114,13 +115,30 @@ class VidRankBuilder(
     }
 
     val markResponse =
-      rankerJobsStub.markRankerJobSucceeded(
-        markRankerJobSucceededRequest {
-          name = rankerJob
-          etag = job.etag
-          requestId = markSucceededRequestId()
+      try {
+        rankerJobsStub.markRankerJobSucceeded(
+          markRankerJobSucceededRequest {
+            name = rankerJob
+            etag = job.etag
+            requestId = markSucceededRequestId()
+          }
+        )
+      } catch (e: StatusException) {
+        // Lost the etag race to a concurrent/re-delivered ranker (Concurrent Ranker Protection). If
+        // the job is already SUCCEEDED, discard this attempt's work and ack (idempotent no-op);
+        // otherwise the conflict is real, so rethrow to nack and retry.
+        if (
+          e.status.code != Status.Code.ABORTED && e.status.code != Status.Code.FAILED_PRECONDITION
+        ) {
+          throw e
         }
-      )
+        val current = rankerJobsStub.getRankerJob(getRankerJobRequest { name = rankerJob })
+        if (current.state != RankerJob.State.SUCCEEDED) throw e
+        logger.info(
+          "RankerJob $rankerJob already SUCCEEDED by another ranker (${e.status.code}); acking"
+        )
+        return Result(subpoolMapBlobUris.size, lastJobOut = false)
+      }
 
     if (markResponse.isLastJob) {
       val parent =
@@ -155,9 +173,9 @@ class VidRankBuilder(
   }
 
   /**
-   * Fans out Phase 2 for the (upload, model line): batch-creates one `VidLabelingJob` per shard
-   * (round-robin over the upload's files) and flips the parent `RawImpressionUploadModelLine`
+   * Fans out Phase 2 for the (upload, model line): flips the parent `RawImpressionUploadModelLine`
    * `RANKING` -> `LABELING`. The flip is last so `LABELING` is the durable completion marker.
+   * `VidLabelingJob` creation is deferred (see [createVidLabelingJobs]).
    */
   private suspend fun runLastJobOut(parent: RawImpressionUploadModelLine) {
     if (parent.state != RawImpressionUploadModelLine.State.RANKING) {
@@ -173,7 +191,8 @@ class VidRankBuilder(
     //   written now so the Monitor can drive Phase 2 once the publisher lands.
     markParentLabeling(parent)
     logger.info(
-      "Last-job-out for $modelLine: created $totalShards VidLabelingJob(s); parent -> LABELING"
+      "Last-job-out for $modelLine: parent -> LABELING " +
+        "(VidLabelingJob creation deferred — see createVidLabelingJobs)"
     )
   }
 
