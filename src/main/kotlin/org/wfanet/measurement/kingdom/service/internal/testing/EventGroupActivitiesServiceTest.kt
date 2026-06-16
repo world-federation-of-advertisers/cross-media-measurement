@@ -1631,6 +1631,150 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       .inOrder()
   }
 
+  @Test
+  fun `listEventGroupActivities throws NOT_FOUND for non existent EventGroup`() {
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.listEventGroupActivities(
+            listEventGroupActivitiesRequest {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              externalEventGroupId = 999999L
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = KingdomInternalException.DOMAIN
+            reason = ErrorCode.EVENT_GROUP_NOT_FOUND.name
+            metadata["external_data_provider_id"] = dataProvider.externalDataProviderId.toString()
+            metadata["external_event_group_id"] = "999999"
+          }
+        )
+    }
+  }
+
+  @Test
+  fun `listEventGroupActivities paginates across multiple event groups`() {
+    runBlocking {
+      val eventGroup2 = createEventGroup(dataProvider)
+
+      // Determine sorted order by externalEventGroupId.
+      val sortedEgs = listOf(eventGroup, eventGroup2).sortedBy { it.externalEventGroupId }
+
+      // Create activities on both EGs on 2025-12-01 and 2025-12-05.
+      for (eg in listOf(eventGroup, eventGroup2)) {
+        eventGroupActivitiesService.batchUpdateEventGroupActivities(
+          batchUpdateEventGroupActivitiesRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = eg.externalEventGroupId
+            requests += updateEventGroupActivityRequest {
+              allowMissing = true
+              eventGroupActivity = eventGroupActivity {
+                externalEventGroupId = eg.externalEventGroupId
+                date = date {
+                  year = 2025
+                  month = 12
+                  day = 1
+                }
+              }
+            }
+            requests += updateEventGroupActivityRequest {
+              allowMissing = true
+              eventGroupActivity = eventGroupActivity {
+                externalEventGroupId = eg.externalEventGroupId
+                date = date {
+                  year = 2025
+                  month = 12
+                  day = 5
+                }
+              }
+            }
+          }
+        )
+      }
+
+      // List with no externalEventGroupId filter, pageSize = 2.
+      val firstResponse =
+        eventGroupActivitiesService.listEventGroupActivities(
+          listEventGroupActivitiesRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            pageSize = 2
+          }
+        )
+
+      assertThat(firstResponse.eventGroupActivitiesList).hasSize(2)
+      assertThat(firstResponse.hasNextPageToken()).isTrue()
+      // Page 1: both activities on 2025-12-01, ordered by externalEventGroupId ASC.
+      assertThat(firstResponse.eventGroupActivitiesList)
+        .ignoringFields(EventGroupActivity.CREATE_TIME_FIELD_NUMBER)
+        .containsExactly(
+          eventGroupActivity {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = sortedEgs[0].externalEventGroupId
+            date = date {
+              year = 2025
+              month = 12
+              day = 1
+            }
+          },
+          eventGroupActivity {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = sortedEgs[1].externalEventGroupId
+            date = date {
+              year = 2025
+              month = 12
+              day = 1
+            }
+          },
+        )
+        .inOrder()
+
+      // Page 2.
+      val secondResponse =
+        eventGroupActivitiesService.listEventGroupActivities(
+          listEventGroupActivitiesRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            pageSize = 2
+            pageToken = firstResponse.nextPageToken
+          }
+        )
+
+      assertThat(secondResponse.eventGroupActivitiesList).hasSize(2)
+      // Page 2: both activities on 2025-12-05.
+      assertThat(secondResponse.eventGroupActivitiesList)
+        .ignoringFields(EventGroupActivity.CREATE_TIME_FIELD_NUMBER)
+        .containsExactly(
+          eventGroupActivity {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = sortedEgs[0].externalEventGroupId
+            date = date {
+              year = 2025
+              month = 12
+              day = 5
+            }
+          },
+          eventGroupActivity {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = sortedEgs[1].externalEventGroupId
+            date = date {
+              year = 2025
+              month = 12
+              day = 5
+            }
+          },
+        )
+        .inOrder()
+
+      // No row repeated across pages.
+      assertThat(secondResponse.eventGroupActivitiesList)
+        .containsNoneIn(firstResponse.eventGroupActivitiesList)
+    }
+  }
+
   private suspend fun createEventGroup(dataProvider: DataProvider): EventGroup {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
