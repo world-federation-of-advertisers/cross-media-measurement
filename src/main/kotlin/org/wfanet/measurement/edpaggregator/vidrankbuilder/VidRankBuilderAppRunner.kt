@@ -22,6 +22,11 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.edpaggregator.BaseTeeAppRunner
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.runBlockingWithTelemetry
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams.StorageParams
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -35,7 +40,10 @@ import picocli.CommandLine
  * Pulls EDPA mTLS material from Secret Manager, builds per-`DataProvider` [KmsClient]s from the
  * EDPA-level `event-data-provider-configs.textproto` via Workload Identity Federation, opens a
  * mutual-TLS channel to the Secure Computation control plane for `WorkItem` / `WorkItemAttempt`
- * writes, subscribes to the Phase-1 Pub/Sub topic, and hands everything to [VidRankBuilderApp.run].
+ * writes and a mutual-TLS channel to the EDP Aggregator metadata-storage public API for the
+ * `RankerJob`, `RankIndexBlob`, `RawImpressionUploadModelLine`, `VidLabelingJob`, and
+ * `RawImpressionUploadFile` services, subscribes to the Phase-1 Pub/Sub topic, and hands everything
+ * to [VidRankBuilderApp.run].
  */
 @CommandLine.Command(name = "vid_rank_builder_app_runner")
 class VidRankBuilderAppRunner : BaseTeeAppRunner() {
@@ -57,6 +65,15 @@ class VidRankBuilderAppRunner : BaseTeeAppRunner() {
     val workItemAttemptsClient =
       WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(secureComputationPublicChannel)
 
+    val metadataStorageChannel = buildMetadataStoragePublicChannel()
+    val rankerJobsClient = RankerJobServiceCoroutineStub(metadataStorageChannel)
+    val rankIndexBlobsClient = RankIndexBlobServiceCoroutineStub(metadataStorageChannel)
+    val rawImpressionUploadModelLinesClient =
+      RawImpressionUploadModelLineServiceCoroutineStub(metadataStorageChannel)
+    val vidLabelingJobsClient = VidLabelingJobServiceCoroutineStub(metadataStorageChannel)
+    val rawImpressionUploadFilesClient =
+      RawImpressionUploadFileServiceCoroutineStub(metadataStorageChannel)
+
     val vidRankBuilderApp =
       VidRankBuilderApp(
         subscriptionId = subscriptionId,
@@ -65,9 +82,18 @@ class VidRankBuilderAppRunner : BaseTeeAppRunner() {
         workItemsClient = workItemsClient,
         workItemAttemptsClient = workItemAttemptsClient,
         kmsClients = kmsClientsMap,
-        getRawImpressionStorageConfig = getStorageConfig,
         getSubpoolMapStorageConfig = getStorageConfig,
         getVidRankMapStorageConfig = getStorageConfig,
+        rankerJobsStub = rankerJobsClient,
+        rankIndexBlobsStub = rankIndexBlobsClient,
+        rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesClient,
+        vidLabelingJobsStub = vidLabelingJobsClient,
+        rawImpressionUploadFilesStub = rawImpressionUploadFilesClient,
+        // TODO(@Marco-Premier): supply the static config as CLI options:
+        //   - --vid-labeler-queue (Phase-2 Secure Computation queue), and
+        //   - --retention-days (MUST exceed the max measurement-report window),
+        //   then thread them through to VidRankBuilderApp. Left empty/default for now.
+        vidLabelerQueue = "",
       )
 
     runBlockingWithTelemetry { vidRankBuilderApp.run() }
