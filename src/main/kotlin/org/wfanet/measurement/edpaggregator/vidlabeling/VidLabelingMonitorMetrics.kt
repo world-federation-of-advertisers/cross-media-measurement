@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.vidlabeling
 
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.metrics.LongCounter
+import io.opentelemetry.api.metrics.LongGauge
 import org.wfanet.measurement.common.Instrumentation
 
 /**
@@ -72,6 +73,20 @@ object VidLabelingMonitorMetrics {
         .counterBuilder("edpa.vid_labeling_monitor.failed_uploads")
         .setDescription("Uploads with a model line in FAILED beyond the failure threshold")
         .setUnit("{upload}")
+        .build()
+
+  /**
+   * Whether dispatch failed for a `DataProvider` on the most recent run: `1` when
+   * [VidLabelingMonitor.run] caught an exception from the dispatch sequencer, `0` otherwise. Keyed
+   * by [DATA_PROVIDER_ATTR]. A gauge (not a counter) so a stuck EDP reads as a steady `1` rather
+   * than relying on per-tick `SEVERE` logs, and recovery reads as `0` on the next run.
+   */
+  val dispatchErrorsGauge: LongGauge
+    get() =
+      Instrumentation.meter
+        .gaugeBuilder("edpa.vid_labeling_monitor.dispatch_errors")
+        .setDescription("Whether dispatch failed for a DataProvider on the most recent run")
+        .ofLongs()
         .build()
 
   /** Attribute key for the `DataProvider` resource name. */
