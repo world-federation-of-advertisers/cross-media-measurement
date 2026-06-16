@@ -1,0 +1,192 @@
+/*
+ * Copyright 2026 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.edpaggregator.rawimpressions
+
+import com.google.crypto.tink.KmsClient
+import com.google.protobuf.ByteString
+import java.security.MessageDigest
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import org.wfanet.measurement.edpaggregator.EncryptedStorage
+import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexMap
+import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
+import org.wfanet.measurement.storage.MesosRecordIoStorageClient
+import org.wfanet.measurement.storage.StorageClient
+
+/**
+ * Reads and writes the per-subpool rank-index maps (the Phase-1 `RankIndexMap` blobs) as
+ * **RecordIO** blobs, envelope-encrypted with a per-writer DEK.
+ *
+ * Lives in `rawimpressions` (next to [SubpoolFingerprintsStore]) because it is the Phase-1
+ * (`VidRankBuilder`) analog of the Phase-0 store: Phase-1 reads the prior cumulative `SNAPSHOT`
+ * blob and the aged-out `DAY_ONLY` blobs, and writes the new `SNAPSHOT` + `DAY_ONLY` blobs.
+ *
+ * ## Why RecordIO (and not a single `RankIndexMap` message)
+ *
+ * A cumulative `SNAPSHOT` for the India worst case is ~1.5 B `(fingerprint, rank)` entries — far
+ * past a protobuf message / Java `ByteString`'s ~2 GB cap. So a blob is a **stream of
+ * `RankIndexMap` records** via [MesosRecordIoStorageClient]: each record carries `pool_offset`,
+ * `ranked_size`, and a chunk of packed fingerprints + ranks. Memory stays bounded regardless of
+ * subpool size.
+ *
+ * ## Integrity
+ *
+ * [writeBlob] returns the SHA-256 of the plaintext payload (the concatenation of the serialized
+ * `RankIndexMap` records, in write order). The caller persists it on the `RankIndexBlob` row
+ * (`blob_checksum`); [readBlob] re-derives it over the same record byte sequence and, when an
+ * expected checksum is supplied, throws on mismatch so a corrupted blob is detected on load.
+ *
+ * ## Encryption
+ *
+ * Mirrors [SubpoolFingerprintsStore]: every blob is envelope-encrypted via
+ * [EncryptedStorage.buildEncryptedMesosStorageClient] with a per-writer [EncryptedDek] (generated
+ * by [generateDek], wrapped under the EDP's KEK). DEK *persistence* is the caller's concern — the
+ * VidRankBuilder stores it on the `RankIndexBlob` row.
+ *
+ * @param storageClient the base (unencrypted) storage client for the vid-rank-map bucket.
+ * @param kmsClient KMS client able to wrap/unwrap the EDP's KEK.
+ */
+class RankIndexStore(
+  private val storageClient: StorageClient,
+  private val kmsClient: KmsClient,
+) {
+  /** Generates a fresh DEK wrapped under [kekUri], used to encrypt this VM's blobs. */
+  fun generateDek(kekUri: String): EncryptedDek {
+    val serialized =
+      EncryptedStorage.generateSerializedEncryptionKey(kmsClient, kekUri, TINK_KEY_TEMPLATE)
+    return encryptedDek {
+      this.kekUri = kekUri
+      ciphertext = serialized
+      protobufFormat = EncryptedDek.ProtobufFormat.BINARY
+      typeUrl = TYPE_URL_TINK_KEYSET
+    }
+  }
+
+  /**
+   * Writes [records] to [blobKey], one RecordIO record per emitted [RankIndexMap], envelope-
+   * encrypted with [encryptedDek]. The record stream is consumed lazily, so memory stays bounded.
+   *
+   * @return the SHA-256 of the plaintext payload (concatenated record bytes, in order), for the
+   *   `RankIndexBlob.blob_checksum` corruption guard.
+   */
+  suspend fun writeBlob(
+    blobKey: String,
+    encryptedDek: EncryptedDek,
+    records: Flow<RankIndexMap>,
+  ): ByteString {
+    val digest = MessageDigest.getInstance("SHA-256")
+    encryptedClient(encryptedDek)
+      .writeBlob(
+        blobKey,
+        records.map { record ->
+          val bytes = record.toByteString()
+          digest.update(bytes.asReadOnlyByteBuffer())
+          bytes
+        },
+      )
+    return ByteString.copyFrom(digest.digest())
+  }
+
+  /**
+   * Streams the `RankIndexMap` records of [blobKey], decrypting with [encryptedDek]. When
+   * [expectedChecksum] is non-null and non-empty, the plaintext payload is hashed as it streams and
+   * an [IllegalStateException] is thrown at end-of-stream on mismatch (corruption guard).
+   */
+  fun readBlob(
+    blobKey: String,
+    encryptedDek: EncryptedDek,
+    expectedChecksum: ByteString? = null,
+  ): Flow<RankIndexMap> = flow {
+    val blob = encryptedClient(encryptedDek).getBlob(blobKey) ?: return@flow
+    val digest =
+      if (expectedChecksum != null && !expectedChecksum.isEmpty) {
+        MessageDigest.getInstance("SHA-256")
+      } else {
+        null
+      }
+    blob.read().collect { record ->
+      digest?.update(record.asReadOnlyByteBuffer())
+      emit(RankIndexMap.parseFrom(record))
+    }
+    if (digest != null) {
+      val actual = ByteString.copyFrom(digest.digest())
+      check(actual == expectedChecksum) {
+        "RankIndexBlob $blobKey checksum mismatch; cumulative blob is corrupt"
+      }
+    }
+  }
+
+  /** Deletes [blobKey] from Cloud Storage if present (used to evict aged-out rank-index blobs). */
+  suspend fun delete(blobKey: String) {
+    storageClient.getBlob(blobKey)?.delete()
+  }
+
+  private fun encryptedClient(encryptedDek: EncryptedDek): MesosRecordIoStorageClient =
+    EncryptedStorage.buildEncryptedMesosStorageClient(
+      storageClient,
+      kmsClient = kmsClient,
+      kekUri = encryptedDek.kekUri,
+      encryptedDek = encryptedDek,
+    )
+
+  companion object {
+    const val TINK_KEY_TEMPLATE = "AES128_GCM"
+    private const val TYPE_URL_TINK_KEYSET = "type.googleapis.com/google.crypto.tink.Keyset"
+
+    /**
+     * Storage key for the cumulative `SNAPSHOT` blob of [poolOffset], scoped to the (upload, model
+     * line) run. A new snapshot is written per upload; the prior one is located via the
+     * `RankIndexBlob` table (its persisted `blob_uri`), not by recomputing this key.
+     */
+    fun snapshotKey(
+      blobPrefix: String,
+      rawImpressionUpload: String,
+      modelLine: String,
+      poolOffset: Long,
+    ): String =
+      "${runPrefix(blobPrefix, rawImpressionUpload, modelLine)}/snapshot/subpoolOffset/$poolOffset"
+
+    /**
+     * Storage key for the `DAY_ONLY` blob of [poolOffset], scoped to the (upload, model line) run.
+     */
+    fun dayOnlyKey(
+      blobPrefix: String,
+      rawImpressionUpload: String,
+      modelLine: String,
+      poolOffset: Long,
+    ): String =
+      "${runPrefix(blobPrefix, rawImpressionUpload, modelLine)}/dayOnly/subpoolOffset/$poolOffset"
+
+    /**
+     * Per-run key prefix scoping blobs by (upload, model line). Uses the resource id (last path
+     * segment) of each: the upload id is globally unique, and model lines within an upload have
+     * distinct names. Mirrors [SubpoolFingerprintsStore]'s layout.
+     */
+    private fun runPrefix(
+      blobPrefix: String,
+      rawImpressionUpload: String,
+      modelLine: String,
+    ): String {
+      val root = blobPrefix.trimEnd('/')
+      val uploadId = rawImpressionUpload.substringAfterLast('/')
+      val modelLineId = modelLine.substringAfterLast('/')
+      return "$root/upload/$uploadId/modelLine/$modelLineId"
+    }
+  }
+}

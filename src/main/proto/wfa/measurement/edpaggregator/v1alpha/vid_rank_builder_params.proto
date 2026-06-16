@@ -159,4 +159,16 @@ message VidRankBuilderParams {
   // inserts so the retention sweep can identify aged-out blobs via
   // `MaxEventDate < today - RETENTION_DAYS`.
   google.type.Date max_event_date = 15 [(google.api.field_behavior) = REQUIRED];
+
+  // Ranked sub-range size (`RankedPopulationNode.ranked_size`) for each
+  // subpool this `RankerJob` ranks, keyed by subpool/pool offset. Populated
+  // by the SubpoolAssigner Phase-0 last-shard-out (which has the compiled
+  // model loaded) for exactly the offsets in [subpool_map_blob_uris]. The
+  // Phase-1 ranker uses it to size each subpool's rank `BitSet` and to cap
+  // rank allocation: fingerprints beyond `ranked_size` are left unranked
+  // and fall back to the hash path at Phase-2. Required on Day-1 (cold
+  // subpools), where there is no prior cumulative `SNAPSHOT` to recover it
+  // from.
+  map<int64, int32> subpool_ranked_sizes = 16
+      [(google.api.field_behavior) = REQUIRED];
 }
