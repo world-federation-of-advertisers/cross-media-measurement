@@ -39,6 +39,7 @@ object Errors {
     RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
     RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
     RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+    RAW_IMPRESSION_UPLOAD_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_ALREADY_EXISTS,
@@ -65,6 +66,7 @@ object Errors {
     ETAG("etag"),
     BATCH_RESOURCE_ID("batchResourceId"),
     FILE_RESOURCE_ID("fileResourceId"),
+    RAW_IMPRESSION_UPLOAD_RESOURCE_ID("rawImpressionUploadResourceId"),
     FIELD_NAME("fieldName");
 
     companion object {
@@ -382,5 +384,20 @@ class InvalidFieldValueException(
     Errors.Reason.INVALID_FIELD_VALUE,
     buildMessage(fieldName),
     mapOf(Errors.Metadata.FIELD_NAME to fieldName),
+    cause,
+  )
+
+class RawImpressionUploadNotFoundException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+    "RawImpressionUpload with resource ID $rawImpressionUploadResourceId for DataProvider $dataProviderResourceId not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+    ),
     cause,
   )
