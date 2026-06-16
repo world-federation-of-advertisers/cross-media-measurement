@@ -33,14 +33,20 @@ import org.wfanet.measurement.storage.StorageClient
  */
 object DataAvailabilityBlobs {
   /**
-   * GCS custom metadata key written on metadata blobs by [DataAvailabilitySync] to signal that the
-   * blob has been synced. The monitor uses the presence of this marker to identify which metadata
-   * blobs have been processed, rather than using updateTime (which the sync itself bumps after the
-   * done blob is written).
+   * GCS custom metadata key written by [DataAvailabilitySync] to signal that the blob has been
+   * processed. Written on both:
+   * - each scanned metadata blob (used by `DataAvailabilityMonitor`'s late-arrival check — an
+   *   unmarked metadata blob in a date whose `done` blob *does* carry the marker means the metadata
+   *   blob was rewritten after Sync ran);
+   * - the per-date `done` blob (used by `DataAvailabilityMonitor`'s unprocessed-done check — an
+   *   unmarked `done` blob older than the threshold means Sync never completed for the date).
+   *
+   * The marker is content-independent: blob content / `updateTime` is unreliable for distinguishing
+   * these cases because Sync's own metadata writes bump `updateTime`.
    */
   const val SYNCED_BY_KEY = "synced-by"
 
-  /** Value written to [SYNCED_BY_KEY] on processed metadata blobs. */
+  /** Value written to [SYNCED_BY_KEY] on processed blobs. */
   const val SYNCED_BY_VALUE = "data-availability-sync"
 
   /** Filename suffix on the per-date "done" marker. */
