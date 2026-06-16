@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_batch_state.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_metadata_batch.proto";
 
@@ -78,7 +79,12 @@ message ListRawImpressionMetadataBatchesRequest {
   ListRawImpressionMetadataBatchesPageToken page_token = 3;
 
   message Filter {
-    RawImpressionBatchState state = 1;
+    // Filter to resources whose state is in this set. Empty matches all states.
+    repeated RawImpressionBatchState state_in = 1;
+
+    // Filter for resources whose create_time is in the given interval. At least
+    // one of `start_time` or `end_time` must be set.
+    google.type.Interval create_time_in = 2;
   }
   Filter filter = 4;
 
