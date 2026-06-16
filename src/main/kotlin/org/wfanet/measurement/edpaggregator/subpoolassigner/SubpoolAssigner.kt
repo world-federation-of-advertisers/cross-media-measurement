@@ -25,6 +25,7 @@ import java.security.MessageDigest
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.collect
 import org.wfanet.measurement.common.api.grpc.ResourceList
@@ -426,7 +427,7 @@ class SubpoolAssigner(
         )
       }
     } catch (e: Exception) {
-      logger.warning("Failed to mark PoolAssignmentJob $poolAssignmentJob FAILED: $e")
+      logger.log(Level.WARNING, "Failed to mark PoolAssignmentJob $poolAssignmentJob FAILED", e)
     }
   }
 
