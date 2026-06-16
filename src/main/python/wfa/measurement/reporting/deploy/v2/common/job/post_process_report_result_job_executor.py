@@ -61,10 +61,18 @@ flags.DEFINE_alias("cert-collection-file", "cert_collection_file")
 _AMI_MRC_EXEMPTED_EDPS = flags.DEFINE_list(
     "ami_mrc_exempted_edps",
     [],
-    "List of EDP IDs resource names for which the consistency checks AMI >= MRC are disabled.",
+    "List of EDP resource names for which the consistency checks AMI >= MRC are disabled.",
     required=False,
 )
 flags.DEFINE_alias("ami-mrc-exempted-edps", "ami_mrc_exempted_edps")
+flags.register_validator(
+    "ami_mrc_exempted_edps",
+    lambda values: all(
+        v.startswith("dataProviders/") and v.count("/") == 1 and v.split("/")[1]
+        for v in values
+    ),
+    message="--ami_mrc_exempted_edps entries must be of the form dataProviders/{id}",
+)
 
 
 def _get_secure_credentials(

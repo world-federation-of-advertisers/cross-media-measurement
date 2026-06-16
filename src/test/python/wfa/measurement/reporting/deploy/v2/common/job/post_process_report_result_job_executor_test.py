@@ -202,6 +202,25 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
         with self.assertRaises(ValueError):
             post_process_report_result_job_executor.main(["test_program"])
 
+    @parameterized.named_parameters(
+        ("missing_prefix", ["edp1"]),
+        ("invalid_prefix", ["dataProvider/edp1"]),
+        ("too_many_slashes", ["dataProviders/edp1/extra"]),
+        ("empty_id", ["dataProviders/"]),
+    )
+    def test_post_process_report_result_job_executor_invalid_ami_mrc_exempted_edps_raises_error(
+        self, invalid_entries
+    ):
+        with flagsaver.flagsaver():
+            with self.assertRaisesRegex(
+                flags.IllegalFlagValueError,
+                r"--ami_mrc_exempted_edps entries must be of the form"
+                r" dataProviders/\{id\}",
+            ):
+                with flagsaver.flagsaver(ami_mrc_exempted_edps=invalid_entries):
+                    pass
+
 
 if __name__ == "__main__":
     unittest.main()
+
