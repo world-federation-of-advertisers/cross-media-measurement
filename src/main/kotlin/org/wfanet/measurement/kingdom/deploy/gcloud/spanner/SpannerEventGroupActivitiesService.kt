@@ -42,6 +42,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomIntern
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupActivityReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchDeleteEventGroupActivities
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchUpdateEventGroupActivities
 
@@ -223,6 +224,11 @@ class SpannerEventGroupActivitiesService(
   ): ListEventGroupActivitiesResponse {
     grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
 
+    if (request.externalDataProviderId == 0L) {
+      throw RequiredFieldNotSetException("external_data_provider_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
     val pageSize =
       if (request.pageSize == 0) {
         DEFAULT_PAGE_SIZE
@@ -239,11 +245,6 @@ class SpannerEventGroupActivitiesService(
         null
       }
 
-    if (request.externalDataProviderId == 0L) {
-      throw RequiredFieldNotSetException("external_data_provider_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
     val resultList =
       client.readOnlyTransaction().use { txn ->
         // Validate DataProvider exists.
@@ -255,11 +256,29 @@ class SpannerEventGroupActivitiesService(
             .asStatusRuntimeException(Status.Code.NOT_FOUND)
         }
 
+        // Validate EventGroup exists if specified.
+        if (request.externalEventGroupId != 0L) {
+          val eventGroupResult =
+            EventGroupReader()
+              .readByDataProvider(
+                txn,
+                ExternalId(request.externalDataProviderId),
+                ExternalId(request.externalEventGroupId),
+              )
+          if (eventGroupResult == null) {
+            throw EventGroupNotFoundException(
+                ExternalId(request.externalDataProviderId),
+                ExternalId(request.externalEventGroupId),
+              )
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          }
+        }
+
         EventGroupActivityReader()
           .readEventGroupActivities(
             txn,
             request.externalDataProviderId,
-            if (request.hasExternalEventGroupId()) request.externalEventGroupId else null,
+            request.externalEventGroupId,
             pageSize + 1,
             after,
             dateInterval,

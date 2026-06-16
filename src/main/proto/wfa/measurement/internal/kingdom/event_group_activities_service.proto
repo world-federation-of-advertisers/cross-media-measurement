@@ -85,7 +85,7 @@ message ListEventGroupActivitiesRequest {
   fixed64 external_data_provider_id = 1;
   // External ID of the parent EventGroup. If unset, lists across all
   // EventGroups for the scoped DataProvider.
-  optional fixed64 external_event_group_id = 2;
+  fixed64 external_event_group_id = 2;
 
   // The maximum number of results to return.
   //
@@ -95,7 +95,9 @@ message ListEventGroupActivitiesRequest {
   ListEventGroupActivitiesPageToken page_token = 4;
 
   message Filter {
-    // Filter by activity date range.
+    // Filter by activity date range. Half-open: includes activities on or
+    // after `start_date` and strictly before `end_date`. Either bound may
+    // be unset (open-ended).
     DateInterval date_interval = 1;
   }
   Filter filter = 5;
