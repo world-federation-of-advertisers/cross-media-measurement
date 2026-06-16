@@ -42,6 +42,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.storage.ParquetRow
 import org.wfanet.measurement.storage.ParquetStorageClient
 import org.wfanet.measurement.storage.ParquetValue
+import org.wfanet.measurement.storage.parquetRow
+import org.wfanet.measurement.storage.parquetValue
 
 @RunWith(JUnit4::class)
 class RawImpressionSourceTest {
@@ -101,19 +103,14 @@ class RawImpressionSourceTest {
     filesService.blobUris = filesService.blobUris + key
   }
 
-  private fun row(eventId: String): ParquetRow =
-    ParquetRow.newBuilder()
-      .putColumns("event_id", ParquetValue.newBuilder().setStringValue(eventId).build())
-      .build()
+  private fun row(eventId: String): ParquetRow = parquetRow {
+    columns["event_id"] = parquetValue { stringValue = eventId }
+  }
 
   /** A row whose `event_id` is a raw `BINARY` column (decoded as [ByteString]). */
-  private fun rowWithBytesId(eventId: String): ParquetRow =
-    ParquetRow.newBuilder()
-      .putColumns(
-        "event_id",
-        ParquetValue.newBuilder().setBytesValue(ByteString.copyFromUtf8(eventId)).build(),
-      )
-      .build()
+  private fun rowWithBytesId(eventId: String): ParquetRow = parquetRow {
+    columns["event_id"] = parquetValue { bytesValue = ByteString.copyFromUtf8(eventId) }
+  }
 
   private fun newSource(
     client: ParquetStorageClient,
@@ -251,11 +248,7 @@ class RawImpressionSourceTest {
       writeFile(
         client,
         "fail/a.parquet",
-        listOf(
-          ParquetRow.newBuilder()
-            .putColumns("event_id", ParquetValue.newBuilder().setInt64Value(7L).build())
-            .build()
-        ),
+        listOf(parquetRow { columns["event_id"] = parquetValue { int64Value = 7L } }),
       )
       val subject = newSource(client)
 
@@ -317,11 +310,7 @@ class RawImpressionSourceTest {
     writeFile(
       client,
       "bad/a.parquet",
-      listOf(
-        ParquetRow.newBuilder()
-          .putColumns("event_id", ParquetValue.newBuilder().setInt64Value(7L).build())
-          .build()
-      ),
+      listOf(parquetRow { columns["event_id"] = parquetValue { int64Value = 7L } }),
     )
     val subject = newSource(client)
 
