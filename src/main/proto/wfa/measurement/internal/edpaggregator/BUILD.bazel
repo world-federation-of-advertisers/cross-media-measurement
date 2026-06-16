@@ -90,6 +90,7 @@ proto_library(
     deps = [
         ":requisition_metadata_proto",
         ":requisition_metadata_state_proto",
+        "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -166,6 +167,7 @@ proto_library(
     deps = [
         ":raw_impression_batch_state_proto",
         ":raw_impression_metadata_batch_proto",
+        "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -181,6 +183,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":raw_impression_metadata_batch_file_proto",
+        "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -253,6 +256,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":raw_impression_upload_file_proto",
+        "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -445,4 +449,47 @@ proto_library(
 kt_jvm_grpc_proto_library(
     name = "rank_index_blob_service_kt_jvm_grpc_proto",
     deps = [":rank_index_blob_service_proto"],
+)
+
+proto_library(
+    name = "vid_labeling_state_proto",
+    srcs = ["vid_labeling_state.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "vid_labeling_state_kt_jvm_proto",
+    deps = [":vid_labeling_state_proto"],
+)
+
+proto_library(
+    name = "vid_labeling_job_proto",
+    srcs = ["vid_labeling_job.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":vid_labeling_state_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "vid_labeling_job_kt_jvm_proto",
+    deps = [":vid_labeling_job_proto"],
+)
+
+proto_library(
+    name = "vid_labeling_job_service_proto",
+    srcs = ["vid_labeling_job_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":vid_labeling_job_proto",
+        ":vid_labeling_state_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "vid_labeling_job_service_kt_jvm_grpc_proto",
+    deps = [":vid_labeling_job_service_proto"],
 )
