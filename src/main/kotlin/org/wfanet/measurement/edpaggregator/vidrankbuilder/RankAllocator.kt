@@ -94,11 +94,13 @@ class RankAllocator(
    * taken and recording its recency. Used by [loadFrom]; safe to call directly in tests.
    */
   fun loadEntry(keyHi: Long, keyLo: Int, rank: Int, lastSeenDay: Int) {
+    // Ignore ranks outside [0, rankedSize) (e.g. a prior snapshot written when ranked_size was
+    // larger): keeping them would store invalid ranks in the cumulative map (and crash
+    // serialization). A dropped fingerprint is simply re-ranked into the valid range if seen again.
+    if (rank !in 0 until rankedSize) return
     cumulative.put(keyHi, keyLo, rank)
-    if (rank in 0 until rankedSize) {
-      taken.set(rank)
-      lastSeen[rank] = lastSeenDay
-    }
+    taken.set(rank)
+    lastSeen[rank] = lastSeenDay
   }
 
   /**
