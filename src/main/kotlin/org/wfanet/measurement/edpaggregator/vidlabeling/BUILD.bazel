@@ -66,3 +66,24 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
     ],
 )
+
+kt_jvm_library(
+    name = "vid_labeling_monitor",
+    srcs = [
+        "VidLabelingMonitor.kt",
+        "VidLabelingMonitorMetrics.kt",
+    ],
+    deps = [
+        ":vid_labeling_dispatch_sequencer",
+        "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)

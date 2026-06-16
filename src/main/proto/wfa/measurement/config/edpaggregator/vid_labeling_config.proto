@@ -18,6 +18,7 @@ package wfa.measurement.config.edpaggregator;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "google/protobuf/duration.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
 import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
 
@@ -84,6 +85,11 @@ message VidLabelingConfig {
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference).type = "halo.wfanet.org/ModelSuite"
   ];
+
+  // Duration a non-terminal upload may remain before it is flagged as stuck
+  // for alerting.
+  google.protobuf.Duration staleness_threshold = 12
+      [(google.api.field_behavior) = REQUIRED];
 }
 
 // Wrapper containing VID Labeling configurations for all EDPs.
