@@ -22,10 +22,8 @@ import java.security.MessageDigest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexMap
-import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
@@ -33,17 +31,16 @@ import org.wfanet.measurement.storage.StorageClient
  * Reads and writes the per-subpool rank-index maps (the Phase-1 `RankIndexMap` blobs) as
  * **RecordIO** blobs, envelope-encrypted with a per-writer DEK.
  *
- * Lives in `rawimpressions` (next to [SubpoolFingerprintsStore]) because it is the Phase-1
- * (`VidRankBuilder`) analog of the Phase-0 store: Phase-1 reads the prior cumulative `SNAPSHOT`
- * blob and the aged-out `DAY_ONLY` blobs, and writes the new `SNAPSHOT` + `DAY_ONLY` blobs.
+ * The Phase-1 (`VidRankBuilder`) analog of [SubpoolFingerprintsStore]: Phase-1 reads the prior
+ * cumulative `SNAPSHOT` blob and writes the new `SNAPSHOT` + `DAY_ONLY` blobs. Both stores share
+ * the DEK-generation and encrypted-client plumbing via [EncryptedRecordIoStore].
  *
  * ## Why RecordIO (and not a single `RankIndexMap` message)
  *
  * A cumulative `SNAPSHOT` for the India worst case is ~1.5 B `(fingerprint, rank)` entries — far
  * past a protobuf message / Java `ByteString`'s ~2 GB cap. So a blob is a **stream of
  * `RankIndexMap` records** via [MesosRecordIoStorageClient]: each record carries `pool_offset`,
- * `ranked_size`, and a chunk of packed fingerprints + ranks. Memory stays bounded regardless of
- * subpool size.
+ * `ranked_size`, and a chunk of packed fingerprints + ranks + last_seen. Memory stays bounded.
  *
  * ## Integrity
  *
@@ -52,32 +49,11 @@ import org.wfanet.measurement.storage.StorageClient
  * (`blob_checksum`); [readBlob] re-derives it over the same record byte sequence and, when an
  * expected checksum is supplied, throws on mismatch so a corrupted blob is detected on load.
  *
- * ## Encryption
- *
- * Mirrors [SubpoolFingerprintsStore]: every blob is envelope-encrypted via
- * [EncryptedStorage.buildEncryptedMesosStorageClient] with a per-writer [EncryptedDek] (generated
- * by [generateDek], wrapped under the EDP's KEK). DEK *persistence* is the caller's concern — the
- * VidRankBuilder stores it on the `RankIndexBlob` row.
- *
  * @param storageClient the base (unencrypted) storage client for the vid-rank-map bucket.
  * @param kmsClient KMS client able to wrap/unwrap the EDP's KEK.
  */
-class RankIndexStore(
-  private val storageClient: StorageClient,
-  private val kmsClient: KmsClient,
-) {
-  /** Generates a fresh DEK wrapped under [kekUri], used to encrypt this VM's blobs. */
-  fun generateDek(kekUri: String): EncryptedDek {
-    val serialized =
-      EncryptedStorage.generateSerializedEncryptionKey(kmsClient, kekUri, TINK_KEY_TEMPLATE)
-    return encryptedDek {
-      this.kekUri = kekUri
-      ciphertext = serialized
-      protobufFormat = EncryptedDek.ProtobufFormat.BINARY
-      typeUrl = TYPE_URL_TINK_KEYSET
-    }
-  }
-
+class RankIndexStore(storageClient: StorageClient, kmsClient: KmsClient) :
+  EncryptedRecordIoStore(storageClient, kmsClient) {
   /**
    * Writes [records] to [blobKey], one RecordIO record per emitted [RankIndexMap], envelope-
    * encrypted with [encryptedDek]. The record stream is consumed lazily, so memory stays bounded.
@@ -137,18 +113,7 @@ class RankIndexStore(
     storageClient.getBlob(blobKey)?.delete()
   }
 
-  private fun encryptedClient(encryptedDek: EncryptedDek): MesosRecordIoStorageClient =
-    EncryptedStorage.buildEncryptedMesosStorageClient(
-      storageClient,
-      kmsClient = kmsClient,
-      kekUri = encryptedDek.kekUri,
-      encryptedDek = encryptedDek,
-    )
-
   companion object {
-    const val TINK_KEY_TEMPLATE = "AES128_GCM"
-    private const val TYPE_URL_TINK_KEYSET = "type.googleapis.com/google.crypto.tink.Keyset"
-
     /**
      * Storage key for the cumulative `SNAPSHOT` blob of [poolOffset], scoped to the (upload, model
      * line) run. A new snapshot is written per upload; the prior one is located via the

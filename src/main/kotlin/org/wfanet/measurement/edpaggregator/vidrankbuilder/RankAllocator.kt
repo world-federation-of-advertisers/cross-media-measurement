@@ -115,12 +115,12 @@ class RankAllocator(
       for (i in 0 until count) {
         val day = if (hasLastSeen) record.getLastSeenEpochDays(i) else eventDay
         loadEntry(
-          FingerprintCodec.readHi(fps, off),
-          FingerprintCodec.readLo(fps, off + 8),
+          EventIdDigestBytes.readHi(fps, off),
+          EventIdDigestBytes.readLo(fps, off + 8),
           record.getRanks(i),
           day,
         )
-        off += FingerprintCodec.WIDTH
+        off += EventIdDigestBytes.WIDTH
       }
     }
   }
@@ -221,16 +221,16 @@ class RankAllocator(
     val total = map.size
     if (total == 0L) return@flow
     val chunkCount = minOf(chunkEntries.toLong(), total).toInt()
-    var fps = ByteArray(chunkCount * FingerprintCodec.WIDTH)
+    var fps = ByteArray(chunkCount * EventIdDigestBytes.WIDTH)
     var ranks = IntArray(chunkCount)
     var seen = IntArray(chunkCount)
     var n = 0
     var produced = 0L
     // forEach is inline, so the suspend emit() is legal inside the flow block.
     map.forEach { keyHi, keyLo, rank ->
-      val base = n * FingerprintCodec.WIDTH
-      FingerprintCodec.writeHi(fps, base, keyHi)
-      FingerprintCodec.writeLo(fps, base + 8, keyLo)
+      val base = n * EventIdDigestBytes.WIDTH
+      EventIdDigestBytes.writeHi(fps, base, keyHi)
+      EventIdDigestBytes.writeLo(fps, base + 8, keyLo)
       ranks[n] = rank
       seen[n] = lastSeenOf(rank)
       n++
@@ -240,7 +240,7 @@ class RankAllocator(
         val remaining = total - produced
         if (remaining > 0) {
           val next = minOf(chunkEntries.toLong(), remaining).toInt()
-          fps = ByteArray(next * FingerprintCodec.WIDTH)
+          fps = ByteArray(next * EventIdDigestBytes.WIDTH)
           ranks = IntArray(next)
           seen = IntArray(next)
           n = 0
@@ -257,7 +257,7 @@ class RankAllocator(
   ): RankIndexMap = rankIndexMap {
     poolOffset = this@RankAllocator.poolOffset
     rankedSize = this@RankAllocator.rankedSize
-    fingerprints = UnsafeByteOperations.unsafeWrap(fps, 0, count * FingerprintCodec.WIDTH)
+    fingerprints = UnsafeByteOperations.unsafeWrap(fps, 0, count * EventIdDigestBytes.WIDTH)
     for (i in 0 until count) {
       this.ranks += ranks[i]
       lastSeenEpochDays += seen[i]
