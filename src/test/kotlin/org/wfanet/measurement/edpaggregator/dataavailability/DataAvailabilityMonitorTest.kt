@@ -840,7 +840,9 @@ class DataAvailabilityMonitorTest {
 
     val status = result.statuses.single()
     assertThat(status.datesWithoutDoneBlob).containsExactly(LocalDate.of(2026, 3, 14))
-    assertThat(status.gapDates).containsExactly(LocalDate.of(2026, 3, 14))
+    // A folder that has data but no "done" blob is reported under datesWithoutDoneBlob, not as a
+    // gap (the date is present, just not finalized).
+    assertThat(status.gapDates).isEmpty()
     assertThat(status.zeroImpressionDates).isEmpty()
   }
 
@@ -870,7 +872,9 @@ class DataAvailabilityMonitorTest {
 
     val status = result.statuses.single()
     assertThat(status.datesWithoutDoneBlob).containsExactly(LocalDate.of(2026, 3, 14))
-    assertThat(status.gapDates).containsExactly(LocalDate.of(2026, 3, 14))
+    // A folder that has data but no "done" blob is reported under datesWithoutDoneBlob, not as a
+    // gap (the date is present, just not finalized).
+    assertThat(status.gapDates).isEmpty()
     assertThat(status.zeroImpressionDates).isEmpty()
   }
 
