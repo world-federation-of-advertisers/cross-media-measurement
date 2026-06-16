@@ -60,6 +60,10 @@ class VidLabeler(
   private val storageConfig: StorageConfig,
 ) {
 
+  // TODO(world-federation-of-advertisers/cross-media-measurement#3984): Add vid_labeling_job,
+  // raw_impression_upload_files, and model_lines fields to VidLabelerParams for the
+  // VidLabelerApp wiring PR.
+
   /** Labels this VM's shard of the upload, writing encrypted labeled output per input file. */
   suspend fun label() {
     val specs = resolveModelLineSpecs()
@@ -76,6 +80,9 @@ class VidLabeler(
       }
     logger.info("Labeling shard with ${contexts.size} model line(s)")
 
+    // TODO(world-federation-of-advertisers/cross-media-measurement#3984): Switch to file-batching
+    // contract. RawImpressionSource currently shards by fingerprint; once VidLabelerApp is wired
+    // up, pass VidLabelingJob.raw_impression_upload_files directly and remove fingerprint sharding.
     rawImpressionSource.streamBlobs { blobUri ->
       VidLabelingSink(
         inputBlobUri = blobUri,

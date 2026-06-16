@@ -21,7 +21,9 @@ import com.google.protobuf.timestamp
 import com.google.type.interval
 import java.security.MessageDigest
 import java.util.logging.Logger
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
@@ -33,6 +35,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
@@ -94,6 +97,7 @@ class VidLabelingSink(
           vid = output.getPeople(0).virtualPersonId
           event = converted.event
           eventGroupReferenceId = converted.eventGroupReferenceId
+          entityKeys += converted.entityKeys
         }
         produced.add(OutputGroupKey(context.modelLine, converted.eventGroupReferenceId) to labeled)
       }
@@ -108,9 +112,9 @@ class VidLabelingSink(
   }
 
   override suspend fun commit() {
-    mutex.withLock {
+    coroutineScope {
       for ((key, impressions) in labeledByGroup) {
-        writeGroup(key, impressions)
+        launch { writeGroup(key, impressions) }
       }
     }
   }
@@ -150,11 +154,23 @@ class VidLabelingSink(
         encryptKekUri,
         serializedEncryptionKey,
       )
+    // TODO(world-federation-of-advertisers/cross-media-measurement#3999): Add ifGenerationMatch
+    // (write-if-absent) to prevent overwrite races on Pub/Sub redelivery.
     MesosRecordIoStorageClient(aeadStorageClient)
       .writeBlob(blobKey, impressions.map { it.toByteString() }.asFlow())
 
     val earliest = impressions.minByOrNull { it.eventTime.epochNanos }!!.eventTime
     val latest = impressions.maxByOrNull { it.eventTime.epochNanos }!!.eventTime
+    val blobEntityKeys =
+      impressions
+        .flatMap { it.entityKeysList }
+        .groupBy { it.entityType }
+        .map { (type, keys) ->
+          entityKeyGroup {
+            entityType = type
+            entityIds += keys.map { it.entityId }.distinct()
+          }
+        }
     val details = blobDetails {
       blobUri = outputBlobUri
       encryptedDek = outputEncryptedDek
@@ -164,6 +180,7 @@ class VidLabelingSink(
         startTime = earliest
         endTime = latest
       }
+      entityKeys += blobEntityKeys
     }
 
     val metadataKey = "$blobKey.metadata.binpb"

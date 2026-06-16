@@ -57,10 +57,14 @@ fun interface ImpressionConverter {
  *   and as the output `event_time`.
  * @property eventGroupReferenceId event group the impression belongs to.
  * @property event the Event payload to embed in the labeled output.
+ * @property entityKeys entity keys associated with this impression, propagated from the
+ *   `EventGroup` metadata to the labeled output and `BlobDetails`.
  */
 data class ConvertedImpression(
   val labelerInput: LabelerInput,
   val eventTimeMicros: Long,
   val eventGroupReferenceId: String,
   val event: com.google.protobuf.Any,
+  val entityKeys: List<org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression.EntityKey> =
+    emptyList(),
 )
