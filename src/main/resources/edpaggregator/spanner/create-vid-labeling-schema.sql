@@ -18,6 +18,7 @@
 -- comment: Create VID labeling pipeline tables: RawImpressionUpload,
 -- RawImpressionUploadFile, RawImpressionUploadModelLine,
 -- PoolAssignmentJob, RankerJob, RankIndexBlob, and VidLabelingJob.
+-- Uses INT64 surrogate PKs with STRING resource IDs for external API access.
 
 -- Set protobuf FileDescriptorSet as a base64 string.
 SET PROTO_DESCRIPTORS =
@@ -41,7 +42,8 @@ ALTER PROTO BUNDLE INSERT (
 -- =============================================================================
 CREATE TABLE RawImpressionUpload (
   DataProviderResourceId STRING(63) NOT NULL,
-  RawImpressionUploadId STRING(36) NOT NULL,
+  RawImpressionUploadId INT64 NOT NULL,
+  RawImpressionUploadResourceId STRING(36) NOT NULL,
   CreateRequestId STRING(36),
   DoneBlobUri STRING(MAX) NOT NULL,
   State `wfa.measurement.internal.edpaggregator.RawImpressionUploadState` NOT NULL,
@@ -49,23 +51,33 @@ CREATE TABLE RawImpressionUpload (
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 ) PRIMARY KEY (DataProviderResourceId, RawImpressionUploadId);
 
+CREATE UNIQUE INDEX RawImpressionUploadByResourceId
+  ON RawImpressionUpload(DataProviderResourceId, RawImpressionUploadResourceId);
+
 CREATE UNIQUE NULL_FILTERED INDEX RawImpressionUploadByCreateRequestId
   ON RawImpressionUpload(DataProviderResourceId, CreateRequestId);
+
+CREATE INDEX RawImpressionUploadByCreateTime
+  ON RawImpressionUpload(DataProviderResourceId, CreateTime);
 
 -- =============================================================================
 -- RawImpressionUploadFile — the raw impression files belonging to an upload.
 -- =============================================================================
 CREATE TABLE RawImpressionUploadFile (
   DataProviderResourceId STRING(63) NOT NULL,
-  RawImpressionUploadId STRING(36) NOT NULL,
+  RawImpressionUploadId INT64 NOT NULL,
+  FileId INT64 NOT NULL,
   FileResourceId STRING(36) NOT NULL,
   CreateRequestId STRING(36),
   BlobUri STRING(MAX) NOT NULL,
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   DeleteTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
-) PRIMARY KEY (DataProviderResourceId, RawImpressionUploadId, FileResourceId),
+) PRIMARY KEY (DataProviderResourceId, RawImpressionUploadId, FileId),
   INTERLEAVE IN PARENT RawImpressionUpload ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX RawImpressionUploadFileByResourceId
+  ON RawImpressionUploadFile(DataProviderResourceId, FileResourceId);
 
 CREATE UNIQUE NULL_FILTERED INDEX RawImpressionUploadFileByCreateRequestId
   ON RawImpressionUploadFile(DataProviderResourceId, CreateRequestId);
@@ -77,15 +89,24 @@ CREATE UNIQUE NULL_FILTERED INDEX RawImpressionUploadFileByCreateRequestId
 -- =============================================================================
 CREATE TABLE RawImpressionUploadModelLine (
   DataProviderResourceId STRING(63) NOT NULL,
-  RawImpressionUploadId STRING(36) NOT NULL,
+  RawImpressionUploadId INT64 NOT NULL,
+  RawImpressionUploadModelLineId INT64 NOT NULL,
+  RawImpressionUploadModelLineResourceId STRING(36) NOT NULL,
   CmmsModelLine STRING(MAX) NOT NULL,
   CreateRequestId STRING(36),
   State `wfa.measurement.internal.edpaggregator.RawImpressionUploadModelLineState` NOT NULL,
   ErrorMessage STRING(MAX),
+  PoolOffsets ARRAY<INT64>,
+  MaxEventDate DATE,
+  EncryptedMergedDek BYTES(512),
+  Etag STRING(36) NOT NULL,
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
-) PRIMARY KEY (DataProviderResourceId, RawImpressionUploadId, CmmsModelLine),
+) PRIMARY KEY (DataProviderResourceId, RawImpressionUploadId, RawImpressionUploadModelLineId),
   INTERLEAVE IN PARENT RawImpressionUpload ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX RawImpressionUploadModelLineByResourceId
+  ON RawImpressionUploadModelLine(DataProviderResourceId, RawImpressionUploadModelLineResourceId);
 
 CREATE UNIQUE NULL_FILTERED INDEX RawImpressionUploadModelLineByCreateRequestId
   ON RawImpressionUploadModelLine(DataProviderResourceId, RawImpressionUploadId, CreateRequestId);
@@ -99,7 +120,8 @@ CREATE UNIQUE NULL_FILTERED INDEX RawImpressionUploadModelLineByCreateRequestId
 -- =============================================================================
 CREATE TABLE PoolAssignmentJob (
   DataProviderResourceId STRING(63) NOT NULL,
-  RawImpressionUploadId STRING(36) NOT NULL,
+  RawImpressionUploadId INT64 NOT NULL,
+  PoolAssignmentJobId INT64 NOT NULL,
   PoolAssignmentJobResourceId STRING(36) NOT NULL,
   CmmsModelLine STRING(MAX) NOT NULL,
   ShardIndex INT64 NOT NULL,
@@ -110,8 +132,11 @@ CREATE TABLE PoolAssignmentJob (
   CreateRequestId STRING(36),
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
-) PRIMARY KEY (DataProviderResourceId, RawImpressionUploadId, PoolAssignmentJobResourceId),
+) PRIMARY KEY (DataProviderResourceId, RawImpressionUploadId, PoolAssignmentJobId),
   INTERLEAVE IN PARENT RawImpressionUpload ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX PoolAssignmentJobByResourceId
+  ON PoolAssignmentJob(DataProviderResourceId, PoolAssignmentJobResourceId);
 
 CREATE UNIQUE NULL_FILTERED INDEX PoolAssignmentJobByCreateRequestId
   ON PoolAssignmentJob(DataProviderResourceId, CreateRequestId);
@@ -125,7 +150,8 @@ CREATE UNIQUE NULL_FILTERED INDEX PoolAssignmentJobByCreateRequestId
 -- =============================================================================
 CREATE TABLE RankerJob (
   DataProviderResourceId STRING(63) NOT NULL,
-  RawImpressionUploadId STRING(36) NOT NULL,
+  RawImpressionUploadId INT64 NOT NULL,
+  RankerJobId INT64 NOT NULL,
   RankerJobResourceId STRING(36) NOT NULL,
   CmmsModelLine STRING(MAX) NOT NULL,
   PoolOffsets ARRAY<INT64> NOT NULL,
@@ -135,8 +161,11 @@ CREATE TABLE RankerJob (
   CreateRequestId STRING(36),
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
-) PRIMARY KEY (DataProviderResourceId, RawImpressionUploadId, RankerJobResourceId),
+) PRIMARY KEY (DataProviderResourceId, RawImpressionUploadId, RankerJobId),
   INTERLEAVE IN PARENT RawImpressionUpload ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX RankerJobByResourceId
+  ON RankerJob(DataProviderResourceId, RankerJobResourceId);
 
 CREATE UNIQUE NULL_FILTERED INDEX RankerJobByCreateRequestId
   ON RankerJob(DataProviderResourceId, CreateRequestId);
@@ -149,7 +178,8 @@ CREATE UNIQUE NULL_FILTERED INDEX RankerJobByCreateRequestId
 -- =============================================================================
 CREATE TABLE RankIndexBlob (
   DataProviderResourceId STRING(63) NOT NULL,
-  RawImpressionUploadId STRING(36) NOT NULL,
+  RawImpressionUploadId INT64 NOT NULL,
+  RankIndexBlobId INT64 NOT NULL,
   RankIndexBlobResourceId STRING(36) NOT NULL,
   CreateRequestId STRING(36),
   CmmsModelLine STRING(MAX) NOT NULL,
@@ -161,8 +191,11 @@ CREATE TABLE RankIndexBlob (
   BlobChecksum BYTES(32),
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   DeleteTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
-) PRIMARY KEY (DataProviderResourceId, RawImpressionUploadId, RankIndexBlobResourceId),
+) PRIMARY KEY (DataProviderResourceId, RawImpressionUploadId, RankIndexBlobId),
   INTERLEAVE IN PARENT RawImpressionUpload ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX RankIndexBlobByResourceId
+  ON RankIndexBlob(DataProviderResourceId, RankIndexBlobResourceId);
 
 CREATE UNIQUE NULL_FILTERED INDEX RankIndexBlobByCreateRequestId
   ON RankIndexBlob(DataProviderResourceId, CreateRequestId);
@@ -186,7 +219,8 @@ CREATE INDEX RankIndexBlobByUploadAndType
 -- =============================================================================
 CREATE TABLE VidLabelingJob (
   DataProviderResourceId STRING(63) NOT NULL,
-  RawImpressionUploadId STRING(36) NOT NULL,
+  RawImpressionUploadId INT64 NOT NULL,
+  VidLabelingJobId INT64 NOT NULL,
   VidLabelingJobResourceId STRING(36) NOT NULL,
   CmmsModelLines ARRAY<STRING(MAX)> NOT NULL,
   RawImpressionUploadFiles ARRAY<STRING(MAX)> NOT NULL,
@@ -196,8 +230,11 @@ CREATE TABLE VidLabelingJob (
   CreateRequestId STRING(36),
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
-) PRIMARY KEY (DataProviderResourceId, RawImpressionUploadId, VidLabelingJobResourceId),
+) PRIMARY KEY (DataProviderResourceId, RawImpressionUploadId, VidLabelingJobId),
   INTERLEAVE IN PARENT RawImpressionUpload ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX VidLabelingJobByResourceId
+  ON VidLabelingJob(DataProviderResourceId, VidLabelingJobResourceId);
 
 CREATE UNIQUE NULL_FILTERED INDEX VidLabelingJobByCreateRequestId
   ON VidLabelingJob(DataProviderResourceId, CreateRequestId);
