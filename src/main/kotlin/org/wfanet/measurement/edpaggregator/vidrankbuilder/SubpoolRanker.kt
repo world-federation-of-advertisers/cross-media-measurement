@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.vidrankbuilder
 import com.google.type.Date
 import java.nio.ByteBuffer
 import java.security.MessageDigest
+import java.time.LocalDate
 import java.util.UUID
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.collect
@@ -42,10 +43,11 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
  *
  * For one subpool it:
  * 1. loads the prior cumulative `SNAPSHOT` (if any) into a [RankAllocator] (rebuilding its rank
- *    `BitSet`), validating the blob checksum,
+ *    `BitSet` and per-rank `last_seen`), validating the blob checksum,
  * 2. materializes this dispatch's fingerprint set from the Phase-0 merged `SubpoolFingerprints`
  *    blob,
- * 3. runs [SubpoolRetention] to free aged-out ranks,
+ * 3. garbage-collects aged-out `DAY_ONLY` blobs ([SubpoolRetention]) and frees aged-out ranks in
+ *    heap via the `last_seen` index, excluding fingerprints seen this dispatch,
  * 4. allocates ranks to today's fingerprints (renewing already-ranked ones, capping at
  *    `ranked_size`),
  * 5. writes the new `DAY_ONLY` + `SNAPSHOT` blobs (DEK-encrypted) and records both as
@@ -55,7 +57,7 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
  * @param rankIndexStore reads the prior snapshot and writes the new rank-index blobs.
  * @param rankIndexBlobsStub metadata-storage service for locating the prior snapshot and inserting
  *   the new blob rows.
- * @param retention the data-deletion pass.
+ * @param retention garbage-collects aged-out `DAY_ONLY` blobs.
  * @param dataProvider EDP resource name (`dataProviders/{dp}`), parent of the upload wildcard for
  *   the prior-snapshot lookup.
  * @param rawImpressionUpload the upload resource name (parent of the new blob rows + key scoping).
@@ -63,7 +65,10 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
  * @param vidRankMapBlobPrefix static blob prefix for the vid-rank-map bucket.
  * @param kekUri KEK URI used to wrap each new blob's DEK.
  * @param encryptedSubpoolMapsDek DEK that decrypts the Phase-0 merged blobs.
- * @param maxEventDate newest event date this dispatch covers; stamped on the `DAY_ONLY` row.
+ * @param maxEventDate newest event date this dispatch covers; stamped as `last_seen` and on the
+ *   `DAY_ONLY` row.
+ * @param retentionDays retention window in days (must exceed the max measurement-report window).
+ * @param today the UTC date treated as "now" for the rank-age cutoff.
  * @param metrics OpenTelemetry instruments.
  */
 class SubpoolRanker(
@@ -78,6 +83,8 @@ class SubpoolRanker(
   private val kekUri: String,
   private val encryptedSubpoolMapsDek: EncryptedDek,
   private val maxEventDate: Date,
+  private val retentionDays: Int,
+  private val today: LocalDate,
   private val metrics: VidRankBuilderMetrics = VidRankBuilderMetrics(),
 ) {
   /**
@@ -99,7 +106,9 @@ class SubpoolRanker(
 
   /** Ranks [poolOffset]; [subpoolBlobUri] is its Phase-0 merged blob; caps at [rankedSize]. */
   suspend fun rank(poolOffset: Long, subpoolBlobUri: String, rankedSize: Int): Result {
-    val allocator = RankAllocator(poolOffset, rankedSize)
+    val eventDay = epochDayOf(maxEventDate)
+    val cutoffEpochDay = (today.toEpochDay() - retentionDays).toInt()
+    val allocator = RankAllocator(poolOffset, rankedSize, eventDay)
 
     // 1. Load the prior cumulative snapshot (validating its checksum), if one exists.
     val priorSnapshot = findPriorSnapshot(poolOffset)
@@ -125,8 +134,12 @@ class SubpoolRanker(
       }
     }
 
-    // 3. Retention: free aged-out ranks before allocating (freed slots become reusable today).
-    retention.prune(poolOffset, allocator, todayFps)
+    // 3a. Storage GC of aged-out DAY_ONLY blobs (independent of rank freeing).
+    retention.deleteAgedBlobs(poolOffset)
+    // 3b. Free aged-out ranks in heap from the `last_seen` index, before allocating so freed slots
+    // are reusable today. Fingerprints seen this dispatch are excluded so their ranks (VIDs)
+    // survive.
+    allocator.freeAgedRanks(cutoffEpochDay, todayFps)
 
     // 4. Allocate / renew ranks for today's fingerprints.
     todayFps.forEach { keyHi, keyLo, _ -> allocator.assign(keyHi, keyLo) }
@@ -242,6 +255,12 @@ class SubpoolRanker(
     metrics.ranksFreedCounter.add(allocator.freed)
     metrics.overflowFingerprintsCounter.add(allocator.overflow)
     metrics.subpoolsRankedCounter.add(1)
+  }
+
+  /** Epoch-day of a UTC [Date]; falls back to [today] when the date is unset. */
+  private fun epochDayOf(date: Date): Int {
+    if (date.year == 0) return today.toEpochDay().toInt()
+    return LocalDate.of(date.year, date.month, date.day).toEpochDay().toInt()
   }
 
   /**

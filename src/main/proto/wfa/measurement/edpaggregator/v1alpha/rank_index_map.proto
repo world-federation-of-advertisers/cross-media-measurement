@@ -94,4 +94,16 @@ message RankIndexMap {
   // `[0, ranked_size)` and `ranked_size` is bounded well below
   // `Int.MAX_VALUE`.
   repeated fixed32 ranks = 4 [packed = true];
+
+  // Epoch-day (`java.time.LocalDate.toEpochDay()`, UTC) on which each
+  // fingerprint was most recently observed. `last_seen_epoch_days[i]` pairs
+  // positionally with the fingerprint at byte offset `i * 12` and `ranks[i]`;
+  // length, when present, MUST equal `ranks.size`. Carried only in `SNAPSHOT`
+  // blobs, where it is the source of truth for retention: a rank is recycled
+  // when `today - last_seen > RETENTION_DAYS`, computed in-heap from this field
+  // instead of by re-scanning every surviving `DAY_ONLY` blob. Stored as
+  // `fixed32` to mirror `ranks` (fixed 4-byte stride, positional decode); an
+  // epoch-day stays well within `int32` for millennia. Empty on legacy blobs
+  // written before this field existed.
+  repeated fixed32 last_seen_epoch_days = 5 [packed = true];
 }
