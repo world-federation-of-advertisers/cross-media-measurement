@@ -232,7 +232,7 @@ SAMPLE_REPORT = Report(
 
 
 class TestReport(unittest.TestCase):
-  def test_ami_mrc_exemption_list(self):
+  def test_ami_mrc_exempted_edps(self):
     ami_report = MetricReport(
         weekly_cumulative_reaches={
             # EDP_ONE is exempted, EDP_TWO is NOT.
@@ -355,7 +355,7 @@ class TestReport(unittest.TestCase):
         metric_reports={"ami": ami_report, "mrc": mrc_report},
         metric_subsets_by_parent={"ami": ["mrc"]},
         cumulative_inconsistency_allowed_edp_combinations={},
-        ami_mrc_exemption_list=[EDP_ONE],
+        ami_mrc_exempted_edps=[EDP_ONE],
     )
 
     spec = SetMeasurementsSpec()

@@ -62,4 +62,4 @@ databaseChangeLog:
     relativeToChangeLogFile: true
 - include:
     file: update-proto-bundle-for-reporting-interval-report-start.sql
-    relativeToChangeLogFile: true    
+    relativeToChangeLogFile: true
