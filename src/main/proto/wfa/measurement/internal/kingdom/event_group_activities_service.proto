@@ -95,9 +95,8 @@ message ListEventGroupActivitiesRequest {
   ListEventGroupActivitiesPageToken page_token = 4;
 
   message Filter {
-    // Filter by activity date range. Half-open: includes activities on or
-    // after `start_date` and strictly before `end_date`. Either bound may
-    // be unset (open-ended).
+    // Filter by activity date range. Only activities with
+    // dates within this interval are returned.
     DateInterval date_interval = 1;
   }
   Filter filter = 5;
