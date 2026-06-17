@@ -15,6 +15,7 @@ kt_jvm_library(
         "IdVariable.kt",
         "ImpressionMetadataKey.kt",
         "RawImpressionMetadataKey.kt",
+        "RawImpressionUploadModelLineKey.kt",
         "RequisitionMetadataKey.kt",
     ],
     deps = [
