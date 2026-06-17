@@ -57,7 +57,7 @@ abstract class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `createRawImpressionUpload creates an upload`() = runBlocking {
+  fun `createRawImpressionUpload creates an upload`(): Unit = runBlocking {
     val startTime: Instant = Instant.now()
 
     val upload: RawImpressionUpload =
@@ -87,7 +87,7 @@ abstract class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `createRawImpressionUpload is idempotent with same request_id`() = runBlocking {
+  fun `createRawImpressionUpload is idempotent with same request_id`(): Unit = runBlocking {
     val requestId: String = UUID.randomUUID().toString()
 
     val upload1: RawImpressionUpload =
@@ -118,34 +118,14 @@ abstract class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `createRawImpressionUpload throws INVALID_ARGUMENT if data_provider_resource_id not set`() =
-    runBlocking {
-      val exception: StatusRuntimeException =
-        assertFailsWith<StatusRuntimeException> {
-          service.createRawImpressionUpload(
-            createRawImpressionUploadRequest {
-              rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "data_provider_resource_id"
-          }
-        )
-    }
-
-  @Test
-  fun `createRawImpressionUpload throws INVALID_ARGUMENT if done_blob_uri not set`() = runBlocking {
+  fun `createRawImpressionUpload throws INVALID_ARGUMENT if data_provider_resource_id not set`():
+    Unit = runBlocking {
     val exception: StatusRuntimeException =
       assertFailsWith<StatusRuntimeException> {
         service.createRawImpressionUpload(
-          createRawImpressionUploadRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
+          createRawImpressionUploadRequest {
+            rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+          }
         )
       }
 
@@ -155,37 +135,59 @@ abstract class RawImpressionUploadServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "raw_impression_upload.done_blob_uri"
+          metadata[Errors.Metadata.FIELD_NAME.key] = "data_provider_resource_id"
         }
       )
   }
 
   @Test
-  fun `createRawImpressionUpload throws INVALID_ARGUMENT for malformed request_id`() = runBlocking {
-    val exception: StatusRuntimeException =
-      assertFailsWith<StatusRuntimeException> {
-        service.createRawImpressionUpload(
-          createRawImpressionUploadRequest {
-            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-            rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
-            requestId = "not-a-valid-uuid"
+  fun `createRawImpressionUpload throws INVALID_ARGUMENT if done_blob_uri not set`(): Unit =
+    runBlocking {
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRawImpressionUpload(
+            createRawImpressionUploadRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "raw_impression_upload.done_blob_uri"
           }
         )
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
-        }
-      )
-  }
+    }
 
   @Test
-  fun `getRawImpressionUpload returns an upload`() = runBlocking {
+  fun `createRawImpressionUpload throws INVALID_ARGUMENT for malformed request_id`(): Unit =
+    runBlocking {
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRawImpressionUpload(
+            createRawImpressionUploadRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+              requestId = "not-a-valid-uuid"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+          }
+        )
+    }
+
+  @Test
+  fun `getRawImpressionUpload returns an upload`(): Unit = runBlocking {
     val created: RawImpressionUpload =
       service.createRawImpressionUpload(
         createRawImpressionUploadRequest {
@@ -206,7 +208,7 @@ abstract class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `getRawImpressionUpload throws NOT_FOUND when upload not found`() = runBlocking {
+  fun `getRawImpressionUpload throws NOT_FOUND when upload not found`(): Unit = runBlocking {
     val exception: StatusRuntimeException =
       assertFailsWith<StatusRuntimeException> {
         service.getRawImpressionUpload(
@@ -230,7 +232,7 @@ abstract class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `listRawImpressionUploads returns uploads`() = runBlocking {
+  fun `listRawImpressionUploads returns uploads`(): Unit = runBlocking {
     createUpload()
     createUpload()
 
@@ -243,7 +245,7 @@ abstract class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `listRawImpressionUploads respects page size`() = runBlocking {
+  fun `listRawImpressionUploads respects page size`(): Unit = runBlocking {
     for (i in 1..3) {
       createUpload()
     }
@@ -261,7 +263,7 @@ abstract class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `listRawImpressionUploads filters by state`() = runBlocking {
+  fun `listRawImpressionUploads filters by state`(): Unit = runBlocking {
     createUpload()
     createUpload()
 
@@ -291,7 +293,7 @@ abstract class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `listRawImpressionUploads with empty states filter returns all states`() =
+  fun `listRawImpressionUploads with empty states filter returns all states`(): Unit =
     runBlocking<Unit> {
       val upload1: RawImpressionUpload = createUpload()
       val upload2: RawImpressionUpload = createUpload()
@@ -312,7 +314,7 @@ abstract class RawImpressionUploadServiceTest {
     }
 
   @Test
-  fun `listRawImpressionUploads filters by create_time interval`() = runBlocking {
+  fun `listRawImpressionUploads filters by create_time interval`(): Unit = runBlocking {
     createUpload()
     createUpload()
 
@@ -342,7 +344,7 @@ abstract class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `listRawImpressionUploads returns remaining uploads using page token`() = runBlocking {
+  fun `listRawImpressionUploads returns remaining uploads using page token`(): Unit = runBlocking {
     val created: List<RawImpressionUpload> = (1..3).map { createUpload() }
 
     val firstPage: ListRawImpressionUploadsResponse =
@@ -382,75 +384,12 @@ abstract class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `getRawImpressionUpload throws INVALID_ARGUMENT if data_provider_resource_id not set`() =
-    runBlocking {
-      val exception: StatusRuntimeException =
-        assertFailsWith<StatusRuntimeException> {
-          service.getRawImpressionUpload(
-            getRawImpressionUploadRequest { rawImpressionUploadResourceId = "some-upload" }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "data_provider_resource_id"
-          }
-        )
-    }
-
-  @Test
-  fun `getRawImpressionUpload throws INVALID_ARGUMENT if raw_impression_upload_resource_id not set`() =
-    runBlocking {
-      val exception: StatusRuntimeException =
-        assertFailsWith<StatusRuntimeException> {
-          service.getRawImpressionUpload(
-            getRawImpressionUploadRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "raw_impression_upload_resource_id"
-          }
-        )
-    }
-
-  @Test
-  fun `listRawImpressionUploads throws INVALID_ARGUMENT if data_provider_resource_id not set`() =
-    runBlocking {
-      val exception: StatusRuntimeException =
-        assertFailsWith<StatusRuntimeException> {
-          service.listRawImpressionUploads(listRawImpressionUploadsRequest {})
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "data_provider_resource_id"
-          }
-        )
-    }
-
-  @Test
-  fun `listRawImpressionUploads throws INVALID_ARGUMENT for negative page_size`() = runBlocking {
+  fun `getRawImpressionUpload throws INVALID_ARGUMENT if data_provider_resource_id not set`():
+    Unit = runBlocking {
     val exception: StatusRuntimeException =
       assertFailsWith<StatusRuntimeException> {
-        service.listRawImpressionUploads(
-          listRawImpressionUploadsRequest {
-            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-            pageSize = -1
-          }
+        service.getRawImpressionUpload(
+          getRawImpressionUploadRequest { rawImpressionUploadResourceId = "some-upload" }
         )
       }
 
@@ -459,11 +398,75 @@ abstract class RawImpressionUploadServiceTest {
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "data_provider_resource_id"
         }
       )
   }
+
+  @Test
+  fun `getRawImpressionUpload throws INVALID_ARGUMENT if raw_impression_upload_resource_id not set`():
+    Unit = runBlocking {
+    val exception: StatusRuntimeException =
+      assertFailsWith<StatusRuntimeException> {
+        service.getRawImpressionUpload(
+          getRawImpressionUploadRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "raw_impression_upload_resource_id"
+        }
+      )
+  }
+
+  @Test
+  fun `listRawImpressionUploads throws INVALID_ARGUMENT if data_provider_resource_id not set`():
+    Unit = runBlocking {
+    val exception: StatusRuntimeException =
+      assertFailsWith<StatusRuntimeException> {
+        service.listRawImpressionUploads(listRawImpressionUploadsRequest {})
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "data_provider_resource_id"
+        }
+      )
+  }
+
+  @Test
+  fun `listRawImpressionUploads throws INVALID_ARGUMENT for negative page_size`(): Unit =
+    runBlocking {
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.listRawImpressionUploads(
+            listRawImpressionUploadsRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              pageSize = -1
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
+          }
+        )
+    }
 
   private suspend fun createUpload(): RawImpressionUpload =
     service.createRawImpressionUpload(

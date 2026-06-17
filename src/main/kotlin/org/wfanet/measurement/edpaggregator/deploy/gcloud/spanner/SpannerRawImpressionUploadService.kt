@@ -180,7 +180,7 @@ class SpannerRawImpressionUploadService(
             request.dataProviderResourceId,
             request.filter,
             pageSize + 1,
-            after
+            after,
           )
           .map { it.rawImpressionUpload }
       return listRawImpressionUploadsResponse {
