@@ -151,6 +151,7 @@ class VidLabelingSinkTest {
         eventTimeMicros = event.row.getValue(EVENT_TIME_COLUMN).int64Value,
         eventGroupReferenceId = event.row.getValue(EVENT_GROUP_COLUMN).stringValue,
         event = Any.getDefaultInstance(),
+        entityKeys = emptyList(),
       )
   }
 

@@ -65,6 +65,5 @@ data class ConvertedImpression(
   val eventTimeMicros: Long,
   val eventGroupReferenceId: String,
   val event: com.google.protobuf.Any,
-  val entityKeys: List<org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression.EntityKey> =
-    emptyList(),
+  val entityKeys: List<org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression.EntityKey>,
 )
