@@ -69,12 +69,21 @@ abstract class RawImpressionUploadServiceTest {
         }
       )
 
-    assertThat(upload.dataProviderResourceId).isEqualTo(DATA_PROVIDER_RESOURCE_ID)
     assertThat(upload.rawImpressionUploadResourceId).isNotEmpty()
-    assertThat(upload.doneBlobUri).isEqualTo(DONE_BLOB_URI)
-    assertThat(upload.state).isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED)
     assertThat(upload.createTime.toInstant()).isGreaterThan(startTime)
     assertThat(upload.updateTime).isEqualTo(upload.createTime)
+    // Verify the entire response, substituting the non-deterministic resource ID and timestamps.
+    assertThat(upload)
+      .isEqualTo(
+        rawImpressionUpload {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = upload.rawImpressionUploadResourceId
+          doneBlobUri = DONE_BLOB_URI
+          state = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED
+          createTime = upload.createTime
+          updateTime = upload.updateTime
+        }
+      )
   }
 
   @Test
@@ -100,6 +109,12 @@ abstract class RawImpressionUploadServiceTest {
       )
 
     assertThat(upload2).isEqualTo(upload1)
+    // The duplicate request must not have created a second row.
+    val response: ListRawImpressionUploadsResponse =
+      service.listRawImpressionUploads(
+        listRawImpressionUploadsRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
+      )
+    assertThat(response.rawImpressionUploadsList).hasSize(1)
   }
 
   @Test
@@ -328,9 +343,7 @@ abstract class RawImpressionUploadServiceTest {
 
   @Test
   fun `listRawImpressionUploads returns remaining uploads using page token`() = runBlocking {
-    for (i in 1..3) {
-      createUpload()
-    }
+    val created: List<RawImpressionUpload> = (1..3).map { createUpload() }
 
     val firstPage: ListRawImpressionUploadsResponse =
       service.listRawImpressionUploads(
@@ -359,6 +372,97 @@ abstract class RawImpressionUploadServiceTest {
 
     assertThat(secondPage.rawImpressionUploadsList).hasSize(1)
     assertThat(secondPage.hasNextPageToken()).isFalse()
+    // The two pages together cover every created upload exactly once (no overlap, no gaps).
+    assertThat(
+        (firstPage.rawImpressionUploadsList + secondPage.rawImpressionUploadsList).map {
+          it.rawImpressionUploadResourceId
+        }
+      )
+      .containsExactlyElementsIn(created.map { it.rawImpressionUploadResourceId })
+  }
+
+  @Test
+  fun `getRawImpressionUpload throws INVALID_ARGUMENT if data_provider_resource_id not set`() =
+    runBlocking {
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.getRawImpressionUpload(
+            getRawImpressionUploadRequest { rawImpressionUploadResourceId = "some-upload" }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "data_provider_resource_id"
+          }
+        )
+    }
+
+  @Test
+  fun `getRawImpressionUpload throws INVALID_ARGUMENT if raw_impression_upload_resource_id not set`() =
+    runBlocking {
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.getRawImpressionUpload(
+            getRawImpressionUploadRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "raw_impression_upload_resource_id"
+          }
+        )
+    }
+
+  @Test
+  fun `listRawImpressionUploads throws INVALID_ARGUMENT if data_provider_resource_id not set`() =
+    runBlocking {
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.listRawImpressionUploads(listRawImpressionUploadsRequest {})
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "data_provider_resource_id"
+          }
+        )
+    }
+
+  @Test
+  fun `listRawImpressionUploads throws INVALID_ARGUMENT for negative page_size`() = runBlocking {
+    val exception: StatusRuntimeException =
+      assertFailsWith<StatusRuntimeException> {
+        service.listRawImpressionUploads(
+          listRawImpressionUploadsRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            pageSize = -1
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
+        }
+      )
   }
 
   private suspend fun createUpload(): RawImpressionUpload =
