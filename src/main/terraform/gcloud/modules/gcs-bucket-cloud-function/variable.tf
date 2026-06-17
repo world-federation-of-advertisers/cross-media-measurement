@@ -99,6 +99,8 @@ variable "alert_notification_channels" {
   description = "List of Cloud Monitoring notification channel IDs for DLQ alerts. If empty, the alert fires but no notification is sent."
   type        = list(string)
   default     = []
+}
+
 variable "uploaded_config_generation" {
   description = "The GCS generation of the uploaded config file. Changes only when file is re-uploaded."
   type        = string

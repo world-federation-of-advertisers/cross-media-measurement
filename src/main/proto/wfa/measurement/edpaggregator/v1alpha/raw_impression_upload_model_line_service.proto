@@ -50,27 +50,37 @@ service RawImpressionUploadModelLineService {
       ListRawImpressionUploadModelLinesRequest)
       returns (ListRawImpressionUploadModelLinesResponse) {}
 
-  // Marks a `RawImpressionUploadModelLine` as `POOL_ASSIGNING`.
+  // Marks a `RawImpressionUploadModelLine` as `POOL_ASSIGNING`. Throws
+  // `ABORTED` if `etag` does not match (AIP-154). Throws
+  // `FAILED_PRECONDITION` if the prior state does not allow this transition.
   rpc MarkRawImpressionUploadModelLinePoolAssigning(
       MarkRawImpressionUploadModelLinePoolAssigningRequest)
       returns (RawImpressionUploadModelLine) {}
 
-  // Marks a `RawImpressionUploadModelLine` as `RANKING`.
+  // Marks a `RawImpressionUploadModelLine` as `RANKING`. Throws
+  // `ABORTED` if `etag` does not match (AIP-154). Throws
+  // `FAILED_PRECONDITION` if the prior state does not allow this transition.
   rpc MarkRawImpressionUploadModelLineRanking(
       MarkRawImpressionUploadModelLineRankingRequest)
       returns (RawImpressionUploadModelLine) {}
 
-  // Marks a `RawImpressionUploadModelLine` as `LABELING`.
+  // Marks a `RawImpressionUploadModelLine` as `LABELING`. Throws
+  // `ABORTED` if `etag` does not match (AIP-154). Throws
+  // `FAILED_PRECONDITION` if the prior state does not allow this transition.
   rpc MarkRawImpressionUploadModelLineLabeling(
       MarkRawImpressionUploadModelLineLabelingRequest)
       returns (RawImpressionUploadModelLine) {}
 
-  // Marks a `RawImpressionUploadModelLine` as `COMPLETED`.
+  // Marks a `RawImpressionUploadModelLine` as `COMPLETED`. Throws
+  // `ABORTED` if `etag` does not match (AIP-154). Throws
+  // `FAILED_PRECONDITION` if the prior state does not allow this transition.
   rpc MarkRawImpressionUploadModelLineCompleted(
       MarkRawImpressionUploadModelLineCompletedRequest)
       returns (RawImpressionUploadModelLine) {}
 
-  // Marks a `RawImpressionUploadModelLine` as `FAILED`.
+  // Marks a `RawImpressionUploadModelLine` as `FAILED`. Throws
+  // `ABORTED` if `etag` does not match (AIP-154). Throws
+  // `FAILED_PRECONDITION` if the prior state does not allow this transition.
   rpc MarkRawImpressionUploadModelLineFailed(
       MarkRawImpressionUploadModelLineFailedRequest)
       returns (RawImpressionUploadModelLine) {}
@@ -180,11 +190,14 @@ message ListRawImpressionUploadModelLinesRequest {
     repeated RawImpressionUploadModelLine.State state_in = 1
         [(google.api.field_behavior) = OPTIONAL];
 
-    // Filter for resources whose create_time falls within this
-    // interval. Start and end are both optional: omitting start
-    // returns resources created before end, omitting end returns
-    // resources created after start.
-    google.type.Interval create_time_interval = 2
+    // Filter for resources whose create_time is in the given interval.
+    // Start and end are both optional: omitting start_time matches
+    // resources created before end_time; omitting end_time matches
+    // resources created at or after start_time.
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: `_in` is the established repo convention
+    //     for set-membership filter fields. --)
+    google.type.Interval create_time_in = 2
         [(google.api.field_behavior) = OPTIONAL];
 
     // Filter by CMMS model line resource name.
@@ -218,6 +231,9 @@ message MarkRawImpressionUploadModelLinePoolAssigningRequest {
       type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
     }
   ];
+
+  // The etag of the `RawImpressionUploadModelLine` for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
 }
 
 // Request message for the
@@ -230,6 +246,9 @@ message MarkRawImpressionUploadModelLineRankingRequest {
       type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
     }
   ];
+
+  // The etag of the `RawImpressionUploadModelLine` for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
 }
 
 // Request message for the
@@ -242,6 +261,9 @@ message MarkRawImpressionUploadModelLineLabelingRequest {
       type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
     }
   ];
+
+  // The etag of the `RawImpressionUploadModelLine` for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
 }
 
 // Request message for the
@@ -254,6 +276,9 @@ message MarkRawImpressionUploadModelLineCompletedRequest {
       type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
     }
   ];
+
+  // The etag of the `RawImpressionUploadModelLine` for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
 }
 
 // Request message for the
@@ -269,4 +294,7 @@ message MarkRawImpressionUploadModelLineFailedRequest {
 
   // Human-readable detail about the failure.
   string error_message = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // The etag of the `RawImpressionUploadModelLine` for optimistic locking.
+  string etag = 3 [(google.api.field_behavior) = REQUIRED];
 }

@@ -217,13 +217,13 @@ class ReportProcessorTest {
       TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_ami_mrc_exemption.json").toFile()
     val reportAsJson = reportFile.readText()
 
-    val exemptionList = listOf("edp1")
+    val exemptionList = listOf("dataProviders/edp1")
     val reportProcessingOutput: ReportProcessingOutput =
       ReportProcessor.processReportJsonAndLogResult(
         reportAsJson,
         "projectId",
         "bucketName",
-        amiMrcExemptedList = exemptionList,
+        amiMrcExemptedEdps = exemptionList,
       )
 
     assertThat(reportProcessingOutput.reportPostProcessorLog.postProcessingSuccessful).isTrue()
@@ -239,9 +239,9 @@ class ReportProcessorTest {
       TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_ami_mrc_exemption.json").toFile()
     val reportAsJson = reportFile.readText()
 
-    val exemptionList = listOf("edp1")
+    val exemptionList = listOf("dataProviders/edp1")
     val updatedReportAsJson =
-      ReportProcessor.processReportJson(reportAsJson, amiMrcExemptedList = exemptionList)
+      ReportProcessor.processReportJson(reportAsJson, amiMrcExemptedEdps = exemptionList)
     val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
     assertThat(updatedReport.hasConsistentMeasurements(exemptionList)).isTrue()
   }
@@ -717,7 +717,7 @@ class ReportProcessorTest {
     }
 
     private fun Report.hasConsistentMeasurements(
-      amiMrcExemptedList: List<String> = emptyList()
+      amiMrcExemptedEdps: List<String> = emptyList()
     ): Boolean {
       val reportSummaries = this.toReportSummaries()
 
@@ -735,7 +735,7 @@ class ReportProcessorTest {
           !metricReportsAreConsistent(
             metricReports["ami"]!!,
             metricReports["mrc"]!!,
-            amiMrcExemptedList,
+            amiMrcExemptedEdps,
           )
         ) {
           return false
@@ -748,11 +748,11 @@ class ReportProcessorTest {
     private fun metricReportsAreConsistent(
       parent: MetricReport,
       child: MetricReport,
-      amiMrcExemptedList: List<String> = emptyList(),
+      amiMrcExemptedEdps: List<String> = emptyList(),
     ): Boolean {
       for (edpCombination in
         parent.cumulativeMeasurements.keys.intersect(child.cumulativeMeasurements.keys)) {
-        val skipCheck = edpCombination.size == 1 && edpCombination.first() in amiMrcExemptedList
+        val skipCheck = edpCombination.size == 1 && edpCombination.first() in amiMrcExemptedEdps
         if (skipCheck) continue
         if (
           !child.cumulativeMeasurements[edpCombination]!!
@@ -765,7 +765,7 @@ class ReportProcessorTest {
 
       for (edpCombination in
         parent.totalMeasurements.keys.intersect(child.totalMeasurements.keys)) {
-        val skipCheck = edpCombination.size == 1 && edpCombination.first() in amiMrcExemptedList
+        val skipCheck = edpCombination.size == 1 && edpCombination.first() in amiMrcExemptedEdps
         if (skipCheck) continue
         if (
           !fuzzyLessEqual(
@@ -779,7 +779,7 @@ class ReportProcessorTest {
       }
 
       for (edpCombination in parent.impression.keys.intersect(child.impression.keys)) {
-        val skipCheck = edpCombination.size == 1 && edpCombination.first() in amiMrcExemptedList
+        val skipCheck = edpCombination.size == 1 && edpCombination.first() in amiMrcExemptedEdps
         if (skipCheck) continue
         if (
           !fuzzyLessEqual(

@@ -5,7 +5,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 1
   dimension {
-    external_reporting_set_id: "edp1"
+    external_reporting_set_id: "reporting_set_id_edp1"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "ami"
     metric_frequency_spec { weekly: MONDAY }
@@ -178,7 +178,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 2
   dimension {
-    external_reporting_set_id: "edp1"
+    external_reporting_set_id: "reporting_set_id_edp1"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "ami"
     metric_frequency_spec { total: true }
@@ -274,7 +274,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 3
   dimension {
-    external_reporting_set_id: "edp2"
+    external_reporting_set_id: "reporting_set_id_edp2"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "ami"
     metric_frequency_spec { weekly: MONDAY }
@@ -400,7 +400,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 4
   dimension {
-    external_reporting_set_id: "edp2"
+    external_reporting_set_id: "reporting_set_id_edp2"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "ami"
     metric_frequency_spec { total: true }
@@ -475,7 +475,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 5
   dimension {
-    external_reporting_set_id: "edp3"
+    external_reporting_set_id: "reporting_set_id_edp3"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "ami"
     metric_frequency_spec { weekly: MONDAY }
@@ -600,7 +600,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 6
   dimension {
-    external_reporting_set_id: "edp3"
+    external_reporting_set_id: "reporting_set_id_edp3"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "ami"
     metric_frequency_spec { total: true }
@@ -675,7 +675,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 7
   dimension {
-    external_reporting_set_id: "edp1_edp2_edp3"
+    external_reporting_set_id: "reporting_set_id_edp1_edp2_edp3"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "ami"
     metric_frequency_spec { weekly: MONDAY }
@@ -848,7 +848,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 8
   dimension {
-    external_reporting_set_id: "edp1_edp2_edp3"
+    external_reporting_set_id: "reporting_set_id_edp1_edp2_edp3"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "ami"
     metric_frequency_spec { total: true }
@@ -944,7 +944,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 9
   dimension {
-    external_reporting_set_id: "edp1_edp2"
+    external_reporting_set_id: "reporting_set_id_edp1_edp2"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "ami"
     metric_frequency_spec { total: true }
@@ -1003,7 +1003,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 10
   dimension {
-    external_reporting_set_id: "edp1"
+    external_reporting_set_id: "reporting_set_id_edp1"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "mrc"
     metric_frequency_spec { weekly: MONDAY }
@@ -1176,7 +1176,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 11
   dimension {
-    external_reporting_set_id: "edp1"
+    external_reporting_set_id: "reporting_set_id_edp1"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "mrc"
     metric_frequency_spec { total: true }
@@ -1272,7 +1272,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 12
   dimension {
-    external_reporting_set_id: "edp2"
+    external_reporting_set_id: "reporting_set_id_edp2"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "mrc"
     metric_frequency_spec { weekly: MONDAY }
@@ -1397,7 +1397,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 13
   dimension {
-    external_reporting_set_id: "edp2"
+    external_reporting_set_id: "reporting_set_id_edp2"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "mrc"
     metric_frequency_spec { total: true }
@@ -1472,7 +1472,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 14
   dimension {
-    external_reporting_set_id: "edp3"
+    external_reporting_set_id: "reporting_set_id_edp3"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "mrc"
     metric_frequency_spec { weekly: MONDAY }
@@ -1597,7 +1597,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 15
   dimension {
-    external_reporting_set_id: "edp3"
+    external_reporting_set_id: "reporting_set_id_edp3"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "mrc"
     metric_frequency_spec { total: true }
@@ -1672,7 +1672,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 16
   dimension {
-    external_reporting_set_id: "edp1_edp2_edp3"
+    external_reporting_set_id: "reporting_set_id_edp1_edp2_edp3"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "mrc"
     metric_frequency_spec { weekly: MONDAY }
@@ -1845,7 +1845,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 17
   dimension {
-    external_reporting_set_id: "edp1_edp2_edp3"
+    external_reporting_set_id: "reporting_set_id_edp1_edp2_edp3"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "mrc"
     metric_frequency_spec { total: true }
@@ -1941,7 +1941,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 18
   dimension {
-    external_reporting_set_id: "edp1"
+    external_reporting_set_id: "reporting_set_id_edp1"
     venn_diagram_region_type: UNION
     custom: true
     metric_frequency_spec { weekly: MONDAY }
@@ -2115,7 +2115,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 19
   dimension {
-    external_reporting_set_id: "edp1"
+    external_reporting_set_id: "reporting_set_id_edp1"
     venn_diagram_region_type: UNION
     custom: true
     metric_frequency_spec { total: true }
@@ -2212,7 +2212,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 20
   dimension {
-    external_reporting_set_id: "edp2"
+    external_reporting_set_id: "reporting_set_id_edp2"
     venn_diagram_region_type: UNION
     custom: true
     metric_frequency_spec { weekly: MONDAY }
@@ -2338,7 +2338,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 21
   dimension {
-    external_reporting_set_id: "edp2"
+    external_reporting_set_id: "reporting_set_id_edp2"
     venn_diagram_region_type: UNION
     custom: true
     metric_frequency_spec { total: true }
@@ -2414,7 +2414,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 22
   dimension {
-    external_reporting_set_id: "edp3"
+    external_reporting_set_id: "reporting_set_id_edp3"
     venn_diagram_region_type: UNION
     custom: true
     metric_frequency_spec { weekly: MONDAY }
@@ -2540,7 +2540,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 23
   dimension {
-    external_reporting_set_id: "edp3"
+    external_reporting_set_id: "reporting_set_id_edp3"
     venn_diagram_region_type: UNION
     custom: true
     metric_frequency_spec { total: true }
@@ -2616,7 +2616,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 24
   dimension {
-    external_reporting_set_id: "edp1_edp2_edp3"
+    external_reporting_set_id: "reporting_set_id_edp1_edp2_edp3"
     venn_diagram_region_type: UNION
     custom: true
     metric_frequency_spec { weekly: MONDAY }
@@ -2790,7 +2790,7 @@ reporting_set_results {
   external_report_result_id: 123456
   external_reporting_set_result_id: 25
   dimension {
-    external_reporting_set_id: "edp1_edp2_edp3"
+    external_reporting_set_id: "reporting_set_id_edp1_edp2_edp3"
     venn_diagram_region_type: UNION
     custom: true
     metric_frequency_spec { total: true }
