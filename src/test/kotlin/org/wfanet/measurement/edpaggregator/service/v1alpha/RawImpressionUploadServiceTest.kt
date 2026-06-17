@@ -17,6 +17,7 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.rpc.errorInfo
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -33,15 +34,18 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.SpannerRawImpressionUploadService
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.edpaggregator.service.Errors
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
@@ -91,10 +95,23 @@ class RawImpressionUploadServiceTest {
     val uploadKey = assertNotNull(RawImpressionUploadKey.fromName(upload.name))
     assertThat(uploadKey.dataProviderId).isEqualTo(DATA_PROVIDER_ID)
     assertThat(uploadKey.rawImpressionUploadId).isNotEmpty()
-    assertThat(upload.doneBlobUri).isEqualTo(DONE_BLOB_URI)
-    assertThat(upload.state).isEqualTo(RawImpressionUpload.State.CREATED)
     assertThat(upload.createTime.toInstant()).isGreaterThan(startTime)
     assertThat(upload.updateTime).isEqualTo(upload.createTime)
+    // Verify the entire response, substituting the non-deterministic resource name and timestamps.
+    assertThat(upload)
+      .isEqualTo(
+        rawImpressionUpload {
+          name = upload.name
+          state = RawImpressionUpload.State.CREATED
+          doneBlobUri = DONE_BLOB_URI
+          createTime = upload.createTime
+          updateTime = upload.updateTime
+        }
+      )
+    // Verify the upload was persisted by reading it back.
+    val fetched =
+      service.getRawImpressionUpload(getRawImpressionUploadRequest { name = upload.name })
+    assertThat(fetched).isEqualTo(upload)
   }
 
   @Test
@@ -109,6 +126,12 @@ class RawImpressionUploadServiceTest {
     val duplicate = service.createRawImpressionUpload(request)
 
     assertThat(duplicate).isEqualTo(existing)
+    // The duplicate request must not have created a second row.
+    val response =
+      service.listRawImpressionUploads(
+        listRawImpressionUploadsRequest { parent = DATA_PROVIDER_KEY.toName() }
+      )
+    assertThat(response.rawImpressionUploadsList).hasSize(1)
   }
 
   @Test
@@ -310,6 +333,147 @@ class RawImpressionUploadServiceTest {
           .sortedBy { it.name }
       )
       .isEqualTo(sortedCreated)
+  }
+
+  @Test
+  fun `listRawImpressionUploads throws INVALID_ARGUMENT for negative page_size`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listRawImpressionUploads(
+          listRawImpressionUploadsRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            pageSize = -1
+          }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
+        }
+      )
+  }
+
+  @Test
+  fun `listRawImpressionUploads throws INVALID_ARGUMENT for invalid page_token`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listRawImpressionUploads(
+          listRawImpressionUploadsRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            // Valid base64url that does not decode to a valid page-token proto.
+            pageToken = byteArrayOf(-1, -1, -1).base64UrlEncode()
+          }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "page_token"
+        }
+      )
+  }
+
+  @Test
+  fun `listRawImpressionUploads throws INVALID_ARGUMENT for unspecified state filter`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.listRawImpressionUploads(
+            listRawImpressionUploadsRequest {
+              parent = DATA_PROVIDER_KEY.toName()
+              filter =
+                ListRawImpressionUploadsRequestKt.filter {
+                  stateIn += RawImpressionUpload.State.STATE_UNSPECIFIED
+                }
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "filter.state_in"
+          }
+        )
+    }
+
+  @Test
+  fun `listRawImpressionUploads filters by state`() = runBlocking {
+    val created =
+      service.createRawImpressionUpload(
+        createRawImpressionUploadRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+        }
+      )
+
+    val createdResponse =
+      service.listRawImpressionUploads(
+        listRawImpressionUploadsRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          filter =
+            ListRawImpressionUploadsRequestKt.filter {
+              stateIn += RawImpressionUpload.State.CREATED
+            }
+        }
+      )
+    assertThat(createdResponse)
+      .isEqualTo(listRawImpressionUploadsResponse { rawImpressionUploads += created })
+
+    val failedResponse =
+      service.listRawImpressionUploads(
+        listRawImpressionUploadsRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          filter =
+            ListRawImpressionUploadsRequestKt.filter { stateIn += RawImpressionUpload.State.FAILED }
+        }
+      )
+    assertThat(failedResponse.rawImpressionUploadsList).isEmpty()
+  }
+
+  @Test
+  fun `listRawImpressionUploads filters by create_time interval`() = runBlocking {
+    val created =
+      service.createRawImpressionUpload(
+        createRawImpressionUploadRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+        }
+      )
+
+    val pastResponse =
+      service.listRawImpressionUploads(
+        listRawImpressionUploadsRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          filter =
+            ListRawImpressionUploadsRequestKt.filter {
+              createTimeIn = interval { startTime = Instant.now().minusSeconds(3600).toProtoTime() }
+            }
+        }
+      )
+    assertThat(pastResponse)
+      .isEqualTo(listRawImpressionUploadsResponse { rawImpressionUploads += created })
+
+    val futureResponse =
+      service.listRawImpressionUploads(
+        listRawImpressionUploadsRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          filter =
+            ListRawImpressionUploadsRequestKt.filter {
+              createTimeIn = interval { startTime = Instant.now().plusSeconds(3600).toProtoTime() }
+            }
+        }
+      )
+    assertThat(futureResponse.rawImpressionUploadsList).isEmpty()
   }
 
   companion object {
