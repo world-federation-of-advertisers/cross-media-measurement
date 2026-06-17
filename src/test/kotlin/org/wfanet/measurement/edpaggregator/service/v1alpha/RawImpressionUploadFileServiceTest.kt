@@ -17,7 +17,9 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.timestamp
 import com.google.rpc.errorInfo
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -33,6 +35,7 @@ import org.junit.Test
 import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.externalIdToApiId
@@ -43,6 +46,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schema
 import org.wfanet.measurement.edpaggregator.service.Errors
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadFileKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadFileRequest
@@ -288,11 +292,287 @@ class RawImpressionUploadFileServiceTest {
     assertThat(response.rawImpressionUploadFilesList.all { it.hasDeleteTime() }).isTrue()
   }
 
+  @Test
+  fun `createRawImpressionUploadFile is idempotent with same request_id`() = runBlocking {
+    val uploadName = createUpload()
+    val requestId = UUID.randomUUID().toString()
+
+    val first =
+      fileService.createRawImpressionUploadFile(
+        createRawImpressionUploadFileRequest {
+          parent = uploadName
+          rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+          this.requestId = requestId
+        }
+      )
+    val second =
+      fileService.createRawImpressionUploadFile(
+        createRawImpressionUploadFileRequest {
+          parent = uploadName
+          rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_2 }
+          this.requestId = requestId
+        }
+      )
+
+    assertThat(second).isEqualTo(first)
+  }
+
+  @Test
+  fun `createRawImpressionUploadFile throws INVALID_ARGUMENT for malformed request_id`() =
+    runBlocking {
+      val uploadName = createUpload()
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          fileService.createRawImpressionUploadFile(
+            createRawImpressionUploadFileRequest {
+              parent = uploadName
+              rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+              requestId = "not-a-uuid"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+          }
+        )
+    }
+
+  @Test
+  fun `listRawImpressionUploadFiles paginates using page token`() = runBlocking {
+    val uploadName = createUpload()
+    val createdNames =
+      (1..3).map { i ->
+        fileService
+          .createRawImpressionUploadFile(
+            createRawImpressionUploadFileRequest {
+              parent = uploadName
+              rawImpressionUploadFile = rawImpressionUploadFile { blobUri = "gs://bucket/file-$i" }
+            }
+          )
+          .name
+      }
+
+    val firstPage =
+      fileService.listRawImpressionUploadFiles(
+        listRawImpressionUploadFilesRequest {
+          parent = uploadName
+          pageSize = 2
+        }
+      )
+    assertThat(firstPage.rawImpressionUploadFilesList).hasSize(2)
+    assertThat(firstPage.nextPageToken).isNotEmpty()
+
+    val secondPage =
+      fileService.listRawImpressionUploadFiles(
+        listRawImpressionUploadFilesRequest {
+          parent = uploadName
+          pageSize = 2
+          pageToken = firstPage.nextPageToken
+        }
+      )
+    assertThat(secondPage.rawImpressionUploadFilesList).hasSize(1)
+    assertThat(secondPage.nextPageToken).isEmpty()
+
+    val allNames =
+      (firstPage.rawImpressionUploadFilesList + secondPage.rawImpressionUploadFilesList).map {
+        it.name
+      }
+    assertThat(allNames).containsExactlyElementsIn(createdNames)
+    Unit
+  }
+
+  @Test
+  fun `listRawImpressionUploadFiles lists across all uploads with wildcard parent`() = runBlocking {
+    val uploadNameA = createUpload()
+    val uploadNameB = createUpload()
+    val fileA =
+      fileService.createRawImpressionUploadFile(
+        createRawImpressionUploadFileRequest {
+          parent = uploadNameA
+          rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+        }
+      )
+    val fileB =
+      fileService.createRawImpressionUploadFile(
+        createRawImpressionUploadFileRequest {
+          parent = uploadNameB
+          rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_2 }
+        }
+      )
+
+    val wildcardParent = RawImpressionUploadKey(DATA_PROVIDER_ID, ResourceKey.WILDCARD_ID).toName()
+    val response =
+      fileService.listRawImpressionUploadFiles(
+        listRawImpressionUploadFilesRequest { parent = wildcardParent }
+      )
+
+    assertThat(response.rawImpressionUploadFilesList.map { it.name })
+      .containsExactly(fileA.name, fileB.name)
+    Unit
+  }
+
+  @Test
+  fun `listRawImpressionUploadFiles filters by blob_uri_in`() = runBlocking {
+    val uploadName = createUpload()
+    fileService.createRawImpressionUploadFile(
+      createRawImpressionUploadFileRequest {
+        parent = uploadName
+        rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+      }
+    )
+    fileService.createRawImpressionUploadFile(
+      createRawImpressionUploadFileRequest {
+        parent = uploadName
+        rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_2 }
+      }
+    )
+
+    val response =
+      fileService.listRawImpressionUploadFiles(
+        listRawImpressionUploadFilesRequest {
+          parent = uploadName
+          filter = ListRawImpressionUploadFilesRequestKt.filter { blobUriIn += BLOB_URI_1 }
+        }
+      )
+
+    assertThat(response.rawImpressionUploadFilesList.map { it.blobUri }).containsExactly(BLOB_URI_1)
+    Unit
+  }
+
+  @Test
+  fun `listRawImpressionUploadFiles filters by create_time_in`() = runBlocking {
+    val uploadName = createUpload()
+    fileService.createRawImpressionUploadFile(
+      createRawImpressionUploadFileRequest {
+        parent = uploadName
+        rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+      }
+    )
+    fileService.createRawImpressionUploadFile(
+      createRawImpressionUploadFileRequest {
+        parent = uploadName
+        rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_2 }
+      }
+    )
+
+    val withinRange =
+      fileService.listRawImpressionUploadFiles(
+        listRawImpressionUploadFilesRequest {
+          parent = uploadName
+          filter =
+            ListRawImpressionUploadFilesRequestKt.filter {
+              createTimeIn = interval { endTime = FAR_FUTURE }
+            }
+        }
+      )
+    assertThat(withinRange.rawImpressionUploadFilesList).hasSize(2)
+
+    val afterRange =
+      fileService.listRawImpressionUploadFiles(
+        listRawImpressionUploadFilesRequest {
+          parent = uploadName
+          filter =
+            ListRawImpressionUploadFilesRequestKt.filter {
+              createTimeIn = interval { startTime = FAR_FUTURE }
+            }
+        }
+      )
+    assertThat(afterRange.rawImpressionUploadFilesList).isEmpty()
+  }
+
+  @Test
+  fun `batchCreateRawImpressionUploadFiles throws INVALID_ARGUMENT for duplicate request_id`() =
+    runBlocking {
+      val uploadName = createUpload()
+      val requestId = UUID.randomUUID().toString()
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          fileService.batchCreateRawImpressionUploadFiles(
+            batchCreateRawImpressionUploadFilesRequest {
+              parent = uploadName
+              requests += createRawImpressionUploadFileRequest {
+                parent = uploadName
+                rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+                this.requestId = requestId
+              }
+              requests += createRawImpressionUploadFileRequest {
+                parent = uploadName
+                rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_2 }
+                this.requestId = requestId
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.1.request_id"
+          }
+        )
+    }
+
+  @Test
+  fun `batchCreateRawImpressionUploadFiles throws INVALID_ARGUMENT for parent mismatch`() =
+    runBlocking {
+      val uploadName = createUpload()
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          fileService.batchCreateRawImpressionUploadFiles(
+            batchCreateRawImpressionUploadFilesRequest {
+              parent = uploadName
+              requests += createRawImpressionUploadFileRequest {
+                parent = "dataProviders/dp1/rawImpressionUploads/other"
+                rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `batchCreateRawImpressionUploadFiles throws INVALID_ARGUMENT for empty requests`() =
+    runBlocking {
+      val uploadName = createUpload()
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          fileService.batchCreateRawImpressionUploadFiles(
+            batchCreateRawImpressionUploadFilesRequest { parent = uploadName }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests"
+          }
+        )
+    }
+
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
 
     private val DATA_PROVIDER_ID = externalIdToApiId(111L)
     private const val BLOB_URI_1 = "gs://bucket/file1"
     private const val BLOB_URI_2 = "gs://bucket/file2"
+    private val FAR_FUTURE = timestamp { seconds = 4102444800L }
   }
 }
