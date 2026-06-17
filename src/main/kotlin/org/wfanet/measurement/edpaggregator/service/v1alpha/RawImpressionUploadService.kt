@@ -115,6 +115,7 @@ class RawImpressionUploadService(
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
@@ -166,6 +167,7 @@ class RawImpressionUploadService(
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
@@ -263,6 +265,7 @@ class RawImpressionUploadService(
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }

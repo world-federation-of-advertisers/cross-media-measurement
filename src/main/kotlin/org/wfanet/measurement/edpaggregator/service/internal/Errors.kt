@@ -40,6 +40,7 @@ object Errors {
     RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
     RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
     RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+    RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_ALREADY_EXISTS,
@@ -65,8 +66,8 @@ object Errors {
     REQUEST_ETAG("requestEtag"),
     ETAG("etag"),
     BATCH_RESOURCE_ID("batchResourceId"),
-    FILE_RESOURCE_ID("fileResourceId"),
     RAW_IMPRESSION_UPLOAD_RESOURCE_ID("rawImpressionUploadResourceId"),
+    FILE_RESOURCE_ID("fileResourceId"),
     FIELD_NAME("fieldName");
 
     companion object {
@@ -258,6 +259,38 @@ class RawImpressionMetadataBatchFileAlreadyExistsException(
     cause,
   )
 
+class RawImpressionUploadNotFoundException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+    "RawImpressionUpload with resource ID $rawImpressionUploadResourceId for DataProvider $dataProviderResourceId not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+    ),
+    cause,
+  )
+
+class RawImpressionUploadFileNotFoundException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  fileResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
+    "RawImpressionUploadFile with file $fileResourceId in upload $rawImpressionUploadResourceId for DataProvider $dataProviderResourceId not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+      Errors.Metadata.FILE_RESOURCE_ID to fileResourceId,
+    ),
+    cause,
+  )
+
 class RequisitionMetadataNotFoundException(
   dataProviderResourceId: String,
   requisitionMetadataResourceId: String,
@@ -384,20 +417,5 @@ class InvalidFieldValueException(
     Errors.Reason.INVALID_FIELD_VALUE,
     buildMessage(fieldName),
     mapOf(Errors.Metadata.FIELD_NAME to fieldName),
-    cause,
-  )
-
-class RawImpressionUploadNotFoundException(
-  dataProviderResourceId: String,
-  rawImpressionUploadResourceId: String,
-  cause: Throwable? = null,
-) :
-  ServiceException(
-    Errors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
-    "RawImpressionUpload with resource ID $rawImpressionUploadResourceId for DataProvider $dataProviderResourceId not found",
-    mapOf(
-      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
-      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
-    ),
     cause,
   )
