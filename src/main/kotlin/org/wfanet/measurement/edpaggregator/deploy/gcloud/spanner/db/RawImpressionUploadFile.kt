@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadFileNotFoundException
+import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -33,31 +34,63 @@ import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadFile
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFile
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadFile
 
-private const val SELECT_COLUMNS =
+/**
+ * A [RawImpressionUploadFile] read result together with the internal numeric IDs (surrogate primary
+ * keys) of the file and its parent upload.
+ */
+data class RawImpressionUploadFileResult(
+  val rawImpressionUploadFile: RawImpressionUploadFile,
+  val rawImpressionUploadId: Long,
+  val fileId: Long,
+)
+
+private const val BASE_SQL =
   """
   SELECT
-    DataProviderResourceId,
-    RawImpressionUploadId,
-    FileResourceId,
-    CreateRequestId,
-    BlobUri,
-    CreateTime,
-    UpdateTime,
-    DeleteTime,
+    RawImpressionUploadFile.DataProviderResourceId,
+    RawImpressionUploadFile.RawImpressionUploadId,
+    RawImpressionUploadFile.FileId,
+    RawImpressionUploadFile.FileResourceId,
+    RawImpressionUploadFile.CreateRequestId,
+    RawImpressionUploadFile.BlobUri,
+    RawImpressionUploadFile.CreateTime,
+    RawImpressionUploadFile.UpdateTime,
+    RawImpressionUploadFile.DeleteTime,
+    RawImpressionUpload.RawImpressionUploadResourceId,
   FROM
     RawImpressionUploadFile
+    JOIN RawImpressionUpload USING (DataProviderResourceId, RawImpressionUploadId)
   """
 
-/** Checks whether the parent [RawImpressionUpload] exists. */
-suspend fun AsyncDatabaseClient.ReadContext.rawImpressionUploadExists(
+/** Resolves the internal numeric ID of a [RawImpressionUpload] from its resource ID. */
+suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadId(
   dataProviderResourceId: String,
   rawImpressionUploadResourceId: String,
-): Boolean {
-  return readRow(
-    "RawImpressionUpload",
-    Key.of(dataProviderResourceId, rawImpressionUploadResourceId),
-    listOf("RawImpressionUploadId"),
-  ) != null
+): Long {
+  val sql: String =
+    """
+    SELECT RawImpressionUploadId
+    FROM RawImpressionUpload
+    WHERE
+      DataProviderResourceId = @dataProviderResourceId
+      AND RawImpressionUploadResourceId = @rawImpressionUploadResourceId
+    """
+      .trimIndent()
+
+  val row: Struct =
+    executeQuery(
+        statement(sql) {
+          bind("dataProviderResourceId").to(dataProviderResourceId)
+          bind("rawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
+        }
+      )
+      .singleOrNullIfEmpty()
+      ?: throw RawImpressionUploadNotFoundException(
+        dataProviderResourceId,
+        rawImpressionUploadResourceId,
+      )
+
+  return row.getLong("RawImpressionUploadId")
 }
 
 /** Reads a [RawImpressionUploadFile] by its resource IDs. */
@@ -65,14 +98,14 @@ suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadFileByResource
   dataProviderResourceId: String,
   rawImpressionUploadResourceId: String,
   fileResourceId: String,
-): RawImpressionUploadFile {
+): RawImpressionUploadFileResult {
   val sql: String =
     """
-    $SELECT_COLUMNS
+    $BASE_SQL
     WHERE
-      DataProviderResourceId = @dataProviderResourceId
-      AND RawImpressionUploadId = @rawImpressionUploadResourceId
-      AND FileResourceId = @fileResourceId
+      RawImpressionUploadFile.DataProviderResourceId = @dataProviderResourceId
+      AND RawImpressionUpload.RawImpressionUploadResourceId = @rawImpressionUploadResourceId
+      AND RawImpressionUploadFile.FileResourceId = @fileResourceId
     """
       .trimIndent()
 
@@ -91,39 +124,39 @@ suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadFileByResource
         fileResourceId,
       )
 
-  return buildRawImpressionUploadFile(row)
+  return buildRawImpressionUploadFileResult(row)
 }
 
 /** Finds existing [RawImpressionUploadFile] entries by request IDs for idempotency. */
 suspend fun AsyncDatabaseClient.ReadContext.findExistingUploadFilesByRequestIds(
   dataProviderResourceId: String,
-  rawImpressionUploadResourceId: String,
+  rawImpressionUploadId: Long,
   requestIds: List<String>,
-): Map<String, RawImpressionUploadFile> {
+): Map<String, RawImpressionUploadFileResult> {
   val nonEmptyRequestIds: List<String> = requestIds.filter { it.isNotEmpty() }
   if (nonEmptyRequestIds.isEmpty()) return emptyMap()
 
   val sql: String =
     """
-    $SELECT_COLUMNS
+    $BASE_SQL
     WHERE
-      DataProviderResourceId = @dataProviderResourceId
-      AND RawImpressionUploadId = @rawImpressionUploadResourceId
-      AND CreateRequestId IN UNNEST(@createRequestIds)
+      RawImpressionUploadFile.DataProviderResourceId = @dataProviderResourceId
+      AND RawImpressionUploadFile.RawImpressionUploadId = @rawImpressionUploadId
+      AND RawImpressionUploadFile.CreateRequestId IN UNNEST(@createRequestIds)
     """
       .trimIndent()
 
   val query: Statement =
     statement(sql) {
       bind("dataProviderResourceId").to(dataProviderResourceId)
-      bind("rawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
+      bind("rawImpressionUploadId").to(rawImpressionUploadId)
       bind("createRequestIds").toStringArray(nonEmptyRequestIds)
     }
 
   return buildMap {
     executeQuery(query, Options.tag("action=findExistingUploadFilesByRequestIds")).collect { row ->
       if (!row.isNull("CreateRequestId")) {
-        put(row.getString("CreateRequestId"), buildRawImpressionUploadFile(row))
+        put(row.getString("CreateRequestId"), buildRawImpressionUploadFileResult(row))
       }
     }
   }
@@ -134,16 +167,16 @@ suspend fun AsyncDatabaseClient.ReadContext.getUploadFilesByResourceIds(
   dataProviderResourceId: String,
   rawImpressionUploadResourceId: String,
   fileResourceIds: List<String>,
-): Map<String, RawImpressionUploadFile> {
+): Map<String, RawImpressionUploadFileResult> {
   if (fileResourceIds.isEmpty()) return emptyMap()
 
   val sql: String =
     """
-    $SELECT_COLUMNS
+    $BASE_SQL
     WHERE
-      DataProviderResourceId = @dataProviderResourceId
-      AND RawImpressionUploadId = @rawImpressionUploadResourceId
-      AND FileResourceId IN UNNEST(@fileResourceIds)
+      RawImpressionUploadFile.DataProviderResourceId = @dataProviderResourceId
+      AND RawImpressionUpload.RawImpressionUploadResourceId = @rawImpressionUploadResourceId
+      AND RawImpressionUploadFile.FileResourceId IN UNNEST(@fileResourceIds)
     """
       .trimIndent()
 
@@ -156,35 +189,37 @@ suspend fun AsyncDatabaseClient.ReadContext.getUploadFilesByResourceIds(
 
   return buildMap {
     executeQuery(query, Options.tag("action=getUploadFilesByResourceIds")).collect { row ->
-      put(row.getString("FileResourceId"), buildRawImpressionUploadFile(row))
+      put(row.getString("FileResourceId"), buildRawImpressionUploadFileResult(row))
     }
   }
 }
 
-/** Checks whether an upload file with the given resource ID exists. */
+/** Checks whether an upload file with the given numeric ID exists. */
 suspend fun AsyncDatabaseClient.ReadContext.rawImpressionUploadFileExists(
   dataProviderResourceId: String,
-  rawImpressionUploadResourceId: String,
-  fileResourceId: String,
+  rawImpressionUploadId: Long,
+  fileId: Long,
 ): Boolean {
   return readRow(
     "RawImpressionUploadFile",
-    Key.of(dataProviderResourceId, rawImpressionUploadResourceId, fileResourceId),
-    listOf("FileResourceId"),
+    Key.of(dataProviderResourceId, rawImpressionUploadId, fileId),
+    listOf("FileId"),
   ) != null
 }
 
 /** Buffers an insert mutation for a [RawImpressionUploadFile] row. */
 fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUploadFile(
+  fileId: Long,
   dataProviderResourceId: String,
-  rawImpressionUploadResourceId: String,
+  rawImpressionUploadId: Long,
   fileResourceId: String,
   blobUri: String,
   createRequestId: String,
 ) {
   bufferInsertMutation("RawImpressionUploadFile") {
     set("DataProviderResourceId").to(dataProviderResourceId)
-    set("RawImpressionUploadId").to(rawImpressionUploadResourceId)
+    set("RawImpressionUploadId").to(rawImpressionUploadId)
+    set("FileId").to(fileId)
     set("FileResourceId").to(fileResourceId)
     if (createRequestId.isNotEmpty()) {
       set("CreateRequestId").to(createRequestId)
@@ -198,20 +233,20 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUploadFile(
 /** Soft-deletes a [RawImpressionUploadFile] by setting DeleteTime. */
 fun AsyncDatabaseClient.TransactionContext.softDeleteRawImpressionUploadFile(
   dataProviderResourceId: String,
-  rawImpressionUploadResourceId: String,
-  fileResourceId: String,
+  rawImpressionUploadId: Long,
+  fileId: Long,
 ) {
   bufferUpdateMutation("RawImpressionUploadFile") {
     set("DataProviderResourceId").to(dataProviderResourceId)
-    set("RawImpressionUploadId").to(rawImpressionUploadResourceId)
-    set("FileResourceId").to(fileResourceId)
+    set("RawImpressionUploadId").to(rawImpressionUploadId)
+    set("FileId").to(fileId)
     set("DeleteTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
 }
 
 /**
- * Reads [RawImpressionUploadFile] entries ordered by CreateTime, RawImpressionUploadId and
+ * Reads [RawImpressionUploadFile] entries ordered by CreateTime, RawImpressionUploadResourceId and
  * FileResourceId.
  *
  * When [rawImpressionUploadResourceId] is empty, files across all uploads for the DataProvider are
@@ -224,31 +259,33 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploadFiles(
   limit: Int,
   showDeleted: Boolean,
   after: ListRawImpressionUploadFilesPageToken.After? = null,
-): Flow<RawImpressionUploadFile> {
+): Flow<RawImpressionUploadFileResult> {
   val sql: String = buildString {
-    appendLine(SELECT_COLUMNS.trimIndent())
+    appendLine(BASE_SQL.trimIndent())
 
     val conjuncts: MutableList<String> =
-      mutableListOf("DataProviderResourceId = @dataProviderResourceId")
+      mutableListOf("RawImpressionUploadFile.DataProviderResourceId = @dataProviderResourceId")
 
     if (rawImpressionUploadResourceId.isNotEmpty()) {
-      conjuncts.add("RawImpressionUploadId = @rawImpressionUploadResourceId")
+      conjuncts.add(
+        "RawImpressionUpload.RawImpressionUploadResourceId = @rawImpressionUploadResourceId"
+      )
     }
 
     if (!showDeleted) {
-      conjuncts.add("DeleteTime IS NULL")
+      conjuncts.add("RawImpressionUploadFile.DeleteTime IS NULL")
     }
 
     if (filter.blobUriInList.isNotEmpty()) {
-      conjuncts.add("BlobUri IN UNNEST(@blobUriIn)")
+      conjuncts.add("RawImpressionUploadFile.BlobUri IN UNNEST(@blobUriIn)")
     }
 
     if (filter.hasCreateTimeIn()) {
       if (filter.createTimeIn.hasStartTime()) {
-        conjuncts.add("CreateTime >= @createTimeStart")
+        conjuncts.add("RawImpressionUploadFile.CreateTime >= @createTimeStart")
       }
       if (filter.createTimeIn.hasEndTime()) {
-        conjuncts.add("CreateTime < @createTimeEnd")
+        conjuncts.add("RawImpressionUploadFile.CreateTime < @createTimeEnd")
       }
     }
 
@@ -256,12 +293,12 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploadFiles(
       conjuncts.add(
         """
         (
-          (CreateTime > @afterCreateTime)
-          OR (CreateTime = @afterCreateTime
-              AND RawImpressionUploadId > @afterRawImpressionUploadResourceId)
-          OR (CreateTime = @afterCreateTime
-              AND RawImpressionUploadId = @afterRawImpressionUploadResourceId
-              AND FileResourceId > @afterFileResourceId)
+          (RawImpressionUploadFile.CreateTime > @afterCreateTime)
+          OR (RawImpressionUploadFile.CreateTime = @afterCreateTime
+              AND RawImpressionUpload.RawImpressionUploadResourceId > @afterRawImpressionUploadResourceId)
+          OR (RawImpressionUploadFile.CreateTime = @afterCreateTime
+              AND RawImpressionUpload.RawImpressionUploadResourceId = @afterRawImpressionUploadResourceId
+              AND RawImpressionUploadFile.FileResourceId > @afterFileResourceId)
         )
         """
           .trimIndent()
@@ -269,7 +306,11 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploadFiles(
     }
 
     appendLine("WHERE " + conjuncts.joinToString(" AND "))
-    appendLine("ORDER BY CreateTime ASC, RawImpressionUploadId ASC, FileResourceId ASC")
+    appendLine(
+      "ORDER BY RawImpressionUploadFile.CreateTime ASC, " +
+        "RawImpressionUpload.RawImpressionUploadResourceId ASC, " +
+        "RawImpressionUploadFile.FileResourceId ASC"
+    )
     appendLine("LIMIT @limit")
   }
 
@@ -303,20 +344,24 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploadFiles(
     }
 
   return executeQuery(query, Options.tag("action=readRawImpressionUploadFiles")).map { row ->
-    buildRawImpressionUploadFile(row)
+    buildRawImpressionUploadFileResult(row)
   }
 }
 
-private fun buildRawImpressionUploadFile(struct: Struct): RawImpressionUploadFile {
-  return rawImpressionUploadFile {
-    dataProviderResourceId = struct.getString("DataProviderResourceId")
-    rawImpressionUploadResourceId = struct.getString("RawImpressionUploadId")
-    fileResourceId = struct.getString("FileResourceId")
-    blobUri = struct.getString("BlobUri")
-    createTime = struct.getTimestamp("CreateTime").toProto()
-    updateTime = struct.getTimestamp("UpdateTime").toProto()
-    if (!struct.isNull("DeleteTime")) {
-      deleteTime = struct.getTimestamp("DeleteTime").toProto()
-    }
-  }
+private fun buildRawImpressionUploadFileResult(struct: Struct): RawImpressionUploadFileResult {
+  return RawImpressionUploadFileResult(
+    rawImpressionUploadFile {
+      dataProviderResourceId = struct.getString("DataProviderResourceId")
+      rawImpressionUploadResourceId = struct.getString("RawImpressionUploadResourceId")
+      fileResourceId = struct.getString("FileResourceId")
+      blobUri = struct.getString("BlobUri")
+      createTime = struct.getTimestamp("CreateTime").toProto()
+      updateTime = struct.getTimestamp("UpdateTime").toProto()
+      if (!struct.isNull("DeleteTime")) {
+        deleteTime = struct.getTimestamp("DeleteTime").toProto()
+      }
+    },
+    struct.getLong("RawImpressionUploadId"),
+    struct.getLong("FileId"),
+  )
 }
