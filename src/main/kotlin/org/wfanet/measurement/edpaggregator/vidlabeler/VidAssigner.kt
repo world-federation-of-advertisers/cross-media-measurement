@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.protobuf.ByteString
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.wfanet.virtualpeople.common.CompiledNode
@@ -44,6 +45,11 @@ interface VidAssigner {
 
 /**
  * [VidAssigner] backed by a VirtualPeople [Labeler] built from a single compiled model.
+ *
+ * Safe to call [assign] concurrently from multiple coroutines/threads: the underlying [Labeler]
+ * holds only immutable post-construction state and mutates only the per-call builder. This
+ * invariant is load-bearing for [VidLabelingSink.processBatch], which shares one instance across
+ * concurrent batch workers per blob.
  *
  * One instance is bound to one model line's compiled model. Construct via [fromCompiledNodeBlob],
  * which parses a serialized [CompiledNode] (the `model_blob_path` payload resolved by the
@@ -73,13 +79,24 @@ class VirtualPeopleVidAssigner(private val labeler: Labeler) : VidAssigner {
  *   Aggregator VID model cache once it is available.
  */
 class VidModelLoader(private val loadAssigner: suspend (modelBlobUri: String) -> VidAssigner) {
-  private val mutex = Mutex()
-  private val assignersByModelBlobUri = mutableMapOf<String, VidAssigner>()
+  private val assignersByModelBlobUri = ConcurrentHashMap<String, VidAssigner>()
+  private val loadMutexes = ConcurrentHashMap<String, Mutex>()
 
-  /** Returns the [VidAssigner] for [modelBlobUri], loading and caching it on first use. */
-  suspend fun getAssigner(modelBlobUri: String): VidAssigner =
-    mutex.withLock {
-      assignersByModelBlobUri[modelBlobUri]
-        ?: loadAssigner(modelBlobUri).also { assignersByModelBlobUri[modelBlobUri] = it }
+  /**
+   * Returns the [VidAssigner] for [modelBlobUri], loading and caching it on first use.
+   *
+   * A per-key [Mutex] (not a single shared lock) guards the load, so concurrent first-time loads of
+   * *different* models run in parallel — only same-key loads serialize, ensuring each compiled
+   * model is read and built at most once. The load is never held under a lock shared across keys,
+   * since building a multi-MB `CompiledNode` into a [Labeler] is seconds of work.
+   */
+  suspend fun getAssigner(modelBlobUri: String): VidAssigner {
+    assignersByModelBlobUri[modelBlobUri]?.let {
+      return it
     }
+    val loadMutex = loadMutexes.computeIfAbsent(modelBlobUri) { Mutex() }
+    return loadMutex.withLock {
+      assignersByModelBlobUri.getOrPut(modelBlobUri) { loadAssigner(modelBlobUri) }
+    }
+  }
 }
