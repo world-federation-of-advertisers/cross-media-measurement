@@ -23,10 +23,12 @@ import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchServiceGrpcKt.RawImpressionMetadataBatchServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt as InternalImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchFileServiceGrpcKt as InternalRawImpressionMetadataBatchFileServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchServiceGrpcKt as InternalRawImpressionMetadataBatchServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt as InternalRawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt as InternalRequisitionMetadataServiceGrpcKt
 
 data class Services(
@@ -34,6 +36,7 @@ data class Services(
   val impressionMetadata: ImpressionMetadataServiceCoroutineImplBase,
   val rawImpressionMetadataBatch: RawImpressionMetadataBatchServiceCoroutineImplBase,
   val rawImpressionMetadataBatchFile: RawImpressionMetadataBatchFileServiceCoroutineImplBase,
+  val rawImpressionUploadModelLine: RawImpressionUploadModelLineServiceCoroutineImplBase,
 ) {
   fun toList(): List<BindableService> =
     listOf(
@@ -41,6 +44,7 @@ data class Services(
       impressionMetadata,
       rawImpressionMetadataBatch,
       rawImpressionMetadataBatchFile,
+      rawImpressionUploadModelLine,
     )
 
   companion object {
@@ -62,12 +66,16 @@ data class Services(
       val internalFileStub =
         InternalRawImpressionMetadataBatchFileServiceGrpcKt
           .RawImpressionMetadataBatchFileServiceCoroutineStub(internalApiChannel)
+      val internalModelLineStub =
+        InternalRawImpressionUploadModelLineServiceGrpcKt
+          .RawImpressionUploadModelLineServiceCoroutineStub(internalApiChannel)
 
       return Services(
         RequisitionMetadataService(internalRequisitionMetadataStub, coroutineContext),
         ImpressionMetadataService(internalImpressionMetadataStub, coroutineContext),
         RawImpressionMetadataBatchService(internalBatchStub, coroutineContext),
         RawImpressionMetadataBatchFileService(internalFileStub, coroutineContext),
+        RawImpressionUploadModelLineService(internalModelLineStub, coroutineContext),
       )
     }
   }

@@ -20,6 +20,7 @@ import io.grpc.BindableService
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchFileServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt
 
 /** Edp Aggregator internal API services. */
@@ -32,6 +33,8 @@ data class Services(
     RawImpressionMetadataBatchServiceGrpcKt.RawImpressionMetadataBatchServiceCoroutineImplBase,
   val rawImpressionMetadataBatchFile:
     RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineImplBase,
+  val rawImpressionUploadModelLine:
+    RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase,
 ) {
   fun toList(): List<BindableService> =
     listOf(
@@ -39,5 +42,6 @@ data class Services(
       impressionMetadata,
       rawImpressionMetadataBatch,
       rawImpressionMetadataBatchFile,
+      rawImpressionUploadModelLine,
     )
 }
