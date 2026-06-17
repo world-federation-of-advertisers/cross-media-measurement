@@ -82,7 +82,7 @@ class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `createRawImpressionUpload returns an upload successfully`() = runBlocking {
+  fun `createRawImpressionUpload returns an upload successfully`(): Unit = runBlocking {
     val startTime = Instant.now()
     val request = createRawImpressionUploadRequest {
       parent = DATA_PROVIDER_KEY.toName()
@@ -115,7 +115,7 @@ class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `createRawImpressionUpload with requestId is idempotent`() = runBlocking {
+  fun `createRawImpressionUpload with requestId is idempotent`(): Unit = runBlocking {
     val request = createRawImpressionUploadRequest {
       parent = DATA_PROVIDER_KEY.toName()
       rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
@@ -135,7 +135,7 @@ class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `createRawImpressionUpload throws INVALID_ARGUMENT for empty parent`() = runBlocking {
+  fun `createRawImpressionUpload throws INVALID_ARGUMENT for empty parent`(): Unit = runBlocking {
     val request = createRawImpressionUploadRequest {
       rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
       requestId = REQUEST_ID
@@ -155,28 +155,29 @@ class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `createRawImpressionUpload throws INVALID_ARGUMENT for malformed parent`() = runBlocking {
-    val request = createRawImpressionUploadRequest {
-      parent = "invalid-parent"
-      rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
-      requestId = REQUEST_ID
+  fun `createRawImpressionUpload throws INVALID_ARGUMENT for malformed parent`(): Unit =
+    runBlocking {
+      val request = createRawImpressionUploadRequest {
+        parent = "invalid-parent"
+        rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+        requestId = REQUEST_ID
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.createRawImpressionUpload(request) }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+          }
+        )
     }
 
-    val exception =
-      assertFailsWith<StatusRuntimeException> { service.createRawImpressionUpload(request) }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
-        }
-      )
-  }
-
   @Test
-  fun `createRawImpressionUpload throws INVALID_ARGUMENT for missing done_blob_uri`() =
+  fun `createRawImpressionUpload throws INVALID_ARGUMENT for missing done_blob_uri`(): Unit =
     runBlocking {
       val request = createRawImpressionUploadRequest {
         parent = DATA_PROVIDER_KEY.toName()
@@ -198,28 +199,29 @@ class RawImpressionUploadServiceTest {
     }
 
   @Test
-  fun `createRawImpressionUpload throws INVALID_ARGUMENT for malformed requestId`() = runBlocking {
-    val request = createRawImpressionUploadRequest {
-      parent = DATA_PROVIDER_KEY.toName()
-      rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
-      requestId = "invalid-request-id"
+  fun `createRawImpressionUpload throws INVALID_ARGUMENT for malformed requestId`(): Unit =
+    runBlocking {
+      val request = createRawImpressionUploadRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+        requestId = "invalid-request-id"
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.createRawImpressionUpload(request) }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+          }
+        )
     }
 
-    val exception =
-      assertFailsWith<StatusRuntimeException> { service.createRawImpressionUpload(request) }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
-        }
-      )
-  }
-
   @Test
-  fun `getRawImpressionUpload returns an upload`() = runBlocking {
+  fun `getRawImpressionUpload returns an upload`(): Unit = runBlocking {
     val created =
       service.createRawImpressionUpload(
         createRawImpressionUploadRequest {
@@ -236,7 +238,7 @@ class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `getRawImpressionUpload throws INVALID_ARGUMENT for empty name`() = runBlocking {
+  fun `getRawImpressionUpload throws INVALID_ARGUMENT for empty name`(): Unit = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         service.getRawImpressionUpload(getRawImpressionUploadRequest {})
@@ -253,7 +255,7 @@ class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `getRawImpressionUpload throws NOT_FOUND for nonexistent upload`() = runBlocking {
+  fun `getRawImpressionUpload throws NOT_FOUND for nonexistent upload`(): Unit = runBlocking {
     val request = getRawImpressionUploadRequest {
       name = "dataProviders/dp1/rawImpressionUploads/nonexistent"
     }
@@ -271,7 +273,7 @@ class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `listRawImpressionUploads returns uploads`() = runBlocking {
+  fun `listRawImpressionUploads returns uploads`(): Unit = runBlocking {
     val created =
       service.createRawImpressionUpload(
         createRawImpressionUploadRequest {
@@ -290,7 +292,7 @@ class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `listRawImpressionUploads respects page size and pagination`() = runBlocking {
+  fun `listRawImpressionUploads respects page size and pagination`(): Unit = runBlocking {
     val created1 =
       service.createRawImpressionUpload(
         createRawImpressionUploadRequest {
@@ -336,52 +338,54 @@ class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `listRawImpressionUploads throws INVALID_ARGUMENT for negative page_size`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.listRawImpressionUploads(
-          listRawImpressionUploadsRequest {
-            parent = DATA_PROVIDER_KEY.toName()
-            pageSize = -1
+  fun `listRawImpressionUploads throws INVALID_ARGUMENT for negative page_size`(): Unit =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.listRawImpressionUploads(
+            listRawImpressionUploadsRequest {
+              parent = DATA_PROVIDER_KEY.toName()
+              pageSize = -1
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
           }
         )
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
-        }
-      )
-  }
+    }
 
   @Test
-  fun `listRawImpressionUploads throws INVALID_ARGUMENT for invalid page_token`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.listRawImpressionUploads(
-          listRawImpressionUploadsRequest {
-            parent = DATA_PROVIDER_KEY.toName()
-            // Valid base64url that does not decode to a valid page-token proto.
-            pageToken = byteArrayOf(-1, -1, -1).base64UrlEncode()
+  fun `listRawImpressionUploads throws INVALID_ARGUMENT for invalid page_token`(): Unit =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.listRawImpressionUploads(
+            listRawImpressionUploadsRequest {
+              parent = DATA_PROVIDER_KEY.toName()
+              // Valid base64url that does not decode to a valid page-token proto.
+              pageToken = byteArrayOf(-1, -1, -1).base64UrlEncode()
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "page_token"
           }
         )
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "page_token"
-        }
-      )
-  }
+    }
 
   @Test
-  fun `listRawImpressionUploads throws INVALID_ARGUMENT for unspecified state filter`() =
+  fun `listRawImpressionUploads throws INVALID_ARGUMENT for unspecified state filter`(): Unit =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
@@ -407,7 +411,7 @@ class RawImpressionUploadServiceTest {
     }
 
   @Test
-  fun `listRawImpressionUploads filters by state`() = runBlocking {
+  fun `listRawImpressionUploads filters by state`(): Unit = runBlocking {
     val created =
       service.createRawImpressionUpload(
         createRawImpressionUploadRequest {
@@ -441,7 +445,7 @@ class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `listRawImpressionUploads filters by create_time interval`() = runBlocking {
+  fun `listRawImpressionUploads filters by create_time interval`(): Unit = runBlocking {
     val created =
       service.createRawImpressionUpload(
         createRawImpressionUploadRequest {
