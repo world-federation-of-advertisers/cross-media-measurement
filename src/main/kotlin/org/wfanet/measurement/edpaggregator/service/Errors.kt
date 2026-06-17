@@ -437,6 +437,11 @@ class RawImpressionMetadataBatchFileAlreadyExistsException(
   }
 }
 
+/**
+ * Thrown when a
+ * [RawImpressionUpload][org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload] cannot be
+ * found by its resource name.
+ */
 class RawImpressionUploadNotFoundException(uploadResourceName: String, cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,

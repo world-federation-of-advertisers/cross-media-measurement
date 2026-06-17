@@ -111,8 +111,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingUploadByRequestId(
           bind("createRequestId").to(requestId)
         }
       )
-      .singleOrNullIfEmpty()
-      ?: return null
+      .singleOrNullIfEmpty() ?: return null
 
   return buildRawImpressionUploadResult(row)
 }
@@ -181,7 +180,7 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploads(
       mutableListOf("DataProviderResourceId = @dataProviderResourceId")
 
     if (filter.stateInList.isNotEmpty()) {
-      conjuncts.add("CAST(State AS INT64) IN UNNEST(@state_in)")
+      conjuncts.add("CAST(State AS INT64) IN UNNEST(@stateIn)")
     }
 
     if (filter.hasCreateTimeIn()) {
@@ -210,7 +209,7 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploads(
       bind("limit").to(limit.toLong())
 
       if (filter.stateInList.isNotEmpty()) {
-        bind("state_in").toInt64Array(filter.stateInList.map { it.number.toLong() })
+        bind("stateIn").toInt64Array(filter.stateInList.map { it.number.toLong() })
       }
 
       if (filter.hasCreateTimeIn()) {
