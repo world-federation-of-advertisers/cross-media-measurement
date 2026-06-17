@@ -120,7 +120,7 @@ class RankAllocatorTest {
   @Test
   fun `loadFrom defaults last_seen to eventDay when the record predates the field`() = runBlocking {
     val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100, eventDay = EVENT_DAY)
-    // A legacy record: ranks present, last_seen_epoch_days absent.
+    // A legacy record: ranks present, last_seen_days absent.
     val legacy =
       RankIndexMap.newBuilder()
         .setPoolOffset(7L)
@@ -145,8 +145,9 @@ class RankAllocatorTest {
 
     assertThat(records.map { it.ranksCount }).containsExactly(2, 1).inOrder()
     assertThat(records.all { it.poolOffset == 7L && it.rankedSize == 100 }).isTrue()
-    // Every record carries a last_seen entry per rank entry.
-    assertThat(records.all { it.lastSeenEpochDaysCount == it.ranksCount }).isTrue()
+    // Every record carries a last_seen entry (2 bytes) per rank entry.
+    assertThat(records.all { it.lastSeenDays.size() == it.ranksCount * LastSeenDayBytes.WIDTH })
+      .isTrue()
     assertThat(decodeLastSeenByRank(records)).containsExactly(0, 11, 1, 22, 2, EVENT_DAY)
     Unit
   }
@@ -164,7 +165,7 @@ class RankAllocatorTest {
 
       val ranks = records.flatMap { it.ranksList }.toSet()
       assertThat(ranks).doesNotContain(42)
-      assertThat(records.all { it.lastSeenEpochDaysList.all { day -> day == EVENT_DAY } }).isTrue()
+      assertThat(records.all { record -> decodeLastSeen(record).all { it == EVENT_DAY } }).isTrue()
     }
 
   @Test
@@ -216,23 +217,34 @@ class RankAllocatorTest {
 
   private fun buildRecord(poolOffset: Long, rankedSize: Int, entries: List<Entry>): RankIndexMap {
     val fps = ByteArray(entries.size * 12)
+    val lastSeen = ByteArray(entries.size * LastSeenDayBytes.WIDTH)
     val builder = RankIndexMap.newBuilder().setPoolOffset(poolOffset).setRankedSize(rankedSize)
     entries.forEachIndexed { i, e ->
       EventIdDigestBytes.writeHi(fps, i * 12, e.hi)
       EventIdDigestBytes.writeLo(fps, i * 12 + 8, e.lo)
       builder.addRanks(e.rank)
-      builder.addLastSeenEpochDays(e.day)
+      LastSeenDayBytes.write(lastSeen, i * LastSeenDayBytes.WIDTH, e.day)
     }
-    return builder.setFingerprints(com.google.protobuf.ByteString.copyFrom(fps)).build()
+    return builder
+      .setFingerprints(com.google.protobuf.ByteString.copyFrom(fps))
+      .setLastSeenDays(com.google.protobuf.ByteString.copyFrom(lastSeen))
+      .build()
   }
+
+  /** Decodes a record's packed `last_seen_days` into per-entry epoch-days. */
+  private fun decodeLastSeen(record: RankIndexMap): List<Int> =
+    (0 until record.ranksCount).map {
+      LastSeenDayBytes.read(record.lastSeenDays, it * LastSeenDayBytes.WIDTH)
+    }
 
   /** Flattens `[rank0, lastSeen0, rank1, lastSeen1, …]` for order-insensitive assertion. */
   private fun decodeLastSeenByRank(records: List<RankIndexMap>): List<Int> {
     val out = mutableListOf<Int>()
     for (record in records) {
+      val lastSeen = decodeLastSeen(record)
       for (i in 0 until record.ranksCount) {
         out.add(record.getRanks(i))
-        out.add(record.getLastSeenEpochDays(i))
+        out.add(lastSeen[i])
       }
     }
     return out

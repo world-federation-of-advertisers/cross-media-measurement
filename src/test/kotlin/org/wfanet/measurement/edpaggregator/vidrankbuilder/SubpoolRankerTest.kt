@@ -120,14 +120,16 @@ class SubpoolRankerTest {
   private suspend fun seedPriorSnapshot(entries: List<Triple<Pair<Long, Int>, Int, Int>>) {
     val dek = rankStore.generateDek(kekUri)
     val key = "ranks/prior/snapshot/$POOL"
+    val lastSeenBytes = ByteArray(entries.size * LastSeenDayBytes.WIDTH)
+    entries.forEachIndexed { i, e ->
+      LastSeenDayBytes.write(lastSeenBytes, i * LastSeenDayBytes.WIDTH, e.third)
+    }
     val record = rankIndexMap {
       poolOffset = POOL
       rankedSize = 100
       fingerprints = pack(entries.map { it.first })
-      entries.forEach {
-        ranks += it.second
-        lastSeenEpochDays += it.third
-      }
+      entries.forEach { ranks += it.second }
+      lastSeenDays = ByteString.copyFrom(lastSeenBytes)
     }
     val checksum = rankStore.writeBlob(key, dek, flowOf(record))
     fake.seed(
@@ -255,7 +257,9 @@ class SubpoolRankerTest {
         for (i in 0 until record.ranksCount) {
           val hi = EventIdDigestBytes.readHi(fps, i * 12)
           val lo = EventIdDigestBytes.readLo(fps, i * 12 + 8)
-          out[hi to lo] = record.getRanks(i) to record.getLastSeenEpochDays(i)
+          out[hi to lo] =
+            record.getRanks(i) to
+              LastSeenDayBytes.read(record.lastSeenDays, i * LastSeenDayBytes.WIDTH)
         }
       }
       return out

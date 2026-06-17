@@ -8,6 +8,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.edpaggregator.vidrankbuilder.RankAllocatorTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:event_id_digest_bytes",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:last_seen_day_bytes",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:rank_allocator",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_map_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
@@ -80,6 +81,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:rank_index_store",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:subpool_fingerprints_store",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:event_id_digest_bytes",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:last_seen_day_bytes",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:subpool_ranker",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:subpool_retention",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",

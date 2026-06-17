@@ -60,6 +60,13 @@ class RankIndexStore(storageClient: StorageClient, kmsClient: KmsClient) :
    *
    * @return the SHA-256 of the plaintext payload (concatenated record bytes, in order), for the
    *   `RankIndexBlob.blob_checksum` corruption guard.
+   * 
+   * TODO(world-federation-of-advertisers/cross-media-measurement#3999): once
+   * world-federation-of-advertisers/common-jvm#389 lands, collapse the per-attempt-UUID
+   * blob keys (see [snapshotKey] / [dayOnlyKey]) to deterministic keys written via
+   * `writeBlobIfGeneration` so concurrent writers race-fail at the precondition rather
+   * than relying on the row insert as the linearization point. Mirrors the Phase-0
+   * adoption path in [SubpoolFingerprintsStore.writeBlob].
    */
   suspend fun writeBlob(
     blobKey: String,
@@ -122,6 +129,15 @@ class RankIndexStore(storageClient: StorageClient, kmsClient: KmsClient) :
      * re-delivered ranker never overwrites another attempt's bytes. The authoritative blob is
      * whichever the winning `RankIndexBlob` row points to (its `blob_uri`); readers always resolve
      * the key from that row, never by recomputing it.
+     *
+     * TODO(world-federation-of-advertisers/common-jvm#389): once `writeBlobIfGeneration` is
+     *   available through the AeadStorageClient / StreamingAeadStorageClient /
+     *   MesosRecordIoStorageClient stack, drop [attemptId] and use a deterministic key, guarding
+     *   the write with a GCS generation precondition (`expectedGen = priorBlob?.generation ?: 0L`,
+     *   read before compute). Keep the blob-first-then-row order; on a 412 (BlobChangedException)
+     *   confirm the winning row and ack rather than re-reading the generation and retrying — a
+     *   retry would clobber the winner's already-acked bytes and strand its row's DEK reference.
+     *   The same collapse applies to [SubpoolFingerprintsStore].
      */
     fun snapshotKey(
       blobPrefix: String,

@@ -158,8 +158,11 @@ class VidRankBuilder(
    * fan-out is idempotent, so re-running is safe.
    */
   private suspend fun recoverIfLastJobOut(): Result {
-    val parent = getParent()
-    if (parent == null || parent.state != RawImpressionUploadModelLine.State.RANKING) {
+    val parent =
+      requireNotNull(getParent()) {
+        "RawImpressionUploadModelLine not found for $modelLine under $rawImpressionUpload"
+      }
+    if (parent.state != RawImpressionUploadModelLine.State.RANKING) {
       logger.info("RankerJob $rankerJob already SUCCEEDED; nothing to recover (parent advanced)")
       return Result(0, lastJobOut = false)
     }
@@ -215,7 +218,10 @@ class VidRankBuilder(
   private suspend fun markParentLabeling(parent: RawImpressionUploadModelLine) {
     try {
       rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineLabeling(
-        markRawImpressionUploadModelLineLabelingRequest { name = parent.name }
+        markRawImpressionUploadModelLineLabelingRequest {
+          name = parent.name
+          etag = parent.etag
+        }
       )
     } catch (e: StatusException) {
       if (

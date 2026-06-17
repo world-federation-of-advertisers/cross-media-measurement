@@ -14,10 +14,19 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "last_seen_day_bytes",
+    srcs = ["LastSeenDayBytes.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)
+
+kt_jvm_library(
     name = "rank_allocator",
     srcs = ["RankAllocator.kt"],
     deps = [
         ":event_id_digest_bytes",
+        ":last_seen_day_bytes",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/utils:bytes12_int_map",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_map_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",

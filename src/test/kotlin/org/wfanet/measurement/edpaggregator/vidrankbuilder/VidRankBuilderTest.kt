@@ -199,6 +199,22 @@ class VidRankBuilderTest {
     }
 
   @Test
+  fun `redelivery recovery with a missing parent fails`() = runBlocking {
+    val ranker = rankerMock()
+    // Job already SUCCEEDED -> recovery path, but the parent row is absent (impossible state):
+    // it must crash loud rather than be swallowed as a benign "parent advanced" no-op.
+    val rankerJobs = rankerJobsMock(state = RankerJob.State.SUCCEEDED)
+    val modelLines =
+      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+          listRawImpressionUploadModelLinesResponse {}
+      }
+
+    assertFailsWith<IllegalArgumentException> { builder(ranker, rankerJobs, modelLines).run() }
+    Unit
+  }
+
+  @Test
   fun `a failing subpool marks the ranker job FAILED and rethrows`() = runBlocking {
     val ranker =
       mock<SubpoolRanker> {
