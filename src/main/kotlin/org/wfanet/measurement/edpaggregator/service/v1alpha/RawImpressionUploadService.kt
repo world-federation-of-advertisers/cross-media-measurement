@@ -192,6 +192,18 @@ class RawImpressionUploadService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    if (request.hasFilter()) {
+      for (state in request.filter.stateInList) {
+        if (
+          state == RawImpressionUpload.State.STATE_UNSPECIFIED ||
+            state == RawImpressionUpload.State.UNRECOGNIZED
+        ) {
+          throw InvalidFieldValueException("filter.state_in")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+      }
+    }
+
     val pageSize =
       if (request.pageSize == 0) {
         DEFAULT_PAGE_SIZE
