@@ -70,6 +70,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatcherParams
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -90,6 +91,9 @@ class VidLabelingDispatcherFunctionTest {
             .setDoneBlobUri("file:////edp/edp_name/timestamp/done")
             .build()
         }
+      // The fast-path sequencer lists uploads after registration; return none so it cleanly
+      // no-ops in this Function-wiring test (dispatch behavior is covered by the unit tests).
+      onBlocking { listRawImpressionUploads(any()) }.thenReturn(listRawImpressionUploadsResponse {})
     }
 
   private val rawImpressionUploadFileServiceMock: RawImpressionUploadFileServiceCoroutineImplBase =
@@ -106,36 +110,37 @@ class VidLabelingDispatcherFunctionTest {
     }
 
   private val modelLinesServiceMock: ModelLinesCoroutineImplBase = mockService {
-    onBlocking { listModelLines(any()) }.thenReturn(
-      listModelLinesResponse {
-        modelLines += modelLine {
-          name = MODEL_LINE
-          type = ModelLine.Type.PROD
-          activeStartTime = Timestamps.fromMillis(0)
-          activeEndTime = Timestamps.fromMillis(System.currentTimeMillis() + 86400000)
+    onBlocking { listModelLines(any()) }
+      .thenReturn(
+        listModelLinesResponse {
+          modelLines += modelLine {
+            name = MODEL_LINE
+            type = ModelLine.Type.PROD
+            activeStartTime = Timestamps.fromMillis(0)
+            activeEndTime = Timestamps.fromMillis(System.currentTimeMillis() + 86400000)
+          }
         }
-      }
-    )
+      )
   }
 
   private val modelRolloutsServiceMock: ModelRolloutsCoroutineImplBase = mockService {
-    onBlocking { listModelRollouts(any()) }.thenReturn(
-      listModelRolloutsResponse {
-        modelRollouts += modelRollout { modelRelease = MODEL_RELEASE }
-      }
-    )
+    onBlocking { listModelRollouts(any()) }
+      .thenReturn(
+        listModelRolloutsResponse { modelRollouts += modelRollout { modelRelease = MODEL_RELEASE } }
+      )
   }
 
   private val modelShardsServiceMock: ModelShardsCoroutineImplBase = mockService {
-    onBlocking { listModelShards(any()) }.thenReturn(
-      listModelShardsResponse {
-        modelShards += modelShard {
-          name = "$DATA_PROVIDER/modelShards/ms1"
-          modelRelease = MODEL_RELEASE
-          modelBlob = modelBlob { modelBlobPath = "gs://models/model.pb" }
+    onBlocking { listModelShards(any()) }
+      .thenReturn(
+        listModelShardsResponse {
+          modelShards += modelShard {
+            name = "$DATA_PROVIDER/modelShards/ms1"
+            modelRelease = MODEL_RELEASE
+            modelBlob = modelBlob { modelBlobPath = "gs://models/model.pb" }
+          }
         }
-      }
-    )
+      )
   }
 
   @get:Rule val tempFolder = TemporaryFolder()
@@ -190,6 +195,9 @@ class VidLabelingDispatcherFunctionTest {
           "MODEL_SHARDS_CERT_HOST" to "localhost",
           "RAW_IMPRESSION_UPLOAD_TARGET" to "localhost:${grpcServer.port}",
           "RAW_IMPRESSION_UPLOAD_CERT_HOST" to "localhost",
+          "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
+          "CONTROL_PLANE_CERT_HOST" to "localhost",
+          "VID_LABELER_QUEUE_NAME" to "queues/vid-labeler",
           "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
           "VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH" to tempFolder.root.path,
           "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
@@ -228,9 +236,7 @@ class VidLabelingDispatcherFunctionTest {
 
     assertThat(response.statusCode()).isEqualTo(200)
 
-    verifyBlocking(rawImpressionUploadServiceMock, times(1)) {
-      createRawImpressionUpload(any())
-    }
+    verifyBlocking(rawImpressionUploadServiceMock, times(1)) { createRawImpressionUpload(any()) }
     verifyBlocking(rawImpressionUploadFileServiceMock, times(1)) {
       batchCreateRawImpressionUploadFiles(any())
     }
@@ -321,10 +327,9 @@ class VidLabelingDispatcherFunctionTest {
       privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
       certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
     }
-    modelLineConfigs[MODEL_LINE] = modelLineConfig {
-      labelerInputFieldMapping["field1"] = "value1"
-    }
+    modelLineConfigs[MODEL_LINE] = modelLineConfig { labelerInputFieldMapping["field1"] = "value1" }
     modelSuite = MODEL_SUITE
+    numberOfShards = 2
   }
 
   companion object {

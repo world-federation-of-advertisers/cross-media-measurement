@@ -48,4 +48,11 @@ class VidLabelingDispatcherMetrics(meter: Meter = Instrumentation.meter) {
       .counterBuilder("edpa.vid_labeling_dispatcher.files_processed")
       .setDescription("Number of raw impression files processed")
       .build()
+
+  /** Counter for uploads dispatched via the post-registration fast path. */
+  val uploadsDispatchedCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.vid_labeling_dispatcher.uploads_dispatched")
+      .setDescription("Number of uploads dispatched via the fast path")
+      .build()
 }

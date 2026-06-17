@@ -46,14 +46,19 @@ import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
+import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
+import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -71,7 +76,9 @@ private data class ChannelKey(
  * Invoked when an EDP finishes uploading raw impressions and writes a "done" blob. The function
  * looks up the matching [VidLabelingConfig] for the data provider, resolves active model lines via
  * the VID Repository API, crawls the directory for raw impression files, and creates
- * `RawImpressionUpload`, `RawImpressionUploadFile`, and `RawImpressionUploadModelLine` records.
+ * `RawImpressionUpload`, `RawImpressionUploadFile`, and `RawImpressionUploadModelLine` records. It
+ * then calls the shared [VidLabelingDispatchSequencer] to aggressively start pipeline work (the
+ * "fast path") rather than waiting for the next `VidLabelingMonitorFunction` tick.
  *
  * ## Environment Variables
  * - `EDPA_CONFIG_STORAGE_BUCKET`: Required. URI prefix for the config storage bucket.
@@ -83,8 +90,13 @@ private data class ChannelKey(
  * - `MODEL_ROLLOUTS_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `MODEL_SHARDS_TARGET`: Required. Target endpoint for the VID Repository ModelShards service.
  * - `MODEL_SHARDS_CERT_HOST`: Optional. Overrides TLS authority for testing.
- * - `RAW_IMPRESSION_UPLOAD_TARGET`: Required. Target endpoint for the `RawImpressionUploadService`.
+ * - `RAW_IMPRESSION_UPLOAD_TARGET`: Required. Target endpoint for the `RawImpressionUploadService`,
+ *   `RawImpressionUploadModelLineService`, and `PoolAssignmentJobService`.
  * - `RAW_IMPRESSION_UPLOAD_CERT_HOST`: Optional. Overrides TLS authority for testing.
+ * - `CONTROL_PLANE_TARGET`: Required. Target endpoint for the Secure Computation control plane
+ *   (`WorkItemsService`).
+ * - `CONTROL_PLANE_CERT_HOST`: Optional. Overrides TLS authority for testing.
+ * - `VID_LABELER_QUEUE_NAME`: Required. Resource name of the Secure Computation queue.
  * - `CHANNEL_SHUTDOWN_DURATION_SECONDS`: Optional. gRPC channel shutdown timeout (default: 3s).
  * - `VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH`: Optional. Enables [FileSystemStorageClient] instead
  *   of GCS. Used only in testing.
@@ -185,8 +197,43 @@ class VidLabelingDispatcherFunction : HttpFunction {
         )
 
       val rawImpressionUploadModelLineStub =
-        RawImpressionUploadModelLineServiceGrpcKt
-          .RawImpressionUploadModelLineServiceCoroutineStub(rawImpressionUploadChannel)
+        RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
+          rawImpressionUploadChannel
+        )
+      val poolAssignmentJobStub =
+        PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
+          rawImpressionUploadChannel
+        )
+
+      val workItemsStub =
+        WorkItemsGrpcKt.WorkItemsCoroutineStub(
+          createInstrumentedChannel(
+            config.rawImpressionMetadataStorageConnection,
+            controlPlaneTarget,
+            controlPlaneCertHost,
+            grpcTelemetry,
+          )
+        )
+
+      require(config.numberOfShards > 0) {
+        "number_of_shards must be positive for data provider: ${config.dataProvider}"
+      }
+      val modelLineConfigs = convertModelLineConfigs(config.modelLineConfigsMap)
+
+      val dispatchSequencer =
+        VidLabelingDispatchSequencer(
+          rawImpressionUploadStub = rawImpressionUploadStub,
+          rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
+          poolAssignmentJobStub = poolAssignmentJobStub,
+          workItemsStub = workItemsStub,
+          modelRolloutsStub = modelRolloutsStub,
+          modelShardsStub = modelShardsStub,
+          dataProviderName = config.dataProvider,
+          vidLabelerParamsTemplate = buildVidLabelerParamsTemplate(config),
+          queueName = vidLabelerQueueName,
+          numberOfShards = config.numberOfShards,
+          modelLineConfigs = modelLineConfigs,
+        )
 
       val dispatcher =
         VidLabelingDispatcher(
@@ -195,12 +242,11 @@ class VidLabelingDispatcherFunction : HttpFunction {
           rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
           rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
           modelLinesStub = modelLinesStub,
-          modelRolloutsStub = modelRolloutsStub,
-          modelShardsStub = modelShardsStub,
+          dispatchSequencer = dispatchSequencer,
           dataProviderName = config.dataProvider,
           modelSuiteName = config.modelSuite,
           overrideModelLines = overrideModelLines,
-          modelLineConfigs = convertModelLineConfigs(config.modelLineConfigsMap),
+          modelLineConfigs = modelLineConfigs,
         )
 
       Tracing.withW3CTraceContext(request) {
@@ -231,6 +277,9 @@ class VidLabelingDispatcherFunction : HttpFunction {
       EnvVars.checkNotNullOrEmpty("RAW_IMPRESSION_UPLOAD_TARGET")
     private val rawImpressionUploadCertHost: String? =
       System.getenv("RAW_IMPRESSION_UPLOAD_CERT_HOST")
+    private val controlPlaneTarget: String = EnvVars.checkNotNullOrEmpty("CONTROL_PLANE_TARGET")
+    private val controlPlaneCertHost: String? = System.getenv("CONTROL_PLANE_CERT_HOST")
+    private val vidLabelerQueueName: String = EnvVars.checkNotNullOrEmpty("VID_LABELER_QUEUE_NAME")
     private val channelShutdownDuration =
       Duration.ofSeconds(
         System.getenv("CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLong()
@@ -322,6 +371,34 @@ class VidLabelingDispatcherFunction : HttpFunction {
         VidLabelerParamsKt.modelLineConfig {
           labelerInputFieldMapping.putAll(configModelLine.labelerInputFieldMappingMap)
           eventTemplateFieldMapping.putAll(configModelLine.eventTemplateFieldMappingMap)
+        }
+      }
+    }
+
+    private fun buildVidLabelerParamsTemplate(config: VidLabelingConfig): VidLabelerParams {
+      require(config.rawImpressionsStorageParams.hasGcs()) {
+        "VidLabelingConfig raw_impressions_storage_params must use GCS"
+      }
+      require(config.vidLabeledImpressionsStorageParams.hasGcs()) {
+        "VidLabelingConfig vid_labeled_impressions_storage_params must use GCS"
+      }
+
+      return vidLabelerParams {
+        dataProvider = config.dataProvider
+        vidLabeledImpressionsStorageParams =
+          VidLabelerParamsKt.storageParams {
+            gcsProjectId = config.vidLabeledImpressionsStorageParams.gcs.projectId
+            impressionsBlobPrefix =
+              "gs://${config.vidLabeledImpressionsStorageParams.gcs.bucketName}"
+          }
+        rawImpressionsStorageParams =
+          VidLabelerParamsKt.storageParams {
+            gcsProjectId = config.rawImpressionsStorageParams.gcs.projectId
+            impressionsBlobPrefix = "gs://${config.rawImpressionsStorageParams.gcs.bucketName}"
+          }
+        vidRepoConnection = transportLayerSecurityParams {
+          clientCertResourcePath = config.vidRepoConnection.certFilePath
+          clientPrivateKeyResourcePath = config.vidRepoConnection.privateKeyFilePath
         }
       }
     }

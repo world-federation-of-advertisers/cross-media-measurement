@@ -40,12 +40,12 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.atLeastOnce
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
-import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
@@ -56,11 +56,13 @@ import org.wfanet.measurement.api.v2alpha.listModelShardsResponse
 import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
@@ -69,6 +71,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
@@ -86,9 +91,12 @@ class VidLabelingDispatcherTest {
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase =
     mockService()
   private val rawImpressionUploadModelLineService:
-    RawImpressionUploadModelLineServiceGrpcKt
-      .RawImpressionUploadModelLineServiceCoroutineImplBase =
+    RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase =
     mockService()
+  private val poolAssignmentJobService:
+    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase =
+    mockService()
+  private val workItemsService: WorkItemsGrpcKt.WorkItemsCoroutineImplBase = mockService()
   private val storageClient: StorageClient = mock()
 
   @get:Rule
@@ -99,6 +107,8 @@ class VidLabelingDispatcherTest {
     addService(rawImpressionUploadService)
     addService(rawImpressionUploadFileService)
     addService(rawImpressionUploadModelLineService)
+    addService(poolAssignmentJobService)
+    addService(workItemsService)
   }
 
   private val modelLinesStub by lazy {
@@ -129,6 +139,14 @@ class VidLabelingDispatcherTest {
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
       grpcTestServerRule.channel
     )
+  }
+
+  private val poolAssignmentJobStub by lazy {
+    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  private val workItemsStub by lazy {
+    WorkItemsGrpcKt.WorkItemsCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val fixedClock: Clock = Clock.fixed(FIXED_NOW, ZoneId.of("UTC"))
@@ -163,6 +181,24 @@ class VidLabelingDispatcherTest {
     )
   }
 
+  private fun createSequencer(
+    modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig> = DEFAULT_MODEL_LINE_CONFIGS
+  ): VidLabelingDispatchSequencer {
+    return VidLabelingDispatchSequencer(
+      rawImpressionUploadStub = rawImpressionUploadStub,
+      rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
+      poolAssignmentJobStub = poolAssignmentJobStub,
+      workItemsStub = workItemsStub,
+      modelRolloutsStub = modelRolloutsStub,
+      modelShardsStub = modelShardsStub,
+      dataProviderName = DATA_PROVIDER_NAME,
+      vidLabelerParamsTemplate = vidLabelerParams {},
+      queueName = QUEUE_NAME,
+      numberOfShards = NUMBER_OF_SHARDS,
+      modelLineConfigs = modelLineConfigs,
+    )
+  }
+
   private fun createDispatcher(
     overrideModelLines: List<String> = emptyList(),
     modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig> = DEFAULT_MODEL_LINE_CONFIGS,
@@ -174,8 +210,7 @@ class VidLabelingDispatcherTest {
       rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
       modelLinesStub = modelLinesStub,
-      modelRolloutsStub = modelRolloutsStub,
-      modelShardsStub = modelShardsStub,
+      dispatchSequencer = createSequencer(modelLineConfigs),
       dataProviderName = DATA_PROVIDER_NAME,
       modelSuiteName = MODEL_SUITE_NAME,
       overrideModelLines = overrideModelLines,
@@ -203,6 +238,10 @@ class VidLabelingDispatcherTest {
       .thenReturn(batchCreateRawImpressionUploadFilesResponse {})
     whenever(rawImpressionUploadModelLineService.batchCreateRawImpressionUploadModelLines(any()))
       .thenReturn(batchCreateRawImpressionUploadModelLinesResponse {})
+    // The post-registration fast path lists uploads; default to none so dispatch is a no-op unless
+    // a test overrides this.
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse {})
   }
 
   private suspend fun stubFullResolutionChain(vararg modelLineNames: String) {
@@ -278,32 +317,33 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
-  fun `upload creates a RawImpressionUploadFile for each blob`() = runBlocking<Unit> {
-    val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet")
-    val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet")
-    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2))
-    stubRawImpressionUploadCreation()
-    stubFullResolutionChain(MODEL_LINE_1)
+  fun `upload creates a RawImpressionUploadFile for each blob`() =
+    runBlocking<Unit> {
+      val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2))
+      stubRawImpressionUploadCreation()
+      stubFullResolutionChain(MODEL_LINE_1)
 
-    val dispatcher = createDispatcher()
-    dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+      val dispatcher = createDispatcher()
+      dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
 
-    val requestCaptor = argumentCaptor<BatchCreateRawImpressionUploadFilesRequest>()
-    verifyBlocking(rawImpressionUploadFileService) {
-      batchCreateRawImpressionUploadFiles(requestCaptor.capture())
+      val requestCaptor = argumentCaptor<BatchCreateRawImpressionUploadFilesRequest>()
+      verifyBlocking(rawImpressionUploadFileService) {
+        batchCreateRawImpressionUploadFiles(requestCaptor.capture())
+      }
+      val request = requestCaptor.firstValue
+      val uploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID"
+      assertThat(request.parent).isEqualTo(uploadName)
+      assertThat(request.requestsList.map { it.parent }).containsExactly(uploadName, uploadName)
+      val bucket = SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH).bucket
+      val blobUris = request.requestsList.map { it.rawImpressionUploadFile.blobUri }
+      assertThat(blobUris)
+        .containsExactly(
+          "file:///$bucket/$FOLDER_PREFIX/file1.parquet",
+          "file:///$bucket/$FOLDER_PREFIX/file2.parquet",
+        )
     }
-    val request = requestCaptor.firstValue
-    val uploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID"
-    assertThat(request.parent).isEqualTo(uploadName)
-    assertThat(request.requestsList.map { it.parent }).containsExactly(uploadName, uploadName)
-    val bucket = SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH).bucket
-    val blobUris = request.requestsList.map { it.rawImpressionUploadFile.blobUri }
-    assertThat(blobUris)
-      .containsExactly(
-        "file:///$bucket/$FOLDER_PREFIX/file1.parquet",
-        "file:///$bucket/$FOLDER_PREFIX/file2.parquet",
-      )
-  }
 
   @Test
   fun `upload with override model lines skips ListModelLines API`() = runBlocking {
@@ -339,9 +379,7 @@ class VidLabelingDispatcherTest {
       dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
 
       verifyBlocking(rawImpressionUploadService) { createRawImpressionUpload(any()) }
-      verifyBlocking(rawImpressionUploadFileService) {
-        batchCreateRawImpressionUploadFiles(any())
-      }
+      verifyBlocking(rawImpressionUploadFileService) { batchCreateRawImpressionUploadFiles(any()) }
       verifyBlocking(rawImpressionUploadModelLineService, never()) {
         batchCreateRawImpressionUploadModelLines(any())
       }
@@ -493,6 +531,43 @@ class VidLabelingDispatcherTest {
     }
 
   @Test
+  fun `upload triggers fast-path dispatch after registration`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    stubFullResolutionChain(MODEL_LINE_1)
+
+    val dispatcher = createDispatcher()
+    dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    // The fast path delegates to the shared sequencer, which lists uploads for this DataProvider
+    // (ACTIVE then CREATED). Seeing those calls proves dispatch was triggered post-registration.
+    verifyBlocking(rawImpressionUploadService, atLeastOnce()) { listRawImpressionUploads(any()) }
+  }
+
+  @Test
+  fun `fast-path dispatch failure does not fail registration`() =
+    runBlocking<Unit> {
+      val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      stubRawImpressionUploadCreation()
+      stubFullResolutionChain(MODEL_LINE_1)
+      // Dispatch (best-effort) fails, but registration already succeeded, so upload() must not
+      // throw.
+      whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer {
+        throw StatusException(Status.UNAVAILABLE.withDescription("metadata store unavailable"))
+      }
+
+      val dispatcher = createDispatcher()
+      dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+      verifyBlocking(rawImpressionUploadService) { createRawImpressionUpload(any()) }
+      verifyBlocking(rawImpressionUploadModelLineService) {
+        batchCreateRawImpressionUploadModelLines(any())
+      }
+    }
+
+  @Test
   fun `upload emits filesProcessed counter on success`() = runBlocking {
     val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet")
@@ -565,6 +640,8 @@ class VidLabelingDispatcherTest {
     private const val DONE_BLOB_PATH = "file://$FOLDER_PREFIX/done"
     private const val RAW_IMPRESSION_UPLOAD_ID = "upload-abc123"
     private const val DONE_BLOB_GENERATION = 12345L
+    private const val NUMBER_OF_SHARDS = 2
+    private const val QUEUE_NAME = "queues/vid-labeler"
 
     private val FIXED_NOW: Instant = Instant.parse("2026-06-03T12:00:00Z")
 

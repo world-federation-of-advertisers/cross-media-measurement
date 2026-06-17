@@ -23,20 +23,16 @@ import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import java.time.Clock
 import java.util.UUID
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
-import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
-import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
-import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
-import org.wfanet.measurement.api.v2alpha.listModelShardsRequest
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
@@ -59,20 +55,21 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
 /**
- * Uploads VID labeling work items to the Secure Computation control plane.
+ * Registers VID labeling uploads in the EDP Aggregator metadata store and starts the pipeline.
  *
  * Processes "done" blob events by crawling directories for raw impression files, resolving active
  * model lines via the VID Repository API (ListModelLines -> ListModelRollouts -> ListModelShards),
- * and registering per-model-line state for downstream processing.
+ * and registering per-model-line state for downstream processing. After registration it calls the
+ * shared [VidLabelingDispatchSequencer] to aggressively start work for the upload (the "fast path")
+ * instead of waiting for the next `VidLabelingMonitor` tick.
  *
  * @param storageClient client for crawling raw impressions directory.
  * @param rawImpressionUploadStub gRPC stub for the `RawImpressionUploadService`.
  * @param rawImpressionUploadFilesStub gRPC stub for the `RawImpressionUploadFileService`.
- * @param rawImpressionUploadModelLineStub gRPC stub for the
- *   `RawImpressionUploadModelLineService`.
+ * @param rawImpressionUploadModelLineStub gRPC stub for the `RawImpressionUploadModelLineService`.
  * @param modelLinesStub gRPC stub for the VID Repository ModelLines API.
- * @param modelRolloutsStub gRPC stub for the VID Repository ModelRollouts API.
- * @param modelShardsStub gRPC stub for the VID Repository ModelShards API.
+ * @param dispatchSequencer shared sequencer that resolves model shards and starts pipeline work;
+ *   shared with `VidLabelingMonitor` so dispatch logic lives in one place.
  * @param dataProviderName resource name of the `DataProvider`.
  * @param modelSuiteName resource name of the model suite for ListModelLines.
  * @param overrideModelLines if non-empty, use these model lines instead of querying the API.
@@ -90,8 +87,7 @@ class VidLabelingDispatcher(
   private val rawImpressionUploadModelLineStub:
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub,
   private val modelLinesStub: ModelLinesGrpcKt.ModelLinesCoroutineStub,
-  private val modelRolloutsStub: ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub,
-  private val modelShardsStub: ModelShardsGrpcKt.ModelShardsCoroutineStub,
+  private val dispatchSequencer: VidLabelingDispatchSequencer,
   private val dataProviderName: String,
   private val modelSuiteName: String,
   private val overrideModelLines: List<String>,
@@ -99,18 +95,6 @@ class VidLabelingDispatcher(
   private val clock: Clock = Clock.systemUTC(),
   private val metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
 ) {
-
-  /**
-   * Resolved model line info including the model blob path from the VID Repository.
-   *
-   * @param modelLineName resource name of the model line.
-   * @param modelBlobPath path to the compiled model blob.
-   */
-  private data class ResolvedModelLine(
-    val modelLineName: String,
-    val modelBlobPath: String,
-    val memoizationEnabled: Boolean,
-  )
 
   /**
    * Uploads VID labeling work for raw impression files in the directory containing the done blob.
@@ -148,29 +132,25 @@ class VidLabelingDispatcher(
       )
 
       val rawImpressionUpload = createRawImpressionUpload(doneBlobPath, doneBlobGeneration)
-      val uploadId = rawImpressionUpload.name.substringAfterLast("/")
 
       createRawImpressionUploadFiles(rawImpressionUpload.name, blobKeys, doneBlobUri)
 
-      val resolvedModelLines = resolveModelLines()
+      val resolvedModelLineNames = resolveModelLines()
 
-      if (resolvedModelLines.isEmpty()) {
+      if (resolvedModelLineNames.isEmpty()) {
         logger.info("No active model lines resolved for $modelSuiteName")
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
       }
 
-      createRawImpressionUploadModelLines(rawImpressionUpload.name, resolvedModelLines)
-
-      // Registration complete. WorkItem and PoolAssignmentJob creation is handled by
-      // VidLabelingMonitorFunction (#3958), which checks for uploads without WorkItems,
-      // verifies no concurrent dispatch for the same (DataProvider, ModelLine), and drives
-      // work forward. This prevents cross-dispatch concurrency corruption on concurrent uploads.
+      createRawImpressionUploadModelLines(rawImpressionUpload.name, resolvedModelLineNames)
 
       logger.info(
         "Registered upload ${rawImpressionUpload.name} with ${blobKeys.size} files and " +
-          "${resolvedModelLines.size} model lines"
+          "${resolvedModelLineNames.size} model lines"
       )
+
+      dispatchFastPath(rawImpressionUpload.name)
 
       recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
     } catch (e: Exception) {
@@ -180,18 +160,45 @@ class VidLabelingDispatcher(
   }
 
   /**
-   * Resolves active model lines with their model blob paths from the VID Repository API.
+   * Aggressively starts pipeline work for this DataProvider now instead of waiting for the next
+   * `VidLabelingMonitor` tick.
+   *
+   * The shared [dispatchSequencer] enforces the per-DataProvider "at most one ACTIVE upload" guard
+   * and claims each model line via an etag CAS, so this is safe to run concurrently with the
+   * monitor. Dispatch is best-effort: a failure here must not fail an already-successful
+   * registration, because the monitor remains the backstop.
+   *
+   * @param justRegisteredUpload resource name of the upload just registered, for logging context.
+   */
+  private suspend fun dispatchFastPath(justRegisteredUpload: String) {
+    try {
+      val dispatchResult: VidLabelingDispatchSequencer.DispatchResult =
+        dispatchSequencer.dispatchNext()
+      if (dispatchResult.dispatchedUpload != null) {
+        metrics.uploadsDispatchedCounter.add(1, Attributes.of(DATA_PROVIDER_ATTR, dataProviderName))
+        logger.info("Fast-path dispatched ${dispatchResult.dispatchedUpload}")
+      }
+    } catch (e: Exception) {
+      logger.log(
+        Level.WARNING,
+        "Fast-path dispatch failed after registering $justRegisteredUpload; " +
+          "VidLabelingMonitor will retry",
+        e,
+      )
+    }
+  }
+
+  /**
+   * Resolves the active model lines whose model shard is available in the VID Repository.
    *
    * If [overrideModelLines] is non-empty, uses those directly without active window filtering. This
    * supports backfilling past data where the model line may no longer be in the active window.
+   * Model shard availability is checked via [dispatchSequencer] so the resolution logic is shared
+   * with the dispatch path.
    *
-   * Resolution chain: ListModelLines -> ListModelRollouts (to find active ModelRelease for each
-   * ModelLine) -> ListModelShards (for this DataProvider, filtered by ModelRelease) ->
-   * model_blob_path.
-   *
-   * @return list of resolved model lines with their blob paths.
+   * @return resource names of model lines that should be registered for this upload.
    */
-  private suspend fun resolveModelLines(): List<ResolvedModelLine> {
+  private suspend fun resolveModelLines(): List<String> {
     val activeModelLineNames: List<String> =
       if (overrideModelLines.isNotEmpty()) {
         // Override model lines bypass active window checks to support backfilling past data.
@@ -203,24 +210,17 @@ class VidLabelingDispatcher(
 
     if (activeModelLineNames.isEmpty()) return emptyList()
 
-    val resolved: List<ResolvedModelLine> = buildList {
+    val resolved: List<String> = buildList {
       for (modelLineName in activeModelLineNames) {
-        val shardInfo = resolveShardInfo(modelLineName)
-        if (shardInfo != null) {
-          add(
-            ResolvedModelLine(
-              modelLineName = modelLineName,
-              modelBlobPath = shardInfo.modelBlobPath,
-              memoizationEnabled = shardInfo.memoizationEnabled,
-            )
-          )
+        if (dispatchSequencer.resolveShardInfo(modelLineName) != null) {
+          add(modelLineName)
         } else {
           logger.warning("Could not resolve model shard for $modelLineName, skipping")
         }
       }
     }
 
-    logger.info("Resolved ${resolved.size} model lines with blob paths")
+    logger.info("Resolved ${resolved.size} model lines with available shards")
     return resolved
   }
 
@@ -278,108 +278,6 @@ class VidLabelingDispatcher(
       return false
     }
     return true
-  }
-
-  /**
-   * Resolved model shard info from the VID Repository.
-   *
-   * @param modelBlobPath path to the compiled model blob.
-   * @param memoizationEnabled whether this model shard requires memoized VID assignment.
-   */
-  private data class ResolvedShardInfo(
-    val modelBlobPath: String,
-    val memoizationEnabled: Boolean,
-  )
-
-  /**
-   * Resolves model shard info for a model line by traversing the ModelRollout -> ModelShard chain.
-   *
-   * @param modelLineName resource name of the model line.
-   * @return resolved shard info, or null if no active rollout or shard is found.
-   */
-  private suspend fun resolveShardInfo(modelLineName: String): ResolvedShardInfo? {
-    val modelReleaseName = resolveActiveModelRelease(modelLineName) ?: return null
-    return resolveShardInfoFromShards(modelReleaseName)
-  }
-
-  /**
-   * Finds the active `ModelRelease` for a model line via ListModelRollouts.
-   *
-   * @param modelLineName resource name of the model line.
-   * @return the model release resource name, or null if no rollout is found.
-   */
-  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  private suspend fun resolveActiveModelRelease(modelLineName: String): String? {
-    val modelRelease: String? =
-      modelRolloutsStub
-        .listResources { pageToken: String ->
-          val response =
-            try {
-              modelRolloutsStub.listModelRollouts(
-                listModelRolloutsRequest {
-                  parent = modelLineName
-                  if (pageToken.isNotEmpty()) {
-                    this.pageToken = pageToken
-                  }
-                }
-              )
-            } catch (e: StatusException) {
-              throw Exception("Error listing model rollouts for $modelLineName", e)
-            }
-          ResourceList(response.modelRolloutsList, response.nextPageToken)
-        }
-        .flattenConcat()
-        .firstOrNull { it.modelRelease.isNotEmpty() }
-        ?.modelRelease
-
-    if (modelRelease == null) {
-      logger.warning("No model rollout found for model line $modelLineName")
-    }
-    return modelRelease
-  }
-
-  /**
-   * Resolves model shard info from `ModelShard` resources for this `DataProvider` and
-   * `ModelRelease`.
-   *
-   * @param modelReleaseName resource name of the model release.
-   * @return resolved shard info, or null if no matching shard is found.
-   */
-  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  private suspend fun resolveShardInfoFromShards(modelReleaseName: String): ResolvedShardInfo? {
-    val shard =
-      modelShardsStub
-        .listResources { pageToken: String ->
-          val response =
-            try {
-              modelShardsStub.listModelShards(
-                listModelShardsRequest {
-                  parent = dataProviderName
-                  if (pageToken.isNotEmpty()) {
-                    this.pageToken = pageToken
-                  }
-                }
-              )
-            } catch (e: StatusException) {
-              throw Exception(
-                "Error listing model shards for $dataProviderName release $modelReleaseName",
-                e,
-              )
-            }
-          ResourceList(response.modelShardsList, response.nextPageToken)
-        }
-        .flattenConcat()
-        .firstOrNull { it.modelRelease == modelReleaseName && it.hasModelBlob() }
-
-    if (shard == null) {
-      logger.warning("No model shard found for release $modelReleaseName on $dataProviderName")
-      return null
-    }
-
-    return ResolvedShardInfo(
-      modelBlobPath = shard.modelBlob.modelBlobPath,
-      memoizationEnabled = shard.memoizedVidAssignmentEnabled,
-    )
   }
 
   /**
@@ -448,25 +346,23 @@ class VidLabelingDispatcher(
    * Creates a `RawImpressionUploadModelLine` for each resolved model line.
    *
    * @param uploadName resource name of the parent `RawImpressionUpload`.
-   * @param resolvedModelLines the resolved model lines to register.
+   * @param modelLineNames the resolved model line resource names to register.
    */
   private suspend fun createRawImpressionUploadModelLines(
     uploadName: String,
-    resolvedModelLines: List<ResolvedModelLine>,
+    modelLineNames: List<String>,
   ) {
-    for (chunk in resolvedModelLines.chunked(RAW_IMPRESSION_UPLOAD_MODEL_LINE_BATCH_SIZE)) {
+    for (chunk in modelLineNames.chunked(RAW_IMPRESSION_UPLOAD_MODEL_LINE_BATCH_SIZE)) {
       val request = batchCreateRawImpressionUploadModelLinesRequest {
         parent = uploadName
-        for (resolvedModelLine in chunk) {
+        for (modelLineName in chunk) {
           requests += createRawImpressionUploadModelLineRequest {
             parent = uploadName
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
-              cmmsModelLine = resolvedModelLine.modelLineName
+              cmmsModelLine = modelLineName
             }
             requestId =
-              UUID.nameUUIDFromBytes(
-                "$uploadName:${resolvedModelLine.modelLineName}".toByteArray()
-              ).toString()
+              UUID.nameUUIDFromBytes("$uploadName:$modelLineName".toByteArray()).toString()
           }
         }
       }
@@ -478,7 +374,7 @@ class VidLabelingDispatcher(
       }
     }
 
-    logger.info("Created ${resolvedModelLines.size} RawImpressionUploadModelLines for $uploadName")
+    logger.info("Created ${modelLineNames.size} RawImpressionUploadModelLines for $uploadName")
   }
 
   private fun recordUploadDuration(startTime: TimeSource.Monotonic.ValueTimeMark, status: String) {
