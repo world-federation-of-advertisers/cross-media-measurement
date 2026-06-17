@@ -58,6 +58,21 @@ _CERT_COLLECTION_FILE = flags.DEFINE_string(
     "The path to the certificate collection file for validating the server's cert.",
     required=True)
 flags.DEFINE_alias("cert-collection-file", "cert_collection_file")
+_AMI_MRC_EXEMPTED_EDPS = flags.DEFINE_list(
+    "ami_mrc_exempted_edps",
+    [],
+    "List of EDP resource names for which the consistency checks AMI >= MRC are disabled.",
+    required=False,
+)
+flags.DEFINE_alias("ami-mrc-exempted-edps", "ami_mrc_exempted_edps")
+flags.register_validator(
+    "ami_mrc_exempted_edps",
+    lambda values: all(
+        v.startswith("dataProviders/") and v.count("/") == 1 and v.split("/")[1]
+        for v in values
+    ),
+    message="--ami_mrc_exempted_edps entries must be of the form dataProviders/{id}",
+)
 
 
 def _get_secure_credentials(
@@ -143,7 +158,9 @@ def main(argv):
         ) as internal_reporting_channel:
             logging.info("Create PostProcessReportResultJob.")
             job = post_process_report_result_job.PostProcessReportResultJob(
-                internal_reporting_channel)
+                internal_reporting_channel,
+                ami_mrc_exempted_edps=_AMI_MRC_EXEMPTED_EDPS.value,
+            )
 
             logging.info("Executing PostProcessReportResultJob.")
             job.execute()

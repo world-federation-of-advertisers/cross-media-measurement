@@ -1563,6 +1563,60 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
         self.assertEqual(len(report_post_processor_result.updated_measurements),
                          278)
 
+    def test_ami_mrc_exempted_edps_skips_consistency_check(self):
+        # A report summary with AMI reach (100) < MRC reach (200), which
+        # would normally trigger a correction.
+        report_summary_textproto = """
+            cmms_measurement_consumer_id: "NsQ4CS3K1to"
+            external_report_result_id: 123
+            population: 1000
+            report_summary_set_results {
+                external_reporting_set_result_id: 1
+                impression_filter: "ami"
+                set_operation: "union"
+                data_providers: "reporting_set_id_edp1"
+                whole_campaign_result {
+                    reach {
+                        value: 100
+                        standard_deviation: 10000
+                        metric: "ami_reach"
+                    }
+                }
+            }
+            report_summary_set_results {
+                external_reporting_set_result_id: 2
+                impression_filter: "mrc"
+                set_operation: "union"
+                data_providers: "reporting_set_id_edp1"
+                whole_campaign_result {
+                    reach {
+                        value: 200
+                        standard_deviation: 0
+                        metric: "mrc_reach"
+                    }
+                }
+            }
+        """
+
+        report_summary = text_format.Parse(
+            report_summary_textproto,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        # Case 1: No exemption. AMI should be corrected to 200.
+        result_no_exemption = ReportSummaryV2Processor(report_summary, []).process()
+        self.assertEqual(result_no_exemption.updated_measurements["ami_reach"],
+                            200)
+
+        # Case 2: Exemption for edp1. AMI reach remains 100.
+        result_with_exemption = ReportSummaryV2Processor(
+            report_summary,
+            ami_mrc_exempted_reporting_set_ids=["reporting_set_id_edp1"]
+        ).process()
+        self.assertEqual(result_with_exemption.updated_measurements["ami_reach"],
+                            100)
+
+    
 
 def read_file_to_string(filename: str) -> str:
     try:
