@@ -38,6 +38,7 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
@@ -107,6 +108,39 @@ class VidLabelingSinkTest {
       assertThat(impressions).hasSize(2)
       assertThat(impressions.map { it.vid }.toSet()).containsExactly(VID)
       assertThat(impressions.map { it.eventGroupReferenceId }.toSet()).containsExactly("eg1")
+
+      // Each impression carries its source row's entity keys verbatim (idBytes 1 and 2 survive).
+      assertThat(impressions.map { it.entityKeysList.toSet() })
+        .containsExactly(
+          setOf(
+            LabeledImpressionKt.entityKey {
+              entityType = "household"
+              entityId = "hh-1"
+            },
+            LabeledImpressionKt.entityKey {
+              entityType = "person"
+              entityId = "p-shared"
+            },
+          ),
+          setOf(
+            LabeledImpressionKt.entityKey {
+              entityType = "household"
+              entityId = "hh-2"
+            },
+            LabeledImpressionKt.entityKey {
+              entityType = "person"
+              entityId = "p-shared"
+            },
+          ),
+        )
+
+      // BlobDetails.entity_keys is the deduplicated union grouped by entity_type: one group per
+      // type, household ids unioned, and the shared person id collapsed to a single entry.
+      assertThat(blobDetails.entityKeysList.map { it.entityType })
+        .containsExactly("household", "person")
+      val unionByType = blobDetails.entityKeysList.associate { it.entityType to it.entityIdsList }
+      assertThat(unionByType.getValue("household")).containsExactly("hh-1", "hh-2")
+      assertThat(unionByType.getValue("person")).containsExactly("p-shared")
     }
 
   @Test
@@ -140,7 +174,11 @@ class VidLabelingSinkTest {
     return BlobDetails.parseFrom(metadataFile.readBytes())
   }
 
-  /** Projects the test rows: reads event time + event group from fixed columns. */
+  /**
+   * Projects the test rows: reads event time + event group from fixed columns, and tags each
+   * impression with a per-row `household` key plus a shared `person` key (so the per-blob union
+   * exercises both multi-type grouping and cross-impression deduplication).
+   */
   private class FakeImpressionConverter : ImpressionConverter {
     override fun convert(
       event: ParquetDigestedEvent,
@@ -151,7 +189,17 @@ class VidLabelingSinkTest {
         eventTimeMicros = event.row.getValue(EVENT_TIME_COLUMN).int64Value,
         eventGroupReferenceId = event.row.getValue(EVENT_GROUP_COLUMN).stringValue,
         event = Any.getDefaultInstance(),
-        entityKeys = emptyList(),
+        entityKeys =
+          listOf(
+            LabeledImpressionKt.entityKey {
+              entityType = "household"
+              entityId = "hh-${event.digest.high}"
+            },
+            LabeledImpressionKt.entityKey {
+              entityType = "person"
+              entityId = "p-shared"
+            },
+          ),
       )
   }
 
