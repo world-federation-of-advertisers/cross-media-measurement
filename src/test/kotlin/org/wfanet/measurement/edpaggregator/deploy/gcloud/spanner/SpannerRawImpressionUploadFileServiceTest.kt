@@ -18,6 +18,7 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.runBlocking
 import org.junit.ClassRule
 import org.junit.Rule
@@ -44,25 +45,22 @@ class SpannerRawImpressionUploadFileServiceTest : RawImpressionUploadFileService
   }
 
   override suspend fun createUpload(dataProviderResourceId: String): String {
-    val uploadResourceId: String = UUID.randomUUID().toString()
-    spannerDatabase.databaseClient.readWriteTransaction().run { txn ->
-      txn.bufferInsertMutation("RawImpressionUpload") {
-        set("DataProviderResourceId").to(dataProviderResourceId)
-        set("RawImpressionUploadId").to(uploadResourceId)
-        set("DoneBlobUri").to("gs://bucket/done")
-        set("State").to(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED)
-        set("CreateTime").to(Value.COMMIT_TIMESTAMP)
-        set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
-      }
-    }
-    return uploadResourceId
+    val rawImpressionUploadId: Long = idCounter.incrementAndGet()
+    val rawImpressionUploadResourceId: String = UUID.randomUUID().toString()
+    insertUpload(dataProviderResourceId, rawImpressionUploadId, rawImpressionUploadResourceId)
+    return rawImpressionUploadResourceId
   }
 
-  private suspend fun insertUpload(dataProviderResourceId: String, uploadResourceId: String) {
+  private suspend fun insertUpload(
+    dataProviderResourceId: String,
+    rawImpressionUploadId: Long,
+    rawImpressionUploadResourceId: String,
+  ) {
     spannerDatabase.databaseClient.readWriteTransaction().run { txn ->
       txn.bufferInsertMutation("RawImpressionUpload") {
         set("DataProviderResourceId").to(dataProviderResourceId)
-        set("RawImpressionUploadId").to(uploadResourceId)
+        set("RawImpressionUploadId").to(rawImpressionUploadId)
+        set("RawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
         set("DoneBlobUri").to("gs://bucket/done")
         set("State").to(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED)
         set("CreateTime").to(Value.COMMIT_TIMESTAMP)
@@ -77,7 +75,8 @@ class SpannerRawImpressionUploadFileServiceTest : RawImpressionUploadFileService
    */
   private suspend fun insertFile(
     dataProviderResourceId: String,
-    uploadResourceId: String,
+    rawImpressionUploadId: Long,
+    fileId: Long,
     fileResourceId: String,
     blobUri: String,
     createTime: Timestamp,
@@ -86,7 +85,8 @@ class SpannerRawImpressionUploadFileServiceTest : RawImpressionUploadFileService
     spannerDatabase.databaseClient.readWriteTransaction().run { txn ->
       txn.bufferInsertMutation("RawImpressionUploadFile") {
         set("DataProviderResourceId").to(dataProviderResourceId)
-        set("RawImpressionUploadId").to(uploadResourceId)
+        set("RawImpressionUploadId").to(rawImpressionUploadId)
+        set("FileId").to(fileId)
         set("FileResourceId").to(fileResourceId)
         set("BlobUri").to(blobUri)
         set("CreateTime").to(createTime)
@@ -132,12 +132,13 @@ class SpannerRawImpressionUploadFileServiceTest : RawImpressionUploadFileService
     runBlocking {
       val service = SpannerRawImpressionUploadFileService(spannerDatabase.databaseClient)
       val tie: Timestamp = Timestamp.ofTimeSecondsAndNanos(1_600_000_000L, 0)
-      insertUpload(DATA_PROVIDER_A, "upload-a")
-      insertUpload(DATA_PROVIDER_B, "upload-b")
-      insertFile(DATA_PROVIDER_A, "upload-a", "file-a1", "gs://a/1", tie)
-      insertFile(DATA_PROVIDER_A, "upload-a", "file-a2", "gs://a/2", tie)
-      // Same CreateTime tie, different DataProvider and an upload id that sorts after "upload-a".
-      insertFile(DATA_PROVIDER_B, "upload-b", "file-b1", "gs://b/1", tie)
+      insertUpload(DATA_PROVIDER_A, 1L, "upload-a")
+      insertUpload(DATA_PROVIDER_B, 2L, "upload-b")
+      insertFile(DATA_PROVIDER_A, 1L, 11L, "file-a1", "gs://a/1", tie)
+      insertFile(DATA_PROVIDER_A, 1L, 12L, "file-a2", "gs://a/2", tie)
+      // Same CreateTime tie, different DataProvider, and an upload resource id sorting after
+      // "upload-a" so the buggy keyset OR-branch would surface it.
+      insertFile(DATA_PROVIDER_B, 2L, 21L, "file-b1", "gs://b/1", tie)
 
       val collected = listAllFileResourceIds(service, DATA_PROVIDER_A, "upload-a")
 
@@ -150,10 +151,10 @@ class SpannerRawImpressionUploadFileServiceTest : RawImpressionUploadFileService
     runBlocking {
       val service = SpannerRawImpressionUploadFileService(spannerDatabase.databaseClient)
       val tie: Timestamp = Timestamp.ofTimeSecondsAndNanos(1_600_000_100L, 0)
-      insertUpload(DATA_PROVIDER_A, "upload-a")
-      insertFile(DATA_PROVIDER_A, "upload-a", "file-a1", "gs://a/1", tie)
-      insertFile(DATA_PROVIDER_A, "upload-a", "file-a2", "gs://a/2", tie, deleted = true)
-      insertFile(DATA_PROVIDER_A, "upload-a", "file-a3", "gs://a/3", tie)
+      insertUpload(DATA_PROVIDER_A, 1L, "upload-a")
+      insertFile(DATA_PROVIDER_A, 1L, 11L, "file-a1", "gs://a/1", tie)
+      insertFile(DATA_PROVIDER_A, 1L, 12L, "file-a2", "gs://a/2", tie, deleted = true)
+      insertFile(DATA_PROVIDER_A, 1L, 13L, "file-a3", "gs://a/3", tie)
 
       val collected = listAllFileResourceIds(service, DATA_PROVIDER_A, "upload-a")
 
@@ -167,5 +168,6 @@ class SpannerRawImpressionUploadFileServiceTest : RawImpressionUploadFileService
     private const val DATA_PROVIDER_A = "data-provider-a"
     private const val DATA_PROVIDER_B = "data-provider-b"
     private const val MAX_PAGES = 10
+    private val idCounter = AtomicLong(1000L)
   }
 }
