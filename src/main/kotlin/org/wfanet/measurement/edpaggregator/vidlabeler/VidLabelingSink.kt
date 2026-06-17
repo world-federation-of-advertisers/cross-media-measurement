@@ -20,12 +20,12 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.timestamp
 import com.google.type.interval
 import java.security.MessageDigest
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
@@ -35,8 +35,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
@@ -48,10 +48,11 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  *
  * One instance is minted per input blob by [VidLabeler]. [processBatch] is called concurrently by
  * the reader's CPU pool, so labeling happens in parallel and the labeled records are accumulated
- * under a [Mutex]; [commit] then writes one encrypted output blob per `(model line, event group)`,
- * each with its own DEK. Output blob keys are derived deterministically from the input blob URI so
- * a retried input file overwrites its previous output rather than duplicating it (the reader's
- * per-blob guarantee requires idempotent output naming).
+ * into a thread-safe [ConcurrentHashMap] (per-key atomic, so concurrent batches contend only on the
+ * same output group); [commit] then writes one encrypted output blob per `(model line, event
+ * group)`, each with its own DEK. Output blob keys are derived deterministically from the input
+ * blob URI so a retried input file overwrites its previous output rather than duplicating it (the
+ * reader's per-blob guarantee requires idempotent output naming).
  *
  * @param inputBlobUri URI of the raw-impression file this sink consumes.
  * @param modelLineContexts model lines to label with, each with its [ActiveWindow] and
@@ -72,12 +73,11 @@ class VidLabelingSink(
   private val storageConfig: StorageConfig,
 ) : RawImpressionSource.BlobSink {
 
-  private val mutex = Mutex()
-  private val labeledByGroup = mutableMapOf<OutputGroupKey, MutableList<LabeledImpression>>()
+  private val labeledByGroup = ConcurrentHashMap<OutputGroupKey, MutableList<LabeledImpression>>()
 
   override suspend fun processBatch(events: List<ParquetDigestedEvent>) {
-    // Label outside the lock (CPU work, and the canonical Labeler is stateless), then accumulate
-    // under the lock since processBatch is invoked concurrently for this blob.
+    // Label first (CPU work, and the canonical Labeler is stateless), then accumulate into the
+    // concurrent map, since processBatch is invoked concurrently for this blob.
     val produced = ArrayList<Pair<OutputGroupKey, LabeledImpression>>()
     for (digestedEvent in events) {
       for (context in modelLineContexts) {
@@ -103,11 +103,13 @@ class VidLabelingSink(
       }
     }
 
-    if (produced.isEmpty()) return
-    mutex.withLock {
-      for ((key, impression) in produced) {
-        labeledByGroup.getOrPut(key) { mutableListOf() }.add(impression)
-      }
+    for ((key, impression) in produced) {
+      // computeIfAbsent is atomic per key, so concurrent processBatch calls accumulating into
+      // different groups never block each other; only same-group adds serialize on the inner
+      // synchronized list.
+      labeledByGroup
+        .computeIfAbsent(key) { Collections.synchronizedList(mutableListOf()) }
+        .add(impression)
     }
   }
 
