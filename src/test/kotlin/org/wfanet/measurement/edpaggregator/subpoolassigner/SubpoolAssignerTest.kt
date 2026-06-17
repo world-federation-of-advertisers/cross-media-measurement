@@ -481,5 +481,7 @@ class SubpoolAssignerTest {
 
   private object FakePoolEmitLabeler : PoolEmitLabeler {
     override fun emit(input: LabelerInput): List<Long> = emptyList()
+
+    override fun rankedSize(poolOffset: Long): Int = 1000
   }
 }
