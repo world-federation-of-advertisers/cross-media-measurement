@@ -187,6 +187,10 @@ class VidLabelingSink(
 
     val metadataKey = "$blobKey.metadata.binpb"
     val metadataUri = "${outputStorageParams.impressionsBlobPrefix}/$metadataKey"
+    // TODO(world-federation-of-advertisers/cross-media-measurement#3999): Add ifGenerationMatch
+    // (write-if-absent) to prevent overwrite races on Pub/Sub redelivery. Same exposure as the
+    // labeled-impressions write above: the metadata key is deterministic, so concurrent VMs
+    // labeling the same input file would race here too.
     SelectedStorageClient(
         SelectedStorageClient.parseBlobUri(metadataUri),
         storageConfig.rootDirectory,
