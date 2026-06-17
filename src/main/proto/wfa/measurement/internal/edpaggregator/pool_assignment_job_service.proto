@@ -166,14 +166,17 @@ message MarkPoolAssignmentJobSucceededRequest {
   // A request ID provided by the client to ensure idempotency.
   string request_id = 5;
 
-  // DEK that encrypts this shard's SubpoolFingerprints blobs; persisted on the job.
+  // DEK that encrypts this shard's SubpoolFingerprints blobs; persisted on the
+  // job.
   wfa.measurement.securecomputation.impressions.EncryptedDek encrypted_dek = 6;
 
-  // Subpool offsets discovered by this shard during Phase 0; unioned across shards by the service.
+  // Subpool offsets discovered by this shard during Phase 0; unioned across
+  // shards by the service.
   repeated int64 pool_offsets = 7;
 
-  // Latest event date (UTC) among the impressions this shard wrote; reduced to a maximum across
-  // shards by the service. Unset for a shard that wrote no impressions.
+  // Latest event date (UTC) among the impressions this shard wrote; reduced to
+  // a maximum across shards by the service. Unset for a shard that wrote no
+  // impressions.
   google.type.Date max_event_date = 8;
 }
 
@@ -188,12 +191,15 @@ message MarkPoolAssignmentJobSucceededResponse {
   // Phase 1.
   LastShardResult last_shard_result = 2;
 
-  // Result of the last shard completing.
+  // Result of the last shard completing. Present only when the
+  // last-shard mark resulted in non-empty cross-shard work; omitted
+  // if no shard wrote impressions.
   message LastShardResult {
     // The pool offsets discovered during Phase 0.
     repeated int64 pool_offsets = 1;
 
-    // The maximum event date (UTC) across all shards. Unset only if no shard wrote any impression.
+    // The maximum event date (UTC) across all shards. Always set on the
+    // last-shard result.
     google.type.Date max_event_date = 2;
   }
 }
