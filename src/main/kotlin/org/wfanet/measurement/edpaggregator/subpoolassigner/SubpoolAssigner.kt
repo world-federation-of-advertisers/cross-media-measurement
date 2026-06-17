@@ -152,10 +152,11 @@ class SubpoolAssigner(
     // 2. Generate this shard's DEK and stream each subpool to its own RecordIO blob, freeing the
     // subpool's in-memory map as soon as its blob is durable.
     // TODO(world-federation-of-advertisers/cross-media-measurement#3999): once
-    //   SubpoolFingerprintsStore.writeBlob enforces ifGenerationMatch=0, handle the lost-race 412
-    //   here — Get the job, assert SUCCEEDED, and return a `lostToRace` Result (ack the message)
-    //   without marking SUCCEEDED or running the merge. Until then the write is unconditional and a
-    //   concurrent duplicate WorkItem could clobber this shard's ciphertext.
+    //   SubpoolFingerprintsStore.writeBlob enforces the write-if-absent precondition (depends on
+    //   world-federation-of-advertisers/common-jvm#389), handle the lost-race 412 here — Get the
+    //   job, assert SUCCEEDED, and return a `lostToRace` Result (ack the message) without marking
+    //   SUCCEEDED or running the merge. Until then the write is unconditional and a concurrent
+    //   duplicate WorkItem could clobber this shard's ciphertext.
     val dek: EncryptedDek = store.generateDek(kekUri)
     val subpoolIds = accumulator.subpoolIds().toList()
     for (subpoolId in subpoolIds) {
@@ -183,6 +184,9 @@ class SubpoolAssigner(
         markPoolAssignmentJobSucceededRequest {
           name = poolAssignmentJob
           etag = job.etag
+          // AIP-155 retry-idempotency key: a Pub/Sub redelivery reuses the same request_id so the
+          // server returns the cached LastShardResult instead of hitting the etag-mismatch path.
+          requestId = deterministicUuid("$poolAssignmentJob|succeeded")
           encryptedDek = dek
           poolOffsets += subpoolIds
           sink.maxTimestampUsec?.let { maxEventDate = usecToUtcDate(it) }
@@ -388,16 +392,25 @@ class SubpoolAssigner(
   private suspend fun markParentRanking(parent: RawImpressionUploadModelLine) {
     if (parent.state != RawImpressionUploadModelLine.State.POOL_ASSIGNING) return
     try {
+      // Pass the parent's etag for AIP-154 optimistic locking: the POOL_ASSIGNING -> RANKING flip
+      // only lands if the row hasn't changed since getParent() read it, so a concurrent runner that
+      // already advanced (or otherwise mutated) the parent loses the CAS with ABORTED rather than
+      // racing on the state guard alone.
       rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineRanking(
-        markRawImpressionUploadModelLineRankingRequest { name = parent.name }
+        markRawImpressionUploadModelLineRankingRequest {
+          name = parent.name
+          etag = parent.etag
+        }
       )
     } catch (e: StatusException) {
-      // Swallow only the benign "already advanced" races: the parent.state read at getParent() time
-      // is stale, so a concurrent runner that already flipped this row surfaces as
-      // FAILED_PRECONDITION/ABORTED and re-doing the flip is unnecessary. Any other error (e.g.
-      // UNAVAILABLE) is transient and must propagate so the message nacks and the idempotent
-      // last-shard-out is retried — otherwise the POOL_ASSIGNING -> RANKING flip (the completion
-      // marker that recovery gates on) is silently lost when the message is acked.
+      // Swallow only the benign "already advanced" races: the parent read at getParent() time is
+      // stale, so a concurrent runner that already flipped this row (or bumped its etag) surfaces
+      // as
+      // FAILED_PRECONDITION/ABORTED (the latter is the etag-mismatch code) and re-doing the flip is
+      // unnecessary. Any other error (e.g. UNAVAILABLE) is transient and must propagate so the
+      // message nacks and the idempotent last-shard-out is retried — otherwise the POOL_ASSIGNING
+      // ->
+      // RANKING flip (the completion marker that recovery gates on) is silently lost on ack.
       if (
         e.status.code != Status.Code.FAILED_PRECONDITION && e.status.code != Status.Code.ABORTED
       ) {
@@ -500,11 +513,17 @@ class SubpoolAssigner(
   /**
    * Deterministic UUID4 idempotency key for the `RankerJob` covering [poolOffsets], stable across
    * redeliveries of the same (upload, model line, offsets) so the server reuses an existing row
-   * rather than duplicating. Derived from an MD5 digest of the seed with the RFC-4122 version (4)
-   * and variant bits forced, so it satisfies the field's `format = UUID4`.
+   * rather than duplicating.
    */
-  private fun rankerJobRequestId(poolOffsets: List<Long>): String {
-    val seed = "$rawImpressionUpload|$modelLine|${poolOffsets.sorted().joinToString(",")}"
+  private fun rankerJobRequestId(poolOffsets: List<Long>): String =
+    deterministicUuid("$rawImpressionUpload|$modelLine|${poolOffsets.sorted().joinToString(",")}")
+
+  /**
+   * Derives a deterministic UUID4 from [seed], stable across redeliveries, for use as an AIP-155
+   * `request_id`. Computed from an MD5 digest of the seed with the RFC-4122 version (4) and variant
+   * bits forced, so it satisfies a field's `format = UUID4`.
+   */
+  private fun deterministicUuid(seed: String): String {
     val bytes = MessageDigest.getInstance("MD5").digest(seed.toByteArray(Charsets.UTF_8))
     bytes[6] = ((bytes[6].toInt() and 0x0f) or 0x40).toByte() // version 4
     bytes[8] = ((bytes[8].toInt() and 0x3f) or 0x80).toByte() // variant 10xx

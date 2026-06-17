@@ -85,11 +85,14 @@ class SubpoolFingerprintsStore(
    *   `ifGenerationMatch=0` (write-if-absent) precondition so a `WorkItem` delivered to two VMs
    *   (Pub/Sub at-least-once) can't last-writer-wins clobber each other's ciphertext — the etag CAS
    *   on `MarkPoolAssignmentJobSucceeded` only guards the row, after the bytes are already on GCS.
-   *   This needs a write-if-absent primitive on the underlying stack (`GcsStorageClient`
-   *   `BlobWriteOption.doesNotExist()`, forwarded through the AEAD/KMS and
-   *   `MesosRecordIoStorageClient` wrappers) in common-jvm; once it exists, surface the `412` so
-   *   [SubpoolAssigner] can take the lost-race path. Not yet available — written unconditionally
-   *   for now.
+   *   The write-if-absent primitive lands in world-federation-of-advertisers/common-jvm#389
+   *   (`writeBlobIfGeneration` / `writeBlobIfAbsent` on `ConditionalOperationStorageClient`,
+   *   forwarded end-to-end through the `AeadStorageClient` / `StreamingAeadStorageClient` /
+   *   `MesosRecordIoStorageClient` wrappers). Once it merges and the common-jvm override is bumped,
+   *   collapse the per-attempt-UUID blob keys to deterministic keys written via a read-gen-at-start
+   *     + write-with-precondition call, and surface the `412` (without retrying on it) so
+   *       [SubpoolAssigner] can take the lost-race path. Not yet available — written
+   *       unconditionally for now.
    */
   suspend fun writeBlob(
     blobKey: String,
