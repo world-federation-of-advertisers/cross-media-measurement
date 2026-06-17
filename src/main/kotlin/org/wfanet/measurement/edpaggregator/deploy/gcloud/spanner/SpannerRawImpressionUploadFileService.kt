@@ -99,7 +99,11 @@ class SpannerRawImpressionUploadFileService(
             )
           }
           val existingByRequestId: Map<String, RawImpressionUploadFile> =
-            txn.findExistingUploadFilesByRequestIds(file.dataProviderResourceId, listOf(requestId))
+            txn.findExistingUploadFilesByRequestIds(
+              file.dataProviderResourceId,
+              file.rawImpressionUploadResourceId,
+              listOf(requestId),
+            )
           if (existingByRequestId.containsKey(requestId)) {
             return@run existingByRequestId.getValue(requestId)
           }
@@ -209,6 +213,7 @@ class SpannerRawImpressionUploadFileService(
           val existingByRequestId: Map<String, RawImpressionUploadFile> =
             txn.findExistingUploadFilesByRequestIds(
               request.dataProviderResourceId,
+              request.rawImpressionUploadResourceId,
               request.requestsList.map { it.requestId },
             )
           request.requestsList.map { subRequest ->

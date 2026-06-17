@@ -88,14 +88,7 @@ class RawImpressionUploadFileService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    if (request.requestId.isNotEmpty()) {
-      try {
-        UUID.fromString(request.requestId)
-      } catch (e: IllegalArgumentException) {
-        throw InvalidFieldValueException("request_id", e)
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-    }
+    validateRequestId(request.requestId, "request_id")
 
     val internalResponse: InternalRawImpressionUploadFile =
       try {
@@ -110,7 +103,31 @@ class RawImpressionUploadFileService(
           }
         )
       } catch (e: StatusException) {
-        throw mapCreateError(e, request.parent)
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND ->
+            RawImpressionUploadNotFoundException(request.parent, e)
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
+          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
       }
 
     return internalResponse.toPublic()
@@ -128,6 +145,11 @@ class RawImpressionUploadFileService(
       RawImpressionUploadKey.fromName(request.parent)
         ?: throw InvalidFieldValueException("parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    if (request.requestsList.isEmpty()) {
+      throw RequiredFieldNotSetException("requests")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
     val requestIdSet = mutableSetOf<String>()
 
@@ -153,12 +175,7 @@ class RawImpressionUploadFileService(
 
         val requestId = childRequest.requestId
         if (requestId.isNotEmpty()) {
-          try {
-            UUID.fromString(requestId)
-          } catch (e: IllegalArgumentException) {
-            throw InvalidFieldValueException("requests.$index.request_id", e)
-              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-          }
+          validateRequestId(requestId, "requests.$index.request_id")
           if (!requestIdSet.add(requestId)) {
             throw InvalidFieldValueException("requests.$index.request_id") {
                 "request Id $requestId is duplicate in the batch of requests"
@@ -187,7 +204,31 @@ class RawImpressionUploadFileService(
           }
         )
       } catch (e: StatusException) {
-        throw mapCreateError(e, request.parent)
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND ->
+            RawImpressionUploadNotFoundException(request.parent, e)
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
+          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
       }
 
     return batchCreateRawImpressionUploadFilesResponse {
@@ -219,7 +260,31 @@ class RawImpressionUploadFileService(
           }
         )
       } catch (e: StatusException) {
-        throw mapFileNotFoundError(e, request.name)
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND ->
+            RawImpressionUploadFileNotFoundException(request.name, e)
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
+          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
       }
 
     return internalResponse.toPublic()
@@ -293,7 +358,29 @@ class RawImpressionUploadFileService(
           }
         )
       } catch (e: StatusException) {
-        throw mapListError(e)
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
+          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
       }
 
     return listRawImpressionUploadFilesResponse {
@@ -328,7 +415,31 @@ class RawImpressionUploadFileService(
           }
         )
       } catch (e: StatusException) {
-        throw mapFileNotFoundError(e, request.name)
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND ->
+            RawImpressionUploadFileNotFoundException(request.name, e)
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
+          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
       }
 
     return internalResponse.toPublic()
@@ -402,7 +513,26 @@ class RawImpressionUploadFileService(
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND ->
             RawImpressionUploadFileNotFoundException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          else -> Status.INTERNAL.withCause(e).asRuntimeException()
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
+          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
 
@@ -412,26 +542,14 @@ class RawImpressionUploadFileService(
     }
   }
 
-  private fun mapCreateError(e: StatusException, parent: String): Throwable {
-    return when (InternalErrors.getReason(e)) {
-      InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND ->
-        RawImpressionUploadNotFoundException(parent, e)
-          .asStatusRuntimeException(Status.Code.NOT_FOUND)
-      else -> Status.INTERNAL.withCause(e).asRuntimeException()
+  private fun validateRequestId(requestId: String, fieldName: String) {
+    if (requestId.isEmpty()) return
+    try {
+      UUID.fromString(requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException(fieldName, e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-  }
-
-  private fun mapFileNotFoundError(e: StatusException, name: String): Throwable {
-    return when (InternalErrors.getReason(e)) {
-      InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND ->
-        RawImpressionUploadFileNotFoundException(name, e)
-          .asStatusRuntimeException(Status.Code.NOT_FOUND)
-      else -> Status.INTERNAL.withCause(e).asRuntimeException()
-    }
-  }
-
-  private fun mapListError(e: StatusException): Throwable {
-    return Status.INTERNAL.withCause(e).asRuntimeException()
   }
 
   companion object {

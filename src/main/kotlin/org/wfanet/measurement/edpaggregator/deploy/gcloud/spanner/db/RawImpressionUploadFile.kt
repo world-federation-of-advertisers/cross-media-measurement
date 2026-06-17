@@ -97,6 +97,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadFileByResource
 /** Finds existing [RawImpressionUploadFile] entries by request IDs for idempotency. */
 suspend fun AsyncDatabaseClient.ReadContext.findExistingUploadFilesByRequestIds(
   dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
   requestIds: List<String>,
 ): Map<String, RawImpressionUploadFile> {
   val nonEmptyRequestIds: List<String> = requestIds.filter { it.isNotEmpty() }
@@ -107,6 +108,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingUploadFilesByRequestIds(
     $SELECT_COLUMNS
     WHERE
       DataProviderResourceId = @dataProviderResourceId
+      AND RawImpressionUploadId = @rawImpressionUploadResourceId
       AND CreateRequestId IN UNNEST(@createRequestIds)
     """
       .trimIndent()
@@ -114,6 +116,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingUploadFilesByRequestIds(
   val query: Statement =
     statement(sql) {
       bind("dataProviderResourceId").to(dataProviderResourceId)
+      bind("rawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
       bind("createRequestIds").toStringArray(nonEmptyRequestIds)
     }
 
@@ -252,12 +255,14 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploadFiles(
     if (after != null) {
       conjuncts.add(
         """
-        (CreateTime > @afterCreateTime)
-        OR (CreateTime = @afterCreateTime
-            AND RawImpressionUploadId > @afterRawImpressionUploadResourceId)
-        OR (CreateTime = @afterCreateTime
-            AND RawImpressionUploadId = @afterRawImpressionUploadResourceId
-            AND FileResourceId > @afterFileResourceId)
+        (
+          (CreateTime > @afterCreateTime)
+          OR (CreateTime = @afterCreateTime
+              AND RawImpressionUploadId > @afterRawImpressionUploadResourceId)
+          OR (CreateTime = @afterCreateTime
+              AND RawImpressionUploadId = @afterRawImpressionUploadResourceId
+              AND FileResourceId > @afterFileResourceId)
+        )
         """
           .trimIndent()
       )
