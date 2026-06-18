@@ -74,9 +74,12 @@ message CreateRawImpressionUploadFileRequest {
 
   // A request ID provided by the client to ensure idempotency.
   //
-  // This field must be a UUID4 (RFC 4122) string.
+  // This field is REQUIRED to guarantee at-least-once safety: the server uses it
+  // to deduplicate retries (for example, after a response is lost on the wire),
+  // so a single logical file is never created twice. It must be a UUID4
+  // (RFC 4122) string.
   string request_id = 3 [
-    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = REQUIRED,
     (google.api.field_info).format = UUID4
   ];
 }
