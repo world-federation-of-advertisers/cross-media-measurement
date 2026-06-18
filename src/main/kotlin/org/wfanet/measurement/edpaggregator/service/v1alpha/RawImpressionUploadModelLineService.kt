@@ -125,9 +125,10 @@ class RawImpressionUploadModelLineService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.ETAG_MISMATCH ->
+            Status.ABORTED.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
@@ -156,6 +157,19 @@ class RawImpressionUploadModelLineService(
     if (request.requestsList.isEmpty()) {
       throw RequiredFieldNotSetException("requests")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    request.requestsList.forEachIndexed { index, createRequest ->
+      if (createRequest.parent.isNotEmpty() && createRequest.parent != request.parent) {
+        throw InvalidFieldValueException("requests.$index.parent")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (createRequest.rawImpressionUploadModelLine.cmmsModelLine.isEmpty()) {
+        throw RequiredFieldNotSetException(
+            "requests.$index.raw_impression_upload_model_line.cmms_model_line"
+          )
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
     }
 
     val internalResponse =
@@ -196,9 +210,10 @@ class RawImpressionUploadModelLineService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.ETAG_MISMATCH ->
+            Status.ABORTED.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
@@ -233,7 +248,7 @@ class RawImpressionUploadModelLineService(
           internalGetRequest {
             dataProviderResourceId = modelLineKey.dataProviderId
             rawImpressionUploadResourceId = modelLineKey.rawImpressionUploadId
-            cmmsModelLine = modelLineKey.rawImpressionUploadModelLineId
+            rawImpressionUploadModelLineResourceId = modelLineKey.rawImpressionUploadModelLineId
           }
         )
       } catch (e: StatusException) {
@@ -253,9 +268,10 @@ class RawImpressionUploadModelLineService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.ETAG_MISMATCH ->
+            Status.ABORTED.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
@@ -310,7 +326,9 @@ class RawImpressionUploadModelLineService(
         internalModelLineStub.listRawImpressionUploadModelLines(
           internalListRequest {
             dataProviderResourceId = uploadKey.dataProviderId
-            rawImpressionUploadResourceId = uploadKey.rawImpressionUploadId
+            rawImpressionUploadResourceId =
+              if (uploadKey.rawImpressionUploadId == WILDCARD_ID) ""
+              else uploadKey.rawImpressionUploadId
             this.pageSize = pageSize
             if (internalPageToken != null) {
               pageToken = internalPageToken
@@ -350,9 +368,10 @@ class RawImpressionUploadModelLineService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.ETAG_MISMATCH ->
+            Status.ABORTED.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
@@ -384,13 +403,18 @@ class RawImpressionUploadModelLineService(
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
+    if (request.etag.isEmpty()) {
+      throw RequiredFieldNotSetException("etag")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val internalResponse: InternalRawImpressionUploadModelLine =
       try {
         internalModelLineStub.markRawImpressionUploadModelLinePoolAssigning(
           internalMarkPoolAssigningRequest {
             dataProviderResourceId = modelLineKey.dataProviderId
             rawImpressionUploadResourceId = modelLineKey.rawImpressionUploadId
-            cmmsModelLine = modelLineKey.rawImpressionUploadModelLineId
+            rawImpressionUploadModelLineResourceId = modelLineKey.rawImpressionUploadModelLineId
+            etag = request.etag
           }
         )
       } catch (e: StatusException) {
@@ -410,9 +434,10 @@ class RawImpressionUploadModelLineService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.ETAG_MISMATCH ->
+            Status.ABORTED.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
@@ -438,13 +463,18 @@ class RawImpressionUploadModelLineService(
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
+    if (request.etag.isEmpty()) {
+      throw RequiredFieldNotSetException("etag")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val internalResponse: InternalRawImpressionUploadModelLine =
       try {
         internalModelLineStub.markRawImpressionUploadModelLineRanking(
           internalMarkRankingRequest {
             dataProviderResourceId = modelLineKey.dataProviderId
             rawImpressionUploadResourceId = modelLineKey.rawImpressionUploadId
-            cmmsModelLine = modelLineKey.rawImpressionUploadModelLineId
+            rawImpressionUploadModelLineResourceId = modelLineKey.rawImpressionUploadModelLineId
+            etag = request.etag
           }
         )
       } catch (e: StatusException) {
@@ -464,9 +494,10 @@ class RawImpressionUploadModelLineService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.ETAG_MISMATCH ->
+            Status.ABORTED.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
@@ -492,13 +523,18 @@ class RawImpressionUploadModelLineService(
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
+    if (request.etag.isEmpty()) {
+      throw RequiredFieldNotSetException("etag")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val internalResponse: InternalRawImpressionUploadModelLine =
       try {
         internalModelLineStub.markRawImpressionUploadModelLineLabeling(
           internalMarkLabelingRequest {
             dataProviderResourceId = modelLineKey.dataProviderId
             rawImpressionUploadResourceId = modelLineKey.rawImpressionUploadId
-            cmmsModelLine = modelLineKey.rawImpressionUploadModelLineId
+            rawImpressionUploadModelLineResourceId = modelLineKey.rawImpressionUploadModelLineId
+            etag = request.etag
           }
         )
       } catch (e: StatusException) {
@@ -518,9 +554,10 @@ class RawImpressionUploadModelLineService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.ETAG_MISMATCH ->
+            Status.ABORTED.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
@@ -546,13 +583,18 @@ class RawImpressionUploadModelLineService(
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
+    if (request.etag.isEmpty()) {
+      throw RequiredFieldNotSetException("etag")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val internalResponse: InternalRawImpressionUploadModelLine =
       try {
         internalModelLineStub.markRawImpressionUploadModelLineCompleted(
           internalMarkCompletedRequest {
             dataProviderResourceId = modelLineKey.dataProviderId
             rawImpressionUploadResourceId = modelLineKey.rawImpressionUploadId
-            cmmsModelLine = modelLineKey.rawImpressionUploadModelLineId
+            rawImpressionUploadModelLineResourceId = modelLineKey.rawImpressionUploadModelLineId
+            etag = request.etag
           }
         )
       } catch (e: StatusException) {
@@ -572,9 +614,10 @@ class RawImpressionUploadModelLineService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.ETAG_MISMATCH ->
+            Status.ABORTED.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
@@ -600,13 +643,18 @@ class RawImpressionUploadModelLineService(
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
+    if (request.etag.isEmpty()) {
+      throw RequiredFieldNotSetException("etag")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val internalResponse: InternalRawImpressionUploadModelLine =
       try {
         internalModelLineStub.markRawImpressionUploadModelLineFailed(
           internalMarkFailedRequest {
             dataProviderResourceId = modelLineKey.dataProviderId
             rawImpressionUploadResourceId = modelLineKey.rawImpressionUploadId
-            cmmsModelLine = modelLineKey.rawImpressionUploadModelLineId
+            rawImpressionUploadModelLineResourceId = modelLineKey.rawImpressionUploadModelLineId
+            etag = request.etag
             errorMessage = request.errorMessage
           }
         )
@@ -627,9 +675,10 @@ class RawImpressionUploadModelLineService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.ETAG_MISMATCH ->
+            Status.ABORTED.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
@@ -643,6 +692,7 @@ class RawImpressionUploadModelLineService(
   }
 
   companion object {
+    private const val WILDCARD_ID = "-"
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 100
   }
@@ -656,13 +706,14 @@ fun InternalRawImpressionUploadModelLine.toPublic(): RawImpressionUploadModelLin
       RawImpressionUploadModelLineKey(
         source.dataProviderResourceId,
         source.rawImpressionUploadResourceId,
-        source.cmmsModelLine,
+        source.rawImpressionUploadModelLineResourceId,
       )
         .toName()
     state = source.state.toPublic()
     cmmsModelLine = source.cmmsModelLine
     createTime = source.createTime
     updateTime = source.updateTime
+    etag = source.etag
     if (source.errorMessage.isNotEmpty()) {
       errorMessage = source.errorMessage
     }
