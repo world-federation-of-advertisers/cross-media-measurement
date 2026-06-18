@@ -6,7 +6,7 @@ from collections import defaultdict
 issues_data = json.loads(os.environ["JSON"])
 
 print("-------------------")
-print("Total created issues")
+print("Total issues")
 print("-------------------")
 print(len(issues_data))
 
@@ -23,7 +23,7 @@ for issue in issues_data:
 
 print()
 print("-------------------")
-print("Issues created")
+print("Detailed summary")
 print("-------------------")
 for issue_type,issues_state_data in sorted(issues_state_by_issue_type.items()):
   print(f"{issue_type}: {sum(issues_state_data.values())}")

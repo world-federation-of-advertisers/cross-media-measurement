@@ -57,4 +57,25 @@ jobs:
       - name: Compute created issues stats
         env:
           JSON: ${{ steps.fetch-created-issues.outputs.json }}
-        run: python .github/workflows/scripts/repo-stats/process_issues_created.py
+        run: python .github/workflows/scripts/repo-stats/process_issues.py
+
+
+      - name: Fetch closed issues
+        id: fetch-closed-issues
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # DO_NOT_SUBMIT: use parameters
+          bash .github/workflows/scripts/repo-stats/fetch_issues_data.sh \
+            "closed" \
+            "2026-05-01" \
+            "2026-05-31" \
+            | tee raw.json | jq .
+          cat raw.json | jq .data.rateLimit
+          echo "json=$(cat raw.json | jq .data.search.nodes.[] -c | jq . -sc)" | tee -a $GITHUB_OUTPUT
+
+      - name: Compute closed issues stats
+        env:
+          JSON: ${{ steps.fetch-closed-issues.outputs.json }}
+        run: python .github/workflows/scripts/repo-stats/process_issues.py
