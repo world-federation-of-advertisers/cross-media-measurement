@@ -411,6 +411,31 @@ class RawImpressionUploadServiceTest {
     }
 
   @Test
+  fun `listRawImpressionUploads throws INVALID_ARGUMENT for unrecognized state filter`(): Unit =
+    runBlocking {
+      // An enum number outside the known State values deserializes to UNRECOGNIZED on the server,
+      // which must be rejected the same way as STATE_UNSPECIFIED. The DSL cannot add UNRECOGNIZED
+      // directly (it has no enum number), so inject the unknown value via the builder.
+      val request =
+        listRawImpressionUploadsRequest { parent = DATA_PROVIDER_KEY.toName() }
+          .toBuilder()
+          .apply { filterBuilder.addStateInValue(UNRECOGNIZED_STATE_VALUE) }
+          .build()
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.listRawImpressionUploads(request) }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "filter.state_in"
+          }
+        )
+    }
+
+  @Test
   fun `listRawImpressionUploads filters by state`(): Unit = runBlocking {
     val created =
       service.createRawImpressionUpload(
@@ -487,5 +512,7 @@ class RawImpressionUploadServiceTest {
     private val DATA_PROVIDER_KEY = DataProviderKey(DATA_PROVIDER_ID)
     private val REQUEST_ID = UUID.randomUUID().toString()
     private const val DONE_BLOB_URI = "gs://test-bucket/2026-06-16/done"
+    // An enum number that is not part of RawImpressionUpload.State, forcing UNRECOGNIZED.
+    private const val UNRECOGNIZED_STATE_VALUE = 999
   }
 }
