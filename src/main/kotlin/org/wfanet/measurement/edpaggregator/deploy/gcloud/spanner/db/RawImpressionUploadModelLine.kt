@@ -94,7 +94,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadId(
 suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadModelLineByResourceIds(
   dataProviderResourceId: String,
   rawImpressionUploadResourceId: String,
-  cmmsModelLine: String,
+  rawImpressionUploadModelLineResourceId: String,
 ): RawImpressionUploadModelLineResult? {
   val sql = buildString {
     appendLine(RawImpressionUploadModelLineEntity.BASE_SQL)
@@ -103,7 +103,8 @@ suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadModelLineByRes
       JOIN RawImpressionUpload USING (DataProviderResourceId, RawImpressionUploadId)
       WHERE RawImpressionUploadModelLine.DataProviderResourceId = @dataProviderResourceId
         AND RawImpressionUpload.RawImpressionUploadResourceId = @rawImpressionUploadResourceId
-        AND RawImpressionUploadModelLine.CmmsModelLine = @cmmsModelLine
+        AND RawImpressionUploadModelLine.RawImpressionUploadModelLineResourceId =
+          @rawImpressionUploadModelLineResourceId
       """
         .trimIndent()
     )
@@ -114,7 +115,8 @@ suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadModelLineByRes
         statement(sql) {
           bind("dataProviderResourceId").to(dataProviderResourceId)
           bind("rawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
-          bind("cmmsModelLine").to(cmmsModelLine)
+          bind("rawImpressionUploadModelLineResourceId")
+            .to(rawImpressionUploadModelLineResourceId)
         }
       )
       .singleOrNullIfEmpty() ?: return null
@@ -127,6 +129,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadModelLineByRes
  */
 suspend fun AsyncDatabaseClient.ReadContext.findRawImpressionUploadModelLineByRequestId(
   dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
   requestId: String,
 ): RawImpressionUploadModelLineResult? {
   if (requestId.isEmpty()) return null
@@ -137,6 +140,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findRawImpressionUploadModelLineByRe
       """
       JOIN RawImpressionUpload USING (DataProviderResourceId, RawImpressionUploadId)
       WHERE RawImpressionUploadModelLine.DataProviderResourceId = @dataProviderResourceId
+        AND RawImpressionUpload.RawImpressionUploadResourceId = @rawImpressionUploadResourceId
         AND RawImpressionUploadModelLine.CreateRequestId = @createRequestId
       """
         .trimIndent()
@@ -147,6 +151,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findRawImpressionUploadModelLineByRe
     executeQuery(
         statement(sql) {
           bind("dataProviderResourceId").to(dataProviderResourceId)
+          bind("rawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
           bind("createRequestId").to(requestId)
         }
       )
@@ -196,7 +201,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findRawImpressionUploadModelLinesByR
 /** Reads [RawImpressionUploadModelLine] entries with filtering and pagination. */
 fun AsyncDatabaseClient.ReadContext.readRawImpressionUploadModelLines(
   dataProviderResourceId: String,
-  rawImpressionUploadResourceId: String,
+  rawImpressionUploadResourceId: String?,
   filter: ListRawImpressionUploadModelLinesRequest.Filter?,
   limit: Int,
   after: ListRawImpressionUploadModelLinesPageToken.After? = null,
@@ -207,8 +212,11 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploadModelLines(
 
     val conjuncts = mutableListOf(
       "RawImpressionUploadModelLine.DataProviderResourceId = @dataProviderResourceId",
-      "RawImpressionUpload.RawImpressionUploadResourceId = @rawImpressionUploadResourceId",
     )
+
+    if (rawImpressionUploadResourceId != null) {
+      conjuncts.add("RawImpressionUpload.RawImpressionUploadResourceId = @rawImpressionUploadResourceId")
+    }
 
     if (filter != null) {
       if (filter.stateInList.isNotEmpty()) {
@@ -229,19 +237,25 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploadModelLines(
 
     if (after != null) {
       conjuncts.add(
-        "(RawImpressionUploadModelLine.CreateTime > @afterCreateTime OR (RawImpressionUploadModelLine.CreateTime = @afterCreateTime AND RawImpressionUploadModelLine.CmmsModelLine > @afterCmmsModelLine))"
+        "(RawImpressionUploadModelLine.CreateTime > @afterCreateTime OR (RawImpressionUploadModelLine.CreateTime = @afterCreateTime AND RawImpressionUploadModelLine.CmmsModelLine > @afterCmmsModelLine) OR (RawImpressionUploadModelLine.CreateTime = @afterCreateTime AND RawImpressionUploadModelLine.CmmsModelLine = @afterCmmsModelLine AND RawImpressionUpload.RawImpressionUploadResourceId > @afterRawImpressionUploadResourceId))"
       )
     }
 
     appendLine("WHERE " + conjuncts.joinToString(" AND "))
-    appendLine("ORDER BY RawImpressionUploadModelLine.CreateTime ASC, RawImpressionUploadModelLine.CmmsModelLine ASC")
+    appendLine(
+      "ORDER BY RawImpressionUploadModelLine.CreateTime ASC, " +
+        "RawImpressionUploadModelLine.CmmsModelLine ASC, " +
+        "RawImpressionUpload.RawImpressionUploadResourceId ASC"
+    )
     appendLine("LIMIT @limit")
   }
 
   val query =
     statement(sql) {
       bind("dataProviderResourceId").to(dataProviderResourceId)
-      bind("rawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
+      if (rawImpressionUploadResourceId != null) {
+        bind("rawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
+      }
       bind("limit").to(limit.toLong())
 
       if (filter != null) {
@@ -264,6 +278,7 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploadModelLines(
       if (after != null) {
         bind("afterCreateTime").to(after.createTime.toGcloudTimestamp())
         bind("afterCmmsModelLine").to(after.cmmsModelLine)
+        bind("afterRawImpressionUploadResourceId").to(after.rawImpressionUploadResourceId)
       }
     }
 
@@ -346,6 +361,8 @@ private object RawImpressionUploadModelLineEntity {
       rawImpressionUploadModelLine {
         dataProviderResourceId = struct.getString("DataProviderResourceId")
         rawImpressionUploadResourceId = struct.getString("RawImpressionUploadResourceId")
+        rawImpressionUploadModelLineResourceId =
+          struct.getString("RawImpressionUploadModelLineResourceId")
         cmmsModelLine = struct.getString("CmmsModelLine")
         state = struct.getProtoEnum("State", State::forNumber)
         createTime = struct.getTimestamp("CreateTime").toProto()

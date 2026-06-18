@@ -282,7 +282,7 @@ class RawImpressionUploadModelLineServiceTest {
     }
 
   @Test
-  fun `batchCreateRawImpressionUploadModelLines returns model lines successfully`() = runBlocking {
+  fun `batchCreateRawImpressionUploadModelLines returns model lines successfully`() = runBlocking<Unit> {
     createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
     val request = batchCreateRawImpressionUploadModelLinesRequest {
       parent = UPLOAD_KEY.toName()
@@ -414,7 +414,7 @@ class RawImpressionUploadModelLineServiceTest {
     }
 
   @Test
-  fun `listRawImpressionUploadModelLines returns model lines`() = runBlocking {
+  fun `listRawImpressionUploadModelLines returns model lines`() = runBlocking<Unit> {
     createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
     val created =
       service.createRawImpressionUploadModelLine(
@@ -433,6 +433,41 @@ class RawImpressionUploadModelLineServiceTest {
 
     assertThat(response.rawImpressionUploadModelLinesList).containsExactly(created)
   }
+
+  @Test
+  fun `listRawImpressionUploadModelLines supports wildcard parent across uploads`() =
+    runBlocking<Unit> {
+      createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+      createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID_2)
+      val created1 =
+        service.createRawImpressionUploadModelLine(
+          createRawImpressionUploadModelLineRequest {
+            parent = UPLOAD_KEY.toName()
+            rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+              cmmsModelLine = CMMS_MODEL_LINE
+            }
+          }
+        )
+      val created2 =
+        service.createRawImpressionUploadModelLine(
+          createRawImpressionUploadModelLineRequest {
+            parent = UPLOAD_KEY_2.toName()
+            rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+              cmmsModelLine = CMMS_MODEL_LINE
+            }
+          }
+        )
+
+      val response =
+        service.listRawImpressionUploadModelLines(
+          listRawImpressionUploadModelLinesRequest {
+            parent = RawImpressionUploadKey(DATA_PROVIDER_ID, "-").toName()
+          }
+        )
+
+      assertThat(response.rawImpressionUploadModelLinesList)
+        .containsExactly(created1, created2)
+    }
 
   @Test
   fun `listRawImpressionUploadModelLines respects page size and pagination`() = runBlocking {
@@ -587,7 +622,10 @@ class RawImpressionUploadModelLineServiceTest {
 
     val poolAssigning =
       service.markRawImpressionUploadModelLinePoolAssigning(
-        markRawImpressionUploadModelLinePoolAssigningRequest { name = created.name }
+        markRawImpressionUploadModelLinePoolAssigningRequest {
+          name = created.name
+          etag = created.etag
+        }
       )
 
     assertThat(poolAssigning.state)
@@ -649,13 +687,20 @@ class RawImpressionUploadModelLineServiceTest {
           }
         }
       )
-    service.markRawImpressionUploadModelLinePoolAssigning(
-      markRawImpressionUploadModelLinePoolAssigningRequest { name = created.name }
-    )
+    val poolAssigning =
+      service.markRawImpressionUploadModelLinePoolAssigning(
+        markRawImpressionUploadModelLinePoolAssigningRequest {
+          name = created.name
+          etag = created.etag
+        }
+      )
 
     val ranking =
       service.markRawImpressionUploadModelLineRanking(
-        markRawImpressionUploadModelLineRankingRequest { name = created.name }
+        markRawImpressionUploadModelLineRankingRequest {
+          name = created.name
+          etag = poolAssigning.etag
+        }
       )
 
     assertThat(ranking.state).isEqualTo(RawImpressionUploadModelLine.State.RANKING)
@@ -686,16 +731,27 @@ class RawImpressionUploadModelLineServiceTest {
           }
         }
       )
-    service.markRawImpressionUploadModelLinePoolAssigning(
-      markRawImpressionUploadModelLinePoolAssigningRequest { name = created.name }
-    )
-    service.markRawImpressionUploadModelLineRanking(
-      markRawImpressionUploadModelLineRankingRequest { name = created.name }
-    )
+    val poolAssigning =
+      service.markRawImpressionUploadModelLinePoolAssigning(
+        markRawImpressionUploadModelLinePoolAssigningRequest {
+          name = created.name
+          etag = created.etag
+        }
+      )
+    val ranking =
+      service.markRawImpressionUploadModelLineRanking(
+        markRawImpressionUploadModelLineRankingRequest {
+          name = created.name
+          etag = poolAssigning.etag
+        }
+      )
 
     val labeling =
       service.markRawImpressionUploadModelLineLabeling(
-        markRawImpressionUploadModelLineLabelingRequest { name = created.name }
+        markRawImpressionUploadModelLineLabelingRequest {
+          name = created.name
+          etag = ranking.etag
+        }
       )
 
     assertThat(labeling.state).isEqualTo(RawImpressionUploadModelLine.State.LABELING)
@@ -726,19 +782,34 @@ class RawImpressionUploadModelLineServiceTest {
           }
         }
       )
-    service.markRawImpressionUploadModelLinePoolAssigning(
-      markRawImpressionUploadModelLinePoolAssigningRequest { name = created.name }
-    )
-    service.markRawImpressionUploadModelLineRanking(
-      markRawImpressionUploadModelLineRankingRequest { name = created.name }
-    )
-    service.markRawImpressionUploadModelLineLabeling(
-      markRawImpressionUploadModelLineLabelingRequest { name = created.name }
-    )
+    val poolAssigning =
+      service.markRawImpressionUploadModelLinePoolAssigning(
+        markRawImpressionUploadModelLinePoolAssigningRequest {
+          name = created.name
+          etag = created.etag
+        }
+      )
+    val ranking =
+      service.markRawImpressionUploadModelLineRanking(
+        markRawImpressionUploadModelLineRankingRequest {
+          name = created.name
+          etag = poolAssigning.etag
+        }
+      )
+    val labeling =
+      service.markRawImpressionUploadModelLineLabeling(
+        markRawImpressionUploadModelLineLabelingRequest {
+          name = created.name
+          etag = ranking.etag
+        }
+      )
 
     val completed =
       service.markRawImpressionUploadModelLineCompleted(
-        markRawImpressionUploadModelLineCompletedRequest { name = created.name }
+        markRawImpressionUploadModelLineCompletedRequest {
+          name = created.name
+          etag = labeling.etag
+        }
       )
 
     assertThat(completed.state).isEqualTo(RawImpressionUploadModelLine.State.COMPLETED)
@@ -774,6 +845,7 @@ class RawImpressionUploadModelLineServiceTest {
       service.markRawImpressionUploadModelLineFailed(
         markRawImpressionUploadModelLineFailedRequest {
           name = created.name
+          etag = created.etag
           errorMessage = "Something went wrong"
         }
       )
@@ -822,6 +894,8 @@ class RawImpressionUploadModelLineServiceTest {
     private val DATA_PROVIDER_KEY = DataProviderKey(DATA_PROVIDER_ID)
     private const val RAW_IMPRESSION_UPLOAD_ID = "upload-1"
     private val UPLOAD_KEY = RawImpressionUploadKey(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+    private const val RAW_IMPRESSION_UPLOAD_ID_2 = "upload-2"
+    private val UPLOAD_KEY_2 = RawImpressionUploadKey(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID_2)
     private const val CMMS_MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/ml1"
     private const val CMMS_MODEL_LINE_2 = "modelProviders/mp1/modelSuites/ms1/modelLines/ml2"
     private val REQUEST_ID = UUID.randomUUID().toString()

@@ -42,6 +42,7 @@ import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueEx
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadModelLineNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadModelLineStateInvalidException
+import org.wfanet.measurement.edpaggregator.service.internal.EtagMismatchException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateRawImpressionUploadModelLinesRequest
@@ -92,6 +93,7 @@ class SpannerRawImpressionUploadModelLineService(
             val existing =
               txn.findRawImpressionUploadModelLineByRequestId(
                 request.dataProviderResourceId,
+                request.rawImpressionUploadResourceId,
                 request.requestId,
               )
             if (existing != null) {
@@ -121,7 +123,7 @@ class SpannerRawImpressionUploadModelLineService(
 
           val resourceId =
             "$RAW_IMPRESSION_UPLOAD_MODEL_LINE_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
-          val etag = UUID.randomUUID().toString()
+          val newEtag = UUID.randomUUID().toString()
 
           txn.insertRawImpressionUploadModelLine(
             rawImpressionUploadId = rawImpressionUploadId,
@@ -130,12 +132,14 @@ class SpannerRawImpressionUploadModelLineService(
             dataProviderResourceId = request.dataProviderResourceId,
             cmmsModelLine = request.rawImpressionUploadModelLine.cmmsModelLine,
             createRequestId = request.requestId,
-            etag = etag,
+            etag = newEtag,
           )
 
           request.rawImpressionUploadModelLine.copy {
             dataProviderResourceId = request.dataProviderResourceId
             rawImpressionUploadResourceId = request.rawImpressionUploadResourceId
+            rawImpressionUploadModelLineResourceId = resourceId
+            etag = newEtag
             state = State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED
             clearCreateTime()
             clearUpdateTime()
@@ -165,6 +169,10 @@ class SpannerRawImpressionUploadModelLineService(
   override suspend fun batchCreateRawImpressionUploadModelLines(
     request: BatchCreateRawImpressionUploadModelLinesRequest
   ): BatchCreateRawImpressionUploadModelLinesResponse {
+    if (request.requestsList.size > MAX_BATCH_SIZE) {
+      throw InvalidFieldValueException("requests") { "$it must contain at most $MAX_BATCH_SIZE elements" }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     if (request.requestsList.isEmpty()) {
       return BatchCreateRawImpressionUploadModelLinesResponse.getDefaultInstance()
     }
@@ -253,7 +261,7 @@ class SpannerRawImpressionUploadModelLineService(
 
               val resourceId =
                 "$RAW_IMPRESSION_UPLOAD_MODEL_LINE_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
-              val etag = UUID.randomUUID().toString()
+              val newEtag = UUID.randomUUID().toString()
 
               txn.insertRawImpressionUploadModelLine(
                 rawImpressionUploadId = rawImpressionUploadId,
@@ -262,12 +270,14 @@ class SpannerRawImpressionUploadModelLineService(
                 dataProviderResourceId = dataProviderResourceId,
                 cmmsModelLine = subRequest.rawImpressionUploadModelLine.cmmsModelLine,
                 createRequestId = subRequest.requestId,
-                etag = etag,
+                etag = newEtag,
               )
 
               subRequest.rawImpressionUploadModelLine.copy {
                 this.dataProviderResourceId = dataProviderResourceId
                 this.rawImpressionUploadResourceId = rawImpressionUploadResourceId
+                rawImpressionUploadModelLineResourceId = resourceId
+                etag = newEtag
                 state = State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED
                 clearCreateTime()
                 clearUpdateTime()
@@ -312,8 +322,8 @@ class SpannerRawImpressionUploadModelLineService(
       throw RequiredFieldNotSetException("raw_impression_upload_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    if (request.cmmsModelLine.isEmpty()) {
-      throw RequiredFieldNotSetException("cmms_model_line")
+    if (request.rawImpressionUploadModelLineResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("raw_impression_upload_model_line_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
@@ -322,13 +332,13 @@ class SpannerRawImpressionUploadModelLineService(
         .getRawImpressionUploadModelLineByResourceIds(
           request.dataProviderResourceId,
           request.rawImpressionUploadResourceId,
-          request.cmmsModelLine,
+          request.rawImpressionUploadModelLineResourceId,
         )
         ?.rawImpressionUploadModelLine
         ?: throw RawImpressionUploadModelLineNotFoundException(
             request.dataProviderResourceId,
             request.rawImpressionUploadResourceId,
-            request.cmmsModelLine,
+            request.rawImpressionUploadModelLineResourceId,
           )
           .asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
@@ -339,10 +349,6 @@ class SpannerRawImpressionUploadModelLineService(
   ): ListRawImpressionUploadModelLinesResponse {
     if (request.dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("data_provider_resource_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-    if (request.rawImpressionUploadResourceId.isEmpty()) {
-      throw RequiredFieldNotSetException("raw_impression_upload_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     if (request.pageSize < 0) {
@@ -363,7 +369,7 @@ class SpannerRawImpressionUploadModelLineService(
         txn
           .readRawImpressionUploadModelLines(
             request.dataProviderResourceId,
-            request.rawImpressionUploadResourceId,
+            request.rawImpressionUploadResourceId.ifEmpty { null },
             filter = if (request.hasFilter()) request.filter else null,
             limit = pageSize + 1,
             after = after,
@@ -396,7 +402,8 @@ class SpannerRawImpressionUploadModelLineService(
     return transitionState(
       request.dataProviderResourceId,
       request.rawImpressionUploadResourceId,
-      request.cmmsModelLine,
+      request.rawImpressionUploadModelLineResourceId,
+      request.etag,
       State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
       validPreviousStates =
         setOf(State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED),
@@ -409,7 +416,8 @@ class SpannerRawImpressionUploadModelLineService(
     return transitionState(
       request.dataProviderResourceId,
       request.rawImpressionUploadResourceId,
-      request.cmmsModelLine,
+      request.rawImpressionUploadModelLineResourceId,
+      request.etag,
       State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
       validPreviousStates =
         setOf(State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING),
@@ -422,7 +430,8 @@ class SpannerRawImpressionUploadModelLineService(
     return transitionState(
       request.dataProviderResourceId,
       request.rawImpressionUploadResourceId,
-      request.cmmsModelLine,
+      request.rawImpressionUploadModelLineResourceId,
+      request.etag,
       State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
       validPreviousStates =
         setOf(State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING),
@@ -435,7 +444,8 @@ class SpannerRawImpressionUploadModelLineService(
     return transitionState(
       request.dataProviderResourceId,
       request.rawImpressionUploadResourceId,
-      request.cmmsModelLine,
+      request.rawImpressionUploadModelLineResourceId,
+      request.etag,
       State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED,
       validPreviousStates =
         setOf(State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING),
@@ -445,16 +455,13 @@ class SpannerRawImpressionUploadModelLineService(
   override suspend fun markRawImpressionUploadModelLineFailed(
     request: MarkRawImpressionUploadModelLineFailedRequest
   ): RawImpressionUploadModelLine {
-    if (request.errorMessage.isEmpty()) {
-      throw RequiredFieldNotSetException("error_message")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
 
     val modelLine =
       transitionState(
         request.dataProviderResourceId,
         request.rawImpressionUploadResourceId,
-        request.cmmsModelLine,
+        request.rawImpressionUploadModelLineResourceId,
+        request.etag,
         State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
         validPreviousStates =
           setOf(
@@ -479,7 +486,8 @@ class SpannerRawImpressionUploadModelLineService(
   private suspend fun transitionState(
     dataProviderResourceId: String,
     rawImpressionUploadResourceId: String,
-    cmmsModelLine: String,
+    rawImpressionUploadModelLineResourceId: String,
+    expectedEtag: String,
     nextState: State,
     validPreviousStates: Set<State>,
     block: (com.google.cloud.spanner.Mutation.WriteBuilder.() -> Unit)? = null,
@@ -492,8 +500,8 @@ class SpannerRawImpressionUploadModelLineService(
       throw RequiredFieldNotSetException("raw_impression_upload_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    if (cmmsModelLine.isEmpty()) {
-      throw RequiredFieldNotSetException("cmms_model_line")
+    if (rawImpressionUploadModelLineResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("raw_impression_upload_model_line_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
@@ -505,21 +513,28 @@ class SpannerRawImpressionUploadModelLineService(
           txn.getRawImpressionUploadModelLineByResourceIds(
             dataProviderResourceId,
             rawImpressionUploadResourceId,
-            cmmsModelLine,
+            rawImpressionUploadModelLineResourceId,
           )
             ?: throw RawImpressionUploadModelLineNotFoundException(
                 dataProviderResourceId,
                 rawImpressionUploadResourceId,
-                cmmsModelLine,
+                rawImpressionUploadModelLineResourceId,
               )
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
+
+        if (
+          expectedEtag.isNotEmpty() && expectedEtag != result.rawImpressionUploadModelLine.etag
+        ) {
+          throw EtagMismatchException(expectedEtag, result.rawImpressionUploadModelLine.etag)
+            .asStatusRuntimeException(Status.Code.ABORTED)
+        }
 
         val currentState = result.rawImpressionUploadModelLine.state
         if (currentState !in validPreviousStates) {
           throw RawImpressionUploadModelLineStateInvalidException(
               dataProviderResourceId,
               rawImpressionUploadResourceId,
-              cmmsModelLine,
+              rawImpressionUploadModelLineResourceId,
               result.rawImpressionUploadModelLine.state,
               validPreviousStates,
             )
@@ -536,7 +551,7 @@ class SpannerRawImpressionUploadModelLineService(
           newEtag,
           block,
         )
-        result.rawImpressionUploadModelLine
+        result.rawImpressionUploadModelLine.copy { etag = newEtag }
       }
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
@@ -578,6 +593,7 @@ class SpannerRawImpressionUploadModelLineService(
   companion object {
     private const val RAW_IMPRESSION_UPLOAD_MODEL_LINE_RESOURCE_ID_PREFIX = "riuml"
     private const val MAX_PAGE_SIZE = 100
+    private const val MAX_BATCH_SIZE = 50
     private const val DEFAULT_PAGE_SIZE = 50
   }
 }
