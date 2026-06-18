@@ -121,8 +121,7 @@ class BasicReportsReportsJob(
                   }
               }
             )
-          val nextPageToken =
-            if (response.hasNextPageToken()) response.nextPageToken else null
+          val nextPageToken = if (response.hasNextPageToken()) response.nextPageToken else null
           ResourceList(response.basicReportsList, nextPageToken)
         }
 
