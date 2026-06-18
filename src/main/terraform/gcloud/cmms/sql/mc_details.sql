@@ -26,7 +26,7 @@ SELECT
   ARRAY_AGG(IFNULL(eg.EventTemplates, '')) AS EventTemplates,
   ARRAY_AGG(IFNULL(eg.EntityMetadata, '')) AS EntityMetadata,
   ARRAY_AGG(IFNULL(mt.MediaTypes, '')) AS MediaTypes,
-  ARRAY_AGG(IFNULL(ca.ClientAccountReferenceId, '')) AS AccountIds,
+  ARRAY_AGG(IFNULL(ca.AccountIds, '')) AS AccountIds,
   MIN(eg.DataAvailabilityStartTime) AS DataAvailabilityStartTime,
   MAX(eg.DataAvailabilityEndTime) AS DataAvailabilityEndTime
 %{ if include_platform_columns }
@@ -88,8 +88,9 @@ LEFT JOIN (
     '''SELECT
       ca.MeasurementConsumerId,
       ca.DataProviderId,
-      ca.ClientAccountReferenceId
-    FROM ClientAccounts ca''')
+      STRING_AGG(ca.ClientAccountReferenceId) AS AccountIds
+    FROM ClientAccounts ca
+    GROUP BY ca.MeasurementConsumerId, ca.DataProviderId''')
 ) ca
   ON eg.MeasurementConsumerId = ca.MeasurementConsumerId
   AND eg.DataProviderId = ca.DataProviderId
