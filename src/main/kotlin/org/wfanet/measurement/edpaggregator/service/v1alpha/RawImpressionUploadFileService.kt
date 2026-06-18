@@ -88,6 +88,10 @@ class RawImpressionUploadFileService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     validateRequestId(request.requestId, "request_id")
 
     val internalResponse: InternalRawImpressionUploadFile =
@@ -174,14 +178,16 @@ class RawImpressionUploadFileService(
         }
 
         val requestId = childRequest.requestId
-        if (requestId.isNotEmpty()) {
-          validateRequestId(requestId, "requests.$index.request_id")
-          if (!requestIdSet.add(requestId)) {
-            throw InvalidFieldValueException("requests.$index.request_id") {
-                "request Id $requestId is duplicate in the batch of requests"
-              }
-              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-          }
+        if (requestId.isEmpty()) {
+          throw RequiredFieldNotSetException("requests.$index.request_id")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+        validateRequestId(requestId, "requests.$index.request_id")
+        if (!requestIdSet.add(requestId)) {
+          throw InvalidFieldValueException("requests.$index.request_id") {
+              "request Id $requestId is duplicate in the batch of requests"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
         internalCreateFileRequest {
@@ -488,7 +494,9 @@ class RawImpressionUploadFileService(
         }
 
         if (!nameSet.add(name)) {
-          throw InvalidFieldValueException("requests.$index.name")
+          throw InvalidFieldValueException("requests.$index.name") {
+              "$it is duplicate in the batch of requests"
+            }
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
@@ -543,7 +551,6 @@ class RawImpressionUploadFileService(
   }
 
   private fun validateRequestId(requestId: String, fieldName: String) {
-    if (requestId.isEmpty()) return
     try {
       UUID.fromString(requestId)
     } catch (e: IllegalArgumentException) {
