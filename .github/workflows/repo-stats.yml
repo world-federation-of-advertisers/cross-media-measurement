@@ -52,7 +52,7 @@ jobs:
             "2026-05-31" \
             | tee raw.json | jq .
           cat raw.json | jq .data.rateLimit
-          echo "json=$(cat raw.json | jq .data.search.nodes.[] -c | jq . -s)" | tee -a $GITHUB_OUTPUT
+          echo "json=$(cat raw.json | jq .data.search.nodes.[] -c | jq . -sc)" | tee -a $GITHUB_OUTPUT
 
       - name: Compute created issues stats
         env:
