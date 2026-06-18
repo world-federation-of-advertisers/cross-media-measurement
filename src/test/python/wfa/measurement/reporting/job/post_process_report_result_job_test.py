@@ -20,6 +20,9 @@ import grpc
 from wfa.measurement.internal.reporting.v2 import basic_report_pb2
 from wfa.measurement.internal.reporting.v2 import basic_reports_service_pb2
 from wfa.measurement.internal.reporting.v2 import report_results_service_pb2
+from google.rpc import error_details_pb2
+from google.rpc import status_pb2
+from google.protobuf import any_pb2
 from job import post_process_report_result_job
 from tools import post_process_report_result
 
@@ -27,6 +30,37 @@ BasicReport = basic_report_pb2.BasicReport
 
 
 class PostProcessReportResultJobTest(unittest.TestCase):
+
+    @staticmethod
+    def _make_rpc_error_with_error_info(
+            code: grpc.StatusCode,
+            reason: str,
+            metadata: dict,
+            details_text: str = "") -> grpc.RpcError:
+        """Builds a grpc.RpcError that carries a google.rpc.Status with an
+        ErrorInfo in its trailing metadata, matching the wire format the
+        Reporting server emits.
+        """
+        error_info = error_details_pb2.ErrorInfo(
+            domain="halo.wfanet.org",
+            reason=reason,
+            metadata=metadata,
+        )
+        any_detail = any_pb2.Any()
+        any_detail.Pack(error_info)
+        status = status_pb2.Status(
+            code=code.value[0],
+            message=details_text,
+            details=[any_detail],
+        )
+        rpc_error = grpc.RpcError()
+        rpc_error.code = lambda c=code: c
+        rpc_error.details = lambda d=details_text: d
+        rpc_error.trailing_metadata = lambda b=status.SerializeToString(): (
+            ("grpc-status-details-bin", b),
+        )
+        return rpc_error
+
 
     def setUp(self):
         super().setUp()
@@ -230,19 +264,20 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             report_results_service_pb2.AddProcessedResultValuesRequest())
         self.mock_post_processor.process.return_value = mock_request
 
-        rpc_error = grpc.RpcError()
-        rpc_error.code = lambda: grpc.StatusCode.FAILED_PRECONDITION
-        rpc_error.details = lambda: (
-            "BasicReport with external key (mc_id_1, basic_report_already_done)"
-            " is in state SUCCEEDED which is invalid for the operation")
+        # Server emits FAILED_PRECONDITION with ErrorInfo whose
+        # basicReportState says the BR is already past
+        # UNPROCESSED_RESULTS_READY.
+        rpc_error = self._make_rpc_error_with_error_info(
+            code=grpc.StatusCode.FAILED_PRECONDITION,
+            reason="BASIC_REPORT_STATE_INVALID",
+            metadata={"basicReportState": "SUCCEEDED"},
+            details_text=(
+                "BasicReport with external key (mc_id_1,"
+                " basic_report_already_done) is in state SUCCEEDED which is"
+                " invalid for the operation"),
+        )
         self.mock_report_results_stub.AddProcessedResultValues.side_effect = (
             rpc_error)
-        # Authoritative state lookup says SUCCEEDED.
-        self.mock_basic_reports_stub.GetBasicReport.return_value = BasicReport(
-            external_basic_report_id="basic_report_already_done",
-            cmms_measurement_consumer_id="mc_id_1",
-            state=basic_report_pb2.BasicReport.State.SUCCEEDED,
-        )
 
         result = self.job.execute()
 
@@ -272,19 +307,17 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             report_results_service_pb2.AddProcessedResultValuesRequest())
         self.mock_post_processor.process.return_value = mock_request
 
-        rpc_error = grpc.RpcError()
-        rpc_error.code = lambda: grpc.StatusCode.FAILED_PRECONDITION
-        rpc_error.details = lambda: (
-            "ReportingSetResult with external id (...) not found")
+        # Server emits FAILED_PRECONDITION with a DIFFERENT reason -- this
+        # is a real data-integrity error, not "already advanced", and the
+        # BasicReport must be marked FAILED.
+        rpc_error = self._make_rpc_error_with_error_info(
+            code=grpc.StatusCode.FAILED_PRECONDITION,
+            reason="REPORTING_SET_RESULT_NOT_FOUND",
+            metadata={},
+            details_text="ReportingSetResult with external id (...) not found",
+        )
         self.mock_report_results_stub.AddProcessedResultValues.side_effect = (
             rpc_error)
-        # State has NOT advanced -- still UNPROCESSED_RESULTS_READY.
-        self.mock_basic_reports_stub.GetBasicReport.return_value = BasicReport(
-            external_basic_report_id="basic_report_missing_data",
-            cmms_measurement_consumer_id="mc_id_1",
-            state=basic_report_pb2.BasicReport.State
-            .UNPROCESSED_RESULTS_READY,
-        )
 
         result = self.job.execute()
 

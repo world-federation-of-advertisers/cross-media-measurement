@@ -14,15 +14,66 @@
 """A job for fetching, correcting, and updating a report."""
 
 from absl import logging
-from typing import Iterable
+from typing import Iterable, Optional
 import grpc
 
+from google.rpc import error_details_pb2
+from google.rpc import status_pb2
 from wfa.measurement.internal.reporting.v2 import basic_report_pb2
 from wfa.measurement.internal.reporting.v2 import basic_reports_service_pb2
 from wfa.measurement.internal.reporting.v2 import basic_reports_service_pb2_grpc
 from wfa.measurement.internal.reporting.v2 import report_results_service_pb2_grpc
 from wfa.measurement.internal.reporting.v2 import reporting_sets_service_pb2_grpc
 from tools import post_process_report_result
+
+# Error reason and metadata key emitted by the internal reporting server when
+# the operation's precondition on BasicReport state fails. See
+# org.wfanet.measurement.reporting.service.internal.Errors in the Kotlin
+# source.
+_BASIC_REPORT_STATE_INVALID_REASON = "BASIC_REPORT_STATE_INVALID"
+_BASIC_REPORT_STATE_METADATA_KEY = "basicReportState"
+_STATES_PAST_UNPROCESSED = frozenset({
+    basic_report_pb2.BasicReport.State.Name(
+        basic_report_pb2.BasicReport.State.SUCCEEDED),
+    basic_report_pb2.BasicReport.State.Name(
+        basic_report_pb2.BasicReport.State.FAILED),
+})
+
+
+def _basic_report_state_past_unprocessed(
+        rpc_error: grpc.RpcError) -> Optional[str]:
+    """If the RpcError carries a BASIC_REPORT_STATE_INVALID ErrorInfo whose
+    basicReportState metadata indicates a state past
+    UNPROCESSED_RESULTS_READY (SUCCEEDED or FAILED), returns that state name.
+    Otherwise returns None.
+
+    The server attaches a google.rpc.Status with an ErrorInfo to the
+    grpc-status-details-bin trailing metadata, per
+    google.rpc.error_details.proto. We parse it without taking a dependency
+    on grpcio-status by reading the trailer directly.
+    """
+    trailers = rpc_error.trailing_metadata() if hasattr(
+        rpc_error, "trailing_metadata") else ()
+    for key, value in trailers or ():
+        if key != "grpc-status-details-bin":
+            continue
+        status = status_pb2.Status()
+        try:
+            status.ParseFromString(value)
+        except Exception:  # pylint: disable=broad-except
+            return None
+        for detail in status.details:
+            if not detail.Is(error_details_pb2.ErrorInfo.DESCRIPTOR):
+                continue
+            error_info = error_details_pb2.ErrorInfo()
+            detail.Unpack(error_info)
+            if error_info.reason != _BASIC_REPORT_STATE_INVALID_REASON:
+                continue
+            state = error_info.metadata.get(_BASIC_REPORT_STATE_METADATA_KEY)
+            if state in _STATES_PAST_UNPROCESSED:
+                return state
+            return None
+    return None
 
 _MAX_PAGE_SIZE = 50
 
@@ -119,16 +170,18 @@ class PostProcessReportResultJob:
                 # writer already advanced it -- in which case the work is
                 # done and we should skip silently, or (b) a real data
                 # integrity error such as a missing ReportingSetResult /
-                # ReportingWindowResult, which we must not swallow. Disambig-
-                # uate by reading the current BasicReport state.
-                if self._is_basic_report_past_unprocessed_results_ready(
-                        basic_report):
+                # ReportingWindowResult, which we must not swallow. The server
+                # attaches a google.rpc.ErrorInfo with reason and a
+                # basicReportState metadata field that disambiguates.
+                advanced_state = _basic_report_state_past_unprocessed(e)
+                if advanced_state is not None:
                     logging.info(
                         "Skipping BasicReport %s for MeasurementConsumer %s:"
-                        " already advanced past UNPROCESSED_RESULTS_READY (%s)",
+                        " already advanced past UNPROCESSED_RESULTS_READY"
+                        " (now %s)",
                         basic_report.external_basic_report_id,
                         basic_report.cmms_measurement_consumer_id,
-                        e.details(),
+                        advanced_state,
                     )
                     return True
                 # State precondition was NOT the cause -- fall through to
@@ -163,40 +216,6 @@ class PostProcessReportResultJob:
             return False
 
         return succeeded
-
-    _STATES_PAST_UNPROCESSED_RESULTS_READY = frozenset({
-        basic_report_pb2.BasicReport.State.SUCCEEDED,
-        basic_report_pb2.BasicReport.State.FAILED,
-    })
-
-    def _is_basic_report_past_unprocessed_results_ready(
-            self, basic_report: basic_report_pb2.BasicReport) -> bool:
-        """Returns True if the BasicReport's current state is SUCCEEDED or
-        FAILED, i.e. it has already moved past UNPROCESSED_RESULTS_READY and
-        no further work from this job is appropriate.
-
-        On any error reading the state (network failure, NOT_FOUND, etc.),
-        returns False so the caller falls through to its normal error path.
-        """
-        try:
-            current = self._basic_reports_stub.GetBasicReport(
-                basic_reports_service_pb2.GetBasicReportRequest(
-                    cmms_measurement_consumer_id=basic_report.
-                    cmms_measurement_consumer_id,
-                    external_basic_report_id=basic_report.
-                    external_basic_report_id,
-                ))
-        except grpc.RpcError:
-            logging.warning(
-                "Failed to read BasicReport %s state for MeasurementConsumer"
-                " %s while disambiguating FAILED_PRECONDITION",
-                basic_report.external_basic_report_id,
-                basic_report.cmms_measurement_consumer_id,
-                exc_info=True,
-            )
-            return False
-        return (current.state in
-                self._STATES_PAST_UNPROCESSED_RESULTS_READY)
 
     def execute(self) -> bool:
         """Runs the post-processing job.
