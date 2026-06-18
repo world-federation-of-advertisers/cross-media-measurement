@@ -201,11 +201,81 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             ))
         # Verifies that the exception was logged.
         mock_logging.assert_called_once_with(
-            "Failed to process BasicReport %s for MeasurementConsumer %s",
+            "Failed to post-process BasicReport %s for"
+            " MeasurementConsumer %s",
             "basic_report_1",
             "mc_id_1",
             exc_info=True,
         )
+
+
+    @mock.patch.object(logging, "info", autospec=True)
+    def test_execute_skips_basic_report_already_processed(self, mock_logging):
+        """Regression test: if AddProcessedResultValues fails because the
+        BasicReport state is no longer UNPROCESSED_RESULTS_READY (e.g. it was
+        already advanced to SUCCEEDED by another writer between the list call
+        and the add call), the job should NOT mark the BasicReport as FAILED.
+        That would corrupt a BasicReport that already has valid processed
+        results. Instead, the job should skip it and continue.
+        """
+        mock_report = BasicReport(
+            external_basic_report_id="basic_report_already_done",
+            cmms_measurement_consumer_id="mc_id_1",
+            external_report_result_id=101,
+        )
+        self.mock_basic_reports_stub.ListBasicReports.return_value = (
+            basic_reports_service_pb2.ListBasicReportsResponse(
+                basic_reports=[mock_report]))
+
+        mock_request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+        self.mock_post_processor.process.return_value = mock_request
+
+        rpc_error = grpc.RpcError()
+        rpc_error.code = lambda: grpc.StatusCode.FAILED_PRECONDITION
+        rpc_error.details = lambda: (
+            "BasicReport with external key (mc_id_1, basic_report_already_done)"
+            " is in state SUCCEEDED which is invalid for the operation")
+        self.mock_report_results_stub.AddProcessedResultValues.side_effect = (
+            rpc_error)
+
+        result = self.job.execute()
+
+        # Job should succeed overall (the BR was already done by someone else).
+        self.assertTrue(result)
+        # The BasicReport must NOT be marked FAILED.
+        self.mock_basic_reports_stub.FailBasicReport.assert_not_called()
+
+    def test_execute_does_not_fail_on_transient_grpc_error(self):
+        """If AddProcessedResultValues fails with a transient gRPC error such
+        as UNAVAILABLE, the BasicReport should be left in
+        UNPROCESSED_RESULTS_READY for the next tick to retry; it must not be
+        marked FAILED.
+        """
+        mock_report = BasicReport(
+            external_basic_report_id="basic_report_transient",
+            cmms_measurement_consumer_id="mc_id_1",
+            external_report_result_id=101,
+        )
+        self.mock_basic_reports_stub.ListBasicReports.return_value = (
+            basic_reports_service_pb2.ListBasicReportsResponse(
+                basic_reports=[mock_report]))
+
+        mock_request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+        self.mock_post_processor.process.return_value = mock_request
+
+        rpc_error = grpc.RpcError()
+        rpc_error.code = lambda: grpc.StatusCode.UNAVAILABLE
+        rpc_error.details = lambda: "connection reset"
+        self.mock_report_results_stub.AddProcessedResultValues.side_effect = (
+            rpc_error)
+
+        result = self.job.execute()
+
+        self.assertFalse(result)
+        # Transient failure should not fail the BasicReport.
+        self.mock_basic_reports_stub.FailBasicReport.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -83,16 +83,13 @@ class PostProcessReportResultJob:
                 basic_report.external_report_result_id,
                 self._ami_mrc_exempted_edps,
             )
-            if add_processed_result_values_request:
-                logging.info(
-                    "Updating ReportResult %s",
-                    basic_report.external_report_result_id,
-                )
-                self._report_results_stub.AddProcessedResultValues(
-                    add_processed_result_values_request)
         except Exception:
+            # The post-processor itself (solver, data parsing) failed. This
+            # BasicReport cannot be processed; mark it FAILED so downstream
+            # consumers don't wait forever.
             logging.warning(
-                "Failed to process BasicReport %s for MeasurementConsumer %s",
+                "Failed to post-process BasicReport %s for"
+                " MeasurementConsumer %s",
                 basic_report.external_basic_report_id,
                 basic_report.cmms_measurement_consumer_id,
                 exc_info=True,
@@ -104,7 +101,45 @@ class PostProcessReportResultJob:
                     external_basic_report_id=basic_report.
                     external_basic_report_id,
                 ))
-            succeeded = False
+            return False
+
+        if not add_processed_result_values_request:
+            return succeeded
+
+        logging.info(
+            "Updating ReportResult %s",
+            basic_report.external_report_result_id,
+        )
+        try:
+            self._report_results_stub.AddProcessedResultValues(
+                add_processed_result_values_request)
+        except grpc.RpcError as e:
+            # FAILED_PRECONDITION here means the BasicReport state is no
+            # longer UNPROCESSED_RESULTS_READY -- typically because another
+            # writer already advanced it to SUCCEEDED. The work is done;
+            # skip silently. Failing it here would corrupt a BasicReport
+            # that already has valid processed results.
+            if e.code() == grpc.StatusCode.FAILED_PRECONDITION:
+                logging.info(
+                    "Skipping BasicReport %s for MeasurementConsumer %s:"
+                    " already advanced past UNPROCESSED_RESULTS_READY (%s)",
+                    basic_report.external_basic_report_id,
+                    basic_report.cmms_measurement_consumer_id,
+                    e.details(),
+                )
+                return True
+            # Any other gRPC error (UNAVAILABLE, DEADLINE_EXCEEDED, etc.) is
+            # treated as transient. Leave the BasicReport in
+            # UNPROCESSED_RESULTS_READY so the next tick can retry; do not
+            # mark it FAILED.
+            logging.warning(
+                "Transient failure updating ReportResult for BasicReport %s,"
+                " MeasurementConsumer %s; will retry next tick",
+                basic_report.external_basic_report_id,
+                basic_report.cmms_measurement_consumer_id,
+                exc_info=True,
+            )
+            return False
 
         return succeeded
 
