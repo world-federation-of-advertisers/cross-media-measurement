@@ -20,6 +20,7 @@ import io.grpc.BindableService
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchFileServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt
 
 /** Edp Aggregator internal API services. */
@@ -30,6 +31,8 @@ data class Services(
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase,
   val rawImpressionMetadataBatch:
     RawImpressionMetadataBatchServiceGrpcKt.RawImpressionMetadataBatchServiceCoroutineImplBase,
+  val poolAssignmentJob:
+    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase,
   val rawImpressionMetadataBatchFile:
     RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineImplBase,
 ) {
@@ -38,6 +41,7 @@ data class Services(
       requisitionMetadata,
       impressionMetadata,
       rawImpressionMetadataBatch,
+      poolAssignmentJob,
       rawImpressionMetadataBatchFile,
     )
 }

@@ -20,6 +20,7 @@ import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
+import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentState
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState
@@ -45,6 +46,9 @@ object Errors {
     REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
     REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_STATE_INVALID,
+    RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+    POOL_ASSIGNMENT_JOB_NOT_FOUND,
+    POOL_ASSIGNMENT_JOB_STATE_INVALID,
     ETAG_MISMATCH,
     REQUIRED_FIELD_NOT_SET,
     INVALID_FIELD_VALUE,
@@ -65,6 +69,10 @@ object Errors {
     ETAG("etag"),
     BATCH_RESOURCE_ID("batchResourceId"),
     FILE_RESOURCE_ID("fileResourceId"),
+    RAW_IMPRESSION_UPLOAD_RESOURCE_ID("rawImpressionUploadResourceId"),
+    POOL_ASSIGNMENT_JOB_RESOURCE_ID("poolAssignmentJobResourceId"),
+    POOL_ASSIGNMENT_JOB_STATE("poolAssignmentJobState"),
+    EXPECTED_POOL_ASSIGNMENT_JOB_STATES("expectedPoolAssignmentJobStates"),
     FIELD_NAME("fieldName");
 
     companion object {
@@ -370,6 +378,62 @@ class RequiredFieldNotSetException(fieldName: String, cause: Throwable? = null) 
     Errors.Reason.REQUIRED_FIELD_NOT_SET,
     "$fieldName not set",
     mapOf(Errors.Metadata.FIELD_NAME to fieldName),
+    cause,
+  )
+
+
+
+class RawImpressionUploadNotFoundException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+    "RawImpressionUpload not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+    ),
+    cause,
+  )
+
+class PoolAssignmentJobNotFoundException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  poolAssignmentJobResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
+    "PoolAssignmentJob not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+      Errors.Metadata.POOL_ASSIGNMENT_JOB_RESOURCE_ID to poolAssignmentJobResourceId,
+    ),
+    cause,
+  )
+
+class PoolAssignmentJobStateInvalidException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  poolAssignmentJobResourceId: String,
+  actualState: PoolAssignmentState,
+  expectedStates: Collection<PoolAssignmentState>,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
+    "PoolAssignmentJob state invalid: expected one of $expectedStates but was $actualState",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+      Errors.Metadata.POOL_ASSIGNMENT_JOB_RESOURCE_ID to poolAssignmentJobResourceId,
+      Errors.Metadata.POOL_ASSIGNMENT_JOB_STATE to actualState.name,
+      Errors.Metadata.EXPECTED_POOL_ASSIGNMENT_JOB_STATES to
+        expectedStates.joinToString(",") { state -> state.name },
+    ),
     cause,
   )
 
