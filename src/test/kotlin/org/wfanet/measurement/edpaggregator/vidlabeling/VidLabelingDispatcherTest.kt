@@ -568,6 +568,90 @@ class VidLabelingDispatcherTest {
     }
 
   @Test
+  fun `upload acks when createRawImpressionUpload returns ALREADY_EXISTS`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    // Pub/Sub redelivery: the upload was already created by the prior delivery.
+    whenever(rawImpressionUploadService.createRawImpressionUpload(any())).thenAnswer {
+      throw StatusException(Status.ALREADY_EXISTS.withDescription("upload exists"))
+    }
+
+    val dispatcher = createDispatcher()
+    // Must ack (not throw) so Pub/Sub doesn't redeliver into a poison-pill loop.
+    dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    // Already registered → no downstream work re-created.
+    verifyBlocking(rawImpressionUploadFileService, never()) {
+      batchCreateRawImpressionUploadFiles(any())
+    }
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      batchCreateRawImpressionUploadModelLines(any())
+    }
+  }
+
+  @Test
+  fun `upload acks when batchCreateRawImpressionUploadFiles returns ALREADY_EXISTS`() =
+    runBlocking<Unit> {
+      val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      stubRawImpressionUploadCreation()
+      stubFullResolutionChain(MODEL_LINE_1)
+      whenever(rawImpressionUploadFileService.batchCreateRawImpressionUploadFiles(any()))
+        .thenAnswer { throw StatusException(Status.ALREADY_EXISTS.withDescription("files exist")) }
+
+      val dispatcher = createDispatcher()
+      // Files already exist → ack and continue with the rest of registration.
+      dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+      verifyBlocking(rawImpressionUploadModelLineService) {
+        batchCreateRawImpressionUploadModelLines(any())
+      }
+    }
+
+  @Test
+  fun `upload acks when batchCreateRawImpressionUploadModelLines returns ALREADY_EXISTS`() =
+    runBlocking<Unit> {
+      val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      stubRawImpressionUploadCreation()
+      stubFullResolutionChain(MODEL_LINE_1)
+      whenever(rawImpressionUploadModelLineService.batchCreateRawImpressionUploadModelLines(any()))
+        .thenAnswer {
+          throw StatusException(Status.ALREADY_EXISTS.withDescription("model lines exist"))
+        }
+
+      val dispatcher = createDispatcher()
+      // Model lines already exist → ack rather than throwing.
+      dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+    }
+
+  @Test
+  fun `upload derives file request id from upload context`() =
+    runBlocking<Unit> {
+      val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      stubRawImpressionUploadCreation()
+      stubFullResolutionChain(MODEL_LINE_1)
+
+      val dispatcher = createDispatcher()
+      dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+      val captor = argumentCaptor<BatchCreateRawImpressionUploadFilesRequest>()
+      verifyBlocking(rawImpressionUploadFileService) {
+        batchCreateRawImpressionUploadFiles(captor.capture())
+      }
+      val fileRequest = captor.firstValue.requestsList.single()
+      // Regression: the file request_id must fold in the parent upload, not just the blob URI.
+      assertThat(fileRequest.requestId)
+        .isEqualTo(
+          RequestIds.forRawImpressionUploadFile(
+            captor.firstValue.parent,
+            fileRequest.rawImpressionUploadFile.blobUri,
+          )
+        )
+    }
+
+  @Test
   fun `upload emits filesProcessed counter on success`() = runBlocking {
     val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet")

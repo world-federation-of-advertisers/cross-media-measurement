@@ -18,11 +18,11 @@ package org.wfanet.measurement.edpaggregator.vidlabeling
 
 import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
+import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import java.time.Clock
-import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
@@ -132,6 +132,13 @@ class VidLabelingDispatcher(
       )
 
       val rawImpressionUpload = createRawImpressionUpload(doneBlobPath, doneBlobGeneration)
+      if (rawImpressionUpload == null) {
+        // The upload was already registered by a prior delivery (idempotent redelivery). Its files,
+        // model lines, and dispatch were handled then, so ack rather than re-running.
+        logger.info("Upload for $doneBlobPath already registered; acking idempotent redelivery")
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
+      }
 
       createRawImpressionUploadFiles(rawImpressionUpload.name, blobKeys, doneBlobUri)
 
@@ -289,23 +296,26 @@ class VidLabelingDispatcher(
    *
    * @param doneBlobPath the full storage URI of the "done" blob.
    * @param generation GCS object generation number.
-   * @return the created `RawImpressionUpload`.
+   * @return the created `RawImpressionUpload`, or null if it already exists (idempotent redelivery
+   *   where the server returns `ALREADY_EXISTS` rather than the cached resource).
    */
   private suspend fun createRawImpressionUpload(
     doneBlobPath: String,
     generation: Long,
-  ): RawImpressionUpload {
-    val requestId = UUID.nameUUIDFromBytes("$doneBlobPath:$generation".toByteArray()).toString()
+  ): RawImpressionUpload? {
     val request = createRawImpressionUploadRequest {
       parent = dataProviderName
       rawImpressionUpload = rawImpressionUpload { doneBlobUri = doneBlobPath }
-      this.requestId = requestId
+      requestId = RequestIds.forRawImpressionUpload(doneBlobPath, generation)
     }
 
     try {
       return rawImpressionUploadStub.createRawImpressionUpload(request)
     } catch (e: StatusException) {
-      throw Exception("Error creating RawImpressionUpload for $doneBlobPath", e)
+      if (e.status.code == Status.Code.ALREADY_EXISTS) {
+        return null
+      }
+      throw e
     }
   }
 
@@ -329,7 +339,7 @@ class VidLabelingDispatcher(
           requests += createRawImpressionUploadFileRequest {
             parent = uploadName
             rawImpressionUploadFile = rawImpressionUploadFile { blobUri = fileBlobUri }
-            requestId = UUID.nameUUIDFromBytes(fileBlobUri.toByteArray()).toString()
+            requestId = RequestIds.forRawImpressionUploadFile(uploadName, fileBlobUri)
           }
         }
       }
@@ -337,7 +347,12 @@ class VidLabelingDispatcher(
       try {
         rawImpressionUploadFilesStub.batchCreateRawImpressionUploadFiles(request)
       } catch (e: StatusException) {
-        throw Exception("Error creating RawImpressionUploadFiles for $uploadName", e)
+        if (e.status.code == Status.Code.ALREADY_EXISTS) {
+          // Idempotent redelivery: these files were already created. Ack and continue.
+          logger.info("RawImpressionUploadFiles for $uploadName already exist; skipping")
+          continue
+        }
+        throw e
       }
     }
   }
@@ -361,8 +376,7 @@ class VidLabelingDispatcher(
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
               cmmsModelLine = modelLineName
             }
-            requestId =
-              UUID.nameUUIDFromBytes("$uploadName:$modelLineName".toByteArray()).toString()
+            requestId = RequestIds.forRawImpressionUploadModelLine(uploadName, modelLineName)
           }
         }
       }
@@ -370,7 +384,12 @@ class VidLabelingDispatcher(
       try {
         rawImpressionUploadModelLineStub.batchCreateRawImpressionUploadModelLines(request)
       } catch (e: StatusException) {
-        throw Exception("Error creating RawImpressionUploadModelLines for $uploadName", e)
+        if (e.status.code == Status.Code.ALREADY_EXISTS) {
+          // Idempotent redelivery: these model lines were already created. Ack and continue.
+          logger.info("RawImpressionUploadModelLines for $uploadName already exist; skipping")
+          continue
+        }
+        throw e
       }
     }
 

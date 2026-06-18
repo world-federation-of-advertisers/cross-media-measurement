@@ -8,6 +8,7 @@ kt_jvm_test(
         "//imports/java/io/opentelemetry/api",
         "//imports/java/io/opentelemetry/sdk",
         "//imports/java/io/opentelemetry/sdk:sdk_metrics",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:request_ids",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:vid_labeling_dispatch_sequencer",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:vid_labeling_dispatcher",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_line_kt_jvm_proto",
@@ -66,5 +67,16 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "RequestIdsTest",
+    srcs = ["RequestIdsTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.vidlabeling.RequestIdsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:request_ids",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
     ],
 )

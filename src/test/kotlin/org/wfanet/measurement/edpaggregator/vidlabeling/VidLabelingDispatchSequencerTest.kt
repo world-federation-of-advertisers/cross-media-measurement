@@ -393,6 +393,29 @@ class VidLabelingDispatchSequencerTest {
     }
 
   @Test
+  fun `dispatchNext tolerates already-existing PoolAssignmentJobs`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = true)
+      // Idempotent redelivery / concurrent dispatch: the jobs already exist.
+      whenever(poolAssignmentJobService.batchCreatePoolAssignmentJobs(any())).thenAnswer {
+        throw StatusException(Status.ALREADY_EXISTS.withDescription("jobs exist"))
+      }
+      stubMarkTransitions()
+
+      val result = createSequencer().dispatchNext()
+
+      // Ack and continue: the upload is still dispatched and the transition still happens.
+      assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+      verifyBlocking(rawImpressionUploadModelLineService) {
+        markRawImpressionUploadModelLinePoolAssigning(any())
+      }
+    }
+
+  @Test
   fun `dispatchNext skips dispatch when the model shard cannot be resolved`() = runBlocking {
     stubUploads(created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW)))
     stubModelLines(createdModelLine())

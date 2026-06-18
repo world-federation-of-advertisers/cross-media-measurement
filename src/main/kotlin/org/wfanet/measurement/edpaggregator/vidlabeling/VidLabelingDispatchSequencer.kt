@@ -19,7 +19,6 @@ package org.wfanet.measurement.edpaggregator.vidlabeling
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
-import java.util.UUID
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.firstOrNull
@@ -312,22 +311,32 @@ class VidLabelingDispatchSequencer(
               cmmsModelLine = modelLineName
               this.shardIndex = shardIndex
             }
-            requestId =
-              UUID.nameUUIDFromBytes("$uploadName:$modelLineName:$shardIndex".toByteArray())
-                .toString()
+            requestId = RequestIds.forPoolAssignmentJob(uploadName, modelLineName, shardIndex)
           }
         }
       }
       try {
         poolAssignmentJobStub.batchCreatePoolAssignmentJobs(request)
       } catch (e: StatusException) {
-        throw Exception("Error creating PoolAssignmentJobs for $modelLineName", e)
+        if (e.status.code == Status.Code.ALREADY_EXISTS) {
+          // Idempotent redelivery / concurrent dispatch: these jobs already exist. Ack and
+          // continue.
+          logger.info("PoolAssignmentJobs for $modelLineName already exist; skipping")
+          continue
+        }
+        throw e
       }
     }
     logger.info("Created $numberOfShards PoolAssignmentJobs for memoized model line $modelLineName")
   }
 
-  /** Creates a WorkItem in the Secure Computation control plane for one model line shard. */
+  /**
+   * Creates a WorkItem in the Secure Computation control plane for one model line shard.
+   *
+   * Idempotency here uses resource-name uniqueness (a deterministic [workItemId]), not an AIP-155
+   * `request_id` — `CreateWorkItemRequest` has no `request_id` field. A retry therefore returns
+   * `ALREADY_EXISTS` (handled below) rather than the cached response.
+   */
   private suspend fun createWorkItem(
     modelLineName: String,
     modelBlobPath: String,
