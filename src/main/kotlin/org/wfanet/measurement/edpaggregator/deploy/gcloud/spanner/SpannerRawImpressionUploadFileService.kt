@@ -85,6 +85,10 @@ class SpannerRawImpressionUploadFileService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     val requestId: String = request.requestId
+    if (requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     validateRequestId(requestId, "request_id")
 
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
@@ -114,7 +118,10 @@ class SpannerRawImpressionUploadFileService(
                 id,
               )
             }
-          val fileResourceId: String = UUID.randomUUID().toString()
+          // Derive the opaque resource ID from the injectable idGenerator (two
+          // 64-bit halves) so tests can produce deterministic resource names.
+          val fileResourceId: String =
+            UUID(idGenerator.generateId(), idGenerator.generateId()).toString()
           txn.insertRawImpressionUploadFile(
             fileId,
             file.dataProviderResourceId,
@@ -186,15 +193,17 @@ class SpannerRawImpressionUploadFileService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
       val subRequestId: String = subRequest.requestId
-      if (subRequestId.isNotEmpty()) {
-        if (!requestIdSet.add(subRequestId)) {
-          throw InvalidFieldValueException("requests.$index.request_id") {
-              "request id $subRequestId is duplicate in the batch of requests"
-            }
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
-        validateRequestId(subRequestId, "requests.$index.request_id")
+      if (subRequestId.isEmpty()) {
+        throw RequiredFieldNotSetException("requests.$index.request_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
+      if (!requestIdSet.add(subRequestId)) {
+        throw InvalidFieldValueException("requests.$index.request_id") {
+            "request id $subRequestId is duplicate in the batch of requests"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      validateRequestId(subRequestId, "requests.$index.request_id")
     }
 
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
@@ -229,7 +238,10 @@ class SpannerRawImpressionUploadFileService(
                   id,
                 )
               }
-            val fileResourceId: String = UUID.randomUUID().toString()
+            // Derive the opaque resource ID from the injectable idGenerator (two
+            // 64-bit halves) so tests can produce deterministic resource names.
+            val fileResourceId: String =
+              UUID(idGenerator.generateId(), idGenerator.generateId()).toString()
             txn.insertRawImpressionUploadFile(
               fileId,
               request.dataProviderResourceId,
@@ -500,7 +512,6 @@ class SpannerRawImpressionUploadFileService(
   }
 
   private fun validateRequestId(requestId: String, fieldName: String) {
-    if (requestId.isEmpty()) return
     try {
       UUID.fromString(requestId)
     } catch (e: IllegalArgumentException) {
