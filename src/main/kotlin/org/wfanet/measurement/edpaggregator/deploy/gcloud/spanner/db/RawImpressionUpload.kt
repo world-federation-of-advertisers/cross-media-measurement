@@ -194,7 +194,7 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploads(
 
     if (after != null) {
       conjuncts.add(
-        "(CreateTime > @afterCreateTime) OR (CreateTime = @afterCreateTime AND RawImpressionUploadResourceId > @afterRawImpressionUploadResourceId)"
+        "((CreateTime > @afterCreateTime) OR (CreateTime = @afterCreateTime AND RawImpressionUploadResourceId > @afterRawImpressionUploadResourceId))"
       )
     }
 
