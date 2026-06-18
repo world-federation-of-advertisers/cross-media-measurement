@@ -83,14 +83,18 @@ LEFT JOIN (
   ON eg.DataProviderId = mt.DataProviderId
   AND eg.EventGroupId = mt.EventGroupId
 LEFT JOIN (
-  SELECT * FROM EXTERNAL_QUERY(
+  SELECT
+    MeasurementConsumerId,
+    DataProviderId,
+    STRING_AGG(ClientAccountReferenceId) AS AccountIds
+  FROM EXTERNAL_QUERY(
     'projects/${project_id}/locations/${region}/connections/kingdom-conn',
     '''SELECT
       ca.MeasurementConsumerId,
       ca.DataProviderId,
-      STRING_AGG(ca.ClientAccountReferenceId) AS AccountIds
-    FROM ClientAccounts ca
-    GROUP BY ca.MeasurementConsumerId, ca.DataProviderId''')
+      ca.ClientAccountReferenceId
+    FROM ClientAccounts ca''')
+  GROUP BY MeasurementConsumerId, DataProviderId
 ) ca
   ON eg.MeasurementConsumerId = ca.MeasurementConsumerId
   AND eg.DataProviderId = ca.DataProviderId
