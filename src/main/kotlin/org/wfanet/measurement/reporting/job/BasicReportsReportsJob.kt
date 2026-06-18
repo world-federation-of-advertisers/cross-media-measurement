@@ -106,13 +106,11 @@ class BasicReportsReportsJob(
           .measurementConsumerId
 
       val resourceLists =
-        internalBasicReportsStub.listResources(BATCH_SIZE, null) {
-          pageToken: ListBasicReportsPageToken?,
-          remaining ->
-          val listBasicReportsResponse =
+        internalBasicReportsStub.listResources { pageToken: ListBasicReportsPageToken? ->
+          val response =
             internalBasicReportsStub.listBasicReports(
               listBasicReportsRequest {
-                pageSize = remaining
+                pageSize = BATCH_SIZE
                 if (pageToken != null) {
                   this.pageToken = pageToken
                 }
@@ -123,15 +121,8 @@ class BasicReportsReportsJob(
                   }
               }
             )
-
-          val nextPageToken =
-            if (listBasicReportsResponse.hasNextPageToken()) {
-              listBasicReportsResponse.nextPageToken
-            } else {
-              null
-            }
-
-          ResourceList(listBasicReportsResponse.basicReportsList, nextPageToken)
+          val nextPageToken = if (response.hasNextPageToken()) response.nextPageToken else null
+          ResourceList(response.basicReportsList, nextPageToken)
         }
 
       resourceLists.collect { resourceList ->
