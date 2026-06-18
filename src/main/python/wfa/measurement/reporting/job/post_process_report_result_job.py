@@ -17,6 +17,7 @@ from absl import logging
 from typing import Iterable, Optional
 import grpc
 
+from google.protobuf import message as _proto_message
 from google.rpc import error_details_pb2
 from google.rpc import status_pb2
 from wfa.measurement.internal.reporting.v2 import basic_report_pb2
@@ -34,14 +35,17 @@ _BASIC_REPORT_STATE_INVALID_REASON = "BASIC_REPORT_STATE_INVALID"
 _BASIC_REPORT_STATE_METADATA_KEY = "basicReportState"
 _STATES_PAST_UNPROCESSED = frozenset({
     basic_report_pb2.BasicReport.State.Name(
-        basic_report_pb2.BasicReport.State.SUCCEEDED),
+        basic_report_pb2.BasicReport.State.SUCCEEDED
+    ),
     basic_report_pb2.BasicReport.State.Name(
-        basic_report_pb2.BasicReport.State.FAILED),
+        basic_report_pb2.BasicReport.State.FAILED
+    ),
 })
 
 
 def _basic_report_state_past_unprocessed(
-        rpc_error: grpc.RpcError) -> Optional[str]:
+    rpc_error: grpc.RpcError,
+) -> Optional[str]:
     """If the RpcError carries a BASIC_REPORT_STATE_INVALID ErrorInfo whose
     basicReportState metadata indicates a state past
     UNPROCESSED_RESULTS_READY (SUCCEEDED or FAILED), returns that state name.
@@ -52,15 +56,26 @@ def _basic_report_state_past_unprocessed(
     google.rpc.error_details.proto. We parse it without taking a dependency
     on grpcio-status by reading the trailer directly.
     """
-    trailers = rpc_error.trailing_metadata() if hasattr(
-        rpc_error, "trailing_metadata") else ()
+    trailers = (
+        rpc_error.trailing_metadata()
+        if hasattr(rpc_error, "trailing_metadata")
+        else ()
+    )
     for key, value in trailers or ():
         if key != "grpc-status-details-bin":
             continue
         status = status_pb2.Status()
         try:
             status.ParseFromString(value)
-        except Exception:  # pylint: disable=broad-except
+        except _proto_message.DecodeError:
+            # Malformed grpc-status-details-bin trailer: surface it rather
+            # than silently treating the error as a non-state-precondition
+            # one (which would FAIL the BasicReport).
+            logging.warning(
+                "Failed to parse grpc-status-details-bin trailer as"
+                " google.rpc.Status",
+                exc_info=True,
+            )
             return None
         for detail in status.details:
             if not detail.Is(error_details_pb2.ErrorInfo.DESCRIPTOR):
@@ -75,7 +90,9 @@ def _basic_report_state_past_unprocessed(
             return None
     return None
 
+
 _MAX_PAGE_SIZE = 50
+
 
 class PostProcessReportResultJob:
     """A job for fetching, correcting, and updating a report."""
@@ -95,13 +112,19 @@ class PostProcessReportResultJob:
         """
         self._report_results_stub = (
             report_results_service_pb2_grpc.ReportResultsStub(
-                internal_reporting_channel))
+                internal_reporting_channel
+            )
+        )
         self._reporting_sets_stub = (
             reporting_sets_service_pb2_grpc.ReportingSetsStub(
-                internal_reporting_channel))
+                internal_reporting_channel
+            )
+        )
         self._basic_reports_stub = (
             basic_reports_service_pb2_grpc.BasicReportsStub(
-                internal_reporting_channel))
+                internal_reporting_channel
+            )
+        )
         self._post_processor = (
             post_process_report_result.PostProcessReportResult(
                 self._report_results_stub, self._reporting_sets_stub
@@ -110,7 +133,8 @@ class PostProcessReportResultJob:
         self._ami_mrc_exempted_edps = ami_mrc_exempted_edps or []
 
     def _process_basic_report(
-            self, basic_report: basic_report_pb2.BasicReport) -> bool:
+        self, basic_report: basic_report_pb2.BasicReport
+    ) -> bool:
         """Processes a single basic report.
 
         This method calls the post-processor to correct the report results. If
@@ -146,11 +170,10 @@ class PostProcessReportResultJob:
             )
             self._basic_reports_stub.FailBasicReport(
                 basic_reports_service_pb2.FailBasicReportRequest(
-                    cmms_measurement_consumer_id=basic_report.
-                    cmms_measurement_consumer_id,
-                    external_basic_report_id=basic_report.
-                    external_basic_report_id,
-                ))
+                    cmms_measurement_consumer_id=basic_report.cmms_measurement_consumer_id,
+                    external_basic_report_id=basic_report.external_basic_report_id,
+                )
+            )
             return False
 
         if not add_processed_result_values_request:
@@ -162,7 +185,8 @@ class PostProcessReportResultJob:
         )
         try:
             self._report_results_stub.AddProcessedResultValues(
-                add_processed_result_values_request)
+                add_processed_result_values_request
+            )
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.FAILED_PRECONDITION:
                 # FAILED_PRECONDITION can mean (a) the BasicReport state is no
@@ -196,11 +220,10 @@ class PostProcessReportResultJob:
                 )
                 self._basic_reports_stub.FailBasicReport(
                     basic_reports_service_pb2.FailBasicReportRequest(
-                        cmms_measurement_consumer_id=basic_report.
-                        cmms_measurement_consumer_id,
-                        external_basic_report_id=basic_report.
-                        external_basic_report_id,
-                    ))
+                        cmms_measurement_consumer_id=basic_report.cmms_measurement_consumer_id,
+                        external_basic_report_id=basic_report.external_basic_report_id,
+                    )
+                )
                 return False
             # Any other gRPC error (UNAVAILABLE, DEADLINE_EXCEEDED, etc.) is
             # treated as transient. Leave the BasicReport in
@@ -239,7 +262,8 @@ class PostProcessReportResultJob:
 
         while True:
             response = self._basic_reports_stub.ListBasicReports(
-                basic_reports_request)
+                basic_reports_request
+            )
 
             # Processes basic report in this page.
             for report in response.basic_reports:
@@ -250,7 +274,8 @@ class PostProcessReportResultJob:
             # more basic reports to process.
             if response.HasField("next_page_token"):
                 basic_reports_request.page_token.CopyFrom(
-                    response.next_page_token)
+                    response.next_page_token
+                )
             else:
                 break
 

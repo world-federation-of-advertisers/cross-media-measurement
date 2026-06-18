@@ -33,10 +33,11 @@ class PostProcessReportResultJobTest(unittest.TestCase):
 
     @staticmethod
     def _make_rpc_error_with_error_info(
-            code: grpc.StatusCode,
-            reason: str,
-            metadata: dict,
-            details_text: str = "") -> grpc.RpcError:
+        code: grpc.StatusCode,
+        reason: str,
+        metadata: dict,
+        details_text: str = "",
+    ) -> grpc.RpcError:
         """Builds a grpc.RpcError that carries a google.rpc.Status with an
         ErrorInfo in its trailing metadata, matching the wire format the
         Reporting server emits.
@@ -61,7 +62,6 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         )
         return rpc_error
 
-
     def setUp(self):
         super().setUp()
         self.mock_report_results_stub = mock.MagicMock()
@@ -69,7 +69,8 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.mock_basic_reports_stub = mock.MagicMock()
 
         self.mock_post_processor = mock.MagicMock(
-            spec=post_process_report_result.PostProcessReportResult)
+            spec=post_process_report_result.PostProcessReportResult
+        )
 
         # Mocks the gRPC channels and stubs.
         self.patches = [
@@ -95,7 +96,8 @@ class PostProcessReportResultJobTest(unittest.TestCase):
 
         mock_channel = mock.create_autospec(grpc.Channel)
         self.job = post_process_report_result_job.PostProcessReportResultJob(
-            mock_channel)
+            mock_channel
+        )
 
     def tearDown(self):
         for patch in self.patches:
@@ -115,15 +117,16 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.mock_basic_reports_stub.ListBasicReports.side_effect = [
             basic_reports_service_pb2.ListBasicReportsResponse(
                 basic_reports=[mock_report1],
-                next_page_token=basic_reports_service_pb2.
-                ListBasicReportsPageToken(),
+                next_page_token=basic_reports_service_pb2.ListBasicReportsPageToken(),
             ),
             basic_reports_service_pb2.ListBasicReportsResponse(
-                basic_reports=[mock_report2], ),
+                basic_reports=[mock_report2],
+            ),
         ]
 
         mock_request = (
-            report_results_service_pb2.AddProcessedResultValuesRequest())
+            report_results_service_pb2.AddProcessedResultValuesRequest()
+        )
         self.mock_post_processor.process.return_value = mock_request
 
         # Executes the job.
@@ -132,26 +135,30 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         # Verifies the expected behavior.
         self.assertTrue(result)
         self.assertEqual(
-            self.mock_basic_reports_stub.ListBasicReports.call_count, 2)
+            self.mock_basic_reports_stub.ListBasicReports.call_count, 2
+        )
         self.assertEqual(self.mock_post_processor.process.call_count, 2)
         self.mock_post_processor.process.assert_any_call("mc_id_1", 101, [])
         self.mock_post_processor.process.assert_any_call("mc_id_2", 102, [])
 
         self.assertEqual(
-            self.mock_report_results_stub.AddProcessedResultValues.call_count,
-            2)
+            self.mock_report_results_stub.AddProcessedResultValues.call_count, 2
+        )
         self.mock_report_results_stub.AddProcessedResultValues.assert_called_with(
-            mock_request)
+            mock_request
+        )
 
     def test_execute_with_exemption(self):
         # Sets up mock objects.
         mock_channel = mock.create_autospec(grpc.Channel)
-        job_with_exemption = post_process_report_result_job.PostProcessReportResultJob(
-            mock_channel,
-            ami_mrc_exempted_edps=[
-                "dataProviders/edp1",
-                "dataProviders/edp2",
-            ],
+        job_with_exemption = (
+            post_process_report_result_job.PostProcessReportResultJob(
+                mock_channel,
+                ami_mrc_exempted_edps=[
+                    "dataProviders/edp1",
+                    "dataProviders/edp2",
+                ],
+            )
         )
         mock_report = BasicReport(
             cmms_measurement_consumer_id="mc_id_1",
@@ -159,10 +166,13 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         )
         self.mock_basic_reports_stub.ListBasicReports.return_value = (
             basic_reports_service_pb2.ListBasicReportsResponse(
-                basic_reports=[mock_report]))
+                basic_reports=[mock_report]
+            )
+        )
 
         mock_request = (
-            report_results_service_pb2.AddProcessedResultValuesRequest())
+            report_results_service_pb2.AddProcessedResultValuesRequest()
+        )
         self.mock_post_processor.process.return_value = mock_request
 
         # Executes the job.
@@ -179,8 +189,8 @@ class PostProcessReportResultJobTest(unittest.TestCase):
     def test_execute_no_unprocessed_reports(self):
         # Sets up mock objects.
         self.mock_basic_reports_stub.ListBasicReports.return_value = (
-            basic_reports_service_pb2.ListBasicReportsResponse(
-                basic_reports=[]))
+            basic_reports_service_pb2.ListBasicReportsResponse(basic_reports=[])
+        )
 
         # Executes the job.
         result = self.job.execute()
@@ -189,8 +199,7 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.assertTrue(result)
         self.mock_basic_reports_stub.ListBasicReports.assert_called_once()
         self.mock_post_processor.process.assert_not_called()
-        self.mock_report_results_stub.AddProcessedResultValues.assert_not_called(
-        )
+        self.mock_report_results_stub.AddProcessedResultValues.assert_not_called()
 
     @mock.patch.object(logging, "warning", autospec=True)
     def test_execute_with_failure(self, mock_logging):
@@ -207,10 +216,13 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         )
         self.mock_basic_reports_stub.ListBasicReports.return_value = (
             basic_reports_service_pb2.ListBasicReportsResponse(
-                basic_reports=[mock_report1, mock_report2]))
+                basic_reports=[mock_report1, mock_report2]
+            )
+        )
 
         mock_request = (
-            report_results_service_pb2.AddProcessedResultValuesRequest())
+            report_results_service_pb2.AddProcessedResultValuesRequest()
+        )
 
         # The first call fails, the second succeeds.
         self.mock_post_processor.process.side_effect = [
@@ -227,12 +239,14 @@ class PostProcessReportResultJobTest(unittest.TestCase):
 
         # Verifies that the successful report was still updated.
         self.mock_report_results_stub.AddProcessedResultValues.assert_called_once_with(
-            mock_request)
+            mock_request
+        )
         self.mock_basic_reports_stub.FailBasicReport.assert_called_once_with(
             basic_reports_service_pb2.FailBasicReportRequest(
                 cmms_measurement_consumer_id="mc_id_1",
                 external_basic_report_id="basic_report_1",
-            ))
+            )
+        )
         # Verifies that the exception was logged.
         mock_logging.assert_called_once_with(
             "Failed to process BasicReport %s for MeasurementConsumer %s",
@@ -240,7 +254,6 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             "mc_id_1",
             exc_info=True,
         )
-
 
     @mock.patch.object(logging, "info", autospec=True)
     def test_execute_skips_basic_report_already_processed(self, mock_logging):
@@ -258,10 +271,13 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         )
         self.mock_basic_reports_stub.ListBasicReports.return_value = (
             basic_reports_service_pb2.ListBasicReportsResponse(
-                basic_reports=[mock_report]))
+                basic_reports=[mock_report]
+            )
+        )
 
         mock_request = (
-            report_results_service_pb2.AddProcessedResultValuesRequest())
+            report_results_service_pb2.AddProcessedResultValuesRequest()
+        )
         self.mock_post_processor.process.return_value = mock_request
 
         # Server emits FAILED_PRECONDITION with ErrorInfo whose
@@ -274,10 +290,12 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             details_text=(
                 "BasicReport with external key (mc_id_1,"
                 " basic_report_already_done) is in state SUCCEEDED which is"
-                " invalid for the operation"),
+                " invalid for the operation"
+            ),
         )
         self.mock_report_results_stub.AddProcessedResultValues.side_effect = (
-            rpc_error)
+            rpc_error
+        )
 
         result = self.job.execute()
 
@@ -301,10 +319,13 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         )
         self.mock_basic_reports_stub.ListBasicReports.return_value = (
             basic_reports_service_pb2.ListBasicReportsResponse(
-                basic_reports=[mock_report]))
+                basic_reports=[mock_report]
+            )
+        )
 
         mock_request = (
-            report_results_service_pb2.AddProcessedResultValuesRequest())
+            report_results_service_pb2.AddProcessedResultValuesRequest()
+        )
         self.mock_post_processor.process.return_value = mock_request
 
         # Server emits FAILED_PRECONDITION with a DIFFERENT reason -- this
@@ -317,7 +338,8 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             details_text="ReportingSetResult with external id (...) not found",
         )
         self.mock_report_results_stub.AddProcessedResultValues.side_effect = (
-            rpc_error)
+            rpc_error
+        )
 
         result = self.job.execute()
 
@@ -329,7 +351,8 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             basic_reports_service_pb2.FailBasicReportRequest(
                 cmms_measurement_consumer_id="mc_id_1",
                 external_basic_report_id="basic_report_missing_data",
-            ))
+            )
+        )
 
     def test_execute_does_not_fail_on_transient_grpc_error(self):
         """If AddProcessedResultValues fails with a transient gRPC error such
@@ -344,17 +367,21 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         )
         self.mock_basic_reports_stub.ListBasicReports.return_value = (
             basic_reports_service_pb2.ListBasicReportsResponse(
-                basic_reports=[mock_report]))
+                basic_reports=[mock_report]
+            )
+        )
 
         mock_request = (
-            report_results_service_pb2.AddProcessedResultValuesRequest())
+            report_results_service_pb2.AddProcessedResultValuesRequest()
+        )
         self.mock_post_processor.process.return_value = mock_request
 
         rpc_error = grpc.RpcError()
         rpc_error.code = lambda: grpc.StatusCode.UNAVAILABLE
         rpc_error.details = lambda: "connection reset"
         self.mock_report_results_stub.AddProcessedResultValues.side_effect = (
-            rpc_error)
+            rpc_error
+        )
 
         result = self.job.execute()
 
