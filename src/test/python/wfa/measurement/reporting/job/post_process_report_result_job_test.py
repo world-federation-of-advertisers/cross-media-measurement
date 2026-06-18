@@ -201,8 +201,7 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             ))
         # Verifies that the exception was logged.
         mock_logging.assert_called_once_with(
-            "Failed to post-process BasicReport %s for"
-            " MeasurementConsumer %s",
+            "Failed to process BasicReport %s for MeasurementConsumer %s",
             "basic_report_1",
             "mc_id_1",
             exc_info=True,
@@ -238,6 +237,12 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             " is in state SUCCEEDED which is invalid for the operation")
         self.mock_report_results_stub.AddProcessedResultValues.side_effect = (
             rpc_error)
+        # Authoritative state lookup says SUCCEEDED.
+        self.mock_basic_reports_stub.GetBasicReport.return_value = BasicReport(
+            external_basic_report_id="basic_report_already_done",
+            cmms_measurement_consumer_id="mc_id_1",
+            state=basic_report_pb2.BasicReport.State.SUCCEEDED,
+        )
 
         result = self.job.execute()
 
@@ -245,6 +250,53 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.assertTrue(result)
         # The BasicReport must NOT be marked FAILED.
         self.mock_basic_reports_stub.FailBasicReport.assert_not_called()
+
+    def test_execute_fails_basic_report_on_other_failed_precondition(self):
+        """When AddProcessedResultValues returns FAILED_PRECONDITION for a
+        cause OTHER than the BasicReport state having advanced (e.g. missing
+        ReportingSetResult/ReportingWindowResult -- real data integrity
+        error), the BasicReport state is still UNPROCESSED_RESULTS_READY. The
+        job must NOT silently skip; it should mark the BasicReport FAILED so
+        the issue is surfaced.
+        """
+        mock_report = BasicReport(
+            external_basic_report_id="basic_report_missing_data",
+            cmms_measurement_consumer_id="mc_id_1",
+            external_report_result_id=101,
+        )
+        self.mock_basic_reports_stub.ListBasicReports.return_value = (
+            basic_reports_service_pb2.ListBasicReportsResponse(
+                basic_reports=[mock_report]))
+
+        mock_request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+        self.mock_post_processor.process.return_value = mock_request
+
+        rpc_error = grpc.RpcError()
+        rpc_error.code = lambda: grpc.StatusCode.FAILED_PRECONDITION
+        rpc_error.details = lambda: (
+            "ReportingSetResult with external id (...) not found")
+        self.mock_report_results_stub.AddProcessedResultValues.side_effect = (
+            rpc_error)
+        # State has NOT advanced -- still UNPROCESSED_RESULTS_READY.
+        self.mock_basic_reports_stub.GetBasicReport.return_value = BasicReport(
+            external_basic_report_id="basic_report_missing_data",
+            cmms_measurement_consumer_id="mc_id_1",
+            state=basic_report_pb2.BasicReport.State
+            .UNPROCESSED_RESULTS_READY,
+        )
+
+        result = self.job.execute()
+
+        # Job should surface the failure.
+        self.assertFalse(result)
+        # The BasicReport must be marked FAILED so the integrity issue is
+        # visible rather than silently retried forever.
+        self.mock_basic_reports_stub.FailBasicReport.assert_called_once_with(
+            basic_reports_service_pb2.FailBasicReportRequest(
+                cmms_measurement_consumer_id="mc_id_1",
+                external_basic_report_id="basic_report_missing_data",
+            ))
 
     def test_execute_does_not_fail_on_transient_grpc_error(self):
         """If AddProcessedResultValues fails with a transient gRPC error such

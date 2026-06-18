@@ -88,8 +88,7 @@ class PostProcessReportResultJob:
             # BasicReport cannot be processed; mark it FAILED so downstream
             # consumers don't wait forever.
             logging.warning(
-                "Failed to post-process BasicReport %s for"
-                " MeasurementConsumer %s",
+                "Failed to process BasicReport %s for MeasurementConsumer %s",
                 basic_report.external_basic_report_id,
                 basic_report.cmms_measurement_consumer_id,
                 exc_info=True,
@@ -114,20 +113,42 @@ class PostProcessReportResultJob:
             self._report_results_stub.AddProcessedResultValues(
                 add_processed_result_values_request)
         except grpc.RpcError as e:
-            # FAILED_PRECONDITION here means the BasicReport state is no
-            # longer UNPROCESSED_RESULTS_READY -- typically because another
-            # writer already advanced it to SUCCEEDED. The work is done;
-            # skip silently. Failing it here would corrupt a BasicReport
-            # that already has valid processed results.
             if e.code() == grpc.StatusCode.FAILED_PRECONDITION:
-                logging.info(
-                    "Skipping BasicReport %s for MeasurementConsumer %s:"
-                    " already advanced past UNPROCESSED_RESULTS_READY (%s)",
+                # FAILED_PRECONDITION can mean (a) the BasicReport state is no
+                # longer UNPROCESSED_RESULTS_READY -- typically because another
+                # writer already advanced it -- in which case the work is
+                # done and we should skip silently, or (b) a real data
+                # integrity error such as a missing ReportingSetResult /
+                # ReportingWindowResult, which we must not swallow. Disambig-
+                # uate by reading the current BasicReport state.
+                if self._is_basic_report_past_unprocessed_results_ready(
+                        basic_report):
+                    logging.info(
+                        "Skipping BasicReport %s for MeasurementConsumer %s:"
+                        " already advanced past UNPROCESSED_RESULTS_READY (%s)",
+                        basic_report.external_basic_report_id,
+                        basic_report.cmms_measurement_consumer_id,
+                        e.details(),
+                    )
+                    return True
+                # State precondition was NOT the cause -- fall through to
+                # treat as a real failure (e.g. missing ReportingSetResult).
+                logging.warning(
+                    "AddProcessedResultValues failed for BasicReport %s,"
+                    " MeasurementConsumer %s with FAILED_PRECONDITION but"
+                    " state has not advanced; marking FAILED",
                     basic_report.external_basic_report_id,
                     basic_report.cmms_measurement_consumer_id,
-                    e.details(),
+                    exc_info=True,
                 )
-                return True
+                self._basic_reports_stub.FailBasicReport(
+                    basic_reports_service_pb2.FailBasicReportRequest(
+                        cmms_measurement_consumer_id=basic_report.
+                        cmms_measurement_consumer_id,
+                        external_basic_report_id=basic_report.
+                        external_basic_report_id,
+                    ))
+                return False
             # Any other gRPC error (UNAVAILABLE, DEADLINE_EXCEEDED, etc.) is
             # treated as transient. Leave the BasicReport in
             # UNPROCESSED_RESULTS_READY so the next tick can retry; do not
@@ -142,6 +163,40 @@ class PostProcessReportResultJob:
             return False
 
         return succeeded
+
+    _STATES_PAST_UNPROCESSED_RESULTS_READY = frozenset({
+        basic_report_pb2.BasicReport.State.SUCCEEDED,
+        basic_report_pb2.BasicReport.State.FAILED,
+    })
+
+    def _is_basic_report_past_unprocessed_results_ready(
+            self, basic_report: basic_report_pb2.BasicReport) -> bool:
+        """Returns True if the BasicReport's current state is SUCCEEDED or
+        FAILED, i.e. it has already moved past UNPROCESSED_RESULTS_READY and
+        no further work from this job is appropriate.
+
+        On any error reading the state (network failure, NOT_FOUND, etc.),
+        returns False so the caller falls through to its normal error path.
+        """
+        try:
+            current = self._basic_reports_stub.GetBasicReport(
+                basic_reports_service_pb2.GetBasicReportRequest(
+                    cmms_measurement_consumer_id=basic_report.
+                    cmms_measurement_consumer_id,
+                    external_basic_report_id=basic_report.
+                    external_basic_report_id,
+                ))
+        except grpc.RpcError:
+            logging.warning(
+                "Failed to read BasicReport %s state for MeasurementConsumer"
+                " %s while disambiguating FAILED_PRECONDITION",
+                basic_report.external_basic_report_id,
+                basic_report.cmms_measurement_consumer_id,
+                exc_info=True,
+            )
+            return False
+        return (current.state in
+                self._STATES_PAST_UNPROCESSED_RESULTS_READY)
 
     def execute(self) -> bool:
         """Runs the post-processing job.
