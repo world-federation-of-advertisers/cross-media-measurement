@@ -79,3 +79,22 @@ jobs:
         env:
           JSON: ${{ steps.fetch-closed-issues.outputs.json }}
         run: python .github/workflows/scripts/repo-stats/process_issues.py
+
+      - name: Fetch PR reviewers
+        id: fetch-pr-reviewers
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # DO_NOT_SUBMIT: use parameters
+          bash .github/workflows/scripts/repo-stats/fetch_pr_reviewers.sh \
+            "2026-05-01" \
+            "2026-05-31" \
+            | tee raw.json | jq .
+          cat raw.json | jq .data.rateLimit
+          echo "json=$(cat raw.json | jq .data.search.nodes.[] -c | jq . -sc)" | tee -a $GITHUB_OUTPUT
+
+      - name: Compute PR reviewers stats
+        env:
+          JSON: ${{ steps.fetch-pr-reviewers.outputs.json }}
+        run: python .github/workflows/scripts/repo-stats/process_pr_reviewers.py
