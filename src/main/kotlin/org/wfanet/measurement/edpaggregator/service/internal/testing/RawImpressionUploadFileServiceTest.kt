@@ -64,7 +64,7 @@ abstract class RawImpressionUploadFileServiceTest {
   private suspend fun createFile(
     uploadResourceId: String,
     blobUri: String = BLOB_URI,
-    requestId: String = "",
+    requestId: String = UUID.randomUUID().toString(),
   ): RawImpressionUploadFile {
     return fileService.createRawImpressionUploadFile(
       createRawImpressionUploadFileRequest {
@@ -107,15 +107,18 @@ abstract class RawImpressionUploadFileServiceTest {
   }
 
   @Test
-  fun `createRawImpressionUploadFile allows duplicate blob_uri`() = runBlocking {
-    val uploadId: String = createUpload()
+  fun `createRawImpressionUploadFile allows duplicate blob_uri with different request_ids`() =
+    runBlocking {
+      val uploadId: String = createUpload()
+      val rid1: String = UUID.randomUUID().toString()
+      val rid2: String = UUID.randomUUID().toString()
 
-    val file1: RawImpressionUploadFile = createFile(uploadId)
-    val file2: RawImpressionUploadFile = createFile(uploadId)
+      val file1: RawImpressionUploadFile = createFile(uploadId, requestId = rid1)
+      val file2: RawImpressionUploadFile = createFile(uploadId, requestId = rid2)
 
-    assertThat(file1.fileResourceId).isNotEqualTo(file2.fileResourceId)
-    assertThat(file1.blobUri).isEqualTo(file2.blobUri)
-  }
+      assertThat(file1.fileResourceId).isNotEqualTo(file2.fileResourceId)
+      assertThat(file1.blobUri).isEqualTo(file2.blobUri)
+    }
 
   @Test
   fun `createRawImpressionUploadFile throws NOT_FOUND when upload not found`() = runBlocking {
@@ -239,6 +242,54 @@ abstract class RawImpressionUploadFileServiceTest {
     }
 
   @Test
+  fun `createRawImpressionUploadFile throws INVALID_ARGUMENT if request_id not set`() =
+    runBlocking {
+      val uploadId: String = createUpload()
+
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> { createFile(uploadId, requestId = "") }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+          }
+        )
+    }
+
+  @Test
+  fun `batchCreateRawImpressionUploadFiles throws INVALID_ARGUMENT if request_id not set`() =
+    runBlocking {
+      val uploadId: String = createUpload()
+
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          fileService.batchCreateRawImpressionUploadFiles(
+            batchCreateRawImpressionUploadFilesRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = uploadId
+              requests += createRawImpressionUploadFileRequest {
+                rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI }
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.0.request_id"
+          }
+        )
+    }
+
+  @Test
   fun `batchCreateRawImpressionUploadFiles creates multiple files`() = runBlocking {
     val uploadId: String = createUpload()
 
@@ -249,9 +300,11 @@ abstract class RawImpressionUploadFileServiceTest {
           rawImpressionUploadResourceId = uploadId
           requests += createRawImpressionUploadFileRequest {
             rawImpressionUploadFile = rawImpressionUploadFile { blobUri = "gs://bucket/file1" }
+            requestId = UUID.randomUUID().toString()
           }
           requests += createRawImpressionUploadFileRequest {
             rawImpressionUploadFile = rawImpressionUploadFile { blobUri = "gs://bucket/file2" }
+            requestId = UUID.randomUUID().toString()
           }
         }
       )
@@ -406,6 +459,7 @@ abstract class RawImpressionUploadFileServiceTest {
             rawImpressionUploadResourceId = "nonexistent-upload"
             requests += createRawImpressionUploadFileRequest {
               rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI }
+              requestId = UUID.randomUUID().toString()
             }
           }
         )
