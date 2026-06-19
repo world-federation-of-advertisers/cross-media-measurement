@@ -26,6 +26,7 @@ import com.google.protobuf.timestamp
 import com.google.type.Date
 import com.google.type.date
 import java.time.LocalDate
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -90,7 +91,7 @@ class SubpoolRankerTest {
     fake = FakeRankIndexBlobs()
   }
 
-  private fun ranker(): SubpoolRanker {
+  private fun ranker(maxEventDate: Date = epochDayToDate(TODAY_EPOCH_DAY)): SubpoolRanker {
     val retention = SubpoolRetention(fake.stub, rankStore, DP, MODEL_LINE, RETENTION_DAYS, TODAY)
     return SubpoolRanker(
       subpoolFingerprintsStore = subpoolStore,
@@ -103,7 +104,7 @@ class SubpoolRankerTest {
       vidRankMapBlobPrefix = PREFIX,
       kekUri = kekUri,
       encryptedSubpoolMapsDek = subpoolDek,
-      maxEventDate = epochDayToDate(TODAY_EPOCH_DAY),
+      maxEventDate = maxEventDate,
       retentionDays = RETENTION_DAYS,
       today = TODAY,
     )
@@ -116,10 +117,15 @@ class SubpoolRankerTest {
     return key
   }
 
-  /** Seeds a prior SNAPSHOT blob under [PRIOR_UPLOAD] plus its `RankIndexBlob` row. */
-  private suspend fun seedPriorSnapshot(entries: List<Triple<Pair<Long, Int>, Int, Int>>) {
+  /** Seeds a prior SNAPSHOT blob under [uploadName] plus its `RankIndexBlob` row. */
+  private suspend fun seedPriorSnapshot(
+    entries: List<Triple<Pair<Long, Int>, Int, Int>>,
+    uploadName: String = PRIOR_UPLOAD,
+    createTimeSeconds: Long = 1L,
+    blobKey: String = "ranks/prior/snapshot/$POOL/$createTimeSeconds",
+    rowName: String = "$uploadName/rankIndexBlobs/snap-$createTimeSeconds",
+  ) {
     val dek = rankStore.generateDek(kekUri)
-    val key = "ranks/prior/snapshot/$POOL"
     val lastSeenBytes = ByteArray(entries.size * LastSeenDayBytes.WIDTH)
     entries.forEachIndexed { i, e ->
       LastSeenDayBytes.write(lastSeenBytes, i * LastSeenDayBytes.WIDTH, e.third)
@@ -131,17 +137,17 @@ class SubpoolRankerTest {
       entries.forEach { ranks += it.second }
       lastSeenDays = ByteString.copyFrom(lastSeenBytes)
     }
-    val checksum = rankStore.writeBlob(key, dek, flowOf(record))
+    val checksum = rankStore.writeBlob(blobKey, dek, flowOf(record))
     fake.seed(
       rankIndexBlob {
-        name = "$PRIOR_UPLOAD/rankIndexBlobs/snap-prior"
+        name = rowName
         blobType = RankIndexBlob.BlobType.SNAPSHOT
         cmmsModelLine = MODEL_LINE
         poolOffset = POOL
-        blobUri = key
+        blobUri = blobKey
         blobChecksum = checksum
         encryptedDek = dek
-        createTime = timestamp { seconds = 1 }
+        createTime = timestamp { seconds = createTimeSeconds }
       }
     )
   }
@@ -238,6 +244,69 @@ class SubpoolRankerTest {
     assertThat(result.allocated).isEqualTo(2)
     assertThat(result.overflow).isEqualTo(1)
     assertThat(readSnapshot()).hasSize(2)
+  }
+
+  @Test
+  fun `prior snapshot with a mismatched checksum fails the rank`() =
+    runBlocking<Unit> {
+      seedPriorSnapshot(listOf(Triple(10L to 0, 0, 90)))
+      // Corrupt the seeded snapshot's recorded checksum so it no longer matches the bytes; the
+      // integrity guard in RankIndexStore.readBlob must fire when the allocator loads it.
+      val idx = fake.rows.indexOfFirst { it.blobType == RankIndexBlob.BlobType.SNAPSHOT }
+      fake.rows[idx] =
+        fake.rows[idx].copy { blobChecksum = ByteString.copyFromUtf8("not-the-real-checksum") }
+      val key = writePhase0(listOf(20L to 0))
+
+      assertFailsWith<IllegalStateException> { ranker().rank(POOL, key, rankedSize = 100) }
+    }
+
+  @Test
+  fun `loads the newest prior snapshot across uploads`() =
+    runBlocking<Unit> {
+      // Two prior SNAPSHOTs for this subpool under different uploads; the newer create_time wins.
+      seedPriorSnapshot(
+        listOf(Triple(10L to 0, 0, 90)),
+        uploadName = "dataProviders/dp/rawImpressionUploads/upOld",
+        createTimeSeconds = 1L,
+      )
+      seedPriorSnapshot(
+        listOf(Triple(99L to 0, 0, 90)),
+        uploadName = "dataProviders/dp/rawImpressionUploads/upNew",
+        createTimeSeconds = 5L,
+      )
+      val key = writePhase0(emptyList()) // no new fingerprints; result mirrors the loaded prior
+
+      ranker().rank(POOL, key, rankedSize = 100)
+
+      // The allocator loaded the newer snapshot (99), not the older one (10).
+      assertThat(readSnapshot().keys).containsExactly(99L to 0)
+    }
+
+  @Test
+  fun `empty subpool still writes a snapshot carrying the prior cumulative unchanged`() =
+    runBlocking<Unit> {
+      seedPriorSnapshot(listOf(Triple(10L to 0, 0, 90)))
+      val key = writePhase0(emptyList())
+
+      val result = ranker().rank(POOL, key, rankedSize = 100)
+
+      assertThat(result.allocated).isEqualTo(0)
+      assertThat(result.renewed).isEqualTo(0)
+      assertThat(result.overflow).isEqualTo(0)
+      // A SNAPSHOT row is still inserted under this upload, carrying the prior cumulative
+      // unchanged.
+      assertThat(readSnapshot()).containsExactly(10L to 0, 0 to 90)
+    }
+
+  @Test
+  fun `rank fails when maxEventDate is unset`() = runBlocking {
+    val key = writePhase0(listOf(1L to 0))
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ranker(maxEventDate = Date.getDefaultInstance()).rank(POOL, key, rankedSize = 100)
+      }
+    assertThat(exception).hasMessageThat().contains("maxEventDate must be set")
   }
 
   companion object {
