@@ -47,6 +47,7 @@ kt_jvm_library(
     name = "subpool_retention",
     srcs = ["SubpoolRetention.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:rank_index_store",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_kt_jvm_proto",
@@ -64,6 +65,7 @@ kt_jvm_library(
         ":rank_allocator",
         ":subpool_retention",
         ":vid_rank_builder_metrics",
+        "//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:rank_index_store",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:subpool_fingerprints_store",
