@@ -107,8 +107,8 @@ message RankIndexMap {
   //
   // `uint16` covers epoch days `[0, 65535]` = dates `[1970-01-01, 2149-06-06]`,
   // adequate for this system's lifetime (revisit before 2149) at half the wire
-  // and heap cost of `fixed32`. Mirrors the `bytes`-with-fixed-stride trick used
-  // for `fingerprints`. Empty on legacy blobs written before this field
+  // and heap cost of `fixed32`. Mirrors the `bytes`-with-fixed-stride trick
+  // used for `fingerprints`. Empty on legacy blobs written before this field
   // existed.
   bytes last_seen_days = 5;
 }
