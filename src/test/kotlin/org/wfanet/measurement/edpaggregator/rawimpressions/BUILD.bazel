@@ -43,3 +43,36 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/org/junit",
     ],
 )
+
+kt_jvm_test(
+    name = "LabelerInputMapperTest",
+    srcs = ["LabelerInputMapperTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapperTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:labeler_input_mapper",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/proto/wfa/measurement/storage:parquet_row_kt_jvm_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_test(
+    name = "SubpoolFingerprintsStoreTest",
+    srcs = ["SubpoolFingerprintsStoreTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStoreTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:subpool_fingerprints_store",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:subpool_fingerprints_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
+    ],
+)
