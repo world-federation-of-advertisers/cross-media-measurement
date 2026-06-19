@@ -1,5 +1,3 @@
-
-
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 package(default_testonly = True)
