@@ -6,6 +6,35 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
+    name = "event_id_digest_bytes",
+    srcs = ["EventIdDigestBytes.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)
+
+kt_jvm_library(
+    name = "last_seen_day_bytes",
+    srcs = ["LastSeenDayBytes.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)
+
+kt_jvm_library(
+    name = "rank_allocator",
+    srcs = ["RankAllocator.kt"],
+    deps = [
+        ":event_id_digest_bytes",
+        ":last_seen_day_bytes",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/utils:bytes12_int_map",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_map_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
     name = "vid_rank_builder_app",
     srcs = ["VidRankBuilderApp.kt"],
     deps = [
