@@ -35,10 +35,13 @@ SELECT
   -- NOTE: ReportState is the aggregate report state across all EDPs. This
   -- reveals whether other EDPs have completed/failed. Deemed acceptable to
   -- share cross-EDP.
-  CASE
-    WHEN br.State = 2 THEN 'SUCCEEDED'
-    WHEN br.State = 3 THEN 'FAILED'
-    WHEN br.State = 1 THEN 'RUNNING'
+  CASE br.State
+    WHEN 1 THEN 'CREATED'
+    WHEN 2 THEN 'REPORT_CREATED'
+    WHEN 3 THEN 'UNPROCESSED_RESULTS_READY'
+    WHEN 4 THEN 'SUCCEEDED'
+    WHEN 5 THEN 'FAILED'
+    WHEN 6 THEN 'INVALID'
     ELSE 'UNSPECIFIED'
   END AS ReportState,
   DATE(
@@ -79,9 +82,9 @@ LEFT JOIN (
       br.BasicReportId,
       CAST(br.State AS INT64) AS State,
       br.ExternalReportId,
-      CAST(JSON_VALUE(TO_JSON(br.BasicReportDetails), '$.reportingInterval.reportStartDate.year') AS STRING) AS ReportStartYear,
-      CAST(JSON_VALUE(TO_JSON(br.BasicReportDetails), '$.reportingInterval.reportStartDate.month') AS STRING) AS ReportStartMonth,
-      CAST(JSON_VALUE(TO_JSON(br.BasicReportDetails), '$.reportingInterval.reportStartDate.day') AS STRING) AS ReportStartDay,
+      CAST(JSON_VALUE(TO_JSON(br.BasicReportDetails), '$.reportingInterval.reportStart.year') AS STRING) AS ReportStartYear,
+      CAST(JSON_VALUE(TO_JSON(br.BasicReportDetails), '$.reportingInterval.reportStart.month') AS STRING) AS ReportStartMonth,
+      CAST(JSON_VALUE(TO_JSON(br.BasicReportDetails), '$.reportingInterval.reportStart.day') AS STRING) AS ReportStartDay,
       CAST(JSON_VALUE(TO_JSON(br.BasicReportDetails), '$.reportingInterval.reportEnd.year') AS STRING) AS ReportEndYear,
       CAST(JSON_VALUE(TO_JSON(br.BasicReportDetails), '$.reportingInterval.reportEnd.month') AS STRING) AS ReportEndMonth,
       CAST(JSON_VALUE(TO_JSON(br.BasicReportDetails), '$.reportingInterval.reportEnd.day') AS STRING) AS ReportEndDay,
