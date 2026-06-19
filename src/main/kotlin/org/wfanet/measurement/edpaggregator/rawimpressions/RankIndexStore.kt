@@ -60,13 +60,13 @@ class RankIndexStore(storageClient: StorageClient, kmsClient: KmsClient) :
    *
    * @return the SHA-256 of the plaintext payload (concatenated record bytes, in order), for the
    *   `RankIndexBlob.blob_checksum` corruption guard.
-   * 
+   *
    * TODO(world-federation-of-advertisers/cross-media-measurement#3999): once
-   * world-federation-of-advertisers/common-jvm#389 lands, collapse the per-attempt-UUID
-   * blob keys (see [snapshotKey] / [dayOnlyKey]) to deterministic keys written via
-   * `writeBlobIfGeneration` so concurrent writers race-fail at the precondition rather
-   * than relying on the row insert as the linearization point. Mirrors the Phase-0
-   * adoption path in [SubpoolFingerprintsStore.writeBlob].
+   *   world-federation-of-advertisers/common-jvm#389 lands, collapse the per-attempt-UUID blob keys
+   *   (see [snapshotKey] / [dayOnlyKey]) to deterministic keys written via `writeBlobIfGeneration`
+   *   so concurrent writers race-fail at the precondition rather than relying on the row insert as
+   *   the linearization point. Mirrors the Phase-0 adoption path in
+   *   [SubpoolFingerprintsStore.writeBlob].
    */
   suspend fun writeBlob(
     blobKey: String,
