@@ -23,6 +23,8 @@ import java.time.LocalDate
 import java.util.UUID
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.firstOrNull
+import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
@@ -219,8 +221,7 @@ class SubpoolRanker(
    * non-null result is the idempotency-gate signal that the subpool was already ranked for this
    * dispatch.
    */
-  private suspend fun findUploadSnapshot(poolOffset: Long): RankIndexBlob? {
-    var existing: RankIndexBlob? = null
+  private suspend fun findUploadSnapshot(poolOffset: Long): RankIndexBlob? =
     rankIndexBlobsStub
       .listResources { pageToken: String ->
         val response =
@@ -233,14 +234,16 @@ class SubpoolRanker(
                   cmmsModelLine = modelLine
                   this.poolOffset = poolOffset
                 }
+              pageSize = 1
               this.pageToken = pageToken
             }
           )
         ResourceList(response.rankIndexBlobsList, response.nextPageToken)
       }
-      .collect { page -> page.firstOrNull()?.let { existing = it } }
-    return existing
-  }
+      // Short-circuit at the first page that has a match: cancels pagination instead of scanning
+      // the whole filter result for a question whose answer is binary (exists / not).
+      .firstOrNull { page -> page.firstOrNull() != null }
+      ?.firstOrNull()
 
   /**
    * The newest non-deleted `SNAPSHOT` blob for [poolOffset] of this (data provider, model line)
@@ -259,7 +262,7 @@ class SubpoolRanker(
         val response =
           listRankIndexBlobs(
             listRankIndexBlobsRequest {
-              parent = "$dataProvider/rawImpressionUploads/-"
+              parent = "$dataProvider/rawImpressionUploads/${ResourceKey.WILDCARD_ID}"
               filter =
                 ListRankIndexBlobsRequestKt.filter {
                   blobType = RankIndexBlob.BlobType.SNAPSHOT
@@ -333,9 +336,13 @@ class SubpoolRanker(
     metrics.subpoolsRankedCounter.add(1)
   }
 
-  /** Epoch-day of a UTC [Date]; falls back to [today] when the date is unset. */
+  /**
+   * Epoch-day of a UTC [Date]. [maxEventDate] is REQUIRED: it drives both `last_seen` stamping and
+   * the `DAY_ONLY` row's `MaxEventDate` (which retention ages blobs by), so an unset value would
+   * silently corrupt rank state. Fail loudly instead of defaulting.
+   */
   private fun epochDayOf(date: Date): Int {
-    if (date.year == 0) return today.toEpochDay().toInt()
+    require(date.year != 0) { "maxEventDate must be set on VidRankBuilderParams" }
     return LocalDate.of(date.year, date.month, date.day).toEpochDay().toInt()
   }
 

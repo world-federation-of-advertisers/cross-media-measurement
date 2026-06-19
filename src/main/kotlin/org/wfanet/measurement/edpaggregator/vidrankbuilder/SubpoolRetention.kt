@@ -21,6 +21,7 @@ import com.google.type.date
 import java.time.LocalDate
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.collect
+import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
@@ -68,7 +69,10 @@ class SubpoolRetention(
       "Subpool $poolOffset for $modelLine: garbage-collecting ${candidates.size} aged DAY_ONLY blob(s)"
     )
     for (candidate in candidates) {
-      // Soft-delete the row first so a concurrent retry skips it, then delete the bytes.
+      // Soft-delete the row first so a concurrent retry skips it, then delete the bytes. A failure
+      // between the two leaks the bytes (no corruption — the row is gone, so nothing references
+      // them) and they're reclaimed by the monitor
+      // (world-federation-of-advertisers/cross-media-measurement#3958) or the bucket lifecycle.
       rankIndexBlobsStub.deleteRankIndexBlob(deleteRankIndexBlobRequest { name = candidate.name })
       rankIndexStore.delete(candidate.blobUri)
     }
@@ -87,7 +91,7 @@ class SubpoolRetention(
         val response =
           listRankIndexBlobs(
             listRankIndexBlobsRequest {
-              parent = "$dataProvider/rawImpressionUploads/-"
+              parent = "$dataProvider/rawImpressionUploads/${ResourceKey.WILDCARD_ID}"
               filter =
                 ListRankIndexBlobsRequestKt.filter {
                   blobType = RankIndexBlob.BlobType.DAY_ONLY
