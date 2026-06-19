@@ -19,6 +19,8 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
@@ -81,4 +83,31 @@ message RawImpressionUploadModelLine {
   // Entity tag for optimistic concurrency control. Required on
   // `Mark*` requests (AIP-154); a mismatch returns `ABORTED`.
   string etag = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Union of subpool offsets discovered across all shards during Phase 0.
+  // Populated atomically by the service when the last `PoolAssignmentJob` for
+  // this (upload, model line) is marked `SUCCEEDED`; read by a retrying
+  // SubpoolAssigner to recover the last-shard-out merge input list, and by the
+  // control-plane fan-out to bin-pack `RankerJob`s.
+  repeated int64 pool_offsets = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Maximum event date (UTC) across all impressions discovered during Phase 0,
+  // reduced from every shard's reported max. Populated atomically with
+  // `pool_offsets` on last-shard-out; stamped onto each Phase-1
+  // `VidRankBuilderParams.max_event_date` and read by a retrying
+  // SubpoolAssigner to recover the value for the fan-out.
+  google.type.Date max_event_date = 9
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // DEK that encrypts the merged per-subpool `SubpoolFingerprints` blobs. On
+  // last-shard-out the service promotes the marking
+  // `PoolAssignmentJob.encrypted_dek` (the last shard's own DEK, which it also
+  // used for the merge) onto this field, atomically with
+  // `pool_offsets`/`max_event_date`. A retrying SubpoolAssigner reuses it so a
+  // re-run's merge — and every published
+  // `VidRankBuilderParams.encrypted_subpool_maps_dek` — stays consistent with
+  // the already-written merged blobs instead of diverging on a freshly
+  // generated DEK.
+  wfa.measurement.securecomputation.impressions.EncryptedDek
+      encrypted_merged_dek = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

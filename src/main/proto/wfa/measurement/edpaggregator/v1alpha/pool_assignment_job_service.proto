@@ -19,7 +19,9 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
+import "google/type/date.proto";
 import "google/type/interval.proto";
+import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
 import "wfa/measurement/edpaggregator/v1alpha/pool_assignment_job.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -216,6 +218,31 @@ message MarkPoolAssignmentJobSucceededRequest {
     (google.api.field_behavior) = OPTIONAL,
     (google.api.field_info).format = UUID4
   ];
+
+  // The DEK that encrypts this shard's `SubpoolFingerprints` blobs.
+  // Persisted by the server onto the job's OUTPUT_ONLY
+  // `PoolAssignmentJob.encrypted_dek` atomically with the `SUCCEEDED`
+  // transition. On the last-shard mark, the server additionally promotes
+  // this DEK to the parent `RawImpressionUploadModelLine.encrypted_merged_dek`
+  // so a retrying SubpoolAssigner's merge stays consistent with the
+  // already-written merged blobs.
+  wfa.measurement.securecomputation.impressions.EncryptedDek encrypted_dek = 4
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Subpool offsets discovered by this shard during Phase 0. The service unions
+  // these across all shards of the (upload, model line); on the last shard out
+  // it returns the union in `LastShardResult` and persists it on
+  // `RawImpressionUploadModelLine.pool_offsets`. May be empty for a shard that
+  // produced no subpools.
+  repeated int64 pool_offsets = 5 [(google.api.field_behavior) = OPTIONAL];
+
+  // The latest event date (UTC) among the impressions this shard wrote into its
+  // `SubpoolFingerprints` blobs. The service reduces these to a maximum across
+  // all shards of the (upload, model line); on the last shard out it returns
+  // that maximum in `LastShardResult` and persists it on
+  // `RawImpressionUploadModelLine.max_event_date`. Unset for a shard that wrote
+  // no impressions.
+  google.type.Date max_event_date = 6 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Response message for the
@@ -230,10 +257,19 @@ message MarkPoolAssignmentJobSucceededResponse {
   // Phase 1.
   LastShardResult last_shard_result = 2;
 
-  // Result of the last shard completing.
+  // Result of the last shard completing. Present only when the
+  // last-shard mark resulted in non-empty cross-shard work; omitted
+  // if no shard wrote impressions.
   message LastShardResult {
     // The pool offsets discovered during Phase 0.
     repeated int64 pool_offsets = 1 [(google.api.field_behavior) = REQUIRED];
+
+    // The maximum event date (UTC) across all shards, reduced from every
+    // shard's reported `max_event_date`. Stamped onto each Phase-1
+    // `VidRankBuilderParams.max_event_date` so the rank-map retention sweep can
+    // age out blobs. Always set on the last-shard result.
+    google.type.Date max_event_date = 2
+        [(google.api.field_behavior) = REQUIRED];
   }
 }
 
