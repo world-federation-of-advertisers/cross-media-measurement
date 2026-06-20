@@ -272,14 +272,14 @@ class PostProcessReportResultTest(unittest.TestCase):
 
         # Verifies the cumulative results.
         cumulative_results = window_result.value.cumulative_results
-        self.assertEqual(cumulative_results.reach, 19021120)
-        self.assertAlmostEqual(cumulative_results.percent_reach, 34.5838547)
+        self.assertEqual(cumulative_results.reach, 19021118)
+        self.assertAlmostEqual(cumulative_results.percent_reach, 34.5838509)
         self.assertAlmostEqual(cumulative_results.average_frequency,
-                               1.88917184)
-        self.assertEqual(cumulative_results.impressions, 35934165)
-        self.assertAlmostEqual(cumulative_results.grps, 65.3348465)
+                               1.88917196)
+        self.assertEqual(cumulative_results.impressions, 35934162)
+        self.assertAlmostEqual(cumulative_results.grps, 65.3348389)
         expected_k_plus_reach = [
-            19021120,
+            19021119,
             9200728,
             4291494,
             1837838,
@@ -288,7 +288,7 @@ class PostProcessReportResultTest(unittest.TestCase):
         self.assertCountEqual(cumulative_results.k_plus_reach,
                               expected_k_plus_reach)
         expected_percent_k_plus_reach = [
-            34.5838547,
+            34.5838509,
             16.7285957,
             7.80271626,
             3.34152365,
@@ -388,6 +388,7 @@ class PostProcessReportResultTest(unittest.TestCase):
         mock_result = MagicMock()
         mock_result.status.status_code = report_post_processor_result_pb2.ReportPostProcessorStatus.SOLUTION_FOUND_WITH_HIGHS
         mock_result.updated_measurements = {}
+        mock_result.large_corrections = []
         mock_processor_instance.process.return_value = mock_result
 
         report_result_processor = PostProcessReportResult(
@@ -402,6 +403,29 @@ class PostProcessReportResultTest(unittest.TestCase):
             ANY,
             ['reporting_set_id_edp1']
         )
+
+    def test_post_process_report_result_raises_on_large_corrections(self):
+        # Loads a real fixture whose noisy values force the solver to apply
+        # corrections that exceed 7 sigma (e.g. reach going from 16.6M to 0).
+        with open(
+                'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_result_with_large_corrections.textproto',
+                'r') as file:
+            large_correction_response = text_format.Parse(
+                file.read(),
+                report_results_service_pb2.ListReportingSetResultsResponse(),
+            )
+        self.mock_report_results_stub.ListReportingSetResults.return_value = (
+            large_correction_response)
+        self.mock_reporting_sets_stub.BatchGetReportingSets.return_value = (
+            self.mock_batch_get_reporting_set_response)
+
+        report_result_processor = PostProcessReportResult(
+            self.mock_report_results_stub, self.mock_reporting_sets_stub)
+
+        with self.assertRaisesRegex(ValueError, 'large corrections'):
+            report_result_processor.process(
+                self.cmms_measurement_consumer_id,
+                self.external_report_result_id, [])
 
     def test_get_ami_mrc_exempted_reporting_set_id(self):
         self.mock_reporting_sets_stub.BatchGetReportingSets.return_value = (
