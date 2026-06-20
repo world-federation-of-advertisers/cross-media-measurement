@@ -233,7 +233,6 @@ class PostProcessReportResultTest(unittest.TestCase):
                 'reporting_set_id_edp1',
                 'reporting_set_id_edp2',
                 'reporting_set_id_edp3',
-                'reporting_set_id_edp1_edp2',
                 'reporting_set_id_edp1_edp2_edp3',
             ],
         )
@@ -249,9 +248,9 @@ class PostProcessReportResultTest(unittest.TestCase):
             self.external_report_result_id,
         )
 
-        # Verifies that there are 25 reporting set results in the sample data.
+        # Verifies that there are 20 reporting set results in the sample data.
         self.assertEqual(
-            len(add_processed_result_value_request.reporting_set_results), 25)
+            len(add_processed_result_value_request.reporting_set_results), 20)
 
         # Verifies the set result with exteral_reporting_set_result_id = 25.
         # This set result has noise added.
@@ -272,14 +271,14 @@ class PostProcessReportResultTest(unittest.TestCase):
 
         # Verifies the cumulative results.
         cumulative_results = window_result.value.cumulative_results
-        self.assertEqual(cumulative_results.reach, 19021118)
-        self.assertAlmostEqual(cumulative_results.percent_reach, 34.5838509)
+        self.assertEqual(cumulative_results.reach, 19021120)
+        self.assertAlmostEqual(cumulative_results.percent_reach, 34.5838547)
         self.assertAlmostEqual(cumulative_results.average_frequency,
-                               1.88917196)
-        self.assertEqual(cumulative_results.impressions, 35934162)
-        self.assertAlmostEqual(cumulative_results.grps, 65.3348389)
+                               1.88917184)
+        self.assertEqual(cumulative_results.impressions, 35934165)
+        self.assertAlmostEqual(cumulative_results.grps, 65.3348465)
         expected_k_plus_reach = [
-            19021119,
+            19021120,
             9200728,
             4291494,
             1837838,
@@ -288,7 +287,7 @@ class PostProcessReportResultTest(unittest.TestCase):
         self.assertCountEqual(cumulative_results.k_plus_reach,
                               expected_k_plus_reach)
         expected_percent_k_plus_reach = [
-            34.5838509,
+            34.5838547,
             16.7285957,
             7.80271626,
             3.34152365,

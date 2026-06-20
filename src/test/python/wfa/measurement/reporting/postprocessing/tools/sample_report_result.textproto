@@ -47,52 +47,52 @@ reporting_set_results {
       unprocessed_report_result_values {
         cumulative_results {
           reach {
-            value: 10011521
+            value: 9992500
             univariate_statistics { standard_deviation: 10000 }
           }
         }
         non_cumulative_results {
           reach {
-            value: 10013194
+            value: 10008130
             univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
-            value: 18382862
+            value: 18379493
             univariate_statistics { standard_deviation: 10000 }
           }
           frequency_histogram {
             bin_results: {
               key: 1
               value: {
-                value: 5173374
+                value: 5165486
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 2
               value: {
-                value: 2587194
+                value: 2582743
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 3
               value: {
-                value: 1292385
+                value: 1291372
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 4
               value: {
-                value: 643261
+                value: 645686
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 5
               value: {
-                value: 316980
+                value: 322843
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
@@ -118,52 +118,52 @@ reporting_set_results {
       unprocessed_report_result_values {
         cumulative_results {
           reach {
-            value: 12002237
+            value: 11998422
             univariate_statistics { standard_deviation: 10000 }
           }
         }
         non_cumulative_results {
           reach {
-            value: 2451953
+            value: 2452001
             univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
-            value: 4491260
+            value: 4471035
             univariate_statistics { standard_deviation: 10000 }
           }
           frequency_histogram {
             bin_results: {
               key: 1
               value: {
-                value: 1268962
+                value: 1265549
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 2
               value: {
-                value: 634477
+                value: 632775
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 3
               value: {
-                value: 316378
+                value: 316388
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 4
               value: {
-                value: 156473
+                value: 158194
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 5
               value: {
-                value: 75663
+                value: 79095
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
@@ -220,46 +220,46 @@ reporting_set_results {
       unprocessed_report_result_values {
         cumulative_results {
           reach {
-            value: 12002237
+            value: 11978894
             univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
-            value: 22868543
+            value: 22870892
             univariate_statistics { standard_deviation: 10000 }
           }
           frequency_histogram {
             bin_results: {
               key: 1
               value: {
-                value: 6187323
+                value: 6182655
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 2
               value: {
-                value: 3095997
+                value: 3091328
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 3
               value: {
-                value: 1550333
+                value: 1545664
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 4
               value: {
-                value: 777501
+                value: 772832
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 5
               value: {
-                value: 391084
+                value: 386415
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
@@ -717,52 +717,52 @@ reporting_set_results {
       unprocessed_report_result_values {
         cumulative_results {
           reach {
-            value: 15811521
+            value: 15830545
             univariate_statistics { standard_deviation: 10000 }
           }
         }
         non_cumulative_results {
           reach {
-            value: 15813194
+            value: 15829304
             univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
-            value: 29047375
+            value: 29046331
             univariate_statistics { standard_deviation: 10000 }
           }
           frequency_histogram {
             bin_results: {
               key: 1
               value: {
-                value: 8168699
+                value: 8169963
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 2
               value: {
-                value: 4082739
+                value: 4084982
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 3
               value: {
-                value: 2039269
+                value: 2042491
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 4
               value: {
-                value: 1017045
+                value: 1021246
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 5
               value: {
-                value: 505442
+                value: 510622
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
@@ -788,52 +788,52 @@ reporting_set_results {
       unprocessed_report_result_values {
         cumulative_results {
           reach {
-            value: 19002237
+            value: 19010669
             univariate_statistics { standard_deviation: 10000 }
           }
         }
         non_cumulative_results {
           reach {
-            value: 3754905
+            value: 3761510
             univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
-            value: 6887008
+            value: 6904573
             univariate_statistics { standard_deviation: 10000 }
           }
           frequency_histogram {
             bin_results: {
               key: 1
               value: {
-                value: 1942003
+                value: 1941425
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 2
               value: {
-                value: 970342
+                value: 970713
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 3
               value: {
-                value: 484036
+                value: 485357
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 4
               value: {
-                value: 240408
+                value: 242679
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 5
               value: {
-                value: 118116
+                value: 121336
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
@@ -890,374 +890,46 @@ reporting_set_results {
       unprocessed_report_result_values {
         cumulative_results {
           reach {
-            value: 19002237
+            value: 19021738
             univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
-            value: 35928804
+            value: 35926461
             univariate_statistics { standard_deviation: 10000 }
           }
           frequency_histogram {
             bin_results: {
               key: 1
               value: {
-                value: 9813770
+                value: 9817671
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 2
               value: {
-                value: 4904936
+                value: 4908836
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 3
               value: {
-                value: 2450518
+                value: 2454418
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 4
               value: {
-                value: 1223309
+                value: 1227209
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 5
               value: {
-                value: 609704
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-reporting_set_results {
-  cmms_measurement_consumer_id: "abcd"
-  external_report_result_id: 123456
-  external_reporting_set_result_id: 9
-  dimension {
-    external_reporting_set_id: "reporting_set_id_edp1_edp2"
-    venn_diagram_region_type: UNION
-    external_impression_qualification_filter_id: "ami"
-    metric_frequency_spec { total: true }
-    grouping {
-      value_by_path {
-        key: "person.age_group"
-        value { enum_value: "YEARS_18_TO_34" }
-      }
-      value_by_path {
-        key: "person.gender"
-        value { enum_value: "MALE" }
-      }
-    }
-    event_filters {
-      terms {
-        path: "banner_ad.viewable"
-        value { bool_value: true }
-      }
-    }
-  }
-  population_size: 55000000
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
-  reporting_window_results {
-    key {
-      non_cumulative_start {
-        year: 2025
-        month: 10
-        day: 1
-      }
-      end {
-        year: 2025
-        month: 10
-        day: 15
-      }
-    }
-    value {
-      unprocessed_report_result_values {
-        cumulative_results {
-          reach {
-            value: 0
-            univariate_statistics { standard_deviation: 10000 }
-          }
-          impression_count {
-            value: 0
-            univariate_statistics { standard_deviation: 10000 }
-          }
-        }
-      }
-    }
-  }
-}
-reporting_set_results {
-  cmms_measurement_consumer_id: "abcd"
-  external_report_result_id: 123456
-  external_reporting_set_result_id: 10
-  dimension {
-    external_reporting_set_id: "reporting_set_id_edp1"
-    venn_diagram_region_type: UNION
-    external_impression_qualification_filter_id: "mrc"
-    metric_frequency_spec { weekly: MONDAY }
-    grouping {
-      value_by_path {
-        key: "person.age_group"
-        value { enum_value: "YEARS_18_TO_34" }
-      }
-      value_by_path {
-        key: "person.gender"
-        value { enum_value: "MALE" }
-      }
-    }
-    event_filters {
-      terms {
-        path: "banner_ad.viewable"
-        value { bool_value: true }
-      }
-    }
-  }
-  population_size: 55000000
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
-  reporting_window_results {
-    key {
-      non_cumulative_start {
-        year: 2025
-        month: 10
-        day: 1
-      }
-      end {
-        year: 2025
-        month: 10
-        day: 8
-      }
-    }
-    value {
-      unprocessed_report_result_values {
-        cumulative_results {
-          reach {
-            value: 9501617
-            univariate_statistics { standard_deviation: 10000 }
-          }
-        }
-        non_cumulative_results {
-          reach {
-            value: 9406880
-            univariate_statistics { standard_deviation: 10000 }
-          }
-          impression_count {
-            value: 16798121
-            univariate_statistics { standard_deviation: 10000 }
-          }
-          frequency_histogram {
-            bin_results: {
-              key: 1
-              value: {
-                value: 4962943
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 2
-              value: {
-                value: 2471815
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 3
-              value: {
-                value: 1206938
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 4
-              value: {
-                value: 555187
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 5
-              value: {
-                value: 209998
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  reporting_window_results {
-    key {
-      non_cumulative_start {
-        year: 2025
-        month: 10
-        day: 8
-      }
-      end {
-        year: 2025
-        month: 10
-        day: 15
-      }
-    }
-    value {
-      unprocessed_report_result_values {
-        cumulative_results {
-          reach {
-            value: 11374247
-            univariate_statistics { standard_deviation: 10000 }
-          }
-        }
-        non_cumulative_results {
-          reach {
-            value: 2267580
-            univariate_statistics { standard_deviation: 10000 }
-          }
-          impression_count {
-            value: 4057569
-            univariate_statistics { standard_deviation: 10000 }
-          }
-          frequency_histogram {
-            bin_results: {
-              key: 1
-              value: {
-                value: 1194552
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 2
-              value: {
-                value: 595109
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 3
-              value: {
-                value: 291054
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 4
-              value: {
-                value: 134691
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 5
-              value: {
-                value: 52175
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-reporting_set_results {
-  cmms_measurement_consumer_id: "abcd"
-  external_report_result_id: 123456
-  external_reporting_set_result_id: 11
-  dimension {
-    external_reporting_set_id: "reporting_set_id_edp1"
-    venn_diagram_region_type: UNION
-    external_impression_qualification_filter_id: "mrc"
-    metric_frequency_spec { total: true }
-    grouping {
-      value_by_path {
-        key: "person.age_group"
-        value { enum_value: "YEARS_18_TO_34" }
-      }
-      value_by_path {
-        key: "person.gender"
-        value { enum_value: "MALE" }
-      }
-    }
-    event_filters {
-      terms {
-        path: "banner_ad.viewable"
-        value { bool_value: true }
-      }
-    }
-  }
-  population_size: 55000000
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
-  reporting_window_results {
-    key {
-      non_cumulative_start {
-        year: 2025
-        month: 10
-        day: 1
-      }
-      end {
-        year: 2025
-        month: 10
-        day: 15
-      }
-    }
-    value {
-      unprocessed_report_result_values {
-        cumulative_results {
-          reach {
-            value: 11374247
-            univariate_statistics { standard_deviation: 10000 }
-          }
-          impression_count {
-            value: 20822466
-            univariate_statistics { standard_deviation: 10000 }
-          }
-          frequency_histogram {
-            bin_results: {
-              key: 1
-              value: {
-                value: 5889543
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 2
-              value: {
-                value: 2943972
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 3
-              value: {
-                value: 1467078
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 4
-              value: {
-                value: 724521
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 5
-              value: {
-                value: 349132
+                value: 613604
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
@@ -1670,275 +1342,6 @@ reporting_set_results {
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
   external_report_result_id: 123456
-  external_reporting_set_result_id: 16
-  dimension {
-    external_reporting_set_id: "reporting_set_id_edp1_edp2_edp3"
-    venn_diagram_region_type: UNION
-    external_impression_qualification_filter_id: "mrc"
-    metric_frequency_spec { weekly: MONDAY }
-    grouping {
-      value_by_path {
-        key: "person.age_group"
-        value { enum_value: "YEARS_18_TO_34" }
-      }
-      value_by_path {
-        key: "person.gender"
-        value { enum_value: "MALE" }
-      }
-    }
-    event_filters {
-      terms {
-        path: "banner_ad.viewable"
-        value { bool_value: true }
-      }
-    }
-  }
-  population_size: 55000000
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
-  reporting_window_results {
-    key {
-      non_cumulative_start {
-        year: 2025
-        month: 10
-        day: 1
-      }
-      end {
-        year: 2025
-        month: 10
-        day: 8
-      }
-    }
-    value {
-      unprocessed_report_result_values {
-        cumulative_results {
-          reach {
-            value: 13427249
-            univariate_statistics { standard_deviation: 10000 }
-          }
-        }
-        non_cumulative_results {
-          reach {
-            value: 13426463
-            univariate_statistics { standard_deviation: 10000 }
-          }
-          impression_count {
-            value: 26929406
-            univariate_statistics { standard_deviation: 10000 }
-          }
-          frequency_histogram {
-            bin_results: {
-              key: 1
-              value: {
-                value: 6929787
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 2
-              value: {
-                value: 3464894
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 3
-              value: {
-                value: 1732447
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 4
-              value: {
-                value: 866224
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 5
-              value: {
-                value: 433111
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  reporting_window_results {
-    key {
-      non_cumulative_start {
-        year: 2025
-        month: 10
-        day: 8
-      }
-      end {
-        year: 2025
-        month: 10
-        day: 15
-      }
-    }
-    value {
-      unprocessed_report_result_values {
-        cumulative_results {
-          reach {
-            value: 15914078
-            univariate_statistics { standard_deviation: 10000 }
-          }
-        }
-        non_cumulative_results {
-          reach {
-            value: 3278136
-            univariate_statistics { standard_deviation: 10000 }
-          }
-          impression_count {
-            value: 6323713
-            univariate_statistics { standard_deviation: 10000 }
-          }
-          frequency_histogram {
-            bin_results: {
-              key: 1
-              value: {
-                value: 1691941
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 2
-              value: {
-                value: 845971
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 3
-              value: {
-                value: 422986
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 4
-              value: {
-                value: 211493
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 5
-              value: {
-                value: 105745
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-reporting_set_results {
-  cmms_measurement_consumer_id: "abcd"
-  external_report_result_id: 123456
-  external_reporting_set_result_id: 17
-  dimension {
-    external_reporting_set_id: "reporting_set_id_edp1_edp2_edp3"
-    venn_diagram_region_type: UNION
-    external_impression_qualification_filter_id: "mrc"
-    metric_frequency_spec { total: true }
-    grouping {
-      value_by_path {
-        key: "person.age_group"
-        value { enum_value: "YEARS_18_TO_34" }
-      }
-      value_by_path {
-        key: "person.gender"
-        value { enum_value: "MALE" }
-      }
-    }
-    event_filters {
-      terms {
-        path: "banner_ad.viewable"
-        value { bool_value: true }
-      }
-    }
-  }
-  population_size: 55000000
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
-  reporting_window_results {
-    key {
-      non_cumulative_start {
-        year: 2025
-        month: 10
-        day: 1
-      }
-      end {
-        year: 2025
-        month: 10
-        day: 15
-      }
-    }
-    value {
-      unprocessed_report_result_values {
-        cumulative_results {
-          reach {
-            value: 15914078
-            univariate_statistics { standard_deviation: 10000 }
-          }
-          impression_count {
-            value: 33219895
-            univariate_statistics { standard_deviation: 10000 }
-          }
-          frequency_histogram {
-            bin_results: {
-              key: 1
-              value: {
-                value: 8212074
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 2
-              value: {
-                value: 4106557
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 3
-              value: {
-                value: 2053798
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 4
-              value: {
-                value: 1027420
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-            bin_results: {
-              key: 5
-              value: {
-                value: 514229
-                univariate_statistics { standard_deviation: 10000 }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-reporting_set_results {
-  cmms_measurement_consumer_id: "abcd"
-  external_report_result_id: 123456
   external_reporting_set_result_id: 18
   dimension {
     external_reporting_set_id: "reporting_set_id_edp1"
@@ -1984,52 +1387,52 @@ reporting_set_results {
       unprocessed_report_result_values {
         cumulative_results {
           reach {
-            value: 9991826
+            value: 9984642
             univariate_statistics { standard_deviation: 10000 }
           }
         }
         non_cumulative_results {
           reach {
-            value: 10007663
+            value: 10000981
             univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
-            value: 18386667
+            value: 18382797
             univariate_statistics { standard_deviation: 10000 }
           }
           frequency_histogram {
             bin_results: {
               key: 1
               value: {
-                value: 5167588
+                value: 5161797
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 2
               value: {
-                value: 2584463
+                value: 2580899
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 3
               value: {
-                value: 1291787
+                value: 1290450
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 4
               value: {
-                value: 644334
+                value: 645225
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 5
               value: {
-                value: 319491
+                value: 322610
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
@@ -2055,52 +1458,52 @@ reporting_set_results {
       unprocessed_report_result_values {
         cumulative_results {
           reach {
-            value: 12021120
+            value: 12020226
             univariate_statistics { standard_deviation: 10000 }
           }
         }
         non_cumulative_results {
           reach {
-            value: 2443823
+            value: 2441042
             univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
-            value: 4488759
+            value: 4488362
             univariate_statistics { standard_deviation: 10000 }
           }
           frequency_histogram {
             bin_results: {
               key: 1
               value: {
-                value: 1262038
+                value: 1259893
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 2
               value: {
-                value: 631298
+                value: 629947
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 3
               value: {
-                value: 315530
+                value: 314974
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 4
               value: {
-                value: 157249
+                value: 157487
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 5
               value: {
-                value: 77708
+                value: 78741
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
@@ -2158,46 +1561,46 @@ reporting_set_results {
       unprocessed_report_result_values {
         cumulative_results {
           reach {
-            value: 12021120
+            value: 12017026
             univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
-            value: 22873904
+            value: 22871159
             univariate_statistics { standard_deviation: 10000 }
           }
           frequency_histogram {
             bin_results: {
               key: 1
               value: {
-                value: 6203154
+                value: 6202336
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 2
               value: {
-                value: 3101987
+                value: 3101168
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 3
               value: {
-                value: 1551403
+                value: 1550584
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 4
               value: {
-                value: 776111
+                value: 775292
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 5
               value: {
-                value: 388465
+                value: 387646
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
@@ -2659,52 +2062,52 @@ reporting_set_results {
       unprocessed_report_result_values {
         cumulative_results {
           reach {
-            value: 15791826
+            value: 15799013
             univariate_statistics { standard_deviation: 10000 }
           }
         }
         non_cumulative_results {
           reach {
-            value: 15807663
+            value: 15819974
             univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
-            value: 29051180
+            value: 29052805
             univariate_statistics { standard_deviation: 10000 }
           }
           frequency_histogram {
             bin_results: {
               key: 1
               value: {
-                value: 8162731
+                value: 8165148
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 2
               value: {
-                value: 4080135
+                value: 4082574
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 3
               value: {
-                value: 2038825
+                value: 2041287
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 4
               value: {
-                value: 1018159
+                value: 1020644
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 5
               value: {
-                value: 507814
+                value: 510321
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
@@ -2730,52 +2133,52 @@ reporting_set_results {
       unprocessed_report_result_values {
         cumulative_results {
           reach {
-            value: 19021120
+            value: 19015392
             univariate_statistics { standard_deviation: 10000 }
           }
         }
         non_cumulative_results {
           reach {
-            value: 3746775
+            value: 3751542
             univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
-            value: 6884507
+            value: 6884110
             univariate_statistics { standard_deviation: 10000 }
           }
           frequency_histogram {
             bin_results: {
               key: 1
               value: {
-                value: 1935326
+                value: 1936280
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 2
               value: {
-                value: 967186
+                value: 968140
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 3
               value: {
-                value: 483117
+                value: 484070
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 4
               value: {
-                value: 241082
+                value: 242035
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 5
               value: {
-                value: 120064
+                value: 121017
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
@@ -2833,46 +2236,46 @@ reporting_set_results {
       unprocessed_report_result_values {
         cumulative_results {
           reach {
-            value: 19021120
+            value: 19030737
             univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
-            value: 35934165
+            value: 35936915
             univariate_statistics { standard_deviation: 10000 }
           }
           frequency_histogram {
             bin_results: {
               key: 1
               value: {
-                value: 9820392
+                value: 9822316
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 2
               value: {
-                value: 4909234
+                value: 4911158
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 3
               value: {
-                value: 2453656
+                value: 2455579
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 4
               value: {
-                value: 1225867
+                value: 1227790
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
             bin_results: {
               key: 5
               value: {
-                value: 611971
+                value: 613894
                 univariate_statistics { standard_deviation: 10000 }
               }
             }
