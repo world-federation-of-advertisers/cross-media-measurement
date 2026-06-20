@@ -8,33 +8,28 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp1"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "ami"
-    metric_frequency_spec {
-      weekly: MONDAY
-    }
+    metric_frequency_spec { weekly: MONDAY }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_35_TO_54"
-        }
+        value { enum_value: "YEARS_35_TO_54" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 1
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -53,69 +48,53 @@ reporting_set_results {
         cumulative_results {
           reach {
             value: 10011521
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
         }
         non_cumulative_results {
           reach {
             value: 10013194
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
-          }
-          frequency_histogram {
-            bin_results {
-              key: 1
-              value {
-                value: 5173374
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 2
-              value {
-                value: 2587194
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 3
-              value {
-                value: 1292385
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 4
-              value {
-                value: 643261
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 5
-              value {
-                value: 316980
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
             value: 18382862
-            univariate_statistics {
-              standard_deviation: 10000.0
+            univariate_statistics { standard_deviation: 10000 }
+          }
+          frequency_histogram {
+            bin_results: {
+              key: 1
+              value: {
+                value: 5173374
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 2
+              value: {
+                value: 2587194
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 3
+              value: {
+                value: 1292385
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 4
+              value: {
+                value: 643261
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 5
+              value: {
+                value: 316980
+                univariate_statistics { standard_deviation: 10000 }
+              }
             }
           }
         }
@@ -140,78 +119,59 @@ reporting_set_results {
         cumulative_results {
           reach {
             value: 12002237
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
         }
         non_cumulative_results {
           reach {
             value: 2451953
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
-          }
-          frequency_histogram {
-            bin_results {
-              key: 1
-              value {
-                value: 1268962
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 2
-              value {
-                value: 634477
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 3
-              value {
-                value: 316378
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 4
-              value {
-                value: 156473
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 5
-              value {
-                value: 75663
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
             value: 4491260
-            univariate_statistics {
-              standard_deviation: 10000.0
+            univariate_statistics { standard_deviation: 10000 }
+          }
+          frequency_histogram {
+            bin_results: {
+              key: 1
+              value: {
+                value: 1268962
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 2
+              value: {
+                value: 634477
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 3
+              value: {
+                value: 316378
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 4
+              value: {
+                value: 156473
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 5
+              value: {
+                value: 75663
+                univariate_statistics { standard_deviation: 10000 }
+              }
             }
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 1
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -221,33 +181,28 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp1"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "ami"
-    metric_frequency_spec {
-      total: true
-    }
+    metric_frequency_spec { total: true }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_35_TO_54"
-        }
+        value { enum_value: "YEARS_35_TO_54" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 1
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -266,70 +221,53 @@ reporting_set_results {
         cumulative_results {
           reach {
             value: 12002237
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
-          }
-          frequency_histogram {
-            bin_results {
-              key: 1
-              value {
-                value: 6187323
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 2
-              value {
-                value: 3095997
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 3
-              value {
-                value: 1550333
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 4
-              value {
-                value: 777501
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 5
-              value {
-                value: 391084
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
             value: 22868543
-            univariate_statistics {
-              standard_deviation: 10000.0
+            univariate_statistics { standard_deviation: 10000 }
+          }
+          frequency_histogram {
+            bin_results: {
+              key: 1
+              value: {
+                value: 6187323
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 2
+              value: {
+                value: 3095997
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 3
+              value: {
+                value: 1550333
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 4
+              value: {
+                value: 777501
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 5
+              value: {
+                value: 391084
+                univariate_statistics { standard_deviation: 10000 }
+              }
             }
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 1
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -339,33 +277,29 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp2"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "ami"
-    metric_frequency_spec {
-      weekly: MONDAY
-    }
+    metric_frequency_spec { weekly: MONDAY }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_35_TO_54"
-        }
+        value { enum_value: "YEARS_35_TO_54" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
+
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 1
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -382,48 +316,32 @@ reporting_set_results {
     value {
       unprocessed_report_result_values {
         cumulative_results {
-          reach {
-            value: 5000000
-          }
+          reach { value: 5000000 }
         }
         non_cumulative_results {
-          reach {
-            value: 5000000
-          }
+          reach { value: 5000000 }
+          impression_count { value: 9193546 }
           frequency_histogram {
-            bin_results {
+            bin_results: {
               key: 1
-              value {
-                value: 2580645
-              }
+              value: { value: 2580645 }
             }
-            bin_results {
+            bin_results: {
               key: 2
-              value {
-                value: 1290323
-              }
+              value: { value: 1290323 }
             }
-            bin_results {
+            bin_results: {
               key: 3
-              value {
-                value: 645162
-              }
+              value: { value: 645162 }
             }
-            bin_results {
+            bin_results: {
               key: 4
-              value {
-                value: 322581
-              }
+              value: { value: 322581 }
             }
-            bin_results {
+            bin_results: {
               key: 5
-              value {
-                value: 161289
-              }
+              value: { value: 161289 }
             }
-          }
-          impression_count {
-            value: 9193546
           }
         }
       }
@@ -445,56 +363,37 @@ reporting_set_results {
     value {
       unprocessed_report_result_values {
         cumulative_results {
-          reach {
-            value: 6000000
-          }
+          reach { value: 6000000 }
         }
         non_cumulative_results {
-          reach {
-            value: 1100000
-          }
+          reach { value: 1100000 }
+          impression_count { value: 2022579 }
           frequency_histogram {
-            bin_results {
+            bin_results: {
               key: 1
-              value {
-                value: 567742
-              }
+              value: { value: 567742 }
             }
-            bin_results {
+            bin_results: {
               key: 2
-              value {
-                value: 283871
-              }
+              value: { value: 283871 }
             }
-            bin_results {
+            bin_results: {
               key: 3
-              value {
-                value: 141936
-              }
+              value: { value: 141936 }
             }
-            bin_results {
+            bin_results: {
               key: 4
-              value {
-                value: 70968
-              }
+              value: { value: 70968 }
             }
-            bin_results {
+            bin_results: {
               key: 5
-              value {
-                value: 35483
-              }
+              value: { value: 35483 }
             }
-          }
-          impression_count {
-            value: 2022579
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 1
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -504,33 +403,28 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp2"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "ami"
-    metric_frequency_spec {
-      total: true
-    }
+    metric_frequency_spec { total: true }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_35_TO_54"
-        }
+        value { enum_value: "YEARS_35_TO_54" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 1
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -547,51 +441,34 @@ reporting_set_results {
     value {
       unprocessed_report_result_values {
         cumulative_results {
-          reach {
-            value: 6000000
-          }
+          reach { value: 6000000 }
+          impression_count { value: 11216125 }
           frequency_histogram {
-            bin_results {
+            bin_results: {
               key: 1
-              value {
-                value: 3096774
-              }
+              value: { value: 3096774 }
             }
-            bin_results {
+            bin_results: {
               key: 2
-              value {
-                value: 1548387
-              }
+              value: { value: 1548387 }
             }
-            bin_results {
+            bin_results: {
               key: 3
-              value {
-                value: 774194
-              }
+              value: { value: 774194 }
             }
-            bin_results {
+            bin_results: {
               key: 4
-              value {
-                value: 387097
-              }
+              value: { value: 387097 }
             }
-            bin_results {
+            bin_results: {
               key: 5
-              value {
-                value: 193548
-              }
+              value: { value: 193548 }
             }
-          }
-          impression_count {
-            value: 11216125
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 1
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -601,33 +478,28 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp3"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "ami"
-    metric_frequency_spec {
-      weekly: MONDAY
-    }
+    metric_frequency_spec { weekly: MONDAY }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_35_TO_54"
-        }
+        value { enum_value: "YEARS_35_TO_54" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 1
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -644,48 +516,32 @@ reporting_set_results {
     value {
       unprocessed_report_result_values {
         cumulative_results {
-          reach {
-            value: 800000
-          }
+          reach { value: 800000 }
         }
         non_cumulative_results {
-          reach {
-            value: 800000
-          }
+          reach { value: 800000 }
+          impression_count { value: 1470967 }
           frequency_histogram {
-            bin_results {
+            bin_results: {
               key: 1
-              value {
-                value: 412903
-              }
+              value: { value: 412903 }
             }
-            bin_results {
+            bin_results: {
               key: 2
-              value {
-                value: 206452
-              }
+              value: { value: 206452 }
             }
-            bin_results {
+            bin_results: {
               key: 3
-              value {
-                value: 103226
-              }
+              value: { value: 103226 }
             }
-            bin_results {
+            bin_results: {
               key: 4
-              value {
-                value: 51613
-              }
+              value: { value: 51613 }
             }
-            bin_results {
+            bin_results: {
               key: 5
-              value {
-                value: 25806
-              }
+              value: { value: 25806 }
             }
-          }
-          impression_count {
-            value: 1470967
           }
         }
       }
@@ -707,56 +563,37 @@ reporting_set_results {
     value {
       unprocessed_report_result_values {
         cumulative_results {
-          reach {
-            value: 1000000
-          }
+          reach { value: 1000000 }
         }
         non_cumulative_results {
-          reach {
-            value: 202952
-          }
+          reach { value: 202952 }
+          impression_count { value: 373169 }
           frequency_histogram {
-            bin_results {
+            bin_results: {
               key: 1
-              value {
-                value: 104749
-              }
+              value: { value: 104749 }
             }
-            bin_results {
+            bin_results: {
               key: 2
-              value {
-                value: 52375
-              }
+              value: { value: 52375 }
             }
-            bin_results {
+            bin_results: {
               key: 3
-              value {
-                value: 26188
-              }
+              value: { value: 26188 }
             }
-            bin_results {
+            bin_results: {
               key: 4
-              value {
-                value: 13094
-              }
+              value: { value: 13094 }
             }
-            bin_results {
+            bin_results: {
               key: 5
-              value {
-                value: 6546
-              }
+              value: { value: 6546 }
             }
-          }
-          impression_count {
-            value: 373169
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 1
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -766,33 +603,28 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp3"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "ami"
-    metric_frequency_spec {
-      total: true
-    }
+    metric_frequency_spec { total: true }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_35_TO_54"
-        }
+        value { enum_value: "YEARS_35_TO_54" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 1
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -809,51 +641,34 @@ reporting_set_results {
     value {
       unprocessed_report_result_values {
         cumulative_results {
-          reach {
-            value: 1000000
-          }
+          reach { value: 1000000 }
+          impression_count { value: 1844136 }
           frequency_histogram {
-            bin_results {
+            bin_results: {
               key: 1
-              value {
-                value: 516129
-              }
+              value: { value: 516129 }
             }
-            bin_results {
+            bin_results: {
               key: 2
-              value {
-                value: 258065
-              }
+              value: { value: 258065 }
             }
-            bin_results {
+            bin_results: {
               key: 3
-              value {
-                value: 129033
-              }
+              value: { value: 129033 }
             }
-            bin_results {
+            bin_results: {
               key: 4
-              value {
-                value: 64517
-              }
+              value: { value: 64517 }
             }
-            bin_results {
+            bin_results: {
               key: 5
-              value {
-                value: 32256
-              }
+              value: { value: 32256 }
             }
-          }
-          impression_count {
-            value: 1844136
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 1
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -863,33 +678,28 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp1_edp2_edp3"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "ami"
-    metric_frequency_spec {
-      weekly: MONDAY
-    }
+    metric_frequency_spec { weekly: MONDAY }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_35_TO_54"
-        }
+        value { enum_value: "YEARS_35_TO_54" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 1
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -908,69 +718,53 @@ reporting_set_results {
         cumulative_results {
           reach {
             value: 15811521
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
         }
         non_cumulative_results {
           reach {
             value: 15813194
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
-          }
-          frequency_histogram {
-            bin_results {
-              key: 1
-              value {
-                value: 8168699
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 2
-              value {
-                value: 4082739
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 3
-              value {
-                value: 2039269
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 4
-              value {
-                value: 1017045
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 5
-              value {
-                value: 505442
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
             value: 29047375
-            univariate_statistics {
-              standard_deviation: 10000.0
+            univariate_statistics { standard_deviation: 10000 }
+          }
+          frequency_histogram {
+            bin_results: {
+              key: 1
+              value: {
+                value: 8168699
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 2
+              value: {
+                value: 4082739
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 3
+              value: {
+                value: 2039269
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 4
+              value: {
+                value: 1017045
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 5
+              value: {
+                value: 505442
+                univariate_statistics { standard_deviation: 10000 }
+              }
             }
           }
         }
@@ -995,78 +789,59 @@ reporting_set_results {
         cumulative_results {
           reach {
             value: 19002237
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
         }
         non_cumulative_results {
           reach {
             value: 3754905
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
-          }
-          frequency_histogram {
-            bin_results {
-              key: 1
-              value {
-                value: 1942003
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 2
-              value {
-                value: 970342
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 3
-              value {
-                value: 484036
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 4
-              value {
-                value: 240408
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 5
-              value {
-                value: 118116
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
             value: 6887008
-            univariate_statistics {
-              standard_deviation: 10000.0
+            univariate_statistics { standard_deviation: 10000 }
+          }
+          frequency_histogram {
+            bin_results: {
+              key: 1
+              value: {
+                value: 1942003
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 2
+              value: {
+                value: 970342
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 3
+              value: {
+                value: 484036
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 4
+              value: {
+                value: 240408
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 5
+              value: {
+                value: 118116
+                univariate_statistics { standard_deviation: 10000 }
+              }
             }
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 1
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -1076,33 +851,28 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp1_edp2_edp3"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "ami"
-    metric_frequency_spec {
-      total: true
-    }
+    metric_frequency_spec { total: true }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_35_TO_54"
-        }
+        value { enum_value: "YEARS_35_TO_54" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 1
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -1121,70 +891,53 @@ reporting_set_results {
         cumulative_results {
           reach {
             value: 19002237
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
-          }
-          frequency_histogram {
-            bin_results {
-              key: 1
-              value {
-                value: 9813770
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 2
-              value {
-                value: 4904936
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 3
-              value {
-                value: 2450518
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 4
-              value {
-                value: 1223309
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 5
-              value {
-                value: 609704
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
             value: 35928804
-            univariate_statistics {
-              standard_deviation: 10000.0
+            univariate_statistics { standard_deviation: 10000 }
+          }
+          frequency_histogram {
+            bin_results: {
+              key: 1
+              value: {
+                value: 9813770
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 2
+              value: {
+                value: 4904936
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 3
+              value: {
+                value: 2450518
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 4
+              value: {
+                value: 1223309
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 5
+              value: {
+                value: 609704
+                univariate_statistics { standard_deviation: 10000 }
+              }
             }
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 1
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -1194,33 +947,28 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp1_edp2"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "ami"
-    metric_frequency_spec {
-      total: true
-    }
+    metric_frequency_spec { total: true }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_18_TO_34"
-        }
+        value { enum_value: "YEARS_18_TO_34" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 2
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -1238,22 +986,17 @@ reporting_set_results {
       unprocessed_report_result_values {
         cumulative_results {
           reach {
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
+            value: 0
+            univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
+            value: 0
+            univariate_statistics { standard_deviation: 10000 }
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -1263,33 +1006,28 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp1"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "mrc"
-    metric_frequency_spec {
-      weekly: MONDAY
-    }
+    metric_frequency_spec { weekly: MONDAY }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_18_TO_34"
-        }
+        value { enum_value: "YEARS_18_TO_34" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 2
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -1308,69 +1046,53 @@ reporting_set_results {
         cumulative_results {
           reach {
             value: 9501617
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
         }
         non_cumulative_results {
           reach {
             value: 9406880
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
-          }
-          frequency_histogram {
-            bin_results {
-              key: 1
-              value {
-                value: 4962943
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 2
-              value {
-                value: 2471815
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 3
-              value {
-                value: 1206938
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 4
-              value {
-                value: 555187
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 5
-              value {
-                value: 209998
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
             value: 16798121
-            univariate_statistics {
-              standard_deviation: 10000.0
+            univariate_statistics { standard_deviation: 10000 }
+          }
+          frequency_histogram {
+            bin_results: {
+              key: 1
+              value: {
+                value: 4962943
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 2
+              value: {
+                value: 2471815
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 3
+              value: {
+                value: 1206938
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 4
+              value: {
+                value: 555187
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 5
+              value: {
+                value: 209998
+                univariate_statistics { standard_deviation: 10000 }
+              }
             }
           }
         }
@@ -1395,78 +1117,59 @@ reporting_set_results {
         cumulative_results {
           reach {
             value: 11374247
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
         }
         non_cumulative_results {
           reach {
             value: 2267580
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
-          }
-          frequency_histogram {
-            bin_results {
-              key: 1
-              value {
-                value: 1194552
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 2
-              value {
-                value: 595109
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 3
-              value {
-                value: 291054
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 4
-              value {
-                value: 134691
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 5
-              value {
-                value: 52175
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
             value: 4057569
-            univariate_statistics {
-              standard_deviation: 10000.0
+            univariate_statistics { standard_deviation: 10000 }
+          }
+          frequency_histogram {
+            bin_results: {
+              key: 1
+              value: {
+                value: 1194552
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 2
+              value: {
+                value: 595109
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 3
+              value: {
+                value: 291054
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 4
+              value: {
+                value: 134691
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 5
+              value: {
+                value: 52175
+                univariate_statistics { standard_deviation: 10000 }
+              }
             }
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -1476,33 +1179,28 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp1"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "mrc"
-    metric_frequency_spec {
-      total: true
-    }
+    metric_frequency_spec { total: true }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_18_TO_34"
-        }
+        value { enum_value: "YEARS_18_TO_34" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 2
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -1521,70 +1219,53 @@ reporting_set_results {
         cumulative_results {
           reach {
             value: 11374247
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
-          }
-          frequency_histogram {
-            bin_results {
-              key: 1
-              value {
-                value: 5889543
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 2
-              value {
-                value: 2943972
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 3
-              value {
-                value: 1467078
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 4
-              value {
-                value: 724521
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 5
-              value {
-                value: 349132
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
             value: 20822466
-            univariate_statistics {
-              standard_deviation: 10000.0
+            univariate_statistics { standard_deviation: 10000 }
+          }
+          frequency_histogram {
+            bin_results: {
+              key: 1
+              value: {
+                value: 5889543
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 2
+              value: {
+                value: 2943972
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 3
+              value: {
+                value: 1467078
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 4
+              value: {
+                value: 724521
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 5
+              value: {
+                value: 349132
+                univariate_statistics { standard_deviation: 10000 }
+              }
             }
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -1594,33 +1275,28 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp2"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "mrc"
-    metric_frequency_spec {
-      weekly: MONDAY
-    }
+    metric_frequency_spec { weekly: MONDAY }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_18_TO_34"
-        }
+        value { enum_value: "YEARS_18_TO_34" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 2
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -1637,48 +1313,32 @@ reporting_set_results {
     value {
       unprocessed_report_result_values {
         cumulative_results {
-          reach {
-            value: 4750000
-          }
+          reach { value: 4750000 }
         }
         non_cumulative_results {
-          reach {
-            value: 4750000
-          }
+          reach { value: 4750000 }
+          impression_count { value: 8733867 }
           frequency_histogram {
-            bin_results {
+            bin_results: {
               key: 1
-              value {
-                value: 2451613
-              }
+              value: { value: 2451613 }
             }
-            bin_results {
+            bin_results: {
               key: 2
-              value {
-                value: 1225807
-              }
+              value: { value: 1225807 }
             }
-            bin_results {
+            bin_results: {
               key: 3
-              value {
-                value: 612904
-              }
+              value: { value: 612904 }
             }
-            bin_results {
+            bin_results: {
               key: 4
-              value {
-                value: 306452
-              }
+              value: { value: 306452 }
             }
-            bin_results {
+            bin_results: {
               key: 5
-              value {
-                value: 153224
-              }
+              value: { value: 153224 }
             }
-          }
-          impression_count {
-            value: 8733867
           }
         }
       }
@@ -1700,56 +1360,37 @@ reporting_set_results {
     value {
       unprocessed_report_result_values {
         cumulative_results {
-          reach {
-            value: 5700000
-          }
+          reach { value: 5700000 }
         }
         non_cumulative_results {
-          reach {
-            value: 1039801
-          }
+          reach { value: 1039801 }
+          impression_count { value: 1911893 }
           frequency_histogram {
-            bin_results {
+            bin_results: {
               key: 1
-              value {
-                value: 536671
-              }
+              value: { value: 536671 }
             }
-            bin_results {
+            bin_results: {
               key: 2
-              value {
-                value: 268336
-              }
+              value: { value: 268336 }
             }
-            bin_results {
+            bin_results: {
               key: 3
-              value {
-                value: 134168
-              }
+              value: { value: 134168 }
             }
-            bin_results {
+            bin_results: {
               key: 4
-              value {
-                value: 67084
-              }
+              value: { value: 67084 }
             }
-            bin_results {
+            bin_results: {
               key: 5
-              value {
-                value: 33542
-              }
+              value: { value: 33542 }
             }
-          }
-          impression_count {
-            value: 1911893
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -1759,33 +1400,28 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp2"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "mrc"
-    metric_frequency_spec {
-      total: true
-    }
+    metric_frequency_spec { total: true }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_18_TO_34"
-        }
+        value { enum_value: "YEARS_18_TO_34" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 2
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -1802,51 +1438,34 @@ reporting_set_results {
     value {
       unprocessed_report_result_values {
         cumulative_results {
-          reach {
-            value: 5700000
-          }
+          reach { value: 5700000 }
+          impression_count { value: 10645760 }
           frequency_histogram {
-            bin_results {
+            bin_results: {
               key: 1
-              value {
-                value: 2941935
-              }
+              value: { value: 2941935 }
             }
-            bin_results {
+            bin_results: {
               key: 2
-              value {
-                value: 1470968
-              }
+              value: { value: 1470968 }
             }
-            bin_results {
+            bin_results: {
               key: 3
-              value {
-                value: 735484
-              }
+              value: { value: 735484 }
             }
-            bin_results {
+            bin_results: {
               key: 4
-              value {
-                value: 367742
-              }
+              value: { value: 367742 }
             }
-            bin_results {
+            bin_results: {
               key: 5
-              value {
-                value: 183871
-              }
+              value: { value: 183871 }
             }
-          }
-          impression_count {
-            value: 10645760
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -1856,33 +1475,28 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp3"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "mrc"
-    metric_frequency_spec {
-      weekly: MONDAY
-    }
+    metric_frequency_spec { weekly: MONDAY }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_18_TO_34"
-        }
+        value { enum_value: "YEARS_18_TO_34" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 2
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -1899,48 +1513,32 @@ reporting_set_results {
     value {
       unprocessed_report_result_values {
         cumulative_results {
-          reach {
-            value: 760000
-          }
+          reach { value: 760000 }
         }
         non_cumulative_results {
-          reach {
-            value: 760000
-          }
+          reach { value: 760000 }
+          impression_count { value: 1397418 }
           frequency_histogram {
-            bin_results {
+            bin_results: {
               key: 1
-              value {
-                value: 392258
-              }
+              value: { value: 392258 }
             }
-            bin_results {
+            bin_results: {
               key: 2
-              value {
-                value: 196129
-              }
+              value: { value: 196129 }
             }
-            bin_results {
+            bin_results: {
               key: 3
-              value {
-                value: 98065
-              }
+              value: { value: 98065 }
             }
-            bin_results {
+            bin_results: {
               key: 4
-              value {
-                value: 49033
-              }
+              value: { value: 49033 }
             }
-            bin_results {
+            bin_results: {
               key: 5
-              value {
-                value: 24515
-              }
+              value: { value: 24515 }
             }
-          }
-          impression_count {
-            value: 1397418
           }
         }
       }
@@ -1962,56 +1560,37 @@ reporting_set_results {
     value {
       unprocessed_report_result_values {
         cumulative_results {
-          reach {
-            value: 950000
-          }
+          reach { value: 950000 }
         }
         non_cumulative_results {
-          reach {
-            value: 192662
-          }
+          reach { value: 192662 }
+          impression_count { value: 354251 }
           frequency_histogram {
-            bin_results {
+            bin_results: {
               key: 1
-              value {
-                value: 99438
-              }
+              value: { value: 99438 }
             }
-            bin_results {
+            bin_results: {
               key: 2
-              value {
-                value: 49719
-              }
+              value: { value: 49719 }
             }
-            bin_results {
+            bin_results: {
               key: 3
-              value {
-                value: 24860
-              }
+              value: { value: 24860 }
             }
-            bin_results {
+            bin_results: {
               key: 4
-              value {
-                value: 12430
-              }
+              value: { value: 12430 }
             }
-            bin_results {
+            bin_results: {
               key: 5
-              value {
-                value: 6215
-              }
+              value: { value: 6215 }
             }
-          }
-          impression_count {
-            value: 354251
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -2021,33 +1600,28 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp3"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "mrc"
-    metric_frequency_spec {
-      total: true
-    }
+    metric_frequency_spec { total: true }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_18_TO_34"
-        }
+        value { enum_value: "YEARS_18_TO_34" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 2
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -2064,51 +1638,34 @@ reporting_set_results {
     value {
       unprocessed_report_result_values {
         cumulative_results {
-          reach {
-            value: 950000
-          }
+          reach { value: 950000 }
+          impression_count { value: 1751669 }
           frequency_histogram {
-            bin_results {
+            bin_results: {
               key: 1
-              value {
-                value: 490323
-              }
+              value: { value: 490323 }
             }
-            bin_results {
+            bin_results: {
               key: 2
-              value {
-                value: 245162
-              }
+              value: { value: 245162 }
             }
-            bin_results {
+            bin_results: {
               key: 3
-              value {
-                value: 122581
-              }
+              value: { value: 122581 }
             }
-            bin_results {
+            bin_results: {
               key: 4
-              value {
-                value: 61291
-              }
+              value: { value: 61291 }
             }
-            bin_results {
+            bin_results: {
               key: 5
-              value {
-                value: 30643
-              }
+              value: { value: 30643 }
             }
-          }
-          impression_count {
-            value: 1751669
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -2118,33 +1675,28 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp1_edp2_edp3"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "mrc"
-    metric_frequency_spec {
-      weekly: MONDAY
-    }
+    metric_frequency_spec { weekly: MONDAY }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_18_TO_34"
-        }
+        value { enum_value: "YEARS_18_TO_34" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 2
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -2163,69 +1715,53 @@ reporting_set_results {
         cumulative_results {
           reach {
             value: 13427249
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
         }
         non_cumulative_results {
           reach {
             value: 13426463
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
-          }
-          frequency_histogram {
-            bin_results {
-              key: 1
-              value {
-                value: 6929787
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 2
-              value {
-                value: 3464894
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 3
-              value {
-                value: 1732447
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 4
-              value {
-                value: 866224
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 5
-              value {
-                value: 433111
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
             value: 26929406
-            univariate_statistics {
-              standard_deviation: 10000.0
+            univariate_statistics { standard_deviation: 10000 }
+          }
+          frequency_histogram {
+            bin_results: {
+              key: 1
+              value: {
+                value: 6929787
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 2
+              value: {
+                value: 3464894
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 3
+              value: {
+                value: 1732447
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 4
+              value: {
+                value: 866224
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 5
+              value: {
+                value: 433111
+                univariate_statistics { standard_deviation: 10000 }
+              }
             }
           }
         }
@@ -2250,78 +1786,59 @@ reporting_set_results {
         cumulative_results {
           reach {
             value: 15914078
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
         }
         non_cumulative_results {
           reach {
             value: 3278136
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
-          }
-          frequency_histogram {
-            bin_results {
-              key: 1
-              value {
-                value: 1691941
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 2
-              value {
-                value: 845971
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 3
-              value {
-                value: 422986
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 4
-              value {
-                value: 211493
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 5
-              value {
-                value: 105745
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
             value: 6323713
-            univariate_statistics {
-              standard_deviation: 10000.0
+            univariate_statistics { standard_deviation: 10000 }
+          }
+          frequency_histogram {
+            bin_results: {
+              key: 1
+              value: {
+                value: 1691941
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 2
+              value: {
+                value: 845971
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 3
+              value: {
+                value: 422986
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 4
+              value: {
+                value: 211493
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 5
+              value: {
+                value: 105745
+                univariate_statistics { standard_deviation: 10000 }
+              }
             }
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -2331,33 +1848,28 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp1_edp2_edp3"
     venn_diagram_region_type: UNION
     external_impression_qualification_filter_id: "mrc"
-    metric_frequency_spec {
-      total: true
-    }
+    metric_frequency_spec { total: true }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_18_TO_34"
-        }
+        value { enum_value: "YEARS_18_TO_34" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 2
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -2376,70 +1888,53 @@ reporting_set_results {
         cumulative_results {
           reach {
             value: 15914078
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
-          }
-          frequency_histogram {
-            bin_results {
-              key: 1
-              value {
-                value: 8212074
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 2
-              value {
-                value: 4106557
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 3
-              value {
-                value: 2053798
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 4
-              value {
-                value: 1027420
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 5
-              value {
-                value: 514229
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
             value: 33219895
-            univariate_statistics {
-              standard_deviation: 10000.0
+            univariate_statistics { standard_deviation: 10000 }
+          }
+          frequency_histogram {
+            bin_results: {
+              key: 1
+              value: {
+                value: 8212074
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 2
+              value: {
+                value: 4106557
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 3
+              value: {
+                value: 2053798
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 4
+              value: {
+                value: 1027420
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 5
+              value: {
+                value: 514229
+                univariate_statistics { standard_deviation: 10000 }
+              }
             }
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -2449,33 +1944,29 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp1"
     venn_diagram_region_type: UNION
     custom: true
-    metric_frequency_spec {
-      weekly: MONDAY
-    }
+    metric_frequency_spec { weekly: MONDAY }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_18_TO_34"
-        }
+        value { enum_value: "YEARS_18_TO_34" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
+
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 2
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -2494,69 +1985,53 @@ reporting_set_results {
         cumulative_results {
           reach {
             value: 9991826
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
         }
         non_cumulative_results {
           reach {
             value: 10007663
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
-          }
-          frequency_histogram {
-            bin_results {
-              key: 1
-              value {
-                value: 5167588
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 2
-              value {
-                value: 2584463
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 3
-              value {
-                value: 1291787
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 4
-              value {
-                value: 644334
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 5
-              value {
-                value: 319491
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
             value: 18386667
-            univariate_statistics {
-              standard_deviation: 10000.0
+            univariate_statistics { standard_deviation: 10000 }
+          }
+          frequency_histogram {
+            bin_results: {
+              key: 1
+              value: {
+                value: 5167588
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 2
+              value: {
+                value: 2584463
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 3
+              value: {
+                value: 1291787
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 4
+              value: {
+                value: 644334
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 5
+              value: {
+                value: 319491
+                univariate_statistics { standard_deviation: 10000 }
+              }
             }
           }
         }
@@ -2581,78 +2056,59 @@ reporting_set_results {
         cumulative_results {
           reach {
             value: 12021120
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
         }
         non_cumulative_results {
           reach {
             value: 2443823
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
-          }
-          frequency_histogram {
-            bin_results {
-              key: 1
-              value {
-                value: 1262038
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 2
-              value {
-                value: 631298
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 3
-              value {
-                value: 315530
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 4
-              value {
-                value: 157249
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 5
-              value {
-                value: 77708
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
             value: 4488759
-            univariate_statistics {
-              standard_deviation: 10000.0
+            univariate_statistics { standard_deviation: 10000 }
+          }
+          frequency_histogram {
+            bin_results: {
+              key: 1
+              value: {
+                value: 1262038
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 2
+              value: {
+                value: 631298
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 3
+              value: {
+                value: 315530
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 4
+              value: {
+                value: 157249
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 5
+              value: {
+                value: 77708
+                univariate_statistics { standard_deviation: 10000 }
+              }
             }
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -2662,33 +2118,29 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp1"
     venn_diagram_region_type: UNION
     custom: true
-    metric_frequency_spec {
-      total: true
-    }
+    metric_frequency_spec { total: true }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_18_TO_34"
-        }
+        value { enum_value: "YEARS_18_TO_34" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
+
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 2
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -2707,70 +2159,53 @@ reporting_set_results {
         cumulative_results {
           reach {
             value: 12021120
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
-          }
-          frequency_histogram {
-            bin_results {
-              key: 1
-              value {
-                value: 6203154
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 2
-              value {
-                value: 3101987
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 3
-              value {
-                value: 1551403
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 4
-              value {
-                value: 776111
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 5
-              value {
-                value: 388465
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
             value: 22873904
-            univariate_statistics {
-              standard_deviation: 10000.0
+            univariate_statistics { standard_deviation: 10000 }
+          }
+          frequency_histogram {
+            bin_results: {
+              key: 1
+              value: {
+                value: 6203154
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 2
+              value: {
+                value: 3101987
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 3
+              value: {
+                value: 1551403
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 4
+              value: {
+                value: 776111
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 5
+              value: {
+                value: 388465
+                univariate_statistics { standard_deviation: 10000 }
+              }
             }
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -2780,33 +2215,29 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp2"
     venn_diagram_region_type: UNION
     custom: true
-    metric_frequency_spec {
-      weekly: MONDAY
-    }
+    metric_frequency_spec { weekly: MONDAY }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_18_TO_34"
-        }
+        value { enum_value: "YEARS_18_TO_34" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
+
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 2
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -2823,48 +2254,32 @@ reporting_set_results {
     value {
       unprocessed_report_result_values {
         cumulative_results {
-          reach {
-            value: 5000000
-          }
+          reach { value: 5000000 }
         }
         non_cumulative_results {
-          reach {
-            value: 5000000
-          }
+          reach { value: 5000000 }
+          impression_count { value: 9193546 }
           frequency_histogram {
-            bin_results {
+            bin_results: {
               key: 1
-              value {
-                value: 2580645
-              }
+              value: { value: 2580645 }
             }
-            bin_results {
+            bin_results: {
               key: 2
-              value {
-                value: 1290323
-              }
+              value: { value: 1290323 }
             }
-            bin_results {
+            bin_results: {
               key: 3
-              value {
-                value: 645162
-              }
+              value: { value: 645162 }
             }
-            bin_results {
+            bin_results: {
               key: 4
-              value {
-                value: 322581
-              }
+              value: { value: 322581 }
             }
-            bin_results {
+            bin_results: {
               key: 5
-              value {
-                value: 161289
-              }
+              value: { value: 161289 }
             }
-          }
-          impression_count {
-            value: 9193546
           }
         }
       }
@@ -2886,56 +2301,37 @@ reporting_set_results {
     value {
       unprocessed_report_result_values {
         cumulative_results {
-          reach {
-            value: 6000000
-          }
+          reach { value: 6000000 }
         }
         non_cumulative_results {
-          reach {
-            value: 1100000
-          }
+          reach { value: 1100000 }
+          impression_count { value: 2022579 }
           frequency_histogram {
-            bin_results {
+            bin_results: {
               key: 1
-              value {
-                value: 567742
-              }
+              value: { value: 567742 }
             }
-            bin_results {
+            bin_results: {
               key: 2
-              value {
-                value: 283871
-              }
+              value: { value: 283871 }
             }
-            bin_results {
+            bin_results: {
               key: 3
-              value {
-                value: 141936
-              }
+              value: { value: 141936 }
             }
-            bin_results {
+            bin_results: {
               key: 4
-              value {
-                value: 70968
-              }
+              value: { value: 70968 }
             }
-            bin_results {
+            bin_results: {
               key: 5
-              value {
-                value: 35483
-              }
+              value: { value: 35483 }
             }
-          }
-          impression_count {
-            value: 2022579
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -2945,33 +2341,29 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp2"
     venn_diagram_region_type: UNION
     custom: true
-    metric_frequency_spec {
-      total: true
-    }
+    metric_frequency_spec { total: true }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_18_TO_34"
-        }
+        value { enum_value: "YEARS_18_TO_34" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
+
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 2
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -2988,51 +2380,34 @@ reporting_set_results {
     value {
       unprocessed_report_result_values {
         cumulative_results {
-          reach {
-            value: 6000000
-          }
+          reach { value: 6000000 }
+          impression_count { value: 11216125 }
           frequency_histogram {
-            bin_results {
+            bin_results: {
               key: 1
-              value {
-                value: 3096774
-              }
+              value: { value: 3096774 }
             }
-            bin_results {
+            bin_results: {
               key: 2
-              value {
-                value: 1548387
-              }
+              value: { value: 1548387 }
             }
-            bin_results {
+            bin_results: {
               key: 3
-              value {
-                value: 774194
-              }
+              value: { value: 774194 }
             }
-            bin_results {
+            bin_results: {
               key: 4
-              value {
-                value: 387097
-              }
+              value: { value: 387097 }
             }
-            bin_results {
+            bin_results: {
               key: 5
-              value {
-                value: 193548
-              }
+              value: { value: 193548 }
             }
-          }
-          impression_count {
-            value: 11216125
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -3042,33 +2417,29 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp3"
     venn_diagram_region_type: UNION
     custom: true
-    metric_frequency_spec {
-      weekly: MONDAY
-    }
+    metric_frequency_spec { weekly: MONDAY }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_18_TO_34"
-        }
+        value { enum_value: "YEARS_18_TO_34" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
+
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 2
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -3085,48 +2456,32 @@ reporting_set_results {
     value {
       unprocessed_report_result_values {
         cumulative_results {
-          reach {
-            value: 800000
-          }
+          reach { value: 800000 }
         }
         non_cumulative_results {
-          reach {
-            value: 800000
-          }
+          reach { value: 800000 }
+          impression_count { value: 1470967 }
           frequency_histogram {
-            bin_results {
+            bin_results: {
               key: 1
-              value {
-                value: 412903
-              }
+              value: { value: 412903 }
             }
-            bin_results {
+            bin_results: {
               key: 2
-              value {
-                value: 206452
-              }
+              value: { value: 206452 }
             }
-            bin_results {
+            bin_results: {
               key: 3
-              value {
-                value: 103226
-              }
+              value: { value: 103226 }
             }
-            bin_results {
+            bin_results: {
               key: 4
-              value {
-                value: 51613
-              }
+              value: { value: 51613 }
             }
-            bin_results {
+            bin_results: {
               key: 5
-              value {
-                value: 25806
-              }
+              value: { value: 25806 }
             }
-          }
-          impression_count {
-            value: 1470967
           }
         }
       }
@@ -3148,56 +2503,37 @@ reporting_set_results {
     value {
       unprocessed_report_result_values {
         cumulative_results {
-          reach {
-            value: 1000000
-          }
+          reach { value: 1000000 }
         }
         non_cumulative_results {
-          reach {
-            value: 202952
-          }
+          reach { value: 202952 }
+          impression_count { value: 373169 }
           frequency_histogram {
-            bin_results {
+            bin_results: {
               key: 1
-              value {
-                value: 104749
-              }
+              value: { value: 104749 }
             }
-            bin_results {
+            bin_results: {
               key: 2
-              value {
-                value: 52375
-              }
+              value: { value: 52375 }
             }
-            bin_results {
+            bin_results: {
               key: 3
-              value {
-                value: 26188
-              }
+              value: { value: 26188 }
             }
-            bin_results {
+            bin_results: {
               key: 4
-              value {
-                value: 13094
-              }
+              value: { value: 13094 }
             }
-            bin_results {
+            bin_results: {
               key: 5
-              value {
-                value: 6546
-              }
+              value: { value: 6546 }
             }
-          }
-          impression_count {
-            value: 373169
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -3207,33 +2543,29 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp3"
     venn_diagram_region_type: UNION
     custom: true
-    metric_frequency_spec {
-      total: true
-    }
+    metric_frequency_spec { total: true }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_18_TO_34"
-        }
+        value { enum_value: "YEARS_18_TO_34" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
+
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 2
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -3250,51 +2582,34 @@ reporting_set_results {
     value {
       unprocessed_report_result_values {
         cumulative_results {
-          reach {
-            value: 1000000
-          }
+          reach { value: 1000000 }
+          impression_count { value: 1844136 }
           frequency_histogram {
-            bin_results {
+            bin_results: {
               key: 1
-              value {
-                value: 516129
-              }
+              value: { value: 516129 }
             }
-            bin_results {
+            bin_results: {
               key: 2
-              value {
-                value: 258065
-              }
+              value: { value: 258065 }
             }
-            bin_results {
+            bin_results: {
               key: 3
-              value {
-                value: 129033
-              }
+              value: { value: 129033 }
             }
-            bin_results {
+            bin_results: {
               key: 4
-              value {
-                value: 64517
-              }
+              value: { value: 64517 }
             }
-            bin_results {
+            bin_results: {
               key: 5
-              value {
-                value: 32256
-              }
+              value: { value: 32256 }
             }
-          }
-          impression_count {
-            value: 1844136
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -3304,33 +2619,29 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp1_edp2_edp3"
     venn_diagram_region_type: UNION
     custom: true
-    metric_frequency_spec {
-      weekly: MONDAY
-    }
+    metric_frequency_spec { weekly: MONDAY }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_18_TO_34"
-        }
+        value { enum_value: "YEARS_18_TO_34" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
+
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 2
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -3349,69 +2660,53 @@ reporting_set_results {
         cumulative_results {
           reach {
             value: 15791826
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
         }
         non_cumulative_results {
           reach {
             value: 15807663
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
-          }
-          frequency_histogram {
-            bin_results {
-              key: 1
-              value {
-                value: 8162731
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 2
-              value {
-                value: 4080135
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 3
-              value {
-                value: 2038825
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 4
-              value {
-                value: 1018159
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 5
-              value {
-                value: 507814
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
             value: 29051180
-            univariate_statistics {
-              standard_deviation: 10000.0
+            univariate_statistics { standard_deviation: 10000 }
+          }
+          frequency_histogram {
+            bin_results: {
+              key: 1
+              value: {
+                value: 8162731
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 2
+              value: {
+                value: 4080135
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 3
+              value: {
+                value: 2038825
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 4
+              value: {
+                value: 1018159
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 5
+              value: {
+                value: 507814
+                univariate_statistics { standard_deviation: 10000 }
+              }
             }
           }
         }
@@ -3436,78 +2731,59 @@ reporting_set_results {
         cumulative_results {
           reach {
             value: 19021120
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
         }
         non_cumulative_results {
           reach {
             value: 3746775
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
-          }
-          frequency_histogram {
-            bin_results {
-              key: 1
-              value {
-                value: 1935326
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 2
-              value {
-                value: 967186
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 3
-              value {
-                value: 483117
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 4
-              value {
-                value: 241082
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 5
-              value {
-                value: 120064
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
             value: 6884507
-            univariate_statistics {
-              standard_deviation: 10000.0
+            univariate_statistics { standard_deviation: 10000 }
+          }
+          frequency_histogram {
+            bin_results: {
+              key: 1
+              value: {
+                value: 1935326
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 2
+              value: {
+                value: 967186
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 3
+              value: {
+                value: 483117
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 4
+              value: {
+                value: 241082
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 5
+              value: {
+                value: 120064
+                univariate_statistics { standard_deviation: 10000 }
+              }
             }
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
 }
 reporting_set_results {
   cmms_measurement_consumer_id: "abcd"
@@ -3517,33 +2793,29 @@ reporting_set_results {
     external_reporting_set_id: "reporting_set_id_edp1_edp2_edp3"
     venn_diagram_region_type: UNION
     custom: true
-    metric_frequency_spec {
-      total: true
-    }
+    metric_frequency_spec { total: true }
     grouping {
       value_by_path {
         key: "person.age_group"
-        value {
-          enum_value: "YEARS_18_TO_34"
-        }
+        value { enum_value: "YEARS_18_TO_34" }
       }
       value_by_path {
         key: "person.gender"
-        value {
-          enum_value: "MALE"
-        }
+        value { enum_value: "MALE" }
       }
     }
     event_filters {
       terms {
         path: "banner_ad.viewable"
-        value {
-          bool_value: true
-        }
+        value { bool_value: true }
       }
     }
   }
+
   population_size: 55000000
+  metric_frequency_spec_fingerprint: 1234
+  grouping_dimension_fingerprint: 2
+  filter_fingerprint: 5
   reporting_window_results {
     key {
       non_cumulative_start {
@@ -3562,68 +2834,51 @@ reporting_set_results {
         cumulative_results {
           reach {
             value: 19021120
-            univariate_statistics {
-              standard_deviation: 10000.0
-            }
-          }
-          frequency_histogram {
-            bin_results {
-              key: 1
-              value {
-                value: 9820392
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 2
-              value {
-                value: 4909234
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 3
-              value {
-                value: 2453656
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 4
-              value {
-                value: 1225867
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
-            bin_results {
-              key: 5
-              value {
-                value: 611971
-                univariate_statistics {
-                  standard_deviation: 10000.0
-                }
-              }
-            }
+            univariate_statistics { standard_deviation: 10000 }
           }
           impression_count {
             value: 35934165
-            univariate_statistics {
-              standard_deviation: 10000.0
+            univariate_statistics { standard_deviation: 10000 }
+          }
+          frequency_histogram {
+            bin_results: {
+              key: 1
+              value: {
+                value: 9820392
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 2
+              value: {
+                value: 4909234
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 3
+              value: {
+                value: 2453656
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 4
+              value: {
+                value: 1225867
+                univariate_statistics { standard_deviation: 10000 }
+              }
+            }
+            bin_results: {
+              key: 5
+              value: {
+                value: 611971
+                univariate_statistics { standard_deviation: 10000 }
+              }
             }
           }
         }
       }
     }
   }
-  metric_frequency_spec_fingerprint: 1234
-  grouping_dimension_fingerprint: 2
-  filter_fingerprint: 5
 }
