@@ -286,17 +286,23 @@ class PostProcessReportResultTest(unittest.TestCase):
         case; the residual is small in practice because large corrections
         are rejected upstream by the 7-sigma threshold.
         """
-        basic_metric_set = compute_basic_metric_set(
-            reach=10,
-            frequency_values=[10, 5, 3, 2, 1],
-            impressions=1,
-            population=1000,
-        )
+        with self.assertLogs(level='WARNING') as cm:
+            basic_metric_set = compute_basic_metric_set(
+                reach=10,
+                frequency_values=[10, 5, 3, 2, 1],
+                impressions=1,
+                population=1000,
+            )
 
         # All higher buckets pushed to zero, but k_plus_reach[0] is preserved.
         self.assertEqual(basic_metric_set.k_plus_reach[0], 10)
         for bucket in basic_metric_set.k_plus_reach[1:]:
             self.assertEqual(bucket, 0)
+        # Warning surfaces the unresolved residue so operators notice the
+        # upstream data inconsistency (reach > impressions).
+        self.assertTrue(
+            any('Could not fully reconcile' in m for m in cm.output),
+            f"expected reconciliation warning, got: {cm.output}")
 
     def test_post_process_report_result_success(self):
         # Configures the mock stubs to return the data from the textproto files.

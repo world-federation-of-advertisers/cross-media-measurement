@@ -544,6 +544,19 @@ def compute_basic_metric_set(
                     k_plus_reach_values[i] -= absorbed
                     excess -= absorbed
                     i -= 1
+                if excess > 0:
+                    # Reach > impressions in the input -- upstream data is
+                    # inconsistent. Preserve k_plus_reach[0] == reach (rule 1)
+                    # and leave the impressions identity (rule 2) violated by
+                    # the leftover residue, so downstream consumers can see
+                    # the input was corrupt.
+                    logging.warning(
+                        "Could not fully reconcile sum(k_plus_reach) <= "
+                        "impressions: leftover residue %d (reach=%d, "
+                        "impressions=%d). Preserving reach == "
+                        "k_plus_reach[0]; sum(k_plus_reach) will exceed "
+                        "impressions by this residue.",
+                        excess, reach, impressions)
         basic_metric_set.k_plus_reach.extend(k_plus_reach_values)
         basic_metric_set.percent_k_plus_reach.extend(
             [val / population * 100 for val in k_plus_reach_values])
