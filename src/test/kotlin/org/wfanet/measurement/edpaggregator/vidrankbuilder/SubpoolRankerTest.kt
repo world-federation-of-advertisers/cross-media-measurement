@@ -498,21 +498,156 @@ class SubpoolRankerTest {
     }
 
   @Test
-  fun `a backfill with no older snapshot runs the default path`() =
+  fun `backfill keeps the shared rank when the old and latest snapshots agree`() =
     runBlocking<Unit> {
-      // Only the latest snapshot exists; nothing is strictly older than the backfilled day.
+      // The common case: a stable fingerprint holds the same rank in both snapshots.
       seedPriorSnapshot(
-        listOf(Triple(7L to 0, 0, 90)),
+        listOf(Triple(1L to 0, 5, 75)),
+        uploadName = "dataProviders/dp/rawImpressionUploads/upOld",
+        createTimeSeconds = 1L,
+        maxEventDate = epochDayToDate(75),
+      )
+      seedPriorSnapshot(
+        listOf(Triple(1L to 0, 5, 90)),
         uploadName = "dataProviders/dp/rawImpressionUploads/upLatest",
         createTimeSeconds = 5L,
         maxEventDate = epochDayToDate(100),
       )
-      val key = writePhase0(listOf(5L to 0))
+      val key = writePhase0(listOf(1L to 0))
 
       val result = ranker(maxEventDate = epochDayToDate(80)).rank(POOL, key, rankedSize = 100)
 
+      assertThat(result.backfill).isTrue()
+      assertThat(result.backfillReusedOldRank).isEqualTo(1)
+      assertThat(result.backfillRankCollisions).isEqualTo(0) // old == latest, no divergence
+      assertThat(readDayOnly().mapValues { it.value.first }).containsExactly(1L to 0, 5)
+      assertThat(readSnapshot().mapValues { it.value.first }).containsExactly(1L to 0, 5)
+    }
+
+  @Test
+  fun `backfill labels with the old rank but gives a fresh snapshot rank when the old slot is taken`() =
+    runBlocking<Unit> {
+      // F1 held rank 5 in the old snapshot, then aged out; rank 5 is now Bob's in the latest.
+      seedPriorSnapshot(
+        listOf(Triple(1L to 0, 5, 75)),
+        uploadName = "dataProviders/dp/rawImpressionUploads/upOld",
+        createTimeSeconds = 1L,
+        maxEventDate = epochDayToDate(75),
+      )
+      seedPriorSnapshot(
+        listOf(Triple(2L to 0, 5, 90)), // Bob (2L) holds rank 5 now
+        uploadName = "dataProviders/dp/rawImpressionUploads/upLatest",
+        createTimeSeconds = 5L,
+        maxEventDate = epochDayToDate(100),
+      )
+      val key = writePhase0(listOf(1L to 0)) // backfill F1
+
+      val result = ranker(maxEventDate = epochDayToDate(80)).rank(POOL, key, rankedSize = 100)
+
+      assertThat(result.backfill).isTrue()
+      assertThat(result.backfillReusedOldRank).isEqualTo(1)
+      assertThat(result.backfillRankCollisions).isEqualTo(0) // F1 is not in the latest snapshot
+      // The backfilled day is labeled with the original rank 5 (shared with Bob — accepted
+      // undercount)...
+      assertThat(readDayOnly().mapValues { it.value.first }).containsExactly(1L to 0, 5)
+      // ...but the cumulative gives F1 a fresh rank so it never shares Bob's rank going forward.
+      assertThat(readSnapshot().mapValues { it.value.first })
+        .containsExactly(2L to 0, 5, 1L to 0, 0)
+    }
+
+  @Test
+  fun `backfill is active at exactly the retention-window boundary`() =
+    runBlocking<Unit> {
+      seedPriorSnapshot(
+        listOf(Triple(1L to 0, 5, 65)),
+        uploadName = "dataProviders/dp/rawImpressionUploads/upOld",
+        createTimeSeconds = 1L,
+        maxEventDate = epochDayToDate(65),
+      )
+      seedPriorSnapshot(
+        listOf(Triple(2L to 0, 0, 90)),
+        uploadName = "dataProviders/dp/rawImpressionUploads/upLatest",
+        createTimeSeconds = 5L,
+        maxEventDate = epochDayToDate(100),
+      )
+      val key = writePhase0(listOf(1L to 0))
+
+      // 100 - 70 == RETENTION_DAYS (30): on the boundary, still a backfill.
+      val result = ranker(maxEventDate = epochDayToDate(70)).rank(POOL, key, rankedSize = 100)
+
+      assertThat(result.backfill).isTrue()
+      assertThat(result.backfillReusedOldRank).isEqualTo(1)
+    }
+
+  @Test
+  fun `an upload one day past the retention window is not a backfill`() =
+    runBlocking<Unit> {
+      seedPriorSnapshot(
+        listOf(Triple(1L to 0, 5, 60)),
+        uploadName = "dataProviders/dp/rawImpressionUploads/upOld",
+        createTimeSeconds = 1L,
+        maxEventDate = epochDayToDate(60),
+      )
+      seedPriorSnapshot(
+        listOf(Triple(2L to 0, 0, 90)),
+        uploadName = "dataProviders/dp/rawImpressionUploads/upLatest",
+        createTimeSeconds = 5L,
+        maxEventDate = epochDayToDate(100),
+      )
+      val key = writePhase0(listOf(1L to 0))
+
+      // 100 - 69 == RETENTION_DAYS + 1 (31): just outside the window, so the normal path runs.
+      val result = ranker(maxEventDate = epochDayToDate(69)).rank(POOL, key, rankedSize = 100)
+
       assertThat(result.backfill).isFalse()
-      assertThat(hasUploadRow(RankIndexBlob.BlobType.SNAPSHOT)).isTrue()
+    }
+
+  @Test
+  fun `backfill replays the closest older snapshot when several exist`() =
+    runBlocking<Unit> {
+      // Two snapshots are older than the backfilled day; the closer (Day 60) must win over Day 40.
+      seedPriorSnapshot(
+        listOf(Triple(1L to 0, 3, 38)),
+        uploadName = "dataProviders/dp/rawImpressionUploads/upFar",
+        createTimeSeconds = 1L,
+        maxEventDate = epochDayToDate(40),
+      )
+      seedPriorSnapshot(
+        listOf(Triple(1L to 0, 7, 58)),
+        uploadName = "dataProviders/dp/rawImpressionUploads/upMid",
+        createTimeSeconds = 3L,
+        maxEventDate = epochDayToDate(60),
+      )
+      seedPriorSnapshot(
+        listOf(Triple(2L to 0, 0, 90)),
+        uploadName = "dataProviders/dp/rawImpressionUploads/upLatest",
+        createTimeSeconds = 5L,
+        maxEventDate = epochDayToDate(100),
+      )
+      val key = writePhase0(listOf(1L to 0))
+
+      val result = ranker(maxEventDate = epochDayToDate(70)).rank(POOL, key, rankedSize = 100)
+
+      assertThat(result.backfill).isTrue()
+      // F1's rank comes from the Day-60 snapshot (7), not the Day-40 one (3).
+      assertThat(readDayOnly().mapValues { it.value.first }).containsExactly(1L to 0, 7)
+    }
+
+  @Test
+  fun `an upload on the latest event date is not a backfill`() =
+    runBlocking<Unit> {
+      seedPriorSnapshot(
+        listOf(Triple(2L to 0, 0, 90)),
+        uploadName = "dataProviders/dp/rawImpressionUploads/upLatest",
+        createTimeSeconds = 5L,
+        maxEventDate = epochDayToDate(100),
+      )
+      val key = writePhase0(listOf(1L to 0))
+
+      // Same event date as the latest snapshot: forward append, not a backfill.
+      val result = ranker(maxEventDate = epochDayToDate(100)).rank(POOL, key, rankedSize = 100)
+
+      assertThat(result.backfill).isFalse()
     }
 
   companion object {
