@@ -568,26 +568,38 @@ class VidLabelingDispatcherTest {
     }
 
   @Test
-  fun `upload acks when createRawImpressionUpload returns ALREADY_EXISTS`() = runBlocking {
-    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
-    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
-    // Pub/Sub redelivery: the upload was already created by the prior delivery.
-    whenever(rawImpressionUploadService.createRawImpressionUpload(any())).thenAnswer {
-      throw StatusException(Status.ALREADY_EXISTS.withDescription("upload exists"))
-    }
+  fun `upload fetches existing upload and continues on createRawImpressionUpload ALREADY_EXISTS`() =
+    runBlocking<Unit> {
+      val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      stubRawImpressionUploadCreation()
+      stubFullResolutionChain(MODEL_LINE_1)
+      // Redelivery after the idempotency cache expired: create returns the literal error, and the
+      // existing upload (whose prior delivery may have died before files/model-lines) is found by
+      // done_blob_uri so the idempotent downstream steps still run.
+      whenever(rawImpressionUploadService.createRawImpressionUpload(any())).thenAnswer {
+        throw StatusException(Status.ALREADY_EXISTS.withDescription("upload exists"))
+      }
+      whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads +=
+              RawImpressionUpload.newBuilder()
+                .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID")
+                .setDoneBlobUri(DONE_BLOB_PATH)
+                .build()
+          }
+        )
 
-    val dispatcher = createDispatcher()
-    // Must ack (not throw) so Pub/Sub doesn't redeliver into a poison-pill loop.
-    dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+      val dispatcher = createDispatcher()
+      dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
 
-    // Already registered → no downstream work re-created.
-    verifyBlocking(rawImpressionUploadFileService, never()) {
-      batchCreateRawImpressionUploadFiles(any())
+      // Continued: files + model lines created against the recovered upload.
+      verifyBlocking(rawImpressionUploadFileService) { batchCreateRawImpressionUploadFiles(any()) }
+      verifyBlocking(rawImpressionUploadModelLineService) {
+        batchCreateRawImpressionUploadModelLines(any())
+      }
     }
-    verifyBlocking(rawImpressionUploadModelLineService, never()) {
-      batchCreateRawImpressionUploadModelLines(any())
-    }
-  }
 
   @Test
   fun `upload acks when batchCreateRawImpressionUploadFiles returns ALREADY_EXISTS`() =

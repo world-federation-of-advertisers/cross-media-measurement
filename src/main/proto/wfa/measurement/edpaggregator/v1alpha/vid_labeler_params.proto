@@ -75,11 +75,12 @@ message VidLabelerParams {
     (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
   ];
 
-  // Resource name of the RawImpressionMetadataBatch for this batch.
-  string raw_impression_metadata_batch = 7 [
+  // Fully qualified resource name of the `RawImpressionUpload` this WorkItem is
+  // processing. Used by the TEE app to interact with the gRPC API.
+  string raw_impression_upload = 7 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference).type =
-        "edpaggregator.halo-cmm.org/RawImpressionMetadataBatch"
+        "edpaggregator.halo-cmm.org/RawImpressionUpload"
   ];
 
   // Zero-based shard index this WorkItem is responsible for.

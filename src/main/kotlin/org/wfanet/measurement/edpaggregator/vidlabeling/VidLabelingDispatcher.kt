@@ -28,6 +28,7 @@ import java.util.logging.Logger
 import kotlin.time.TimeSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ModelLine
@@ -47,6 +48,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUplo
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadFileRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
@@ -132,13 +134,6 @@ class VidLabelingDispatcher(
       )
 
       val rawImpressionUpload = createRawImpressionUpload(doneBlobPath, doneBlobGeneration)
-      if (rawImpressionUpload == null) {
-        // The upload was already registered by a prior delivery (idempotent redelivery). Its files,
-        // model lines, and dispatch were handled then, so ack rather than re-running.
-        logger.info("Upload for $doneBlobPath already registered; acking idempotent redelivery")
-        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
-        return
-      }
 
       createRawImpressionUploadFiles(rawImpressionUpload.name, blobKeys, doneBlobUri)
 
@@ -294,30 +289,64 @@ class VidLabelingDispatcher(
    * (path, generation) → same request ID → idempotent on Pub/Sub redelivery. New generation at the
    * same path → new request ID → new upload for EDP re-uploads.
    *
+   * On `ALREADY_EXISTS` (redelivery after the AIP-155 idempotency cache has expired, so the server
+   * returns the error rather than the cached resource), looks up and returns the existing upload so
+   * the caller can continue the idempotent downstream steps. This avoids stranding an upload whose
+   * row was created by a prior delivery that died before creating its files or model lines.
+   *
    * @param doneBlobPath the full storage URI of the "done" blob.
    * @param generation GCS object generation number.
-   * @return the created `RawImpressionUpload`, or null if it already exists (idempotent redelivery
-   *   where the server returns `ALREADY_EXISTS` rather than the cached resource).
+   * @return the created (or pre-existing) `RawImpressionUpload`.
    */
   private suspend fun createRawImpressionUpload(
     doneBlobPath: String,
     generation: Long,
-  ): RawImpressionUpload? {
+  ): RawImpressionUpload {
     val request = createRawImpressionUploadRequest {
       parent = dataProviderName
       rawImpressionUpload = rawImpressionUpload { doneBlobUri = doneBlobPath }
       requestId = RequestIds.forRawImpressionUpload(doneBlobPath, generation)
     }
 
-    try {
-      return rawImpressionUploadStub.createRawImpressionUpload(request)
+    return try {
+      rawImpressionUploadStub.createRawImpressionUpload(request)
     } catch (e: StatusException) {
-      if (e.status.code == Status.Code.ALREADY_EXISTS) {
-        return null
-      }
-      throw e
+      if (e.status.code != Status.Code.ALREADY_EXISTS) throw e
+      findUploadByDoneBlobUri(doneBlobPath)
+        ?: throw IllegalStateException(
+          "createRawImpressionUpload returned ALREADY_EXISTS but no RawImpressionUpload matches " +
+            doneBlobPath
+        )
     }
   }
+
+  /**
+   * Finds the existing `RawImpressionUpload` for [doneBlobPath] under this DataProvider, matching
+   * on `done_blob_uri`. Used to recover from `ALREADY_EXISTS` on create. Matches client-side over
+   * the DataProvider's uploads (bounded per DataProvider); no `done_blob_uri` filter exists on the
+   * API.
+   */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+  private suspend fun findUploadByDoneBlobUri(doneBlobPath: String): RawImpressionUpload? =
+    rawImpressionUploadStub
+      .listResources { pageToken: String ->
+        val response =
+          try {
+            rawImpressionUploadStub.listRawImpressionUploads(
+              listRawImpressionUploadsRequest {
+                parent = dataProviderName
+                if (pageToken.isNotEmpty()) {
+                  this.pageToken = pageToken
+                }
+              }
+            )
+          } catch (e: StatusException) {
+            throw Exception("Error listing RawImpressionUploads for $dataProviderName", e)
+          }
+        ResourceList(response.rawImpressionUploadsList, response.nextPageToken)
+      }
+      .flattenConcat()
+      .firstOrNull { it.doneBlobUri == doneBlobPath }
 
   /**
    * Creates a `RawImpressionUploadFile` for each raw impression blob in the upload.

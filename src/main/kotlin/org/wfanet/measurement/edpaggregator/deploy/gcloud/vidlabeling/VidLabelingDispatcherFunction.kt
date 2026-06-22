@@ -209,7 +209,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
       val workItemsStub =
         WorkItemsGrpcKt.WorkItemsCoroutineStub(
           createInstrumentedChannel(
-            config.rawImpressionMetadataStorageConnection,
+            config.controlPlaneConnection,
             controlPlaneTarget,
             controlPlaneCertHost,
             grpcTelemetry,

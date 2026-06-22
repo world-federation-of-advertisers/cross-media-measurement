@@ -84,6 +84,12 @@ message VidLabelingConfig {
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference).type = "halo.wfanet.org/ModelSuite"
   ];
+
+  // TLS connection params for the Secure Computation control plane
+  // (WorkItemsService). Distinct from the RawImpressionMetadata storage
+  // connection.
+  TransportLayerSecurityParams control_plane_connection = 12
+      [(google.api.field_behavior) = REQUIRED];
 }
 
 // Wrapper containing VID Labeling configurations for all EDPs.

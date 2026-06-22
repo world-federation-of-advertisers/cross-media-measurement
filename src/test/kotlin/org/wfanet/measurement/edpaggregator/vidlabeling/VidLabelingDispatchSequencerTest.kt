@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.vidlabeling
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
@@ -59,6 +60,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
@@ -287,6 +289,14 @@ class VidLabelingDispatchSequencerTest {
           "vid-labeling-upload-old-ml1-shard-0",
           "vid-labeling-upload-old-ml1-shard-1",
         )
+      // The WorkItem's VidLabelerParams carries the RawImpressionUpload resource name.
+      val vidLabelerParams =
+        captor.firstValue.workItem.workItemParams
+          .unpack<WorkItemParams>()
+          .appParams
+          .unpack<VidLabelerParams>()
+      assertThat(vidLabelerParams.rawImpressionUpload)
+        .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-old")
     }
 
   @Test

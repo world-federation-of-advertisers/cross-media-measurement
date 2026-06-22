@@ -174,7 +174,13 @@ class VidLabelingDispatchSequencer(
         markPoolAssigning(modelLine.name, modelLine.etag)
       } else {
         for (shardIndex in 0 until numberOfShards) {
-          createWorkItem(modelLine.cmmsModelLine, shardInfo.modelBlobPath, shardIndex, uploadId)
+          createWorkItem(
+            upload.name,
+            modelLine.cmmsModelLine,
+            shardInfo.modelBlobPath,
+            shardIndex,
+            uploadId,
+          )
         }
         markLabeling(modelLine.name, modelLine.etag)
       }
@@ -338,6 +344,7 @@ class VidLabelingDispatchSequencer(
    * `ALREADY_EXISTS` (handled below) rather than the cached response.
    */
   private suspend fun createWorkItem(
+    uploadName: String,
     modelLineName: String,
     modelBlobPath: String,
     shardIndex: Int,
@@ -360,6 +367,7 @@ class VidLabelingDispatchSequencer(
           eventTemplateFieldMapping.putAll(modelLineConfig.eventTemplateFieldMappingMap)
         }
       overrideModelLines += listOf(modelLineName)
+      rawImpressionUpload = uploadName
       this.shardIndex = shardIndex
       totalShards = numberOfShards
       modelBlobPaths[modelLineName] = modelBlobPath
