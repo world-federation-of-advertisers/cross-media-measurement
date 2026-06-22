@@ -468,6 +468,59 @@ abstract class RawImpressionUploadServiceTest {
         )
     }
 
+  @Test
+  fun `listRawImpressionUploads filters by create_time interval with end_time`(): Unit =
+    runBlocking {
+      createUpload()
+      createUpload()
+
+      val pastEndResponse: ListRawImpressionUploadsResponse =
+        service.listRawImpressionUploads(
+          listRawImpressionUploadsRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            filter =
+              ListRawImpressionUploadsRequestKt.filter {
+                createTimeIn = interval { endTime = Instant.now().minusSeconds(3600).toProtoTime() }
+              }
+          }
+        )
+      assertThat(pastEndResponse.rawImpressionUploadsList).isEmpty()
+
+      val futureEndResponse: ListRawImpressionUploadsResponse =
+        service.listRawImpressionUploads(
+          listRawImpressionUploadsRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            filter =
+              ListRawImpressionUploadsRequestKt.filter {
+                createTimeIn = interval { endTime = Instant.now().plusSeconds(3600).toProtoTime() }
+              }
+          }
+        )
+      assertThat(futureEndResponse.rawImpressionUploadsList).hasSize(2)
+    }
+
+  @Test
+  fun `listRawImpressionUploads filters by create_time interval with start and end window`(): Unit =
+    runBlocking {
+      createUpload()
+      createUpload()
+
+      val windowResponse: ListRawImpressionUploadsResponse =
+        service.listRawImpressionUploads(
+          listRawImpressionUploadsRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            filter =
+              ListRawImpressionUploadsRequestKt.filter {
+                createTimeIn = interval {
+                  startTime = Instant.now().minusSeconds(3600).toProtoTime()
+                  endTime = Instant.now().plusSeconds(3600).toProtoTime()
+                }
+              }
+          }
+        )
+      assertThat(windowResponse.rawImpressionUploadsList).hasSize(2)
+    }
+
   private suspend fun createUpload(): RawImpressionUpload =
     service.createRawImpressionUpload(
       createRawImpressionUploadRequest {
