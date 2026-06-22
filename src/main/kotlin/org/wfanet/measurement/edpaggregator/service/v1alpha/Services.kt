@@ -24,16 +24,19 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrp
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchServiceGrpcKt.RawImpressionMetadataBatchServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt as InternalImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchFileServiceGrpcKt as InternalRawImpressionMetadataBatchFileServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchServiceGrpcKt as InternalRawImpressionMetadataBatchServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt as InternalRequisitionMetadataServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.VidLabelingJobServiceGrpcKt as InternalVidLabelingJobServiceGrpcKt
 
 data class Services(
   val requisitionMetadata: RequisitionMetadataServiceCoroutineImplBase,
   val impressionMetadata: ImpressionMetadataServiceCoroutineImplBase,
   val rawImpressionMetadataBatch: RawImpressionMetadataBatchServiceCoroutineImplBase,
   val rawImpressionMetadataBatchFile: RawImpressionMetadataBatchFileServiceCoroutineImplBase,
+  val vidLabelingJob: VidLabelingJobServiceCoroutineImplBase,
 ) {
   fun toList(): List<BindableService> =
     listOf(
@@ -41,6 +44,7 @@ data class Services(
       impressionMetadata,
       rawImpressionMetadataBatch,
       rawImpressionMetadataBatchFile,
+      vidLabelingJob,
     )
 
   companion object {
@@ -62,12 +66,15 @@ data class Services(
       val internalFileStub =
         InternalRawImpressionMetadataBatchFileServiceGrpcKt
           .RawImpressionMetadataBatchFileServiceCoroutineStub(internalApiChannel)
+      val internalVidLabelingJobStub =
+        InternalVidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(internalApiChannel)
 
       return Services(
         RequisitionMetadataService(internalRequisitionMetadataStub, coroutineContext),
         ImpressionMetadataService(internalImpressionMetadataStub, coroutineContext),
         RawImpressionMetadataBatchService(internalBatchStub, coroutineContext),
         RawImpressionMetadataBatchFileService(internalFileStub, coroutineContext),
+        VidLabelingJobService(internalVidLabelingJobStub, coroutineContext),
       )
     }
   }

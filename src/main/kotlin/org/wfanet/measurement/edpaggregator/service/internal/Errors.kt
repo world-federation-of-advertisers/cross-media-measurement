@@ -25,6 +25,7 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionBatchState
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState
+import org.wfanet.measurement.internal.edpaggregator.VidLabelingState
 
 object Errors {
   const val DOMAIN = "internal.edpaggregator.halo-cmm.org"
@@ -45,6 +46,10 @@ object Errors {
     REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
     REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_STATE_INVALID,
+    VID_LABELING_JOB_NOT_FOUND,
+    VID_LABELING_JOB_STATE_INVALID,
+    VID_LABELING_JOB_ALREADY_EXISTS,
+    RAW_IMPRESSION_UPLOAD_NOT_FOUND,
     ETAG_MISMATCH,
     REQUIRED_FIELD_NOT_SET,
     INVALID_FIELD_VALUE,
@@ -65,6 +70,10 @@ object Errors {
     ETAG("etag"),
     BATCH_RESOURCE_ID("batchResourceId"),
     FILE_RESOURCE_ID("fileResourceId"),
+    RAW_IMPRESSION_UPLOAD_RESOURCE_ID("rawImpressionUploadResourceId"),
+    VID_LABELING_JOB_RESOURCE_ID("vidLabelingJobResourceId"),
+    VID_LABELING_JOB_STATE("vidLabelingJobState"),
+    EXPECTED_VID_LABELING_JOB_STATES("expectedVidLabelingJobStates"),
     FIELD_NAME("fieldName");
 
     companion object {
@@ -382,5 +391,74 @@ class InvalidFieldValueException(
     Errors.Reason.INVALID_FIELD_VALUE,
     buildMessage(fieldName),
     mapOf(Errors.Metadata.FIELD_NAME to fieldName),
+    cause,
+  )
+
+class VidLabelingJobNotFoundException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  vidLabelingJobResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.VID_LABELING_JOB_NOT_FOUND,
+    "VidLabelingJob not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+      Errors.Metadata.VID_LABELING_JOB_RESOURCE_ID to vidLabelingJobResourceId,
+    ),
+    cause,
+  )
+
+class VidLabelingJobStateInvalidException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  vidLabelingJobResourceId: String,
+  actualState: VidLabelingState,
+  expectedStates: Collection<VidLabelingState>,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.VID_LABELING_JOB_STATE_INVALID,
+    "VidLabelingJob state invalid: expected one of $expectedStates but was $actualState",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+      Errors.Metadata.VID_LABELING_JOB_RESOURCE_ID to vidLabelingJobResourceId,
+      Errors.Metadata.VID_LABELING_JOB_STATE to actualState.name,
+      Errors.Metadata.EXPECTED_VID_LABELING_JOB_STATES to
+        expectedStates.joinToString(",") { state -> state.name },
+    ),
+    cause,
+  )
+
+class RawImpressionUploadNotFoundException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+    "RawImpressionUpload not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+    ),
+    cause,
+  )
+
+class VidLabelingJobAlreadyExistsException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
+    "VidLabelingJob already exists",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+    ),
     cause,
   )
