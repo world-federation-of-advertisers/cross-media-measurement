@@ -92,7 +92,7 @@ class SpannerRawImpressionUploadService(
             txn.rawImpressionUploadExists(request.dataProviderResourceId, id)
           }
 
-        val resolvedResourceId: String = UUID.randomUUID().toString()
+        val resolvedResourceId: String = "rawImpressionUpload-${UUID.randomUUID()}"
 
         txn.insertRawImpressionUpload(
           rawImpressionUploadId,
