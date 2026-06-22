@@ -60,6 +60,12 @@ import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadFileR
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadFilesRequest as internalListFilesRequest
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadFile as internalFile
 
+/**
+ * Public V1Alpha implementation of the RawImpressionUploadFile service.
+ *
+ * Validates and translates public requests into [InternalFileServiceStub] calls, maps internal
+ * resource IDs to public resource names, and converts internal errors into the public error space.
+ */
 class RawImpressionUploadFileService(
   private val internalFileStub: InternalFileServiceStub,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
@@ -152,6 +158,14 @@ class RawImpressionUploadFileService(
 
     if (request.requestsList.isEmpty()) {
       throw RequiredFieldNotSetException("requests")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.requestsList.size > MAX_BATCH_CREATE_SIZE) {
+      throw InvalidFieldValueException("requests") {
+          "The number of requests (${request.requestsList.size}) exceeds the maximum of " +
+            "$MAX_BATCH_CREATE_SIZE"
+        }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
@@ -469,6 +483,14 @@ class RawImpressionUploadFileService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    if (request.requestsList.size > MAX_BATCH_DELETE_SIZE) {
+      throw InvalidFieldValueException("requests") {
+          "The number of requests (${request.requestsList.size}) exceeds the maximum of " +
+            "$MAX_BATCH_DELETE_SIZE"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
     val nameSet = HashSet<String>()
     val internalDeleteRequests =
       request.requestsList.mapIndexed { index, childRequest ->
@@ -562,6 +584,8 @@ class RawImpressionUploadFileService(
   companion object {
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 100
+    private const val MAX_BATCH_CREATE_SIZE = 100
+    private const val MAX_BATCH_DELETE_SIZE = 1000
   }
 }
 

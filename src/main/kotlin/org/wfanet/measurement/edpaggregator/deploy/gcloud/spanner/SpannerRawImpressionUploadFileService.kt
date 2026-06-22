@@ -60,6 +60,13 @@ import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadFile
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadFile
 
+/**
+ * Google Cloud Spanner implementation of the internal RawImpressionUploadFile service.
+ *
+ * Persists [RawImpressionUploadFile] rows interleaved under their parent RawImpressionUpload,
+ * deduplicates creates by `request_id`, soft-deletes via `DeleteTime`, and serves reads back with
+ * keyset pagination.
+ */
 class SpannerRawImpressionUploadFileService(
   private val databaseClient: AsyncDatabaseClient,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
@@ -118,10 +125,7 @@ class SpannerRawImpressionUploadFileService(
                 id,
               )
             }
-          // Derive the opaque resource ID from the injectable idGenerator (two
-          // 64-bit halves) so tests can produce deterministic resource names.
-          val fileResourceId: String =
-            UUID(idGenerator.generateId(), idGenerator.generateId()).toString()
+          val fileResourceId: String = "rawImpressionUploadFile-${UUID.randomUUID()}"
           txn.insertRawImpressionUploadFile(
             fileId,
             file.dataProviderResourceId,
@@ -238,10 +242,7 @@ class SpannerRawImpressionUploadFileService(
                   id,
                 )
               }
-            // Derive the opaque resource ID from the injectable idGenerator (two
-            // 64-bit halves) so tests can produce deterministic resource names.
-            val fileResourceId: String =
-              UUID(idGenerator.generateId(), idGenerator.generateId()).toString()
+            val fileResourceId: String = "rawImpressionUploadFile-${UUID.randomUUID()}"
             txn.insertRawImpressionUploadFile(
               fileId,
               request.dataProviderResourceId,
