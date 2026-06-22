@@ -198,6 +198,57 @@ class PostProcessReportResultTest(unittest.TestCase):
         self.assertEqual(list(basic_metric_set.percent_k_plus_reach),
                          [50.0, 40.0, 20.0, 5.0, 0.0])
 
+    def test_compute_basic_metric_set_k_plus_reach_zero_matches_reach(self):
+        """k_plus_reach[0] is the "1+ reach" and must equal reach.
+
+        When the post-processor solver returns reach and the frequency
+        histogram as floats (the realistic case in production), independent
+        round() calls on the two derivations can disagree by 1+. Consumers
+        rely on k_plus_reach[0] == reach (Issue #4049).
+        """
+        # Floats chosen so round(reach) != round(sum(freqs)):
+        # reach rounds to 2194000; sum(freqs) rounds to 2193997 (matches the
+        # real-world example from Origin staging in #4049).
+        basic_metric_set = compute_basic_metric_set(
+            reach=2194000,
+            frequency_values=[
+                1222269.4, 299330.4, 183245.4, 85498.4, 45170.4,
+                64182.4, 26965.4, 7445.4, 5345.4, 4608.4,
+                4874.4, 6342.4, 6253.4, 51051.4, 181420.4,
+            ],
+            impressions=7313150,
+            population=8045553,
+        )
+
+        self.assertEqual(basic_metric_set.k_plus_reach[0],
+                         basic_metric_set.reach,
+                         "k_plus_reach[0] (1+ reach) must equal reach")
+
+    def test_compute_basic_metric_set_k_plus_buckets_sum_le_impressions(self):
+        """The weighted sum of frequency-distribution buckets is conceptually
+        the impression count. With independent rounding the weighted sum can
+        exceed impressions by a small amount, breaking a validation rule
+        post-processor consumers rely on (Issue #4049).
+        """
+        basic_metric_set = compute_basic_metric_set(
+            reach=3946000,
+            frequency_values=[
+                1663825.4, 651217.4, 382519.4, 244746.4, 164390.4,
+                124340.4, 105164.4, 74233.4, 30675.4, 37481.4,
+                25755.4, 21514.4, 31622.4, 139317.4, 249203.4,
+            ],
+            impressions=15282723,
+            population=8568303,
+        )
+
+        # k_plus_reach values are aggregated by frequency bucket k. The
+        # impression count equals weighted sum: sum(freq[i] * (i+1)) for
+        # buckets [0..max], or equivalently sum(k_plus_reach).
+        weighted_sum_of_buckets = sum(basic_metric_set.k_plus_reach)
+        self.assertLessEqual(
+            weighted_sum_of_buckets, basic_metric_set.impressions,
+            "sum of k_plus_reach buckets must not exceed impressions")
+
     def test_post_process_report_result_success(self):
         # Configures the mock stubs to return the data from the textproto files.
         self.mock_report_results_stub.ListReportingSetResults.return_value = (

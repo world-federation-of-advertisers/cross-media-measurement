@@ -515,6 +515,28 @@ def compute_basic_metric_set(
             round(sum(frequency_values[i:]))
             for i in range(len(frequency_values))
         ]
+        # The post-processor solver returns reach and the frequency
+        # histogram as independent floats; rounding each separately can
+        # break two algebraic identities consumers rely on:
+        #
+        # 1. k_plus_reach[0] (the "1+ reach") must equal reach.
+        # 2. The weighted sum of frequency buckets must not exceed
+        #    impressions (it is conceptually equal, but rounding can push
+        #    it slightly above).
+        #
+        # Snap to enforce both. The reach value is the canonical 1+ reach,
+        # so overwrite k_plus_reach[0]. For the impression identity, absorb
+        # any positive residue into the highest-frequency bucket (which has
+        # the loosest physical interpretation: "saw it at least N times for
+        # large N"). See Issue #4049.
+        if k_plus_reach_values:
+            if reach is not None:
+                k_plus_reach_values[0] = reach
+            if impressions is not None:
+                excess = sum(k_plus_reach_values) - impressions
+                if excess > 0:
+                    k_plus_reach_values[-1] = max(
+                        0, k_plus_reach_values[-1] - excess)
         basic_metric_set.k_plus_reach.extend(k_plus_reach_values)
         basic_metric_set.percent_k_plus_reach.extend(
             [val / population * 100 for val in k_plus_reach_values])
