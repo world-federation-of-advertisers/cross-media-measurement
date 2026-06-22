@@ -211,6 +211,30 @@ class RankAllocator(
   }
 
   /**
+   * Pins [keyHi]/[keyLo] to a specific [rank] for this dispatch, recording it in [dayOnly] (and the
+   * cumulative map / [taken] / [lastSeen]) at [eventDay]. Used by the **backfill** path to give a
+   * fingerprint back the rank it held in an older snapshot ([SubpoolRanker]).
+   *
+   * Unlike [assign] this does not pick a free slot and does not bump [allocated] / [renewed]: the
+   * rank is supplied by the caller (sourced from a prior snapshot of the same subpool, so it is
+   * already within `[0, rankedSize)`). If [rank] is already taken by a *different* fingerprint the
+   * caller has detected an old-slot collision (accepted reach-undercount); this still pins the
+   * fingerprint to [rank] in [dayOnly] so the backfilled day is labeled with the original VID. The
+   * cumulative map produced here is not persisted on a backfill, so the transient two-keys-one-rank
+   * state never reaches storage.
+   *
+   * @return the pinned [rank].
+   */
+  fun assignAt(keyHi: Long, keyLo: Int, rank: Int): Int {
+    require(rank in 0 until rankedSize) { "rank $rank out of range [0, $rankedSize)" }
+    taken.set(rank)
+    lastSeen[rank] = eventDay.toShort()
+    cumulative.put(keyHi, keyLo, rank)
+    dayOnly.put(keyHi, keyLo, rank)
+    return rank
+  }
+
+  /**
    * Streams the cumulative map as chunked [RankIndexMap] records (the new `SNAPSHOT` blob), each
    * carrying its entries' persisted `last_seen` recency.
    */

@@ -64,4 +64,23 @@ class VidRankBuilderMetrics(meter: Meter = Instrumentation.meter) {
       .counterBuilder("edpa.vid_rank_builder.subpools_ranked")
       .setDescription("Number of subpools ranked")
       .build()
+
+  /** Backfilled fingerprints given back the rank they held in an older snapshot. */
+  val backfillReusedOldRankCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.vid_rank_builder.backfill_reused_old_rank")
+      .setDescription("Backfilled fingerprints reassigned the rank from their old snapshot")
+      .build()
+
+  /**
+   * Backfilled fingerprints reassigned an old rank that the latest snapshot had already re-handed
+   * to a different fingerprint — the accepted reach-undercount sizing.
+   */
+  val backfillRankCollisionsCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.vid_rank_builder.backfill_rank_collisions")
+      .setDescription(
+        "Backfilled fingerprints whose reused old rank differs from their rank in the latest snapshot"
+      )
+      .build()
 }

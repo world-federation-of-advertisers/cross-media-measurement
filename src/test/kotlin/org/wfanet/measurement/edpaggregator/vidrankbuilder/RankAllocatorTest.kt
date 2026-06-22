@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.vidrankbuilder
 
 import com.google.common.truth.Truth.assertThat
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -204,6 +205,49 @@ class RankAllocatorTest {
     val allocator = RankAllocator(poolOffset = 7L, rankedSize = 0, eventDay = EVENT_DAY)
     assertThat(allocator.assign(1L, 0)).isNull()
     assertThat(allocator.overflow).isEqualTo(1)
+  }
+
+  @Test
+  fun `assignAt pins a fingerprint to the given rank without counting an allocation`() =
+    runBlocking {
+      val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100, eventDay = EVENT_DAY)
+
+      val rank = allocator.assignAt(1L, 0, rank = 5)
+
+      assertThat(rank).isEqualTo(5)
+      assertThat(allocator.get(1L, 0)).isEqualTo(5)
+      assertThat(allocator.lastSeenOf(5)).isEqualTo(EVENT_DAY)
+      assertThat(allocator.allocated).isEqualTo(0)
+      assertThat(allocator.renewed).isEqualTo(0)
+      // The pinned rank is marked taken, so a fresh assign skips it.
+      assertThat(allocator.assign(2L, 0)).isEqualTo(0)
+      assertThat(allocator.assign(3L, 0)).isEqualTo(1)
+      // It is recorded in the day-only delta for Phase-2 labeling.
+      assertThat(allocator.streamDayOnlyChunks().toList().flatMap { it.ranksList }).contains(5)
+    }
+
+  @Test
+  fun `assignAt reuses a rank already held by another fingerprint`() =
+    runBlocking<Unit> {
+      val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100, eventDay = EVENT_DAY)
+      allocator.loadEntry(2L, 0, rank = 5, lastSeenDay = 3) // a different fingerprint holds rank 5
+
+      val rank = allocator.assignAt(1L, 0, rank = 5)
+
+      assertThat(rank).isEqualTo(5)
+      assertThat(allocator.get(1L, 0)).isEqualTo(5)
+      assertThat(allocator.allocated).isEqualTo(0)
+      assertThat(allocator.renewed).isEqualTo(0)
+      // The backfilled fingerprint is recorded at the shared rank in the day-only delta.
+      assertThat(allocator.streamDayOnlyChunks().toList().flatMap { it.ranksList })
+        .containsExactly(5)
+    }
+
+  @Test
+  fun `assignAt rejects a rank outside the ranked range`() {
+    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 3, eventDay = EVENT_DAY)
+
+    assertFailsWith<IllegalArgumentException> { allocator.assignAt(1L, 0, rank = 9) }
   }
 
   private data class Entry(val hi: Long, val lo: Int, val rank: Int, val day: Int)
