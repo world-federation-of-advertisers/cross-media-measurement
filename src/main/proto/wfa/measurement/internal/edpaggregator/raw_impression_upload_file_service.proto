@@ -60,8 +60,11 @@ message CreateRawImpressionUploadFileRequest {
 
   // A request ID provided by the client to ensure idempotency.
   //
-  // Required. Must be a non-empty UUID4 string; the service uses it to
-  // deduplicate retries so a single logical file is never created twice.
+  // Required (a deliberate deviation from AIP-155's "request IDs should be
+  // optional"): the file's resource name is server-assigned, so the request ID
+  // is the only idempotency key. Must be a non-empty UUID4 string; the service
+  // uses it to deduplicate retries so a single logical file is never created
+  // twice.
   string request_id = 2;
 }
 
