@@ -31,13 +31,17 @@ import org.mockito.kotlin.doReturnConsecutively
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verifyBlocking
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
@@ -45,7 +49,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.markRankerJobSucceededRespon
 import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
 private const val UPLOAD = "dataProviders/dp/rawImpressionUploads/up1"
 private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml1"
@@ -53,6 +61,15 @@ private const val RANKER_JOB = "dataProviders/dp/rawImpressionUploads/up1/ranker
 private const val PARENT_NAME =
   "dataProviders/dp/rawImpressionUploads/up1/rawImpressionUploadModelLines/rl1"
 private const val QUEUE = "queues/vid-labeler"
+
+private val VID_LABELER_TEMPLATE = vidLabelerParams {
+  dataProvider = "dataProviders/dp"
+  memoizedParams =
+    VidLabelerParamsKt.memoizedParams {
+      modelLine = MODEL_LINE
+      modelBlobPath = "model/blob"
+    }
+}
 
 @RunWith(JUnit4::class)
 class VidRankBuilderTest {
@@ -112,9 +129,18 @@ class VidRankBuilderTest {
       rawImpressionUploadModelLine { name = PARENT_NAME }
   }
 
+  /** Echoes each created `VidLabelingJob` back with a deterministic name (mirrors the service). */
   private fun vidLabelingJobsMock(): VidLabelingJobServiceCoroutineStub = mock {
-    onBlocking { batchCreateVidLabelingJobs(any(), any()) } doReturn
-      batchCreateVidLabelingJobsResponse {}
+    onBlocking { batchCreateVidLabelingJobs(any(), any()) } doAnswer
+      { invocation ->
+        val request = invocation.getArgument<BatchCreateVidLabelingJobsRequest>(0)
+        batchCreateVidLabelingJobsResponse {
+          request.requestsList.forEachIndexed { i, createRequest ->
+            vidLabelingJobs +=
+              createRequest.vidLabelingJob.copy { name = "${request.parent}/vidLabelingJobs/job$i" }
+          }
+        }
+      }
   }
 
   private fun filesMock(): RawImpressionUploadFileServiceCoroutineStub = mock {
@@ -126,12 +152,32 @@ class VidRankBuilderTest {
       }
   }
 
+  /** A `WorkItems` stub that records every `CreateWorkItem` request into [into]. */
+  private fun recordingWorkItems(into: MutableList<CreateWorkItemRequest>): WorkItemsCoroutineStub =
+    mock {
+      onBlocking { createWorkItem(any(), any()) } doAnswer
+        {
+          into.add(it.getArgument(0))
+          workItem {}
+        }
+    }
+
+  /** Unpacks the memoized [VidLabelerParams] carried by a published WorkItem. */
+  private fun publishedParams(request: CreateWorkItemRequest): VidLabelerParams =
+    request.workItem.workItemParams
+      .unpack(WorkItemParams::class.java)
+      .appParams
+      .unpack(VidLabelerParams::class.java)
+
   private fun builder(
     subpoolRanker: SubpoolRanker,
     rankerJobsStub: RankerJobServiceCoroutineStub,
     modelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub = modelLinesMock(),
     vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub = vidLabelingJobsMock(),
     filesStub: RawImpressionUploadFileServiceCoroutineStub = filesMock(),
+    workItemsStub: WorkItemsCoroutineStub = mock(),
+    maxFilesPerLabelingJob: Int = 100,
+    vidLabelerQueue: String = QUEUE,
   ) =
     VidRankBuilder(
       subpoolRanker = subpoolRanker,
@@ -139,14 +185,15 @@ class VidRankBuilderTest {
       rawImpressionUploadModelLinesStub = modelLinesStub,
       vidLabelingJobsStub = vidLabelingJobsStub,
       rawImpressionUploadFilesStub = filesStub,
-      workItemsStub = mock<WorkItemsCoroutineStub>(),
+      workItemsStub = workItemsStub,
       rawImpressionUpload = UPLOAD,
       modelLine = MODEL_LINE,
       rankerJob = RANKER_JOB,
       subpoolMapBlobUris = subpoolMapBlobUris,
       subpoolRankedSizes = subpoolRankedSizes,
-      totalShards = 2,
-      vidLabelerQueue = QUEUE,
+      vidLabelerParamsTemplate = VID_LABELER_TEMPLATE,
+      vidLabelerQueue = vidLabelerQueue,
+      maxFilesPerLabelingJob = maxFilesPerLabelingJob,
     )
 
   @Test
@@ -155,30 +202,128 @@ class VidRankBuilderTest {
     val rankerJobs = rankerJobsMock(isLastJob = false)
     val vidLabelingJobs = vidLabelingJobsMock()
     val modelLines = modelLinesMock()
+    val published = mutableListOf<CreateWorkItemRequest>()
 
-    val result = builder(ranker, rankerJobs, modelLines, vidLabelingJobs).run()
+    val result =
+      builder(
+          ranker,
+          rankerJobs,
+          modelLines,
+          vidLabelingJobs,
+          workItemsStub = recordingWorkItems(published),
+        )
+        .run()
 
     assertThat(result.lastJobOut).isFalse()
     assertThat(result.subpoolsRanked).isEqualTo(1)
     verifyBlocking(ranker) { rank(7L, "merged/subpool-7", 100) }
     verifyBlocking(rankerJobs) { markRankerJobSucceeded(any(), any()) }
     verifyBlocking(vidLabelingJobs, never()) { batchCreateVidLabelingJobs(any(), any()) }
+    assertThat(published).isEmpty()
     verifyBlocking(modelLines, never()) { markRawImpressionUploadModelLineLabeling(any(), any()) }
   }
 
   @Test
-  fun `last job out flips parent to LABELING`() = runBlocking {
-    val ranker = rankerMock()
-    val rankerJobs = rankerJobsMock(isLastJob = true)
+  fun `last job out creates VidLabelingJobs, publishes WorkItems, and flips parent to LABELING`() =
+    runBlocking {
+      val ranker = rankerMock()
+      val rankerJobs = rankerJobsMock(isLastJob = true)
+      val vidLabelingJobs = vidLabelingJobsMock()
+      val modelLines = modelLinesMock(RawImpressionUploadModelLine.State.RANKING)
+      val published = mutableListOf<CreateWorkItemRequest>()
+
+      val result =
+        builder(
+            ranker,
+            rankerJobs,
+            modelLines,
+            vidLabelingJobs,
+            workItemsStub = recordingWorkItems(published),
+          )
+          .run()
+
+      assertThat(result.lastJobOut).isTrue()
+      // 3 files, default bin-packing -> one VidLabelingJob covering all three.
+      verifyBlocking(vidLabelingJobs) { batchCreateVidLabelingJobs(any(), any()) }
+      assertThat(published).hasSize(1)
+      val params = publishedParams(published.single())
+      assertThat(params.memoizedParams.vidLabelingJob).isNotEmpty()
+      assertThat(params.memoizedParams.rawImpressionUploadFilesList)
+        .containsExactly("$UPLOAD/files/0", "$UPLOAD/files/1", "$UPLOAD/files/2")
+      // Template fields carry through.
+      assertThat(params.memoizedParams.modelBlobPath).isEqualTo("model/blob")
+      verifyBlocking(modelLines) { markRawImpressionUploadModelLineLabeling(any(), any()) }
+    }
+
+  @Test
+  fun `last job out bin-packs files across multiple VidLabelingJobs`() =
+    runBlocking<Unit> {
+      val published = mutableListOf<CreateWorkItemRequest>()
+
+      builder(
+          rankerMock(),
+          rankerJobsMock(isLastJob = true),
+          workItemsStub = recordingWorkItems(published),
+          maxFilesPerLabelingJob = 2,
+        )
+        .run()
+
+      // 3 files at 2 per job -> two jobs, two WorkItems.
+      assertThat(published).hasSize(2)
+      val fileSets =
+        published.map { publishedParams(it).memoizedParams.rawImpressionUploadFilesList.toSet() }
+      assertThat(fileSets)
+        .containsExactly(setOf("$UPLOAD/files/0", "$UPLOAD/files/1"), setOf("$UPLOAD/files/2"))
+    }
+
+  @Test
+  fun `last job out with no files publishes nothing but still flips the parent`() = runBlocking {
     val vidLabelingJobs = vidLabelingJobsMock()
     val modelLines = modelLinesMock(RawImpressionUploadModelLine.State.RANKING)
+    val published = mutableListOf<CreateWorkItemRequest>()
+    val emptyFiles =
+      mock<RawImpressionUploadFileServiceCoroutineStub> {
+        onBlocking { listRawImpressionUploadFiles(any(), any()) } doReturn
+          listRawImpressionUploadFilesResponse {}
+      }
 
-    val result = builder(ranker, rankerJobs, modelLines, vidLabelingJobs).run()
+    builder(
+        rankerMock(),
+        rankerJobsMock(isLastJob = true),
+        modelLines,
+        vidLabelingJobs,
+        emptyFiles,
+        recordingWorkItems(published),
+      )
+      .run()
+
+    verifyBlocking(vidLabelingJobs, never()) { batchCreateVidLabelingJobs(any(), any()) }
+    assertThat(published).isEmpty()
+    verifyBlocking(modelLines) { markRawImpressionUploadModelLineLabeling(any(), any()) }
+  }
+
+  @Test
+  fun `publish tolerates an already-existing WorkItem`() = runBlocking {
+    val workItems =
+      mock<WorkItemsCoroutineStub> {
+        onBlocking { createWorkItem(any(), any()) } doAnswer
+          {
+            throw StatusException(Status.ALREADY_EXISTS)
+          }
+      }
+
+    val result =
+      builder(rankerMock(), rankerJobsMock(isLastJob = true), workItemsStub = workItems).run()
 
     assertThat(result.lastJobOut).isTrue()
-    verifyBlocking(modelLines) { markRawImpressionUploadModelLineLabeling(any(), any()) }
-    // VidLabelingJob creation is a TODO (file-batched Phase-2), so no rows are created yet.
-    verifyBlocking(vidLabelingJobs, never()) { batchCreateVidLabelingJobs(any(), any()) }
+  }
+
+  @Test
+  fun `fan out fails when the vid labeler queue is unconfigured`() = runBlocking {
+    assertFailsWith<IllegalArgumentException> {
+      builder(rankerMock(), rankerJobsMock(isLastJob = true), vidLabelerQueue = "").run()
+    }
+    Unit
   }
 
   @Test
@@ -189,12 +334,23 @@ class VidRankBuilderTest {
       val rankerJobs = rankerJobsMock(state = RankerJob.State.SUCCEEDED)
       val vidLabelingJobs = vidLabelingJobsMock()
       val modelLines = modelLinesMock(RawImpressionUploadModelLine.State.RANKING)
+      val published = mutableListOf<CreateWorkItemRequest>()
 
-      val result = builder(ranker, rankerJobs, modelLines, vidLabelingJobs).run()
+      val result =
+        builder(
+            ranker,
+            rankerJobs,
+            modelLines,
+            vidLabelingJobs,
+            workItemsStub = recordingWorkItems(published),
+          )
+          .run()
 
       assertThat(result.lastJobOut).isTrue()
       verifyBlocking(ranker, never()) { rank(any(), any(), any()) }
       verifyBlocking(rankerJobs, never()) { markRankerJobSucceeded(any(), any()) }
+      verifyBlocking(vidLabelingJobs) { batchCreateVidLabelingJobs(any(), any()) }
+      assertThat(published).hasSize(1)
       verifyBlocking(modelLines) { markRawImpressionUploadModelLineLabeling(any(), any()) }
     }
 
@@ -296,7 +452,7 @@ class VidRankBuilderTest {
         rankerJob = RANKER_JOB,
         subpoolMapBlobUris = mapOf(7L to "merged/subpool-7"),
         subpoolRankedSizes = emptyMap(),
-        totalShards = 2,
+        vidLabelerParamsTemplate = VID_LABELER_TEMPLATE,
         vidLabelerQueue = QUEUE,
       )
 

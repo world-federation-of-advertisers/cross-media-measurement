@@ -28,9 +28,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.R
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams.StorageParams
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
@@ -178,10 +181,54 @@ class VidRankBuilderApp(
         rankerJob = params.rankerJob,
         subpoolMapBlobUris = params.subpoolMapBlobUrisMap,
         subpoolRankedSizes = params.subpoolRankedSizesMap,
-        totalShards = params.totalShards,
+        vidLabelerParamsTemplate = buildVidLabelerParamsTemplate(params),
         vidLabelerQueue = vidLabelerQueue,
       )
       .run()
+  }
+
+  /**
+   * Builds the memoized [VidLabelerParams] template for the Phase-2 fan-out from the pass-through
+   * fields the SubpoolAssigner stamped on [params]. The last-`RankerJob`-out copies it per
+   * `VidLabelingJob`, filling the job's name and its files; the Phase-2 TEE resolves the rank-index
+   * blobs from the `RankIndexBlobService` rather than receiving their URIs here.
+   */
+  private fun buildVidLabelerParamsTemplate(params: VidRankBuilderParams): VidLabelerParams {
+    require(params.modelBlobPath.isNotEmpty()) { "model_blob_path must be set" }
+    require(params.hasRawImpressionStorageParams()) { "raw_impression_storage_params must be set" }
+    require(params.hasVidLabeledImpressionsStorageParams()) {
+      "vid_labeled_impressions_storage_params must be set"
+    }
+    return vidLabelerParams {
+      dataProvider = params.dataProvider
+      rawImpressionsStorageParams =
+        VidLabelerParamsKt.storageParams {
+          gcsProjectId = params.rawImpressionStorageParams.gcsProjectId
+          impressionsBlobPrefix = params.rawImpressionStorageParams.blobPrefix
+        }
+      vidLabeledImpressionsStorageParams =
+        VidLabelerParamsKt.storageParams {
+          gcsProjectId = params.vidLabeledImpressionsStorageParams.gcsProjectId
+          impressionsBlobPrefix = params.vidLabeledImpressionsStorageParams.blobPrefix
+        }
+      modelLineConfigs.put(
+        params.modelLine,
+        VidLabelerParamsKt.modelLineConfig {
+          labelerInputFieldMapping.putAll(params.labelerInputFieldMappingMap)
+          eventTemplateFieldMapping.putAll(params.eventTemplateFieldMappingMap)
+        },
+      )
+      memoizedParams =
+        VidLabelerParamsKt.memoizedParams {
+          modelLine = params.modelLine
+          modelBlobPath = params.modelBlobPath
+          vidRankMapStorageParams =
+            VidLabelerParamsKt.storageParams {
+              gcsProjectId = params.vidRankMapStorageParams.gcsProjectId
+              impressionsBlobPrefix = params.vidRankMapStorageParams.blobPrefix
+            }
+        }
+    }
   }
 
   companion object {
