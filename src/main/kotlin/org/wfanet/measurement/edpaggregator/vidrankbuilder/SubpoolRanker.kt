@@ -45,23 +45,21 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
  * `RankerJob` covers.
  *
  * For one subpool it:
- * 1. loads the prior cumulative `SNAPSHOT` (the most recent by `create_time` across all uploads —
+ * 1. **idempotency gate** — if a `SNAPSHOT` `RankIndexBlob` row already exists for this (upload,
+ *    subpool), a prior attempt already committed its blobs and rows atomically, so the subpool is
+ *    done and is skipped (cheap re-delivery no-op),
+ * 2. loads the prior cumulative `SNAPSHOT` (the most recent by `create_time` across all uploads —
  *    the current cumulative state) into a [RankAllocator] (rebuilding its rank `BitSet` and
  *    per-rank `last_seen`), validating the blob checksum,
- * 2. decides whether this dispatch is a **backfill** (see "Backfill" below),
- * 3. **idempotency gate** — if the row this run would commit already exists for this (upload,
- *    subpool), a prior attempt already finished, so the subpool is skipped (cheap re-delivery
- *    no-op). The gate row is the `SNAPSHOT` on a normal dispatch and the `DAY_ONLY` on a backfill
- *    (a backfill writes no `SNAPSHOT` — see below),
+ * 3. decides whether this dispatch is a **backfill** (see below),
  * 4. materializes this dispatch's fingerprint set from the Phase-0 merged `SubpoolFingerprints`
  *    blob,
  * 5. garbage-collects aged-out `DAY_ONLY` blobs ([SubpoolRetention]) and frees aged-out ranks in
  *    heap via the `last_seen` index, excluding fingerprints seen this dispatch,
  * 6. allocates ranks to today's fingerprints (renewing already-ranked ones, capping at
- *    `ranked_size`); on a backfill it instead replays each fingerprint's historical rank (see
- *    below),
- * 7. writes the new `DAY_ONLY` blob (DEK-encrypted) and — on a normal dispatch only — the new
- *    cumulative `SNAPSHOT`, recording each as a `RankIndexBlob` row.
+ *    `ranked_size`); on a backfill it instead replays each fingerprint's historical rank (below),
+ * 7. writes the new `DAY_ONLY` + `SNAPSHOT` blobs (DEK-encrypted) under **per-attempt-unique keys**
+ *    and records both as `RankIndexBlob` rows.
  *
  * ## Backfill (Problem 1 — give a person back their original rank)
  *
@@ -69,46 +67,44 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
  * correct for forward data appended in chronological order, but a **backfill** — an upload whose
  * newest event date ([maxEventDate]) is older than the most recent data already ranked — can land a
  * fingerprint whose original rank was freed and re-handed to someone else by the time the latest
- * snapshot was written. Giving it a brand-new rank then splits one person into two VIDs (reach
- * overcount).
+ * snapshot was written. Giving it a brand-new rank then splits one person into two VIDs
+ * (overcount).
  *
- * A dispatch is treated as a backfill when **all** hold:
- * * the latest cumulative `SNAPSHOT` carries a `max_event_date` (the snapshot-selection key) and
- *   that date is strictly newer than this dispatch's [maxEventDate] — i.e. fresher data already
- *   exists, so this is not forward append, and
- * * the gap (`latest.max_event_date - this.max_event_date`) is within [retentionDays] — a dispatch
- *   older than the retention window has no live ranks left to reclaim, so reassigning is pointless
- *   (the residual corruption there is Problem 3, explicitly out of scope), and
+ * A dispatch is treated as a backfill when **all** hold (see [resolveBackfillOldSnapshot]):
+ * * the latest cumulative `SNAPSHOT` carries a `max_event_date` strictly newer than this dispatch's
+ *   [maxEventDate] (fresher data already exists — not forward append), and
+ * * the gap is within [retentionDays] (an older dispatch has no live ranks left to reclaim — that
+ *   residual corruption is Problem 3, explicitly out of scope), and
  * * an **old snapshot** exists: the `SNAPSHOT` whose `max_event_date` is the greatest value
- *   strictly less than this dispatch's [maxEventDate] — the cumulative state as of just before the
- *   backfilled day. If none exists (the data provider uploaded data older than anything on record),
- *   it is not a backfill and the normal path runs.
+ *   strictly less than this dispatch's [maxEventDate] (the cumulative just before the backfilled
+ *   day). If none exists (data older than anything on record), it is not a backfill.
  *
- * On a backfill, both the latest cumulative (already loaded into the allocator) and that old
- * snapshot's `(fp -> rank)` map are held in heap, and each of today's fingerprints is assigned:
- * 1. if present in the **old** snapshot -> its rank there (give the person back their original
- *    rank),
- * 2. else if present in the **latest** snapshot -> the rank it holds there,
- * 3. else -> a freshly allocated rank.
+ * On a backfill, both the latest cumulative (loaded into the allocator) and the old snapshot's `(fp
+ * -> rank)` map are held in heap, and [RankAllocator.assignBackfill] writes **two** outputs per
+ * fingerprint, which may diverge:
+ * * the **`DAY_ONLY`** blob — what Phase-2 uses to label the backfilled day — gets the rank from
+ *   the old snapshot if present, else the latest snapshot's rank, else a fresh rank, and
+ * * the **`SNAPSHOT`** blob — the cumulative carried forward — is the latest snapshot **plus** the
+ *   backfill's fingerprints: an already-ranked fingerprint keeps its latest rank, a fingerprint
+ *   only in the old snapshot takes its old rank back if still free, and a genuinely new fingerprint
+ *   gets a fresh rank.
  *
- * ### Backfill writes only a `DAY_ONLY` blob — never a new `SNAPSHOT`
+ * ### Why a backfill must still write a `SNAPSHOT`
  *
- * A backfill deliberately does **not** write a new cumulative `SNAPSHOT`. The prior-snapshot lookup
- * ([findPriorSnapshot]) selects the latest snapshot by `create_time`, and a backfill run has the
- * newest `create_time` but carries old data; persisting its cumulative would make the next forward
- * dispatch load this stale, older-day cumulative as its baseline and corrupt the forward chain.
- * Phase-2 labels each upload from that upload's own `DAY_ONLY` blob (the corrected `(fp -> rank)`
- * for exactly this dispatch's fingerprints), so the backfilled day is labeled correctly without a
- * snapshot. The idempotency gate therefore keys off the `DAY_ONLY` row on a backfill.
+ * If a backfill wrote only a `DAY_ONLY`, a fingerprint that is new on the backfilled day would
+ * never enter the cumulative, so a later forward dispatch would re-rank it — reintroducing the very
+ * split we are preventing. Writing the cumulative as "latest + backfill additions" persists those
+ * new fingerprints. Its `max_event_date` is inherited from the latest snapshot (the backfill only
+ * adds *older* fingerprints, so the newest data represented is unchanged); this keeps the
+ * `create_time`-newest snapshot the most complete cumulative and never regresses the forward chain.
  *
  * ### Monitoring (the accepted undercount)
  *
- * When a fingerprint's old rank was already re-handed to a *different* fingerprint (the old slot is
- * taken by "Bob" in the latest snapshot), reusing the old rank makes the two share a VID for the
- * backfilled day (reach undercount). We still reuse the old rank (one-person-one-VID is the goal)
- * but **count** these: [Result.backfillRankCollisions] is the number of backfilled fingerprints
- * that reused an old rank while holding a *different* rank in the latest snapshot, so the size of
- * the undercount is observable in metrics and logs.
+ * When a fingerprint's old rank was already re-handed to a *different* fingerprint in the latest
+ * snapshot, labeling the backfilled day with the old rank makes the two share a VID for that day
+ * (reach undercount). We still give back the old rank (one-person-one-VID is the goal) but
+ * **count** these: [Result.backfillRankCollisions] is the number of backfilled fingerprints whose
+ * reused old rank differs from their rank in the latest snapshot, so the undercount is observable.
  *
  * ## Memory
  *
@@ -140,7 +136,7 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
  * @param kekUri KEK URI used to wrap each new blob's DEK.
  * @param encryptedSubpoolMapsDek DEK that decrypts the Phase-0 merged blobs.
  * @param maxEventDate newest event date this dispatch covers; stamped as `last_seen`, on the
- *   `DAY_ONLY` row, and on the `SNAPSHOT` row (the snapshot-selection key), and used for backfill
+ *   `DAY_ONLY` row, and (for a forward dispatch) on the `SNAPSHOT` row, and used for backfill
  *   detection.
  * @param retentionDays retention window in days (must exceed the max measurement-report window).
  * @param today the UTC date treated as "now" for the rank-age cutoff.
@@ -190,30 +186,26 @@ class SubpoolRanker(
 
   /** Ranks [poolOffset]; [subpoolBlobUri] is its Phase-0 merged blob; caps at [rankedSize]. */
   suspend fun rank(poolOffset: Long, subpoolBlobUri: String, rankedSize: Int): Result {
-    val eventDay = epochDayOf(maxEventDate)
-    val cutoffEpochDay = (today.toEpochDay() - retentionDays).toInt()
-
-    // 1. Locate the latest cumulative snapshot (most recent create_time), then decide whether this
-    // dispatch is a backfill and, if so, which older snapshot to replay ranks from.
-    val priorSnapshot = findPriorSnapshot(poolOffset)
-    val oldSnapshot = resolveBackfillOldSnapshot(poolOffset, eventDay, priorSnapshot)
-    val isBackfill = oldSnapshot != null
-
-    // 2. Idempotency gate, keyed on the row this run commits: SNAPSHOT on a normal dispatch,
-    // DAY_ONLY on a backfill (which writes no SNAPSHOT). A non-null result means a prior attempt
-    // already finished this (upload, subpool), so skip the re-rank.
-    val gateType =
-      if (isBackfill) RankIndexBlob.BlobType.DAY_ONLY else RankIndexBlob.BlobType.SNAPSHOT
-    if (findUploadBlob(poolOffset, gateType) != null) {
+    // Idempotency gate: an existing SNAPSHOT row for this (upload, subpool) means a prior attempt
+    // committed both blobs + rows atomically (a backfill writes a SNAPSHOT too), so skip the
+    // re-rank.
+    if (findUploadBlob(poolOffset, RankIndexBlob.BlobType.SNAPSHOT) != null) {
       logger.info(
         "Subpool $poolOffset for $modelLine already ranked for $rawImpressionUpload; skipping"
       )
       return Result(poolOffset, 0, 0, 0, 0, 0, skipped = true)
     }
 
-    val allocator = RankAllocator(poolOffset, rankedSize, eventDay)
+    val eventDay = epochDayOf(maxEventDate)
+    val cutoffEpochDay = (today.toEpochDay() - retentionDays).toInt()
 
-    // 3. Load the latest cumulative snapshot (validating its checksum), if one exists.
+    // 1. Load the latest cumulative snapshot, then decide whether this dispatch is a backfill and,
+    // if so, which older snapshot to replay ranks from.
+    val priorSnapshot = findPriorSnapshot(poolOffset)
+    val oldSnapshot = resolveBackfillOldSnapshot(poolOffset, eventDay, priorSnapshot)
+    val isBackfill = oldSnapshot != null
+
+    val allocator = RankAllocator(poolOffset, rankedSize, eventDay)
     if (priorSnapshot != null) {
       allocator.loadFrom(
         rankIndexStore.readBlob(
@@ -224,7 +216,7 @@ class SubpoolRanker(
       )
     }
 
-    // 4. Materialize this dispatch's fingerprint set for the subpool from the Phase-0 merged blob.
+    // 2. Materialize this dispatch's fingerprint set for the subpool from the Phase-0 merged blob.
     val todayFps = Bytes12IntMap()
     subpoolFingerprintsStore.readBlob(subpoolBlobUri, encryptedSubpoolMapsDek).collect { record ->
       val fps = record.fingerprints
@@ -240,44 +232,39 @@ class SubpoolRanker(
       }
     }
 
-    // 5a. Storage GC of aged-out DAY_ONLY blobs (independent of rank freeing).
+    // 3a. Storage GC of aged-out DAY_ONLY blobs (independent of rank freeing).
     retention.deleteAgedBlobs(poolOffset)
-    // 5b. Free aged-out ranks in heap from the `last_seen` index, before allocating so freed slots
+    // 3b. Free aged-out ranks in heap from the `last_seen` index, before allocating so freed slots
     // are reusable today. Fingerprints seen this dispatch are excluded so their ranks (VIDs)
     // survive.
     allocator.freeAgedRanks(cutoffEpochDay, todayFps)
 
-    // 6. Assign ranks to today's fingerprints.
-    var reusedOldRank = 0L
-    var rankCollisions = 0L
+    // 4. Assign ranks to today's fingerprints.
     if (oldSnapshot != null) {
-      // Backfill: replay each fingerprint's historical rank (old -> latest -> new).
+      // Backfill: replay each fingerprint's historical rank into the day-only delta while extending
+      // the cumulative forward (see class KDoc and RankAllocator.assignBackfill).
       val oldRanks = loadFingerprintRanks(oldSnapshot)
       todayFps.forEach { keyHi, keyLo, _ ->
-        val oldRank = oldRanks.get(keyHi, keyLo)
-        if (oldRank != Bytes12IntMap.NOT_PRESENT && oldRank in 0 until rankedSize) {
-          // The fingerprint's rank in the latest snapshot, captured before we overwrite it; a
-          // different value means the old slot was re-handed to someone else (accepted undercount).
-          val latestRank = allocator.get(keyHi, keyLo)
-          allocator.assignAt(keyHi, keyLo, oldRank)
-          reusedOldRank++
-          if (latestRank != Bytes12IntMap.NOT_PRESENT && latestRank != oldRank) {
-            rankCollisions++
-          }
-        } else {
-          allocator.assign(keyHi, keyLo)
-        }
+        allocator.assignBackfill(keyHi, keyLo, oldRanks.get(keyHi, keyLo))
       }
     } else {
       todayFps.forEach { keyHi, keyLo, _ -> allocator.assign(keyHi, keyLo) }
     }
 
-    // 7. Write the new blob(s) and record the RankIndexBlob row(s). Keys carry a per-attempt UUID
-    // so
-    // a concurrent/re-delivered attempt never overwrites another's bytes; the winning
-    // (deterministic-request_id) row's blob_uri + DEK are always self-consistent.
+    // 5. Write the new DAY_ONLY + SNAPSHOT blobs and record both as RankIndexBlob rows. Keys carry
+    // a
+    // per-attempt UUID so a concurrent/re-delivered attempt never overwrites another's bytes; the
+    // winning (deterministic-request_id) row's blob_uri + DEK are always self-consistent.
     val attemptId = UUID.randomUUID().toString()
     val dek = rankIndexStore.generateDek(kekUri)
+    val snapshotKey =
+      RankIndexStore.snapshotKey(
+        vidRankMapBlobPrefix,
+        rawImpressionUpload,
+        modelLine,
+        poolOffset,
+        attemptId,
+      )
     val dayOnlyKey =
       RankIndexStore.dayOnlyKey(
         vidRankMapBlobPrefix,
@@ -286,41 +273,41 @@ class SubpoolRanker(
         poolOffset,
         attemptId,
       )
+    val snapshotChecksum =
+      rankIndexStore.writeBlob(snapshotKey, dek, allocator.streamCumulativeChunks())
     val dayOnlyChecksum = rankIndexStore.writeBlob(dayOnlyKey, dek, allocator.streamDayOnlyChunks())
-    if (isBackfill) {
-      // Backfill: persist ONLY the corrected DAY_ONLY; writing a new cumulative SNAPSHOT here would
-      // poison the create_time-ordered forward chain (see class KDoc).
-      insertDayOnlyRow(poolOffset, dayOnlyKey, dayOnlyChecksum, dek)
-    } else {
-      val snapshotKey =
-        RankIndexStore.snapshotKey(
-          vidRankMapBlobPrefix,
-          rawImpressionUpload,
-          modelLine,
-          poolOffset,
-          attemptId,
-        )
-      val snapshotChecksum =
-        rankIndexStore.writeBlob(snapshotKey, dek, allocator.streamCumulativeChunks())
-      insertBlobRows(poolOffset, snapshotKey, snapshotChecksum, dayOnlyKey, dayOnlyChecksum, dek)
-    }
+    // The SNAPSHOT's max_event_date is the newest event date in the cumulative: this dispatch's
+    // date
+    // for a forward upload, but the prior snapshot's (unchanged) date for a backfill, which only
+    // adds older fingerprints.
+    val snapshotMaxEventDate = if (isBackfill) priorSnapshot!!.maxEventDate else maxEventDate
+    insertBlobRows(
+      poolOffset,
+      snapshotKey,
+      snapshotChecksum,
+      dayOnlyKey,
+      dayOnlyChecksum,
+      dek,
+      snapshotMaxEventDate,
+    )
 
-    recordMetrics(allocator, reusedOldRank, rankCollisions)
+    recordMetrics(allocator)
     logger.info(
       "Subpool $poolOffset for $modelLine: allocated=${allocator.allocated}, " +
         "renewed=${allocator.renewed}, overflow=${allocator.overflow}, freed=${allocator.freed}, " +
         "cumulative=${allocator.cumulativeSize}" +
         if (isBackfill) {
-          " [backfill: reusedOldRank=$reusedOldRank, rankCollisions=$rankCollisions]"
+          " [backfill: reusedOldRank=${allocator.backfillReusedOldRank}, " +
+            "rankCollisions=${allocator.backfillRankCollisions}]"
         } else {
           ""
         }
     )
-    if (rankCollisions > 0) {
+    if (allocator.backfillRankCollisions > 0) {
       logger.warning(
-        "Subpool $poolOffset for $modelLine backfill reach-undercount: $rankCollisions " +
-          "fingerprint(s) reused an old rank already re-handed to a different fingerprint in the " +
-          "latest snapshot"
+        "Subpool $poolOffset for $modelLine backfill reach-undercount: " +
+          "${allocator.backfillRankCollisions} fingerprint(s) reused an old rank already re-handed " +
+          "to a different fingerprint in the latest snapshot"
       )
     }
     return Result(
@@ -331,8 +318,8 @@ class SubpoolRanker(
       freed = allocator.freed,
       cumulativeSize = allocator.cumulativeSize,
       backfill = isBackfill,
-      backfillReusedOldRank = reusedOldRank,
-      backfillRankCollisions = rankCollisions,
+      backfillReusedOldRank = allocator.backfillReusedOldRank,
+      backfillRankCollisions = allocator.backfillRankCollisions,
     )
   }
 
@@ -371,8 +358,9 @@ class SubpoolRanker(
   /**
    * The newest non-deleted `SNAPSHOT` blob for [poolOffset] of this (data provider, model line)
    * across all uploads, or `null` on a cold (Day-1) subpool. The most recent `create_time` is the
-   * current cumulative state (the design's N−1 recovery baseline). A backfill writes no `SNAPSHOT`,
-   * so the most recent `create_time` is always a forward dispatch's cumulative.
+   * current cumulative state (the design's N−1 recovery baseline). A backfill writes a `SNAPSHOT`
+   * too (the latest cumulative plus the backfill's fingerprints), so the most recent `create_time`
+   * always reflects the most complete cumulative.
    *
    * TODO(world-federation-of-advertisers/cross-media-measurement#4008): this lists every
    *   non-deleted SNAPSHOT across all uploads and scans for the newest — O(all snapshots), which
@@ -417,8 +405,8 @@ class SubpoolRanker(
    *
    * Returns the old snapshot — the `SNAPSHOT` whose `max_event_date` is the greatest value strictly
    * less than [eventDay] (the cumulative state just before the backfilled day) — only when:
-   * * [priorSnapshot] (the latest cumulative) exists and carries a `max_event_date` that is
-   *   strictly newer than [eventDay] (fresher data already exists), and
+   * * [priorSnapshot] (the latest cumulative) exists and carries a `max_event_date` strictly newer
+   *   than [eventDay] (fresher data already exists), and
    * * the gap is within [retentionDays] (older dispatches have no live ranks left to reclaim —
    *   Problem 3, out of scope), and
    * * such an older snapshot actually exists (otherwise the data provider uploaded data older than
@@ -492,7 +480,12 @@ class SubpoolRanker(
     return map
   }
 
-  /** Inserts the SNAPSHOT + DAY_ONLY rows in one idempotent batch (normal dispatch). */
+  /**
+   * Inserts the SNAPSHOT + DAY_ONLY rows in one idempotent batch. [snapshotMaxEventDate] is the
+   * newest event date represented in the cumulative (this dispatch's date for a forward upload, the
+   * prior snapshot's date for a backfill); the DAY_ONLY row always carries this dispatch's date so
+   * the retention sweep ages it by the day it actually covers.
+   */
   private suspend fun insertBlobRows(
     poolOffset: Long,
     snapshotKey: String,
@@ -500,6 +493,7 @@ class SubpoolRanker(
     dayOnlyKey: String,
     dayOnlyChecksum: com.google.protobuf.ByteString,
     dek: EncryptedDek,
+    snapshotMaxEventDate: Date,
   ) {
     rankIndexBlobsStub.batchCreateRankIndexBlobs(
       batchCreateRankIndexBlobsRequest {
@@ -513,9 +507,7 @@ class SubpoolRanker(
             blobUri = snapshotKey
             blobChecksum = snapshotChecksum
             encryptedDek = dek
-            // The snapshot-selection key: the newest event date of the upload that produced this
-            // cumulative state, used to locate the prior/old snapshot for a given event date.
-            maxEventDate = this@SubpoolRanker.maxEventDate
+            maxEventDate = snapshotMaxEventDate
           }
           requestId = blobRequestId(poolOffset, RankIndexBlob.BlobType.SNAPSHOT)
         }
@@ -536,44 +528,18 @@ class SubpoolRanker(
     )
   }
 
-  /**
-   * Inserts only the DAY_ONLY row (backfill). No SNAPSHOT is written — see the class KDoc for why a
-   * backfill must not advance the cumulative chain.
-   */
-  private suspend fun insertDayOnlyRow(
-    poolOffset: Long,
-    dayOnlyKey: String,
-    dayOnlyChecksum: com.google.protobuf.ByteString,
-    dek: EncryptedDek,
-  ) {
-    rankIndexBlobsStub.batchCreateRankIndexBlobs(
-      batchCreateRankIndexBlobsRequest {
-        parent = rawImpressionUpload
-        requests += createRankIndexBlobRequest {
-          parent = rawImpressionUpload
-          rankIndexBlob = rankIndexBlob {
-            blobType = RankIndexBlob.BlobType.DAY_ONLY
-            cmmsModelLine = modelLine
-            this.poolOffset = poolOffset
-            blobUri = dayOnlyKey
-            blobChecksum = dayOnlyChecksum
-            encryptedDek = dek
-            maxEventDate = this@SubpoolRanker.maxEventDate
-          }
-          requestId = blobRequestId(poolOffset, RankIndexBlob.BlobType.DAY_ONLY)
-        }
-      }
-    )
-  }
-
-  private fun recordMetrics(allocator: RankAllocator, reusedOldRank: Long, rankCollisions: Long) {
+  private fun recordMetrics(allocator: RankAllocator) {
     metrics.ranksAllocatedCounter.add(allocator.allocated)
     metrics.ranksRenewedCounter.add(allocator.renewed)
     metrics.ranksFreedCounter.add(allocator.freed)
     metrics.overflowFingerprintsCounter.add(allocator.overflow)
     metrics.subpoolsRankedCounter.add(1)
-    if (reusedOldRank > 0) metrics.backfillReusedOldRankCounter.add(reusedOldRank)
-    if (rankCollisions > 0) metrics.backfillRankCollisionsCounter.add(rankCollisions)
+    if (allocator.backfillReusedOldRank > 0) {
+      metrics.backfillReusedOldRankCounter.add(allocator.backfillReusedOldRank)
+    }
+    if (allocator.backfillRankCollisions > 0) {
+      metrics.backfillRankCollisionsCounter.add(allocator.backfillRankCollisions)
+    }
   }
 
   /**

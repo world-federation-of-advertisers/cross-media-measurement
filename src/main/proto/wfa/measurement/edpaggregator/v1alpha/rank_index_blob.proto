@@ -27,12 +27,10 @@ option java_multiple_files = true;
 option java_outer_classname = "RankIndexBlobProto";
 
 // A pointer to a rank index blob in Cloud Storage, with its
-// encrypted DEK. A normal (forward) upload writes two rows per
-// (upload, model line, subpool): one DAY_ONLY and one SNAPSHOT.
-// A backfill upload (one whose max_event_date is older than the
-// latest snapshot) writes only a DAY_ONLY row, so as not to
-// advance the cumulative chain. Day-only blobs persist until
-// aged out by the retention policy; snapshots are not pruned.
+// encrypted DEK. Every upload (forward or backfill) writes two
+// rows per (upload, model line, subpool): one DAY_ONLY and one
+// SNAPSHOT. Day-only blobs persist until aged out by the
+// retention policy; snapshots are not pruned.
 message RankIndexBlob {
   option (google.api.resource) = {
     type: "edpaggregator.halo-cmm.org/RankIndexBlob"
@@ -95,12 +93,14 @@ message RankIndexBlob {
   ];
 
   // The newest event date among the impressions covered by this
-  // blob. Set on both row types: on DAY_ONLY it is the dispatch's
-  // max event date (used by the retention sweep); on SNAPSHOT it
-  // is the max event date of the upload that produced the
-  // cumulative state, used as the snapshot-selection key to locate
-  // the prior/old snapshot for a given event date during backfill
-  // (see SubpoolRanker).
+  // blob. Set on both row types. On DAY_ONLY it is the dispatch's
+  // max event date (used by the retention sweep). On SNAPSHOT it
+  // is the newest event date represented in the cumulative state:
+  // for a forward upload, this upload's max event date; for a
+  // backfill, the prior snapshot's max event date (a backfill only
+  // adds older fingerprints, so the newest data is unchanged). Used
+  // as the snapshot-selection key to locate the prior/old snapshot
+  // for a given event date during backfill (see SubpoolRanker).
   google.type.Date max_event_date = 8 [
     (google.api.field_behavior) = OPTIONAL,
     (google.api.field_behavior) = IMMUTABLE

@@ -95,6 +95,17 @@ class RankAllocator(
   var freed: Long = 0L
     private set
 
+  /** Backfilled fingerprints whose DAY_ONLY label came from the old snapshot's rank. */
+  var backfillReusedOldRank: Long = 0L
+    private set
+
+  /**
+   * Backfilled fingerprints reassigned an old rank that differs from the rank they hold in the
+   * latest snapshot — the accepted reach-undercount sizing.
+   */
+  var backfillRankCollisions: Long = 0L
+    private set
+
   /**
    * Loads a single prior `(fp, rank)` entry with its persisted [lastSeenDay], marking the rank
    * taken and recording its recency. Used by [loadFrom]; safe to call directly in tests.
@@ -211,27 +222,81 @@ class RankAllocator(
   }
 
   /**
-   * Pins [keyHi]/[keyLo] to a specific [rank] for this dispatch, recording it in [dayOnly] (and the
-   * cumulative map / [taken] / [lastSeen]) at [eventDay]. Used by the **backfill** path to give a
-   * fingerprint back the rank it held in an older snapshot ([SubpoolRanker]).
+   * Assigns ranks for a fingerprint observed in a **backfill** dispatch, updating both the
+   * [dayOnly] delta (the rank used to label the backfilled day) and the cumulative `SNAPSHOT` (the
+   * live state carried forward), which may diverge.
    *
-   * Unlike [assign] this does not pick a free slot and does not bump [allocated] / [renewed]: the
-   * rank is supplied by the caller (sourced from a prior snapshot of the same subpool, so it is
-   * already within `[0, rankedSize)`). If [rank] is already taken by a *different* fingerprint the
-   * caller has detected an old-slot collision (accepted reach-undercount); this still pins the
-   * fingerprint to [rank] in [dayOnly] so the backfilled day is labeled with the original VID. The
-   * cumulative map produced here is not persisted on a backfill, so the transient two-keys-one-rank
-   * state never reaches storage.
+   * [oldRank] is the fingerprint's rank in the *old* snapshot (the cumulative just before the
+   * backfilled day), or any value outside `[0, rankedSize)` ([Bytes12IntMap.NOT_PRESENT]) if it had
+   * none.
    *
-   * @return the pinned [rank].
+   * The **DAY_ONLY label** gives the person back their original rank for that day:
+   * * in the old snapshot -> [oldRank],
+   * * else already ranked (in the latest snapshot) -> its current rank,
+   * * else -> a freshly allocated rank.
+   *
+   * The **cumulative `SNAPSHOT`** is built forward from the latest snapshot, only *adding* backfill
+   * fingerprints (so they are not re-ranked on a later dispatch) — never lowering an existing rank:
+   * * already ranked (case 3) -> keep its current rank (a renewal), refreshing `last_seen` only
+   *   upward (the backfill date is older, so usually a no-op),
+   * * else old rank still free (case 2) -> take it back,
+   * * else (case 1, or case 2 where the old rank was already re-handed to someone else) -> a
+   *   freshly allocated free slot. In the case-2 collision the cumulative gets a fresh rank while
+   *   the DAY_ONLY still labels the day with the (shared) old rank.
+   *
+   * @return the DAY_ONLY label rank, or `null` if the subpool is full (overflow — unranked).
    */
-  fun assignAt(keyHi: Long, keyLo: Int, rank: Int): Int {
-    require(rank in 0 until rankedSize) { "rank $rank out of range [0, $rankedSize)" }
-    taken.set(rank)
-    lastSeen[rank] = eventDay.toShort()
-    cumulative.put(keyHi, keyLo, rank)
-    dayOnly.put(keyHi, keyLo, rank)
-    return rank
+  fun assignBackfill(keyHi: Long, keyLo: Int, oldRank: Int): Int? {
+    val hasOld = oldRank in 0 until rankedSize
+    val recentRank = cumulative.get(keyHi, keyLo)
+
+    if (recentRank != Bytes12IntMap.NOT_PRESENT) {
+      // case 3: keep the latest rank in the cumulative; never lower last_seen with the older date.
+      if (recentRank in 0 until rankedSize) {
+        val current = lastSeen[recentRank].toInt() and 0xFFFF
+        if (eventDay > current) lastSeen[recentRank] = eventDay.toShort()
+      }
+      renewed++
+      if (hasOld) {
+        backfillReusedOldRank++
+        if (oldRank != recentRank) backfillRankCollisions++
+        dayOnly.put(keyHi, keyLo, oldRank)
+        return oldRank
+      }
+      dayOnly.put(keyHi, keyLo, recentRank)
+      return recentRank
+    }
+
+    if (hasOld && !taken.get(oldRank)) {
+      // case 2 (old rank still free): take it back in both the cumulative and the day-only delta.
+      taken.set(oldRank)
+      lastSeen[oldRank] = eventDay.toShort()
+      cumulative.put(keyHi, keyLo, oldRank)
+      dayOnly.put(keyHi, keyLo, oldRank)
+      allocated++
+      backfillReusedOldRank++
+      return oldRank
+    }
+
+    // case 1 (new fingerprint) or case 2 with the old rank already taken: allocate a fresh slot for
+    // the cumulative. The day-only label still prefers the old rank when there is one.
+    val newRank = taken.nextClearBit(cursor)
+    if (newRank >= rankedSize) {
+      overflow++
+      return null
+    }
+    taken.set(newRank)
+    cursor = newRank + 1
+    lastSeen[newRank] = eventDay.toShort()
+    cumulative.put(keyHi, keyLo, newRank)
+    allocated++
+    if (hasOld) {
+      dayOnly.put(keyHi, keyLo, oldRank)
+      backfillReusedOldRank++
+      return oldRank
+    }
+    dayOnly.put(keyHi, keyLo, newRank)
+    return newRank
   }
 
   /**
