@@ -23,6 +23,7 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.Any
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -154,6 +155,42 @@ class VidLabelingSinkTest {
 
       val files = tempFolder.root.walkTopDown().filter { it.isFile }.toList()
       assertThat(files).isEmpty()
+    }
+
+  @Test
+  fun `processBatch rejects an impression with empty entity keys`() =
+    runBlocking<Unit> {
+      tempFolder.root.resolve("labeled").mkdirs()
+      // A converter that drops entity keys must fail loudly: an empty `entityKeys` would otherwise
+      // silently strip both LabeledImpression.entity_keys and the BlobDetails.entity_keys union.
+      // ConvertedImpression's init guard rejects it, so the failure propagates out of processBatch
+      // before any labeled impression or blob details are emitted.
+      val sink =
+        VidLabelingSink(
+          inputBlobUri = "file:///raw/file-1.parquet",
+          modelLineContexts =
+            listOf(context(ActiveWindow(startMicros = 1_000L, endMicros = 2_000L))),
+          impressionConverter =
+            ImpressionConverter { event, _ ->
+              ConvertedImpression(
+                labelerInput = LabelerInput.getDefaultInstance(),
+                eventTimeMicros = event.row.getValue(EVENT_TIME_COLUMN).int64Value,
+                eventGroupReferenceId = event.row.getValue(EVENT_GROUP_COLUMN).stringValue,
+                event = Any.getDefaultInstance(),
+                entityKeys = emptyList(),
+              )
+            },
+          encryptKmsClient = kmsClient,
+          encryptKekUri = kekUri,
+          outputStorageParams = outputStorageParams,
+          storageConfig = StorageConfig(rootDirectory = tempFolder.root),
+        )
+
+      assertFailsWith<IllegalArgumentException> {
+        sink.processBatch(
+          listOf(rawEvent(eventTimeMicros = 1_000L, eventGroup = "eg1", idByte = 1))
+        )
+      }
     }
 
   /** Reads back the labeled impressions from an output blob via its [BlobDetails]. */
