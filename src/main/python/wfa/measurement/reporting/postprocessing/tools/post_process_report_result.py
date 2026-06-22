@@ -153,9 +153,106 @@ class PostProcessReportResult:
         request = self._create_add_processed_result_values_requests(
             report_summaries, all_updated_measurements)
 
+        # Snaps cross-window equality identities that may have been broken by
+        # per-RSR rounding (e.g. whole_campaign.reach vs. last_cumulative_week
+        # .reach).
+        if request is not None:
+            self._reconcile_cross_window_identities(request,
+                                                    reporting_set_results)
+
         logging.info("Successfully added all processed results.")
 
         return request
+
+    @staticmethod
+    def _dimension_key_excluding_metric_frequency_spec(
+            dimension: ReportingSetResult.Dimension) -> tuple:
+        """Returns a hashable identity key for a Dimension, ignoring its
+        metric_frequency_spec selector.
+
+        Two Dimensions that differ only in metric_frequency_spec describe the
+        same underlying slice (one whole-campaign, the other weekly cumulative)
+        and must agree on the metric values their solver-declared identities
+        require.
+        """
+        iqf_field = dimension.WhichOneof('impression_qualification_filter')
+        if iqf_field == 'external_impression_qualification_filter_id':
+            iqf_key = ('external',
+                       dimension.external_impression_qualification_filter_id)
+        elif iqf_field == 'custom':
+            iqf_key = ('custom', dimension.custom)
+        else:
+            iqf_key = ('none', )
+
+        grouping_key = tuple(
+            sorted((path, value.SerializeToString())
+                   for path, value in dimension.grouping.value_by_path.items()))
+
+        event_filters_key = tuple(
+            f.SerializeToString() for f in dimension.event_filters)
+
+        return (
+            dimension.external_reporting_set_id,
+            dimension.venn_diagram_region_type,
+            iqf_key,
+            grouping_key,
+            event_filters_key,
+        )
+
+    def _reconcile_cross_window_identities(
+        self,
+        request: AddProcessedResultValuesRequest,
+        reporting_set_results: list[ReportingSetResult],
+    ) -> None:
+        """Snaps whole_campaign cumulative reach to the last weekly cumulative
+        reach when both come from the same underlying dimension.
+
+        The QP solver constrains these two measurements to be equal (see
+        report.py:_add_cumulative_whole_campaign_relations_to_spec). However,
+        because each ReportingSetResult is rounded independently in
+        post_process_report_summary_v2.process(), a residual of up to the
+        solver TOLERANCE (0.1) can amplify into a 1-unit integer difference.
+
+        This method snaps whole_campaign.reach (and the implied
+        k_plus_reach[0]) to match the last weekly cumulative window for the
+        same (reporting_set, IQF, grouping, event_filters, venn_region) tuple,
+        so downstream consumers see a self-consistent report.
+        """
+        # Group reporting_set_result IDs by dimension (excluding the
+        # weekly/total selector) so we can match a whole_campaign RSR to its
+        # corresponding weekly RSR.
+        dim_to_rsrs: dict[tuple, dict[str, int]] = {}
+        for rsr in reporting_set_results:
+            dim = rsr.dimension
+            selector = dim.metric_frequency_spec.WhichOneof('selector')
+            if selector not in ('total', 'weekly'):
+                continue
+            key = self._dimension_key_excluding_metric_frequency_spec(dim)
+            dim_to_rsrs.setdefault(key, {})[selector] = (
+                rsr.external_reporting_set_result_id)
+
+        for selectors in dim_to_rsrs.values():
+            total_id = selectors.get('total')
+            weekly_id = selectors.get('weekly')
+            if total_id is None or weekly_id is None:
+                continue
+            total = request.reporting_set_results.get(total_id)
+            weekly = request.reporting_set_results.get(weekly_id)
+            if total is None or weekly is None:
+                continue
+            if len(total.reporting_window_results) != 1:
+                continue
+            if not weekly.reporting_window_results:
+                continue
+            last_weekly = max(
+                weekly.reporting_window_results,
+                key=lambda w: (w.key.end.year, w.key.end.month, w.key.end.day),
+            )
+            whole = total.reporting_window_results[0]
+            snapped_reach = last_weekly.value.cumulative_results.reach
+            whole.value.cumulative_results.reach = snapped_reach
+            if whole.value.cumulative_results.k_plus_reach:
+                whole.value.cumulative_results.k_plus_reach[0] = snapped_reach
 
     def _get_report_result(
             self, cmms_measurement_consumer_id: str,

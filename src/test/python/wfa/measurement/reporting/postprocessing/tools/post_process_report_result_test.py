@@ -452,6 +452,161 @@ class PostProcessReportResultTest(unittest.TestCase):
             ['reporting_set_id_edp1'],
         )
 
+    def _make_reporting_set_result(
+        self,
+        external_reporting_set_result_id: int,
+        external_reporting_set_id: str,
+        selector: str,
+    ) -> report_result_pb2.ReportingSetResult:
+        rsr = report_result_pb2.ReportingSetResult(
+            cmms_measurement_consumer_id=self.cmms_measurement_consumer_id,
+            external_report_result_id=self.external_report_result_id,
+            external_reporting_set_result_id=external_reporting_set_result_id,
+        )
+        rsr.dimension.external_reporting_set_id = external_reporting_set_id
+        rsr.dimension.venn_diagram_region_type = (
+            report_result_pb2.ReportingSetResult.Dimension.UNION)
+        rsr.dimension.custom = True
+        if selector == 'total':
+            rsr.dimension.metric_frequency_spec.total = True
+        elif selector == 'weekly':
+            from google.type import dayofweek_pb2
+            rsr.dimension.metric_frequency_spec.weekly = (
+                dayofweek_pb2.DayOfWeek.MONDAY)
+        return rsr
+
+    def _set_window_reach(
+        self,
+        request: report_results_service_pb2.AddProcessedResultValuesRequest,
+        external_reporting_set_result_id: int,
+        end_day: int,
+        reach: int,
+        k_plus_reach: list[int] | None = None,
+    ) -> None:
+        processed = request.reporting_set_results[
+            external_reporting_set_result_id]
+        entry = processed.reporting_window_results.add()
+        entry.key.end.year = 2025
+        entry.key.end.month = 10
+        entry.key.end.day = end_day
+        entry.value.cumulative_results.reach = reach
+        if k_plus_reach is not None:
+            entry.value.cumulative_results.k_plus_reach.extend(k_plus_reach)
+
+    def test_reconcile_snaps_whole_campaign_reach_to_last_weekly_reach(self):
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+        reporting_set_results = [
+            self._make_reporting_set_result(1, 'reporting_set_id_edp1',
+                                            'total'),
+            self._make_reporting_set_result(2, 'reporting_set_id_edp1',
+                                            'weekly'),
+        ]
+        request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+        # whole_campaign rounds to one value, last weekly cumulative rounds to
+        # another -- this is the cross-RSR drift the reconciler fixes.
+        self._set_window_reach(
+            request, 1, end_day=15, reach=1003,
+            k_plus_reach=[1003, 500, 250, 100, 25])
+        self._set_window_reach(request, 2, end_day=8, reach=600)
+        self._set_window_reach(
+            request, 2, end_day=15, reach=1000,
+            k_plus_reach=[1000, 500, 250, 100, 25])
+
+        processor._reconcile_cross_window_identities(
+            request, reporting_set_results)
+
+        snapped = request.reporting_set_results[1].reporting_window_results[0]
+        self.assertEqual(snapped.value.cumulative_results.reach, 1000)
+        self.assertEqual(snapped.value.cumulative_results.k_plus_reach[0],
+                         1000)
+
+    def test_reconcile_picks_latest_weekly_window_by_end_date(self):
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+        reporting_set_results = [
+            self._make_reporting_set_result(1, 'reporting_set_id_edp1',
+                                            'total'),
+            self._make_reporting_set_result(2, 'reporting_set_id_edp1',
+                                            'weekly'),
+        ]
+        request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+        self._set_window_reach(request, 1, end_day=15, reach=9999)
+        # Add weekly windows in non-sorted order to verify date-max selection.
+        self._set_window_reach(request, 2, end_day=15, reach=1234)
+        self._set_window_reach(request, 2, end_day=1, reach=100)
+        self._set_window_reach(request, 2, end_day=8, reach=500)
+
+        processor._reconcile_cross_window_identities(
+            request, reporting_set_results)
+
+        snapped = request.reporting_set_results[1].reporting_window_results[0]
+        self.assertEqual(snapped.value.cumulative_results.reach, 1234)
+
+    def test_reconcile_skips_when_no_matching_weekly(self):
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+        reporting_set_results = [
+            self._make_reporting_set_result(1, 'reporting_set_id_edp1',
+                                            'total'),
+        ]
+        request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+        self._set_window_reach(request, 1, end_day=15, reach=1003)
+
+        processor._reconcile_cross_window_identities(
+            request, reporting_set_results)
+
+        unchanged = request.reporting_set_results[1].reporting_window_results[
+            0]
+        self.assertEqual(unchanged.value.cumulative_results.reach, 1003)
+
+    def test_reconcile_skips_when_dimensions_differ(self):
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+        reporting_set_results = [
+            self._make_reporting_set_result(1, 'reporting_set_id_edp1',
+                                            'total'),
+            self._make_reporting_set_result(2, 'reporting_set_id_edp2',
+                                            'weekly'),
+        ]
+        request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+        self._set_window_reach(request, 1, end_day=15, reach=1003)
+        self._set_window_reach(request, 2, end_day=15, reach=2000)
+
+        processor._reconcile_cross_window_identities(
+            request, reporting_set_results)
+
+        unchanged = request.reporting_set_results[1].reporting_window_results[
+            0]
+        self.assertEqual(unchanged.value.cumulative_results.reach, 1003)
+
+    def test_reconcile_handles_empty_k_plus_reach(self):
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+        reporting_set_results = [
+            self._make_reporting_set_result(1, 'reporting_set_id_edp1',
+                                            'total'),
+            self._make_reporting_set_result(2, 'reporting_set_id_edp1',
+                                            'weekly'),
+        ]
+        request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+        # No k_plus_reach on either side.
+        self._set_window_reach(request, 1, end_day=15, reach=1003)
+        self._set_window_reach(request, 2, end_day=15, reach=1000)
+
+        processor._reconcile_cross_window_identities(
+            request, reporting_set_results)
+
+        snapped = request.reporting_set_results[1].reporting_window_results[0]
+        self.assertEqual(snapped.value.cumulative_results.reach, 1000)
+        self.assertEqual(list(snapped.value.cumulative_results.k_plus_reach),
+                         [])
+
 
 if __name__ == "__main__":
     unittest.main()
