@@ -28,6 +28,8 @@ internal enum class IdVariable {
   REPORT,
   RAW_IMPRESSION_METADATA_BATCH,
   FILE,
+  RAW_IMPRESSION_UPLOAD,
+  RANKER_JOB,
   WORK_ITEM,
 }
 

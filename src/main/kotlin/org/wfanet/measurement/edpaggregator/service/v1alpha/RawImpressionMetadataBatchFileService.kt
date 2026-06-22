@@ -136,6 +136,10 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -247,6 +251,10 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -301,6 +309,10 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -392,6 +404,10 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -449,6 +465,10 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -536,6 +556,10 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
