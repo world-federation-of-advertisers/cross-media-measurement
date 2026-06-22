@@ -122,3 +122,22 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/edpaggregator:requisition_metadata_service_kt_jvm_grpc_proto",
     ],
 )
+
+kt_jvm_library(
+    name = "vid_labeling_job_service",
+    srcs = [
+        "VidLabelingJobService.kt",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:errors",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:errors",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeling_job_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeling_job_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:vid_labeling_job_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:vid_labeling_job_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:vid_labeling_state_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
