@@ -249,6 +249,55 @@ class PostProcessReportResultTest(unittest.TestCase):
             weighted_sum_of_buckets, basic_metric_set.impressions,
             "sum of k_plus_reach buckets must not exceed impressions")
 
+    def test_compute_basic_metric_set_k_plus_excess_cascades_across_buckets(
+            self):
+        """When the rounding residue exceeds the last k_plus_reach bucket, the
+        snap cascades into the next-highest bucket until the impressions
+        identity is satisfied. Without cascading, the violation would persist.
+        """
+        # frequency_values picked so the highest bucket can absorb only part of
+        # the residue: k_plus_reach[-1] = 1 (= frequency_values[-1]) but
+        # excess after capping impressions is 5, so 4 must cascade into the
+        # next bucket.
+        basic_metric_set = compute_basic_metric_set(
+            reach=166,
+            frequency_values=[100, 50, 10, 5, 1],
+            impressions=250,
+            population=1000,
+        )
+
+        weighted_sum_of_buckets = sum(basic_metric_set.k_plus_reach)
+        self.assertLessEqual(
+            weighted_sum_of_buckets, basic_metric_set.impressions,
+            "sum of k_plus_reach buckets must not exceed impressions")
+        # k_plus_reach[-1] absorbs as much as it can; remainder cascades.
+        self.assertEqual(basic_metric_set.k_plus_reach[-1], 0)
+        self.assertEqual(basic_metric_set.k_plus_reach[-2], 2)
+        # Lower buckets are untouched.
+        self.assertEqual(basic_metric_set.k_plus_reach[0], 166)
+        self.assertEqual(basic_metric_set.k_plus_reach[1], 66)
+        self.assertEqual(basic_metric_set.k_plus_reach[2], 16)
+
+    def test_compute_basic_metric_set_k_plus_excess_preserves_reach_identity(
+            self):
+        """The cascade stops at index 1 so k_plus_reach[0] == reach holds
+        even when the residue would otherwise consume the whole histogram.
+        Identity #1 takes precedence over identity #2 in this (unrealistic)
+        case; the residual is small in practice because large corrections
+        are rejected upstream by the 7-sigma threshold.
+        """
+        basic_metric_set = compute_basic_metric_set(
+            reach=10,
+            frequency_values=[10, 5, 3, 2, 1],
+            impressions=1,
+            population=1000,
+        )
+
+        # All higher buckets pushed to zero, but k_plus_reach[0] is preserved.
+        self.assertEqual(basic_metric_set.k_plus_reach[0], 10)
+        for bucket in basic_metric_set.k_plus_reach[1:]:
+            self.assertEqual(bucket, 0)
+
     def test_post_process_report_result_success(self):
         # Configures the mock stubs to return the data from the textproto files.
         self.mock_report_results_stub.ListReportingSetResults.return_value = (

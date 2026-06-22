@@ -526,17 +526,24 @@ def compute_basic_metric_set(
         #
         # Snap to enforce both. The reach value is the canonical 1+ reach,
         # so overwrite k_plus_reach[0]. For the impression identity, absorb
-        # any positive residue into the highest-frequency bucket (which has
-        # the loosest physical interpretation: "saw it at least N times for
-        # large N"). See Issue #4049.
+        # any positive residue starting at the highest-frequency bucket (which
+        # has the loosest physical interpretation: "saw it at least N times
+        # for large N"). If a single bucket can't absorb the full residue
+        # (e.g. it would go below zero), cascade into the next-highest bucket.
+        # Stop before index 0 so the reach == k_plus_reach[0] identity is
+        # preserved even in the (unrealistic) case where the residue exceeds
+        # the total capacity of all higher-frequency buckets. See Issue #4049.
         if k_plus_reach_values:
             if reach is not None:
                 k_plus_reach_values[0] = reach
             if impressions is not None:
                 excess = sum(k_plus_reach_values) - impressions
-                if excess > 0:
-                    k_plus_reach_values[-1] = max(
-                        0, k_plus_reach_values[-1] - excess)
+                i = len(k_plus_reach_values) - 1
+                while excess > 0 and i >= 1:
+                    absorbed = min(excess, k_plus_reach_values[i])
+                    k_plus_reach_values[i] -= absorbed
+                    excess -= absorbed
+                    i -= 1
         basic_metric_set.k_plus_reach.extend(k_plus_reach_values)
         basic_metric_set.percent_k_plus_reach.extend(
             [val / population * 100 for val in k_plus_reach_values])
