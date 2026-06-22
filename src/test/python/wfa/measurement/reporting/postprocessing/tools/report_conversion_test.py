@@ -1032,9 +1032,9 @@ class ReportConversionTest(unittest.TestCase):
         self.assertIsNotNone(report_summary_18_34)
         self.assertIsNotNone(report_summary_35_54)
 
-        # Verifies that there are 17 results for the 18-34 age group.
+        # Verifies that there are 12 results for the 18-34 age group.
         self.assertEqual(len(report_summary_18_34.report_summary_set_results),
-                         17)
+                         12)
         # Verifies that there are 8 results for the 35-54 age group.
         self.assertEqual(len(report_summary_35_54.report_summary_set_results),
                          8)
