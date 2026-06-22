@@ -10,6 +10,7 @@ kt_jvm_test(
     ],
     test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingDispatcherFunctionTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/testing",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_line_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_lines_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_rollout_kt_jvm_proto",
@@ -33,7 +34,6 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
-        "//src/main/kotlin/org/wfanet/measurement/gcloud/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],
 )

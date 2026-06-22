@@ -259,7 +259,7 @@ class VidLabelingDispatcherFunctionTest {
         .build()
     val response = client.send(request, HttpResponse.BodyHandlers.ofString())
 
-    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.statusCode()).isEqualTo(400)
     verifyBlocking(rawImpressionUploadServiceMock, never()) { createRawImpressionUpload(any()) }
   }
 
@@ -284,7 +284,26 @@ class VidLabelingDispatcherFunctionTest {
         .build()
     val response = client.send(request, HttpResponse.BodyHandlers.ofString())
 
-    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.statusCode()).isEqualTo(400)
+    verifyBlocking(rawImpressionUploadServiceMock, never()) { createRawImpressionUpload(any()) }
+  }
+
+  @Test
+  fun `upload returns bad request for unknown data provider`() {
+    val port = startFunction()
+
+    val dispatcherParams = vidLabelingDispatcherParams { dataProvider = "dataProviders/unknown" }
+    val client = HttpClient.newHttpClient()
+    val request =
+      HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:$port"))
+        .header("X-DataWatcher-Path", "file:////edp/edp_name/timestamp/done")
+        .header("X-DataWatcher-Generation", "12345")
+        .POST(HttpRequest.BodyPublishers.ofString(dispatcherParams.toJson()))
+        .build()
+    val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+
+    assertThat(response.statusCode()).isEqualTo(400)
     verifyBlocking(rawImpressionUploadServiceMock, never()) { createRawImpressionUpload(any()) }
   }
 

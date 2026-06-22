@@ -30,6 +30,7 @@ import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
@@ -254,6 +255,12 @@ class VidLabelingDispatcherFunction : HttpFunction {
           dispatcher.upload(doneBlobPath, doneBlobGeneration)
         }
       }
+    } catch (e: IllegalArgumentException) {
+      // Bad request: missing/invalid headers, malformed params, or an unknown data provider. These
+      // are caller errors, so return 4xx rather than letting the framework surface them as 500.
+      logger.log(Level.WARNING, "Rejecting request as bad input", e)
+      response.setStatusCode(400)
+      response.writer.write(e.message ?: "Bad request")
     } finally {
       EdpaTelemetry.flush()
     }
