@@ -66,4 +66,13 @@ data class ConvertedImpression(
   val eventGroupReferenceId: String,
   val event: com.google.protobuf.Any,
   val entityKeys: List<org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression.EntityKey>,
-)
+) {
+  init {
+    // Making entityKeys a required parameter only blocks accidental omission at the call site; an
+    // explicit `emptyList()` would still silently drop the per-impression `LabeledImpression
+    // .entity_keys` and the per-blob `BlobDetails.entity_keys` union. Guard the runtime contract.
+    require(entityKeys.isNotEmpty()) {
+      "entityKeys must not be empty — every impression must be attributable to at least one entity"
+    }
+  }
+}
