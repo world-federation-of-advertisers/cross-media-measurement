@@ -505,6 +505,94 @@ class RawImpressionUploadServiceTest {
     assertThat(futureResponse.rawImpressionUploadsList).isEmpty()
   }
 
+  @Test
+  fun `listRawImpressionUploads state filter maps ACTIVE and COMPLETED`(): Unit = runBlocking {
+    // Only CREATED uploads are reachable via the public API, so ACTIVE and COMPLETED filters must
+    // map through toInternal() and match nothing here. This pins the ACTIVE and COMPLETED state
+    // conversions that the CREATED/FAILED filter tests do not exercise.
+    val created =
+      service.createRawImpressionUpload(
+        createRawImpressionUploadRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+        }
+      )
+
+    val activeResponse =
+      service.listRawImpressionUploads(
+        listRawImpressionUploadsRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          filter =
+            ListRawImpressionUploadsRequestKt.filter { stateIn += RawImpressionUpload.State.ACTIVE }
+        }
+      )
+    assertThat(activeResponse.rawImpressionUploadsList).isEmpty()
+
+    val completedResponse =
+      service.listRawImpressionUploads(
+        listRawImpressionUploadsRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          filter =
+            ListRawImpressionUploadsRequestKt.filter {
+              stateIn += RawImpressionUpload.State.COMPLETED
+            }
+        }
+      )
+    assertThat(completedResponse.rawImpressionUploadsList).isEmpty()
+
+    val mixedResponse =
+      service.listRawImpressionUploads(
+        listRawImpressionUploadsRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          filter =
+            ListRawImpressionUploadsRequestKt.filter {
+              stateIn += RawImpressionUpload.State.CREATED
+              stateIn += RawImpressionUpload.State.ACTIVE
+              stateIn += RawImpressionUpload.State.COMPLETED
+            }
+        }
+      )
+    assertThat(mixedResponse)
+      .isEqualTo(listRawImpressionUploadsResponse { rawImpressionUploads += created })
+  }
+
+  @Test
+  fun `listRawImpressionUploads filters by create_time interval with end_time`(): Unit =
+    runBlocking {
+      val created =
+        service.createRawImpressionUpload(
+          createRawImpressionUploadRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+          }
+        )
+
+      val withinEndResponse =
+        service.listRawImpressionUploads(
+          listRawImpressionUploadsRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            filter =
+              ListRawImpressionUploadsRequestKt.filter {
+                createTimeIn = interval { endTime = Instant.now().plusSeconds(3600).toProtoTime() }
+              }
+          }
+        )
+      assertThat(withinEndResponse)
+        .isEqualTo(listRawImpressionUploadsResponse { rawImpressionUploads += created })
+
+      val beforeEndResponse =
+        service.listRawImpressionUploads(
+          listRawImpressionUploadsRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            filter =
+              ListRawImpressionUploadsRequestKt.filter {
+                createTimeIn = interval { endTime = Instant.now().minusSeconds(3600).toProtoTime() }
+              }
+          }
+        )
+      assertThat(beforeEndResponse.rawImpressionUploadsList).isEmpty()
+    }
+
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
 
