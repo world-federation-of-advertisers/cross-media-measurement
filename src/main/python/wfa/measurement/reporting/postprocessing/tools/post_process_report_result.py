@@ -204,8 +204,8 @@ class PostProcessReportResult:
         request: AddProcessedResultValuesRequest,
         reporting_set_results: list[ReportingSetResult],
     ) -> None:
-        """Snaps whole_campaign cumulative reach to the last weekly cumulative
-        reach when both come from the same underlying dimension.
+        """Snaps whole_campaign cumulative reach to match the last weekly
+        cumulative reach when both come from the same underlying dimension.
 
         The QP solver constrains these two measurements to be equal (see
         report.py:_add_cumulative_whole_campaign_relations_to_spec). However,
@@ -213,10 +213,14 @@ class PostProcessReportResult:
         post_process_report_summary_v2.process(), a residual of up to the
         solver TOLERANCE (0.1) can amplify into a 1-unit integer difference.
 
-        This method snaps whole_campaign.reach (and the implied
-        k_plus_reach[0]) to match the last weekly cumulative window for the
-        same (reporting_set, IQF, grouping, event_filters, venn_region) tuple,
-        so downstream consumers see a self-consistent report.
+        Both sides are snapped to min(whole_campaign.reach,
+        last_weekly_cumulative.reach). Picking the smaller value avoids
+        re-breaking the per-window identity sum(k_plus_reach) <= impressions
+        (Issue #4049 Rule 4), which a snap-upward could violate.
+
+        Derived fields (percent_reach, average_frequency) are not recomputed.
+        A 1-unit drift in reach shifts them by ~1e-5%, well below any
+        downstream tolerance.
         """
         # Group reporting_set_result IDs by dimension (excluding the
         # weekly/total selector) so we can match a whole_campaign RSR to its
@@ -249,10 +253,15 @@ class PostProcessReportResult:
                 key=lambda w: (w.key.end.year, w.key.end.month, w.key.end.day),
             )
             whole = total.reporting_window_results[0]
-            snapped_reach = last_weekly.value.cumulative_results.reach
+            snapped_reach = min(whole.value.cumulative_results.reach,
+                                last_weekly.value.cumulative_results.reach)
             whole.value.cumulative_results.reach = snapped_reach
             if whole.value.cumulative_results.k_plus_reach:
                 whole.value.cumulative_results.k_plus_reach[0] = snapped_reach
+            last_weekly.value.cumulative_results.reach = snapped_reach
+            if last_weekly.value.cumulative_results.k_plus_reach:
+                last_weekly.value.cumulative_results.k_plus_reach[0] = (
+                    snapped_reach)
 
     def _get_report_result(
             self, cmms_measurement_consumer_id: str,

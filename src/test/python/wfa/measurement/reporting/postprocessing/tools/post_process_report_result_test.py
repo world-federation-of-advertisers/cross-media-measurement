@@ -493,7 +493,11 @@ class PostProcessReportResultTest(unittest.TestCase):
         if k_plus_reach is not None:
             entry.value.cumulative_results.k_plus_reach.extend(k_plus_reach)
 
-    def test_reconcile_snaps_whole_campaign_reach_to_last_weekly_reach(self):
+    def test_reconcile_snaps_both_sides_to_min_reach(self):
+        """Both whole_campaign and last_weekly_cumulative get the smaller of
+        the two reach values. Picking the min avoids re-breaking the per-RSR
+        identity sum(k_plus_reach) <= impressions on the side that would have
+        been snapped upward (Issue #4049 Rule 4)."""
         processor = PostProcessReportResult(self.mock_report_results_stub,
                                             self.mock_reporting_sets_stub)
         reporting_set_results = [
@@ -517,10 +521,51 @@ class PostProcessReportResultTest(unittest.TestCase):
         processor._reconcile_cross_window_identities(
             request, reporting_set_results)
 
-        snapped = request.reporting_set_results[1].reporting_window_results[0]
-        self.assertEqual(snapped.value.cumulative_results.reach, 1000)
-        self.assertEqual(snapped.value.cumulative_results.k_plus_reach[0],
+        whole_camp = request.reporting_set_results[
+            1].reporting_window_results[0]
+        last_weekly = next(w for w in request.reporting_set_results[
+            2].reporting_window_results if w.key.end.day == 15)
+        # Both sides snapped to min(1003, 1000) = 1000.
+        self.assertEqual(whole_camp.value.cumulative_results.reach, 1000)
+        self.assertEqual(whole_camp.value.cumulative_results.k_plus_reach[0],
                          1000)
+        self.assertEqual(last_weekly.value.cumulative_results.reach, 1000)
+        self.assertEqual(
+            last_weekly.value.cumulative_results.k_plus_reach[0], 1000)
+
+    def test_reconcile_snaps_down_when_whole_campaign_is_smaller(self):
+        """When whole_campaign.reach < last_weekly.reach, last_weekly is
+        snapped down (rather than whole_campaign snapped up). This direction
+        prevents re-breaking the impressions identity for last_weekly."""
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+        reporting_set_results = [
+            self._make_reporting_set_result(1, 'reporting_set_id_edp1',
+                                            'total'),
+            self._make_reporting_set_result(2, 'reporting_set_id_edp1',
+                                            'weekly'),
+        ]
+        request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+        self._set_window_reach(
+            request, 1, end_day=15, reach=1000,
+            k_plus_reach=[1000, 500, 250, 100, 25])
+        self._set_window_reach(
+            request, 2, end_day=15, reach=1003,
+            k_plus_reach=[1003, 500, 250, 100, 25])
+
+        processor._reconcile_cross_window_identities(
+            request, reporting_set_results)
+
+        whole_camp = request.reporting_set_results[
+            1].reporting_window_results[0]
+        last_weekly = request.reporting_set_results[
+            2].reporting_window_results[0]
+        # Both sides snapped to min(1000, 1003) = 1000.
+        self.assertEqual(whole_camp.value.cumulative_results.reach, 1000)
+        self.assertEqual(last_weekly.value.cumulative_results.reach, 1000)
+        self.assertEqual(
+            last_weekly.value.cumulative_results.k_plus_reach[0], 1000)
 
     def test_reconcile_picks_latest_weekly_window_by_end_date(self):
         processor = PostProcessReportResult(self.mock_report_results_stub,
@@ -542,8 +587,19 @@ class PostProcessReportResultTest(unittest.TestCase):
         processor._reconcile_cross_window_identities(
             request, reporting_set_results)
 
-        snapped = request.reporting_set_results[1].reporting_window_results[0]
-        self.assertEqual(snapped.value.cumulative_results.reach, 1234)
+        whole_camp = request.reporting_set_results[
+            1].reporting_window_results[0]
+        # Snap to min(9999, 1234) = 1234. The end_day=15 weekly is the latest,
+        # not end_day=1 or end_day=8.
+        self.assertEqual(whole_camp.value.cumulative_results.reach, 1234)
+        # Earlier weekly windows are unchanged.
+        for w in request.reporting_set_results[2].reporting_window_results:
+            if w.key.end.day == 1:
+                self.assertEqual(w.value.cumulative_results.reach, 100)
+            elif w.key.end.day == 8:
+                self.assertEqual(w.value.cumulative_results.reach, 500)
+            elif w.key.end.day == 15:
+                self.assertEqual(w.value.cumulative_results.reach, 1234)
 
     def test_reconcile_skips_when_no_matching_weekly(self):
         processor = PostProcessReportResult(self.mock_report_results_stub,
@@ -602,10 +658,18 @@ class PostProcessReportResultTest(unittest.TestCase):
         processor._reconcile_cross_window_identities(
             request, reporting_set_results)
 
-        snapped = request.reporting_set_results[1].reporting_window_results[0]
-        self.assertEqual(snapped.value.cumulative_results.reach, 1000)
-        self.assertEqual(list(snapped.value.cumulative_results.k_plus_reach),
-                         [])
+        whole_camp = request.reporting_set_results[
+            1].reporting_window_results[0]
+        last_weekly = request.reporting_set_results[
+            2].reporting_window_results[0]
+        self.assertEqual(whole_camp.value.cumulative_results.reach, 1000)
+        self.assertEqual(last_weekly.value.cumulative_results.reach, 1000)
+        # Empty k_plus_reach on both sides remains empty -- no spurious
+        # element added.
+        self.assertEqual(
+            list(whole_camp.value.cumulative_results.k_plus_reach), [])
+        self.assertEqual(
+            list(last_weekly.value.cumulative_results.k_plus_reach), [])
 
 
 if __name__ == "__main__":
