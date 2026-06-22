@@ -23,6 +23,7 @@ import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState
+import org.wfanet.measurement.internal.edpaggregator.RankerState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionBatchState
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState
 
@@ -40,6 +41,9 @@ object Errors {
     RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
     RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
     RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+    RANKER_JOB_NOT_FOUND,
+    RANKER_JOB_ALREADY_EXISTS,
+    RANKER_JOB_STATE_INVALID,
     REQUISITION_METADATA_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_ALREADY_EXISTS,
@@ -67,6 +71,9 @@ object Errors {
     BATCH_RESOURCE_ID("batchResourceId"),
     FILE_RESOURCE_ID("fileResourceId"),
     RAW_IMPRESSION_UPLOAD_RESOURCE_ID("rawImpressionUploadResourceId"),
+    RANKER_JOB_RESOURCE_ID("rankerJobResourceId"),
+    RANKER_JOB_STATE("rankerJobState"),
+    EXPECTED_RANKER_JOB_STATES("expectedRankerJobStates"),
     FIELD_NAME("fieldName");
 
     companion object {
@@ -398,6 +405,60 @@ class RawImpressionUploadNotFoundException(
     mapOf(
       Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
       Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+    ),
+    cause,
+  )
+
+class RankerJobNotFoundException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  rankerJobResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RANKER_JOB_NOT_FOUND,
+    "RankerJob not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+      Errors.Metadata.RANKER_JOB_RESOURCE_ID to rankerJobResourceId,
+    ),
+    cause,
+  )
+
+class RankerJobAlreadyExistsException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RANKER_JOB_ALREADY_EXISTS,
+    "RankerJob already exists",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+    ),
+    cause,
+  )
+
+class RankerJobStateInvalidException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  rankerJobResourceId: String,
+  actualState: RankerState,
+  expectedStates: Collection<RankerState>,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RANKER_JOB_STATE_INVALID,
+    "RankerJob state invalid: expected one of $expectedStates but was $actualState",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+      Errors.Metadata.RANKER_JOB_RESOURCE_ID to rankerJobResourceId,
+      Errors.Metadata.RANKER_JOB_STATE to actualState.name,
+      Errors.Metadata.EXPECTED_RANKER_JOB_STATES to
+        expectedStates.joinToString(",") { state -> state.name },
     ),
     cause,
   )
