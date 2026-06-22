@@ -143,6 +143,10 @@ class PostProcessReportResult:
                     PARTIAL_SOLUTION_FOUND_WITH_HIGHS,
                     ReportPostProcessorStatus.PARTIAL_SOLUTION_FOUND_WITH_OSQP,
             ]:
+                if result.large_corrections:
+                    raise ValueError(
+                        "Noise correction produced large corrections for a"
+                        f" report summary: {list(result.large_corrections)}")
                 all_updated_measurements.update(result.updated_measurements)
             else:
                 raise ValueError(
