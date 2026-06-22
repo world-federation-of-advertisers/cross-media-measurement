@@ -56,6 +56,7 @@ import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 private const val DP = "dataProviders/dp"
 private const val UPLOAD = "dataProviders/dp/rawImpressionUploads/up1"
+private const val UPLOAD2 = "dataProviders/dp/rawImpressionUploads/up2"
 private const val PRIOR_UPLOAD = "dataProviders/dp/rawImpressionUploads/up0"
 private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml1"
 private const val PREFIX = "ranks"
@@ -91,7 +92,10 @@ class SubpoolRankerTest {
     fake = FakeRankIndexBlobs()
   }
 
-  private fun ranker(maxEventDate: Date = epochDayToDate(TODAY_EPOCH_DAY)): SubpoolRanker {
+  private fun ranker(
+    maxEventDate: Date = epochDayToDate(TODAY_EPOCH_DAY),
+    upload: String = UPLOAD,
+  ): SubpoolRanker {
     val retention = SubpoolRetention(fake.stub, rankStore, DP, MODEL_LINE, RETENTION_DAYS, TODAY)
     return SubpoolRanker(
       subpoolFingerprintsStore = subpoolStore,
@@ -99,7 +103,7 @@ class SubpoolRankerTest {
       rankIndexBlobsStub = fake.stub,
       retention = retention,
       dataProvider = DP,
-      rawImpressionUpload = UPLOAD,
+      rawImpressionUpload = upload,
       modelLine = MODEL_LINE,
       vidRankMapBlobPrefix = PREFIX,
       kekUri = kekUri,
@@ -110,9 +114,11 @@ class SubpoolRankerTest {
     )
   }
 
-  /** Writes the Phase-0 merged blob for the subpool and returns its key. */
-  private suspend fun writePhase0(fps: List<Pair<Long, Int>>): String {
-    val key = "phase0/merged/$POOL"
+  /** Writes a Phase-0 merged blob for the subpool at [key] and returns it. */
+  private suspend fun writePhase0(
+    fps: List<Pair<Long, Int>>,
+    key: String = "phase0/merged/$POOL",
+  ): String {
     subpoolStore.writeBlob(key, subpoolDek, POOL, flowOf(pack(fps)))
     return key
   }
@@ -158,27 +164,27 @@ class SubpoolRankerTest {
     )
   }
 
-  /** Reads back the SNAPSHOT row's blob as `(hi, lo) -> (rank, lastSeen)`. */
-  private suspend fun readSnapshot(): Map<Pair<Long, Int>, Pair<Int, Int>> {
+  /** Reads back the SNAPSHOT row's blob under [upload] as `(hi, lo) -> (rank, lastSeen)`. */
+  private suspend fun readSnapshot(upload: String = UPLOAD): Map<Pair<Long, Int>, Pair<Int, Int>> {
     val row =
       fake.rows.single {
-        it.blobType == RankIndexBlob.BlobType.SNAPSHOT && it.name.startsWith("$UPLOAD/")
+        it.blobType == RankIndexBlob.BlobType.SNAPSHOT && it.name.startsWith("$upload/")
       }
     return decode(rankStore.readBlob(row.blobUri, row.encryptedDek).toList())
   }
 
-  /** Reads back the DAY_ONLY row's blob under this upload as `(hi, lo) -> (rank, lastSeen)`. */
-  private suspend fun readDayOnly(): Map<Pair<Long, Int>, Pair<Int, Int>> {
+  /** Reads back the DAY_ONLY row's blob under [upload] as `(hi, lo) -> (rank, lastSeen)`. */
+  private suspend fun readDayOnly(upload: String = UPLOAD): Map<Pair<Long, Int>, Pair<Int, Int>> {
     val row =
       fake.rows.single {
-        it.blobType == RankIndexBlob.BlobType.DAY_ONLY && it.name.startsWith("$UPLOAD/")
+        it.blobType == RankIndexBlob.BlobType.DAY_ONLY && it.name.startsWith("$upload/")
       }
     return decode(rankStore.readBlob(row.blobUri, row.encryptedDek).toList())
   }
 
-  /** Whether a row of [blobType] exists under this upload. */
-  private fun hasUploadRow(blobType: RankIndexBlob.BlobType): Boolean =
-    fake.rows.any { it.blobType == blobType && it.name.startsWith("$UPLOAD/") }
+  /** Whether a row of [blobType] exists under [upload]. */
+  private fun hasUploadRow(blobType: RankIndexBlob.BlobType, upload: String = UPLOAD): Boolean =
+    fake.rows.any { it.blobType == blobType && it.name.startsWith("$upload/") }
 
   @Test
   fun `cold subpool allocates sequential ranks and stamps last_seen`() = runBlocking {
@@ -329,7 +335,7 @@ class SubpoolRankerTest {
   }
 
   @Test
-  fun `backfill reuses the old rank for a fingerprint absent from the latest snapshot`() =
+  fun `backfill takes a free old rank back into both the day-only and the snapshot`() =
     runBlocking<Unit> {
       // Old snapshot (just before the backfilled day) holds F1 at rank 5.
       seedPriorSnapshot(
@@ -352,15 +358,14 @@ class SubpoolRankerTest {
       assertThat(result.backfill).isTrue()
       assertThat(result.backfillReusedOldRank).isEqualTo(1)
       assertThat(result.backfillRankCollisions).isEqualTo(0)
-      // F1 gets its old rank 5 back in the day-only blob.
-      assertThat(readDayOnly().mapValues { it.value.first }).containsExactly(1L to 0, 5)
-      // A backfill writes only a DAY_ONLY row — never a new SNAPSHOT.
-      assertThat(hasUploadRow(RankIndexBlob.BlobType.DAY_ONLY)).isTrue()
-      assertThat(hasUploadRow(RankIndexBlob.BlobType.SNAPSHOT)).isFalse()
+      // F1 gets its old rank 5 back in the day-only blob (stamped with the backfill date).
+      assertThat(readDayOnly()).containsExactly(1L to 0, 5 to 80)
+      // The snapshot is the latest cumulative plus F1 at its reclaimed rank.
+      assertThat(readSnapshot()).containsExactly(2L to 0, 0 to 90, 1L to 0, 5 to 80)
     }
 
   @Test
-  fun `backfill counts a collision when the old rank differs from the latest rank`() =
+  fun `backfill counts a collision but keeps the latest rank in the snapshot`() =
     runBlocking<Unit> {
       seedPriorSnapshot(
         listOf(Triple(1L to 0, 5, 75)), // old: F1 at rank 5
@@ -380,8 +385,10 @@ class SubpoolRankerTest {
 
       assertThat(result.backfillReusedOldRank).isEqualTo(1)
       assertThat(result.backfillRankCollisions).isEqualTo(1)
-      // The old rank still wins for the backfilled day (one person, one VID).
+      // The old rank wins for the backfilled day (one person, one VID for that day)...
       assertThat(readDayOnly().mapValues { it.value.first }).containsExactly(1L to 0, 5)
+      // ...but the snapshot keeps the latest rank so the forward chain is undisturbed.
+      assertThat(readSnapshot().mapValues { it.value.first }).containsExactly(1L to 0, 8)
     }
 
   @Test
@@ -406,10 +413,11 @@ class SubpoolRankerTest {
       assertThat(result.backfill).isTrue()
       assertThat(result.backfillReusedOldRank).isEqualTo(0)
       assertThat(readDayOnly().mapValues { it.value.first }).containsExactly(3L to 0, 2)
+      assertThat(readSnapshot().mapValues { it.value.first }).containsExactly(3L to 0, 2)
     }
 
   @Test
-  fun `backfill allocates a new rank for a fingerprint in neither snapshot`() =
+  fun `backfill adds a brand-new fingerprint to both the day-only and the snapshot`() =
     runBlocking<Unit> {
       seedPriorSnapshot(
         listOf(Triple(9L to 0, 3, 75)),
@@ -431,6 +439,44 @@ class SubpoolRankerTest {
       assertThat(result.backfillReusedOldRank).isEqualTo(0)
       // rank 0 is taken in the loaded latest cumulative, so F4 gets the next free rank 1.
       assertThat(readDayOnly().mapValues { it.value.first }).containsExactly(4L to 0, 1)
+      // The new fingerprint is persisted in the snapshot so a later upload will not re-rank it.
+      assertThat(readSnapshot().mapValues { it.value.first })
+        .containsExactly(8L to 0, 0, 4L to 0, 1)
+    }
+
+  @Test
+  fun `a fingerprint new in a backfill keeps its rank on a later forward upload`() =
+    runBlocking<Unit> {
+      seedPriorSnapshot(
+        listOf(Triple(9L to 0, 3, 75)),
+        uploadName = "dataProviders/dp/rawImpressionUploads/upOld",
+        createTimeSeconds = 1L,
+        maxEventDate = epochDayToDate(75),
+      )
+      seedPriorSnapshot(
+        listOf(Triple(2L to 0, 0, 90)),
+        uploadName = "dataProviders/dp/rawImpressionUploads/upLatest",
+        createTimeSeconds = 5L,
+        maxEventDate = epochDayToDate(100),
+      )
+      // Backfill Day 80 introduces a brand-new fingerprint (in neither snapshot).
+      val backfillKey = writePhase0(listOf(7L to 0), key = "phase0/backfill")
+      val backfillResult =
+        ranker(maxEventDate = epochDayToDate(80), upload = UPLOAD)
+          .rank(POOL, backfillKey, rankedSize = 100)
+      assertThat(backfillResult.backfill).isTrue()
+      val backfillRank = readSnapshot(UPLOAD).getValue(7L to 0).first
+
+      // A later forward upload (Day 101) must renew it at the same rank, not re-rank it.
+      val forwardKey = writePhase0(listOf(7L to 0), key = "phase0/forward")
+      val forwardResult =
+        ranker(maxEventDate = epochDayToDate(101), upload = UPLOAD2)
+          .rank(POOL, forwardKey, rankedSize = 100)
+
+      assertThat(forwardResult.backfill).isFalse()
+      assertThat(forwardResult.renewed).isEqualTo(1) // renewed, not re-allocated
+      assertThat(forwardResult.allocated).isEqualTo(0)
+      assertThat(readSnapshot(UPLOAD2).getValue(7L to 0).first).isEqualTo(backfillRank)
     }
 
   @Test
@@ -467,40 +513,6 @@ class SubpoolRankerTest {
 
       assertThat(result.backfill).isFalse()
       assertThat(hasUploadRow(RankIndexBlob.BlobType.SNAPSHOT)).isTrue()
-    }
-
-  @Test
-  fun `backfill idempotency gate skips when a day-only row already exists for this upload`() =
-    runBlocking<Unit> {
-      seedPriorSnapshot(
-        listOf(Triple(1L to 0, 5, 75)),
-        uploadName = "dataProviders/dp/rawImpressionUploads/upOld",
-        createTimeSeconds = 1L,
-        maxEventDate = epochDayToDate(75),
-      )
-      seedPriorSnapshot(
-        listOf(Triple(2L to 0, 0, 90)),
-        uploadName = "dataProviders/dp/rawImpressionUploads/upLatest",
-        createTimeSeconds = 5L,
-        maxEventDate = epochDayToDate(100),
-      )
-      // A DAY_ONLY row already committed under THIS upload (a prior backfill attempt).
-      fake.seed(
-        rankIndexBlob {
-          name = "$UPLOAD/rankIndexBlobs/day-existing"
-          blobType = RankIndexBlob.BlobType.DAY_ONLY
-          cmmsModelLine = MODEL_LINE
-          poolOffset = POOL
-          maxEventDate = epochDayToDate(80)
-        }
-      )
-      val key = writePhase0(listOf(1L to 0))
-      val before = fake.rows.size
-
-      val result = ranker(maxEventDate = epochDayToDate(80)).rank(POOL, key, rankedSize = 100)
-
-      assertThat(result.skipped).isTrue()
-      assertThat(fake.rows.size).isEqualTo(before) // no new rows created
     }
 
   companion object {
