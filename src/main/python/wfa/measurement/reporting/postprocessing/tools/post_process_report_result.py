@@ -307,6 +307,24 @@ class PostProcessReportResult:
                                         snapped_reach, total_population)
             self._snap_cumulative_reach(last_weekly.value.cumulative_results,
                                         snapped_reach, weekly_population)
+            # Rule 1 sweep: snapping last_weekly down can leave an earlier
+            # weekly window with reach > last_weekly.reach -- a cumulative
+            # non-decreasing violation (Issue #4049 Rule 1) the snap itself
+            # would otherwise introduce. Walk the weekly windows newest-to-
+            # oldest and clamp each earlier window down to its successor's
+            # reach. _snap_cumulative_reach only lowers values, so Rule 4
+            # (sum(k_plus_reach) <= impressions) stays intact and derived
+            # fields stay consistent.
+            sorted_weekly = sorted(
+                weekly.reporting_window_results,
+                key=lambda w: (w.key.end.year, w.key.end.month, w.key.end.day),
+            )
+            for i in range(len(sorted_weekly) - 2, -1, -1):
+                later = sorted_weekly[i + 1].value.cumulative_results
+                earlier = sorted_weekly[i].value.cumulative_results
+                if earlier.reach > later.reach:
+                    self._snap_cumulative_reach(earlier, later.reach,
+                                                weekly_population)
 
     @staticmethod
     def _snap_cumulative_reach(

@@ -881,13 +881,12 @@ class PostProcessReportResultTest(unittest.TestCase):
             any('share dimension key' in m for m in cm.output),
             f"expected dim-key collision warning, got: {cm.output}")
 
-    def test_reconcile_snap_down_can_break_cumulative_monotonicity(self):
-        """When whole_campaign.reach < last_weekly.reach, the snap-down can
-        pull last_weekly below an earlier weekly window. This is an accepted
-        trade-off: snapping UP would re-break the per-BMS Rule 4
-        (sum(k_plus_reach) <= impressions) that PR #4053 fixes. Rule 1
-        (cumulative non-decreasing) is deferred to a separate snap pass.
-        See Issue #4049."""
+    def test_reconcile_snap_down_preserves_cumulative_monotonicity(self):
+        """When the cross-window snap pulls last_weekly down to match
+        whole_campaign, the Rule 1 backward sweep must also clamp earlier
+        weeks that were >= the original last_weekly. Otherwise the snap-down
+        would *introduce* a Rule 1 (cumulative non-decreasing) violation on
+        a previously-clean report. See Issue #4049."""
         processor = PostProcessReportResult(self.mock_report_results_stub,
                                             self.mock_reporting_sets_stub)
         reporting_set_results = [
@@ -910,13 +909,12 @@ class PostProcessReportResultTest(unittest.TestCase):
         weekly = request.reporting_set_results[2].reporting_window_results
         earlier = next(w for w in weekly if w.key.end.day == 8)
         last = next(w for w in weekly if w.key.end.day == 15)
-        # Last week snapped down to whole_campaign's value...
+        # Last week snapped down to whole_campaign's value, and the backward
+        # sweep clamped the earlier week down to match -- Rule 1 holds.
         self.assertEqual(last.value.cumulative_results.reach, 1000)
-        # ...even though earlier week stayed at 1001. Rule 1 violation is
-        # accepted; Rule 1 snap pass (TBD) will resolve it.
-        self.assertEqual(earlier.value.cumulative_results.reach, 1001)
-        self.assertLess(last.value.cumulative_results.reach,
-                        earlier.value.cumulative_results.reach)
+        self.assertEqual(earlier.value.cumulative_results.reach, 1000)
+        self.assertLessEqual(earlier.value.cumulative_results.reach,
+                             last.value.cumulative_results.reach)
 
     def test_reconcile_preserves_per_bms_invariants_after_snap_down(self):
         """Composition test: PR #4053's per-BMS invariants (k_plus_reach[0]
@@ -1132,6 +1130,84 @@ class PostProcessReportResultTest(unittest.TestCase):
             self.assertAlmostEqual(
                 bms.grps, bms.impressions / population * 100, places=4,
                 msg=f"RSR {rsr_id}: grps drifted")
+
+
+    def test_reconcile_snap_down_rule_1_cascade(self):
+        """All earlier weekly windows that exceed the snapped last_weekly
+        get clamped down (cascade), and the clamp keeps per-BMS invariants
+        (Issue #4049 Rules 3 and 4) intact on every touched window.
+
+        Concretely: weeks 1, 2, 3, 4 with reaches [800, 1100, 1100, 1100],
+        whole_campaign=1000. After snap: last_weekly drops to 1000; weeks 2
+        and 3 cascade down to 1000; week 1 (already below 1000) is
+        untouched."""
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+        reporting_set_results = [
+            self._make_reporting_set_result(1, 'reporting_set_id_edp1',
+                                            'total'),
+            self._make_reporting_set_result(2, 'reporting_set_id_edp1',
+                                            'weekly'),
+        ]
+        request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+        # whole_campaign at 1000; last week at 1100 forces snap-down to 1000.
+        # Weeks 2 and 3 are also at 1100 and must cascade. Week 1 at 800
+        # stays put. Each weekly window carries a non-trivial k_plus_reach
+        # and impressions so we can pin Rules 3 and 4 after clamp.
+        self._set_window_reach(request, 1, end_day=29, reach=1000,
+                               k_plus_reach=[1000, 400, 200, 50])
+        self._set_window_reach(request, 2, end_day=1, reach=800,
+                               k_plus_reach=[800, 200, 50, 10])
+        self._set_window_reach(request, 2, end_day=8, reach=1100,
+                               k_plus_reach=[1100, 500, 300, 100])
+        self._set_window_reach(request, 2, end_day=15, reach=1100,
+                               k_plus_reach=[1100, 500, 300, 100])
+        self._set_window_reach(request, 2, end_day=22, reach=1100,
+                               k_plus_reach=[1100, 500, 300, 100])
+        # Last weekly. Picked so impressions == sum(k_plus_reach), the worst
+        # case for Rule 4 after clamp (any further drop on k_plus_reach[0]
+        # must not push the sum above impressions).
+        self._set_window_reach(request, 2, end_day=29, reach=1100,
+                               k_plus_reach=[1100, 500, 300, 100])
+        for w in request.reporting_set_results[2].reporting_window_results:
+            w.value.cumulative_results.impressions = sum(
+                w.value.cumulative_results.k_plus_reach)
+
+        processor._reconcile_cross_window_identities(
+            request, reporting_set_results)
+
+        weekly = request.reporting_set_results[2].reporting_window_results
+        by_day = {w.key.end.day: w.value.cumulative_results for w in weekly}
+
+        # Snap-down + cascade.
+        self.assertEqual(by_day[1].reach, 800,
+                         "earlier week below snapped reach is untouched")
+        self.assertEqual(by_day[8].reach, 1000, "cascade clamps week 2")
+        self.assertEqual(by_day[15].reach, 1000, "cascade clamps week 3")
+        self.assertEqual(by_day[22].reach, 1000, "cascade clamps week 4")
+        self.assertEqual(by_day[29].reach, 1000, "last weekly snapped")
+
+        # Rule 1: cumulative non-decreasing across all weekly windows.
+        sorted_days = sorted(by_day)
+        for prev_day, cur_day in zip(sorted_days, sorted_days[1:]):
+            self.assertLessEqual(
+                by_day[prev_day].reach, by_day[cur_day].reach,
+                f"Rule 1 violation: week ending day {prev_day} reach "
+                f"{by_day[prev_day].reach} > week ending day {cur_day} "
+                f"reach {by_day[cur_day].reach}")
+
+        # Per-BMS invariants survive the clamp on every touched window.
+        for day, bms in by_day.items():
+            self.assertEqual(bms.k_plus_reach[0], bms.reach,
+                             f"Rule 3 broken on week ending day {day}")
+            self.assertLessEqual(
+                sum(bms.k_plus_reach), bms.impressions,
+                f"Rule 4 broken on week ending day {day}")
+            for i in range(1, len(bms.k_plus_reach)):
+                self.assertLessEqual(
+                    bms.k_plus_reach[i], bms.k_plus_reach[i - 1],
+                    f"k_plus_reach non-increasing broken on day {day}")
 
 
 if __name__ == "__main__":
