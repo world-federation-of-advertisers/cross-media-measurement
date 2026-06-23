@@ -30,7 +30,7 @@
 #include "wfa/virtual_people/common/label.pb.h"
 #include "wfa/virtual_people/common/model.pb.h"
 #include "wfa/virtual_people/core/model/model_node.h"
-#include "wfa/virtual_people/core/model/utils/distributed_consistent_hashing.h"
+#include "wfa/virtual_people/core/model/utils/population_node_helper.h"
 #include "wfa/virtual_people/core/model/utils/virtual_person_selector.h"
 
 namespace wfa_virtual_people {
@@ -68,34 +68,6 @@ absl::Status IsValidPools(
           kCookieMonsterOffset, "\n", "Pool: ", pool.DebugString()));
     }
   }
-  return absl::OkStatus();
-}
-
-// Collapse the @quantum_label to a single label based on the probabilities, and
-// merge to @output_label.
-absl::Status CollapseQuantumLabel(const QuantumLabel& quantum_label,
-                                  absl::string_view seed_suffix,
-                                  PersonLabelAttributes& output_label) {
-  if (quantum_label.labels_size() == 0) {
-    return absl::InvalidArgumentError("Empty quantum label.");
-  }
-  if (quantum_label.labels_size() != quantum_label.probabilities_size()) {
-    return absl::InvalidArgumentError(absl::StrCat(
-        "The sizes of labels and probabilities are different in quantum label ",
-        quantum_label.DebugString()));
-  }
-  std::vector<DistributionChoice> distribution;
-  distribution.reserve(quantum_label.probabilities_size());
-  for (int i = 0; i < quantum_label.probabilities_size(); ++i) {
-    distribution.emplace_back(
-        DistributionChoice({i, quantum_label.probabilities(i)}));
-  }
-  ASSIGN_OR_RETURN(
-      std::unique_ptr<DistributedConsistentHashing> hashing,
-      DistributedConsistentHashing::Build(std::move(distribution)));
-  int32_t index = hashing->Hash(absl::StrCat(
-      "quantum-label-collapse-", quantum_label.seed(), seed_suffix));
-  output_label.MergeFrom(quantum_label.labels(index));
   return absl::OkStatus();
 }
 

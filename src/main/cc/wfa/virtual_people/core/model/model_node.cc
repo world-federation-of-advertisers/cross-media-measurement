@@ -20,6 +20,7 @@
 #include "wfa/virtual_people/common/model.pb.h"
 #include "wfa/virtual_people/core/model/branch_node_impl.h"
 #include "wfa/virtual_people/core/model/population_node_impl.h"
+#include "wfa/virtual_people/core/model/ranked_population_node_impl.h"
 #include "wfa/virtual_people/core/model/stop_node_impl.h"
 
 namespace wfa_virtual_people {
@@ -44,6 +45,8 @@ absl::StatusOr<std::unique_ptr<ModelNode>> ModelNode::Build(
       return StopNodeImpl::Build(config);
     case CompiledNode::TypeCase::kPopulationNode:
       return PopulationNodeImpl::Build(config);
+    case CompiledNode::TypeCase::kRankedPopulationNode:
+      return RankedPopulationNodeImpl::Build(config);
     default:
       return absl::InvalidArgumentError("Node type is not set.");
   }
