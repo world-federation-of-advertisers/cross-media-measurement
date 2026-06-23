@@ -40,6 +40,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "ReportConversionTest",
+    size = "large",
     srcs = ["ReportConversionTest.kt"],
     data = [":sample_reports"],
     test_class = "org.wfanet.measurement.reporting.postprocessing.v2alpha.ReportConversionTest",

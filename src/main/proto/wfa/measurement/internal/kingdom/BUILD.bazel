@@ -376,6 +376,7 @@ proto_library(
     srcs = ["event_group_activities_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":date_interval_proto",
         ":event_group_activity_proto",
         "@com_google_googleapis//google/type:date_proto",
         "@com_google_protobuf//:empty_proto",

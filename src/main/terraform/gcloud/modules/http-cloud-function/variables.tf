@@ -59,3 +59,10 @@ variable "secrets_to_access" {
   type        = list(string)
   default     = []
 }
+
+variable "config_path" {
+  description = "The path to the config file the Cloud Function uses."
+  type        = string
+  nullable    = true
+  default     = null
+}

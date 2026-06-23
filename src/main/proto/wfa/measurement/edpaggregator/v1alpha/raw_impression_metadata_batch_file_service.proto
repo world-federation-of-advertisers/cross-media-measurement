@@ -19,6 +19,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
+import "google/type/interval.proto";
 import "wfa/measurement/edpaggregator/v1alpha/raw_impression_metadata_batch_file.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -164,6 +165,16 @@ message ListRawImpressionMetadataBatchFilesRequest {
   message Filter {
     // Filter where blob URI of the file is in the given list.
     repeated string blob_uri_in = 1 [(google.api.field_behavior) = REQUIRED];
+
+    // Filter for resources whose create_time is in the given interval.
+    // Start and end are both optional: omitting start_time matches
+    // resources created before end_time; omitting end_time matches
+    // resources created at or after start_time.
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: `_in` is the established repo convention
+    //     for set-membership filter fields. --)
+    google.type.Interval create_time_in = 2
+        [(google.api.field_behavior) = OPTIONAL];
   }
 
   // A filter to apply to the list results.

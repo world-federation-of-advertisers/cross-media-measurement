@@ -15,6 +15,7 @@
 import unittest
 from unittest.mock import MagicMock
 from unittest.mock import patch
+from unittest.mock import ANY
 
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result import (
     PostProcessReportResult, )
@@ -208,7 +209,8 @@ class PostProcessReportResultTest(unittest.TestCase):
             self.mock_report_results_stub, self.mock_reporting_sets_stub)
 
         add_processed_result_value_request = report_result_processor.process(
-            self.cmms_measurement_consumer_id, self.external_report_result_id)
+            self.cmms_measurement_consumer_id, self.external_report_result_id,
+            [])
 
         # Verifies the gRPC stubs were called correctly.
         self.mock_report_results_stub.ListReportingSetResults.assert_called_once_with(
@@ -228,11 +230,10 @@ class PostProcessReportResultTest(unittest.TestCase):
         self.assertCountEqual(
             batch_get_request.external_reporting_set_ids,
             [
-                'edp1',
-                'edp2',
-                'edp3',
-                'edp1_edp2',
-                'edp1_edp2_edp3',
+                'reporting_set_id_edp1',
+                'reporting_set_id_edp2',
+                'reporting_set_id_edp3',
+                'reporting_set_id_edp1_edp2_edp3',
             ],
         )
 
@@ -247,9 +248,9 @@ class PostProcessReportResultTest(unittest.TestCase):
             self.external_report_result_id,
         )
 
-        # Verifies that there are 25 reporting set results in the sample data.
+        # Verifies that there are 20 reporting set results in the sample data.
         self.assertEqual(
-            len(add_processed_result_value_request.reporting_set_results), 25)
+            len(add_processed_result_value_request.reporting_set_results), 20)
 
         # Verifies the set result with exteral_reporting_set_result_id = 25.
         # This set result has noise added.
@@ -370,6 +371,109 @@ class PostProcessReportResultTest(unittest.TestCase):
         for actual, expected in zip(non_cumulative_2.percent_k_plus_reach,
                                     expected_percent_k_plus_reach_2):
             self.assertAlmostEqual(actual, expected)
+
+    @patch('src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result.ReportSummaryV2Processor')
+    def test_post_process_report_result_with_exempted_edps_passed_to_processor(self, mock_processor_class):
+        # Configures the mock stubs to return the data from the textproto files.
+        self.mock_report_results_stub.ListReportingSetResults.return_value = (
+            self.mock_list_reporing_set_results_response)
+        self.mock_reporting_sets_stub.BatchGetReportingSets.return_value = (
+            self.mock_batch_get_reporting_set_response)
+
+        # Mock the processor instance and its process() return value.
+        mock_processor_instance = MagicMock()
+        mock_processor_class.return_value = mock_processor_instance
+
+        mock_result = MagicMock()
+        mock_result.status.status_code = report_post_processor_result_pb2.ReportPostProcessorStatus.SOLUTION_FOUND_WITH_HIGHS
+        mock_result.updated_measurements = {}
+        mock_result.large_corrections = []
+        mock_processor_instance.process.return_value = mock_result
+
+        report_result_processor = PostProcessReportResult(
+            self.mock_report_results_stub, self.mock_reporting_sets_stub)
+        exempted_edps = ['dataProviders/edp1']
+        report_result_processor.process(
+            self.cmms_measurement_consumer_id, self.external_report_result_id,
+            exempted_edps)
+
+        # Verify that ReportSummaryV2Processor was instantiated with the exempted reporting set ids
+        mock_processor_class.assert_called_with(
+            ANY,
+            ['reporting_set_id_edp1']
+        )
+
+    def test_post_process_report_result_raises_on_large_corrections(self):
+        # Loads a real fixture whose noisy values force the solver to apply
+        # corrections that exceed 7 sigma (e.g. reach going from 16.6M to 0).
+        with open(
+                'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_result_with_large_corrections.textproto',
+                'r') as file:
+            large_correction_response = text_format.Parse(
+                file.read(),
+                report_results_service_pb2.ListReportingSetResultsResponse(),
+            )
+        self.mock_report_results_stub.ListReportingSetResults.return_value = (
+            large_correction_response)
+        self.mock_reporting_sets_stub.BatchGetReportingSets.return_value = (
+            self.mock_batch_get_reporting_set_response)
+
+        report_result_processor = PostProcessReportResult(
+            self.mock_report_results_stub, self.mock_reporting_sets_stub)
+
+        with self.assertRaisesRegex(ValueError, 'large corrections'):
+            report_result_processor.process(
+                self.cmms_measurement_consumer_id,
+                self.external_report_result_id, [])
+
+    def test_get_ami_mrc_exempted_reporting_set_id(self):
+        self.mock_reporting_sets_stub.BatchGetReportingSets.return_value = (
+            self.mock_batch_get_reporting_set_response)
+
+        report_result_processor = PostProcessReportResult(
+            self.mock_report_results_stub, self.mock_reporting_sets_stub)
+
+        # Case 1: Empty inputs
+        self.assertEqual(
+            report_result_processor._get_ami_mrc_exempted_reporting_set_id(
+                self.cmms_measurement_consumer_id, [], ['dataProviders/edp1']),
+            [],
+        )
+        self.assertEqual(
+            report_result_processor._get_ami_mrc_exempted_reporting_set_id(
+                self.cmms_measurement_consumer_id, ['reporting_set_id_edp1'], []),
+            [],
+        )
+
+        # Case 2: No match
+        exempted_ids = report_result_processor._get_ami_mrc_exempted_reporting_set_id(
+            self.cmms_measurement_consumer_id,
+            [
+                'reporting_set_id_edp1',
+                'reporting_set_id_edp2',
+                'reporting_set_id_edp1_edp2',
+            ],
+            ['dataProviders/edp5'],
+        )
+        self.assertEqual(
+            exempted_ids,
+            [],
+        )
+
+        # Case 3: Match with EDP name
+        exempted_ids = report_result_processor._get_ami_mrc_exempted_reporting_set_id(
+            self.cmms_measurement_consumer_id,
+            [
+                'reporting_set_id_edp1',
+                'reporting_set_id_edp2',
+                'reporting_set_id_edp1_edp2',
+            ],
+            ['dataProviders/edp1'],
+        )
+        self.assertCountEqual(
+            exempted_ids,
+            ['reporting_set_id_edp1'],
+        )
 
 
 if __name__ == "__main__":

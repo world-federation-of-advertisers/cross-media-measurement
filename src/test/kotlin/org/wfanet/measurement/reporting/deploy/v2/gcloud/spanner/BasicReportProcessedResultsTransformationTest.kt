@@ -236,6 +236,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -246,6 +247,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_2_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -526,6 +528,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -536,6 +539,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_2_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -612,6 +616,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -783,6 +788,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -793,6 +799,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_2_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -940,6 +947,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -1100,6 +1108,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -1353,6 +1362,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -1363,6 +1373,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_2_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -1793,6 +1804,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -1803,6 +1815,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_2_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -1813,6 +1826,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_3_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_3_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -2100,6 +2114,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -2110,6 +2125,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_2_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -2169,6 +2185,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -2179,6 +2196,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_2_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -2485,6 +2503,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -2495,6 +2514,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_2_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -2552,6 +2572,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -2562,6 +2583,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_2_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {

@@ -39,7 +39,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.142.0",
+    version = "0.144.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -86,6 +86,7 @@ bazel_dep(
     name = "grpc_ecosystem_grpc_gateway",
     version = "2.26.0.bzlmod.1",
 )
+
 # Must also be updated in src/main/k8s/local/BUILD.bazel
 bazel_dep(
     name = "cloud-spanner-emulator-bin",
@@ -216,6 +217,18 @@ maven.artifact(
     ],
     group = "org.apache.beam",
 )
+maven.artifact(
+    testonly = True,
+    artifact = "kotlin-sdk-client-jvm",
+    group = "io.modelcontextprotocol",
+    version = "0.12.0",
+)
+maven.artifact(
+    testonly = True,
+    artifact = "kotlin-sdk-testing-jvm",
+    group = "io.modelcontextprotocol",
+    version = "0.12.0",
+)
 maven.install(
     artifacts = [
         "com.google.crypto.tink:tink-awskms:1.11.0",
@@ -283,16 +296,21 @@ maven.install(
         # Avoid https://github.com/FasterXML/jackson-databind/issues/3637 from testcontainers.
         "com.fasterxml.jackson.core:jackson-annotations:2.20",
 
-        # MCP (Model Context Protocol) SDK
+        # MCP (Model Context Protocol) SDK. The client and testing modules are
+        # test-only and declared as testonly maven.artifact()s above.
         "io.modelcontextprotocol:kotlin-sdk-server-jvm:0.12.0",
-        "io.modelcontextprotocol:kotlin-sdk-client-jvm:0.12.0",
         "io.modelcontextprotocol:kotlin-sdk-core-jvm:0.12.0",
 
-        # Ktor HTTP server engine (required by MCP SDK)
-        "io.ktor:ktor-server-cio-jvm:3.1.3",
+        # Ktor HTTP server (required by MCP SDK). Versions come from io.ktor:ktor-bom.
+        "io.ktor:ktor-server-cio-jvm",
+        "io.ktor:ktor-server-content-negotiation-jvm",
+        "io.ktor:ktor-server-cors-jvm",
+        "io.ktor:ktor-server-sse-jvm",
+        "io.ktor:ktor-serialization-kotlinx-json-jvm",
     ],
     boms = [
         "com.squareup.okhttp3:okhttp-bom:4.12.0",
+        "io.ktor:ktor-bom:3.3.3",
         "org.apache.beam:beam-sdks-java-bom:" + APACHE_BEAM_VERSION,
         "org.projectnessie.cel:cel-bom:0.5.0",
         "org.apache.commons:commons-numbers-bom:1.2",
@@ -392,29 +410,29 @@ use_repo(pip, "pip")
 oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
 oci.pull(
     name = "go_image_base",
-    reproducible = True,
-    tag = "nonroot",
     digest = "sha256:a557d784ac275c287d2bdf3172f47bece8d2a0ef3c0fdefb712e95084a04a562",
     image = "gcr.io/distroless/base-debian13",
     platforms = ["linux/amd64"],
+    reproducible = True,
+    tag = "nonroot",
 )
 oci.pull(
     name = "py_image_base",
-    reproducible = True,
-    tag = "nonroot",
     digest = "sha256:7ea4b893a73b30ebe0d666f94bbda151a5e15ee093bda10497986a12a65a7e53",
     image = "gcr.io/distroless/python3-debian13",
     platforms = ["linux/amd64"],
+    reproducible = True,
+    tag = "nonroot",
 )
 
 # TODO(world-federation-of-advertisers/cross-media-measurement#2729): Remove root Java image when Confidential Spaces properly supports nonroot images.
 oci.pull(
     name = "java_image_base_root",
-    reproducible = True,
-    tag = "latest",
     digest = "sha256:3c89b72dcd8b9c3b6fc9ae42785fc5ccf58b7d540504944ee5376c91a81f0af9",
     image = "gcr.io/distroless/java17-debian13",
     platforms = ["linux/amd64"],
+    reproducible = True,
+    tag = "latest",
 )
 use_repo(
     oci,
@@ -453,4 +471,3 @@ single_version_override(
     module_name = "boringssl",
     version = BORINGSSL_VERSION,
 )
-

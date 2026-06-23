@@ -1,0 +1,114 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// (-- api-linter: all=disabled
+//     aip.dev/not-precedent: Internal storage format, not an API resource.
+//     --)
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator;
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RankIndexMapProto";
+
+// Serialized on-disk form of a memoized VID rank-index map for a single
+// subpool.
+//
+// The map records `(fingerprint, rank)` assignments produced by the
+// ranker for one subpool. The same proto is used for both `DAY_ONLY` and
+// `SNAPSHOT` blobs (the distinction lives in the `RankIndexBlobs`
+// Spanner row, not in the proto itself).
+//
+// On-wire layout: two parallel packed arrays. The fingerprint at byte
+// offset `i * 12` in `fingerprints` is paired with `ranks[i]`. Both
+// arrays MUST have the same logical length, i.e.
+// `fingerprints.size() == ranks_count * 12`.
+//
+// Wire-size per entry:
+//   * `fingerprints`: exactly 12 bytes (packed back-to-back, no
+//     per-entry tag or length-prefix overhead because all entries
+//     share a single `bytes` field).
+//   * `ranks[i]`: 4 bytes (packed `fixed32`).
+//   * Total: 16 bytes per entry plus a small per-blob header.
+//
+// Compared with a `repeated bytes` layout for fingerprints, this saves
+// 2 bytes per entry on the wire (1-byte tag + 1-byte length-prefix)
+// and avoids materializing one `ByteString` Java object per entry on
+// decode (~64 B of object overhead each), which is material at the
+// 1.5 B-entry scale of the India worst case.
+//
+// Pairing guarantee: the protobuf wire format preserves byte ordering
+// inside a single `bytes` field and element ordering inside a
+// `repeated` field across serialization and deserialization, so the
+// positional pairing between `fingerprints[i*12 .. i*12+12]` and
+// `ranks[i]` is stable as long as the message is read and written as
+// a unit (DO NOT call `mergeFrom` on two `RankIndexMap` messages —
+// proto merge concatenates `repeated` fields but replaces singular
+// `bytes`, which would break the pairing).
+//
+// In-memory representation: see
+// `org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap`.
+message RankIndexMap {
+  // Identifier of the subpool this map is scoped to.
+  // The pool's population_offset from the RankedPopulationNode model
+  // config. Matches PoolAssignment.pool_offset (pass-1) and
+  // RankAssignment.pool_offset (pass-2).
+  int64 pool_offset = 1;
+
+  // The ranked sub-range size for this subpool as configured in the model.
+  // Each value in `ranks` MUST satisfy `0 <= rank < ranked_size`.
+  // `int32` matches the in-memory Int rank representation and the
+  // `fixed32` element type of the `ranks` field; subpool sizes are
+  // bounded well below `Int.MAX_VALUE` (~1.5 B in the worst case).
+  int32 ranked_size = 2;
+
+  // Fingerprints packed back-to-back. Length MUST be a multiple of 12;
+  // each contiguous 12-byte run is one fingerprint (the leading 12
+  // bytes of a uniformly-distributed hash such as SHA-256 of the
+  // upstream account identifier). The fingerprint at byte offset
+  // `i * 12` is paired with `ranks[i]`.
+  bytes fingerprints = 3;
+
+  // Per-entry rank values, packed for minimal wire size. `ranks[i]` is
+  // the rank of the fingerprint at byte offset `i * 12` in
+  // `fingerprints`. Length MUST equal `fingerprints.size() / 12`.
+  //
+  // The in-memory map representation
+  // (`org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap`)
+  // reserves `0xFFFFFFFF` (`Int` value `-1` in Kotlin) as
+  // its [NOT_PRESENT] sentinel; that value MUST never appear in this
+  // field. Holds by construction because valid ranks are in
+  // `[0, ranked_size)` and `ranked_size` is bounded well below
+  // `Int.MAX_VALUE`.
+  repeated fixed32 ranks = 4 [packed = true];
+
+  // Epoch-day (`java.time.LocalDate.toEpochDay()`, UTC) on which each
+  // fingerprint was most recently observed, encoded as `uint16` big-endian,
+  // packed back-to-back (2 bytes per entry, no per-entry framing). The 2-byte
+  // run at byte offset `i * 2` pairs positionally with the fingerprint at byte
+  // offset `i * 12` and `ranks[i]`; length, when non-empty, MUST equal
+  // `ranks_count * 2`. Carried in `SNAPSHOT` (and `DAY_ONLY`) blobs, where it
+  // is the source of truth for retention: a rank is recycled when
+  // `today - last_seen > RETENTION_DAYS`, computed in-heap from this field
+  // instead of by re-scanning every surviving `DAY_ONLY` blob.
+  //
+  // `uint16` covers epoch days `[0, 65535]` = dates `[1970-01-01, 2149-06-06]`,
+  // adequate for this system's lifetime (revisit before 2149) at half the wire
+  // and heap cost of `fixed32`. Mirrors the `bytes`-with-fixed-stride trick
+  // used for `fingerprints`. Empty on legacy blobs written before this field
+  // existed.
+  bytes last_seen_days = 5;
+}
