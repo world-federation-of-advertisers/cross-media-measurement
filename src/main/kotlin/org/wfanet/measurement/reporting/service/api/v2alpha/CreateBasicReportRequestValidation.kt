@@ -205,7 +205,53 @@ object CreateBasicReportRequestValidation {
         throw RequiredFieldNotSetException("$resultGroupSpecFieldPath.result_group_metric_spec")
       }
     }
+
+    // Two result_group_specs that share (reporting_unit, dimension_spec,
+    // metric_frequency selector kind) but differ in their full
+    // metric_frequency value (e.g. one weekly=MONDAY and one weekly=TUESDAY
+    // for the same slice) produce two distinct ReportingSetResult rows that
+    // the post-processor would collapse into a single dim and silently
+    // overwrite. Reject up front -- supporting multiple cadences for the
+    // same slice would require deeper changes in the post-processor and
+    // solver. Specs that share the full metric_frequency value are fine:
+    // the job-level dedup merges them into a single RSR before the
+    // post-processor sees them.
+    val frequencyBytesByDimKey =
+      mutableMapOf<ResultGroupSpecCollisionKey, com.google.protobuf.ByteString>()
+    resultGroupSpecs.forEachIndexed { index, resultGroupSpec ->
+      val key =
+        ResultGroupSpecCollisionKey(
+          reportingUnitBytes = resultGroupSpec.reportingUnit.toByteString(),
+          dimensionSpecBytes = resultGroupSpec.dimensionSpec.toByteString(),
+          selectorCase = resultGroupSpec.metricFrequency.selectorCase,
+        )
+      val frequencyBytes = resultGroupSpec.metricFrequency.toByteString()
+      val existing = frequencyBytesByDimKey[key]
+      if (existing != null && existing != frequencyBytes) {
+        throw InvalidFieldValueException("$fieldPath[$index].metric_frequency") { fieldPath ->
+          "$fieldPath collides with an earlier result_group_specs entry on " +
+            "(reporting_unit, dimension_spec, metric_frequency selector kind) " +
+            "but specifies a different metric_frequency value; multiple " +
+            "cadences for the same slice are not supported."
+        }
+      }
+      frequencyBytesByDimKey[key] = frequencyBytes
+    }
   }
+
+  /**
+   * Hashable identity key used to detect duplicate [ResultGroupSpec]s that
+   * would collapse to the same dimension in the post-processor.
+   *
+   * Proto messages don't define stable hashCode/equals across runtimes, so
+   * key on the serialized bytes of the structured fields and on the enum
+   * selector case directly.
+   */
+  private data class ResultGroupSpecCollisionKey(
+    val reportingUnitBytes: com.google.protobuf.ByteString,
+    val dimensionSpecBytes: com.google.protobuf.ByteString,
+    val selectorCase: MetricFrequencySpec.SelectorCase,
+  )
 
   /**
    * Validates [reportingUnit] within the context of a [CreateBasicReportRequest].
