@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.collectIndexed
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RankerJobResult
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countOtherNonSucceededRankerJobs
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRankerJobByRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRankerJobsByRequestIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRankerJobByResourceId
@@ -36,7 +37,6 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpre
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRankerJob
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rankerJobExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRankerJobs
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRankerJobsForModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRankerJobState
 import org.wfanet.measurement.edpaggregator.service.internal.EtagMismatchException
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
@@ -446,14 +446,12 @@ class SpannerRankerJobService(
           return@run TransactionResult(
             currentJob,
             isLastJob =
-              computeIsLastJob(
-                txn.readRankerJobsForModelLine(
-                  request.dataProviderResourceId,
-                  result.rawImpressionUploadId,
-                  currentJob.cmmsModelLine,
-                ),
+              txn.countOtherNonSucceededRankerJobs(
+                request.dataProviderResourceId,
+                result.rawImpressionUploadId,
+                currentJob.cmmsModelLine,
                 result.rankerJobId,
-              ),
+              ) == 0L,
             isReplay = true,
           )
         }
@@ -475,26 +473,27 @@ class SpannerRankerJobService(
           etag = newEtag,
         ) {
           set("MarkRequestId").to(request.requestId)
+          // Clear any error message from a prior FAILED attempt; it is only set while FAILED.
+          set("ErrorMessage").to(null as String?)
         }
 
-        // Read all jobs for this (upload, model line). The buffered update above is not visible in
-        // this read, so the current job still shows its previous state; it is treated as SUCCEEDED
-        // via its ID below.
+        // Count sibling jobs in this (upload, model line) that are not yet SUCCEEDED, excluding the
+        // current job. The buffered update above is not visible in this read, so excluding the
+        // current job by ID yields the correct "last job out" semantics.
         val isLastJob =
-          computeIsLastJob(
-            txn.readRankerJobsForModelLine(
-              request.dataProviderResourceId,
-              result.rawImpressionUploadId,
-              currentJob.cmmsModelLine,
-            ),
+          txn.countOtherNonSucceededRankerJobs(
+            request.dataProviderResourceId,
+            result.rawImpressionUploadId,
+            currentJob.cmmsModelLine,
             result.rankerJobId,
-          )
+          ) == 0L
 
         TransactionResult(
           updatedJob =
             currentJob.copy {
               state = State.RANKER_STATE_SUCCEEDED
               etag = newEtag
+              clearErrorMessage()
               clearUpdateTime()
             },
           isLastJob = isLastJob,
@@ -690,19 +689,5 @@ class SpannerRankerJobService(
 
     private val VALID_MARK_PREVIOUS_STATES =
       setOf(State.RANKER_STATE_CREATED, State.RANKER_STATE_FAILED)
-
-    /**
-     * Returns whether marking [currentJobId] as SUCCEEDED makes it the last ranker job to complete
-     * for its (upload, model line). [jobsForModelLine] are the sibling jobs as read before the
-     * buffered transition is visible, so [currentJobId] is treated as already SUCCEEDED.
-     */
-    private fun computeIsLastJob(
-      jobsForModelLine: List<RankerJobResult>,
-      currentJobId: Long,
-    ): Boolean {
-      return jobsForModelLine.all {
-        it.rankerJob.state == State.RANKER_STATE_SUCCEEDED || it.rankerJobId == currentJobId
-      }
-    }
   }
 }

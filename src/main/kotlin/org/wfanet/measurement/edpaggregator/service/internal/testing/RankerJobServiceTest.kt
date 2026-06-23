@@ -803,6 +803,49 @@ abstract class RankerJobServiceTest {
   }
 
   @Test
+  fun `markRankerJobSucceeded clears error_message when retrying from FAILED`() = runBlocking {
+    val created: RankerJob = createRanker(0L)
+
+    val failed: RankerJob =
+      service.markRankerJobFailed(
+        markRankerJobFailedRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rankerJobResourceId = created.rankerJobResourceId
+          etag = created.etag
+          errorMessage = "transient"
+        }
+      )
+    assertThat(failed.errorMessage).isEqualTo("transient")
+
+    val response: MarkRankerJobSucceededResponse =
+      service.markRankerJobSucceeded(
+        markRankerJobSucceededRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rankerJobResourceId = created.rankerJobResourceId
+          etag = failed.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+
+    assertThat(response.rankerJob.state).isEqualTo(RankerState.RANKER_STATE_SUCCEEDED)
+    assertThat(response.rankerJob.errorMessage).isEmpty()
+
+    // The cleared error_message must also be persisted, not just reflected in the response copy.
+    val fetched: RankerJob =
+      service.getRankerJob(
+        getRankerJobRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rankerJobResourceId = created.rankerJobResourceId
+        }
+      )
+    assertThat(fetched.errorMessage).isEmpty()
+  }
+
+  @Test
   fun `markRankerJobFailed throws ABORTED for etag mismatch`() = runBlocking {
     val created: RankerJob = createRanker(0L)
 
