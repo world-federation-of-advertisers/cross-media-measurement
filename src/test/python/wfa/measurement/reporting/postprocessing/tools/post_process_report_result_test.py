@@ -936,11 +936,15 @@ class PostProcessReportResultTest(unittest.TestCase):
             list(whole.value.cumulative_results.k_plus_reach),
             [1003, 500, 250])
 
-    def test_reconcile_skips_when_multiple_rsrs_share_dim_and_selector(self):
+    def test_reconcile_raises_when_multiple_rsrs_share_dim_and_selector(self):
         """When two RSRs share the dim key AND the same selector kind (e.g.
-        two weekly cadences for the same dimension), the total<->weekly pair
-        is ambiguous. Log a warning and skip the dimension rather than
-        silently mis-reconciling."""
+        two weekly cadences for the same dimension), the post-processor
+        cannot disambiguate which cadence's solver run each RSR's
+        processed values come from -- one is already shipping values that
+        do not correspond to its own measurements (Issue #4056). PR #4057
+        rejects the only known input shape that produces this; reaching
+        this branch is a bug, and the reconciler raises rather than
+        silently shipping inconsistent data."""
         processor = PostProcessReportResult(self.mock_report_results_stub,
                                             self.mock_reporting_sets_stub)
         reporting_set_results = [
@@ -957,24 +961,138 @@ class PostProcessReportResultTest(unittest.TestCase):
         self._set_window_reach(request, 2, end_day=15, reach=1000)
         self._set_window_reach(request, 3, end_day=15, reach=999)
 
-        with self.assertLogs(level='WARNING') as cm:
+        with self.assertRaisesRegex(
+                ValueError,
+                r"share dimension key.*selector=weekly.*ids 2 and 3"):
             processor._reconcile_cross_window_identities(
                 request, reporting_set_results)
 
-        # No snap applied -- total still at its original 1003.
+    def test_reconcile_skips_silently_when_total_has_no_windows(self):
+        """A 'total' RSR with zero reporting windows means the
+        request-builder had nothing to write for this RSR. Nothing to
+        reconcile -- skip silently, do not warn, do not raise. Also do
+        not mutate the weekly side, which still has real data."""
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+        reporting_set_results = [
+            self._make_reporting_set_result(1, 'reporting_set_id_edp1',
+                                            'total'),
+            self._make_reporting_set_result(2, 'reporting_set_id_edp1',
+                                            'weekly'),
+        ]
+        request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+        # Touch the total entry to create it in the map, but add no
+        # reporting windows.
+        _ = request.reporting_set_results[1]
+        self._set_window_reach(request, 2, end_day=15, reach=1000,
+                               k_plus_reach=[1000, 500, 250])
+
+        processor._reconcile_cross_window_identities(
+            request, reporting_set_results)
+
+        # Weekly side untouched.
+        weekly = request.reporting_set_results[2].reporting_window_results[0]
+        self.assertEqual(weekly.value.cumulative_results.reach, 1000)
         self.assertEqual(
-            request.reporting_set_results[1].reporting_window_results[0]
-            .value.cumulative_results.reach, 1003)
-        # Weekly RSRs also untouched.
+            list(weekly.value.cumulative_results.k_plus_reach),
+            [1000, 500, 250])
+
+    def test_reconcile_raises_when_total_has_multiple_windows(self):
+        """A 'total' selector covers the full reporting interval, so
+        _group_results_by_window must produce exactly one window key.
+        More than one means that helper itself misbehaved -- a real
+        bug, not a legitimate config. Fail rather than silently shipping
+        un-reconciled data."""
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+        reporting_set_results = [
+            self._make_reporting_set_result(1, 'reporting_set_id_edp1',
+                                            'total'),
+            self._make_reporting_set_result(2, 'reporting_set_id_edp1',
+                                            'weekly'),
+        ]
+        request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+        # Two windows on a total-selector RSR -- impossible by data model.
+        self._set_window_reach(request, 1, end_day=15, reach=1003)
+        self._set_window_reach(request, 1, end_day=22, reach=1010)
+        self._set_window_reach(request, 2, end_day=15, reach=1000)
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"Total-selector ReportingSetResult 1 has 2 reporting "
+                r"windows"):
+            processor._reconcile_cross_window_identities(
+                request, reporting_set_results)
+
+    def test_reconcile_runs_rule1_sweep_when_reaches_agree(self):
+        """The Rule 1 sweep runs unconditionally, so a pre-existing
+        cumulative non-decreasing violation in the weekly series gets
+        fixed even when whole_campaign.reach already equals
+        last_weekly.reach (no cross-window snap fires). The earlier
+        version of this PR early-returned in the agree case and would
+        ship the violation unchanged."""
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+        reporting_set_results = [
+            self._make_reporting_set_result(1, 'reporting_set_id_edp1',
+                                            'total'),
+            self._make_reporting_set_result(2, 'reporting_set_id_edp1',
+                                            'weekly'),
+        ]
+        request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+        # whole_campaign and last_weekly agree at 1000 -- no cross-
+        # window snap. But week 1 has reach=1100 > week 2's 1000,
+        # which violates Rule 1 (cumulative non-decreasing).
+        self._set_window_reach(request, 1, end_day=15, reach=1000,
+                               k_plus_reach=[1000, 400, 200])
+        self._set_window_reach(request, 2, end_day=8, reach=1100,
+                               k_plus_reach=[1100, 500, 300])
+        self._set_window_reach(request, 2, end_day=15, reach=1000,
+                               k_plus_reach=[1000, 400, 200])
+
+        processor._reconcile_cross_window_identities(
+            request, reporting_set_results)
+
+        weekly = request.reporting_set_results[2].reporting_window_results
+        by_day = {w.key.end.day: w.value.cumulative_results for w in weekly}
+        # Earlier week clamped down to its successor's 1000.
+        self.assertEqual(by_day[8].reach, 1000)
+        self.assertEqual(by_day[15].reach, 1000)
+        # last_weekly untouched (no cross-window snap fired).
         self.assertEqual(
-            request.reporting_set_results[2].reporting_window_results[0]
-            .value.cumulative_results.reach, 1000)
+            list(by_day[15].k_plus_reach), [1000, 400, 200])
+        # whole_campaign untouched too.
+        whole = request.reporting_set_results[1].reporting_window_results[0]
+        self.assertEqual(whole.value.cumulative_results.reach, 1000)
         self.assertEqual(
-            request.reporting_set_results[3].reporting_window_results[0]
-            .value.cumulative_results.reach, 999)
-        self.assertTrue(
-            any('share dimension key' in m for m in cm.output),
-            f"expected dim-key collision warning, got: {cm.output}")
+            list(whole.value.cumulative_results.k_plus_reach),
+            [1000, 400, 200])
+
+    def test_dim_key_raises_on_unknown_iqf_variant(self):
+        """`_dimension_key_excluding_metric_frequency_spec` raises when
+        the IQF oneof is in an unrecognized state (either unset, or a
+        future variant added to the proto without updating this code).
+        Failing loud forces a proto-evolution contributor to update the
+        dim-key function; the alternative -- silently bucketing the new
+        variant into a generic 'none' key -- would collide it with any
+        unset-IQF RSR (or with itself across distinct values) and
+        mis-reconcile the cross-window snap (Issue #4049)."""
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+        rsr = self._make_reporting_set_result(
+            1, 'reporting_set_id_edp1', 'total')
+        # Simulate the "unknown variant" path by clearing the oneof.
+        # This mirrors what a future proto evolution would look like
+        # before this function is updated to recognize the new variant.
+        rsr.dimension.ClearField('impression_qualification_filter')
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"Unknown impression_qualification_filter oneof variant"):
+            processor._dimension_key_excluding_metric_frequency_spec(rsr)
 
     def test_reconcile_snap_down_preserves_cumulative_monotonicity(self):
         """When the cross-window snap pulls last_weekly down to match
@@ -1161,6 +1279,37 @@ class PostProcessReportResultTest(unittest.TestCase):
                     f"RSR {rsr_id}: k_plus_reach must be non-increasing; "
                     f"bucket {i}={cumulative.k_plus_reach[i]} exceeds "
                     f"bucket {i-1}={cumulative.k_plus_reach[i - 1]}")
+
+
+    def test_snap_cumulative_reach_clamps_non_monotone_input(self):
+        """`_snap_cumulative_reach` must forward-clamp every bucket, not
+        stop at the first locally-non-increasing pair. The orchestrator
+        today only calls it on inputs already shaped by
+        `compute_basic_metric_set` (which enforces monotonicity), so the
+        old early-break form happened to work. Pin the general-purpose
+        contract the docstring promises: a non-monotone input is fully
+        clamped, not partially.
+        """
+        bms = BasicMetricSet()
+        bms.reach = 100
+        # Deliberately non-monotone: bucket 2 (=20) > bucket 1 (=5).
+        # Old code: after `k[0]=8`, loop hits i=1 with 5<=8, breaks,
+        # leaves [8, 5, 20, 3] -- a Rule 3 violation between buckets 1
+        # and 2 untouched.
+        bms.k_plus_reach.extend([100, 5, 20, 3])
+        bms.impressions = 200
+
+        PostProcessReportResult._snap_cumulative_reach(
+            bms, snapped_reach=8, population=1000)
+
+        self.assertEqual(bms.reach, 8)
+        self.assertEqual(list(bms.k_plus_reach), [8, 5, 5, 3])
+        for i in range(1, len(bms.k_plus_reach)):
+            self.assertLessEqual(
+                bms.k_plus_reach[i], bms.k_plus_reach[i - 1],
+                f"k_plus_reach must be non-increasing; "
+                f"bucket {i}={bms.k_plus_reach[i]} exceeds "
+                f"bucket {i-1}={bms.k_plus_reach[i - 1]}")
 
 
     def test_reconcile_snap_down_recomputes_derived_fields(self):
