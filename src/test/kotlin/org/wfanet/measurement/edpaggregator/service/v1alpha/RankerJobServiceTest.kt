@@ -541,6 +541,7 @@ class RankerJobServiceTest {
         markRankerJobSucceededRequest {
           name = created.name
           etag = created.etag
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -596,6 +597,30 @@ class RankerJobServiceTest {
   }
 
   @Test
+  fun `markRankerJobSucceeded throws INVALID_ARGUMENT for empty requestId`() = runBlocking {
+    val name = RankerJobKey(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID, "rankerJob-some").toName()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.markRankerJobSucceeded(
+          markRankerJobSucceededRequest {
+            this.name = name
+            etag = "some-etag"
+          }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+        }
+      )
+  }
+
+  @Test
   fun `markRankerJobSucceeded throws ABORTED for etag mismatch`() = runBlocking {
     createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
     val created =
@@ -615,6 +640,7 @@ class RankerJobServiceTest {
           markRankerJobSucceededRequest {
             name = created.name
             etag = "wrong-etag"
+            requestId = UUID.randomUUID().toString()
           }
         )
       }
@@ -822,6 +848,7 @@ class RankerJobServiceTest {
           markRankerJobSucceededRequest {
             name = missingName
             etag = "some-etag"
+            requestId = UUID.randomUUID().toString()
           }
         )
       }
